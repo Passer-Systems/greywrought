@@ -26,7 +26,13 @@ pub struct NativeConquestV1 {
     pub retained_branch: ForkedProcessBranchV1,
 }
 
-pub fn run_native_conquest_v1() -> Result<NativeConquestV1, Box<dyn Error>> {
+pub struct ConquestProgramV1 {
+    pub exact_cwr1: Vec<u8>,
+    pub world_shift: Vec<u8>,
+    pub reconcile: Vec<u8>,
+}
+
+pub fn materialize_conquest_program_v1() -> Result<ConquestProgramV1, Box<dyn Error>> {
     let source = ResidentSourceWorkbenchV1::open(WORLD_SOURCE)?;
     let world_shift = source.handler_occurrence(b"world-shift", &[])?;
     let reconcile = source.handler_occurrence(b"reconcile", &[])?;
@@ -34,8 +40,20 @@ pub fn run_native_conquest_v1() -> Result<NativeConquestV1, Box<dyn Error>> {
     let mut request = decode_wasm_process_request_v1(&source.generation().cwr1)?;
     request.authority.occurrence_evidence_bytes = EXACT_BRANCH_CONTEXT.to_vec();
     request.authority.budget_units = BRANCH_BUDGET_UNITS;
+    request.occurrences = vec![world_shift.clone(), reconcile.clone()];
     let exact_cwr1 = encode_wasm_process_request_v1(&request)?;
+    Ok(ConquestProgramV1 {
+        exact_cwr1,
+        world_shift,
+        reconcile,
+    })
+}
 
+pub fn run_native_conquest_v1() -> Result<NativeConquestV1, Box<dyn Error>> {
+    let program = materialize_conquest_program_v1()?;
+    let exact_cwr1 = program.exact_cwr1;
+    let world_shift = program.world_shift;
+    let reconcile = program.reconcile;
     let mut authoritative = open_fresh_persistent_process_session_v1(&exact_cwr1)?;
     let branch_session = open_fresh_persistent_process_session_v1(&exact_cwr1)?;
     let parent = authoritative.world_base();

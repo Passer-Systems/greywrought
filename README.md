@@ -27,12 +27,17 @@ nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96
 nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu/bin:$PATH; cargo run --bin conquest --locked'
 bun run build:host
 bun run test:host
+bun run test:wasm-conquest
+bun run check:conquest
 ```
 
-The complete conquest command will be added when the reusable Clause
-resident-session branch boundary lands. No generated artifact is tracked.
+`bun run check:conquest` materializes the current Clause source to CWR1,
+builds the passive Beagle projection, stages the exact pinned Clause Wasm
+runtime, and executes the bounded branch journey. The Beagle build refuses to
+run unless the installed compiler checkout's tracked source is byte-equal to
+the recorded Beagle pin. No generated artifact is tracked.
 
 Pinned inputs:
 
-- Clause `3e0b25600b710ebe7f49fe8172f7fe5715c7ed62`
+- Clause `d55562875f8ad76d2489ba2ba637719c1c1a5763`
 - Beagle `9a128f443e8a5562ecd115e6872dbecf51fd1eb0`
