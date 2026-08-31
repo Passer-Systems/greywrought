@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:host": "/home/tom/code/beagle/pins/9a128f443e8a5562ecd115e6872dbecf51fd1eb0/bin/beagle-build-all src/host/presentation.bjs --out build/host"
+    "build:host": "/home/tom/code/beagle/pins/9a128f443e8a5562ecd115e6872dbecf51fd1eb0/bin/beagle-build-all src/host/presentation.bjs acceptance/disconnect/presentation_check.bjs --out build/host && install -Dm644 /home/tom/code/beagle/pins/9a128f443e8a5562ecd115e6872dbecf51fd1eb0/beagle-lib/lib/beagle/core.js build/host/node_modules/beagle/core.js",
+    "test:host": "bun build/host/greywrought-clause/presentation-check.js"
   }
 }
-

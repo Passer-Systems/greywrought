@@ -1,0 +1,20 @@
+#lang beagle/js
+
+(ns greywrought-clause.presentation-check
+  (:require [greywrought-clause.presentation :as presentation]))
+
+(declare-extern [console] Any)
+
+(let [rendered String (presentation/render-branch-explanation
+       (presentation/->BranchExplanationView
+        "state-r0"
+        "program-p0"
+        "authority-a0"
+        "activation-v0"
+        "candidate-c0"
+        "admitted"
+        "state-r1"))]
+  (if (= rendered
+         "base=state-r0 program=program-p0 authority=authority-a0 activation=activation-v0 candidate=candidate-c0 disposition=admitted successor=state-r1")
+    (.log console rendered)
+    (throw (new Error "passive explanation projection changed"))))

@@ -2,20 +2,22 @@
 
 (ns greywrought-clause.presentation)
 
-(defrecord BranchExplanationView
-  [base String
-   program String
-   authority String
-   activation String
-   candidate String
-   disposition String
-   successor String])
+(js/export
+  (defrecord BranchExplanationView
+    [base String
+     program String
+     authority String
+     activation String
+     candidate String
+     disposition String
+     successor String]))
 
-(defn render-branch-explanation [view BranchExplanationView] String
-  (str "base=" (.-base view)
-       " program=" (.-program view)
-       " authority=" (.-authority view)
-       " activation=" (.-activation view)
-       " candidate=" (.-candidate view)
-       " disposition=" (.-disposition view)
-       " successor=" (.-successor view)))
+(js/export
+  (defn render-branch-explanation [view BranchExplanationView] String
+    (str "base=" (.-base view)
+         " program=" (.-program view)
+         " authority=" (.-authority view)
+         " activation=" (.-activation view)
+         " candidate=" (.-candidate view)
+         " disposition=" (.-disposition view)
+         " successor=" (.-successor view))))

@@ -19,8 +19,16 @@ Authority is divided as follows:
 - ignored `build/` owns every CPP1, CWR1, Wasm, JavaScript, and native
   materialization.
 
-The exact rerun commands will be recorded here with the first landed executable
-journey; no generated artifact is tracked.
+Current focused loops:
+
+```sh
+nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu/bin:$PATH; cargo test --test law_edit --locked -- --nocapture'
+bun run build:host
+bun run test:host
+```
+
+The complete conquest command will be added when the reusable Clause
+resident-session branch boundary lands. No generated artifact is tracked.
 
 Pinned inputs:
 
