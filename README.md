@@ -23,6 +23,8 @@ Current focused loops:
 
 ```sh
 nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu/bin:$PATH; cargo test --test law_edit --locked -- --nocapture'
+nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu/bin:$PATH; cargo test --test disconnect --locked'
+nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu/bin:$PATH; cargo run --bin conquest --locked'
 bun run build:host
 bun run test:host
 ```
@@ -32,5 +34,5 @@ resident-session branch boundary lands. No generated artifact is tracked.
 
 Pinned inputs:
 
-- Clause `c287c289cab9d75ddaceea2bc01b2af545b58a06`
+- Clause `3e0b25600b710ebe7f49fe8172f7fe5715c7ed62`
 - Beagle `9a128f443e8a5562ecd115e6872dbecf51fd1eb0`

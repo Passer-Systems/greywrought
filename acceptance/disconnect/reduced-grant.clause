@@ -1,5 +1,6 @@
 referent F64
 referent Wayfarer
+referent WorldObjective
 
 relation carries
   reads {wayfarer: Wayfarer} carries {amount: F64}
@@ -8,6 +9,13 @@ relation carries
 
 ashen-wayfarer carries 1.0
 
+relation pressure
+  reads {objective: WorldObjective} pressure {amount: F64}
+  subject objective
+  mode given objective yields amount: one
+
+moonwell-restoration pressure 0.0
+
 on reconcile ?wayfarer
   when
     ?wayfarer carries ?held
@@ -15,3 +23,11 @@ on reconcile ?wayfarer
     ?wayfarer carries ?held
   include
     ?wayfarer carries ?held + 3.0
+
+on world-shift ?objective
+  when
+    ?objective pressure ?prior
+  withdraw
+    ?objective pressure ?prior
+  include
+    ?objective pressure ?prior + 1.0

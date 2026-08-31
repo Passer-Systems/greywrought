@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod conquest;
+
 use clause_workbench::{
     ResidentSourceAdmissionV1, ResidentSourceWorkbenchErrorV1, ResidentSourceWorkbenchV1,
 };
