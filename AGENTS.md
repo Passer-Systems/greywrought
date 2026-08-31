@@ -8,9 +8,11 @@ Generated CPP1, CWR1, Wasm, JavaScript, and native artifacts belong only in
 ignored `build/`. Clause and Beagle are consumed through their immutable pins;
 never import either live `main/` checkout.
 
-The disconnect boundary in `acceptance/disconnect/` is complete. The current
-delivery boundary is one bounded combat journey: one player, one enemy, one
-attack, explicit randomness, damage, death, and loot integrated through the
-existing branch, Candidate Delta, Admission, and explanation path. Do not
-broaden it into ongoing processes, external effects, networking, presentation,
-deployment, distribution, or additional game-domain breadth.
+The disconnect and bounded combat journeys are complete. The current delivery
+boundary is exactly one Clause-owned ongoing world process and one explicit
+external-effect lifecycle integrated beside the existing Candidate Delta and
+Admission path. Preserve distinct intent, authorization, attempt, receipt,
+Observation, Judgment, and Admission occurrences; the effect lifecycle must not
+create authoritative world state. Do not broaden this tranche into interactive
+presentation, general networking, deployment, distribution, or unrelated
+systems vocabulary.

@@ -1,0 +1,16 @@
+referent MoonwellPulseOpen
+referent MoonwellPulse
+referent JournalAction
+referent JournalResource
+referent JournalPayload
+referent JournalResult
+
+capability world-journal-capability
+
+relation moonwell-pulse
+  reads {pulse: MoonwellPulse} records {action: JournalAction} at {resource: JournalResource} with {payload: JournalPayload} yielding {result: JournalResult}
+  subject pulse
+  mode given pulse action resource payload yields result: many
+    reactive while MoonwellPulseOpen
+    continues linearly
+    effect action resource resource payload payload requires world-journal-capability

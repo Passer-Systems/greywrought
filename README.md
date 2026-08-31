@@ -12,6 +12,13 @@ against the independently advanced authoritative world, and only a separate
 Admission establishes the successor. The retained branch and admitted result
 remain causally explainable without deriving order from log position.
 
+A separate moonwell process now remains live across multiple Steps,
+suspension, and linear resumption. Its Clause-owned effect intent crosses one
+generic file boundary under exact one-shot authorization and returns distinct
+attempt, receipt, Observation, and Judgment evidence. That lifecycle creates
+no Candidate Delta or StateRevision; the combat journey's later Admission is
+still the only authoritative successor operation.
+
 Authority is divided as follows:
 
 - `src/world/*.clause` owns world laws and domain transition meaning.
@@ -30,6 +37,7 @@ nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96
 bun run build:host
 bun run test:host
 bun run test:wasm-conquest
+bun run test:wasm-effect
 bun run check:conquest
 ```
 
@@ -39,7 +47,12 @@ runtime, and executes the bounded branch journey. The Beagle build refuses to
 run unless the installed compiler checkout's tracked source is byte-equal to
 the recorded Beagle pin. No generated artifact is tracked.
 
+`bun run test:wasm-effect` writes exact Clause payload bytes to ignored
+`build/ongoing-effect/wasm-receipt.bin`; this is the real foreign action, not a
+manufactured success flag. `bun run check:conquest` then runs the separate
+combat Candidate Delta and Admission journey.
+
 Pinned inputs:
 
-- Clause `fc3ee2794c7450b26c0cf7c18b8b7f0243be8224`
-- Beagle `9a128f443e8a5562ecd115e6872dbecf51fd1eb0`
+- Clause `419140bd932bdd8461deb51c9f6c42a4bb5683b1`
+- Beagle `974221bc0c8982878d1278d3c61a2fb15ff1b0dc`

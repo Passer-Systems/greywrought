@@ -4,6 +4,7 @@ use std::fs;
 use std::path::Path;
 
 use greywrought_clause::conquest::materialize_conquest_program_v1;
+use greywrought_clause::ongoing_effect::materialize_ongoing_effect_program_v1;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let program = materialize_conquest_program_v1()?;
@@ -12,6 +13,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     fs::write(
         output.join("conquest-v1.cwr1.hex"),
         lowercase_hex(&program.exact_cwr1),
+    )?;
+    let effect = materialize_ongoing_effect_program_v1()?;
+    let effect_output = Path::new("build/ongoing-effect");
+    fs::create_dir_all(effect_output)?;
+    fs::write(
+        effect_output.join("ongoing-effect-v1.cwr1.hex"),
+        lowercase_hex(&effect.exact_cwr1),
     )?;
     Ok(())
 }

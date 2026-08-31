@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod conquest;
+pub mod ongoing_effect;
 
 use clause_workbench::{
     ResidentSourceAdmissionV1, ResidentSourceWorkbenchErrorV1, ResidentSourceWorkbenchV1,
@@ -9,6 +10,7 @@ use clause_workbench::{
 pub const WORLD_SOURCE: &[u8] = include_bytes!("world/ember-reconnection.clause");
 pub const RESISTED_STRIKE_SOURCE: &[u8] =
     include_bytes!("../acceptance/disconnect/resisted-strike.clause");
+pub const MOONWELL_PULSE_SOURCE: &[u8] = include_bytes!("world/moonwell-pulse.clause");
 
 pub fn run_one_admission(
     source: &[u8],
