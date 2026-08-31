@@ -1,0 +1,17 @@
+referent F64
+referent Wayfarer
+
+relation carries
+  reads {wayfarer: Wayfarer} carries {amount: F64}
+  subject wayfarer
+  mode given wayfarer yields amount: one
+
+ashen-wayfarer carries 1.0
+
+on reconcile ?wayfarer
+  when
+    ?wayfarer carries ?held
+  withdraw
+    ?wayfarer carries ?held
+  include
+    ?wayfarer carries ?held + 6.0

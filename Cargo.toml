@@ -1,0 +1,14 @@
+[package]
+name = "greywrought-clause"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+clause-package = { path = "/home/tom/code/clause/pins/c287c289cab9d75ddaceea2bc01b2af545b58a06/crates/clause-package" }
+clause-runtime = { path = "/home/tom/code/clause/pins/c287c289cab9d75ddaceea2bc01b2af545b58a06/crates/clause-runtime" }
+clause-workbench = { path = "/home/tom/code/clause/pins/c287c289cab9d75ddaceea2bc01b2af545b58a06/crates/clause-workbench" }
+
+[lints.rust]
+unsafe_code = "forbid"
+

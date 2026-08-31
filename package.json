@@ -1,0 +1,9 @@
+{
+  "name": "greywrought-clause",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:host": "/home/tom/code/beagle/pins/9a128f443e8a5562ecd115e6872dbecf51fd1eb0/bin/beagle-build-all src/host/presentation.bjs --out build/host"
+  }
+}
+
