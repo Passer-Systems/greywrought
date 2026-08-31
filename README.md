@@ -4,18 +4,20 @@ This repository owns the Greywrought application written in Clause. Clause
 itself remains a language/runtime project; the older `greywrought` repository
 is context only and is neither imported nor modified here.
 
-The first executable story is deliberately narrow: an ashen wayfarer forks
-from an exact authoritative revision while disconnected, advances without
-authority, returns a candidate reconnection consequence, and receives a
-separate domain-governed Admission. The retained branch and admitted successor
-must remain causally explainable without deriving order from log position.
+The executable story is deliberately narrow: an ashen wayfarer forks from an
+exact authoritative revision while disconnected, attacks one cinder wraith
+under an explicit retained random Observation, and returns non-authoritative
+damage, death, and loot consequences. The same Clause-owned occurrences replay
+against the independently advanced authoritative world, and only a separate
+Admission establishes the successor. The retained branch and admitted result
+remain causally explainable without deriving order from log position.
 
 Authority is divided as follows:
 
 - `src/world/*.clause` owns world laws and domain transition meaning.
 - `src/host/*.bjs` owns only passive presentation and the exact Clause Wasm ABI.
-- `acceptance/disconnect/` owns the bounded executable journey and law-edit
-  input.
+- `acceptance/disconnect/` owns the bounded executable combat journey and its
+  source-only critical-threshold edit.
 - ignored `build/` owns every CPP1, CWR1, Wasm, JavaScript, and native
   materialization.
 
@@ -39,5 +41,5 @@ the recorded Beagle pin. No generated artifact is tracked.
 
 Pinned inputs:
 
-- Clause `d55562875f8ad76d2489ba2ba637719c1c1a5763`
+- Clause `fc3ee2794c7450b26c0cf7c18b8b7f0243be8224`
 - Beagle `9a128f443e8a5562ecd115e6872dbecf51fd1eb0`

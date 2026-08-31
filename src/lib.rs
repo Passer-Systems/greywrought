@@ -7,8 +7,8 @@ use clause_workbench::{
 };
 
 pub const WORLD_SOURCE: &[u8] = include_bytes!("world/ember-reconnection.clause");
-pub const REDUCED_GRANT_SOURCE: &[u8] =
-    include_bytes!("../acceptance/disconnect/reduced-grant.clause");
+pub const RESISTED_STRIKE_SOURCE: &[u8] =
+    include_bytes!("../acceptance/disconnect/resisted-strike.clause");
 
 pub fn run_one_admission(
     source: &[u8],

@@ -17,7 +17,7 @@
            InitOutput
            SyncInitInput]])
 
-(declare-extern [Bun console] Any)
+(declare-extern [Bun console Reflect] Any)
 
 (defn initialize-real-branch-module [module ArrayBuffer] Any
   (let [input SyncInitInput module
@@ -40,6 +40,9 @@
 (defn identity-string [value Any] String
   (.stringify JSON value))
 
+(defn exact-field [value Any field String] Any
+  (.get Reflect value field))
+
 (defn require-conquest!
   [condition Bool
    message String] Any
@@ -49,14 +52,13 @@
 (.then
  (.all Promise [(.arrayBuffer
                  (.file Bun "./build/host/wasm/clause_runtime_bg.wasm"))
-                (.text (.file Bun "./build/conquest/conquest-v1.cwr1.hex"))
-                (.text (.file Bun "./build/conquest/world-shift.coi1.hex"))
-                (.text (.file Bun "./build/conquest/reconcile.coi1.hex"))])
+                (.text (.file Bun "./build/conquest/conquest-v1.cwr1.hex"))])
  (fn [assets Any] Any
    (let [module Any (initialize-real-branch-module (nth assets 0))
          request wire/ExactProcessRequest (wire/->ExactProcessRequest (wire/decode-cwr1-hex (nth assets 1)))
-         world-shift Any (wire/decode-cwr1-hex (nth assets 2))
-         reconcile Any (wire/decode-cwr1-hex (nth assets 3))
+         occurrences Any (wire/process-request-occurrences! request)
+         world-shift Any (nth occurrences 0)
+         combat Any (.slice occurrences 1)
          process-branch branch/WasmProcessBranch (branch/open-process-branch! module request 41 world-shift 8)
          opened Any (.-opened process-branch)
          pins Any (.-pins opened)
@@ -65,12 +67,23 @@
          authoritative Any (branch/admit-authoritative-occurrences!
           module process-branch [world-shift])
          r1 Any (.-successor authoritative)
-         proposal Any (branch/propose-branch-reconnect! module process-branch [reconcile])
+         proposal Any (branch/propose-branch-reconnect! module process-branch combat)
          evidence Any (.-evidence proposal)
          admitted Any (branch/adjudicate-branch-reconnect!
-          module process-branch proposal r1 [reconcile])
+          module process-branch proposal r1 combat)
          explanation Any (.-explanation admitted)
          queried Any (.-explanation (branch/explain-process-branch! module process-branch))
+         command-evidence Any (.-commandEvidence evidence)
+         random-evidence Any (nth command-evidence 1)
+         explained-random Any (nth (.-branchCommandEvidence explanation) 1)
+         authoritative-random Any (nth (.-authoritativeCommandEvidence explanation) 1)
+         admitted-frame Any (wire/decode-projected-term-frame
+                             (.-termBytes (.-projection admitted)))
+         strike Any (exact-field admitted-frame "ember-strike")
+         random-source Any (exact-field admitted-frame "combat-random")
+         random-sample Any (exact-field random-source "random-sample")
+         enemy Any (exact-field admitted-frame "cinder-wraith")
+         loot Any (exact-field admitted-frame "ashen-key")
          rendered String (presentation/render-branch-explanation
           (presentation/->BranchExplanationView
            (identity-string parent)
@@ -90,14 +103,32 @@
      (require-conquest! (not= (identity-string (.-run authoritative))
                               (identity-string branch-run))
                         "serialized host order manufactured one shared Run")
+     (require-conquest! (not= (identity-string (.-activation authoritative))
+                              (identity-string (.-activation (.-ancestry evidence))))
+                        "branch attack and authoritative replay shared one Activation")
      (require-conquest! (= (identity-string (.-parentState (.-pins evidence)))
                            (identity-string parent))
                         "reconnect evidence lost its exact parent")
      (require-conquest! (= (identity-string (.-run (.-ancestry evidence)))
                            (identity-string branch-run))
                         "reconnect evidence lost branch ancestry")
-     (require-conquest! (> (.-length (.-observations evidence)) 0)
-                        "branch proposal retained no Observation")
+     (require-conquest! (>= (.-length command-evidence) 5)
+                        "branch proposal retained no complete combat command family")
+     (require-conquest! (not= (identity-string (.-step (nth command-evidence 0)))
+                              (identity-string (.-step random-evidence)))
+                        "attack and random input collapsed into one Step")
+     (require-conquest! (= (identity-string (.-occurrence random-evidence))
+                           (identity-string (nth combat 1)))
+                        "random command evidence lost its exact entered occurrence")
+     (require-conquest! (= (identity-string random-evidence)
+                           (identity-string explained-random))
+                        "explanation lost the branch random Observation and Step")
+     (require-conquest! (= (identity-string (.-occurrence authoritative-random))
+                           (identity-string (.-occurrence random-evidence)))
+                        "authoritative replay changed the selected random occurrence")
+     (require-conquest! (not= (identity-string (.-observation authoritative-random))
+                              (identity-string (.-observation random-evidence)))
+                        "branch and authoritative replay shared one Observation identity")
      (require-conquest! (= (identity-string (.-predecessor admitted))
                            (identity-string r1))
                         "reconnect Admission did not replay against R1")
@@ -114,6 +145,16 @@
                         "causal explanation is empty")
      (require-conquest! (not (nil? (.-projection admitted)))
                         "Wasm exposed no admitted world projection")
+     (require-conquest! (= (exact-field strike "attack-state") "resolved")
+                        "Wasm projection did not resolve the Clause-owned attack")
+     (require-conquest! (= (exact-field random-sample "x") 0.95)
+                        "Wasm projection lost the explicit random selection")
+     (require-conquest! (= (exact-field enemy "vitality") 0.0)
+                        "Wasm projection did not retain Clause-owned damage")
+     (require-conquest! (= (exact-field enemy "combat-status") "dead")
+                        "Wasm projection did not retain Clause-owned death")
+     (require-conquest! (= (exact-field loot "custody") "ashen-wayfarer")
+                        "Wasm projection did not retain Clause-owned loot custody")
      (require-conquest! (> (.-length rendered) 0)
                         "passive Beagle presentation rendered nothing")
      (require-conquest!

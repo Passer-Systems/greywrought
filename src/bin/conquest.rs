@@ -10,8 +10,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("package={:?}", explanation.pins.package);
     println!("authority={:?}", explanation.pins.root_policy);
     println!("branch-activation={:?}", explanation.ancestry.activation);
-    println!("branch-steps={:?}", explanation.branch_steps);
-    println!("branch-observations={:?}", explanation.branch_observations);
+    println!(
+        "branch-command-evidence={:?}",
+        explanation.branch_command_evidence
+    );
     println!("candidate={:?}", explanation.branch_candidate);
     println!("judgment={:?}", explanation.judgment);
     println!("admission={:?}", explanation.admission);

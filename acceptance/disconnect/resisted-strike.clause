@@ -101,7 +101,7 @@ on apply-damage ?enemy
   when
     ?enemy vitality ?prior
     combat-random random sample Vec3 { x: ?roll, y: ?unused-y, z: ?attack-signal }
-    ?roll = 0.95
+    ?roll = 0.90
     ?attack-signal = 1.0
   withdraw
     ?enemy vitality ?prior
@@ -113,7 +113,7 @@ on resolve-death ?enemy
     ?enemy combat status ?status
     combat-random random sample Vec3 { x: ?roll, y: ?unused-y, z: ?attack-signal }
     ?status = alive
-    ?roll = 0.95
+    ?roll = 0.90
     ?attack-signal = 1.0
   withdraw
     ?enemy combat status ?status
@@ -125,7 +125,7 @@ on transfer-loot ?loot
     ?loot custody ?custodian
     combat-random random sample Vec3 { x: ?roll, y: ?unused-y, z: ?attack-signal }
     ?custodian = cinder-wraith
-    ?roll = 0.95
+    ?roll = 0.90
     ?attack-signal = 1.0
   withdraw
     ?loot custody ?custodian

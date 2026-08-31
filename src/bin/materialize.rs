@@ -13,14 +13,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         output.join("conquest-v1.cwr1.hex"),
         lowercase_hex(&program.exact_cwr1),
     )?;
-    fs::write(
-        output.join("world-shift.coi1.hex"),
-        lowercase_hex(&program.world_shift),
-    )?;
-    fs::write(
-        output.join("reconcile.coi1.hex"),
-        lowercase_hex(&program.reconcile),
-    )?;
     Ok(())
 }
 
