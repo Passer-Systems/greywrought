@@ -123,8 +123,9 @@ function handleReceipt(receipt: LifecycleReceipt): void {
   flushInput();
 }
 
-function exactFrame(frame: ReadonlyArray<unknown>): readonly number[] {
-  return Array.from(frame, (byte, index) => {
+function exactFrame(frame: WorkbenchEnvelope): readonly number[] {
+  const values = "toJSON" in frame ? frame.toJSON() : frame;
+  return Array.from(values, (byte, index) => {
     if (
       typeof byte !== "number" ||
       !Number.isSafeInteger(byte) ||

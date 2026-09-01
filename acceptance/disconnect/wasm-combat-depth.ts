@@ -205,7 +205,7 @@ function admitTick(
   );
   return {
     revision: accepted.revision,
-    projection: decodeProjectedTermFrame(Array.from(accepted.frame)),
+    projection: decodeProjectedTermFrame(accepted.frame),
   };
 }
 
