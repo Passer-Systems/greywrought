@@ -3,7 +3,8 @@
 (ns greywrought-clause.wasm-conquest
   (:require [greywrought-clause.presentation :as presentation]
             [jump-arena-shell.branch-wasm-port :as branch]
-            [jump-arena-shell.wasm-cartridge-port :as wire]))
+            [jump-arena-shell.wasm-cartridge-port :as wire])
+  (:require-global ["@types/bun" :refer [Bun]]))
 
 (require
  '["#clause-runtime-wasm"
@@ -17,7 +18,7 @@
            InitOutput
            SyncInitInput]])
 
-(declare-extern [Bun console Reflect] Any)
+(declare-extern [console Reflect] Any)
 
 (defn initialize-real-branch-module [module ArrayBuffer] Any
   (let [input SyncInitInput module

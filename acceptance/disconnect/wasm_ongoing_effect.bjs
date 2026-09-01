@@ -2,21 +2,19 @@
 
 (ns greywrought-clause.wasm-ongoing-effect
   (:require [jump-arena-shell.wasm-cartridge-port :as wasm]
-            [jump-arena-shell.workbench :as workbench]))
+            [jump-arena-shell.workbench :as workbench])
+  (:require-global ["@types/bun" :refer [Bun Uint8Array]]))
 
 (require
  '["#clause-runtime-wasm"
-   :refer [clause_session_v1_command
-           clause_session_v1_event_byte
-           clause_session_v1_event_len
-           clause_session_v1_io_reset
-           clause_session_v1_open
-           clause_session_v1_request_push
+   :refer [clause_session_v1_command_bulk
+           clause_session_v1_event_bulk
+           clause_session_v1_open_bulk
            initSync
            InitOutput
            SyncInitInput]])
 
-(declare-extern [Bun console] Any)
+(declare-extern console Any)
 
 (defn policy [] workbench/WorkbenchPolicy
   (let [maximum Int (.-MAX_SAFE_INTEGER Number)]
@@ -30,18 +28,14 @@
         _initialized InitOutput (initSync input)]
     (.freeze
      Object
-     {:clause_session_v1_io_reset
-      (fn [] Nil (clause_session_v1_io_reset))
-      :clause_session_v1_request_push
-      (fn [byte Int] Float (clause_session_v1_request_push byte))
-      :clause_session_v1_open
-      (fn [] Float (clause_session_v1_open))
-      :clause_session_v1_command
-      (fn [] Float (clause_session_v1_command))
-      :clause_session_v1_event_len
-      (fn [] Float (clause_session_v1_event_len))
-      :clause_session_v1_event_byte
-      (fn [index Int] Float (clause_session_v1_event_byte index))})))
+     {:clause_session_v1_open_bulk
+      (fn [request (Vec Int)] Float
+        (clause_session_v1_open_bulk (new Uint8Array request)))
+      :clause_session_v1_command_bulk
+      (fn [request (Vec Int)] Float
+        (clause_session_v1_command_bulk (new Uint8Array request)))
+      :clause_session_v1_event_bulk
+      (fn [] Any (clause_session_v1_event_bulk))})))
 
 (defn identity-string [value Any] String
   (.stringify JSON value))
@@ -82,7 +76,8 @@
            attempt Any (wasm/begin-effect-attempt!
                         module session (.-authorizationId issued))
            target String "./build/ongoing-effect/wasm-receipt.bin"
-           payload Any (new Uint8Array (.-payloadBytes attempt))
+           payload-bytes (Vec Int) (.-payloadBytes attempt)
+           payload (Uint8Array ArrayBuffer) (new Uint8Array payload-bytes)
            state-count String (str (.-stateRevisionCount intent))]
        (require-effect! (= (str (.-kind first)) "input")
                         "first moonwell advance did not reach Wasm")
@@ -123,8 +118,8 @@
                              "Bun did not materialize every exact payload byte")
             (.then
              (.arrayBuffer (.file Bun target))
-             (fn [receipt-buffer Any] Any
-               (let [receipt Any (.from Array (new Uint8Array receipt-buffer))
+             (fn [receipt-buffer ArrayBuffer] Any
+               (let [receipt (Vec Int) (.from Array (new Uint8Array receipt-buffer))
                      settled Any (wasm/settle-effect-attempt!
                                   module session (.-attemptId attempt) 0 receipt)]
                  (require-effect! (= (identity-string receipt)

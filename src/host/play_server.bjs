@@ -1,8 +1,117 @@
 #lang beagle/js
 
-(ns greywrought-clause.play-server)
+(ns greywrought-clause.play-server
+  (:require-global ["@types/bun" :refer [Bun Request Response]]))
 
-(declare-extern [Bun console URL Response] Any)
+(declare-extern [console JSON TextDecoder URL] Any)
+
+(def resident-source String "src/world/ember-reconnection.clause")
+
+(defrecord ResidentStreamReader [read (Fn [] (Promise Any))])
+
+(defrecord ResidentGenerationProcess
+  [process Any
+   reader ResidentStreamReader
+   decoder Any
+   buffered (Atom String)
+   source (Atom Any)
+   latest (Atom Any)])
+
+(defn json-stringify [value Any] String
+  (.stringify JSON value))
+
+(defn spawn-resident-generation! [] ResidentGenerationProcess
+  (let [process Any (.spawn Bun {:cmd ["build/cargo-target/debug/resident_generation"
+                                      resident-source]
+                                 :stdin "pipe"
+                                 :stdout "pipe"
+                                 :stderr "inherit"})]
+    (->ResidentGenerationProcess
+     process
+     (.getReader (.-stdout process))
+     (new TextDecoder)
+     (atom "")
+     (atom nil)
+     (atom nil))))
+
+(defn ^:async read-resident-line!
+  [resident ResidentGenerationProcess] (Promise String)
+  (loop []
+    (let [buffer String @(.-buffered resident)
+          newline Int (.indexOf buffer "\n")]
+      (if (>= newline 0)
+        (let [line String (.slice buffer 0 newline)]
+          (reset! (.-buffered resident) (.slice buffer (inc newline)))
+          line)
+        (let [chunk-promise (Promise Any) (.read (.-reader resident))
+              chunk Any (await chunk-promise)]
+          (if (.-done chunk)
+            (throw (new Error "resident generation process ended"))
+            (do
+              (reset! (.-buffered resident)
+                      (str buffer (.decode (.-decoder resident)
+                                           (.-value chunk)
+                                           {:stream true})))
+              (recur))))))))
+
+(defn generation-response
+  [line String
+   modified Any
+   hot Bool] Response
+  (let [fields Any (.split line "\t")
+        kind Any (nth fields 0)]
+    (cond
+      (= kind "generation")
+      (new Response
+           (json-stringify
+            {:generation (.parseInt Number (nth fields 1) 10)
+             :compilerMicros (.parseInt Number (nth fields 2) 10)
+             :cwr1 (nth fields 3)
+             :sourceModifiedMillis modified
+             :hot hot}))
+
+      (= kind "error")
+      (new Response
+           (json-stringify {:errorHex (nth fields 1)
+                            :sourceModifiedMillis modified})
+           {:status 422})
+
+      :else
+      (new Response "resident generation protocol failed" {:status 500}))))
+
+(defn ^:async resident-generation-response!
+  [resident ResidentGenerationProcess
+   after Int] (Promise Response)
+  (let [file Any (.file Bun resident-source)
+        source-promise (Promise String) (.text file)
+        source String (await source-promise)
+        modified Any (.-lastModified file)
+        prior Any @(.-source resident)]
+    (cond
+      (nil? prior)
+      (let [line String (await (read-resident-line! resident))]
+        (reset! (.-source resident) source)
+        (reset! (.-latest resident) line)
+        (generation-response line modified false))
+
+      (= prior source)
+      (let [line Any @(.-latest resident)
+            fields Any (if (nil? line) [] (.split line "\t"))
+            generation Int (if (= (count fields) 4)
+                             (.parseInt Number (nth fields 1) 10)
+                             -1)]
+        (if (= after generation)
+          (new Response nil {:status 204})
+          (generation-response line modified false)))
+
+      :else
+      (do
+        (reset! (.-source resident) source)
+        (.write (.-stdin (.-process resident)) "reload\n")
+        (.flush (.-stdin (.-process resident)))
+        (let [line String (await (read-resident-line! resident))]
+          (reset! (.-latest resident) line)
+          (generation-response line modified true))))))
 
 (defn served-file [pathname String] (U String Nil)
   (cond
@@ -36,16 +145,30 @@
     "build/ongoing-effect/ongoing-effect-v1.cwr1.hex"
     :else nil))
 
-(defn handle-request [request Any] Any
+(defn handle-request!
+  [resident ResidentGenerationProcess
+   request Request] (U Response (Promise Response))
   (let [url Any (new URL (.-url request))
         pathname String (.-pathname url)
+        after-source Any (.get (.-searchParams url) "after")
+        after Int (if (nil? after-source)
+                    -1
+                    (.parseInt Number after-source 10))
         path (U String Nil) (served-file pathname)]
-    (if (nil? path)
+    (cond
+      (= pathname "/resident-generation")
+      (resident-generation-response! resident after)
+
+      (nil? path)
       (new Response "Not found" {:status 404})
+
+      :else
       (new Response (.file Bun path)))))
 
+(def resident ResidentGenerationProcess (spawn-resident-generation!))
 (def server Any (.serve Bun {:hostname "127.0.0.1"
                               :port 4173
-                              :fetch handle-request}))
+                              :fetch (fn [request Request] (U Response (Promise Response))
+                                       (handle-request! resident request))}))
 
 (.log console (str "Greywrought Clause is playable at " (.-url server)))

@@ -8,11 +8,11 @@ Generated CPP1, CWR1, Wasm, JavaScript, and native artifacts belong only in
 ignored `build/`. Clause and Beagle are consumed through their immutable pins;
 never import either live `main/` checkout.
 
-The disconnect and bounded combat journeys are complete. The current delivery
-boundary is exactly one Clause-owned ongoing world process and one explicit
-external-effect lifecycle integrated beside the existing Candidate Delta and
-Admission path. Preserve distinct intent, authorization, attempt, receipt,
-Observation, Judgment, and Admission occurrences; the effect lifecycle must not
-create authoritative world state. Do not broaden this tranche into interactive
-presentation, general networking, deployment, distribution, or unrelated
-systems vocabulary.
+The disconnect, bounded combat, and ongoing-effect journeys are complete. The
+current delivery boundary is exactly one process-resident source compiler and
+one already-open browser installing each fresh checked generation. A save to
+`src/world/ember-reconnection.clause` must not rebuild Cargo or Beagle or restart
+the server or page. Preserve the exact random input, the hidden CandidateDelta,
+the separate Admission, stale-generation fencing, and source-owned world rules.
+Do not broaden this tranche into a watcher framework, editor infrastructure,
+general networking, deployment, distribution, or unrelated systems vocabulary.

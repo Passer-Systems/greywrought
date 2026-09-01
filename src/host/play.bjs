@@ -3,7 +3,8 @@
 (ns greywrought-clause.play
   (:require [jump-arena-shell.branch-wasm-port :as branch]
             [jump-arena-shell.wasm-cartridge-port :as wasm]
-            [jump-arena-shell.workbench :as workbench]))
+            [jump-arena-shell.workbench :as workbench])
+  (:require-global ["typescript:lib.dom" :refer [Response fetch]]))
 
 (require
  '["three"
@@ -33,20 +34,17 @@
            clause_branch_v1_io_reset
            clause_branch_v1_open
            clause_branch_v1_request_push
-           clause_session_v1_command
-           clause_session_v1_event_byte
-           clause_session_v1_event_len
-           clause_session_v1_io_reset
-           clause_session_v1_open
-           clause_session_v1_request_push
+           clause_session_v1_command_bulk
+           clause_session_v1_event_bulk
+           clause_session_v1_open_bulk
            initSync
            InitOutput
            SyncInitInput]])
 
 (declare-extern
   [cancelAnimationFrame document
-   fetch localStorage
-   requestAnimationFrame URLSearchParams
+   clearInterval Date localStorage
+   Reflect requestAnimationFrame setInterval setTimeout URLSearchParams
    window] Any)
 
 (defrecord Dormant [loaded Bool])
@@ -106,11 +104,19 @@
   [port workbench/CartridgePort
    session Any])
 
+(defrecord ResidentLawSession
+  [port workbench/CartridgePort
+   session (Atom Any)
+   generation (Atom Int)
+   polling (Atom Bool)
+   interval (Atom Int)])
+
 (defrecord PlayApp
   [module Any
    branchRequest wasm/ExactProcessRequest
    occurrences (Vec Any)
    effect EffectSession
+   residentLaw ResidentLawSession
    stage (Atom JourneyStage)
    effectSettled (Atom Bool)
    scene SceneShell
@@ -136,6 +142,14 @@
      (workbench/->WorkbenchSequenceLimits
       maximum maximum maximum maximum maximum))))
 
+(defn resident-policy [] workbench/WorkbenchPolicy
+  (let [maximum Int (.-MAX_SAFE_INTEGER Number)]
+    (workbench/->WorkbenchPolicy
+     8 8 32 wasm/cse1-projected-term-max-properties
+     wasm/cse1-projected-term-json-max-source-units
+     (workbench/->WorkbenchSequenceLimits
+      maximum maximum maximum maximum maximum))))
+
 (defn initialize-runtime [module ArrayBuffer] Any
   (let [input SyncInitInput module
         _initialized InitOutput (initSync {:module input})]
@@ -153,18 +167,14 @@
       (fn [] Float (clause_branch_v1_event_len))
       :clause_branch_v1_event_byte
       (fn [index Int] Float (clause_branch_v1_event_byte index))
-      :clause_session_v1_io_reset
-      (fn [] Nil (clause_session_v1_io_reset))
-      :clause_session_v1_request_push
-      (fn [byte Int] Float (clause_session_v1_request_push byte))
-      :clause_session_v1_open
-      (fn [] Float (clause_session_v1_open))
-      :clause_session_v1_command
-      (fn [] Float (clause_session_v1_command))
-      :clause_session_v1_event_len
-      (fn [] Float (clause_session_v1_event_len))
-      :clause_session_v1_event_byte
-      (fn [index Int] Float (clause_session_v1_event_byte index))})))
+      :clause_session_v1_open_bulk
+      (fn [request (Vec Int)] Float
+        (clause_session_v1_open_bulk (new Uint8Array request)))
+      :clause_session_v1_command_bulk
+      (fn [request (Vec Int)] Float
+        (clause_session_v1_command_bulk (new Uint8Array request)))
+      :clause_session_v1_event_bulk
+      (fn [] Any (clause_session_v1_event_bulk))})))
 
 (defn open-effect-session!
   [module Any
@@ -179,6 +189,138 @@
     ((.-startSession port) (.-acceptedPackage @accepted) 1
      (fn [result Any] Any (reset! started result)))
     (->EffectSession port (.-session @started))))
+
+(defn open-resident-law-session! [module Any] ResidentLawSession
+  (->ResidentLawSession
+   (wasm/create-wasm-cartridge-port module (resident-policy))
+   (atom nil)
+   (atom -1)
+   (atom false)
+   (atom 0)))
+
+(defn resident-candidate-configuration
+  [ordinal Int] workbench/InputConfiguration
+  (workbench/->InputConfiguration
+   1
+   [(workbench/->InputObservation
+     1
+     (workbench/create-workbench-envelope
+      (policy)
+      (.stringify JSON [(.stringify JSON {:kind "process-occurrence"
+                                          :ordinal ordinal})])))]))
+
+(defn resident-law-failure! [message Any] Nil
+  (set! (.-textContent (element "resident-law"))
+        (str "Source generation rejected\n" (str message)))
+  (set! (.-residentPhase (.-dataset (.-body document))) "rejected")
+  nil)
+
+(defn admit-resident-law!
+  [app PlayApp
+   session Any
+   candidate Any
+   payload Any] Nil
+  (let [admitted (Atom Any) (atom nil)
+        port workbench/CartridgePort (.-port (.-residentLaw app))]
+    ((.-requestAdmission port) session candidate
+     (fn [result Any] Any (reset! admitted result)))
+    (if (nil? (.-frame @admitted))
+      (resident-law-failure! (.-reason @admitted))
+      (let [projection Any (wasm/decode-projected-term-frame (.-frame @admitted))
+            enemy Any (.get Reflect projection "cinder-wraith")
+            loot Any (.get Reflect projection "ashen-key")
+            vitality Any (.get Reflect enemy "vitality")
+            status Any (.get Reflect enemy "combat-status")
+            custody Any (.get Reflect loot "custody")
+            hot Bool (.-hot payload)
+            now Float (.now Date)
+            modified Float (.-sourceModifiedMillis payload)
+            latency Float (if hot (- now modified) 0.0)
+            dataset Any (.-dataset (.-body document))]
+        (set! (.-residentGeneration dataset) (str (.-generation payload)))
+        (set! (.-residentPhase dataset) "admitted")
+        (set! (.-residentVitality dataset) (str vitality))
+        (set! (.-residentStatus dataset) status)
+        (set! (.-residentCustody dataset) custody)
+        (set! (.-residentCompilerMicros dataset) (str (.-compilerMicros payload)))
+        (when hot
+          (set! (.-residentLatencyMillis dataset) (str latency)))
+        (.push (.-__GREYWROUGHT_RESIDENT_EVENTS__ window)
+               {:phase "admitted"
+                :generation (.-generation payload)
+                :vitality vitality
+                :status status
+                :custody custody
+                :latencyMillis latency
+                :compilerMicros (.-compilerMicros payload)})
+        (set! (.-textContent (element "resident-law"))
+              (str "generation " (str (.-generation payload))
+                   " · admitted"
+                   "\nvitality " (str vitality)
+                   " · status " status
+                   "\nashen-key custody " custody
+                   (if hot
+                     (str "\nsource-save → admitted " (str latency) " ms"
+                          " · resident compile "
+                          (str (.-compilerMicros payload)) " µs")
+                     "\nresident generation ready"))))))
+  nil)
+
+(defn install-resident-law!
+  [app PlayApp
+   payload Any] Nil
+  (let [resident ResidentLawSession (.-residentLaw app)
+        port workbench/CartridgePort (.-port resident)
+        prior Any @(.-session resident)]
+    (when-not (nil? prior)
+      ((.-disposeSession port) prior))
+    (let [request wasm/ExactProcessRequest
+          (wasm/->ExactProcessRequest (wasm/decode-cwr1-hex (.-cwr1 payload)))
+          occurrences (Vec Any) (wasm/process-request-occurrences! request)
+          accepted (Atom Any) (atom nil)
+          started (Atom Any) (atom nil)]
+      ((.-acceptPackage port) request
+       (fn [result Any] Any (reset! accepted result)))
+      ((.-startSession port) (.-acceptedPackage @accepted) (.-generation payload)
+       (fn [result Any] Any (reset! started result)))
+      (if (nil? (.-session @started))
+        (resident-law-failure! (.-reason @started))
+        (let [session Any (.-session @started)
+              final-ordinal Int (dec (count occurrences))]
+          (reset! (.-generation resident) (.-generation payload))
+          (when (< final-ordinal 0)
+            (throw (new Error "resident generation has no combat occurrences")))
+          (loop [ordinal Int 0]
+            (when (< ordinal final-ordinal)
+              (wasm/advance-session-occurrence! (.-module app) session ordinal)
+              (recur (inc ordinal))))
+          (let [candidate (Atom Any) (atom nil)]
+            ((.-runCandidate port)
+             session
+             (workbench/->FixedTick 16)
+             (resident-candidate-configuration final-ordinal)
+             (fn [result Any] Any (reset! candidate result)))
+            (if (nil? (.-candidate @candidate))
+              (resident-law-failure! (.-reason @candidate))
+              (do
+                (reset! (.-session resident) session)
+                (set! (.-residentGeneration (.-dataset (.-body document)))
+                      (str (.-generation payload)))
+                (set! (.-residentPhase (.-dataset (.-body document)))
+                      "candidate-hidden")
+                (.push (.-__GREYWROUGHT_RESIDENT_EVENTS__ window)
+                       {:phase "candidate-hidden"
+                        :generation (.-generation payload)})
+                (set! (.-textContent (element "resident-law"))
+                      (str "generation " (str (.-generation payload))
+                           " · CandidateDelta retained\n"
+                           "projection hidden until separate Admission"))
+                (setTimeout
+                 (fn [] Any
+                   (admit-resident-law!
+                    app session (.-candidate @candidate) payload))
+                 0))))))))
+  nil)
 
 (defn owned-material
   [resources (Vec Any)
@@ -539,7 +681,41 @@
     (.push listeners [target handler])
     nil))
 
+(defn poll-resident-law! [app PlayApp] Nil
+  (let [resident ResidentLawSession (.-residentLaw app)]
+    (when-not @(.-polling resident)
+      (reset! (.-polling resident) true)
+      (let [decoded Any
+            (.then
+             (fetch (str "/resident-generation?after="
+                         (str @(.-generation resident)))
+                    {:cache "no-store"})
+             (fn [response Response] Any
+               (if (= (.-status response) 204)
+                 nil
+                 (.then
+                  (.json response)
+                  (fn [payload Any] Any
+                    (if (.-ok response)
+                      payload
+                      (throw (new Error
+                                  (str "resident source rejected: "
+                                       (.-errorHex payload))))))))))
+            installed Any
+            (.then decoded
+                   (fn [payload Any] Any
+                     (when-not (nil? payload)
+                       (install-resident-law! app payload))))]
+        (.then installed
+               (fn [value Any] Any
+                 (reset! (.-polling resident) false))
+               (fn [error Any] Any
+                 (resident-law-failure! (.-message error))
+                 (reset! (.-polling resident) false))))))
+  nil)
+
 (defn teardown! [app PlayApp] Nil
+  (clearInterval @(.-interval (.-residentLaw app)))
   (reset! (.-alive (.-scene app)) false)
   (cancelAnimationFrame @(.-frameHandle (.-scene app)))
   (.removeEventListener window "resize" (.-resizeHandler (.-scene app)))
@@ -562,6 +738,9 @@
     [(SuccessorAdmitted value admitted explanation projection)
      (branch/dispose-process-branch! (.-module app) value)])
   ((.-disposeSession (.-port (.-effect app))) (.-session (.-effect app)))
+  (let [resident-session Any @(.-session (.-residentLaw app))]
+    (when-not (nil? resident-session)
+      ((.-disposeSession (.-port (.-residentLaw app))) resident-session)))
   nil)
 
 (defn run-smoke-if-requested! [app PlayApp] Nil
@@ -590,10 +769,12 @@
         occurrences (Vec Any) (wasm/process-request-occurrences! branch-request)
         effect-request wasm/ExactProcessRequest (wasm/->ExactProcessRequest (wasm/decode-cwr1-hex effect-source))
         effect EffectSession (open-effect-session! module effect-request)
+        resident-law ResidentLawSession (open-resident-law-session! module)
         scene SceneShell (create-scene!)
         listeners (Vec Any) []
-        app PlayApp (->PlayApp module branch-request occurrences effect
+        app PlayApp (->PlayApp module branch-request occurrences effect resident-law
                                (atom (->Dormant true)) (atom false) scene listeners)]
+    (set! (.-__GREYWROUGHT_RESIDENT_EVENTS__ window) [])
     (bind-click! listeners "enter-world" (fn [] Any (enter-world! app)))
     (bind-click! listeners "disconnect" (fn [] Any (disconnect! app)))
     (bind-click! listeners "continue-branch" (fn [] Any (advance-branch! app)))
@@ -604,16 +785,23 @@
     (.addEventListener window "beforeunload" (fn [event Any] Any (teardown! app))
                        {:once true})
     (set! (.-__GREYWROUGHT_TEARDOWN__ window) (fn [] Any (teardown! app)))
+    (poll-resident-law! app)
+    (reset! (.-interval resident-law)
+            (browser-int
+             (setInterval (fn [] Any (poll-resident-law! app)) 25)))
     (run-smoke-if-requested! app)
     app))
 
 (.then
  (.all Promise [(.then (fetch "/wasm/clause_runtime_bg.wasm")
-                       (fn [response Any] Any (.arrayBuffer response)))
+                       (fn [response Response] (Promise ArrayBuffer)
+                         (.arrayBuffer response)))
                 (.then (fetch "/assets/conquest-v1.cwr1.hex")
-                       (fn [response Any] Any (.text response)))
+                       (fn [response Response] (Promise String)
+                         (.text response)))
                 (.then (fetch "/assets/ongoing-effect-v1.cwr1.hex")
-                       (fn [response Any] Any (.text response)))])
+                       (fn [response Response] (Promise String)
+                         (.text response)))])
  (fn [assets Any] Any
    (start-app! (initialize-runtime (nth assets 0))
                (nth assets 1)
