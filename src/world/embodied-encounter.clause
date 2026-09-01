@@ -25,6 +25,9 @@ referent telegraph
 referent lunge
 referent recovery
 referent rearming
+referent charging
+referent hit-recovery
+referent overrun-recovery
 referent ready
 referent queued
 referent active
@@ -236,6 +239,31 @@ relation enemy-pressure-clock
   subject enemy
   mode given enemy yields value: one
 
+relation enemy-charge-start
+  reads {enemy: Enemy} enemy charge start {value: Vec3}
+  subject enemy
+  mode given enemy yields value: one
+
+relation enemy-charge-end
+  reads {enemy: Enemy} enemy charge end {value: Vec3}
+  subject enemy
+  mode given enemy yields value: one
+
+relation enemy-charge-envelope
+  reads {enemy: Enemy} enemy charge envelope {value: Vec3}
+  subject enemy
+  mode given enemy yields value: one
+
+relation enemy-charge-committed
+  reads {enemy: Enemy} enemy charge committed {value: Bool}
+  subject enemy
+  mode given enemy yields value: one
+
+relation enemy-recovery-clock
+  reads {enemy: Enemy} enemy recovery clock {value: F64}
+  subject enemy
+  mode given enemy yields value: one
+
 relation enemy-random-sample
   reads {enemy: Enemy} enemy random sample {value: F64}
   subject enemy
@@ -351,7 +379,7 @@ jump-arena gravity -12.0
 jump-arena jump speed 3.0
 jump-arena floor height 0.0
 jump-arena minimum x -4.6
-jump-arena maximum x 2.0
+jump-arena maximum x 4.8
 jump-arena minimum z -3.2
 jump-arena maximum z 3.2
 jump-arena projectile contact radius 0.6
@@ -384,11 +412,16 @@ player-1 combat status alive
 player-1 status effect clear
 player-1 status clock 12.0
 
-cinder-wraith enemy position Vec3 { x: 2.0, y: 0.0, z: 0.0 }
+cinder-wraith enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
 cinder-wraith enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
 cinder-wraith enemy combat status alive
 cinder-wraith enemy pressure state telegraph
-cinder-wraith enemy pressure clock 90.0
+cinder-wraith enemy pressure clock 36.0
+cinder-wraith enemy recovery clock 0.0
+cinder-wraith enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+cinder-wraith enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+cinder-wraith enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+cinder-wraith enemy charge committed false
 cinder-wraith enemy random sample 0.5
 
 cinder-bolt projectile position Vec3 { x: 2.0, y: 0.55, z: 0.0 }
@@ -889,12 +922,15 @@ on reset-status-clock ?player
   include
     ?player status clock 12.0
 
-on count-pressure ?enemy
+on count-telegraph-pressure ?enemy
   when
+    ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?clock
     cinder-wraith enemy combat status ?enemy-status
     player-1 combat status ?player-status
     game-objective objective state Vec3 { x: ?objective, y: ?branch, z: ?unused }
+    ?pressure = telegraph
+    ?clock > 0.0
     ?enemy-status = alive
     ?player-status = alive
     ?objective = 0.0
@@ -903,16 +939,90 @@ on count-pressure ?enemy
   include
     ?enemy enemy pressure clock ?clock - 1.0
 
-on begin-lunge ?enemy
+on commit-boar-charge ?enemy
   when
     ?enemy enemy pressure state ?pressure
-    cinder-wraith enemy pressure clock ?clock
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy position Vec3 { x: ?start-x, y: ?start-y, z: ?start-z }
+    ?enemy enemy charge start ?prior-start
+    ?enemy enemy charge end ?prior-end
+    ?enemy enemy charge envelope ?prior-envelope
+    ?enemy enemy charge committed ?committed
+    player-1 position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?pressure = telegraph
-    ?clock = 60.0
+    ?clock = 0.0
+    ?committed = false
+    ?target-y <= 2.0
+    ((?target-x - ?start-x) * (?target-x - ?start-x)) + ((?target-y - ?start-y) * (?target-y - ?start-y)) + ((?target-z - ?start-z) * (?target-z - ?start-z)) <= 64.0
   withdraw
     ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy charge start ?prior-start
+    ?enemy enemy charge end ?prior-end
+    ?enemy enemy charge envelope ?prior-envelope
+    ?enemy enemy charge committed ?committed
   include
-    ?enemy enemy pressure state lunge
+    ?enemy enemy pressure state charging
+    ?enemy enemy pressure clock 12.0
+    ?enemy enemy charge start Vec3 { x: ?start-x, y: ?start-y, z: ?start-z }
+    ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?enemy enemy charge envelope Vec3 { x: 2.0, y: 8.0, z: 0.75 }
+    ?enemy enemy charge committed true
+
+on count-charge-pressure ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?pressure = charging
+    ?clock >= 0.0
+  withdraw
+    ?enemy enemy pressure clock ?clock
+  include
+    ?enemy enemy pressure clock ?clock - 1.0
+
+on advance-boar-charge ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy charge start Vec3 { x: ?start-x, y: ?start-y, z: ?start-z }
+    ?enemy enemy charge end Vec3 { x: ?end-x, y: ?end-y, z: ?end-z }
+    ?pressure = charging
+    ?clock > 0.0
+  withdraw
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+  include
+    ?enemy enemy position Vec3 { x: ?enemy-x + ((?end-x - ?start-x) / 12.0), y: ?enemy-y + ((?end-y - ?start-y) / 12.0), z: ?enemy-z + ((?end-z - ?start-z) / 12.0) }
+
+on observe-boar-charge-hit ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy charge envelope Vec3 { x: ?maximum-height, y: ?maximum-distance, z: ?corridor-radius }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ?pressure = charging
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-y - ?enemy-y) * (?player-y - ?enemy-y)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= ?corridor-radius * ?corridor-radius
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+  include
+    ?enemy enemy pressure state hit-recovery
+    ?enemy enemy recovery clock 30.0
+
+on begin-boar-overrun-recovery ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?pressure = charging
+    ?clock = -1.0
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+  include
+    ?enemy enemy pressure state overrun-recovery
+    ?enemy enemy recovery clock 54.0
 
 on launch-cinder-bolt ?projectile
   when
@@ -991,59 +1101,83 @@ on rearm-cinder-bolt ?projectile
   include
     ?projectile projectile state dormant
 
-on begin-recovery ?enemy
+on count-hit-recovery ?enemy
   when
     ?enemy enemy pressure state ?pressure
-    cinder-wraith enemy pressure clock ?clock
-    ?pressure = lunge
-    ?clock = 48.0
+    ?enemy enemy recovery clock ?clock
+    ?pressure = hit-recovery
+    ?clock > 0.0
   withdraw
-    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?clock
   include
-    ?enemy enemy pressure state recovery
+    ?enemy enemy recovery clock ?clock - 1.0
 
-on begin-rearming ?enemy
+on count-overrun-recovery ?enemy
   when
     ?enemy enemy pressure state ?pressure
-    cinder-wraith enemy pressure clock ?clock
-    ?pressure = recovery
-    ?clock = 0.0
+    ?enemy enemy recovery clock ?clock
+    ?pressure = overrun-recovery
+    ?clock > 0.0
   withdraw
-    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?clock
   include
-    ?enemy enemy pressure state rearming
+    ?enemy enemy recovery clock ?clock - 1.0
 
-on reset-pressure-clock ?enemy
-  when
-    ?enemy enemy pressure clock ?clock
-    cinder-wraith enemy pressure state ?pressure
-    ?pressure = rearming
-  withdraw
-    ?enemy enemy pressure clock ?clock
-  include
-    ?enemy enemy pressure clock 91.0
-
-on begin-telegraph-90 ?enemy
+on rearm-after-hit-recovery ?enemy
   when
     ?enemy enemy pressure state ?pressure
-    cinder-wraith enemy pressure clock ?clock
-    ?pressure = rearming
-    ?clock = 90.0
+    ?enemy enemy pressure clock ?pressure-clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy charge start ?start
+    ?enemy enemy charge end ?end
+    ?enemy enemy charge envelope ?envelope
+    ?enemy enemy charge committed ?committed
+    ?pressure = hit-recovery
+    ?recovery-clock = 0.0
   withdraw
     ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?pressure-clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy charge start ?start
+    ?enemy enemy charge end ?end
+    ?enemy enemy charge envelope ?envelope
+    ?enemy enemy charge committed ?committed
   include
     ?enemy enemy pressure state telegraph
+    ?enemy enemy pressure clock 36.0
+    ?enemy enemy recovery clock 0.0
+    ?enemy enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?enemy enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?enemy enemy charge committed false
 
-on begin-telegraph-91 ?enemy
+on rearm-after-overrun-recovery ?enemy
   when
     ?enemy enemy pressure state ?pressure
-    cinder-wraith enemy pressure clock ?clock
-    ?pressure = rearming
-    ?clock = 91.0
+    ?enemy enemy pressure clock ?pressure-clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy charge start ?start
+    ?enemy enemy charge end ?end
+    ?enemy enemy charge envelope ?envelope
+    ?enemy enemy charge committed ?committed
+    ?pressure = overrun-recovery
+    ?recovery-clock = 0.0
   withdraw
     ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?pressure-clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy charge start ?start
+    ?enemy enemy charge end ?end
+    ?enemy enemy charge envelope ?envelope
+    ?enemy enemy charge committed ?committed
   include
     ?enemy enemy pressure state telegraph
+    ?enemy enemy pressure clock 36.0
+    ?enemy enemy recovery clock 0.0
+    ?enemy enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?enemy enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?enemy enemy charge committed false
 
 on resolve-wraith-death ?enemy
   when
@@ -1394,6 +1528,16 @@ on reset-enemy-pressure-state ?enemy
   include
     ?enemy enemy pressure state telegraph
 
+on reset-enemy-position ?enemy
+  when
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+  include
+    ?enemy enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
+
 on reset-enemy-pressure-clock ?enemy
   when
     ?enemy enemy pressure clock ?clock
@@ -1402,7 +1546,57 @@ on reset-enemy-pressure-clock ?enemy
   withdraw
     ?enemy enemy pressure clock ?clock
   include
-    ?enemy enemy pressure clock 90.0
+    ?enemy enemy pressure clock 36.0
+
+on reset-enemy-recovery-clock ?enemy
+  when
+    ?enemy enemy recovery clock ?clock
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy recovery clock ?clock
+  include
+    ?enemy enemy recovery clock 0.0
+
+on reset-enemy-charge-start ?enemy
+  when
+    ?enemy enemy charge start ?start
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy charge start ?start
+  include
+    ?enemy enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+
+on reset-enemy-charge-end ?enemy
+  when
+    ?enemy enemy charge end ?end
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy charge end ?end
+  include
+    ?enemy enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+
+on reset-enemy-charge-envelope ?enemy
+  when
+    ?enemy enemy charge envelope ?envelope
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy charge envelope ?envelope
+  include
+    ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+
+on reset-enemy-charge-committed ?enemy
+  when
+    ?enemy enemy charge committed ?committed
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy charge committed ?committed
+  include
+    ?enemy enemy charge committed false
 
 on reset-projectile-x ?projectile
   when

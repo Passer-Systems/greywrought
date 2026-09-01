@@ -56,8 +56,10 @@ import {
   applyAdmittedFrame,
   createCinderwakePresentation,
   disposeCinderwakePresentation,
+  hideChargeCorridor,
   renderPresentationFrame,
   setActivityCue,
+  setChargeCorridor,
   signalDeath,
   signalImpact,
   signalPropulsion,
@@ -162,6 +164,11 @@ interface EnemyProjection {
   readonly maximumVitality: number;
   readonly pressureState: string;
   readonly pressureClock: number;
+  readonly chargeStart: Vector3Projection;
+  readonly chargeEnd: Vector3Projection;
+  readonly chargeRadius: number;
+  readonly chargeCommitted: boolean;
+  readonly recoveryClock: number;
   readonly randomSample: number;
   readonly combatStatus: string;
 }
@@ -442,6 +449,29 @@ function decodeGameProjection(value: ProjectedValue): GameProjection {
         "enemy-pressure-clock",
         "cinder-wraith",
       ),
+      chargeStart: projectedPosition(
+        projectedField(enemy, "enemy-charge-start", "cinder-wraith"),
+        "cinder-wraith.enemy-charge-start",
+      ),
+      chargeEnd: projectedPosition(
+        projectedField(enemy, "enemy-charge-end", "cinder-wraith"),
+        "cinder-wraith.enemy-charge-end",
+      ),
+      chargeRadius: projectedNumber(
+        projectedField(enemy, "enemy-charge-envelope", "cinder-wraith"),
+        "z",
+        "cinder-wraith.enemy-charge-envelope",
+      ),
+      chargeCommitted: projectedBoolean(
+        enemy,
+        "enemy-charge-committed",
+        "cinder-wraith",
+      ),
+      recoveryClock: projectedNumber(
+        enemy,
+        "enemy-recovery-clock",
+        "cinder-wraith",
+      ),
       randomSample: projectedNumber(
         enemy,
         "enemy-random-sample",
@@ -522,6 +552,12 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
       {
         subject: "cinder-wraith",
         position: enemy.position,
+        visible: false,
+        vitalityRatio: enemy.vitality / Math.max(0.001, enemy.maximumVitality),
+      },
+      {
+        subject: "magitek-boar",
+        position: enemy.position,
         visible: true,
         vitalityRatio: enemy.vitality / Math.max(0.001, enemy.maximumVitality),
       },
@@ -548,11 +584,24 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
   });
   setActivityCue(
     app.scene.presentation,
-    "cinder-wraith",
+    "magitek-boar",
     enemy.pressureState === "telegraph" ? 1 : 0,
-    enemy.pressureState === "lunge" ? 1 : 0,
-    enemy.pressureState === "recovery" ? 1 : 0,
+    enemy.pressureState === "charging" ? 1 : 0,
+    enemy.pressureState === "hit-recovery" ||
+      enemy.pressureState === "overrun-recovery"
+      ? 1
+      : 0,
   );
+  if (enemy.chargeCommitted) {
+    setChargeCorridor(
+      app.scene.presentation,
+      enemy.chargeStart,
+      enemy.chargeEnd,
+      enemy.chargeRadius,
+    );
+  } else {
+    hideChargeCorridor(app.scene.presentation);
+  }
   setActivityCue(
     app.scene.presentation,
     "ashen-key",
@@ -587,11 +636,12 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
           ? "ASHEN KEY REVEALED · walk over the glowing key"
           : loot.state === "acquired" && loot.custody === "player-1"
             ? "KEY CLAIMED · carry it west to the moonwell"
-            : "Read the telegraph · meet the bolt aloft · fell the wraith";
+            : "Read the boar telegraph · burst perpendicular · punish recovery";
   element("stage").textContent = `world · ${objectiveStatus}`;
   element("summary").textContent =
-    `wayfarer ${player.combatStatus} · wraith ${enemy.combatStatus} / ` +
-    `${enemy.pressureState} ${enemy.pressureClock} · key ${loot.state} / ` +
+    `wayfarer ${player.combatStatus} · boar ${enemy.combatStatus} / ` +
+    `${enemy.pressureState} ${enemy.pressureClock} · recovery ${enemy.recoveryClock} · ` +
+    `key ${loot.state} / ` +
     `${loot.custody} · booster ${player.boosterEnergy} / ${player.boosterCapacity} · ` +
     `ignition ${player.boosterThreshold} · regeneration delay ${player.boosterDelay} · ` +
     `status ${player.statusEffect} ${player.statusClock} · fixed sample ${enemy.randomSample}`;
@@ -607,6 +657,8 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     gameCustody: loot.custody,
     gamePlayerX: String(player.position.x),
     gamePlayerZ: String(player.position.z),
+    gameBoarX: String(enemy.position.x),
+    gameBoarZ: String(enemy.position.z),
     gameBoosterEnergy: String(player.boosterEnergy),
     gameBoosterCapacity: String(player.boosterCapacity),
     gameBoosterIgnitionThreshold: String(player.boosterThreshold),
@@ -616,6 +668,8 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     gameProjectileVisible: String(bolt.visible),
     gameEnemyPressure: enemy.pressureState,
     gamePressureClock: String(enemy.pressureClock),
+    gameBoarRecoveryClock: String(enemy.recoveryClock),
+    gameChargeCorridorVisible: String(enemy.chargeCommitted),
   });
 
   if (prior !== null) {
@@ -657,6 +711,8 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     objective: objectiveStatus,
     playerX: player.position.x,
     playerZ: player.position.z,
+    boarX: enemy.position.x,
+    boarZ: enemy.position.z,
     boosterEnergy: player.boosterEnergy,
     boosterCapacity: player.boosterCapacity,
     boosterIgnitionThreshold: player.boosterThreshold,
@@ -666,6 +722,8 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     projectileVisible: bolt.visible,
     enemyPressure: enemy.pressureState,
     pressureClock: enemy.pressureClock,
+    boarRecoveryClock: enemy.recoveryClock,
+    chargeCorridorVisible: enemy.chargeCommitted,
     playerVitality: player.vitality,
     enemyVitality: enemy.vitality,
     lootState: loot.state,
@@ -870,6 +928,7 @@ function createScene(): SceneShell {
     {
       wayfarer: "ashen-wayfarer",
       wraith: "cinder-wraith",
+      boar: "magitek-boar",
       bolt: "cinder-bolt",
       relic: "ashen-key",
       moonwell: "moonwell",

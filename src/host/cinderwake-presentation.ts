@@ -29,6 +29,7 @@ import {
 export interface CinderwakeSubjectIds {
   readonly wayfarer: string;
   readonly wraith: string;
+  readonly boar: string;
   readonly bolt: string;
   readonly relic: string;
   readonly moonwell: string;
@@ -92,6 +93,7 @@ export interface CinderwakePresentation {
   readonly camera: PerspectiveCamera;
   readonly renderer: WebGLRenderer;
   readonly subjects: readonly SubjectPresentation[];
+  readonly chargeCorridor: Object3D;
   readonly resources: OwnedPresentationResources;
   readonly rigReady: Promise<void>;
   width: number;
@@ -336,6 +338,69 @@ function createWraith(
   );
 }
 
+function createBoar(
+  subject: string,
+  resources: OwnedPresentationResources,
+): SubjectPresentation {
+  const root = new Group();
+  const bodyMaterial = standardMaterial(
+    resources,
+    0x5a462d,
+    0x161720,
+    0.78,
+    0.36,
+  );
+  const body = mesh(
+    ownGeometry(resources, new BoxGeometry(1.45, 0.82, 0.92)),
+    bodyMaterial,
+  );
+  const head = mesh(
+    ownGeometry(resources, new BoxGeometry(0.72, 0.62, 0.78)),
+    standardMaterial(resources, 0x2e3842, 0x070500, 0.72, 0.4),
+  );
+  const tuskGeometry = ownGeometry(resources, new ConeGeometry(0.11, 0.58, 8));
+  const tuskMaterial = standardMaterial(
+    resources,
+    0xe7dfd8,
+    0x282828,
+    0.88,
+    0.26,
+  );
+  const leftTusk = mesh(tuskGeometry, tuskMaterial);
+  const rightTusk = mesh(tuskGeometry, tuskMaterial);
+  const boosterGeometry = ownGeometry(
+    resources,
+    new SphereGeometry(0.18, 12, 8),
+  );
+  const boosterMaterial = standardMaterial(
+    resources,
+    0xff7339,
+    0xff3333,
+    0.16,
+    0.18,
+    true,
+    0.94,
+  );
+  const leftBooster = mesh(boosterGeometry, boosterMaterial);
+  const rightBooster = mesh(boosterGeometry, boosterMaterial);
+  body.position.y = 0.62;
+  head.position.set(0.86, 0.66, 0);
+  leftTusk.rotation.z = -Math.PI / 2;
+  rightTusk.rotation.z = -Math.PI / 2;
+  leftTusk.position.set(1.22, 0.52, 0.29);
+  rightTusk.position.set(1.22, 0.52, -0.29);
+  leftBooster.position.set(-0.78, 0.7, 0.31);
+  rightBooster.position.set(-0.78, 0.7, -0.31);
+  root.add(body, head, leftTusk, rightTusk, leftBooster, rightBooster);
+  return subjectPresentation(
+    subject,
+    root,
+    null,
+    bodyMaterial,
+    createEffectShell(resources, root, 1.18, 0xffa000, 0xff2c00),
+  );
+}
+
 function createBolt(
   subject: string,
   resources: OwnedPresentationResources,
@@ -532,6 +597,35 @@ export function setActivityCue(
   subject.recoveryLevel = clampUnit(recovery);
 }
 
+export function setChargeCorridor(
+  presentation: CinderwakePresentation,
+  start: ProjectedPosition,
+  end: ProjectedPosition,
+  radius: number,
+): void {
+  const corridor = presentation.chargeCorridor;
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const dz = end.z - start.z;
+  const horizontal = Math.sqrt(dx * dx + dz * dz);
+  const length = Math.sqrt(horizontal * horizontal + dy * dy);
+  corridor.position.set(
+    (start.x + end.x) / 2,
+    (start.y + end.y) / 2,
+    (start.z + end.z) / 2,
+  );
+  corridor.scale.set(length, radius * 2, radius * 2);
+  corridor.rotation.y = -Math.atan2(dz, dx);
+  corridor.rotation.z = Math.atan2(dy, horizontal);
+  corridor.visible = true;
+}
+
+export function hideChargeCorridor(
+  presentation: CinderwakePresentation,
+): void {
+  presentation.chargeCorridor.visible = false;
+}
+
 export function signalImpact(
   presentation: CinderwakePresentation,
   subjectId: string,
@@ -654,18 +748,27 @@ export function createCinderwakePresentation(
   const renderer = new WebGLRenderer({ antialias: true, alpha: false });
   const resources: OwnedPresentationResources = { geometries: [], materials: [] };
   const wayfarer = createWayfarer(ids.wayfarer, resources);
+  const wraith = createWraith(ids.wraith, resources);
+  const boar = createBoar(ids.boar, resources);
   const subjects = [
     wayfarer,
-    createWraith(ids.wraith, resources),
+    wraith,
+    boar,
     createBolt(ids.bolt, resources),
     createRelic(ids.relic, resources),
     createMoonwell(ids.moonwell, resources),
   ];
+  const chargeCorridor = mesh(
+    ownGeometry(resources, new BoxGeometry(1, 1, 1)),
+    standardMaterial(resources, 0xff4f36, 0xff0000, 0, 0.28, true, 0.2),
+  );
+  chargeCorridor.visible = false;
   const presentation: CinderwakePresentation = {
     scene,
     camera,
     renderer,
     subjects,
+    chargeCorridor,
     resources,
     rigReady: Promise.resolve(),
     width: 0,
@@ -693,7 +796,14 @@ export function createCinderwakePresentation(
   emberLight.position.set(3.8, 1.9, -1.8);
   const wellLight = new PointLight(0x57adff, 18, 5.6, 2);
   wellLight.position.set(-3.3, 1.1, 2.7);
-  scene.add(...subjects.map(({ root }) => root), ambient, keyLight, emberLight, wellLight);
+  scene.add(
+    ...subjects.map(({ root }) => root),
+    chargeCorridor,
+    ambient,
+    keyLight,
+    emberLight,
+    wellLight,
+  );
   renderer.setPixelRatio(Math.max(1, Math.min(2, pixelRatio)));
   renderer.outputColorSpace = SRGBColorSpace;
 
