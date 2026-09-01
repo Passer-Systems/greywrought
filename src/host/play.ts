@@ -607,6 +607,23 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
   const ordinal = resident.admittedOrdinal + 1;
   const { player, enemy, bolt, loot, objective } = projection;
   const objectiveStatus = objectiveLabel(objective.state);
+  const terminalFeedback = element("terminal-feedback");
+  terminalFeedback.hidden = objectiveStatus === "playing";
+  if (objectiveStatus === "failed") {
+    element("terminal-feedback-kicker").textContent = "ENCOUNTER TERMINATED";
+    element("terminal-feedback-title").textContent = "WAYFARER DISABLED";
+    element("terminal-feedback-detail").textContent =
+      "The corrupted magitek boar reduced your vitality to zero.";
+    element("terminal-feedback-action").textContent =
+      "PRESS R TO RESTORE THE REVISION";
+  } else if (objectiveStatus === "completed") {
+    element("terminal-feedback-kicker").textContent = "REVISION SECURED";
+    element("terminal-feedback-title").textContent = "ASHEN KEY ADMITTED";
+    element("terminal-feedback-detail").textContent =
+      "The moonwell accepted the key and stabilized this world revision.";
+    element("terminal-feedback-action").textContent =
+      "PRESS R TO RUN THE ENCOUNTER AGAIN";
+  }
   resident.admittedOrdinal = ordinal;
 
   app.scene.enemyNameplateProjection = {
