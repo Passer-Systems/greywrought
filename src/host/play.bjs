@@ -1,31 +1,11 @@
 #lang beagle/js
 
 (ns greywrought-clause.play
-  (:require [jump-arena-shell.branch-wasm-port :as branch]
+  (:require [greywrought-clause.cinderwake-presentation :as cinder]
+            [jump-arena-shell.branch-wasm-port :as branch]
             [jump-arena-shell.wasm-cartridge-port :as wasm]
             [jump-arena-shell.workbench :as workbench])
   (:require-global ["typescript:lib.dom" :refer [Response fetch]]))
-
-(require
- '["three"
-   :refer [AmbientLight
-           BoxGeometry
-           Color
-           ConeGeometry
-           CylinderGeometry
-           DirectionalLight
-           Group
-           Mesh
-           MeshStandardMaterial
-           PerspectiveCamera
-           PlaneGeometry
-           PointLight
-           Raycaster
-           Scene
-           SphereGeometry
-           TorusGeometry
-           Vector2
-           WebGLRenderer]])
 
 (require
  '["#clause-runtime-wasm"
@@ -47,8 +27,7 @@
    clearInterval Date
    localStorage Reflect
    requestAnimationFrame setInterval
-   setTimeout URLSearchParams
-   window] Any)
+   URLSearchParams window] Any)
 
 (defrecord Dormant [loaded Bool])
 (defrecord Ready [entered Bool])
@@ -89,18 +68,10 @@
    explanationText String])
 
 (defrecord SceneShell
-  [scene Any
-   camera Any
-   renderer Any
+  [presentation cinder/CinderwakePresentation
    canvas Any
-   authoritativeGroup Any
-   branchGroup Any
-   selectables (Vec Any)
-   resources (Vec Any)
-   selected (Atom Any)
    frameHandle (Atom Int)
    alive (Atom Bool)
-   resizeHandler Any
    pointerHandler Any])
 
 (defrecord EffectSession
@@ -115,6 +86,7 @@
    interval (Atom Int)
    pendingHot (Atom Any)
    lastProjection (Atom Any)
+   admittedOrdinal (Atom Int)
    candidateSeen (Atom Bool)])
 
 (defrecord PlayApp
@@ -205,6 +177,7 @@
    (atom 0)
    (atom nil)
    (atom nil)
+   (atom 0)
    (atom false)))
 
 (defn resident-law-failure! [message Any] Nil
@@ -237,28 +210,11 @@
       (= status -1.0) "failed"
       :else "playing")))
 
-(defn authoritative-figure
-  [shell SceneShell
-   label String] Any
-  (loop [index Int 0]
-    (if (= index (count (.-selectables shell)))
-      nil
-      (let [figure Any (nth (.-selectables shell) index)
-            data Any (.-userData figure)]
-        (if (and (= (.-label data) label)
-                 (= (.-realm data) "authoritative"))
-          figure
-          (recur (inc index)))))))
-
-(defn position-figure!
-  [figure Any
-   position Any
-   elevation Float] Nil
+(defn presentation-position [position Any] cinder/ProjectedPosition
   (let [x Float (projected-property position "x")
         y Float (projected-property position "y")
         z Float (projected-property position "z")]
-    (.set (.-position figure) x (+ y elevation) z))
-  nil)
+    (cinder/->ProjectedPosition x y z)))
 
 (defn vitality-bar!
   [bar-id String
@@ -270,15 +226,6 @@
           (str "scaleX(" (str ratio) ")"))
     (set! (.-textContent (element value-id))
           (str (str vitality) " / " (str maximum))))
-  nil)
-
-(defn flash-figure!
-  [figure Any
-   color Int] Nil
-  (.setHex (.-emissive (.-material figure)) color)
-  (setTimeout
-   (fn [] Any (.setHex (.-emissive (.-material figure)) 0))
-   110)
   nil)
 
 (defn bounded-game-event! [event Any] Nil
@@ -293,6 +240,9 @@
    projection Any] Nil
   (let [resident ResidentLawSession (.-residentLaw app)
         prior Any @(.-lastProjection resident)
+        ordinal Int (inc @(.-admittedOrdinal resident))
+        presentation cinder/CinderwakePresentation
+        (.-presentation (.-scene app))
         player Any (projected-property projection "player-1")
         enemy Any (projected-property projection "cinder-wraith")
         loot Any (projected-property projection "ashen-key")
@@ -318,28 +268,38 @@
         enemy-status String (projected-property enemy "enemy-combat-status")
         loot-state String (projected-property loot "loot-state")
         custody String (projected-property loot "custody")
-        objective-status String (objective-label objective-state)
-        player-figure Any (authoritative-figure (.-scene app) "ashen-wayfarer")
-        enemy-figure Any (authoritative-figure (.-scene app) "cinder-wraith")
-        loot-figure Any (authoritative-figure (.-scene app) "ashen-key")
-        exit-figure Any (authoritative-figure (.-scene app) "moonwell")]
-    (position-figure! player-figure player-position 0.75)
-    (position-figure! enemy-figure enemy-position 0.82)
-    (position-figure! loot-figure loot-position 0.38)
-    (position-figure! exit-figure exit-position 0.27)
-    (set! (.-visible loot-figure) (not (= loot-state "hidden")))
-    (set! (.-opacity (.-material enemy-figure))
-          (if (= enemy-status "dead") 0.28 0.72))
-    (.setHex (.-emissive (.-material enemy-figure))
-             (cond
-               (= pressure-state "telegraph") 5970442
-               (= pressure-state "lunge") 7864380
-               :else 0))
-    (.setScalar (.-scale enemy-figure)
-                (cond
-                  (= pressure-state "lunge") 1.22
-                  (= pressure-state "recovery") 0.88
-                  :else 1.0))
+        objective-status String (objective-label objective-state)]
+    (reset! (.-admittedOrdinal resident) ordinal)
+    (cinder/apply-admitted-frame!
+     presentation
+     (cinder/->AdmittedPresentationFrame
+      ordinal
+      [(cinder/->AdmittedSubjectFrame
+        "ashen-wayfarer"
+        (presentation-position player-position)
+        true
+        (/ player-vitality (max 0.001 player-maximum)))
+       (cinder/->AdmittedSubjectFrame
+        "cinder-wraith"
+        (presentation-position enemy-position)
+        true
+        (/ enemy-vitality (max 0.001 enemy-maximum)))
+       (cinder/->AdmittedSubjectFrame
+        "ashen-key"
+        (presentation-position loot-position)
+        (not (= loot-state "hidden"))
+        1.0)
+       (cinder/->AdmittedSubjectFrame
+        "moonwell"
+        (presentation-position exit-position)
+        true
+        1.0)]))
+    (cinder/set-activity-cue!
+     presentation
+     "cinder-wraith"
+     (if (= pressure-state "telegraph") 1.0 0.0)
+     (if (= pressure-state "lunge") 1.0 0.0)
+     (if (= pressure-state "recovery") 1.0 0.0))
     (vitality-bar! "player-vitality-bar" "player-vitality"
                    player-vitality player-maximum)
     (vitality-bar! "enemy-vitality-bar" "enemy-vitality"
@@ -382,24 +342,38 @@
             prior-player-vitals Any (projected-property prior-player "player-vitals")
             prior-enemy-vitals Any (projected-property prior-enemy "enemy-vitals")
             prior-player-vitality Float (projected-property prior-player-vitals "x")
-            prior-enemy-vitality Float (projected-property prior-enemy-vitals "x")]
-        (cond
-          (< enemy-vitality prior-enemy-vitality)
-          (do
-            (set! (.-textContent (element "combat-feedback"))
-                  (str "EMBER IMPACT · -"
-                       (str (- prior-enemy-vitality enemy-vitality))))
-            (flash-figure! enemy-figure 6299680))
-
-          (< player-vitality prior-player-vitality)
-          (do
-            (set! (.-textContent (element "combat-feedback"))
-                  (str "WRAITH IMPACT · -"
-                       (str (- prior-player-vitality player-vitality))))
-            (flash-figure! player-figure 7348240))
-
-          :else
-          (set! (.-textContent (element "combat-feedback")) ""))))
+            prior-enemy-vitality Float (projected-property prior-enemy-vitals "x")
+            prior-grounded Bool (projected-property prior-player "grounded")
+            prior-player-status String (projected-property prior-player "combat-status")
+            prior-enemy-status String (projected-property prior-enemy "enemy-combat-status")]
+        (set! (.-textContent (element "combat-feedback")) "")
+        (when (< enemy-vitality prior-enemy-vitality)
+          (set! (.-textContent (element "combat-feedback"))
+                (str "EMBER IMPACT · -"
+                     (str (- prior-enemy-vitality enemy-vitality))))
+          (cinder/signal-impact!
+           presentation "cinder-wraith" ordinal
+           (/ (- prior-enemy-vitality enemy-vitality)
+              (max 0.001 enemy-maximum))))
+        (when (< player-vitality prior-player-vitality)
+          (set! (.-textContent (element "combat-feedback"))
+                (str "WRAITH IMPACT · -"
+                     (str (- prior-player-vitality player-vitality))))
+          (cinder/signal-impact!
+           presentation "ashen-wayfarer" ordinal
+           (/ (- prior-player-vitality player-vitality)
+              (max 0.001 player-maximum))))
+        (when (and prior-grounded (not grounded))
+          (cinder/signal-dash!
+           presentation "ashen-wayfarer" ordinal 1.0))
+        (when (and (= player-status "dead")
+                   (not= prior-player-status "dead"))
+          (cinder/signal-death!
+           presentation "ashen-wayfarer" ordinal))
+        (when (and (= enemy-status "dead")
+                   (not= prior-enemy-status "dead"))
+          (cinder/signal-death!
+           presentation "cinder-wraith" ordinal))))
     (reset! (.-lastProjection resident) projection)
     (bounded-game-event!
      {:phase "frame-admitted"
@@ -525,198 +499,46 @@
         (resident-law-failure! "resident generation reload was not accepted"))))
   nil)
 
-(defn owned-material
-  [resources (Vec Any)
-   color Int
-   transparent Bool] Any
-  (let [material Any (new MeshStandardMaterial
-             {:color color
-              :emissive 0
-              :metalness 0.16
-              :roughness 0.68
-              :transparent transparent
-              :opacity (if transparent 0.72 1.0)})]
-    (.push resources material)
-    material))
-
-(defn add-entity!
-  [group Any
-   selectables (Vec Any)
-   resources (Vec Any)
-   geometry Any
-   color Int
-   transparent Bool
-   x Float
-   y Float
-   z Float
-   label String
-   realm String] Any
-  (let [material Any (owned-material resources color transparent)
-        mesh Any (new Mesh)]
-    (set! (.-geometry mesh) geometry)
-    (set! (.-material mesh) material)
-    (.push resources geometry)
-    (.set (.-position mesh) x y z)
-    (set! (.-label (.-userData mesh)) label)
-    (set! (.-realm (.-userData mesh)) realm)
-    (.add group mesh)
-    (.push selectables mesh)
-    mesh))
-
-(defn create-world-group!
-  [selectables (Vec Any)
-   resources (Vec Any)
-   realm String
-   offset Float
-   branchWorld Bool] Any
-  (let [group Any (new Group)
-        player Any (add-entity!
-                    group selectables resources
-                    (new ConeGeometry 0.48 1.5 7)
-                    (if branchWorld 6929407 15971421)
-                    false -3.2 0.75 0.0 "ashen-wayfarer" realm)
-        wraith Any (add-entity!
-                    group selectables resources
-                    (new SphereGeometry 0.64 20 14)
-                    (if branchWorld 4779919 11041007)
-                    true 1.35 0.82 0.0 "cinder-wraith" realm)
-        key Any (add-entity!
-                 group selectables resources
-                 (new TorusGeometry 0.32 0.10 10 24)
-                 15388769 false 1.35 0.38 0.88 "ashen-key" realm)
-        moonwell Any (add-entity!
-                      group selectables resources
-                      (new CylinderGeometry 0.80 1.02 0.54 24)
-                      6216159 false -3.1 0.27 2.55 "moonwell" realm)]
-    (set! (.-x (.-rotation player)) 0.0)
-    (set! (.-x (.-rotation key)) (/ (.-PI Math) 2.0))
-    (set! (.-y (.-position group)) 0.0)
-    (set! (.-x (.-position group)) offset)
-    (set! (.-visible group) (not branchWorld))
-    group))
-
-(defn resize-scene! [shell SceneShell] Nil
-  (let [canvas Any (.-canvas shell)
-        width Int (max 1 (browser-int (.-clientWidth canvas)))
-        height Int (max 1 (browser-int (.-clientHeight canvas)))
-        camera Any (.-camera shell)
-        renderer Any (.-renderer shell)]
-    (set! (.-aspect camera) (/ width height))
-    (.updateProjectionMatrix camera)
-    (.setSize renderer width height false)
-    nil))
-
-(defn select-object!
-  [shell SceneShell
-   value Any] Nil
-  (let [prior Any @(.-selected shell)]
-    (when-not (nil? prior)
-      (.setHex (.-emissive (.-material prior)) 0))
-    (reset! (.-selected shell) value)
-    (if (nil? value)
-      (set! (.-textContent (element "selection")) "Nothing selected.")
-      (do
-        (.setHex (.-emissive (.-material value)) 2438321)
-        (set! (.-textContent (element "selection"))
-              (str (.-label (.-userData value))
-                   "\nrealm: " (.-realm (.-userData value))))))
-    nil))
-
-(defn pick-scene!
-  [shell SceneShell
-   event Any] Nil
+(defn focus-scene! [shell SceneShell] Nil
   (.focus (.-canvas shell) {:preventScroll true})
-  (let [rect Any (.getBoundingClientRect (.-canvas shell))
-        width Int (max 1 (browser-int (.-width rect)))
-        height Int (max 1 (browser-int (.-height rect)))
-        x Float (- (/ (* 2.0 (- (browser-int (.-clientX event))
-                                  (browser-int (.-left rect))))
-                       width)
-                   1.0)
-        y Float (- 1.0 (/ (* 2.0 (- (browser-int (.-clientY event))
-                                      (browser-int (.-top rect))))
-                           height))
-        pointer Any (new Vector2 x y)
-        raycaster Any (new Raycaster)]
-    (.setFromCamera raycaster pointer (.-camera shell))
-    (let [hits Any (.intersectObjects raycaster (.-selectables shell) false)]
-      (select-object! shell
-                      (if (> (browser-int (.-length hits)) 0)
-                        (.-object (nth hits 0))
-                        nil)))
-    nil))
+  (set! (.-textContent (element "selection"))
+        "Arena focused. Keyboard input enters the resident Clause session.")
+  nil)
 
 (defn render-loop! [shell SceneShell] Nil
   (when @(.-alive shell)
-    (let [now Float (.now Date)
-          time Float (/ now 1000.0)]
-      (doseq [figure Any (.-selectables shell)]
-        (let [label String (.-label (.-userData figure))]
-          (cond
-            (= label "cinder-wraith")
-            (set! (.-y (.-rotation figure)) time)
-
-            (= label "ashen-key")
-            (set! (.-y (.-rotation figure)) (* time 2.1))
-
-            (= label "moonwell")
-            (set! (.-y (.-rotation figure)) (- time))
-
-            :else nil))))
-    (.render (.-renderer shell) (.-scene shell) (.-camera shell))
+    (let [canvas Any (.-canvas shell)
+          now Float (.now Date)
+          time Float (/ now 1000.0)
+          width Int (max 1 (browser-int (.-clientWidth canvas)))
+          height Int (max 1 (browser-int (.-clientHeight canvas)))]
+      (cinder/render-presentation-frame!
+       (.-presentation shell) time width height))
     (reset! (.-frameHandle shell)
             (browser-int
              (requestAnimationFrame (fn [] Any (render-loop! shell))))))
   nil)
 
 (defn create-scene! [] SceneShell
-  (let [scene Any (new Scene)
-        camera Any (new PerspectiveCamera 46.0 1.0 0.1 40.0)
-        renderer Any (new WebGLRenderer)
-        canvas Any (.-domElement renderer)
-        resources (Vec Any) []
-        selectables (Vec Any) []
-        authoritative Any (create-world-group! selectables resources
-                                               "authoritative" 0.0 false)
-        branch-world Any (create-world-group! selectables resources
-                                              "disconnected branch" 6.8 true)
-        floor-geometry Any (new PlaneGeometry 11.0 8.4)
-        floor-material Any (owned-material resources 986895 false)
-        floor Any (new Mesh)
-        ambient Any (new AmbientLight 11385087 1.65)
-        sun Any (new DirectionalLight 16768993 3.1)
-        well-glow Any (new PointLight 6225919 18.0 5.5 2.0)
-        selected (Atom Any) (atom nil)
+  (let [pixel-ratio Float (.-devicePixelRatio window)
+        presentation cinder/CinderwakePresentation
+        (cinder/create-cinderwake-presentation!
+         (cinder/->CinderwakeSubjectIds
+          "ashen-wayfarer" "cinder-wraith" "ashen-key" "moonwell")
+         (max 1.0 (min 2.0 pixel-ratio)))
+        canvas Any (.-domElement (.-renderer presentation))
         frame (Atom Int) (atom 0)
         alive (Atom Bool) (atom true)
         shell-holder (Atom Any) (atom nil)
-        resize-handler Any (fn [] Any (resize-scene! @shell-holder))
-        pointer-handler Any (fn [event Any] Any (pick-scene! @shell-holder event))
+        pointer-handler Any (fn [event Any] Any (focus-scene! @shell-holder))
         shell SceneShell (->SceneShell
-                          scene camera renderer canvas authoritative branch-world
-                          selectables resources selected frame alive
-                          resize-handler pointer-handler)]
+                          presentation canvas frame alive pointer-handler)]
     (reset! shell-holder shell)
     (set! (.-id canvas) "world-canvas")
     (set! (.-tabIndex canvas) 0)
     (.setAttribute canvas "aria-label" "Greywrought semantic world")
     (.prepend (element "world-wrap") canvas)
-    (.push resources floor-geometry)
-    (set! (.-geometry floor) floor-geometry)
-    (set! (.-material floor) floor-material)
-    (set! (.-background scene) (new Color 526608))
-    (set! (.-x (.-rotation floor)) (- (/ (.-PI Math) 2.0)))
-    (.set (.-position floor) 0.0 -0.02 0.0)
-    (.set (.-position camera) 0.0 7.3 8.8)
-    (.lookAt camera 0.0 0.35 0.0)
-    (.set (.-position sun) -3.0 7.0 5.0)
-    (.set (.-position well-glow) -3.1 1.2 2.55)
-    (.add scene floor authoritative branch-world ambient sun well-glow)
-    (.setPixelRatio renderer
-                    (min 2 (max 1 (browser-int (.-devicePixelRatio window)))))
-    (.addEventListener window "resize" resize-handler)
     (.addEventListener canvas "pointerdown" pointer-handler)
-    (resize-scene! shell)
     (render-loop! shell)
     shell))
 
@@ -770,7 +592,6 @@
     (set-disabled! "continue-branch" (not (.-canAdvance view)))
     (set-disabled! "submit-candidate" (not (.-canSubmit view)))
     (set-disabled! "admit-candidate" (not (.-canAdmit view)))
-    (set! (.-visible (.-branchGroup (.-scene app))) (.-branchVisible view))
     (.toggle (.-classList (element "branch-label")) "visible" (.-branchVisible view))
     (let [candidate Any (element "candidate")]
       (.toggle (.-classList candidate) "visible" (not (nil? (.-candidateText view))))
@@ -994,14 +815,12 @@
   (clearInterval @(.-interval (.-residentLaw app)))
   (reset! (.-alive (.-scene app)) false)
   (cancelAnimationFrame @(.-frameHandle (.-scene app)))
-  (.removeEventListener window "resize" (.-resizeHandler (.-scene app)))
   (.removeEventListener (.-canvas (.-scene app)) "pointerdown"
                         (.-pointerHandler (.-scene app)))
   (doseq [listener Any (.-listeners app)]
     (.removeEventListener (nth listener 0) (nth listener 1) (nth listener 2)))
-  (doseq [resource Any (.-resources (.-scene app))]
-    (.dispose resource))
-  (.dispose (.-renderer (.-scene app)))
+  (cinder/dispose-cinderwake-presentation!
+   (.-presentation (.-scene app)))
   (.remove (.-canvas (.-scene app)))
   (match @(.-stage app)
     [(Dormant loaded) nil]

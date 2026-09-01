@@ -200,7 +200,7 @@ jump-arena jump speed 3.0
 jump-arena move speed 3.90625
 jump-arena floor height 0.0
 jump-arena minimum x -4.6
-jump-arena maximum x 4.6
+jump-arena maximum x 2.0
 jump-arena minimum z -3.2
 jump-arena maximum z 3.2
 
@@ -380,7 +380,7 @@ on wraith-finishing-impact ?player
     ?player-status = alive
     ?enemy-status = alive
     ?pressure = lunge
-    ?clock = 50.0
+    ?clock = 59.0
     ?sample = 0.5
     ?grounded = true
     ?vitality = 2.0
@@ -583,6 +583,38 @@ on fail-objective ?objective
   include
     ?objective objective state Vec3 { x: -1.0, y: ?branch, z: ?unused-state }
 
+on clear-reset-signal ?objective
+  when
+    ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    player-1 grounded ?grounded
+    player-1 player vitals Vec3 { x: ?player-vitality, y: ?player-maximum, z: ?player-alive }
+    cinder-wraith enemy vitals Vec3 { x: ?enemy-vitality, y: ?enemy-maximum, z: ?enemy-alive }
+    cinder-wraith enemy pressure state ?pressure
+    cinder-wraith enemy pressure clock ?clock
+    ashen-key loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    game-objective objective state Vec3 { x: ?objective-state, y: ?branch, z: ?unused-state }
+    ?reset = 1.0
+    ?player-x = 0.0
+    ?player-y = 0.0
+    ?player-z = 0.0
+    ?velocity-x = 0.0
+    ?velocity-y = 0.0
+    ?velocity-z = 0.0
+    ?grounded = true
+    ?player-vitality = ?player-maximum
+    ?enemy-vitality = ?enemy-maximum
+    ?pressure = telegraph
+    ?clock = 90.0
+    ?loot-x = 2.0
+    ?loot-z = 0.0
+    ?objective-state = 0.0
+  withdraw
+    ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+  include
+    ?objective reset signal Vec3 { x: 0.0, y: ?phase, z: ?unused }
+
 on reset-player-x ?player
   when
     ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
@@ -763,34 +795,19 @@ on reset-world-objective ?objective
   include
     ?objective objective state Vec3 { x: 0.0, y: ?branch, z: ?unused-state }
 
-on clear-reset-signal ?objective
+on recover-after-wraith-impact ?enemy
   when
-    ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
-    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
-    player-1 velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
-    player-1 grounded ?grounded
-    player-1 player vitals Vec3 { x: ?player-vitality, y: ?player-maximum, z: ?player-alive }
-    cinder-wraith enemy vitals Vec3 { x: ?enemy-vitality, y: ?enemy-maximum, z: ?enemy-alive }
-    cinder-wraith enemy pressure state ?pressure
+    ?enemy enemy pressure state ?pressure
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    player-1 combat status ?player-status
+    cinder-wraith enemy combat status ?enemy-status
     cinder-wraith enemy pressure clock ?clock
-    ashen-key loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
-    game-objective objective state Vec3 { x: ?objective-state, y: ?branch, z: ?unused-state }
-    ?reset = 1.0
-    ?player-x = 0.0
-    ?player-y = 0.0
-    ?player-z = 0.0
-    ?velocity-x = 0.0
-    ?velocity-y = 0.0
-    ?velocity-z = 0.0
-    ?grounded = true
-    ?player-vitality = ?player-maximum
-    ?enemy-vitality = ?enemy-maximum
-    ?pressure = telegraph
-    ?clock = 90.0
-    ?loot-x = 2.0
-    ?loot-z = 0.0
-    ?objective-state = 0.0
+    ?pressure = lunge
+    ?clock = 50.0
+    ?vitality = 2.0
+    ?player-status = alive
+    ?enemy-status = alive
   withdraw
-    ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?enemy enemy pressure state ?pressure
   include
-    ?objective reset signal Vec3 { x: 0.0, y: ?phase, z: ?unused }
+    ?enemy enemy pressure state recovery

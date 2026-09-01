@@ -124,6 +124,10 @@
     (= pathname "/index.html") "src/host/play.html"
     (= pathname "/app/greywrought-clause/play.js")
     "build/host/greywrought-clause/play.js"
+    (= pathname "/app/greywrought-clause/cinderwake-presentation.js")
+    "build/host/greywrought-clause/cinderwake-presentation.js"
+    (= pathname "/app/greywrought-clause/cinderwake.css")
+    "src/host/cinderwake.css"
     (= pathname "/app/greywrought-clause/presentation.js")
     "build/host/greywrought-clause/presentation.js"
     (= pathname "/app/jump-arena-shell/branch-wasm-port.js")
