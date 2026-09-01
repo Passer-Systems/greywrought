@@ -8,8 +8,9 @@ The primary playable slice is **Cinderwake**, one embodied room whose movement,
 combat, deterministic sample, vitality, death, loot custody, completion,
 failure, and reset are owned by `src/world/embodied-encounter.clause`. Keyboard
 input and fixed ticks first produce a hidden Candidate Delta; only the following
-separate Admission installs the visible world revision. Beagle and Three.js
-transport input and render admitted projections without deciding gameplay.
+separate Admission installs the visible world revision. Strict TypeScript and
+Three.js transport input and render admitted projections without deciding
+gameplay.
 
 The wayfarer begins safely beside the western moonwell. The cinder wraith
 telegraphs and launches one projected bolt that travels across several
@@ -39,7 +40,7 @@ still the only authoritative successor operation.
 Authority is divided as follows:
 
 - `src/world/*.clause` owns world laws and domain transition meaning.
-- `src/host/*.bjs` owns only passive presentation and the exact Clause Wasm ABI.
+- `src/host/*.ts` owns only passive presentation and the exact Clause Wasm ABI.
 - `acceptance/disconnect/` owns the bounded executable combat journey and its
   source-only critical-threshold edit.
 - ignored `build/` owns every CPP1, CWR1, Wasm, JavaScript, and native
@@ -79,13 +80,12 @@ carry it west to the moonwell.
 A measured Clause-only gravity edit reached its first separately admitted
 browser frame in 323 ms with 60.5 ms of resident compilation; restoring the law
 reached the admitted frame in 233 ms with 66.6 ms of compilation. Neither edit
-rebuilt or restarted Rust, Beagle, Wasm, the server, or the browser page.
+rebuilt or restarted Rust, TypeScript, Wasm, the server, or the browser page.
 
 `bun run check:conquest` materializes the current Clause source to CWR1,
-builds the passive Beagle projection, stages the exact pinned Clause Wasm
-runtime, and executes the bounded branch journey. The Beagle build refuses to
-run unless the installed compiler checkout's relevant source is byte-equal to
-the recorded Beagle pin. No generated artifact is tracked.
+strictly checks and builds the passive TypeScript host, stages the exact pinned
+Clause adapters and Wasm runtime, and executes the bounded branch journey. No
+generated artifact is tracked.
 
 `bun run test:wasm-effect` writes exact Clause payload bytes to ignored
 `build/ongoing-effect/wasm-receipt.bin`; this is the real foreign action, not a
@@ -101,7 +101,6 @@ and custody across separate Candidate and Admission operations.
 
 Pinned inputs:
 
-- Clause `b17356f218346771f231bda6acf3e516d6410357` (includes source-owned
-  keyboard binding, atomic multi-assignment handlers, actor-relative scalar
-  reads, and deterministic physical-input lowering)
-- Beagle `7be82567d25dc4eeafd06979be95d13fb87c6fe2`
+- Clause `32cd2ff605620d7cc84a8ee04920d3b1ebb0054a` (includes strict generated
+  TypeScript adapters for the workbench, cartridge port, and process branch,
+  plus the source-owned world and deterministic physical-input lowering)
