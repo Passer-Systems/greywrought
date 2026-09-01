@@ -24,6 +24,7 @@ import {
   mountArenaRig,
   playMountedArenaAttack,
   setMountedArenaLocomotion,
+  signalMountedArenaPropulsion,
   updateMountedArenaRig,
   type MountedArenaRig,
 } from "./rig-socket-lab.js";
@@ -122,6 +123,7 @@ export interface CinderwakePresentation {
   cameraDistance: number;
   wayfarerRig: MountedArenaRig | null;
   pendingWayfarerAttack: boolean;
+  pendingWayfarerPropulsion: number;
   disposed: boolean;
 }
 
@@ -777,6 +779,18 @@ export function signalPropulsion(
   if (subject === undefined || occurrenceOrdinal <= subject.lastPropulsion) return;
   subject.lastPropulsion = occurrenceOrdinal;
   subject.propulsionLevel = clampUnit(magnitude);
+  if (subject.placeholder === null) return;
+  if (presentation.wayfarerRig === null) {
+    presentation.pendingWayfarerPropulsion = Math.max(
+      presentation.pendingWayfarerPropulsion,
+      subject.propulsionLevel,
+    );
+    return;
+  }
+  signalMountedArenaPropulsion(
+    presentation.wayfarerRig,
+    subject.propulsionLevel,
+  );
 }
 
 export function signalDeath(
@@ -844,6 +858,10 @@ export function renderPresentationFrame(
   }
   if (presentation.wayfarerRig !== null) {
     updateMountedArenaRig(presentation.wayfarerRig, delta);
+    document.body.dataset.rigAnimationMode = presentation.wayfarerRig.mode;
+    document.body.dataset.rigPropulsionLevel = String(
+      presentation.wayfarerRig.propulsionLevel,
+    );
   }
   const impulse = presentation.cameraImpulse;
   const horizontalReach =
@@ -942,6 +960,7 @@ export function createCinderwakePresentation(
     cameraDistance: DEFAULT_CAMERA_DISTANCE,
     wayfarerRig: null,
     pendingWayfarerAttack: false,
+    pendingWayfarerPropulsion: 0,
     disposed: false,
   };
 
@@ -981,6 +1000,13 @@ export function createCinderwakePresentation(
       if (presentation.pendingWayfarerAttack) {
         presentation.pendingWayfarerAttack = false;
         playMountedArenaAttack(mounted);
+      }
+      if (presentation.pendingWayfarerPropulsion > 0) {
+        signalMountedArenaPropulsion(
+          mounted,
+          presentation.pendingWayfarerPropulsion,
+        );
+        presentation.pendingWayfarerPropulsion = 0;
       }
       document.body.dataset.rigState = "ready";
       document.body.dataset.rigEquipmentCount = "6";

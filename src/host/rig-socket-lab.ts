@@ -48,6 +48,8 @@ interface EquipmentRig {
   readonly forearmBlade: Group;
   readonly activeWeapon: Group;
   readonly holsteredWeapon: Group;
+  readonly plumes: readonly Mesh[];
+  readonly plumeMaterial: MeshStandardMaterial;
 }
 
 interface OwnedEquipmentResources {
@@ -80,6 +82,7 @@ export interface MountedArenaRig {
   readonly resources: OwnedEquipmentResources;
   mode: "idle" | "locomotion" | "jump" | "attack";
   attackRemaining: number;
+  propulsionLevel: number;
   disposed: boolean;
 }
 
@@ -203,13 +206,13 @@ function addNozzle(
   y: number,
   z: number,
   name: string,
-): void {
+): Mesh {
   const shell = mesh(
-    ownGeometry(resources, new CylinderGeometry(0.045, 0.065, 0.15, 10)),
+    ownGeometry(resources, new CylinderGeometry(0.06, 0.08, 0.19, 10)),
     shellMaterial,
   );
   const plume = mesh(
-    ownGeometry(resources, new ConeGeometry(0.045, 0.2, 10)),
+    ownGeometry(resources, new ConeGeometry(0.075, 0.42, 10)),
     plumeMaterial,
   );
   shell.name = `${name}.shell`;
@@ -217,8 +220,10 @@ function addNozzle(
   shell.rotation.x = Math.PI / 2;
   plume.rotation.x = -Math.PI / 2;
   shell.position.set(x, y, z);
-  plume.position.set(x, y, z + 0.16);
+  plume.position.set(x, y, z + 0.27);
+  plume.visible = false;
   parent.add(shell, plume);
+  return plume;
 }
 
 function buildEquipment(
@@ -234,14 +239,14 @@ function buildEquipment(
     0.2,
   );
   const edge = equipmentMaterial(resources, 0x72ff82, 0x52c0c0, 0.7, 0.22);
-  const plume = equipmentMaterial(
+  const plumeMaterial = equipmentMaterial(
     resources,
     0x66ffff,
     0x33ccff,
     0,
     0.18,
     true,
-    0.82,
+    0,
   );
   const blade = equipmentMaterial(
     resources,
@@ -273,46 +278,61 @@ function buildEquipment(
   );
   backpackCore.name = "greywrought.equipment.backpack.core";
   backpack.add(backpackCore);
-  addNozzle(
+  const plumes = [
+    addNozzle(
+      resources,
+      backpack,
+      darkMetal,
+      plumeMaterial,
+      -0.105,
+      -0.1,
+      -0.04,
+      "greywrought.nozzle.back-left",
+    ),
+    addNozzle(
+      resources,
+      backpack,
+      darkMetal,
+      plumeMaterial,
+      0.105,
+      -0.1,
+      -0.04,
+      "greywrought.nozzle.back-right",
+    ),
+    addNozzle(
+      resources,
+      leftBooster,
+      darkMetal,
+      plumeMaterial,
+      0,
+      0,
+      0,
+      "greywrought.nozzle.left-foot",
+    ),
+    addNozzle(
+      resources,
+      rightBooster,
+      darkMetal,
+      plumeMaterial,
+      0,
+      0,
+      0,
+      "greywrought.nozzle.right-foot",
+    ),
+  ];
+
+  const boosterHousingGeometry = ownGeometry(
     resources,
-    backpack,
-    darkMetal,
-    plume,
-    -0.105,
-    -0.1,
-    -0.04,
-    "greywrought.nozzle.back-left",
+    new BoxGeometry(0.18, 0.34, 0.18),
   );
-  addNozzle(
-    resources,
-    backpack,
-    darkMetal,
-    plume,
-    0.105,
-    -0.1,
-    -0.04,
-    "greywrought.nozzle.back-right",
-  );
-  addNozzle(
-    resources,
-    leftBooster,
-    darkMetal,
-    plume,
-    0,
-    0,
-    0,
-    "greywrought.nozzle.left-foot",
-  );
-  addNozzle(
-    resources,
-    rightBooster,
-    darkMetal,
-    plume,
-    0,
-    0,
-    0,
-    "greywrought.nozzle.right-foot",
-  );
+  const leftBoosterHousing = mesh(boosterHousingGeometry, armor);
+  const rightBoosterHousing = mesh(boosterHousingGeometry, armor);
+  leftBoosterHousing.name = "greywrought.equipment.left-booster.housing";
+  rightBoosterHousing.name = "greywrought.equipment.right-booster.housing";
+  leftBoosterHousing.position.set(0, 0.13, -0.035);
+  rightBoosterHousing.position.set(0, 0.13, -0.035);
+  leftBooster.add(leftBoosterHousing);
+  rightBooster.add(rightBoosterHousing);
 
   const bladeCore = mesh(
     ownGeometry(resources, new BoxGeometry(0.075, 0.46, 0.035)),
@@ -324,7 +344,7 @@ function buildEquipment(
   forearmBlade.add(bladeCore);
 
   const weaponCore = mesh(
-    ownGeometry(resources, new BoxGeometry(0.12, 0.54, 0.15)),
+    ownGeometry(resources, new BoxGeometry(0.11, 0.92, 0.1)),
     edge,
   );
   const weaponGuard = mesh(
@@ -333,7 +353,7 @@ function buildEquipment(
   );
   weaponCore.name = "greywrought.equipment.active-weapon.core";
   weaponGuard.name = "greywrought.equipment.active-weapon.guard";
-  weaponCore.position.set(0, 0.24, 0);
+  weaponCore.position.set(0, 0.44, 0);
   weaponGuard.position.set(0, 0.03, 0);
   activeWeapon.add(weaponCore, weaponGuard);
 
@@ -360,7 +380,24 @@ function buildEquipment(
     forearmBlade,
     activeWeapon,
     holsteredWeapon,
+    plumes,
+    plumeMaterial,
   };
+}
+
+function updateEquipmentPropulsion(
+  equipment: EquipmentRig,
+  magnitude: number,
+  elapsedSeconds: number,
+): void {
+  const level = Math.max(0, Math.min(1, magnitude));
+  const visible = level > 0.01;
+  const pulse = visible ? 0.9 + 0.1 * Math.sin(elapsedSeconds * 34) : 0;
+  equipment.plumeMaterial.opacity = visible ? (0.34 + level * 0.66) * pulse : 0;
+  for (const plume of equipment.plumes) {
+    plume.visible = visible;
+    plume.scale.set(0.8 + level * 0.5, 0.5 + level * 1.8, 0.8 + level * 0.5);
+  }
 }
 
 function exactClip(clips: AnimationClip[], name: string): AnimationClip {
@@ -497,8 +534,20 @@ export async function mountArenaRig(
     resources,
     mode: "idle",
     attackRemaining: 0,
+    propulsionLevel: 0,
     disposed: false,
   };
+}
+
+export function signalMountedArenaPropulsion(
+  mounted: MountedArenaRig,
+  magnitude: number,
+): void {
+  if (mounted.disposed) return;
+  mounted.propulsionLevel = Math.max(
+    mounted.propulsionLevel,
+    Math.max(0, Math.min(1, magnitude)),
+  );
 }
 
 export function setMountedArenaLocomotion(
@@ -526,6 +575,15 @@ export function updateMountedArenaRig(
 ): void {
   if (mounted.disposed) return;
   mounted.instance.mixer.update(deltaSeconds);
+  mounted.propulsionLevel = Math.max(
+    0,
+    mounted.propulsionLevel - deltaSeconds * 2.6,
+  );
+  updateEquipmentPropulsion(
+    mounted.instance.equipment,
+    mounted.propulsionLevel,
+    mounted.instance.mixer.time,
+  );
   if (mounted.attackRemaining <= 0) return;
   mounted.attackRemaining = Math.max(0, mounted.attackRemaining - deltaSeconds);
   if (mounted.attackRemaining === 0) {

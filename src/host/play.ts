@@ -860,12 +860,18 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
         damage / Math.max(0.001, player.maximumVitality),
       );
     }
-    if (
-      prior.player.grounded &&
-      !player.grounded &&
-      player.boosterEnergy < prior.player.boosterEnergy
-    ) {
-      signalPropulsion(app.scene.presentation, "ashen-wayfarer", ordinal, 1);
+    if (player.boosterEnergy < prior.player.boosterEnergy) {
+      const spent = prior.player.boosterEnergy - player.boosterEnergy;
+      const magnitude = Math.max(
+        0.45,
+        Math.min(1, spent / Math.max(1, player.boosterThreshold)),
+      );
+      signalPropulsion(
+        app.scene.presentation,
+        "ashen-wayfarer",
+        ordinal,
+        magnitude,
+      );
     }
     if (player.combatStatus === "dead" && prior.player.combatStatus !== "dead") {
       signalDeath(app.scene.presentation, "ashen-wayfarer", ordinal);
