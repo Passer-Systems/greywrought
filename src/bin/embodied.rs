@@ -90,10 +90,13 @@ fn key(
     code: &[u8],
     phase: ExecutableKeyPhaseV1,
 ) -> Result<(), Box<dyn Error>> {
-    session.apply_physical_input(&ExecutableInputSourceV1::Keyboard {
-        code: code.to_vec(),
-        phase,
-    })?;
+    session.apply_physical_input(
+        &ExecutableInputSourceV1::Keyboard {
+            code: code.to_vec(),
+            phase,
+        },
+        None,
+    )?;
     Ok(())
 }
 

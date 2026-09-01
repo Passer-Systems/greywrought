@@ -113,6 +113,7 @@ const files: Readonly<Record<string, string>> = {
   "/index.html": "src/host/play.html",
   "/rig": "src/host/rig_socket_lab.html",
   "/app/greywrought-clause/play.js": "build/host/play.js",
+  "/app/greywrought-clause/resident-worker.js": "build/host/resident-worker.js",
   "/app/greywrought-clause/cinderwake-presentation.js":
     "build/host/cinderwake-presentation.js",
   "/app/greywrought-clause/rig-socket-lab.js":

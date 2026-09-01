@@ -11,8 +11,6 @@ import {
   "advance-session-occurrence!" as advanceSessionOccurrence,
   "begin-effect-attempt!" as beginEffectAttempt,
   "create-wasm-cartridge-port" as createWasmCartridgePort,
-  "cse1-projected-term-json-max-source-units" as projectedTermJsonLimit,
-  "cse1-projected-term-max-properties" as projectedTermPropertyLimit,
   "decode-cwr1-hex" as decodeCwr1Hex,
   "decode-projected-term-frame" as decodeProjectedTermFrame,
   "emit-effect-intent!" as emitEffectIntent,
@@ -27,17 +25,11 @@ import {
   type ProjectedValue,
 } from "../../build/host/jump-arena-shell/wasm-cartridge-port.js";
 import {
-  "->FixedTick" as createFixedTick,
   "->WorkbenchPolicy" as createWorkbenchPolicy,
   "->WorkbenchSequenceLimits" as createWorkbenchSequenceLimits,
-  "create-cartridge-workbench!" as createCartridgeWorkbench,
-  "create-workbench-envelope" as createWorkbenchEnvelope,
   type CartridgePort,
-  type CartridgeWorkbench,
-  type LifecycleReceipt,
   type PackageCheck,
   type SessionCompletion,
-  type WorkbenchEnvelope,
   type WorkbenchPolicy,
 } from "../../build/host/jump-arena-shell/workbench.js";
 import {
@@ -223,8 +215,7 @@ interface GameProjection {
 }
 
 interface ResidentLawSession {
-  readonly port: CartridgePort;
-  controller: CartridgeWorkbench | null;
+  readonly worker: Worker;
   generation: number;
   polling: boolean;
   interval: number;
@@ -232,13 +223,26 @@ interface ResidentLawSession {
   lastProjection: GameProjection | null;
   admittedOrdinal: number;
   candidateSeen: boolean;
-  readonly inputQueue: QueuedGameInput[];
-  inputInFlight: boolean;
 }
 
-interface QueuedGameInput {
-  readonly envelope: WorkbenchEnvelope;
-  readonly coalesceKey: string | null;
+type ResidentInput =
+  | Readonly<{
+      kind: "keyboard";
+      code: string;
+      phase: "down" | "up";
+      repeat: boolean;
+    }>
+  | Readonly<{
+      kind: "scalar-input";
+      channel: string;
+      value: number;
+    }>;
+
+interface ResidentLifecycleReceipt {
+  readonly event: string;
+  readonly activeGeneration: number;
+  readonly operationId: number;
+  readonly detail: string;
 }
 
 interface PlayApp {
@@ -310,17 +314,6 @@ function branchPolicy(): WorkbenchPolicy {
   return createWorkbenchPolicy(8, 8, 32, 128, 512, sequenceLimits());
 }
 
-function residentPolicy(): WorkbenchPolicy {
-  return createWorkbenchPolicy(
-    8,
-    8,
-    32,
-    projectedTermPropertyLimit,
-    projectedTermJsonLimit,
-    sequenceLimits(),
-  );
-}
-
 function initializeRuntime(bytes: ArrayBuffer): object {
   initSync({ module: bytes });
   return Object.freeze({
@@ -371,10 +364,12 @@ function openEffectSession(module: object, request: ExactProcessRequest): Effect
   };
 }
 
-function openResidentLawSession(module: object): ResidentLawSession {
+function openResidentLawSession(): ResidentLawSession {
   return {
-    port: createWasmCartridgePort(module, residentPolicy()),
-    controller: null,
+    worker: new Worker("/app/greywrought-clause/resident-worker.js", {
+      type: "module",
+      name: "greywrought-clause-resident",
+    }),
     generation: -1,
     polling: false,
     interval: 0,
@@ -382,8 +377,6 @@ function openResidentLawSession(module: object): ResidentLawSession {
     lastProjection: null,
     admittedOrdinal: 0,
     candidateSeen: false,
-    inputQueue: [],
-    inputInFlight: false,
   };
 }
 
@@ -934,7 +927,7 @@ function residentLawFailure(message: string): void {
   document.body.dataset.residentPhase = "rejected";
 }
 
-function handleLifecycleReceipt(app: PlayApp, receipt: LifecycleReceipt): void {
+function handleLifecycleReceipt(app: PlayApp, receipt: ResidentLifecycleReceipt): void {
   const resident = app.residentLaw;
   boundedGameEvent({
     phase: receipt.event,
@@ -953,8 +946,6 @@ function handleLifecycleReceipt(app: PlayApp, receipt: LifecycleReceipt): void {
   if (receipt.event === "admission-accepted") {
     const ordered = resident.candidateSeen;
     const pending = resident.pendingHot;
-    resident.inputInFlight = false;
-    flushGameInput(app);
     document.body.dataset.gameCustodyPhase = ordered
       ? "candidate-before-admission"
       : "order-violation";
@@ -1030,7 +1021,6 @@ function parseGenerationPayload(value: unknown): GenerationPayload {
 
 function installResidentLaw(app: PlayApp, payload: GenerationPayload): void {
   const resident = app.residentLaw;
-  const request = createExactProcessRequest(decodeCwr1Hex(payload.cwr1));
   resident.generation = payload.generation;
   resident.pendingHot = payload.hot ? payload : null;
   document.body.dataset.residentGeneration = String(payload.generation);
@@ -1038,34 +1028,86 @@ function installResidentLaw(app: PlayApp, payload: GenerationPayload): void {
   element("resident-law").textContent =
     `generation ${payload.generation} · checked\nresident compile ` +
     `${payload.compilerMicros} µs\nawaiting first admitted frame`;
-  if (resident.controller === null) {
-    resident.controller = createCartridgeWorkbench(
-      resident.port,
-      createFixedTick(16),
-      residentPolicy(),
-      (milliseconds, callback) => {
-        const handle = window.setInterval(callback, milliseconds);
-        return () => window.clearInterval(handle);
-      },
-      (frame) => {
-        if (frame.length === 0) return;
-        try {
-          renderGameProjection(app, decodeProjectedTermFrame(Array.from(frame)));
-        } catch (cause: unknown) {
-          const error = cause instanceof Error ? cause : new Error(String(cause));
-          residentLawFailure(error.message);
-          throw error;
-        }
-      },
-      (receipt) => handleLifecycleReceipt(app, receipt),
-      request,
+  resident.worker.postMessage({ kind: "install-generation", payload });
+}
+
+function parseResidentProjectionFrame(value: unknown): readonly number[] {
+  return requireArray(value, "resident projection frame").map((byte, index) => {
+    const number = requireNumber(byte, `resident projection frame[${index}]`);
+    requireCondition(
+      Number.isSafeInteger(number) && number >= 0 && number <= 255,
+      `resident projection frame[${index}] must be a byte`,
     );
-    flushGameInput(app);
-    return;
-  }
-  if (!resident.controller.reloadPackage(request)) {
-    residentLawFailure("resident generation reload was not accepted");
-  }
+    return number;
+  });
+}
+
+function parseResidentReceipt(value: unknown): ResidentLifecycleReceipt {
+  const receipt = requireForeignRecord(value, "resident lifecycle receipt");
+  return {
+    event: requireString(
+      requireField(receipt, "event", "resident lifecycle receipt"),
+      "resident lifecycle receipt.event",
+    ),
+    activeGeneration: requireNumber(
+      requireField(receipt, "activeGeneration", "resident lifecycle receipt"),
+      "resident lifecycle receipt.activeGeneration",
+    ),
+    operationId: requireNumber(
+      requireField(receipt, "operationId", "resident lifecycle receipt"),
+      "resident lifecycle receipt.operationId",
+    ),
+    detail: requireString(
+      requireField(receipt, "detail", "resident lifecycle receipt"),
+      "resident lifecycle receipt.detail",
+    ),
+  };
+}
+
+function bindResidentWorker(app: PlayApp, listeners: Array<() => void>): void {
+  const { worker } = app.residentLaw;
+  const message = (event: MessageEvent<unknown>): void => {
+    try {
+      const value = requireForeignRecord(event.data, "resident worker event");
+      const kind = requireString(
+        requireField(value, "kind", "resident worker event"),
+        "resident worker event.kind",
+      );
+      if (kind === "projection-frame") {
+        renderGameProjection(
+          app,
+          decodeProjectedTermFrame(
+            parseResidentProjectionFrame(
+              requireField(value, "frame", "resident worker event"),
+            ),
+          ),
+        );
+      } else if (kind === "receipt") {
+        handleLifecycleReceipt(
+          app,
+          parseResidentReceipt(
+            requireField(value, "receipt", "resident worker event"),
+          ),
+        );
+      } else if (kind === "failure") {
+        residentLawFailure(
+          requireString(
+            requireField(value, "message", "resident worker event"),
+            "resident worker event.message",
+          ),
+        );
+      } else {
+        throw new Error(`unknown resident worker event ${kind}`);
+      }
+    } catch (cause: unknown) {
+      residentLawFailure(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+  const error = (event: ErrorEvent): void => residentLawFailure(event.message);
+  worker.addEventListener("message", message);
+  worker.addEventListener("error", error);
+  listeners.push(() => worker.removeEventListener("message", message));
+  listeners.push(() => worker.removeEventListener("error", error));
 }
 
 async function pollResidentLaw(app: PlayApp): Promise<void> {
@@ -1492,36 +1534,8 @@ function bindClick(
   listeners.push(() => target.removeEventListener("click", handler));
 }
 
-function physicalKeyEnvelope(event: PhysicalKey, phase: "down" | "up") {
-  return createWorkbenchEnvelope(
-    residentPolicy(),
-    JSON.stringify([
-      JSON.stringify({ kind: "keyboard", code: event.code, phase, repeat: event.repeat }),
-    ]),
-  );
-}
-
-function scalarInputEnvelope(channel: string, value: number) {
-  return createWorkbenchEnvelope(
-    residentPolicy(),
-    JSON.stringify([
-      JSON.stringify({ kind: "scalar-input", channel, value }),
-    ]),
-  );
-}
-
-function queueGameInput(
-  app: PlayApp,
-  envelope: WorkbenchEnvelope,
-  coalesceKey: string | null,
-): void {
-  const queue = app.residentLaw.inputQueue;
-  if (coalesceKey !== null) {
-    const pending = queue.findIndex((entry) => entry.coalesceKey === coalesceKey);
-    if (pending >= 0) queue.splice(pending, 1);
-  }
-  queue.push({ envelope, coalesceKey });
-  flushGameInput(app);
+function queueGameInput(app: PlayApp, input: ResidentInput): void {
+  app.residentLaw.worker.postMessage({ kind: "input", input });
 }
 
 function observeGameKey(
@@ -1529,32 +1543,26 @@ function observeGameKey(
   event: PhysicalKey,
   phase: "down" | "up",
 ): void {
-  queueGameInput(app, physicalKeyEnvelope(event, phase), null);
+  queueGameInput(app, {
+    kind: "keyboard",
+    code: event.code,
+    phase,
+    repeat: event.repeat,
+  });
 }
 
 function observeCameraBasis(app: PlayApp): void {
   const yaw = app.scene.presentation.cameraOrbitYaw;
-  queueGameInput(
-    app,
-    scalarInputEnvelope("CameraForwardX", -Math.sin(yaw)),
-    "CameraForwardX",
-  );
-  queueGameInput(
-    app,
-    scalarInputEnvelope("CameraForwardZ", -Math.cos(yaw)),
-    "CameraForwardZ",
-  );
-}
-
-function flushGameInput(app: PlayApp): void {
-  const resident = app.residentLaw;
-  if (resident.inputInFlight || resident.controller === null) return;
-  const input = resident.inputQueue[0];
-  if (input === undefined) return;
-  if (resident.controller.observeInput(input.envelope)) {
-    resident.inputQueue.shift();
-    resident.inputInFlight = true;
-  }
+  queueGameInput(app, {
+    kind: "scalar-input",
+    channel: "CameraForwardX",
+    value: -Math.sin(yaw),
+  });
+  queueGameInput(app, {
+    kind: "scalar-input",
+    channel: "CameraForwardZ",
+    value: -Math.cos(yaw),
+  });
 }
 
 const heldGameKeys = new Set([
@@ -1649,7 +1657,8 @@ function teardown(app: PlayApp): void {
   const processBranch = stageProcessBranch(app.stage);
   if (processBranch !== null) disposeProcessBranch(app.module, processBranch);
   app.effect.port.disposeSession(app.effect.session);
-  app.residentLaw.controller?.dispose();
+  app.residentLaw.worker.postMessage({ kind: "dispose" });
+  app.residentLaw.worker.terminate();
 }
 
 function runSmokeIfRequested(app: PlayApp): void {
@@ -1686,12 +1695,13 @@ function startApp(
     branchRequest,
     occurrences,
     effect: openEffectSession(module, effectRequest),
-    residentLaw: openResidentLawSession(module),
+    residentLaw: openResidentLawSession(),
     stage: { kind: "dormant" },
     effectSettled: false,
     scene: createScene(),
     listeners,
   };
+  bindResidentWorker(app, listeners);
   bindGameInput(app, listeners);
   bindClick(listeners, "reset-encounter", () => pressReset(app));
   bindClick(listeners, "enter-world", () => enterWorld(app));
@@ -1706,7 +1716,7 @@ function startApp(
   void pollResidentLaw(app);
   app.residentLaw.interval = window.setInterval(() => {
     void pollResidentLaw(app);
-  }, 25);
+  }, 50);
   runSmokeIfRequested(app);
   return app;
 }
