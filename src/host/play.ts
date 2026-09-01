@@ -58,6 +58,7 @@ import {
   createCinderwakePresentation,
   disposeCinderwakePresentation,
   hideChargeCorridor,
+  playWayfarerSwordAction,
   renderPresentationFrame,
   setActivityCue,
   setChargeCorridor,
@@ -586,6 +587,17 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
       },
     ],
     cameraTarget: player.position,
+    wayfarerMotion: {
+      moving:
+        prior !== null &&
+        (Math.abs(player.position.x - prior.player.position.x) > 0.0001 ||
+          Math.abs(player.position.z - prior.player.position.z) > 0.0001),
+      airborne: !player.grounded,
+      directionX:
+        prior === null ? 0 : player.position.x - prior.player.position.x,
+      directionZ:
+        prior === null ? 0 : player.position.z - prior.player.position.z,
+    },
   });
   setActivityCue(
     app.scene.presentation,
@@ -699,7 +711,11 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
         damage / Math.max(0.001, player.maximumVitality),
       );
     }
-    if (prior.player.grounded && !player.grounded) {
+    if (
+      prior.player.grounded &&
+      !player.grounded &&
+      player.boosterEnergy < prior.player.boosterEnergy
+    ) {
       signalPropulsion(app.scene.presentation, "ashen-wayfarer", ordinal, 1);
     }
     if (player.combatStatus === "dead" && prior.player.combatStatus !== "dead") {
@@ -1258,6 +1274,12 @@ const gameKeys = new Set([
 function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   const { canvas } = app.scene;
   const down = (event: KeyboardEvent): void => {
+    if (!event.repeat && event.code === "KeyJ") {
+      event.preventDefault();
+      playWayfarerSwordAction(app.scene.presentation);
+      element("combat-feedback").textContent = "SWORD TEST SWING";
+      return;
+    }
     if (!event.repeat && gameKeys.has(event.code)) {
       event.preventDefault();
       observeGameKey(app, event, "down");

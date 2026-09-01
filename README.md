@@ -71,7 +71,7 @@ Then open <http://127.0.0.1:4173/>. The shell presents and invokes the exact
 Clause/Wasm world, Candidate, Admission, explanation, and effect boundaries.
 Click the arena, move with `W` forward, `S` backward, `A` left, and `D` right;
 hold `Shift` for horizontal sustain, use `Q` for a horizontal burst, jump with
-`Space`, hold `E` for vertical sustain, use `F` for a vertical burst, and reset
+`Space`, swing the equipped sword with `J`, hold `E` for vertical sustain, use `F` for a vertical burst, and reset
 with `R`. A fixed high-oblique camera follows
 the admitted wayfarer position while keeping the encounter ahead in view. Read
 the wraith telegraph, meet its bolt while airborne, walk over the glowing key, then

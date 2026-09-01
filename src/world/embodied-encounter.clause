@@ -139,8 +139,8 @@ relation horizontal-sustain-drain
   subject player
   mode given player yields value: one
 
-relation horizontal-burst-impulse
-  reads {player: Player} horizontal burst impulse {value: F64}
+relation horizontal-burst-displacement
+  reads {player: Player} horizontal burst displacement {value: F64}
   subject player
   mode given player yields value: one
 
@@ -401,7 +401,7 @@ player-1 booster ignition threshold 25.0
 player-1 booster regeneration delay limit 8.0
 player-1 booster regeneration delay 0.0
 player-1 horizontal sustain drain 0.5
-player-1 horizontal burst impulse 30.0
+player-1 horizontal burst displacement 0.96
 player-1 horizontal burst cost 20.0
 player-1 vertical sustain thrust 0.55
 player-1 vertical sustain drain 1.0
@@ -617,23 +617,29 @@ on restore-exhausted-horizontal-speed ?player
 
 on horizontal-burst ?player
   when
-    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
     ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
     ?player booster energy ?energy
     ?player booster ignition threshold ?threshold
     ?player booster regeneration delay ?delay
     ?player booster regeneration delay limit ?delay-limit
-    ?player horizontal burst impulse ?impulse
+    ?player horizontal burst displacement ?displacement
     ?player horizontal burst cost ?cost
+    jump-arena minimum x ?min-x
+    jump-arena maximum x ?max-x
+    jump-arena minimum z ?min-z
+    jump-arena maximum z ?max-z
+    (?position-x + ?intent-x * ?displacement) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + ?intent-z * ?displacement) clamped between ?min-z and ?max-z as ?next-z
     ?intent-x * ?intent-x + ?intent-z * ?intent-z > 0.0
     ?threshold <= ?energy
     ?cost <= ?energy
   withdraw
-    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
     ?player booster energy ?energy
     ?player booster regeneration delay ?delay
   include
-    ?player velocity Vec3 { x: ?velocity-x + ?intent-x * ?impulse, y: ?velocity-y, z: ?velocity-z + ?intent-z * ?impulse }
+    ?player position Vec3 { x: ?next-x, y: ?position-y, z: ?next-z }
     ?player booster energy ?energy - ?cost
     ?player booster regeneration delay ?delay-limit
 
@@ -745,14 +751,14 @@ on tick ?player ?dt
     jump-arena maximum x ?max-x
     jump-arena minimum z ?min-z
     jump-arena maximum z ?max-z
-    (?position-x + (?velocity-x + ?intent-x * ?move-speed) * ?dt) clamped between ?min-x and ?max-x as ?next-x
-    (?position-z + (?velocity-z + ?intent-z * ?move-speed) * ?dt) clamped between ?min-z and ?max-z as ?next-z
+    (?position-x + ?intent-x * ?move-speed * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + ?intent-z * ?move-speed * ?dt) clamped between ?min-z and ?max-z as ?next-z
   withdraw
     ?player position Vec3 { x: ?position-x, y: ?floor, z: ?position-z }
     ?player velocity Vec3 { x: ?velocity-x, y: 0.0, z: ?velocity-z }
   include
     ?player position Vec3 { x: ?next-x, y: ?floor, z: ?next-z }
-    ?player velocity Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?player velocity Vec3 { x: ?intent-x * ?move-speed, y: 0.0, z: ?intent-z * ?move-speed }
 
 on tick ?player ?dt
   when

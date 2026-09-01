@@ -193,7 +193,7 @@ fn world_fixed_wasd_supports_diagonal_holds_and_sustain_direction_changes()
 }
 
 #[test]
-fn horizontal_burst_is_immediate_directional_and_preserves_vertical_velocity()
+fn horizontal_burst_is_immediate_directional_and_preserves_velocity()
 -> Result<(), Box<dyn Error>> {
     let mut no_intent = ResidentSourceWorkbenchV1::open(EMBODIED_SOURCE)?;
     let burst = no_intent.handler_occurrence(b"horizontal-burst", &[])?;
@@ -208,13 +208,15 @@ fn horizontal_burst_is_immediate_directional_and_preserves_vertical_velocity()
     let hold_forward = workbench.handler_occurrence(b"hold-forward", &[])?;
     let intent = admitted_workbench_tick(&mut workbench, vec![hold_forward])?;
     assert_eq!(vector(&intent, b"horizontal-intent"), [0.0, 0.0, -1.0]);
-    let vertical_before = vector(&intent, b"velocity")[1];
+    let velocity_before = vector(&intent, b"velocity");
+    let position_before = vector(&intent, b"position");
     let burst = workbench.handler_occurrence(b"horizontal-burst", &[])?;
     let propelled = admit_workbench(&mut workbench, &[burst])?;
-    let velocity = vector(&propelled, b"velocity");
-    assert_eq!(velocity[0], 0.0);
-    assert_eq!(velocity[1], vertical_before);
-    assert_eq!(velocity[2], -30.0);
+    let position = vector(&propelled, b"position");
+    assert_eq!(vector(&propelled, b"velocity"), velocity_before);
+    assert_eq!(position[0], position_before[0]);
+    assert_eq!(position[1], position_before[1]);
+    assert!((position[2] - (position_before[2] - 0.96)).abs() < 1.0e-9);
     assert_eq!(number(&propelled, b"booster-energy"), 80.0);
     Ok(())
 }

@@ -22,6 +22,8 @@ import {
 import {
   disposeMountedArenaRig,
   mountArenaRig,
+  playMountedArenaAttack,
+  setMountedArenaLocomotion,
   updateMountedArenaRig,
   type MountedArenaRig,
 } from "./rig-socket-lab.js";
@@ -52,6 +54,12 @@ export interface AdmittedPresentationFrame {
   readonly ordinal: number;
   readonly subjects: readonly AdmittedSubjectFrame[];
   readonly cameraTarget: ProjectedPosition;
+  readonly wayfarerMotion: {
+    readonly moving: boolean;
+    readonly airborne: boolean;
+    readonly directionX: number;
+    readonly directionZ: number;
+  };
 }
 
 interface EffectShell {
@@ -81,6 +89,7 @@ interface SubjectPresentation extends EffectShell {
   lastImpact: number;
   lastPropulsion: number;
   lastDeath: number;
+  facingYaw: number;
 }
 
 interface OwnedPresentationResources {
@@ -253,6 +262,7 @@ function subjectPresentation(
     lastImpact: -1,
     lastPropulsion: -1,
     lastDeath: -1,
+    facingYaw: placeholder === null ? 0 : Math.PI / 2,
   };
 }
 
@@ -581,6 +591,32 @@ export function applyAdmittedFrame(
     subject.coreMaterial.opacity = 0.34 + ratio * 0.66;
     subject.root.scale.setScalar(subject.baseScale * (0.9 + ratio * 0.1));
   }
+  if (frame.wayfarerMotion.moving) {
+    const wayfarer = presentation.subjects.find(
+      ({ placeholder }) => placeholder !== null,
+    );
+    if (wayfarer !== undefined) {
+      wayfarer.facingYaw = Math.atan2(
+        frame.wayfarerMotion.directionX,
+        frame.wayfarerMotion.directionZ,
+      );
+    }
+  }
+  if (presentation.wayfarerRig !== null) {
+    setMountedArenaLocomotion(
+      presentation.wayfarerRig,
+      frame.wayfarerMotion.moving,
+      frame.wayfarerMotion.airborne,
+    );
+  }
+}
+
+export function playWayfarerSwordAction(
+  presentation: CinderwakePresentation,
+): void {
+  if (presentation.wayfarerRig !== null) {
+    playMountedArenaAttack(presentation.wayfarerRig);
+  }
 }
 
 export function setActivityCue(
@@ -692,7 +728,9 @@ function animateSubject(
   subject.deathMaterial.opacity = 0.62 * subject.deathLevel;
   subject.death.scale.setScalar(0.55 + 2.4 * (1 - subject.deathLevel));
   subject.root.rotation.y =
-    elapsed * 0.22 * subject.attackLevel + subject.recoveryLevel * 0.08;
+    subject.facingYaw +
+    elapsed * 0.22 * subject.attackLevel +
+    subject.recoveryLevel * 0.08;
 }
 
 export function renderPresentationFrame(

@@ -76,7 +76,10 @@ export interface MountedArenaRig {
   readonly parent: Group;
   readonly placeholder: Group;
   readonly instance: RigInstance;
+  readonly clips: ClipLibrary;
   readonly resources: OwnedEquipmentResources;
+  mode: "idle" | "locomotion" | "jump" | "attack";
+  attackRemaining: number;
   disposed: boolean;
 }
 
@@ -486,14 +489,49 @@ export async function mountArenaRig(
   parent.add(instance.root);
   playClip(instance, clips.idle, true);
   placeholder.visible = false;
-  return { parent, placeholder, instance, resources, disposed: false };
+  return {
+    parent,
+    placeholder,
+    instance,
+    clips,
+    resources,
+    mode: "idle",
+    attackRemaining: 0,
+    disposed: false,
+  };
+}
+
+export function setMountedArenaLocomotion(
+  mounted: MountedArenaRig,
+  moving: boolean,
+  airborne: boolean,
+): void {
+  if (mounted.disposed || mounted.attackRemaining > 0) return;
+  const mode = airborne ? "jump" : moving ? "locomotion" : "idle";
+  if (mounted.mode === mode) return;
+  playClip(mounted.instance, mounted.clips[mode], true);
+  mounted.mode = mode;
+}
+
+export function playMountedArenaAttack(mounted: MountedArenaRig): void {
+  if (mounted.disposed) return;
+  playClip(mounted.instance, mounted.clips.attack, false);
+  mounted.mode = "attack";
+  mounted.attackRemaining = mounted.clips.attack.duration;
 }
 
 export function updateMountedArenaRig(
   mounted: MountedArenaRig,
   deltaSeconds: number,
 ): void {
-  if (!mounted.disposed) mounted.instance.mixer.update(deltaSeconds);
+  if (mounted.disposed) return;
+  mounted.instance.mixer.update(deltaSeconds);
+  if (mounted.attackRemaining <= 0) return;
+  mounted.attackRemaining = Math.max(0, mounted.attackRemaining - deltaSeconds);
+  if (mounted.attackRemaining === 0) {
+    playClip(mounted.instance, mounted.clips.idle, true);
+    mounted.mode = "idle";
+  }
 }
 
 export function disposeMountedArenaRig(mounted: MountedArenaRig): void {
