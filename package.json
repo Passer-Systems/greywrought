@@ -8,10 +8,18 @@
   "scripts": {
     "materialize:conquest": "nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu/bin:$PATH; cargo run --bin materialize --locked'",
     "stage:wasm": "install -d build/host/wasm && install -m644 /home/tom/code/clause/pins/419140bd932bdd8461deb51c9f6c42a4bb5683b1/browser/jump-arena-shell/generated/wasm/clause_runtime.js /home/tom/code/clause/pins/419140bd932bdd8461deb51c9f6c42a4bb5683b1/browser/jump-arena-shell/generated/wasm/clause_runtime.d.ts /home/tom/code/clause/pins/419140bd932bdd8461deb51c9f6c42a4bb5683b1/browser/jump-arena-shell/generated/wasm/clause_runtime_bg.wasm /home/tom/code/clause/pins/419140bd932bdd8461deb51c9f6c42a4bb5683b1/browser/jump-arena-shell/generated/wasm/clause_runtime_bg.wasm.d.ts build/host/wasm/",
-    "build:host": "bun run stage:wasm && git -C /home/tom/code/beagle/main diff --quiet 974221bc0c8982878d1278d3c61a2fb15ff1b0dc -- && /home/tom/code/beagle/main/bin/beagle-build-all /home/tom/code/clause/pins/419140bd932bdd8461deb51c9f6c42a4bb5683b1/browser/jump-arena-shell/src/workbench.bjs /home/tom/code/clause/pins/419140bd932bdd8461deb51c9f6c42a4bb5683b1/browser/jump-arena-shell/src/wasm_cartridge_port.bjs /home/tom/code/clause/pins/419140bd932bdd8461deb51c9f6c42a4bb5683b1/browser/jump-arena-shell/src/branch_wasm_port.bjs src/host/presentation.bjs acceptance/disconnect/presentation_check.bjs acceptance/disconnect/wasm_conquest.bjs acceptance/disconnect/wasm_ongoing_effect.bjs --out build/host && install -d build/host/node_modules/beagle && install -m644 /home/tom/code/beagle/pins/974221bc0c8982878d1278d3c61a2fb15ff1b0dc/beagle-lib/lib/beagle/core.js /home/tom/code/beagle/pins/974221bc0c8982878d1278d3c61a2fb15ff1b0dc/beagle-lib/lib/beagle/exception-dispatch.js build/host/node_modules/beagle/",
+    "build:host": "bun run stage:wasm && git -C /home/tom/code/beagle/main diff --quiet 974221bc0c8982878d1278d3c61a2fb15ff1b0dc -- . ':(exclude)store/flake.nix' && /home/tom/code/beagle/main/bin/beagle-build-all /home/tom/code/clause/pins/419140bd932bdd8461deb51c9f6c42a4bb5683b1/browser/jump-arena-shell/src/workbench.bjs /home/tom/code/clause/pins/419140bd932bdd8461deb51c9f6c42a4bb5683b1/browser/jump-arena-shell/src/wasm_cartridge_port.bjs /home/tom/code/clause/pins/419140bd932bdd8461deb51c9f6c42a4bb5683b1/browser/jump-arena-shell/src/branch_wasm_port.bjs src/host/presentation.bjs src/host/play.bjs src/host/play_server.bjs acceptance/disconnect/presentation_check.bjs acceptance/disconnect/wasm_conquest.bjs acceptance/disconnect/wasm_ongoing_effect.bjs --out build/host && install -d build/host/node_modules/beagle && install -m644 /home/tom/code/beagle/pins/974221bc0c8982878d1278d3c61a2fb15ff1b0dc/beagle-lib/lib/beagle/core.js /home/tom/code/beagle/pins/974221bc0c8982878d1278d3c61a2fb15ff1b0dc/beagle-lib/lib/beagle/exception-dispatch.js build/host/node_modules/beagle/",
     "test:host": "bun build/host/greywrought-clause/presentation-check.js",
     "test:wasm-conquest": "bun build/host/greywrought-clause/wasm-conquest.js",
     "test:wasm-effect": "bun build/host/greywrought-clause/wasm-ongoing-effect.js",
-    "check:conquest": "bun run materialize:conquest && bun run build:host && bun run test:host && bun run test:wasm-effect && bun run test:wasm-conquest"
+    "check:conquest": "bun run materialize:conquest && bun run build:host && bun run test:host && bun run test:wasm-effect && bun run test:wasm-conquest",
+    "build:play": "bun run materialize:conquest && bun run build:host",
+    "play": "bun run build:play && bun build/host/greywrought-clause/play-server.js"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.4"
   }
 }

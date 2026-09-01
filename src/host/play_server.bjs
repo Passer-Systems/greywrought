@@ -1,0 +1,51 @@
+#lang beagle/js
+
+(ns greywrought-clause.play-server)
+
+(declare-extern [Bun console URL Response] Any)
+
+(defn served-file [pathname String] (U String Nil)
+  (cond
+    (= pathname "/") "src/host/play.html"
+    (= pathname "/index.html") "src/host/play.html"
+    (= pathname "/app/greywrought-clause/play.js")
+    "build/host/greywrought-clause/play.js"
+    (= pathname "/app/greywrought-clause/presentation.js")
+    "build/host/greywrought-clause/presentation.js"
+    (= pathname "/app/jump-arena-shell/branch-wasm-port.js")
+    "build/host/jump-arena-shell/branch-wasm-port.js"
+    (= pathname "/app/jump-arena-shell/wasm-cartridge-port.js")
+    "build/host/jump-arena-shell/wasm-cartridge-port.js"
+    (= pathname "/app/jump-arena-shell/workbench.js")
+    "build/host/jump-arena-shell/workbench.js"
+    (= pathname "/app/node_modules/beagle/core.js")
+    "build/host/node_modules/beagle/core.js"
+    (= pathname "/app/node_modules/beagle/exception-dispatch.js")
+    "build/host/node_modules/beagle/exception-dispatch.js"
+    (= pathname "/vendor/three.module.js")
+    "node_modules/three/build/three.module.js"
+    (= pathname "/vendor/three.core.js")
+    "node_modules/three/build/three.core.js"
+    (= pathname "/wasm/clause_runtime.js")
+    "build/host/wasm/clause_runtime.js"
+    (= pathname "/wasm/clause_runtime_bg.wasm")
+    "build/host/wasm/clause_runtime_bg.wasm"
+    (= pathname "/assets/conquest-v1.cwr1.hex")
+    "build/conquest/conquest-v1.cwr1.hex"
+    (= pathname "/assets/ongoing-effect-v1.cwr1.hex")
+    "build/ongoing-effect/ongoing-effect-v1.cwr1.hex"
+    :else nil))
+
+(defn handle-request [request Any] Any
+  (let [url Any (new URL (.-url request))
+        pathname String (.-pathname url)
+        path (U String Nil) (served-file pathname)]
+    (if (nil? path)
+      (new Response "Not found" {:status 404})
+      (new Response (.file Bun path)))))
+
+(def server Any (.serve Bun {:hostname "127.0.0.1"
+                              :port 4173
+                              :fetch handle-request}))
+
+(.log console (str "Greywrought Clause is playable at " (.-url server)))

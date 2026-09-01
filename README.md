@@ -41,10 +41,20 @@ bun run test:wasm-effect
 bun run check:conquest
 ```
 
+To run the playable browser shell:
+
+```sh
+bun run play
+```
+
+Then open <http://127.0.0.1:4173/>. The shell presents and invokes the exact
+Clause/Wasm branch, Admission, explanation, and effect boundaries; Three.js
+owns only the scene, picking, and canvas lifecycle.
+
 `bun run check:conquest` materializes the current Clause source to CWR1,
 builds the passive Beagle projection, stages the exact pinned Clause Wasm
 runtime, and executes the bounded branch journey. The Beagle build refuses to
-run unless the installed compiler checkout's tracked source is byte-equal to
+run unless the installed compiler checkout's relevant source is byte-equal to
 the recorded Beagle pin. No generated artifact is tracked.
 
 `bun run test:wasm-effect` writes exact Clause payload bytes to ignored

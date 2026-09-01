@@ -1,0 +1,620 @@
+#lang beagle/js
+
+(ns greywrought-clause.play
+  (:require [jump-arena-shell.branch-wasm-port :as branch]
+            [jump-arena-shell.wasm-cartridge-port :as wasm]
+            [jump-arena-shell.workbench :as workbench]))
+
+(require
+ '["three"
+   :refer [AmbientLight
+           BoxGeometry
+           Color
+           ConeGeometry
+           CylinderGeometry
+           DirectionalLight
+           Group
+           Mesh
+           MeshStandardMaterial
+           PerspectiveCamera
+           PlaneGeometry
+           Raycaster
+           Scene
+           SphereGeometry
+           TorusGeometry
+           Vector2
+           WebGLRenderer]])
+
+(require
+ '["#clause-runtime-wasm"
+   :refer [clause_branch_v1_command
+           clause_branch_v1_event_byte
+           clause_branch_v1_event_len
+           clause_branch_v1_io_reset
+           clause_branch_v1_open
+           clause_branch_v1_request_push
+           clause_session_v1_command
+           clause_session_v1_event_byte
+           clause_session_v1_event_len
+           clause_session_v1_io_reset
+           clause_session_v1_open
+           clause_session_v1_request_push
+           initSync
+           InitOutput
+           SyncInitInput]])
+
+(declare-extern
+  [cancelAnimationFrame document
+   fetch localStorage
+   requestAnimationFrame URLSearchParams
+   window] Any)
+
+(defrecord Dormant [loaded Bool])
+(defrecord Ready [entered Bool])
+(defrecord Disconnected [processBranch branch/WasmProcessBranch])
+(defrecord BranchAdvanced
+  [processBranch branch/WasmProcessBranch
+   authoritative Any
+   proposal Any])
+(defrecord CandidateSubmitted
+  [processBranch branch/WasmProcessBranch
+   authoritative Any
+   proposal Any])
+(defrecord SuccessorAdmitted
+  [processBranch branch/WasmProcessBranch
+   admitted Any
+   explanation Any
+   projection Any])
+
+(defunion JourneyStage
+  Dormant
+  Ready
+  Disconnected
+  BranchAdvanced
+  CandidateSubmitted
+  SuccessorAdmitted)
+
+(defrecord StageView
+  [label String
+   summary String
+   canEnter Bool
+   canDisconnect Bool
+   canAdvance Bool
+   canSubmit Bool
+   canAdmit Bool
+   branchVisible Bool
+   candidateText (U String Nil)
+   projectionText String
+   explanationText String])
+
+(defrecord SceneShell
+  [scene Any
+   camera Any
+   renderer Any
+   canvas Any
+   authoritativeGroup Any
+   branchGroup Any
+   selectables (Vec Any)
+   resources (Vec Any)
+   selected (Atom Any)
+   frameHandle (Atom Int)
+   alive (Atom Bool)
+   resizeHandler Any
+   pointerHandler Any])
+
+(defrecord EffectSession
+  [port workbench/CartridgePort
+   session Any])
+
+(defrecord PlayApp
+  [module Any
+   branchRequest wasm/ExactProcessRequest
+   occurrences (Vec Any)
+   effect EffectSession
+   stage (Atom JourneyStage)
+   effectSettled (Atom Bool)
+   scene SceneShell
+   listeners (Vec Any)])
+
+(defn element [id String] Any
+  (let [value Any (.getElementById document id)]
+    (if (nil? value)
+      (throw (new Error (str "missing browser element #" id)))
+      value)))
+
+(defn identity-string [value Any] String
+  (.stringify JSON value))
+
+(defn browser-int [value Any] Int
+  (let [converted Int (wasm/process-status value)]
+    (if (< converted 0) 0 converted)))
+
+(defn policy [] workbench/WorkbenchPolicy
+  (let [maximum Int (.-MAX_SAFE_INTEGER Number)]
+    (workbench/->WorkbenchPolicy
+     8 8 32 128 512
+     (workbench/->WorkbenchSequenceLimits
+      maximum maximum maximum maximum maximum))))
+
+(defn initialize-runtime [module ArrayBuffer] Any
+  (let [input SyncInitInput module
+        _initialized InitOutput (initSync {:module input})]
+    (.freeze
+     Object
+     {:clause_branch_v1_io_reset
+      (fn [] Nil (clause_branch_v1_io_reset))
+      :clause_branch_v1_request_push
+      (fn [byte Int] Float (clause_branch_v1_request_push byte))
+      :clause_branch_v1_open
+      (fn [] Float (clause_branch_v1_open))
+      :clause_branch_v1_command
+      (fn [] Float (clause_branch_v1_command))
+      :clause_branch_v1_event_len
+      (fn [] Float (clause_branch_v1_event_len))
+      :clause_branch_v1_event_byte
+      (fn [index Int] Float (clause_branch_v1_event_byte index))
+      :clause_session_v1_io_reset
+      (fn [] Nil (clause_session_v1_io_reset))
+      :clause_session_v1_request_push
+      (fn [byte Int] Float (clause_session_v1_request_push byte))
+      :clause_session_v1_open
+      (fn [] Float (clause_session_v1_open))
+      :clause_session_v1_command
+      (fn [] Float (clause_session_v1_command))
+      :clause_session_v1_event_len
+      (fn [] Float (clause_session_v1_event_len))
+      :clause_session_v1_event_byte
+      (fn [index Int] Float (clause_session_v1_event_byte index))})))
+
+(defn open-effect-session!
+  [module Any
+   request wasm/ExactProcessRequest] EffectSession
+  (let [port workbench/CartridgePort (wasm/create-wasm-cartridge-port
+                                      module
+                                      (policy))
+        accepted (Atom Any) (atom nil)
+        started (Atom Any) (atom nil)]
+    ((.-acceptPackage port) request
+     (fn [result Any] Any (reset! accepted result)))
+    ((.-startSession port) (.-acceptedPackage @accepted) 1
+     (fn [result Any] Any (reset! started result)))
+    (->EffectSession port (.-session @started))))
+
+(defn owned-material
+  [resources (Vec Any)
+   color Int
+   transparent Bool] Any
+  (let [material Any (new MeshStandardMaterial
+             {:color color
+              :emissive 0
+              :metalness 0.16
+              :roughness 0.68
+              :transparent transparent
+              :opacity (if transparent 0.72 1.0)})]
+    (.push resources material)
+    material))
+
+(defn add-entity!
+  [group Any
+   selectables (Vec Any)
+   resources (Vec Any)
+   geometry Any
+   color Int
+   transparent Bool
+   x Float
+   y Float
+   z Float
+   label String
+   realm String] Any
+  (let [material Any (owned-material resources color transparent)
+        mesh Any (new Mesh)]
+    (set! (.-geometry mesh) geometry)
+    (set! (.-material mesh) material)
+    (.push resources geometry)
+    (.set (.-position mesh) x y z)
+    (set! (.-label (.-userData mesh)) label)
+    (set! (.-realm (.-userData mesh)) realm)
+    (.add group mesh)
+    (.push selectables mesh)
+    mesh))
+
+(defn create-world-group!
+  [selectables (Vec Any)
+   resources (Vec Any)
+   realm String
+   offset Float
+   branchWorld Bool] Any
+  (let [group Any (new Group)
+        player Any (add-entity!
+                    group selectables resources
+                    (new ConeGeometry 0.48 1.5 7)
+                    (if branchWorld 6929407 15971421)
+                    false -1.25 0.75 0.1 "ashen-wayfarer" realm)
+        wraith Any (add-entity!
+                    group selectables resources
+                    (new SphereGeometry 0.64 20 14)
+                    (if branchWorld 4779919 11041007)
+                    true 1.15 0.82 -0.05 "cinder-wraith" realm)
+        key Any (add-entity!
+                 group selectables resources
+                 (new TorusGeometry 0.32 0.10 10 24)
+                 15388769 false 1.15 0.22 0.88 "ashen-key" realm)
+        moonwell Any (add-entity!
+                      group selectables resources
+                      (new CylinderGeometry 0.80 1.02 0.54 24)
+                      6216159 false 0.0 0.27 -1.65 "moonwell" realm)]
+    (set! (.-x (.-rotation player)) 0.0)
+    (set! (.-x (.-rotation key)) (/ (.-PI Math) 2.0))
+    (set! (.-y (.-position group)) 0.0)
+    (set! (.-x (.-position group)) offset)
+    (set! (.-visible group) (not branchWorld))
+    group))
+
+(defn resize-scene! [shell SceneShell] Nil
+  (let [canvas Any (.-canvas shell)
+        width Int (max 1 (browser-int (.-clientWidth canvas)))
+        height Int (max 1 (browser-int (.-clientHeight canvas)))
+        camera Any (.-camera shell)
+        renderer Any (.-renderer shell)]
+    (set! (.-aspect camera) (/ width height))
+    (.updateProjectionMatrix camera)
+    (.setSize renderer width height false)
+    nil))
+
+(defn select-object!
+  [shell SceneShell
+   value Any] Nil
+  (let [prior Any @(.-selected shell)]
+    (when-not (nil? prior)
+      (.setHex (.-emissive (.-material prior)) 0))
+    (reset! (.-selected shell) value)
+    (if (nil? value)
+      (set! (.-textContent (element "selection")) "Nothing selected.")
+      (do
+        (.setHex (.-emissive (.-material value)) 2438321)
+        (set! (.-textContent (element "selection"))
+              (str (.-label (.-userData value))
+                   "\nrealm: " (.-realm (.-userData value))))))
+    nil))
+
+(defn pick-scene!
+  [shell SceneShell
+   event Any] Nil
+  (let [rect Any (.getBoundingClientRect (.-canvas shell))
+        width Int (max 1 (browser-int (.-width rect)))
+        height Int (max 1 (browser-int (.-height rect)))
+        x Float (- (/ (* 2.0 (- (browser-int (.-clientX event))
+                                  (browser-int (.-left rect))))
+                       width)
+                   1.0)
+        y Float (- 1.0 (/ (* 2.0 (- (browser-int (.-clientY event))
+                                      (browser-int (.-top rect))))
+                           height))
+        pointer Any (new Vector2 x y)
+        raycaster Any (new Raycaster)]
+    (.setFromCamera raycaster pointer (.-camera shell))
+    (let [hits Any (.intersectObjects raycaster (.-selectables shell) false)]
+      (select-object! shell
+                      (if (> (browser-int (.-length hits)) 0)
+                        (.-object (nth hits 0))
+                        nil)))
+    nil))
+
+(defn render-loop! [shell SceneShell] Nil
+  (when @(.-alive shell)
+    (.render (.-renderer shell) (.-scene shell) (.-camera shell))
+    (reset! (.-frameHandle shell)
+            (browser-int
+             (requestAnimationFrame (fn [] Any (render-loop! shell))))))
+  nil)
+
+(defn create-scene! [] SceneShell
+  (let [scene Any (new Scene)
+        camera Any (new PerspectiveCamera 46.0 1.0 0.1 40.0)
+        renderer Any (new WebGLRenderer)
+        canvas Any (.-domElement renderer)
+        resources (Vec Any) []
+        selectables (Vec Any) []
+        authoritative Any (create-world-group! selectables resources
+                                               "authoritative" -2.65 false)
+        branch-world Any (create-world-group! selectables resources
+                                              "disconnected branch" 2.65 true)
+        floor-geometry Any (new PlaneGeometry 12.0 7.2)
+        floor-material Any (owned-material resources 986895 false)
+        floor Any (new Mesh)
+        ambient Any (new AmbientLight 11385087 1.65)
+        sun Any (new DirectionalLight 16768993 3.1)
+        selected (Atom Any) (atom nil)
+        frame (Atom Int) (atom 0)
+        alive (Atom Bool) (atom true)
+        shell-holder (Atom Any) (atom nil)
+        resize-handler Any (fn [] Any (resize-scene! @shell-holder))
+        pointer-handler Any (fn [event Any] Any (pick-scene! @shell-holder event))
+        shell SceneShell (->SceneShell
+                          scene camera renderer canvas authoritative branch-world
+                          selectables resources selected frame alive
+                          resize-handler pointer-handler)]
+    (reset! shell-holder shell)
+    (set! (.-id canvas) "world-canvas")
+    (.setAttribute canvas "aria-label" "Greywrought semantic world")
+    (.prepend (element "world-wrap") canvas)
+    (.push resources floor-geometry)
+    (set! (.-geometry floor) floor-geometry)
+    (set! (.-material floor) floor-material)
+    (set! (.-background scene) (new Color 526608))
+    (set! (.-x (.-rotation floor)) (- (/ (.-PI Math) 2.0)))
+    (.set (.-position floor) 0.0 -0.02 0.0)
+    (.set (.-position camera) 0.0 6.4 9.3)
+    (.lookAt camera 0.0 0.45 0.0)
+    (.set (.-position sun) -3.0 7.0 5.0)
+    (.add scene floor authoritative branch-world ambient sun)
+    (.setPixelRatio renderer
+                    (min 2 (max 1 (browser-int (.-devicePixelRatio window)))))
+    (.addEventListener window "resize" resize-handler)
+    (.addEventListener canvas "pointerdown" pointer-handler)
+    (resize-scene! shell)
+    (render-loop! shell)
+    shell))
+
+(defn stage-view [stage JourneyStage] StageView
+  (match stage
+    [(Dormant loaded)
+     (->StageView
+      "threshold" "Enter the pinned world. Nothing has executed yet."
+      true false false false false false nil
+      "Hidden until Admission." "No authoritative successor yet.")]
+    [(Ready entered)
+     (->StageView
+      "authoritative · R0" "The wayfarer, wraith, key, and moonwell exist under the exact Clause program."
+      false true false false false false nil
+      "Hidden until Admission." "No authoritative successor yet.")]
+    [(Disconnected process-branch)
+     (->StageView
+      "forked · tick 41" "The disconnected branch has exact ancestry and bounded authority. It is not world truth."
+      false false true false false true nil
+      "Hidden until Admission." "Branch ancestry retained; no successor yet.")]
+    [(BranchAdvanced process-branch authoritative proposal)
+     (->StageView
+      "branch advanced" "Combat ran inside the isolated branch while the authoritative world advanced independently."
+      false false false true false true nil
+      "Hidden until Admission." "A branch result exists, but has not been submitted.")]
+    [(CandidateSubmitted process-branch authoritative proposal)
+     (let [candidate Any (.-candidate (.-evidence proposal))]
+       (->StageView
+        "candidate pending" "The Candidate Delta is visible as a sealed proposal only. Authoritative geometry is unchanged."
+        false false false false true true
+        (str "Pending CandidateDelta\n" (identity-string candidate))
+        "Hidden until Admission." "Awaiting explicit authoritative adjudication."))]
+    [(SuccessorAdmitted process-branch admitted explanation projection)
+     (->StageView
+      "admitted successor" "Admission replayed the branch against the current authority and established a new revision."
+      false false false false false true nil
+      (.stringify JSON projection nil 2)
+      (.stringify JSON explanation nil 2))]))
+
+(defn set-disabled!
+  [id String
+   disabled Bool] Nil
+  (do (set! (.-disabled (element id)) disabled) nil))
+
+(defn render-stage! [app PlayApp] Nil
+  (let [view StageView (stage-view @(.-stage app))]
+    (set! (.-textContent (element "stage")) (.-label view))
+    (set! (.-textContent (element "summary")) (.-summary view))
+    (set-disabled! "enter-world" (not (.-canEnter view)))
+    (set-disabled! "disconnect" (not (.-canDisconnect view)))
+    (set-disabled! "continue-branch" (not (.-canAdvance view)))
+    (set-disabled! "submit-candidate" (not (.-canSubmit view)))
+    (set-disabled! "admit-candidate" (not (.-canAdmit view)))
+    (set! (.-visible (.-branchGroup (.-scene app))) (.-branchVisible view))
+    (.toggle (.-classList (element "branch-label")) "visible" (.-branchVisible view))
+    (let [candidate Any (element "candidate")]
+      (.toggle (.-classList candidate) "visible" (not (nil? (.-candidateText view))))
+      (set! (.-textContent candidate) (or (.-candidateText view) "")))
+    (set! (.-textContent (element "projection")) (.-projectionText view))
+    (set! (.-textContent (element "explanation")) (.-explanationText view))
+    (set! (.-journey (.-dataset (.-body document))) (.-label view))
+    nil))
+
+(defn enter-world! [app PlayApp] Nil
+  (match @(.-stage app)
+    [(Dormant loaded) (reset! (.-stage app) (->Ready true))]
+    [(Ready entered) nil]
+    [(Disconnected value) nil]
+    [(BranchAdvanced value authoritative proposal) nil]
+    [(CandidateSubmitted value authoritative proposal) nil]
+    [(SuccessorAdmitted value admitted explanation projection) nil])
+  (render-stage! app))
+
+(defn disconnect! [app PlayApp] Nil
+  (match @(.-stage app)
+    [(Dormant loaded) nil]
+    [(Ready entered)
+     (let [world-shift Any (nth (.-occurrences app) 0)
+           process-branch branch/WasmProcessBranch (branch/open-process-branch!
+            (.-module app) (.-branchRequest app) 41 world-shift 8)]
+       (reset! (.-stage app) (->Disconnected process-branch)))]
+    [(Disconnected value) nil]
+    [(BranchAdvanced value authoritative proposal) nil]
+    [(CandidateSubmitted value authoritative proposal) nil]
+    [(SuccessorAdmitted value admitted explanation projection) nil])
+  (render-stage! app))
+
+(defn advance-branch! [app PlayApp] Nil
+  (match @(.-stage app)
+    [(Dormant loaded) nil]
+    [(Ready entered) nil]
+    [(Disconnected process-branch)
+     (let [world-shift Any (nth (.-occurrences app) 0)
+           combat Any (.slice (.-occurrences app) 1)
+           authoritative Any (branch/admit-authoritative-occurrences!
+                              (.-module app) process-branch [world-shift])
+           proposal Any (branch/propose-branch-reconnect!
+                         (.-module app) process-branch combat)]
+       (reset! (.-stage app)
+               (->BranchAdvanced process-branch authoritative proposal)))]
+    [(BranchAdvanced value authoritative proposal) nil]
+    [(CandidateSubmitted value authoritative proposal) nil]
+    [(SuccessorAdmitted value admitted explanation projection) nil])
+  (render-stage! app))
+
+(defn submit-candidate! [app PlayApp] Nil
+  (match @(.-stage app)
+    [(Dormant loaded) nil]
+    [(Ready entered) nil]
+    [(Disconnected value) nil]
+    [(BranchAdvanced process-branch authoritative proposal)
+     (reset! (.-stage app)
+             (->CandidateSubmitted process-branch authoritative proposal))]
+    [(CandidateSubmitted value authoritative proposal) nil]
+    [(SuccessorAdmitted value admitted explanation projection) nil])
+  (render-stage! app))
+
+(defn admit-candidate! [app PlayApp] Nil
+  (match @(.-stage app)
+    [(Dormant loaded) nil]
+    [(Ready entered) nil]
+    [(Disconnected value) nil]
+    [(BranchAdvanced value authoritative proposal) nil]
+    [(CandidateSubmitted process-branch authoritative proposal)
+     (let [combat Any (.slice (.-occurrences app) 1)
+           r1 Any (.-successor authoritative)
+           admitted Any (branch/adjudicate-branch-reconnect!
+                          (.-module app) process-branch proposal r1 combat)
+           explanation Any (.-explanation
+                            (branch/explain-process-branch!
+                             (.-module app) process-branch))
+           projection Any (wasm/decode-projected-term-frame
+                           (.-termBytes (.-projection admitted)))]
+       (reset! (.-stage app)
+               (->SuccessorAdmitted
+                process-branch admitted explanation projection)))]
+    [(SuccessorAdmitted value admitted explanation projection) nil])
+  (render-stage! app))
+
+(defn pulse-moonwell! [app PlayApp] Nil
+  (when-not @(.-effectSettled app)
+    (let [session Any (.-session (.-effect app))
+          module Any (.-module app)
+          first Any (wasm/advance-session-occurrence! module session 0)
+          suspension Any (wasm/suspend-session! module session)
+          resumption Any (wasm/resume-session! module session)
+          second Any (wasm/advance-session-occurrence! module session 1)
+          intent Any (wasm/emit-effect-intent! module session)
+          issued Any (wasm/issue-effect-authorization!
+                      module session (.-intentId intent))
+          attempt Any (wasm/begin-effect-attempt!
+                       module session (.-authorizationId issued))
+          key String "greywrought/moonwell-receipt-v1"
+          payload String (.stringify JSON (.-payloadBytes attempt))]
+      (.setItem localStorage key payload)
+      (let [receipt Any (.parse JSON (.getItem localStorage key))
+            settled Any (wasm/settle-effect-attempt!
+                         module session (.-attemptId attempt) 0 receipt)]
+        (reset! (.-effectSettled app) true)
+        (set! (.-disabled (element "pulse-moonwell")) true)
+        (set! (.-textContent (element "effect"))
+              (str "Activation " (identity-string (.-activation intent))
+                   "\nIntent " (identity-string (.-intentId intent))
+                   "\nAttempt " (identity-string (.-attemptId attempt))
+                   "\nReceipt " (identity-string (.-receiptId settled))
+                   "\nObservation " (identity-string (.-observationId settled))
+                   "\nJudgment " (identity-string (.-judgmentId settled))
+                   "\nState revisions before/after: "
+                   (str (.-stateRevisionCount intent)) "/"
+                   (str (.-stateRevisionCount settled))
+                   "\nContinuation retained: "
+                   (= (identity-string (.-continuation suspension))
+                      (identity-string (.-continuation resumption)))
+                   "\nSteps observed: " (str (.-kind first)) ", " (str (.-kind second)))))))
+  nil)
+
+(defn bind-click!
+  [listeners (Vec Any)
+   id String
+   action Any] Nil
+  (let [target Any (element id)
+        handler Any (fn [event Any] Any (action))]
+    (.addEventListener target "click" handler)
+    (.push listeners [target handler])
+    nil))
+
+(defn teardown! [app PlayApp] Nil
+  (reset! (.-alive (.-scene app)) false)
+  (cancelAnimationFrame @(.-frameHandle (.-scene app)))
+  (.removeEventListener window "resize" (.-resizeHandler (.-scene app)))
+  (.removeEventListener (.-canvas (.-scene app)) "pointerdown"
+                        (.-pointerHandler (.-scene app)))
+  (doseq [listener Any (.-listeners app)]
+    (.removeEventListener (nth listener 0) "click" (nth listener 1)))
+  (doseq [resource Any (.-resources (.-scene app))]
+    (.dispose resource))
+  (.dispose (.-renderer (.-scene app)))
+  (.remove (.-canvas (.-scene app)))
+  (match @(.-stage app)
+    [(Dormant loaded) nil]
+    [(Ready entered) nil]
+    [(Disconnected value) (branch/dispose-process-branch! (.-module app) value)]
+    [(BranchAdvanced value authoritative proposal)
+     (branch/dispose-process-branch! (.-module app) value)]
+    [(CandidateSubmitted value authoritative proposal)
+     (branch/dispose-process-branch! (.-module app) value)]
+    [(SuccessorAdmitted value admitted explanation projection)
+     (branch/dispose-process-branch! (.-module app) value)])
+  ((.-disposeSession (.-port (.-effect app))) (.-session (.-effect app)))
+  nil)
+
+(defn run-smoke-if-requested! [app PlayApp] Nil
+  (let [parameters Any (new URLSearchParams (.-search (.-location window)))]
+    (when (= (.get parameters "smoke") "1")
+      (doseq [id String ["enter-world"
+                         "disconnect"
+                         "continue-branch"
+                         "submit-candidate"
+                         "admit-candidate"
+                         "pulse-moonwell"]]
+        (.click (element id)))
+      (set! (.-smoke (.-dataset (.-body document)))
+            (if (and (= (.-journey (.-dataset (.-body document)))
+                        "admitted successor")
+                     @(.-effectSettled app))
+              "passed"
+              "failed")))
+    nil))
+
+(defn start-app!
+  [module Any
+   branch-source String
+   effect-source String] PlayApp
+  (let [branch-request wasm/ExactProcessRequest (wasm/->ExactProcessRequest (wasm/decode-cwr1-hex branch-source))
+        occurrences (Vec Any) (wasm/process-request-occurrences! branch-request)
+        effect-request wasm/ExactProcessRequest (wasm/->ExactProcessRequest (wasm/decode-cwr1-hex effect-source))
+        effect EffectSession (open-effect-session! module effect-request)
+        scene SceneShell (create-scene!)
+        listeners (Vec Any) []
+        app PlayApp (->PlayApp module branch-request occurrences effect
+                               (atom (->Dormant true)) (atom false) scene listeners)]
+    (bind-click! listeners "enter-world" (fn [] Any (enter-world! app)))
+    (bind-click! listeners "disconnect" (fn [] Any (disconnect! app)))
+    (bind-click! listeners "continue-branch" (fn [] Any (advance-branch! app)))
+    (bind-click! listeners "submit-candidate" (fn [] Any (submit-candidate! app)))
+    (bind-click! listeners "admit-candidate" (fn [] Any (admit-candidate! app)))
+    (bind-click! listeners "pulse-moonwell" (fn [] Any (pulse-moonwell! app)))
+    (render-stage! app)
+    (.addEventListener window "beforeunload" (fn [event Any] Any (teardown! app))
+                       {:once true})
+    (set! (.-__GREYWROUGHT_TEARDOWN__ window) (fn [] Any (teardown! app)))
+    (run-smoke-if-requested! app)
+    app))
+
+(.then
+ (.all Promise [(.then (fetch "/wasm/clause_runtime_bg.wasm")
+                       (fn [response Any] Any (.arrayBuffer response)))
+                (.then (fetch "/assets/conquest-v1.cwr1.hex")
+                       (fn [response Any] Any (.text response)))
+                (.then (fetch "/assets/ongoing-effect-v1.cwr1.hex")
+                       (fn [response Any] Any (.text response)))])
+ (fn [assets Any] Any
+   (start-app! (initialize-runtime (nth assets 0))
+               (nth assets 1)
+               (nth assets 2))))
