@@ -1001,14 +1001,17 @@ on observe-boar-charge-hit ?enemy
     ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
     ?enemy enemy charge envelope Vec3 { x: ?maximum-height, y: ?maximum-distance, z: ?corridor-radius }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     ?pressure = charging
     ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-y - ?enemy-y) * (?player-y - ?enemy-y)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= ?corridor-radius * ?corridor-radius
   withdraw
     ?enemy enemy pressure state ?pressure
     ?enemy enemy recovery clock ?recovery-clock
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
   include
     ?enemy enemy pressure state hit-recovery
     ?enemy enemy recovery clock 30.0
+    player-1 player vitals Vec3 { x: ?vitality - 2.0, y: ?maximum, z: ?alive-flag }
 
 on begin-boar-overrun-recovery ?enemy
   when
@@ -1128,6 +1131,7 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?pressure-clock
     ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
     ?enemy enemy charge start ?start
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
@@ -1138,6 +1142,7 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?pressure-clock
     ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
     ?enemy enemy charge start ?start
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
@@ -1146,6 +1151,7 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy pressure state telegraph
     ?enemy enemy pressure clock 36.0
     ?enemy enemy recovery clock 0.0
+    ?enemy enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
     ?enemy enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
@@ -1156,6 +1162,7 @@ on rearm-after-overrun-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?pressure-clock
     ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
     ?enemy enemy charge start ?start
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
@@ -1166,6 +1173,7 @@ on rearm-after-overrun-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?pressure-clock
     ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
     ?enemy enemy charge start ?start
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
@@ -1174,6 +1182,7 @@ on rearm-after-overrun-recovery ?enemy
     ?enemy enemy pressure state telegraph
     ?enemy enemy pressure clock 36.0
     ?enemy enemy recovery clock 0.0
+    ?enemy enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
     ?enemy enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
