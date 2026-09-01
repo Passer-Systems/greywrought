@@ -54,6 +54,43 @@ body {
   box-shadow: inset 0 0 0 1px #ffb465b8, inset 0 0 44px #ad3e181f;
 }
 
+.enemy-nameplate {
+  position: absolute;
+  z-index: 5;
+  width: 132px;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 5px #000b);
+}
+
+.enemy-nameplate-name {
+  overflow: hidden;
+  margin-bottom: 3px;
+  color: #ff4a3d;
+  font: 700 12px/1.1 Arial, Helvetica, sans-serif;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 0 0 3px #000;
+}
+
+.enemy-nameplate-health {
+  height: 9px;
+  overflow: hidden;
+  border: 1px solid #cbbd88;
+  background: #170503;
+  box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #0008;
+}
+
+.enemy-nameplate-health > span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left;
+  background: linear-gradient(#d93b2c 0 45%, #981e17 55% 100%);
+  transition: transform 110ms linear;
+}
+
 .realm-label {
   z-index: 4;
   border-color: var(--cinder-rim);

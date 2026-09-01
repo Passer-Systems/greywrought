@@ -53,6 +53,7 @@ import {
   clause_session_v1_reclaim_retired as reclaimRetiredSession,
   initSync,
 } from "#clause-runtime-wasm";
+import { Vector3 } from "three";
 import {
   applyAdmittedFrame,
   createCinderwakePresentation,
@@ -127,8 +128,19 @@ interface SceneShell {
   readonly presentation: CinderwakePresentation;
   readonly canvas: HTMLCanvasElement;
   readonly pointerHandler: (event: PointerEvent) => void;
+  readonly enemyNameplate: HTMLElement;
+  readonly enemyNameplateFill: HTMLElement;
+  readonly enemyNameplateAnchor: Vector3;
+  enemyNameplateProjection: EnemyNameplateProjection | null;
   frameHandle: number;
   alive: boolean;
+}
+
+interface EnemyNameplateProjection {
+  readonly position: Vector3Projection;
+  readonly vitality: number;
+  readonly maximumVitality: number;
+  readonly alive: boolean;
 }
 
 interface EffectSession {
@@ -546,6 +558,19 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
   const objectiveStatus = objectiveLabel(objective.state);
   resident.admittedOrdinal = ordinal;
 
+  app.scene.enemyNameplateProjection = {
+    position: enemy.position,
+    vitality: enemy.vitality,
+    maximumVitality: enemy.maximumVitality,
+    alive: enemy.combatStatus !== "dead",
+  };
+  app.scene.enemyNameplateFill.style.transform =
+    `scaleX(${Math.max(0, Math.min(1, enemy.vitality / Math.max(0.001, enemy.maximumVitality)))})`;
+  app.scene.enemyNameplate.setAttribute(
+    "aria-label",
+    `Corrupted Magitek Boar, ${enemy.vitality} of ${enemy.maximumVitality} health`,
+  );
+
   applyAdmittedFrame(app.scene.presentation, {
     ordinal,
     subjects: [
@@ -933,6 +958,7 @@ function renderLoop(shell: SceneShell): void {
     Math.max(1, Math.trunc(canvas.clientWidth)),
     Math.max(1, Math.trunc(canvas.clientHeight)),
   );
+  renderEnemyNameplate(shell);
   boundedGameEvent({ phase: "frame-rendered" });
   Object.assign(document.body.dataset, {
     gameCameraX: String(presentation.camera.position.x),
@@ -948,6 +974,28 @@ function renderLoop(shell: SceneShell): void {
   shell.frameHandle = requestAnimationFrame(() => renderLoop(shell));
 }
 
+function renderEnemyNameplate(shell: SceneShell): void {
+  const admitted = shell.enemyNameplateProjection;
+  if (admitted === null || !admitted.alive || admitted.vitality <= 0) {
+    shell.enemyNameplate.hidden = true;
+    return;
+  }
+  const projected = shell.enemyNameplateAnchor
+    .set(admitted.position.x, admitted.position.y + 1.62, admitted.position.z)
+    .project(shell.presentation.camera);
+  const visible =
+    projected.x >= -1 &&
+    projected.x <= 1 &&
+    projected.y >= -1 &&
+    projected.y <= 1 &&
+    projected.z >= -1 &&
+    projected.z <= 1;
+  shell.enemyNameplate.hidden = !visible;
+  if (!visible) return;
+  shell.enemyNameplate.style.left = `${(projected.x * 0.5 + 0.5) * shell.canvas.clientWidth}px`;
+  shell.enemyNameplate.style.top = `${(-projected.y * 0.5 + 0.5) * shell.canvas.clientHeight}px`;
+}
+
 function createScene(): SceneShell {
   const presentation = createCinderwakePresentation(
     {
@@ -961,6 +1009,8 @@ function createScene(): SceneShell {
     Math.max(1, Math.min(2, window.devicePixelRatio)),
   );
   const canvas = presentation.renderer.domElement;
+  const enemyNameplate = element("enemy-nameplate");
+  const enemyNameplateFill = element("enemy-nameplate-health-fill");
   let shell: SceneShell | null = null;
   const pointerHandler = (_event: PointerEvent): void => {
     if (shell !== null) focusScene(shell);
@@ -969,6 +1019,10 @@ function createScene(): SceneShell {
     presentation,
     canvas,
     pointerHandler,
+    enemyNameplate,
+    enemyNameplateFill,
+    enemyNameplateAnchor: new Vector3(),
+    enemyNameplateProjection: null,
     frameHandle: 0,
     alive: true,
   };
