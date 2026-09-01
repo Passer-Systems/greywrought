@@ -216,7 +216,19 @@
 (defn projected-property
   [value Any
    key String] Any
-  (.get Reflect value key))
+  (if (or (nil? value)
+          (not= (js/typeof value) "object"))
+    (throw (new Error (str "projected parent is absent for field " key)))
+    (.get Reflect value key)))
+
+(defn projected-object-property
+  [value Any
+   key String] Any
+  (let [result Any (projected-property value key)]
+    (if (or (nil? result)
+            (not= (js/typeof result) "object"))
+      (throw (new Error (str "projected object field is absent: " key)))
+      result)))
 
 (defn objective-label [state Any] String
   (let [status Float (projected-property state "x")]
@@ -285,23 +297,25 @@
         enemy Any (projected-property projection "cinder-wraith")
         loot Any (projected-property projection "ashen-key")
         objective Any (projected-property projection "game-objective")
-        player-position Any (projected-property player "position")
-        enemy-position Any (projected-property enemy "enemy-position")
-        loot-position Any (projected-property loot "loot-position")
-        exit-position Any (projected-property objective "exit-position")
-        player-vitals Any (projected-property player "player-vitals")
-        enemy-vitals Any (projected-property enemy "enemy-vitals")
-        combat-clock Any (projected-property player "combat-clock")
-        enemy-clock Any (projected-property enemy "enemy-attack-clock")
-        objective-state Any (projected-property objective "objective-state")
+        player-position Any (projected-object-property player "position")
+        enemy-position Any (projected-object-property enemy "enemy-position")
+        loot-position Any (projected-object-property loot "loot-position")
+        exit-position Any (projected-object-property objective "exit-position")
+        player-vitals Any (projected-object-property player "player-vitals")
+        enemy-vitals Any (projected-object-property enemy "enemy-vitals")
+        grounded Bool (projected-property player "grounded")
+        pressure-state String (projected-property enemy "enemy-pressure-state")
+        pressure-clock Float (projected-property enemy "enemy-pressure-clock")
+        random-sample Float (projected-property enemy "enemy-random-sample")
+        objective-state Any (projected-object-property objective "objective-state")
+        player-x Float (projected-property player-position "x")
+        player-z Float (projected-property player-position "z")
         player-vitality Float (projected-property player-vitals "x")
         player-maximum Float (projected-property player-vitals "y")
         enemy-vitality Float (projected-property enemy-vitals "x")
         enemy-maximum Float (projected-property enemy-vitals "y")
         player-status String (projected-property player "combat-status")
         enemy-status String (projected-property enemy "enemy-combat-status")
-        cooldown Float (projected-property combat-clock "y")
-        enemy-cooldown Float (projected-property enemy-clock "x")
         loot-state String (projected-property loot "loot-state")
         custody String (projected-property loot "custody")
         objective-status String (objective-label objective-state)
@@ -316,6 +330,16 @@
     (set! (.-visible loot-figure) (not (= loot-state "hidden")))
     (set! (.-opacity (.-material enemy-figure))
           (if (= enemy-status "dead") 0.28 0.72))
+    (.setHex (.-emissive (.-material enemy-figure))
+             (cond
+               (= pressure-state "telegraph") 5970442
+               (= pressure-state "lunge") 7864380
+               :else 0))
+    (.setScalar (.-scale enemy-figure)
+                (cond
+                  (= pressure-state "lunge") 1.22
+                  (= pressure-state "recovery") 0.88
+                  :else 1.0))
     (vitality-bar! "player-vitality-bar" "player-vitality"
                    player-vitality player-maximum)
     (vitality-bar! "enemy-vitality-bar" "enemy-vitality"
@@ -329,21 +353,29 @@
             "WAYFARER FALLEN · press R to restore the revision"
 
             :else
-            "Strike at x=1 · avoid contact at x=2 · return the key to x=-2"))
+            "Read the telegraph · ashstep through the lunge · claim the key · return west"))
     (set! (.-textContent (element "stage"))
           (str "world · " objective-status))
     (set! (.-textContent (element "summary"))
           (str "wayfarer " player-status
                " · wraith " enemy-status
+               " / " pressure-state " " (str pressure-clock)
                " · key " loot-state " / " custody
-               " · strike latch " (str cooldown)
-               " · wraith latch " (str enemy-cooldown)))
+               " · ashstep " (if grounded "ready" "recovering")
+               " · fixed sample " (str random-sample)))
     (set! (.-gamePhase (.-dataset (.-body document))) objective-status)
     (set! (.-gamePlayerVitality (.-dataset (.-body document)))
           (str player-vitality))
     (set! (.-gameEnemyVitality (.-dataset (.-body document)))
           (str enemy-vitality))
     (set! (.-gameCustody (.-dataset (.-body document))) custody)
+    (set! (.-gamePlayerX (.-dataset (.-body document))) (str player-x))
+    (set! (.-gamePlayerZ (.-dataset (.-body document))) (str player-z))
+    (set! (.-gameDashResource (.-dataset (.-body document)))
+          (if grounded "ready" "recovering"))
+    (set! (.-gameEnemyPressure (.-dataset (.-body document))) pressure-state)
+    (set! (.-gamePressureClock (.-dataset (.-body document)))
+          (str pressure-clock))
     (when-not (nil? prior)
       (let [prior-player Any (projected-property prior "player-1")
             prior-enemy Any (projected-property prior "cinder-wraith")
@@ -373,6 +405,11 @@
      {:phase "frame-admitted"
       :generation @(.-generation resident)
       :objective objective-status
+      :playerX player-x
+      :playerZ player-z
+      :dashResource (if grounded "ready" "recovering")
+      :enemyPressure pressure-state
+      :pressureClock pressure-clock
       :playerVitality player-vitality
       :enemyVitality enemy-vitality
       :lootState loot-state
@@ -471,10 +508,15 @@
                (let [handle Int (browser-int (setInterval callback milliseconds))]
                  (fn [] Any (clearInterval handle))))
              (fn [frame Any] Any
-               (let [projection Any (wasm/decode-projected-term-frame frame)]
-                 (when (or (not (.isArray Array projection))
-                           (> (.-length projection) 0))
-                   (render-game-projection! app projection))))
+               (try
+                 (when (or (not (.isArray Array frame))
+                           (> (.-length frame) 0))
+                   (let [projection Any (wasm/decode-projected-term-frame frame)]
+                     (render-game-projection! app projection)))
+                 (catch Error error
+                   (do
+                     (resident-law-failure! (.-message error))
+                     (throw error)))))
              (fn [receipt workbench/LifecycleReceipt] Any
                (game-lifecycle-receipt! app receipt))
              request)]
