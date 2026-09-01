@@ -8,6 +8,7 @@ use clause_workbench::{
 };
 
 pub const WORLD_SOURCE: &[u8] = include_bytes!("world/ember-reconnection.clause");
+pub const EMBODIED_SOURCE: &[u8] = include_bytes!("world/embodied-encounter.clause");
 pub const RESISTED_STRIKE_SOURCE: &[u8] =
     include_bytes!("../acceptance/disconnect/resisted-strike.clause");
 pub const MOONWELL_PULSE_SOURCE: &[u8] = include_bytes!("world/moonwell-pulse.clause");

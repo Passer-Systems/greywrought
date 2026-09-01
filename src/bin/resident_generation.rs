@@ -6,9 +6,10 @@ use std::time::Instant;
 
 use clause_runtime::{decode_wasm_process_request_v1, encode_wasm_process_request_v1};
 use clause_workbench::ResidentSourceWorkbenchV1;
-use greywrought_clause::conquest::{
-    BRANCH_BUDGET_UNITS, EXACT_BRANCH_CONTEXT, selected_combat_occurrences_v1,
-};
+
+const EMBODIED_SESSION_BUDGET_UNITS: u64 = 1_000_000;
+const EMBODIED_SESSION_CONTEXT: &[u8] =
+    b"greywrought/embodied-encounter-v1;player=player-1;tick=fixed-16ms;random=f64:0.95";
 
 fn main() -> ExitCode {
     let mut arguments = std::env::args_os().skip(1);
@@ -90,9 +91,8 @@ fn write_generation(
     started: Instant,
 ) -> Result<(), Box<dyn Error>> {
     let mut request = decode_wasm_process_request_v1(&workbench.generation().cwr1)?;
-    request.authority.occurrence_evidence_bytes = EXACT_BRANCH_CONTEXT.to_vec();
-    request.authority.budget_units = BRANCH_BUDGET_UNITS;
-    request.occurrences = selected_combat_occurrences_v1(workbench)?;
+    request.authority.occurrence_evidence_bytes = EMBODIED_SESSION_CONTEXT.to_vec();
+    request.authority.budget_units = EMBODIED_SESSION_BUDGET_UNITS;
     let cwr1 = encode_wasm_process_request_v1(&request)?;
     writeln!(
         output,

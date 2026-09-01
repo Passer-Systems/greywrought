@@ -3,9 +3,9 @@
 (ns greywrought-clause.play-server
   (:require-global ["@types/bun" :refer [Bun Request Response]]))
 
-(declare-extern [console JSON TextDecoder URL] Any)
+(declare-extern [console JSON Reflect TextDecoder URL] Any)
 
-(def resident-source String "src/world/ember-reconnection.clause")
+(def resident-source String "src/world/embodied-encounter.clause")
 
 (defrecord ResidentStreamReader [read (Fn [] (Promise Any))])
 
@@ -19,6 +19,12 @@
 
 (defn json-stringify [value Any] String
   (.stringify JSON value))
+
+(defn configured-port [] Int
+  (let [source Any (.get Reflect (.-env Bun) "GREYWROUGHT_PORT")]
+    (if (nil? source)
+      4173
+      (.parseInt Number source 10))))
 
 (defn spawn-resident-generation! [] ResidentGenerationProcess
   (let [process Any (.spawn Bun {:cmd ["build/cargo-target/debug/resident_generation"
@@ -34,8 +40,7 @@
      (atom nil)
      (atom nil))))
 
-(defn ^:async read-resident-line!
-  [resident ResidentGenerationProcess] (Promise String)
+(defn ^:async read-resident-line! [resident ResidentGenerationProcess] (Promise String)
   (loop []
     (let [buffer String @(.-buffered resident)
           newline Int (.indexOf buffer "\n")]
@@ -167,7 +172,7 @@
 
 (def resident ResidentGenerationProcess (spawn-resident-generation!))
 (def server Any (.serve Bun {:hostname "127.0.0.1"
-                              :port 4173
+                             :port (configured-port)
                               :fetch (fn [request Request] (U Response (Promise Response))
                                        (handle-request! resident request))}))
 

@@ -4,13 +4,19 @@ This repository owns the Greywrought application written in Clause. Clause
 itself remains a language/runtime project; the older `greywrought` repository
 is context only and is neither imported nor modified here.
 
-The executable story is deliberately narrow: an ashen wayfarer forks from an
-exact authoritative revision while disconnected, attacks one cinder wraith
-under an explicit retained random Observation, and returns non-authoritative
-damage, death, and loot consequences. The same Clause-owned occurrences replay
-against the independently advanced authoritative world, and only a separate
-Admission establishes the successor. The retained branch and admitted result
-remain causally explainable without deriving order from log position.
+The primary playable slice is **Cinderwake**, one embodied room whose movement,
+combat, deterministic sample, vitality, death, loot custody, completion,
+failure, and reset are owned by `src/world/embodied-encounter.clause`. Keyboard
+input and fixed ticks first produce a hidden Candidate Delta; only the following
+separate Admission installs the visible world revision. Beagle and Three.js
+transport input and render admitted projections without deciding gameplay.
+
+The earlier disconnect proof remains available as a secondary journey: an
+ashen wayfarer forks from an exact authoritative revision while disconnected,
+attacks one cinder wraith under an explicit retained random Observation, and
+returns non-authoritative damage, death, and loot consequences. The same
+Clause-owned occurrences replay against the independently advanced
+authoritative world, and only a separate Admission establishes the successor.
 
 A separate moonwell process now remains live across multiple Steps,
 suspension, and linear resumption. Its Clause-owned effect intent crosses one
@@ -48,8 +54,15 @@ bun run play
 ```
 
 Then open <http://127.0.0.1:4173/>. The shell presents and invokes the exact
-Clause/Wasm branch, Admission, explanation, and effect boundaries; Three.js
-owns only the scene, picking, and canvas lifecycle.
+Clause/Wasm world, Candidate, Admission, explanation, and effect boundaries.
+Click the arena, move with `WASD`, strike with `Space`, and reset with `R`.
+Strike the cinder wraith from `x=1`, avoid contact at `x=2`, then carry the
+ashen key left to the moonwell at `x=-2`.
+
+A measured Clause-only gravity edit reached its first separately admitted
+browser frame in 323 ms with 60.5 ms of resident compilation; restoring the law
+reached the admitted frame in 233 ms with 66.6 ms of compilation. Neither edit
+rebuilt or restarted Rust, Beagle, Wasm, the server, or the browser page.
 
 `bun run check:conquest` materializes the current Clause source to CWR1,
 builds the passive Beagle projection, stages the exact pinned Clause Wasm
@@ -64,5 +77,6 @@ combat Candidate Delta and Admission journey.
 
 Pinned inputs:
 
-- Clause `419140bd932bdd8461deb51c9f6c42a4bb5683b1`
-- Beagle `974221bc0c8982878d1278d3c61a2fb15ff1b0dc`
+- Clause `93da8a00f544a182d7d6587a94d63d08e656713e` (includes resident-session
+  command budget `0dd73896f0d119342cb5d6f51211e15be6db0953`)
+- Beagle `9bf807794704f0cbb1312eb460a2cb3500f56cfd`

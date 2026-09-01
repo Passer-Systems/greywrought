@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Greywrought Clause — The Severed Moonwell</title>
+    <title>Greywrought Clause — Cinderwake</title>
     <script type="importmap">
       {
         "imports": {
@@ -17,93 +17,109 @@
       :root {
         color-scheme: dark;
         font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-        background: #080b12;
+        background: #05070c;
         color: #eef3ff;
       }
       * { box-sizing: border-box; }
       body { margin: 0; min-height: 100vh; overflow: hidden; }
-      main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; height: 100vh; }
-      #world-wrap { position: relative; min-width: 0; background: radial-gradient(circle at 50% 42%, #252a38 0, #0c1019 55%, #05070c 100%); }
-      #world-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-      .realm-label { position: absolute; top: 18px; padding: 8px 12px; border-radius: 999px; border: 1px solid #ffffff28; backdrop-filter: blur(12px); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
-      #authoritative-label { left: 24px; color: #ffd27d; background: #3d2b1044; }
-      #branch-label { right: 24px; color: #70ddff; background: #0c405044; opacity: 0; transition: opacity .25s; }
+      main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; height: 100vh; }
+      #world-wrap { position: relative; min-width: 0; background: radial-gradient(circle at 55% 40%, #29283a 0, #11131d 50%, #05070c 100%); }
+      #world-canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; cursor: crosshair; }
+      #world-canvas:focus { box-shadow: inset 0 0 0 2px #e5b56b77; }
+      .realm-label { position: absolute; top: 18px; padding: 7px 11px; border-radius: 999px; border: 1px solid #ffffff25; backdrop-filter: blur(12px); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; pointer-events: none; }
+      #authoritative-label { left: 22px; color: #ffd27d; background: #3d2b1066; }
+      #branch-label { right: 22px; color: #70ddff; background: #0c405066; opacity: 0; transition: opacity .25s; }
       #branch-label.visible { opacity: 1; }
-      #sidebar { overflow: auto; padding: 24px; background: #0d111bfa; border-left: 1px solid #ffffff12; }
-      h1 { font-family: Georgia, serif; font-weight: 500; font-size: 28px; margin: 0 0 4px; }
-      .kicker { color: #aab5c9; font-size: 12px; text-transform: uppercase; letter-spacing: .16em; margin-bottom: 22px; }
-      #stage { display: inline-flex; padding: 6px 10px; border-radius: 5px; background: #202839; color: #dbe7ff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
-      #summary { min-height: 58px; color: #bdc8d9; line-height: 1.45; }
-      .controls { display: grid; gap: 8px; margin: 18px 0 22px; }
-      button { appearance: none; border: 1px solid #ffffff24; border-radius: 8px; padding: 11px 13px; color: #f5f7ff; background: #293247; text-align: left; font: inherit; cursor: pointer; transition: background .15s, transform .15s; }
-      button:hover:not(:disabled) { background: #394660; transform: translateY(-1px); }
+      #game-hud { position: absolute; left: 22px; bottom: 22px; width: min(440px, calc(100% - 44px)); display: grid; gap: 8px; pointer-events: none; }
+      .hud-panel { padding: 12px 14px; border: 1px solid #ffffff20; border-radius: 11px; background: #080b12cc; backdrop-filter: blur(12px); box-shadow: 0 16px 40px #0007; }
+      .hud-row { display: grid; grid-template-columns: 100px 1fr auto; align-items: center; gap: 10px; font-size: 12px; }
+      .hud-row + .hud-row { margin-top: 8px; }
+      .bar { height: 8px; overflow: hidden; border-radius: 999px; background: #ffffff13; }
+      .bar > span { display: block; width: 100%; height: 100%; transform-origin: left; transition: transform .16s, background .16s; }
+      #player-vitality-bar { background: #e9a860; }
+      #enemy-vitality-bar { background: #a878ef; }
+      #objective { color: #f3d9a9; font-family: Georgia, serif; font-size: 17px; }
+      #combat-feedback { min-height: 18px; color: #f8ca80; font-weight: 700; letter-spacing: .04em; }
+      #control-hint { color: #b5c0d2; font-size: 11px; line-height: 1.45; }
+      #sidebar { overflow: auto; padding: 22px; background: #0b0e16fa; border-left: 1px solid #ffffff12; }
+      h1 { font-family: Georgia, serif; font-weight: 500; font-size: 28px; margin: 0 0 3px; }
+      .kicker { color: #aab5c9; font-size: 11px; text-transform: uppercase; letter-spacing: .16em; margin-bottom: 18px; }
+      #stage { display: inline-flex; padding: 6px 9px; border-radius: 5px; background: #202839; color: #dbe7ff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+      #summary { min-height: 48px; color: #bdc8d9; line-height: 1.45; font-size: 13px; }
+      button { appearance: none; border: 1px solid #ffffff24; border-radius: 8px; padding: 10px 12px; color: #f5f7ff; background: #293247; text-align: left; font: inherit; cursor: pointer; }
+      button:hover:not(:disabled) { background: #394660; }
       button:disabled { opacity: .28; cursor: default; }
-      button.primary { background: #6f4520; border-color: #d69a58aa; }
+      button.primary { background: #70461f; border-color: #d69a58aa; }
       button.effect { background: #153d45; border-color: #5ad4dd66; }
-      section { margin-top: 18px; padding-top: 16px; border-top: 1px solid #ffffff12; }
-      h2 { margin: 0 0 9px; color: #dce5f6; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
-      .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; color: #aeb8c9; font-size: 12px; }
-      .legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; background: var(--dot); }
-      #candidate { display: none; padding: 10px; border: 1px dashed #e7ab53aa; border-radius: 7px; color: #f2c77d; background: #3b290f44; font-size: 12px; overflow-wrap: anywhere; }
+      #reset-encounter { width: 100%; text-align: center; margin: 8px 0 4px; }
+      section, details { margin-top: 16px; padding-top: 14px; border-top: 1px solid #ffffff12; }
+      summary { cursor: pointer; color: #c7d1e2; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+      h2 { margin: 0 0 8px; color: #dce5f6; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+      .controls { display: grid; gap: 7px; margin-top: 12px; }
+      #candidate { display: none; padding: 9px; border: 1px dashed #e7ab53aa; border-radius: 7px; color: #f2c77d; background: #3b290f44; font-size: 11px; overflow-wrap: anywhere; }
       #candidate.visible { display: block; }
-      #selection, #effect, #resident-law, #projection, #explanation { white-space: pre-wrap; overflow-wrap: anywhere; color: #9facc0; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
-      #projection, #explanation { max-height: 170px; overflow: auto; }
-      .truth-note { color: #7f8ba0; font-size: 11px; line-height: 1.45; }
+      #selection, #effect, #resident-law, #game-custody, #projection, #explanation { white-space: pre-wrap; overflow-wrap: anywhere; color: #9facc0; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      #projection, #explanation { max-height: 160px; overflow: auto; }
+      .truth-note { color: #7f8ba0; font-size: 10px; line-height: 1.45; }
       @media (max-width: 820px) {
         body { overflow: auto; }
-        main { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; min-height: 100vh; }
+        main { grid-template-columns: 1fr; grid-template-rows: 64vh auto; height: auto; min-height: 100vh; }
         #sidebar { border-left: 0; border-top: 1px solid #ffffff12; }
       }
     </style>
   </head>
-  <body data-journey="loading">
+  <body data-journey="loading" data-game-phase="loading">
     <main>
       <div id="world-wrap">
-        <div id="authoritative-label" class="realm-label">Authoritative world</div>
+        <div id="authoritative-label" class="realm-label">Authoritative · real Wasm</div>
         <div id="branch-label" class="realm-label">Disconnected branch · retained</div>
+        <div id="game-hud">
+          <div class="hud-panel">
+            <div class="hud-row"><span>Wayfarer</span><div class="bar"><span id="player-vitality-bar"></span></div><strong id="player-vitality">4 / 4</strong></div>
+            <div class="hud-row"><span>Cinder wraith</span><div class="bar"><span id="enemy-vitality-bar"></span></div><strong id="enemy-vitality">6 / 6</strong></div>
+          </div>
+          <div class="hud-panel">
+            <div id="objective">Enter the ash circle and claim the key.</div>
+            <div id="combat-feedback"></div>
+            <div id="control-hint">Click the arena · WASD move with momentum · Space strike in range · R reset</div>
+          </div>
+        </div>
       </div>
       <aside id="sidebar">
-        <h1>The Severed Moonwell</h1>
-        <div class="kicker">A Clause-owned world in real Wasm</div>
-        <div id="stage">Loading exact world…</div>
-        <p id="summary">Materializing the pinned program and world revision.</p>
-        <div class="controls">
-          <button id="enter-world" class="primary">1 · Enter and engage</button>
-          <button id="disconnect">2 · Disconnect at tick 41</button>
-          <button id="continue-branch">3 · Continue the isolated branch</button>
-          <button id="submit-candidate">4 · Reconnect and submit Candidate Delta</button>
-          <button id="admit-candidate" class="primary">5 · Invoke authoritative Admission</button>
-          <button id="pulse-moonwell" class="effect">Pulse moonwell · external effect evidence</button>
-        </div>
-        <div id="candidate" aria-live="polite"></div>
+        <h1>Cinderwake</h1>
+        <div class="kicker">One living Clause session</div>
+        <div id="stage">Opening world…</div>
+        <p id="summary">The source-authored room is entering real Wasm.</p>
+        <button id="reset-encounter" class="primary">Reset encounter · R</button>
         <section>
-          <h2>World figures · click to inspect</h2>
-          <div class="legend">
-            <span style="--dot:#f3b45d">ashen-wayfarer</span>
-            <span style="--dot:#a878ef">cinder-wraith</span>
-            <span style="--dot:#ead061">ashen-key</span>
-            <span style="--dot:#5ed9df">moonwell</span>
-          </div>
+          <h2>Authoritative custody</h2>
+          <div id="game-custody">No gameplay advance yet.</div>
+          <p class="truth-note">Input and ticks produce a hidden Candidate Delta. Only the following separate Admission installs a visible frame.</p>
+        </section>
+        <section>
+          <h2>Resident Clause law</h2>
+          <div id="resident-law">Opening the resident Clause generation…</div>
+        </section>
+        <section>
+          <h2>Inspect the room</h2>
           <p id="selection">Nothing selected.</p>
         </section>
-        <section>
-          <h2>Moonwell effect ledger</h2>
-          <div id="effect">No attempt has crossed the browser boundary.</div>
-          <p class="truth-note">Intent, attempt, receipt, Observation, and Judgment are evidence. They do not assert a world revision.</p>
-        </section>
-        <section>
-          <h2>Resident combat law</h2>
-          <div id="resident-law">Opening the resident Clause generation…</div>
-          <p class="truth-note">A source save installs a fresh checked generation, retains its CandidateDelta with projection hidden, then invokes Admission separately.</p>
-        </section>
-        <section>
-          <h2>Admitted world projection</h2>
-          <div id="projection">Hidden until Admission.</div>
-        </section>
-        <section>
-          <h2>Causal explanation</h2>
-          <div id="explanation">No authoritative successor yet.</div>
-        </section>
+        <details>
+          <summary>Secondary disconnect proof</summary>
+          <p class="truth-note">The original exact fork, reconnect Candidate, Admission, explanation, and moonwell effect remain reachable here.</p>
+          <div class="controls">
+            <button id="enter-world">Enter branch proof</button>
+            <button id="disconnect">Disconnect at tick 41</button>
+            <button id="continue-branch">Advance isolated branch</button>
+            <button id="submit-candidate">Submit Candidate Delta</button>
+            <button id="admit-candidate">Invoke Admission</button>
+            <button id="pulse-moonwell" class="effect">Pulse moonwell effect</button>
+          </div>
+          <div id="candidate" aria-live="polite"></div>
+          <section><h2>Effect ledger</h2><div id="effect">No effect attempt yet.</div></section>
+          <section><h2>Admitted projection</h2><div id="projection">Hidden until Admission.</div></section>
+          <section><h2>Causal explanation</h2><div id="explanation">No successor yet.</div></section>
+        </details>
       </aside>
     </main>
     <script type="module" src="/app/greywrought-clause/play.js"></script>

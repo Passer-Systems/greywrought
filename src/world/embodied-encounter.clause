@@ -1,0 +1,622 @@
+referent F64
+referent Bool
+referent Player
+referent Arena
+referent Enemy
+referent Loot
+referent Custodian
+referent CombatStatus
+referent LootState
+referent Objective
+referent ObjectiveState
+
+referent alive
+referent dead
+referent hidden
+referent available
+referent acquired
+referent playing
+referent completed
+referent failed
+
+shape Vec3
+  x: F64
+  y: F64
+  z: F64
+
+relation clamped-between
+  reads {value: F64} clamped between {lower: F64} and {upper: F64} as {result: F64}
+  mode given value lower upper yields result: maybe
+
+relation position
+  reads {player: Player} position {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation velocity
+  reads {player: Player} velocity {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation grounded
+  reads {player: Player} grounded {value: Bool}
+  subject player
+  mode given player yields value: one
+
+relation horizontal-intent
+  reads {player: Player} horizontal intent {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation gravity
+  reads {arena: Arena} gravity {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation jump-speed
+  reads {arena: Arena} jump speed {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation move-speed
+  reads {arena: Arena} move speed {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation floor-height
+  reads {arena: Arena} floor height {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation min-x
+  reads {arena: Arena} minimum x {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation max-x
+  reads {arena: Arena} maximum x {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation min-z
+  reads {arena: Arena} minimum z {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation max-z
+  reads {arena: Arena} maximum z {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation combat-clock
+  reads {player: Player} combat clock {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation player-vitals
+  reads {player: Player} player vitals {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation combat-status
+  reads {player: Player} combat status {value: CombatStatus}
+  subject player
+  mode given player yields value: one
+
+relation enemy-position
+  reads {enemy: Enemy} enemy position {value: Vec3}
+  subject enemy
+  mode given enemy yields value: one
+
+relation enemy-vitals
+  reads {enemy: Enemy} enemy vitals {value: Vec3}
+  subject enemy
+  mode given enemy yields value: one
+
+relation enemy-combat-status
+  reads {enemy: Enemy} enemy combat status {value: CombatStatus}
+  subject enemy
+  mode given enemy yields value: one
+
+relation enemy-attack-clock
+  reads {enemy: Enemy} enemy attack clock {value: Vec3}
+  subject enemy
+  mode given enemy yields value: one
+
+relation loot-state
+  reads {loot: Loot} loot state {value: LootState}
+  subject loot
+  mode given loot yields value: one
+
+relation custody
+  reads {loot: Loot} custody {custodian: Custodian}
+  subject loot
+  mode given loot yields custodian: one
+
+relation loot-position
+  reads {loot: Loot} loot position {value: Vec3}
+  subject loot
+  mode given loot yields value: one
+
+relation exit-position
+  reads {objective: Objective} exit position {value: Vec3}
+  subject objective
+  mode given objective yields value: one
+
+relation objective-state
+  reads {objective: Objective} objective state {value: Vec3}
+  subject objective
+  mode given objective yields value: one
+
+relation reset-signal
+  reads {objective: Objective} reset signal {value: Vec3}
+  subject objective
+  mode given objective yields value: one
+
+law clamp-lower
+  if
+    ?lower <= ?upper
+    ?value < ?lower
+  then
+    ?value clamped between ?lower and ?upper as ?lower
+
+law clamp-interior
+  if
+    ?lower <= ?value
+    ?value <= ?upper
+  then
+    ?value clamped between ?lower and ?upper as ?value
+
+law clamp-upper
+  if
+    ?lower <= ?upper
+    ?value > ?upper
+  then
+    ?value clamped between ?lower and ?upper as ?upper
+
+derive clamp-lower
+derive clamp-interior
+derive clamp-upper
+
+jump-arena ∈ Arena
+player-1 ∈ Player
+player-1 ∈ Custodian
+cinder-wraith ∈ Enemy
+cinder-wraith ∈ Custodian
+ashen-key ∈ Loot
+game-objective ∈ Objective
+
+jump-arena gravity -8.0
+jump-arena jump speed 8.0
+jump-arena move speed 62.5
+jump-arena floor height 0.0
+jump-arena minimum x -10.0
+jump-arena maximum x 10.0
+jump-arena minimum z -10.0
+jump-arena maximum z 10.0
+
+player-1 position Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 velocity Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 grounded true
+player-1 horizontal intent Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 combat clock Vec3 { x: 0.95, y: 0.0, z: 0.0 }
+player-1 player vitals Vec3 { x: 4.0, y: 4.0, z: 1.0 }
+player-1 combat status alive
+
+cinder-wraith enemy position Vec3 { x: 2.0, y: 0.0, z: 0.0 }
+cinder-wraith enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
+cinder-wraith enemy combat status alive
+cinder-wraith enemy attack clock Vec3 { x: 0.0, y: 45.0, z: 0.95 }
+
+ashen-key loot state hidden
+ashen-key custody cinder-wraith
+ashen-key loot position Vec3 { x: 2.0, y: 0.0, z: 0.0 }
+game-objective exit position Vec3 { x: -2.0, y: 0.0, z: 0.0 }
+game-objective objective state Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+game-objective reset signal Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+
+on input ?player Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
+  when
+    ?player horizontal intent ?old-intent
+  withdraw
+    ?player horizontal intent ?old-intent
+  include
+    ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
+
+on attack ?player
+  when
+    ?player combat clock Vec3 { x: ?sample, y: ?cooldown, z: ?attack-count }
+    ?cooldown = 0.0
+  withdraw
+    ?player combat clock Vec3 { x: ?sample, y: ?cooldown, z: ?attack-count }
+  include
+    ?player combat clock Vec3 { x: ?sample, y: 20.0, z: ?attack-count }
+
+on reset-objective ?objective
+  when
+    ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 0.0
+  withdraw
+    ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+  include
+    ?objective reset signal Vec3 { x: 1.0, y: ?phase, z: ?unused }
+
+on tick ?player ?dt
+  when
+    ?dt > 0.0
+    ?player position Vec3 { x: ?position-x, y: ?floor, z: ?position-z }
+    ?player velocity Vec3 { x: ?velocity-x, y: 0.0, z: ?velocity-z }
+    ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
+    ?player grounded true
+    jump-arena move speed ?move-speed
+    jump-arena floor height ?floor
+    jump-arena minimum x ?min-x
+    jump-arena maximum x ?max-x
+    jump-arena minimum z ?min-z
+    jump-arena maximum z ?max-z
+    (?position-x + ?intent-x * ?move-speed * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + ?intent-z * ?move-speed * ?dt) clamped between ?min-z and ?max-z as ?next-z
+  withdraw
+    ?player position Vec3 { x: ?position-x, y: ?floor, z: ?position-z }
+    ?player velocity Vec3 { x: ?velocity-x, y: 0.0, z: ?velocity-z }
+  include
+    ?player position Vec3 { x: ?next-x, y: ?floor, z: ?next-z }
+    ?player velocity Vec3 { x: (?next-x - ?position-x) / ?dt, y: 0.0, z: (?next-z - ?position-z) / ?dt }
+
+on tick ?player ?dt
+  when
+    ?dt > 0.0
+    ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
+    ?player grounded false
+    jump-arena gravity ?gravity
+    jump-arena move speed ?move-speed
+    jump-arena floor height ?floor
+    jump-arena minimum x ?min-x
+    jump-arena maximum x ?max-x
+    jump-arena minimum z ?min-z
+    jump-arena maximum z ?max-z
+    (?position-x + (?velocity-x + ?intent-x * ?move-speed * ?dt) * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + (?velocity-z + ?intent-z * ?move-speed * ?dt) * ?dt) clamped between ?min-z and ?max-z as ?next-z
+    ?position-y + (?velocity-y + ?gravity * ?dt) * ?dt > ?floor
+  withdraw
+    ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+  include
+    ?player position Vec3 { x: ?next-x, y: ?position-y + (?velocity-y + ?gravity * ?dt) * ?dt, z: ?next-z }
+    ?player velocity Vec3 { x: (?next-x - ?position-x) / ?dt, y: ?velocity-y + ?gravity * ?dt, z: (?next-z - ?position-z) / ?dt }
+
+on tick ?player ?dt
+  when
+    ?dt > 0.0
+    ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
+    ?player grounded false
+    jump-arena gravity ?gravity
+    jump-arena move speed ?move-speed
+    jump-arena floor height ?floor
+    jump-arena minimum x ?min-x
+    jump-arena maximum x ?max-x
+    jump-arena minimum z ?min-z
+    jump-arena maximum z ?max-z
+    (?position-x + (?velocity-x + ?intent-x * ?move-speed * ?dt) * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + (?velocity-z + ?intent-z * ?move-speed * ?dt) * ?dt) clamped between ?min-z and ?max-z as ?next-z
+    ?position-y + (?velocity-y + ?gravity * ?dt) * ?dt <= ?floor
+  withdraw
+    ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player grounded false
+  include
+    ?player position Vec3 { x: ?next-x, y: ?floor, z: ?next-z }
+    ?player velocity Vec3 { x: (?next-x - ?position-x) / ?dt, y: 0.0, z: (?next-z - ?position-z) / ?dt }
+    ?player grounded true
+
+on combat-impact ?enemy
+  when
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    player-1 combat clock Vec3 { x: ?sample, y: ?cooldown, z: ?attack-count }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    cinder-wraith enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    player-1 player vitals Vec3 { x: ?player-vitality, y: ?player-maximum, z: ?player-alive }
+    ?sample = 0.95
+    ?cooldown = 20.0
+    ?vitality = 6.0
+    ?player-x = 1.0
+    ?player-z = 0.0
+    ?player-alive = 1.0
+  withdraw
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ?enemy enemy vitals Vec3 { x: ?vitality - 6.0, y: ?maximum, z: ?alive-flag }
+
+on wraith-impact ?player
+  when
+    ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    cinder-wraith enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    cinder-wraith enemy attack clock Vec3 { x: ?enemy-cooldown, y: ?enemy-delay, z: ?enemy-sample }
+    ?player-x = ?enemy-x
+    ?player-z = ?enemy-z
+    ?vitality = 4.0
+    ?enemy-sample = 0.95
+  withdraw
+    ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ?player player vitals Vec3 { x: ?vitality - 4.0, y: ?maximum, z: ?alive-flag }
+
+on arm-wraith-cooldown ?enemy
+  when
+    ?enemy enemy attack clock Vec3 { x: ?cooldown, y: ?delay, z: ?sample }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    cinder-wraith enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?cooldown = 0.0
+    ?player-x = ?enemy-x
+    ?player-z = ?enemy-z
+  withdraw
+    ?enemy enemy attack clock Vec3 { x: ?cooldown, y: ?delay, z: ?sample }
+  include
+    ?enemy enemy attack clock Vec3 { x: 45.0, y: ?delay, z: ?sample }
+
+on resolve-wraith-death ?enemy
+  when
+    ?enemy enemy combat status ?status
+    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?status = alive
+    ?vitality = 0.0
+  withdraw
+    ?enemy enemy combat status ?status
+  include
+    ?enemy enemy combat status dead
+
+on resolve-player-death ?player
+  when
+    ?player combat status ?status
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?status = alive
+    ?vitality = 0.0
+  withdraw
+    ?player combat status ?status
+  include
+    ?player combat status dead
+
+on reveal-loot ?loot
+  when
+    ?loot loot state ?state
+    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?state = hidden
+    ?vitality = 0.0
+  withdraw
+    ?loot loot state ?state
+  include
+    ?loot loot state available
+
+on transfer-loot ?loot
+  when
+    ?loot custody ?custodian
+    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?custodian = cinder-wraith
+    ?vitality = 0.0
+  withdraw
+    ?loot custody ?custodian
+  include
+    ?loot custody player-1
+
+on carry-loot-x ?loot
+  when
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?vitality = 0.0
+  withdraw
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+  include
+    ?loot loot position Vec3 { x: ?player-x, y: ?loot-y, z: ?loot-z }
+
+on carry-loot-z ?loot
+  when
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?vitality = 0.0
+  withdraw
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+  include
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?player-z }
+
+on acquire-loot ?loot
+  when
+    ?loot loot state ?state
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ashen-key loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?state = available
+    ?vitality = 0.0
+    ?player-x = ?loot-x
+    ?player-z = ?loot-z
+  withdraw
+    ?loot loot state ?state
+  include
+    ?loot loot state acquired
+
+on complete-objective ?objective
+  when
+    ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    game-objective exit position Vec3 { x: ?exit-x, y: ?exit-y, z: ?exit-z }
+    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?state = 0.0
+    ?vitality = 0.0
+    ?player-x = ?exit-x
+    ?player-z = ?exit-z
+  withdraw
+    ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
+  include
+    ?objective objective state Vec3 { x: 1.0, y: ?branch, z: ?unused-state }
+
+on fail-objective ?objective
+  when
+    ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?state = 0.0
+    ?vitality = 0.0
+  withdraw
+    ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
+  include
+    ?objective objective state Vec3 { x: -1.0, y: ?branch, z: ?unused-state }
+
+on reset-player-x ?player
+  when
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+  include
+    ?player position Vec3 { x: 0.0, y: ?player-y, z: ?player-z }
+
+on reset-player-z ?player
+  when
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+  include
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: 0.0 }
+
+on reset-player-vitality ?player
+  when
+    ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ?player player vitals Vec3 { x: 4.0, y: ?maximum, z: ?alive-flag }
+
+on reset-player-status ?player
+  when
+    ?player combat status ?status
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player combat status ?status
+  include
+    ?player combat status alive
+
+on reset-player-cooldown ?player
+  when
+    ?player combat clock Vec3 { x: ?sample, y: ?cooldown, z: ?attack-count }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player combat clock Vec3 { x: ?sample, y: ?cooldown, z: ?attack-count }
+  include
+    ?player combat clock Vec3 { x: ?sample, y: 0.0, z: ?attack-count }
+
+on reset-enemy-vitality ?enemy
+  when
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ?enemy enemy vitals Vec3 { x: 6.0, y: ?maximum, z: ?alive-flag }
+
+on reset-enemy-status ?enemy
+  when
+    ?enemy enemy combat status ?status
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy combat status ?status
+  include
+    ?enemy enemy combat status alive
+
+on reset-enemy-cooldown ?enemy
+  when
+    ?enemy enemy attack clock Vec3 { x: ?cooldown, y: ?delay, z: ?sample }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy attack clock Vec3 { x: ?cooldown, y: ?delay, z: ?sample }
+  include
+    ?enemy enemy attack clock Vec3 { x: 0.0, y: ?delay, z: ?sample }
+
+on reset-loot-state ?loot
+  when
+    ?loot loot state ?state
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?loot loot state ?state
+  include
+    ?loot loot state hidden
+
+on reset-custody ?loot
+  when
+    ?loot custody ?custodian
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?loot custody ?custodian
+  include
+    ?loot custody cinder-wraith
+
+on reset-loot-x ?loot
+  when
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+  include
+    ?loot loot position Vec3 { x: 2.0, y: ?loot-y, z: ?loot-z }
+
+on reset-loot-z ?loot
+  when
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+  include
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: 0.0 }
+
+on reset-world-objective ?objective
+  when
+    ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
+  include
+    ?objective objective state Vec3 { x: 0.0, y: ?branch, z: ?unused-state }
+
+on clear-reset-signal ?objective
+  when
+    ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 player vitals Vec3 { x: ?player-vitality, y: ?player-maximum, z: ?player-alive }
+    cinder-wraith enemy vitals Vec3 { x: ?enemy-vitality, y: ?enemy-maximum, z: ?enemy-alive }
+    player-1 combat clock Vec3 { x: ?sample, y: ?cooldown, z: ?attack-count }
+    cinder-wraith enemy attack clock Vec3 { x: ?enemy-cooldown, y: ?enemy-delay, z: ?enemy-sample }
+    ashen-key loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    game-objective objective state Vec3 { x: ?objective-state, y: ?branch, z: ?unused-state }
+    ?reset = 1.0
+    ?player-x = 0.0
+    ?player-z = 0.0
+    ?player-vitality = ?player-maximum
+    ?enemy-vitality = ?enemy-maximum
+    ?cooldown = 0.0
+    ?enemy-cooldown = 0.0
+    ?loot-x = 2.0
+    ?loot-z = 0.0
+    ?objective-state = 0.0
+  withdraw
+    ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+  include
+    ?objective reset signal Vec3 { x: 0.0, y: ?phase, z: ?unused }

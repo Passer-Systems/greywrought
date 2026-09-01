@@ -19,6 +19,7 @@
            MeshStandardMaterial
            PerspectiveCamera
            PlaneGeometry
+           PointLight
            Raycaster
            Scene
            SphereGeometry
@@ -43,8 +44,10 @@
 
 (declare-extern
   [cancelAnimationFrame document
-   clearInterval Date localStorage
-   Reflect requestAnimationFrame setInterval setTimeout URLSearchParams
+   clearInterval Date
+   localStorage Reflect
+   requestAnimationFrame setInterval
+   setTimeout URLSearchParams
    window] Any)
 
 (defrecord Dormant [loaded Bool])
@@ -106,10 +109,13 @@
 
 (defrecord ResidentLawSession
   [port workbench/CartridgePort
-   session (Atom Any)
+   controller (Atom Any)
    generation (Atom Int)
    polling (Atom Bool)
-   interval (Atom Int)])
+   interval (Atom Int)
+   pendingHot (Atom Any)
+   lastProjection (Atom Any)
+   candidateSeen (Atom Bool)])
 
 (defrecord PlayApp
   [module Any
@@ -196,18 +202,10 @@
    (atom nil)
    (atom -1)
    (atom false)
-   (atom 0)))
-
-(defn resident-candidate-configuration
-  [ordinal Int] workbench/InputConfiguration
-  (workbench/->InputConfiguration
-   1
-   [(workbench/->InputObservation
-     1
-     (workbench/create-workbench-envelope
-      (policy)
-      (.stringify JSON [(.stringify JSON {:kind "process-occurrence"
-                                          :ordinal ordinal})])))]))
+   (atom 0)
+   (atom nil)
+   (atom nil)
+   (atom false)))
 
 (defn resident-law-failure! [message Any] Nil
   (set! (.-textContent (element "resident-law"))
@@ -215,55 +213,233 @@
   (set! (.-residentPhase (.-dataset (.-body document))) "rejected")
   nil)
 
-(defn admit-resident-law!
+(defn projected-property
+  [value Any
+   key String] Any
+  (.get Reflect value key))
+
+(defn objective-label [state Any] String
+  (let [status Float (projected-property state "x")]
+    (cond
+      (= status 1.0) "completed"
+      (= status -1.0) "failed"
+      :else "playing")))
+
+(defn authoritative-figure
+  [shell SceneShell
+   label String] Any
+  (loop [index Int 0]
+    (if (= index (count (.-selectables shell)))
+      nil
+      (let [figure Any (nth (.-selectables shell) index)
+            data Any (.-userData figure)]
+        (if (and (= (.-label data) label)
+                 (= (.-realm data) "authoritative"))
+          figure
+          (recur (inc index)))))))
+
+(defn position-figure!
+  [figure Any
+   position Any
+   elevation Float] Nil
+  (let [x Float (projected-property position "x")
+        y Float (projected-property position "y")
+        z Float (projected-property position "z")]
+    (.set (.-position figure) x (+ y elevation) z))
+  nil)
+
+(defn vitality-bar!
+  [bar-id String
+   value-id String
+   vitality Float
+   maximum Float] Nil
+  (let [ratio Float (max 0.0 (min 1.0 (/ vitality (max 0.001 maximum))))]
+    (set! (.-transform (.-style (element bar-id)))
+          (str "scaleX(" (str ratio) ")"))
+    (set! (.-textContent (element value-id))
+          (str (str vitality) " / " (str maximum))))
+  nil)
+
+(defn flash-figure!
+  [figure Any
+   color Int] Nil
+  (.setHex (.-emissive (.-material figure)) color)
+  (setTimeout
+   (fn [] Any (.setHex (.-emissive (.-material figure)) 0))
+   110)
+  nil)
+
+(defn bounded-game-event! [event Any] Nil
+  (let [events Any (.-__GREYWROUGHT_GAME_EVENTS__ window)]
+    (.push events event)
+    (when (> (.-length events) 512)
+      (.shift events)))
+  nil)
+
+(defn render-game-projection!
   [app PlayApp
-   session Any
-   candidate Any
-   payload Any] Nil
-  (let [admitted (Atom Any) (atom nil)
-        port workbench/CartridgePort (.-port (.-residentLaw app))]
-    ((.-requestAdmission port) session candidate
-     (fn [result Any] Any (reset! admitted result)))
-    (if (nil? (.-frame @admitted))
-      (resident-law-failure! (.-reason @admitted))
-      (let [projection Any (wasm/decode-projected-term-frame (.-frame @admitted))
-            enemy Any (.get Reflect projection "cinder-wraith")
-            loot Any (.get Reflect projection "ashen-key")
-            vitality Any (.get Reflect enemy "vitality")
-            status Any (.get Reflect enemy "combat-status")
-            custody Any (.get Reflect loot "custody")
-            hot Bool (.-hot payload)
-            now Float (.now Date)
-            modified Float (.-sourceModifiedMillis payload)
-            latency Float (if hot (- now modified) 0.0)
-            dataset Any (.-dataset (.-body document))]
-        (set! (.-residentGeneration dataset) (str (.-generation payload)))
-        (set! (.-residentPhase dataset) "admitted")
-        (set! (.-residentVitality dataset) (str vitality))
-        (set! (.-residentStatus dataset) status)
-        (set! (.-residentCustody dataset) custody)
-        (set! (.-residentCompilerMicros dataset) (str (.-compilerMicros payload)))
-        (when hot
-          (set! (.-residentLatencyMillis dataset) (str latency)))
-        (.push (.-__GREYWROUGHT_RESIDENT_EVENTS__ window)
-               {:phase "admitted"
-                :generation (.-generation payload)
-                :vitality vitality
-                :status status
-                :custody custody
-                :latencyMillis latency
-                :compilerMicros (.-compilerMicros payload)})
-        (set! (.-textContent (element "resident-law"))
-              (str "generation " (str (.-generation payload))
-                   " · admitted"
-                   "\nvitality " (str vitality)
-                   " · status " status
-                   "\nashen-key custody " custody
-                   (if hot
-                     (str "\nsource-save → admitted " (str latency) " ms"
-                          " · resident compile "
-                          (str (.-compilerMicros payload)) " µs")
-                     "\nresident generation ready"))))))
+   projection Any] Nil
+  (let [resident ResidentLawSession (.-residentLaw app)
+        prior Any @(.-lastProjection resident)
+        player Any (projected-property projection "player-1")
+        enemy Any (projected-property projection "cinder-wraith")
+        loot Any (projected-property projection "ashen-key")
+        objective Any (projected-property projection "game-objective")
+        player-position Any (projected-property player "position")
+        enemy-position Any (projected-property enemy "enemy-position")
+        loot-position Any (projected-property loot "loot-position")
+        exit-position Any (projected-property objective "exit-position")
+        player-vitals Any (projected-property player "player-vitals")
+        enemy-vitals Any (projected-property enemy "enemy-vitals")
+        combat-clock Any (projected-property player "combat-clock")
+        enemy-clock Any (projected-property enemy "enemy-attack-clock")
+        objective-state Any (projected-property objective "objective-state")
+        player-vitality Float (projected-property player-vitals "x")
+        player-maximum Float (projected-property player-vitals "y")
+        enemy-vitality Float (projected-property enemy-vitals "x")
+        enemy-maximum Float (projected-property enemy-vitals "y")
+        player-status String (projected-property player "combat-status")
+        enemy-status String (projected-property enemy "enemy-combat-status")
+        cooldown Float (projected-property combat-clock "y")
+        enemy-cooldown Float (projected-property enemy-clock "x")
+        loot-state String (projected-property loot "loot-state")
+        custody String (projected-property loot "custody")
+        objective-status String (objective-label objective-state)
+        player-figure Any (authoritative-figure (.-scene app) "ashen-wayfarer")
+        enemy-figure Any (authoritative-figure (.-scene app) "cinder-wraith")
+        loot-figure Any (authoritative-figure (.-scene app) "ashen-key")
+        exit-figure Any (authoritative-figure (.-scene app) "moonwell")]
+    (position-figure! player-figure player-position 0.75)
+    (position-figure! enemy-figure enemy-position 0.82)
+    (position-figure! loot-figure loot-position 0.38)
+    (position-figure! exit-figure exit-position 0.27)
+    (set! (.-visible loot-figure) (not (= loot-state "hidden")))
+    (set! (.-opacity (.-material enemy-figure))
+          (if (= enemy-status "dead") 0.28 0.72))
+    (vitality-bar! "player-vitality-bar" "player-vitality"
+                   player-vitality player-maximum)
+    (vitality-bar! "enemy-vitality-bar" "enemy-vitality"
+                   enemy-vitality enemy-maximum)
+    (set! (.-textContent (element "objective"))
+          (cond
+            (= objective-status "completed")
+            "MOONWELL RESTORED · the ashen key is admitted"
+
+            (= objective-status "failed")
+            "WAYFARER FALLEN · press R to restore the revision"
+
+            :else
+            "Strike at x=1 · avoid contact at x=2 · return the key to x=-2"))
+    (set! (.-textContent (element "stage"))
+          (str "world · " objective-status))
+    (set! (.-textContent (element "summary"))
+          (str "wayfarer " player-status
+               " · wraith " enemy-status
+               " · key " loot-state " / " custody
+               " · strike latch " (str cooldown)
+               " · wraith latch " (str enemy-cooldown)))
+    (set! (.-gamePhase (.-dataset (.-body document))) objective-status)
+    (set! (.-gamePlayerVitality (.-dataset (.-body document)))
+          (str player-vitality))
+    (set! (.-gameEnemyVitality (.-dataset (.-body document)))
+          (str enemy-vitality))
+    (set! (.-gameCustody (.-dataset (.-body document))) custody)
+    (when-not (nil? prior)
+      (let [prior-player Any (projected-property prior "player-1")
+            prior-enemy Any (projected-property prior "cinder-wraith")
+            prior-player-vitals Any (projected-property prior-player "player-vitals")
+            prior-enemy-vitals Any (projected-property prior-enemy "enemy-vitals")
+            prior-player-vitality Float (projected-property prior-player-vitals "x")
+            prior-enemy-vitality Float (projected-property prior-enemy-vitals "x")]
+        (cond
+          (< enemy-vitality prior-enemy-vitality)
+          (do
+            (set! (.-textContent (element "combat-feedback"))
+                  (str "EMBER IMPACT · -"
+                       (str (- prior-enemy-vitality enemy-vitality))))
+            (flash-figure! enemy-figure 6299680))
+
+          (< player-vitality prior-player-vitality)
+          (do
+            (set! (.-textContent (element "combat-feedback"))
+                  (str "WRAITH IMPACT · -"
+                       (str (- prior-player-vitality player-vitality))))
+            (flash-figure! player-figure 7348240))
+
+          :else
+          (set! (.-textContent (element "combat-feedback")) ""))))
+    (reset! (.-lastProjection resident) projection)
+    (bounded-game-event!
+     {:phase "frame-admitted"
+      :generation @(.-generation resident)
+      :objective objective-status
+      :playerVitality player-vitality
+      :enemyVitality enemy-vitality
+      :lootState loot-state
+      :custody custody})
+    nil))
+
+(defn game-lifecycle-receipt!
+  [app PlayApp
+   receipt workbench/LifecycleReceipt] Nil
+  (let [resident ResidentLawSession (.-residentLaw app)
+        event String (.-event receipt)
+        generation Int (.-activeGeneration receipt)]
+    (bounded-game-event!
+     {:phase event
+      :generation generation
+      :operation (.-operationId receipt)
+      :detail (.-detail receipt)})
+    (cond
+      (= event "candidate-produced")
+      (do
+        (reset! (.-candidateSeen resident) true)
+        (set! (.-gameCustodyPhase (.-dataset (.-body document)))
+              "candidate-hidden")
+        (set! (.-textContent (element "game-custody"))
+              (str "CandidateDelta retained and hidden"
+                   "\ngeneration " (str generation)
+                   " · operation " (str (.-operationId receipt)))))
+
+      (= event "admission-accepted")
+      (let [ordered Bool @(.-candidateSeen resident)
+            pending Any @(.-pendingHot resident)]
+        (set! (.-gameCustodyPhase (.-dataset (.-body document)))
+              (if ordered "candidate-before-admission" "order-violation"))
+        (set! (.-textContent (element "game-custody"))
+              (str "CandidateDelta hidden first"
+                   "\nseparate Admission installed successor"
+                   "\noperation " (str (.-operationId receipt))))
+        (reset! (.-candidateSeen resident) false)
+        (when (and (not (nil? pending)) (.-hot pending))
+          (let [now Float (.now Date)
+                modified Float (.-sourceModifiedMillis pending)
+                latency Float (- now modified)]
+            (set! (.-residentLatencyMillis (.-dataset (.-body document)))
+                  (str latency))
+            (set! (.-textContent (element "resident-law"))
+                  (str "generation " (str (.-generation pending))
+                       " · admitted live edit"
+                       "\nsource-save → behavior " (str latency) " ms"
+                       " · resident compile "
+                       (str (.-compilerMicros pending)) " µs"))
+            (.push (.-__GREYWROUGHT_RESIDENT_EVENTS__ window)
+                   {:phase "admitted"
+                    :generation (.-generation pending)
+                    :latencyMillis latency
+                    :compilerMicros (.-compilerMicros pending)})
+            (reset! (.-pendingHot resident) nil))))
+
+      (= event "session-started")
+      (set! (.-residentPhase (.-dataset (.-body document))) "session-started")
+
+      (or (= event "candidate-failed")
+          (= event "admission-rejected")
+          (= event "session-failed")
+          (= event "package-rejected"))
+      (resident-law-failure! (.-detail receipt))
+
+      :else nil))
   nil)
 
 (defn install-resident-law!
@@ -271,55 +447,40 @@
    payload Any] Nil
   (let [resident ResidentLawSession (.-residentLaw app)
         port workbench/CartridgePort (.-port resident)
-        prior Any @(.-session resident)]
-    (when-not (nil? prior)
-      ((.-disposeSession port) prior))
-    (let [request wasm/ExactProcessRequest
-          (wasm/->ExactProcessRequest (wasm/decode-cwr1-hex (.-cwr1 payload)))
-          occurrences (Vec Any) (wasm/process-request-occurrences! request)
-          accepted (Atom Any) (atom nil)
-          started (Atom Any) (atom nil)]
-      ((.-acceptPackage port) request
-       (fn [result Any] Any (reset! accepted result)))
-      ((.-startSession port) (.-acceptedPackage @accepted) (.-generation payload)
-       (fn [result Any] Any (reset! started result)))
-      (if (nil? (.-session @started))
-        (resident-law-failure! (.-reason @started))
-        (let [session Any (.-session @started)
-              final-ordinal Int (dec (count occurrences))]
-          (reset! (.-generation resident) (.-generation payload))
-          (when (< final-ordinal 0)
-            (throw (new Error "resident generation has no combat occurrences")))
-          (loop [ordinal Int 0]
-            (when (< ordinal final-ordinal)
-              (wasm/advance-session-occurrence! (.-module app) session ordinal)
-              (recur (inc ordinal))))
-          (let [candidate (Atom Any) (atom nil)]
-            ((.-runCandidate port)
-             session
+        request wasm/ExactProcessRequest (wasm/->ExactProcessRequest (wasm/decode-cwr1-hex (.-cwr1 payload)))
+        controller Any @(.-controller resident)]
+    (reset! (.-generation resident) (.-generation payload))
+    (reset! (.-pendingHot resident) (if (.-hot payload) payload nil))
+    (set! (.-residentGeneration (.-dataset (.-body document)))
+          (str (.-generation payload)))
+    (set! (.-residentCompilerMicros (.-dataset (.-body document)))
+          (str (.-compilerMicros payload)))
+    (set! (.-textContent (element "resident-law"))
+          (str "generation " (str (.-generation payload))
+               " · checked"
+               "\nresident compile " (str (.-compilerMicros payload)) " µs"
+               "\nawaiting first admitted frame"))
+    (if (nil? controller)
+      (let [created Any (workbench/create-cartridge-workbench!
+             port
              (workbench/->FixedTick 16)
-             (resident-candidate-configuration final-ordinal)
-             (fn [result Any] Any (reset! candidate result)))
-            (if (nil? (.-candidate @candidate))
-              (resident-law-failure! (.-reason @candidate))
-              (do
-                (reset! (.-session resident) session)
-                (set! (.-residentGeneration (.-dataset (.-body document)))
-                      (str (.-generation payload)))
-                (set! (.-residentPhase (.-dataset (.-body document)))
-                      "candidate-hidden")
-                (.push (.-__GREYWROUGHT_RESIDENT_EVENTS__ window)
-                       {:phase "candidate-hidden"
-                        :generation (.-generation payload)})
-                (set! (.-textContent (element "resident-law"))
-                      (str "generation " (str (.-generation payload))
-                           " · CandidateDelta retained\n"
-                           "projection hidden until separate Admission"))
-                (setTimeout
-                 (fn [] Any
-                   (admit-resident-law!
-                    app session (.-candidate @candidate) payload))
-                 0))))))))
+             (resident-policy)
+             (fn
+               [milliseconds Int
+                callback Any] Any
+               (let [handle Int (browser-int (setInterval callback milliseconds))]
+                 (fn [] Any (clearInterval handle))))
+             (fn [frame Any] Any
+               (let [projection Any (wasm/decode-projected-term-frame frame)]
+                 (when (or (not (.isArray Array projection))
+                           (> (.-length projection) 0))
+                   (render-game-projection! app projection))))
+             (fn [receipt workbench/LifecycleReceipt] Any
+               (game-lifecycle-receipt! app receipt))
+             request)]
+        (reset! (.-controller resident) created))
+      (when-not ((.-reloadPackage controller) request)
+        (resident-law-failure! "resident generation reload was not accepted"))))
   nil)
 
 (defn owned-material
@@ -371,20 +532,20 @@
                     group selectables resources
                     (new ConeGeometry 0.48 1.5 7)
                     (if branchWorld 6929407 15971421)
-                    false -1.25 0.75 0.1 "ashen-wayfarer" realm)
+                    false -3.2 0.75 0.0 "ashen-wayfarer" realm)
         wraith Any (add-entity!
                     group selectables resources
                     (new SphereGeometry 0.64 20 14)
                     (if branchWorld 4779919 11041007)
-                    true 1.15 0.82 -0.05 "cinder-wraith" realm)
+                    true 1.35 0.82 0.0 "cinder-wraith" realm)
         key Any (add-entity!
                  group selectables resources
                  (new TorusGeometry 0.32 0.10 10 24)
-                 15388769 false 1.15 0.22 0.88 "ashen-key" realm)
+                 15388769 false 1.35 0.38 0.88 "ashen-key" realm)
         moonwell Any (add-entity!
                       group selectables resources
                       (new CylinderGeometry 0.80 1.02 0.54 24)
-                      6216159 false 0.0 0.27 -1.65 "moonwell" realm)]
+                      6216159 false -3.1 0.27 2.55 "moonwell" realm)]
     (set! (.-x (.-rotation player)) 0.0)
     (set! (.-x (.-rotation key)) (/ (.-PI Math) 2.0))
     (set! (.-y (.-position group)) 0.0)
@@ -422,6 +583,7 @@
 (defn pick-scene!
   [shell SceneShell
    event Any] Nil
+  (.focus (.-canvas shell) {:preventScroll true})
   (let [rect Any (.getBoundingClientRect (.-canvas shell))
         width Int (max 1 (browser-int (.-width rect)))
         height Int (max 1 (browser-int (.-height rect)))
@@ -444,6 +606,21 @@
 
 (defn render-loop! [shell SceneShell] Nil
   (when @(.-alive shell)
+    (let [now Float (.now Date)
+          time Float (/ now 1000.0)]
+      (doseq [figure Any (.-selectables shell)]
+        (let [label String (.-label (.-userData figure))]
+          (cond
+            (= label "cinder-wraith")
+            (set! (.-y (.-rotation figure)) time)
+
+            (= label "ashen-key")
+            (set! (.-y (.-rotation figure)) (* time 2.1))
+
+            (= label "moonwell")
+            (set! (.-y (.-rotation figure)) (- time))
+
+            :else nil))))
     (.render (.-renderer shell) (.-scene shell) (.-camera shell))
     (reset! (.-frameHandle shell)
             (browser-int
@@ -458,14 +635,15 @@
         resources (Vec Any) []
         selectables (Vec Any) []
         authoritative Any (create-world-group! selectables resources
-                                               "authoritative" -2.65 false)
+                                               "authoritative" 0.0 false)
         branch-world Any (create-world-group! selectables resources
-                                              "disconnected branch" 2.65 true)
-        floor-geometry Any (new PlaneGeometry 12.0 7.2)
+                                              "disconnected branch" 6.8 true)
+        floor-geometry Any (new PlaneGeometry 11.0 8.4)
         floor-material Any (owned-material resources 986895 false)
         floor Any (new Mesh)
         ambient Any (new AmbientLight 11385087 1.65)
         sun Any (new DirectionalLight 16768993 3.1)
+        well-glow Any (new PointLight 6225919 18.0 5.5 2.0)
         selected (Atom Any) (atom nil)
         frame (Atom Int) (atom 0)
         alive (Atom Bool) (atom true)
@@ -478,6 +656,7 @@
                           resize-handler pointer-handler)]
     (reset! shell-holder shell)
     (set! (.-id canvas) "world-canvas")
+    (set! (.-tabIndex canvas) 0)
     (.setAttribute canvas "aria-label" "Greywrought semantic world")
     (.prepend (element "world-wrap") canvas)
     (.push resources floor-geometry)
@@ -486,10 +665,11 @@
     (set! (.-background scene) (new Color 526608))
     (set! (.-x (.-rotation floor)) (- (/ (.-PI Math) 2.0)))
     (.set (.-position floor) 0.0 -0.02 0.0)
-    (.set (.-position camera) 0.0 6.4 9.3)
-    (.lookAt camera 0.0 0.45 0.0)
+    (.set (.-position camera) 0.0 7.3 8.8)
+    (.lookAt camera 0.0 0.35 0.0)
     (.set (.-position sun) -3.0 7.0 5.0)
-    (.add scene floor authoritative branch-world ambient sun)
+    (.set (.-position well-glow) -3.1 1.2 2.55)
+    (.add scene floor authoritative branch-world ambient sun well-glow)
     (.setPixelRatio renderer
                     (min 2 (max 1 (browser-int (.-devicePixelRatio window)))))
     (.addEventListener window "resize" resize-handler)
@@ -678,15 +858,70 @@
   (let [target Any (element id)
         handler Any (fn [event Any] Any (action))]
     (.addEventListener target "click" handler)
-    (.push listeners [target handler])
+    (.push listeners [target "click" handler])
     nil))
+
+(defn physical-key-envelope
+  [event Any
+   phase String] Any
+  (workbench/create-workbench-envelope
+   (resident-policy)
+   (.stringify JSON
+               [(.stringify JSON {:kind "keyboard"
+                                  :code (.-code event)
+                                  :phase phase
+                                  :repeat (.-repeat event)})])))
+
+(defn observe-game-key!
+  [app PlayApp
+   event Any
+   phase String] Nil
+  (let [controller Any @(.-controller (.-residentLaw app))]
+    (when-not (nil? controller)
+      ((.-observeInput controller) (physical-key-envelope event phase))))
+  nil)
+
+(defn movement-key? [code String] Bool
+  (or (= code "KeyW")
+      (= code "KeyA")
+      (= code "KeyS")
+      (= code "KeyD")))
+
+(defn game-key? [code String] Bool
+  (or (movement-key? code)
+      (= code "Space")
+      (= code "KeyR")))
+
+(defn bind-game-input!
+  [app PlayApp
+   listeners (Vec Any)] Nil
+  (let [canvas Any (.-canvas (.-scene app))
+        down Any (fn [event Any] Any
+                   (when (and (not (.-repeat event))
+                              (game-key? (.-code event)))
+                     (.preventDefault event)
+                     (observe-game-key! app event "down")))
+        up Any (fn [event Any] Any
+                 (when (movement-key? (.-code event))
+                   (.preventDefault event)
+                   (observe-game-key! app event "up")))]
+    (.addEventListener canvas "keydown" down)
+    (.addEventListener canvas "keyup" up)
+    (.push listeners [canvas "keydown" down])
+    (.push listeners [canvas "keyup" up]))
+  nil)
+
+(defn press-reset! [app PlayApp] Nil
+  (let [event Any (.freeze Object {:code "KeyR" :repeat false})]
+    (.focus (.-canvas (.-scene app)) {:preventScroll true})
+    (observe-game-key! app event "down"))
+  nil)
 
 (defn poll-resident-law! [app PlayApp] Nil
   (let [resident ResidentLawSession (.-residentLaw app)]
     (when-not @(.-polling resident)
       (reset! (.-polling resident) true)
-      (let [decoded Any
-            (.then
+      (let [decoded Any (.then
              (fetch (str "/resident-generation?after="
                          (str @(.-generation resident)))
                     {:cache "no-store"})
@@ -701,8 +936,7 @@
                       (throw (new Error
                                   (str "resident source rejected: "
                                        (.-errorHex payload))))))))))
-            installed Any
-            (.then decoded
+            installed Any (.then decoded
                    (fn [payload Any] Any
                      (when-not (nil? payload)
                        (install-resident-law! app payload))))]
@@ -722,7 +956,7 @@
   (.removeEventListener (.-canvas (.-scene app)) "pointerdown"
                         (.-pointerHandler (.-scene app)))
   (doseq [listener Any (.-listeners app)]
-    (.removeEventListener (nth listener 0) "click" (nth listener 1)))
+    (.removeEventListener (nth listener 0) (nth listener 1) (nth listener 2)))
   (doseq [resource Any (.-resources (.-scene app))]
     (.dispose resource))
   (.dispose (.-renderer (.-scene app)))
@@ -738,9 +972,9 @@
     [(SuccessorAdmitted value admitted explanation projection)
      (branch/dispose-process-branch! (.-module app) value)])
   ((.-disposeSession (.-port (.-effect app))) (.-session (.-effect app)))
-  (let [resident-session Any @(.-session (.-residentLaw app))]
-    (when-not (nil? resident-session)
-      ((.-disposeSession (.-port (.-residentLaw app))) resident-session)))
+  (let [controller Any @(.-controller (.-residentLaw app))]
+    (when-not (nil? controller)
+      ((.-dispose controller))))
   nil)
 
 (defn run-smoke-if-requested! [app PlayApp] Nil
@@ -775,6 +1009,9 @@
         app PlayApp (->PlayApp module branch-request occurrences effect resident-law
                                (atom (->Dormant true)) (atom false) scene listeners)]
     (set! (.-__GREYWROUGHT_RESIDENT_EVENTS__ window) [])
+    (set! (.-__GREYWROUGHT_GAME_EVENTS__ window) [])
+    (bind-game-input! app listeners)
+    (bind-click! listeners "reset-encounter" (fn [] Any (press-reset! app)))
     (bind-click! listeners "enter-world" (fn [] Any (enter-world! app)))
     (bind-click! listeners "disconnect" (fn [] Any (disconnect! app)))
     (bind-click! listeners "continue-branch" (fn [] Any (advance-branch! app)))
