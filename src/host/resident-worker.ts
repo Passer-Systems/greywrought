@@ -11,6 +11,7 @@ import {
   "->WorkbenchSequenceLimits" as createWorkbenchSequenceLimits,
   "create-cartridge-workbench!" as createCartridgeWorkbench,
   "create-workbench-envelope" as createWorkbenchEnvelope,
+  "workbench-byte-envelope-source" as workbenchByteEnvelopeSource,
   type CartridgeWorkbench,
   type LifecycleReceipt,
   type WorkbenchEnvelope,
@@ -50,7 +51,7 @@ type ResidentCommand =
   | Readonly<{ kind: "dispose" }>;
 
 type ResidentEvent =
-  | Readonly<{ kind: "projection-frame"; frame: readonly number[] }>
+  | Readonly<{ kind: "projection-frame"; frame: string | readonly number[] }>
   | Readonly<{ kind: "receipt"; receipt: LifecycleReceipt }>
   | Readonly<{ kind: "failure"; message: string }>;
 
@@ -123,8 +124,13 @@ function handleReceipt(receipt: LifecycleReceipt): void {
   flushInput();
 }
 
-function exactFrame(frame: WorkbenchEnvelope): readonly number[] {
-  const values = "toJSON" in frame ? frame.toJSON() : frame;
+function exactFrame(frame: WorkbenchEnvelope): string | readonly number[] {
+  if ("toJSON" in frame) {
+    const source = workbenchByteEnvelopeSource(frame);
+    if (source === null) throw new Error("resident byte envelope lost custody");
+    return source;
+  }
+  const values = frame;
   return Array.from(values, (byte, index) => {
     if (
       typeof byte !== "number" ||

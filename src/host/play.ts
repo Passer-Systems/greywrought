@@ -1031,7 +1031,16 @@ function installResidentLaw(app: PlayApp, payload: GenerationPayload): void {
   resident.worker.postMessage({ kind: "install-generation", payload });
 }
 
-function parseResidentProjectionFrame(value: unknown): readonly number[] {
+function parseResidentProjectionFrame(value: unknown): string | readonly number[] {
+  if (typeof value === "string") {
+    for (let index = 0; index < value.length; index += 1) {
+      requireCondition(
+        value.charCodeAt(index) <= 255,
+        `resident projection frame[${index}] must be a byte`,
+      );
+    }
+    return value;
+  }
   return requireArray(value, "resident projection frame").map((byte, index) => {
     const number = requireNumber(byte, `resident projection frame[${index}]`);
     requireCondition(
