@@ -1,0 +1,203 @@
+:root {
+  --cinder-ink: #050306;
+  --cinder-panel: #100a0dcc;
+  --cinder-rim: #e76f3e42;
+  --cinder-ember: #ff9f50;
+  --cinder-wake: #6bd4d1;
+  --cinder-bone: #f0e2c6;
+  --cinder-muted: #aa9690;
+}
+
+body {
+  background:
+    radial-gradient(circle at 42% 38%, #34120f 0, transparent 24%),
+    linear-gradient(145deg, #0d080c 0, var(--cinder-ink) 72%);
+}
+
+#world-wrap {
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse at 55% 65%, #7e2c172e 0, transparent 44%),
+    radial-gradient(circle at 22% 22%, #15575c22 0, transparent 34%),
+    #050306;
+}
+
+#world-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, #0008 0, transparent 12%, transparent 86%, #0009 100%),
+    radial-gradient(ellipse at center, transparent 46%, #030104c9 100%);
+  mix-blend-mode: multiply;
+}
+
+#world-wrap::after {
+  content: "CINDERWAKE  ·  ASH CIRCLE 07";
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  z-index: 3;
+  color: #c8a09073;
+  font: 600 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .24em;
+  pointer-events: none;
+}
+
+#world-canvas {
+  filter: saturate(.92) contrast(1.08);
+}
+
+#world-canvas:focus {
+  box-shadow: inset 0 0 0 1px #ffb465b8, inset 0 0 44px #ad3e181f;
+}
+
+.realm-label {
+  z-index: 4;
+  border-color: var(--cinder-rim);
+  border-radius: 2px;
+  background: #0a0608c9;
+  color: var(--cinder-bone);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .18em;
+  box-shadow: 0 10px 28px #0008, inset 3px 0 0 #e7753c;
+}
+
+#branch-label {
+  border-color: #65d8d450;
+  color: #9ee9e4;
+  box-shadow: 0 10px 28px #0008, inset -3px 0 0 var(--cinder-wake);
+}
+
+#game-hud {
+  z-index: 4;
+  width: min(490px, calc(100% - 44px));
+  gap: 7px;
+}
+
+.hud-panel {
+  border: 1px solid var(--cinder-rim);
+  border-radius: 3px;
+  background:
+    linear-gradient(100deg, #160b0fe8, #09070bd9),
+    var(--cinder-panel);
+  box-shadow: 0 20px 55px #000a, inset 3px 0 0 #a83d22;
+}
+
+.hud-row {
+  grid-template-columns: 116px 1fr 68px;
+  color: var(--cinder-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.hud-row strong {
+  color: var(--cinder-bone);
+  text-align: right;
+  font-weight: 500;
+}
+
+.bar {
+  height: 5px;
+  border-radius: 1px;
+  background: #ffffff0c;
+  box-shadow: inset 0 0 0 1px #ffffff10;
+}
+
+.bar > span { transition: transform 110ms linear, filter 90ms; }
+#player-vitality-bar { background: linear-gradient(90deg, #7e301d, var(--cinder-ember)); }
+#enemy-vitality-bar { background: linear-gradient(90deg, #3d1459, #c074ed); }
+
+#objective {
+  color: var(--cinder-bone);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
+  letter-spacing: .015em;
+  text-shadow: 0 2px 18px #e44f252f;
+}
+
+#combat-feedback {
+  color: #ffad67;
+  font: 750 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+#control-hint {
+  color: #b6a6a2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .025em;
+}
+
+#sidebar {
+  background:
+    linear-gradient(180deg, #160a0ff5 0, #090609fc 38%, #070507 100%);
+  border-left-color: var(--cinder-rim);
+  box-shadow: -24px 0 70px #0009;
+}
+
+#sidebar h1 {
+  color: var(--cinder-bone);
+  letter-spacing: .04em;
+  text-shadow: 0 0 24px #dc4e2838;
+}
+
+.kicker {
+  color: #b67b68;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+#stage {
+  border: 1px solid #e46d3945;
+  border-radius: 2px;
+  background: #43180f99;
+  color: #ffc089;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+button {
+  border-color: #c4633c38;
+  border-radius: 2px;
+  background: #241318;
+}
+
+button:hover:not(:disabled) {
+  border-color: #f18b556e;
+  background: #3a1b1c;
+}
+
+button.primary {
+  border-color: #ec854d7a;
+  background: linear-gradient(90deg, #5a2116, #351615);
+}
+
+button.effect {
+  border-color: #57cbc35c;
+  background: #102f31;
+}
+
+body[data-game-phase="failed"] #game-hud {
+  filter: grayscale(.35);
+}
+
+body[data-game-phase="failed"] #world-wrap::before {
+  background: radial-gradient(circle at center, transparent 15%, #38070bd9 100%);
+  mix-blend-mode: normal;
+}
+
+body[data-game-phase="completed"] #world-wrap::before {
+  background: radial-gradient(circle at 32% 68%, #4ce3d22b 0, transparent 31%),
+              radial-gradient(ellipse at center, transparent 50%, #020708c7 100%);
+  mix-blend-mode: screen;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+  }
+}

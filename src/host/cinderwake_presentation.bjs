@@ -1,0 +1,601 @@
+#lang beagle/js
+
+(ns greywrought-clause.cinderwake-presentation)
+
+(require
+ '["three"
+   :refer [AmbientLight
+           BoxGeometry
+           Color
+           ConeGeometry
+           CylinderGeometry
+           DirectionalLight
+           Group
+           Mesh
+           MeshStandardMaterial
+           Object3D
+           Object3DEventMap
+           PerspectiveCamera
+           PointLight
+           Scene
+           SphereGeometry
+           TorusGeometry
+           WebGLRenderer]])
+
+(defalias SceneGraph (Scene Object3DEventMap))
+(defalias SceneGroup (Group Object3DEventMap))
+(defalias SceneObject (Object3D Object3DEventMap))
+
+(js/export
+ (defrecord CinderwakeSubjectIds
+   [wayfarer String
+    wraith String
+    relic String
+    moonwell String]))
+
+(js/export
+ (defrecord ProjectedPosition
+   [x Float
+    y Float
+    z Float]))
+
+(js/export
+ (defrecord AdmittedSubjectFrame
+   [subject String
+    position ProjectedPosition
+    visible Bool
+    vitalityRatio Float]))
+
+(js/export
+ (defrecord AdmittedPresentationFrame
+   [ordinal Int
+    subjects (Vec AdmittedSubjectFrame)]))
+
+(defrecord SubjectPresentation
+  [subject String
+   root SceneGroup
+   coreMaterial MeshStandardMaterial
+   telegraph SceneObject
+   telegraphMaterial MeshStandardMaterial
+   afterimage SceneObject
+   afterimageMaterial MeshStandardMaterial
+   impact SceneObject
+   impactMaterial MeshStandardMaterial
+   death SceneObject
+   deathMaterial MeshStandardMaterial
+   baseElevation Float
+   baseScale Float
+   telegraphLevel (Atom Float)
+   attackLevel (Atom Float)
+   recoveryLevel (Atom Float)
+   impactLevel (Atom Float)
+   dashLevel (Atom Float)
+   deathLevel (Atom Float)
+   lastImpact (Atom Int)
+   lastDash (Atom Int)
+   lastDeath (Atom Int)])
+
+(defrecord EffectShell
+  [telegraph SceneObject
+   telegraphMaterial MeshStandardMaterial
+   afterimage SceneObject
+   afterimageMaterial MeshStandardMaterial
+   impact SceneObject
+   impactMaterial MeshStandardMaterial
+   death SceneObject
+   deathMaterial MeshStandardMaterial])
+
+(defrecord OwnedPresentationResources
+  [boxes (Vec BoxGeometry)
+   cones (Vec ConeGeometry)
+   cylinders (Vec CylinderGeometry)
+   spheres (Vec SphereGeometry)
+   toruses (Vec TorusGeometry)
+   materials (Vec MeshStandardMaterial)])
+
+(js/export
+ (defrecord CinderwakePresentation
+   [scene SceneGraph
+    camera PerspectiveCamera
+    renderer WebGLRenderer
+    subjects (Vec SubjectPresentation)
+    resources OwnedPresentationResources
+    width (Atom Int)
+    height (Atom Int)
+    lastTime (Atom Float)
+    cameraImpulse (Atom Float)
+    disposed (Atom Bool)]))
+
+(defn clamp-unit [value Float] Float
+  (max 0.0 (min 1.0 value)))
+
+(defn own-box!
+  [resources OwnedPresentationResources
+   geometry BoxGeometry] BoxGeometry
+  (.push (.-boxes resources) geometry)
+  geometry)
+
+(defn own-cone!
+  [resources OwnedPresentationResources
+   geometry ConeGeometry] ConeGeometry
+  (.push (.-cones resources) geometry)
+  geometry)
+
+(defn own-cylinder!
+  [resources OwnedPresentationResources
+   geometry CylinderGeometry] CylinderGeometry
+  (.push (.-cylinders resources) geometry)
+  geometry)
+
+(defn own-sphere!
+  [resources OwnedPresentationResources
+   geometry SphereGeometry] SphereGeometry
+  (.push (.-spheres resources) geometry)
+  geometry)
+
+(defn own-torus!
+  [resources OwnedPresentationResources
+   geometry TorusGeometry] TorusGeometry
+  (.push (.-toruses resources) geometry)
+  geometry)
+
+(defn standard-material!
+  [resources OwnedPresentationResources
+   color Int
+   emissive Int
+   metalness Float
+   roughness Float
+   transparent Bool
+   opacity Float] MeshStandardMaterial
+  (let [material MeshStandardMaterial (new MeshStandardMaterial
+             {:color color
+              :emissive emissive
+              :metalness metalness
+              :roughness roughness
+              :transparent transparent
+              :opacity opacity})]
+    (.push (.-materials resources) material)
+    material))
+
+(defn box-mesh!
+  [geometry BoxGeometry
+   material MeshStandardMaterial] SceneObject
+  (let [mesh (new Mesh)]
+    (set! (.-geometry mesh) geometry)
+    (set! (.-material mesh) material)
+    mesh))
+
+(defn cone-mesh!
+  [geometry ConeGeometry
+   material MeshStandardMaterial] SceneObject
+  (let [mesh (new Mesh)]
+    (set! (.-geometry mesh) geometry)
+    (set! (.-material mesh) material)
+    mesh))
+
+(defn cylinder-mesh!
+  [geometry CylinderGeometry
+   material MeshStandardMaterial] SceneObject
+  (let [mesh (new Mesh)]
+    (set! (.-geometry mesh) geometry)
+    (set! (.-material mesh) material)
+    mesh))
+
+(defn sphere-mesh!
+  [geometry SphereGeometry
+   material MeshStandardMaterial] SceneObject
+  (let [mesh (new Mesh)]
+    (set! (.-geometry mesh) geometry)
+    (set! (.-material mesh) material)
+    mesh))
+
+(defn torus-mesh!
+  [geometry TorusGeometry
+   material MeshStandardMaterial] SceneObject
+  (let [mesh (new Mesh)]
+    (set! (.-geometry mesh) geometry)
+    (set! (.-material mesh) material)
+    mesh))
+
+(defn effect-shell!
+  [resources OwnedPresentationResources
+   root SceneGroup
+   radius Float
+   telegraphColor Int
+   impactColor Int] EffectShell
+  (let [telegraphGeometry TorusGeometry (own-torus! resources
+                                      (new TorusGeometry radius 0.035 8 48))
+        telegraphMaterial MeshStandardMaterial (standard-material! resources telegraphColor telegraphColor 0.0 0.28 true 0.0)
+        telegraph SceneObject (torus-mesh! telegraphGeometry telegraphMaterial)
+        afterimageGeometry TorusGeometry (own-torus! resources
+                                      (new TorusGeometry (* radius 0.66) 0.11 8 36))
+        afterimageMaterial MeshStandardMaterial (standard-material! resources 11124479 11124479 0.0 0.32 true 0.0)
+        afterimage SceneObject (torus-mesh! afterimageGeometry afterimageMaterial)
+        impactGeometry SphereGeometry (own-sphere! resources
+                                      (new SphereGeometry (* radius 0.76) 18 12))
+        impactMaterial MeshStandardMaterial (standard-material! resources impactColor impactColor 0.0 0.24 true 0.0)
+        impact SceneObject (sphere-mesh! impactGeometry impactMaterial)
+        deathGeometry TorusGeometry (own-torus! resources
+                                      (new TorusGeometry (* radius 0.66) 0.12 8 40))
+        deathMaterial MeshStandardMaterial (standard-material! resources 14558466 14558466 0.0 0.30 true 0.0)
+        death SceneObject (torus-mesh! deathGeometry deathMaterial)]
+    (set! (.-x (.-rotation telegraph)) -1.5707963)
+    (set! (.-x (.-rotation afterimage)) -1.5707963)
+    (set! (.-x (.-rotation death)) -1.5707963)
+    (set! (.-y (.-position telegraph)) 0.035)
+    (set! (.-y (.-position afterimage)) 0.08)
+    (set! (.-y (.-position death)) 0.055)
+    (set! (.-visible telegraph) false)
+    (set! (.-visible afterimage) false)
+    (set! (.-visible impact) false)
+    (set! (.-visible death) false)
+    (.add root telegraph afterimage impact death)
+    (->EffectShell
+     telegraph telegraphMaterial
+     afterimage afterimageMaterial
+     impact impactMaterial
+     death deathMaterial)))
+
+(defn subject-presentation
+  [subject String
+   root SceneGroup
+   coreMaterial MeshStandardMaterial
+   effects EffectShell
+   baseElevation Float
+   baseScale Float] SubjectPresentation
+  (->SubjectPresentation
+   subject root coreMaterial
+   (.-telegraph effects) (.-telegraphMaterial effects)
+   (.-afterimage effects) (.-afterimageMaterial effects)
+   (.-impact effects) (.-impactMaterial effects)
+   (.-death effects) (.-deathMaterial effects)
+   baseElevation baseScale
+   (atom 0.0) (atom 0.0) (atom 0.0)
+   (atom 0.0) (atom 0.0) (atom 0.0)
+   (atom -1) (atom -1) (atom -1)))
+
+(defn create-wayfarer!
+  [subject String
+   resources OwnedPresentationResources] SubjectPresentation
+  (let [root SceneGroup (new Group)
+        bodyGeometry ConeGeometry (own-cone! resources (new ConeGeometry 0.50 1.34 7))
+        bodyMaterial MeshStandardMaterial (standard-material! resources 14527696 1444880 0.42 0.54 false 1.0)
+        body SceneObject (cone-mesh! bodyGeometry bodyMaterial)
+        hoodGeometry SphereGeometry (own-sphere! resources (new SphereGeometry 0.31 12 8))
+        hoodMaterial MeshStandardMaterial (standard-material! resources 3289650 197121 0.18 0.82 false 1.0)
+        hood SceneObject (sphere-mesh! hoodGeometry hoodMaterial)
+        bladeGeometry BoxGeometry (own-box! resources (new BoxGeometry 0.10 0.72 0.08))
+        bladeMaterial MeshStandardMaterial (standard-material! resources 15854823 6112014 0.92 0.24 false 1.0)
+        blade SceneObject (box-mesh! bladeGeometry bladeMaterial)
+        effects EffectShell (effect-shell! resources root 0.78
+                                          16754743 16768467)]
+    (set! (.-y (.-position body)) 0.67)
+    (.set (.-scale body) 1.0 1.0 0.78)
+    (.set (.-position hood) 0.0 1.26 -0.04)
+    (.set (.-position blade) 0.46 0.72 0.12)
+    (set! (.-z (.-rotation blade)) -0.34)
+    (.add root body hood blade)
+    (subject-presentation subject root bodyMaterial effects 0.0 1.0)))
+
+(defn create-wraith!
+  [subject String
+   resources OwnedPresentationResources] SubjectPresentation
+  (let [root SceneGroup (new Group)
+        coreGeometry SphereGeometry (own-sphere! resources (new SphereGeometry 0.64 20 14))
+        coreMaterial MeshStandardMaterial (standard-material! resources 6950887 2495556 0.22 0.34 true 0.84)
+        core SceneObject (sphere-mesh! coreGeometry coreMaterial)
+        haloGeometry TorusGeometry (own-torus! resources (new TorusGeometry 0.82 0.045 8 40))
+        haloMaterial MeshStandardMaterial (standard-material! resources 13075711 13075711 0.0 0.30 true 0.50)
+        halo SceneObject (torus-mesh! haloGeometry haloMaterial)
+        tailGeometry ConeGeometry (own-cone! resources (new ConeGeometry 0.49 1.45 7))
+        tailMaterial MeshStandardMaterial (standard-material! resources 2886747 1508394 0.10 0.48 true 0.56)
+        tail SceneObject (cone-mesh! tailGeometry tailMaterial)
+        effects EffectShell (effect-shell! resources root 1.02
+                                          15092952 16733262)]
+    (set! (.-y (.-position core)) 0.92)
+    (set! (.-x (.-rotation halo)) 1.5707963)
+    (set! (.-y (.-position halo)) 0.92)
+    (set! (.-y (.-position tail)) 0.16)
+    (.add root core halo tail)
+    (subject-presentation subject root coreMaterial effects 0.0 1.0)))
+
+(defn create-relic!
+  [subject String
+   resources OwnedPresentationResources] SubjectPresentation
+  (let [root SceneGroup (new Group)
+        ringGeometry TorusGeometry (own-torus! resources (new TorusGeometry 0.31 0.095 10 28))
+        ringMaterial MeshStandardMaterial (standard-material! resources 15640720 6389760 0.88 0.24 false 1.0)
+        ring SceneObject (torus-mesh! ringGeometry ringMaterial)
+        emberGeometry SphereGeometry (own-sphere! resources (new SphereGeometry 0.095 10 8))
+        emberMaterial MeshStandardMaterial (standard-material! resources 16754743 16754743 0.0 0.24 false 1.0)
+        ember SceneObject (sphere-mesh! emberGeometry emberMaterial)
+        effects EffectShell (effect-shell! resources root 0.56
+                                          16766281 16763974)]
+    (set! (.-x (.-rotation ring)) 1.5707963)
+    (set! (.-y (.-position ring)) 0.40)
+    (set! (.-y (.-position ember)) 0.40)
+    (.add root ring ember)
+    (subject-presentation subject root ringMaterial effects 0.0 1.0)))
+
+(defn create-moonwell!
+  [subject String
+   resources OwnedPresentationResources] SubjectPresentation
+  (let [root SceneGroup (new Group)
+        basinGeometry CylinderGeometry (own-cylinder! resources (new CylinderGeometry 0.94 1.12 0.44 10))
+        basinMaterial MeshStandardMaterial (standard-material! resources 2375237 395530 0.54 0.76 false 1.0)
+        basin SceneObject (cylinder-mesh! basinGeometry basinMaterial)
+        wakeGeometry TorusGeometry (own-torus! resources (new TorusGeometry 0.71 0.065 8 40))
+        wakeMaterial MeshStandardMaterial (standard-material! resources 5887999 5887999 0.0 0.32 true 0.68)
+        wake SceneObject (torus-mesh! wakeGeometry wakeMaterial)
+        effects EffectShell (effect-shell! resources root 1.18
+                                          6729983 10026989)]
+    (set! (.-y (.-position basin)) 0.22)
+    (set! (.-x (.-rotation wake)) 1.5707963)
+    (set! (.-y (.-position wake)) 0.48)
+    (.add root basin wake)
+    (subject-presentation subject root basinMaterial effects 0.0 1.0)))
+
+(defrecord ArenaStone
+  [x Float
+   y Float
+   z Float
+   scaleX Float
+   scaleY Float
+   scaleZ Float
+   rotation Float])
+
+(defn add-arena-silhouette!
+  [scene SceneGraph
+   resources OwnedPresentationResources] Nil
+  (let [floorGeometry CylinderGeometry (own-cylinder! resources (new CylinderGeometry 6.6 7.1 0.42 12))
+        floorMaterial MeshStandardMaterial (standard-material! resources 789516 66051 0.16 0.94 false 1.0)
+        floor SceneObject (cylinder-mesh! floorGeometry floorMaterial)
+        scarGeometry CylinderGeometry (own-cylinder! resources (new CylinderGeometry 5.65 5.65 0.025 12))
+        scarMaterial MeshStandardMaterial (standard-material! resources 7413769 2037004 0.06 0.84 true 0.20)
+        scar SceneObject (cylinder-mesh! scarGeometry scarMaterial)
+        wallGeometry BoxGeometry (own-box! resources (new BoxGeometry 1.0 1.0 1.0))
+        wallMaterial MeshStandardMaterial (standard-material! resources 1646637 0 0.24 0.92 false 1.0)
+        stones (Vec ArenaStone) [(->ArenaStone -5.7 0.86 -2.5 0.9 1.9 1.2 -0.10)
+         (->ArenaStone -5.1 0.55 2.9 1.5 1.15 0.9 0.18)
+         (->ArenaStone -2.9 0.72 5.1 1.3 1.55 0.8 -0.28)
+         (->ArenaStone 0.2 0.43 5.8 2.1 0.92 0.7 0.04)
+         (->ArenaStone 3.6 0.92 4.8 0.9 2.0 1.0 0.31)
+         (->ArenaStone 5.8 0.62 1.8 1.1 1.34 1.5 -0.13)
+         (->ArenaStone 5.5 0.78 -2.8 1.4 1.68 0.9 0.24)
+         (->ArenaStone 2.5 0.47 -5.4 1.8 1.02 0.8 -0.09)
+         (->ArenaStone -1.7 0.66 -5.7 1.0 1.44 0.9 0.16)]]
+    (set! (.-y (.-position floor)) -0.25)
+    (set! (.-y (.-position scar)) -0.025)
+    (.add scene floor scar)
+    (doseq [stone ArenaStone stones]
+      (let [mesh SceneObject (box-mesh! wallGeometry wallMaterial)]
+        (.set (.-position mesh) (.-x stone) (.-y stone) (.-z stone))
+        (.set (.-scale mesh) (.-scaleX stone) (.-scaleY stone) (.-scaleZ stone))
+        (set! (.-y (.-rotation mesh)) (.-rotation stone))
+        (.add scene mesh)))
+    nil))
+
+(defn subject-by-id
+  [presentation CinderwakePresentation
+   subject String] (U SubjectPresentation Nil)
+  (loop [index Int 0]
+    (if (= index (count (.-subjects presentation)))
+      nil
+      (let [candidate SubjectPresentation (nth (.-subjects presentation) index)]
+        (if (= (.-subject candidate) subject)
+          candidate
+          (recur (inc index)))))))
+
+(defn update-viewport!
+  [presentation CinderwakePresentation
+   viewportWidth Int
+   viewportHeight Int] Nil
+  (let [width Int (max 1 viewportWidth)
+        height Int (max 1 viewportHeight)]
+    (when (or (not= width @(.-width presentation))
+              (not= height @(.-height presentation)))
+      (reset! (.-width presentation) width)
+      (reset! (.-height presentation) height)
+      (set! (.-aspect (.-camera presentation)) (/ width height))
+      (.updateProjectionMatrix (.-camera presentation))
+      (.setSize (.-renderer presentation) width height false)))
+  nil)
+
+(defn apply-subject-frame!
+  [presentation CinderwakePresentation
+   frame AdmittedSubjectFrame] Nil
+  (let [subject (U SubjectPresentation Nil) (subject-by-id presentation (.-subject frame))]
+    (when-not (nil? subject)
+      (let [position ProjectedPosition (.-position frame)
+            ratio Float (clamp-unit (.-vitalityRatio frame))]
+        (.set (.-position (.-root subject))
+              (.-x position)
+              (+ (.-y position) (.-baseElevation subject))
+              (.-z position))
+        (set! (.-visible (.-root subject)) (.-visible frame))
+        (set! (.-opacity (.-coreMaterial subject)) (+ 0.34 (* ratio 0.66)))
+        (.setScalar (.-scale (.-root subject))
+                    (* (.-baseScale subject) (+ 0.90 (* ratio 0.10)))))))
+  nil)
+
+(js/export
+ (defn apply-admitted-frame!
+   [presentation CinderwakePresentation
+    frame AdmittedPresentationFrame] Nil
+   (when-not @(.-disposed presentation)
+     (doseq [subject AdmittedSubjectFrame (.-subjects frame)]
+       (apply-subject-frame! presentation subject)))
+   nil))
+
+(js/export
+ (defn set-activity-cue!
+   [presentation CinderwakePresentation
+    subjectId String
+    telegraph Float
+    attack Float
+    recovery Float] Nil
+   (let [subject (U SubjectPresentation Nil) (subject-by-id presentation subjectId)]
+     (when-not (nil? subject)
+       (reset! (.-telegraphLevel subject) (clamp-unit telegraph))
+       (reset! (.-attackLevel subject) (clamp-unit attack))
+       (reset! (.-recoveryLevel subject) (clamp-unit recovery))))
+   nil))
+
+(js/export
+ (defn signal-impact!
+   [presentation CinderwakePresentation
+    subjectId String
+    occurrenceOrdinal Int
+    magnitude Float] Nil
+   (let [subject (U SubjectPresentation Nil) (subject-by-id presentation subjectId)]
+     (when (and (not (nil? subject))
+                (> occurrenceOrdinal @(.-lastImpact subject)))
+       (reset! (.-lastImpact subject) occurrenceOrdinal)
+       (reset! (.-impactLevel subject) (clamp-unit magnitude))
+       (reset! (.-cameraImpulse presentation)
+               (max @(.-cameraImpulse presentation)
+                    (* 0.16 (clamp-unit magnitude))))))
+   nil))
+
+(js/export
+ (defn signal-dash!
+   [presentation CinderwakePresentation
+    subjectId String
+    occurrenceOrdinal Int
+    magnitude Float] Nil
+   (let [subject (U SubjectPresentation Nil) (subject-by-id presentation subjectId)]
+     (when (and (not (nil? subject))
+                (> occurrenceOrdinal @(.-lastDash subject)))
+       (reset! (.-lastDash subject) occurrenceOrdinal)
+       (reset! (.-dashLevel subject) (clamp-unit magnitude))))
+   nil))
+
+(js/export
+ (defn signal-death!
+   [presentation CinderwakePresentation
+    subjectId String
+    occurrenceOrdinal Int] Nil
+   (let [subject (U SubjectPresentation Nil) (subject-by-id presentation subjectId)]
+     (when (and (not (nil? subject))
+                (> occurrenceOrdinal @(.-lastDeath subject)))
+       (reset! (.-lastDeath subject) occurrenceOrdinal)
+       (reset! (.-deathLevel subject) 1.0)))
+   nil))
+
+(defn animate-subject!
+  [subject SubjectPresentation
+   elapsed Float
+   delta Float] Nil
+  (let [telegraph Float @(.-telegraphLevel subject)
+        attack Float @(.-attackLevel subject)
+        recovery Float @(.-recoveryLevel subject)
+        impact Float (max 0.0 (- @(.-impactLevel subject) (* delta 4.8)))
+        dash Float (max 0.0 (- @(.-dashLevel subject) (* delta 3.7)))
+        death Float (max 0.0 (- @(.-deathLevel subject) (* delta 0.55)))
+        telegraphMesh SceneObject (.-telegraph subject)
+        afterimage SceneObject (.-afterimage subject)
+        impactMesh SceneObject (.-impact subject)
+        deathMesh SceneObject (.-death subject)]
+    (reset! (.-impactLevel subject) impact)
+    (reset! (.-dashLevel subject) dash)
+    (reset! (.-deathLevel subject) death)
+    (set! (.-visible telegraphMesh) (> telegraph 0.001))
+    (set! (.-opacity (.-telegraphMaterial subject)) (* telegraph 0.56))
+    (.setScalar (.-scale telegraphMesh) (+ 0.72 (* 0.42 telegraph)))
+    (set! (.-z (.-rotation telegraphMesh)) (* elapsed (+ 0.45 attack)))
+    (set! (.-visible afterimage) (> dash 0.001))
+    (set! (.-opacity (.-afterimageMaterial subject)) (* 0.40 dash))
+    (.setScalar (.-scale afterimage) (+ 0.72 (* 1.45 (- 1.0 dash))))
+    (set! (.-visible impactMesh) (> impact 0.001))
+    (set! (.-opacity (.-impactMaterial subject)) (* 0.46 impact))
+    (.setScalar (.-scale impactMesh) (+ 0.78 (* 0.72 (- 1.0 impact))))
+    (set! (.-visible deathMesh) (> death 0.001))
+    (set! (.-opacity (.-deathMaterial subject)) (* 0.62 death))
+    (.setScalar (.-scale deathMesh) (+ 0.55 (* 2.4 (- 1.0 death))))
+    (set! (.-y (.-rotation (.-root subject)))
+          (+ (* elapsed (* 0.22 attack)) (* recovery 0.08)))
+    nil))
+
+(js/export
+ (defn render-presentation-frame!
+   [presentation CinderwakePresentation
+    elapsedSeconds Float
+    viewportWidth Int
+    viewportHeight Int] Nil
+   (when-not @(.-disposed presentation)
+     (let [prior Float @(.-lastTime presentation)
+           delta Float (if (= prior 0.0)
+                         0.0
+                         (min 0.05 (max 0.0 (- elapsedSeconds prior))))
+           impulse Float (max 0.0
+                              (- @(.-cameraImpulse presentation)
+                                 (* delta 0.76)))
+           camera PerspectiveCamera (.-camera presentation)]
+       (reset! (.-lastTime presentation) elapsedSeconds)
+       (reset! (.-cameraImpulse presentation) impulse)
+       (update-viewport! presentation viewportWidth viewportHeight)
+       (doseq [subject SubjectPresentation (.-subjects presentation)]
+         (animate-subject! subject elapsedSeconds delta))
+       (set! (.-x (.-position camera)) (* impulse 0.52))
+       (set! (.-y (.-position camera)) (+ 7.6 (* impulse 0.34)))
+       (set! (.-z (.-position camera)) (+ 9.2 (* impulse -0.28)))
+       (.lookAt camera 0.0 0.42 0.0)
+       (.render (.-renderer presentation) (.-scene presentation) camera)))
+   nil))
+
+(js/export
+ (defn create-cinderwake-presentation!
+   [ids CinderwakeSubjectIds
+    pixelRatio Float] CinderwakePresentation
+   (let [scene SceneGraph (new Scene)
+         camera PerspectiveCamera (new PerspectiveCamera 43.0 1.0 0.1 38.0)
+         renderer WebGLRenderer (new WebGLRenderer {:antialias true :alpha false})
+         resources OwnedPresentationResources (->OwnedPresentationResources [] [] [] [] [] [])
+         wayfarer SubjectPresentation (create-wayfarer! (.-wayfarer ids) resources)
+         wraith SubjectPresentation (create-wraith! (.-wraith ids) resources)
+         relic SubjectPresentation (create-relic! (.-relic ids) resources)
+         moonwell SubjectPresentation (create-moonwell! (.-moonwell ids) resources)
+         ambient AmbientLight (new AmbientLight 4739664 1.15)
+         keyLight DirectionalLight (new DirectionalLight 16754062 3.7)
+         emberLight PointLight (new PointLight 16737064 26.0 8.4 2.0)
+         wellLight PointLight (new PointLight 5745919 18.0 5.6 2.0)
+         presentation CinderwakePresentation (->CinderwakePresentation
+          scene camera renderer
+          [wayfarer wraith relic moonwell]
+          resources
+          (atom 0) (atom 0) (atom 0.0) (atom 0.0) (atom false))]
+     (set! (.-background scene) (new Color 197894))
+     (add-arena-silhouette! scene resources)
+     (.set (.-position camera) 0.0 7.6 9.2)
+     (.lookAt camera 0.0 0.42 0.0)
+     (.set (.-position keyLight) -4.0 8.5 4.0)
+     (.set (.-position emberLight) 3.8 1.9 -1.8)
+     (.set (.-position wellLight) -3.3 1.1 2.7)
+     (.add scene
+           (.-root wayfarer)
+           (.-root wraith)
+           (.-root relic)
+           (.-root moonwell)
+           ambient keyLight emberLight wellLight)
+     (.setPixelRatio renderer (max 1.0 (min 2.0 pixelRatio)))
+     (set! (.-outputColorSpace renderer) "srgb")
+     presentation)))
+
+(js/export
+ (defn dispose-cinderwake-presentation! [presentation CinderwakePresentation] Nil
+   (when-not @(.-disposed presentation)
+     (reset! (.-disposed presentation) true)
+     (doseq [geometry BoxGeometry (.-boxes (.-resources presentation))]
+       (.dispose geometry))
+     (doseq [geometry ConeGeometry (.-cones (.-resources presentation))]
+       (.dispose geometry))
+     (doseq [geometry CylinderGeometry (.-cylinders (.-resources presentation))]
+       (.dispose geometry))
+     (doseq [geometry SphereGeometry (.-spheres (.-resources presentation))]
+       (.dispose geometry))
+     (doseq [geometry TorusGeometry (.-toruses (.-resources presentation))]
+       (.dispose geometry))
+     (doseq [material MeshStandardMaterial (.-materials (.-resources presentation))]
+       (.dispose material))
+     (.dispose (.-renderer presentation)))
+   nil))
