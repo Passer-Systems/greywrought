@@ -5,9 +5,9 @@ edition = "2024"
 publish = false
 
 [dependencies]
-clause-package = { path = "/home/tom/code/clause/pins/a2d5af6f873dad9227454e9673aa28f54e562371/crates/clause-package" }
-clause-runtime = { path = "/home/tom/code/clause/pins/a2d5af6f873dad9227454e9673aa28f54e562371/crates/clause-runtime" }
-clause-workbench = { path = "/home/tom/code/clause/pins/a2d5af6f873dad9227454e9673aa28f54e562371/crates/clause-workbench" }
+clause-package = { path = "/home/tom/code/clause/pins/6ac23545bc69be9feeeaaa085db38b0d1e6e8b94/crates/clause-package" }
+clause-runtime = { path = "/home/tom/code/clause/pins/6ac23545bc69be9feeeaaa085db38b0d1e6e8b94/crates/clause-runtime" }
+clause-workbench = { path = "/home/tom/code/clause/pins/6ac23545bc69be9feeeaaa085db38b0d1e6e8b94/crates/clause-workbench" }
 
 [lints.rust]
 unsafe_code = "forbid"
