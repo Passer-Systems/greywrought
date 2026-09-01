@@ -1,0 +1,74 @@
+#lang beagle/js
+
+(ns greywrought-clause.rig-socket-lab-server
+  (:require-global ["@types/bun" :refer [Bun Request Response]]
+                   ["typescript:lib.dom" :refer [URL]]))
+
+(defn served-file [pathname String] (U String Nil)
+  (cond
+    (or (= pathname "/") (= pathname "/index.html"))
+    "src/host/rig_socket_lab.html"
+
+    (= pathname "/app/rig-socket-lab.js")
+    "build/rig-socket/greywrought-clause/rig-socket-lab.js"
+
+    (= pathname "/app/rig-socket-lab.css")
+    "src/host/rig_socket_lab.css"
+
+    (= pathname "/vendor/three.module.js")
+    "node_modules/three/build/three.module.js"
+
+    (= pathname "/vendor/three.core.js")
+    "node_modules/three/build/three.core.js"
+
+    (= pathname "/vendor/addons/loaders/GLTFLoader.js")
+    "node_modules/three/examples/jsm/loaders/GLTFLoader.js"
+
+    (= pathname "/vendor/addons/utils/BufferGeometryUtils.js")
+    "node_modules/three/examples/jsm/utils/BufferGeometryUtils.js"
+
+    (= pathname "/vendor/addons/utils/SkeletonUtils.js")
+    "node_modules/three/examples/jsm/utils/SkeletonUtils.js"
+
+    (= pathname "/assets/quaternius/rig/base/Superhero_Female_FullBody.gltf")
+    "assets/external/quaternius/rig-socket-prototype/base/Superhero_Female_FullBody.gltf"
+
+    (= pathname "/assets/quaternius/rig/base/Superhero_Female_FullBody.bin")
+    "assets/external/quaternius/rig-socket-prototype/base/Superhero_Female_FullBody.bin"
+
+    (= pathname "/assets/quaternius/rig/base/T_Eye_Brown.png")
+    "assets/external/quaternius/rig-socket-prototype/base/T_Eye_Brown.png"
+
+    (= pathname "/assets/quaternius/rig/base/T_Eye_Normal.png")
+    "assets/external/quaternius/rig-socket-prototype/base/T_Eye_Normal.png"
+
+    (= pathname "/assets/quaternius/rig/base/T_Hair_2_BaseColor.png")
+    "assets/external/quaternius/rig-socket-prototype/base/T_Hair_2_BaseColor.png"
+
+    (= pathname "/assets/quaternius/rig/base/T_Hair_2_Normal.png")
+    "assets/external/quaternius/rig-socket-prototype/base/T_Hair_2_Normal.png"
+
+    (= pathname "/assets/quaternius/rig/base/T_Superhero_Female_Dark_BaseColor.png")
+    "assets/external/quaternius/rig-socket-prototype/base/T_Superhero_Female_Dark_BaseColor.png"
+
+    (= pathname "/assets/quaternius/rig/base/T_Superhero_Female_Normal.png")
+    "assets/external/quaternius/rig-socket-prototype/base/T_Superhero_Female_Normal.png"
+
+    (= pathname "/assets/quaternius/rig/base/T_Superhero_Female_Roughness.png")
+    "assets/external/quaternius/rig-socket-prototype/base/T_Superhero_Female_Roughness.png"
+
+    (= pathname "/assets/quaternius/rig/animations/UAL1_Standard.glb")
+    "assets/external/quaternius/rig-socket-prototype/animations/UAL1_Standard.glb"
+
+    :else nil))
+
+(defn handle-request [request Request] Response
+  (let [url URL (new URL (.-url request))
+        path (U String Nil) (served-file (.-pathname url))]
+    (if (nil? path)
+      (new Response "Not found" {:status 404})
+      (new Response (.file Bun path)))))
+
+(.serve Bun {:hostname "127.0.0.1"
+             :port 4187
+             :fetch (fn [request Request] Response (handle-request request))})

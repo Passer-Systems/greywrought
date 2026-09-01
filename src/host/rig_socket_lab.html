@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Greywrought — Rig and equipment socket lab</title>
+    <link rel="stylesheet" href="/app/rig-socket-lab.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/vendor/three.module.js",
+          "three/addons/": "/vendor/addons/"
+        }
+      }
+    </script>
+  </head>
+  <body data-lab-state="loading" data-demo-stage="-1">
+    <main>
+      <section id="rig-stage" aria-label="Two animated Quaternius rig instances"></section>
+      <aside>
+        <p class="kicker">Greywrought presentation experiment</p>
+        <h1>Rig + equipment sockets</h1>
+        <p class="summary">
+          One CC0 Quaternius humanoid, cloned with independent skeletons and
+          mixers. Both instances share immutable, root-disabled animation clips.
+        </p>
+
+        <div class="contract">
+          <span>6 normalized sockets</span>
+          <span>6 equipment roots</span>
+          <span>2 skinned clones</span>
+          <span>2 independent mixers</span>
+        </div>
+
+        <section class="status-panel">
+          <h2>Running presentation</h2>
+          <p id="animation-status">Loading model, skeleton, and clips…</p>
+        </section>
+
+        <section>
+          <h2>Shared clip controls</h2>
+          <div class="controls">
+            <button id="clip-idle">Idle</button>
+            <button id="clip-sprint">Sprint</button>
+            <button id="clip-jump">Aerial</button>
+            <button id="clip-attack">Sword action</button>
+            <button id="clip-hit">Hit reaction</button>
+            <button id="clip-death">Death</button>
+          </div>
+        </section>
+
+        <section class="socket-list">
+          <h2>Semantic sockets → actual bones</h2>
+          <dl>
+            <dt>Upper back</dt><dd><code>spine_03</code> · backpack + twin nozzles</dd>
+            <dt>Left lower leg</dt><dd><code>calf_l</code> · booster + nozzle</dd>
+            <dt>Right lower leg</dt><dd><code>calf_r</code> · booster + nozzle</dd>
+            <dt>Left forearm</dt><dd><code>lowerarm_l</code> · energy blade</dd>
+            <dt>Right hand</dt><dd><code>hand_r</code> · active weapon</dd>
+            <dt>Hip holster</dt><dd><code>pelvis</code> · stowed weapon</dd>
+          </dl>
+        </section>
+
+        <p class="boundary">
+          Animation supplies poses only. It never determines movement,
+          propulsion, combat outcomes, or world authority.
+        </p>
+      </aside>
+    </main>
+    <script type="module" src="/app/rig-socket-lab.js"></script>
+  </body>
+</html>
