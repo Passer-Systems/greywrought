@@ -169,6 +169,11 @@ interface PlayerProjection {
   readonly boosterDelay: number;
   readonly statusEffect: string;
   readonly statusClock: number;
+  readonly swordActionSequence: number;
+  readonly swordCommitmentClock: number;
+  readonly combatTarget: string;
+  readonly targetLockActive: boolean;
+  readonly targetSelectionSequence: number;
   readonly combatStatus: string;
 }
 
@@ -448,6 +453,27 @@ function decodeGameProjection(value: ProjectedValue): GameProjection {
       ),
       statusEffect: projectedString(player, "status-effect", "player-1"),
       statusClock: projectedNumber(player, "status-clock", "player-1"),
+      swordActionSequence: projectedNumber(
+        player,
+        "sword-action-sequence",
+        "player-1",
+      ),
+      swordCommitmentClock: projectedNumber(
+        player,
+        "sword-commitment-clock",
+        "player-1",
+      ),
+      combatTarget: projectedString(player, "combat-target", "player-1"),
+      targetLockActive: projectedBoolean(
+        player,
+        "target-lock-active",
+        "player-1",
+      ),
+      targetSelectionSequence: projectedNumber(
+        player,
+        "target-selection-sequence",
+        "player-1",
+      ),
       combatStatus: projectedString(player, "combat-status", "player-1"),
     },
     enemy: {
@@ -569,6 +595,10 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
   app.scene.enemyNameplate.setAttribute(
     "aria-label",
     `Corrupted Magitek Boar, ${enemy.vitality} of ${enemy.maximumVitality} health`,
+  );
+  app.scene.enemyNameplate.classList.toggle(
+    "targeted",
+    player.targetLockActive && player.combatTarget === "cinder-wraith",
   );
 
   applyAdmittedFrame(app.scene.presentation, {
@@ -707,6 +737,11 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     gameBoosterRegenerationDelay: String(player.boosterDelay),
     gameStatusEffect: player.statusEffect,
     gameStatusClock: String(player.statusClock),
+    gameSwordActionSequence: String(player.swordActionSequence),
+    gameSwordCommitmentClock: String(player.swordCommitmentClock),
+    gameCombatTarget: player.combatTarget,
+    gameTargetLockActive: String(player.targetLockActive),
+    gameTargetSelectionSequence: String(player.targetSelectionSequence),
     gameProjectileVisible: String(bolt.visible),
     gameEnemyPressure: enemy.pressureState,
     gamePressureClock: String(enemy.pressureClock),
@@ -716,6 +751,19 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
 
   if (prior !== null) {
     element("combat-feedback").textContent = "";
+    if (player.swordActionSequence > prior.player.swordActionSequence) {
+      const targetsEnemy =
+        player.targetLockActive && player.combatTarget === "cinder-wraith";
+      playWayfarerSwordAction(
+        app.scene.presentation,
+        targetsEnemy ? enemy.position.x - player.position.x : 0,
+        targetsEnemy ? enemy.position.z - player.position.z : 0,
+      );
+      element("combat-feedback").textContent = "SWORD ACTION ADMITTED";
+    }
+    if (player.targetSelectionSequence > prior.player.targetSelectionSequence) {
+      element("combat-feedback").textContent = "TARGET ACQUIRED · CORRUPTED MAGITEK BOAR";
+    }
     if (enemy.vitality < prior.enemy.vitality) {
       const damage = prior.enemy.vitality - enemy.vitality;
       element("combat-feedback").textContent = `EMBER IMPACT · -${damage}`;
@@ -765,6 +813,11 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     boosterRegenerationDelay: player.boosterDelay,
     statusEffect: player.statusEffect,
     statusClock: player.statusClock,
+    swordActionSequence: player.swordActionSequence,
+    swordCommitmentClock: player.swordCommitmentClock,
+    combatTarget: player.combatTarget,
+    targetLockActive: player.targetLockActive,
+    targetSelectionSequence: player.targetSelectionSequence,
     projectileVisible: bolt.visible,
     enemyPressure: enemy.pressureState,
     pressureClock: enemy.pressureClock,
@@ -1321,6 +1374,8 @@ const gameKeys = new Set([
   ...heldGameKeys,
   "KeyQ",
   "KeyF",
+  "KeyJ",
+  "Tab",
   "Space",
   "KeyR",
 ]);
@@ -1328,15 +1383,16 @@ const gameKeys = new Set([
 function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   const { canvas } = app.scene;
   const down = (event: KeyboardEvent): void => {
-    if (!event.repeat && event.code === "KeyJ") {
-      event.preventDefault();
-      playWayfarerSwordAction(app.scene.presentation);
-      element("combat-feedback").textContent = "SWORD TEST SWING";
-      return;
-    }
     if (!event.repeat && gameKeys.has(event.code)) {
       event.preventDefault();
-      observeGameKey(app, event, "down");
+      observeGameKey(
+        app,
+        {
+          code: event.code === "Tab" && event.shiftKey ? "ShiftTab" : event.code,
+          repeat: event.repeat,
+        },
+        "down",
+      );
     }
   };
   const up = (event: KeyboardEvent): void => {

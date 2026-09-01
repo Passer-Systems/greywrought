@@ -63,6 +63,28 @@ body {
   filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 5px #000b);
 }
 
+.enemy-nameplate-target-marker {
+  display: none;
+  margin-bottom: 1px;
+  color: #ffd761;
+  font: 700 10px/1 Arial, Helvetica, sans-serif;
+  text-align: center;
+  text-shadow: 0 1px 2px #000, 0 0 5px #000;
+}
+
+.enemy-nameplate.targeted .enemy-nameplate-target-marker {
+  display: block;
+}
+
+.enemy-nameplate.targeted .enemy-nameplate-name {
+  color: #ffd761;
+}
+
+.enemy-nameplate.targeted .enemy-nameplate-health {
+  border-color: #ffe48a;
+  box-shadow: 0 0 0 1px #000, 0 0 8px #f4b83388, inset 0 0 0 1px #0008;
+}
+
 .enemy-nameplate-name {
   overflow: hidden;
   margin-bottom: 3px;

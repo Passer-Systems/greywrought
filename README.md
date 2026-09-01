@@ -101,6 +101,6 @@ and custody across separate Candidate and Admission operations.
 
 Pinned inputs:
 
-- Clause `f1f5a13fd5cd52bdf85c984a82a6953add33ef18` (includes strict generated
+- Clause `3bbecb87e55fa33058567aee3541ed41273b35be` (includes strict generated
   TypeScript adapters for the workbench, cartridge port, and process branch,
   plus the source-owned world and deterministic physical-input lowering)

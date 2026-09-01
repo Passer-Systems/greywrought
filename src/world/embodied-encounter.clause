@@ -209,6 +209,31 @@ relation status-clock
   subject player
   mode given player yields value: one
 
+relation sword-action-sequence
+  reads {player: Player} sword action sequence {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation sword-commitment-clock
+  reads {player: Player} sword commitment clock {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation combat-target
+  reads {player: Player} combat target {enemy: Enemy}
+  subject player
+  mode given player yields enemy: one
+
+relation target-lock-active
+  reads {player: Player} target lock active {value: Bool}
+  subject player
+  mode given player yields value: one
+
+relation target-selection-sequence
+  reads {player: Player} target selection sequence {value: F64}
+  subject player
+  mode given player yields value: one
+
 relation combat-status
   reads {player: Player} combat status {value: CombatStatus}
   subject player
@@ -228,6 +253,16 @@ relation enemy-combat-status
   reads {enemy: Enemy} enemy combat status {value: CombatStatus}
   subject enemy
   mode given enemy yields value: one
+
+relation next-target
+  reads {enemy: Enemy} next target {next: Enemy}
+  subject enemy
+  mode given enemy yields next: one
+
+relation previous-target
+  reads {enemy: Enemy} previous target {previous: Enemy}
+  subject enemy
+  mode given enemy yields previous: one
 
 relation enemy-pressure-state
   reads {enemy: Enemy} enemy pressure state {value: CombatStatus}
@@ -411,10 +446,17 @@ player-1 player vitals Vec3 { x: 4.0, y: 4.0, z: 1.0 }
 player-1 combat status alive
 player-1 status effect clear
 player-1 status clock 12.0
+player-1 sword action sequence 0.0
+player-1 sword commitment clock 0.0
+player-1 combat target cinder-wraith
+player-1 target lock active false
+player-1 target selection sequence 0.0
 
 cinder-wraith enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
 cinder-wraith enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
 cinder-wraith enemy combat status alive
+cinder-wraith next target cinder-wraith
+cinder-wraith previous target cinder-wraith
 cinder-wraith enemy pressure state telegraph
 cinder-wraith enemy pressure clock 36.0
 cinder-wraith enemy recovery clock 0.0
@@ -452,6 +494,9 @@ bind keyboard Space down to jump
 bind keyboard KeyE down to enable-vertical-sustain
 bind keyboard KeyE up to disable-vertical-sustain
 bind keyboard KeyF down to vertical-burst
+bind keyboard KeyJ down to begin-sword-action
+bind keyboard Tab down to target-next-enemy
+bind keyboard ShiftTab down to target-previous-enemy
 bind keyboard KeyR down to reset-objective
 
 on hold-forward ?player
@@ -729,6 +774,63 @@ on jump ?player
     ?player velocity Vec3 { x: ?velocity-x, y: ?jump-speed, z: ?velocity-z }
     ?player grounded false
 
+on begin-sword-action ?player
+  when
+    ?player sword action sequence ?sequence
+    ?player sword commitment clock ?clock
+    ?player combat status ?combat-status
+    ?combat-status = alive
+    ?clock = 0.0
+  withdraw
+    ?player sword action sequence ?sequence
+    ?player sword commitment clock ?clock
+  include
+    ?player sword action sequence ?sequence + 1.0
+    ?player sword commitment clock 18.0
+
+on target-next-enemy ?player
+  when
+    ?player combat target ?current-target
+    ?player target lock active ?was-active
+    ?player target selection sequence ?sequence
+    ?current-target next target ?next-target
+    ?next-target enemy combat status ?target-status
+    ?target-status = alive
+  withdraw
+    ?player combat target ?current-target
+    ?player target lock active ?was-active
+    ?player target selection sequence ?sequence
+  include
+    ?player combat target ?next-target
+    ?player target lock active true
+    ?player target selection sequence ?sequence + 1.0
+
+on target-previous-enemy ?player
+  when
+    ?player combat target ?current-target
+    ?player target lock active ?was-active
+    ?player target selection sequence ?sequence
+    ?current-target previous target ?previous-target
+    ?previous-target enemy combat status ?target-status
+    ?target-status = alive
+  withdraw
+    ?player combat target ?current-target
+    ?player target lock active ?was-active
+    ?player target selection sequence ?sequence
+  include
+    ?player combat target ?previous-target
+    ?player target lock active true
+    ?player target selection sequence ?sequence + 1.0
+
+on count-sword-commitment ?player
+  when
+    ?player sword commitment clock ?clock
+    ?clock > 0.0
+  withdraw
+    ?player sword commitment clock ?clock
+  include
+    ?player sword commitment clock ?clock - 1.0
+
 on reset-objective ?objective
   when
     ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
@@ -774,8 +876,8 @@ on tick ?player ?dt
     jump-arena maximum x ?max-x
     jump-arena minimum z ?min-z
     jump-arena maximum z ?max-z
-    (?position-x + (?velocity-x + ?intent-x * ?move-speed * ?dt) * ?dt) clamped between ?min-x and ?max-x as ?next-x
-    (?position-z + (?velocity-z + ?intent-z * ?move-speed * ?dt) * ?dt) clamped between ?min-z and ?max-z as ?next-z
+    (?position-x + ?intent-x * ?move-speed * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + ?intent-z * ?move-speed * ?dt) clamped between ?min-z and ?max-z as ?next-z
     ?position-y + (?velocity-y + ?gravity * ?dt) * ?dt > ?floor
   withdraw
     ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
@@ -798,8 +900,8 @@ on tick ?player ?dt
     jump-arena maximum x ?max-x
     jump-arena minimum z ?min-z
     jump-arena maximum z ?max-z
-    (?position-x + (?velocity-x + ?intent-x * ?move-speed * ?dt) * ?dt) clamped between ?min-x and ?max-x as ?next-x
-    (?position-z + (?velocity-z + ?intent-z * ?move-speed * ?dt) * ?dt) clamped between ?min-z and ?max-z as ?next-z
+    (?position-x + ?intent-x * ?move-speed * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + ?intent-z * ?move-speed * ?dt) clamped between ?min-z and ?max-z as ?next-z
     ?position-y + (?velocity-y + ?gravity * ?dt) * ?dt <= ?floor
   withdraw
     ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
@@ -1356,7 +1458,6 @@ on clear-reset-signal ?objective
     ?move-speed = ?base-speed
     ?energy = ?capacity
     ?regeneration-delay = 0.0
-    ?burst-recovery = 0.0
     ?player-vitality = ?player-maximum
     ?effect = clear
     ?status-clock = 12.0

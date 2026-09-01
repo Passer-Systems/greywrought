@@ -116,6 +116,7 @@ export interface CinderwakePresentation {
   cameraFollowY: number;
   cameraFollowZ: number;
   wayfarerRig: MountedArenaRig | null;
+  pendingWayfarerAttack: boolean;
   disposed: boolean;
 }
 
@@ -613,10 +614,25 @@ export function applyAdmittedFrame(
 
 export function playWayfarerSwordAction(
   presentation: CinderwakePresentation,
+  directionX: number,
+  directionZ: number,
 ): void {
-  if (presentation.wayfarerRig !== null) {
-    playMountedArenaAttack(presentation.wayfarerRig);
+  const wayfarer = presentation.subjects.find(
+    ({ placeholder }) => placeholder !== null,
+  );
+  if (
+    wayfarer !== undefined &&
+    (Math.abs(directionX) > 0.0001 || Math.abs(directionZ) > 0.0001)
+  ) {
+    wayfarer.facingYaw = Math.atan2(directionX, directionZ);
+    document.body.dataset.lastAttackFacingYaw = String(wayfarer.facingYaw);
   }
+  document.body.dataset.lastRigAction = "attack";
+  if (presentation.wayfarerRig === null) {
+    presentation.pendingWayfarerAttack = true;
+    return;
+  }
+  playMountedArenaAttack(presentation.wayfarerRig);
 }
 
 export function setActivityCue(
@@ -820,6 +836,7 @@ export function createCinderwakePresentation(
     cameraFollowY: 0,
     cameraFollowZ: 0,
     wayfarerRig: null,
+    pendingWayfarerAttack: false,
     disposed: false,
   };
 
@@ -856,6 +873,10 @@ export function createCinderwakePresentation(
         return;
       }
       presentation.wayfarerRig = mounted;
+      if (presentation.pendingWayfarerAttack) {
+        presentation.pendingWayfarerAttack = false;
+        playMountedArenaAttack(mounted);
+      }
       document.body.dataset.rigState = "ready";
       document.body.dataset.rigEquipmentCount = "6";
       document.body.dataset.rigSocketCount = "6";
