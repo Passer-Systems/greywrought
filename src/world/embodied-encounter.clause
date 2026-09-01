@@ -21,6 +21,7 @@ referent acquired
 referent playing
 referent completed
 referent failed
+referent approach
 referent telegraph
 referent lunge
 referent recovery
@@ -66,6 +67,11 @@ relation grounded
 
 relation horizontal-intent
   reads {player: Player} horizontal intent {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation camera-forward
+  reads {player: Player} camera forward {value: Vec3}
   subject player
   mode given player yields value: one
 
@@ -430,6 +436,7 @@ player-1 position Vec3 { x: -2.0, y: 0.0, z: 0.5 }
 player-1 velocity Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 player-1 grounded true
 player-1 horizontal intent Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 camera forward Vec3 { x: 0.0, y: 0.0, z: -1.0 }
 player-1 move speed 4.0
 player-1 base move speed 4.0
 player-1 sustained move speed 7.0
@@ -442,7 +449,7 @@ player-1 booster ignition threshold 25.0
 player-1 booster regeneration delay limit 8.0
 player-1 booster regeneration delay 0.0
 player-1 horizontal sustain drain 0.5
-player-1 horizontal burst displacement 0.96
+player-1 horizontal burst displacement 1.92
 player-1 horizontal burst cost 20.0
 player-1 vertical sustain thrust 0.55
 player-1 vertical sustain drain 1.0
@@ -458,13 +465,13 @@ player-1 combat target cinder-wraith
 player-1 target lock active false
 player-1 target selection sequence 0.0
 
-cinder-wraith enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
+cinder-wraith enemy position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
 cinder-wraith enemy combat status alive
 cinder-wraith next target cinder-wraith
 cinder-wraith previous target cinder-wraith
-cinder-wraith enemy pressure state telegraph
-cinder-wraith enemy pressure clock 36.0
+cinder-wraith enemy pressure state approach
+cinder-wraith enemy pressure clock 0.0
 cinder-wraith enemy recovery clock 0.0
 cinder-wraith enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
@@ -504,6 +511,8 @@ bind keyboard KeyJ down to begin-sword-action
 bind keyboard Tab down to target-next-enemy
 bind keyboard ShiftTab down to target-previous-enemy
 bind keyboard KeyR down to reset-objective
+bind scalar-input CameraForwardX to observe-camera-forward-x
+bind scalar-input CameraForwardZ to observe-camera-forward-z
 
 on hold-forward ?player
   when
@@ -601,25 +610,43 @@ on disable-vertical-sustain ?player
   include
     ?player negative control Vec3 { x: ?left, y: 0.0, z: ?forward }
 
+on observe-camera-forward-x ?player ?observed-x
+  when
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
+  withdraw
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
+  include
+    ?player camera forward Vec3 { x: ?observed-x, y: ?camera-y, z: ?camera-z }
+
+on observe-camera-forward-z ?player ?observed-z
+  when
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
+  withdraw
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
+  include
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?observed-z }
+
 on derive-horizontal-intent-x ?player
   when
     ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
     ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
     ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
   withdraw
     ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
   include
-    ?player horizontal intent Vec3 { x: ?right - ?left, y: ?intent-y, z: ?intent-z }
+    ?player horizontal intent Vec3 { x: ((?right - ?left) * (0.0 - ?camera-z)) + ((?backward - ?forward) * (0.0 - ?camera-x)), y: ?intent-y, z: ?intent-z }
 
 on derive-horizontal-intent-z ?player
   when
     ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
     ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
     ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
   withdraw
     ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
   include
-    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?backward - ?forward }
+    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ((?right - ?left) * ?camera-x) + ((?backward - ?forward) * (0.0 - ?camera-z)) }
 
 on apply-horizontal-sustain ?player
   when
@@ -837,10 +864,8 @@ on count-sword-commitment ?player
   include
     ?player sword commitment clock ?clock - 1.0
 
-on resolve-targeted-sword-hit ?enemy
+on resolve-sword-hitbox-contact ?enemy
   when
-    player-1 combat target ?enemy
-    player-1 target lock active ?lock-active
     player-1 sword commitment clock ?commitment-clock
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 combat status ?player-status
@@ -848,7 +873,6 @@ on resolve-targeted-sword-hit ?enemy
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     ?enemy enemy combat status ?enemy-status
     jump-arena melee range ?melee-range
-    ?lock-active = true
     ?commitment-clock = 12.0
     ?player-status = alive
     ?enemy-status = alive
@@ -1059,6 +1083,45 @@ on reset-status-clock ?player
   include
     ?player status clock 12.0
 
+on advance-boar-approach ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    (?player-x - ?enemy-x) clamped between -0.06 and 0.06 as ?step-x
+    (?player-z - ?enemy-z) clamped between -0.06 and 0.06 as ?step-z
+    ?pressure = approach
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) > 49.0
+  withdraw
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+  include
+    ?enemy enemy position Vec3 { x: ?enemy-x + ?step-x, y: ?enemy-y, z: ?enemy-z + ?step-z }
+
+on begin-boar-telegraph ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy charge start ?prior-start
+    ?enemy enemy charge end ?prior-end
+    ?enemy enemy charge envelope ?prior-envelope
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ?pressure = approach
+    ?player-y <= 2.0
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= 49.0
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy charge start ?prior-start
+    ?enemy enemy charge end ?prior-end
+    ?enemy enemy charge envelope ?prior-envelope
+  include
+    ?enemy enemy pressure state telegraph
+    ?enemy enemy pressure clock 63.0
+    ?enemy enemy charge start Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy charge end Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ?enemy enemy charge envelope Vec3 { x: 2.0, y: 8.0, z: 0.75 }
+
 on count-telegraph-pressure ?enemy
   when
     ?enemy enemy pressure state ?pressure
@@ -1082,20 +1145,17 @@ on commit-boar-charge ?enemy
     ?enemy enemy pressure clock ?clock
     ?enemy enemy position Vec3 { x: ?start-x, y: ?start-y, z: ?start-z }
     ?enemy enemy charge start ?prior-start
-    ?enemy enemy charge end ?prior-end
+    ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?enemy enemy charge envelope ?prior-envelope
     ?enemy enemy charge committed ?committed
-    player-1 position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?pressure = telegraph
     ?clock = 0.0
     ?committed = false
-    ?target-y <= 2.0
-    ((?target-x - ?start-x) * (?target-x - ?start-x)) + ((?target-y - ?start-y) * (?target-y - ?start-y)) + ((?target-z - ?start-z) * (?target-z - ?start-z)) <= 64.0
   withdraw
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?clock
     ?enemy enemy charge start ?prior-start
-    ?enemy enemy charge end ?prior-end
+    ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?enemy enemy charge envelope ?prior-envelope
     ?enemy enemy charge committed ?committed
   include
@@ -1162,7 +1222,7 @@ on begin-boar-overrun-recovery ?enemy
     ?enemy enemy recovery clock ?recovery-clock
   include
     ?enemy enemy pressure state overrun-recovery
-    ?enemy enemy recovery clock 54.0
+    ?enemy enemy recovery clock 31.0
 
 on launch-cinder-bolt ?projectile
   when
@@ -1268,7 +1328,6 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?pressure-clock
     ?enemy enemy recovery clock ?recovery-clock
-    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
     ?enemy enemy charge start ?start
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
@@ -1279,16 +1338,14 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?pressure-clock
     ?enemy enemy recovery clock ?recovery-clock
-    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
     ?enemy enemy charge start ?start
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
     ?enemy enemy charge committed ?committed
   include
-    ?enemy enemy pressure state telegraph
-    ?enemy enemy pressure clock 36.0
+    ?enemy enemy pressure state approach
+    ?enemy enemy pressure clock 0.0
     ?enemy enemy recovery clock 0.0
-    ?enemy enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
     ?enemy enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
@@ -1299,7 +1356,6 @@ on rearm-after-overrun-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?pressure-clock
     ?enemy enemy recovery clock ?recovery-clock
-    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
     ?enemy enemy charge start ?start
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
@@ -1310,16 +1366,14 @@ on rearm-after-overrun-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?pressure-clock
     ?enemy enemy recovery clock ?recovery-clock
-    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
     ?enemy enemy charge start ?start
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
     ?enemy enemy charge committed ?committed
   include
-    ?enemy enemy pressure state telegraph
-    ?enemy enemy pressure clock 36.0
+    ?enemy enemy pressure state approach
+    ?enemy enemy pressure clock 0.0
     ?enemy enemy recovery clock 0.0
-    ?enemy enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
     ?enemy enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
@@ -1491,8 +1545,8 @@ on clear-reset-signal ?objective
     ?effect = clear
     ?status-clock = 12.0
     ?enemy-vitality = ?enemy-maximum
-    ?pressure = telegraph
-    ?clock = 90.0
+    ?pressure = approach
+    ?clock = 0.0
     ?projectile-x = 2.0
     ?projectile-y = 0.55
     ?projectile-z = 0.0
@@ -1671,7 +1725,7 @@ on reset-enemy-pressure-state ?enemy
   withdraw
     ?enemy enemy pressure state ?pressure
   include
-    ?enemy enemy pressure state telegraph
+    ?enemy enemy pressure state approach
 
 on reset-enemy-position ?enemy
   when
@@ -1681,7 +1735,7 @@ on reset-enemy-position ?enemy
   withdraw
     ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
   include
-    ?enemy enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
+    ?enemy enemy position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
 
 on reset-enemy-pressure-clock ?enemy
   when
@@ -1691,7 +1745,7 @@ on reset-enemy-pressure-clock ?enemy
   withdraw
     ?enemy enemy pressure clock ?clock
   include
-    ?enemy enemy pressure clock 36.0
+    ?enemy enemy pressure clock 0.0
 
 on reset-enemy-recovery-clock ?enemy
   when

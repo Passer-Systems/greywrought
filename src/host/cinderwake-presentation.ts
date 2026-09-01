@@ -103,6 +103,8 @@ export interface CinderwakePresentation {
   readonly renderer: WebGLRenderer;
   readonly subjects: readonly SubjectPresentation[];
   readonly chargeCorridor: Object3D;
+  readonly chargeCorridorFill: Object3D;
+  readonly chargeCorridorFillMaterial: MeshStandardMaterial;
   readonly resources: OwnedPresentationResources;
   readonly rigReady: Promise<void>;
   width: number;
@@ -115,12 +117,57 @@ export interface CinderwakePresentation {
   cameraFollowX: number;
   cameraFollowY: number;
   cameraFollowZ: number;
+  cameraOrbitYaw: number;
+  cameraOrbitPitch: number;
+  cameraDistance: number;
   wayfarerRig: MountedArenaRig | null;
   pendingWayfarerAttack: boolean;
   disposed: boolean;
 }
 
 const clampUnit = (value: number): number => Math.max(0, Math.min(1, value));
+const DEFAULT_CAMERA_HEIGHT = 9.6;
+const DEFAULT_CAMERA_REACH = 8.2;
+const DEFAULT_CAMERA_DISTANCE = Math.hypot(
+  DEFAULT_CAMERA_HEIGHT,
+  DEFAULT_CAMERA_REACH,
+);
+const DEFAULT_CAMERA_PITCH = Math.atan2(
+  DEFAULT_CAMERA_HEIGHT,
+  DEFAULT_CAMERA_REACH,
+);
+const MIN_CAMERA_PITCH = 0.55;
+const MAX_CAMERA_PITCH = 1.35;
+const MIN_CAMERA_DISTANCE = 5.5;
+const MAX_CAMERA_DISTANCE = 18;
+
+export function orbitPresentationCamera(
+  presentation: CinderwakePresentation,
+  horizontalPixels: number,
+  verticalPixels: number,
+): void {
+  presentation.cameraOrbitYaw -= horizontalPixels * 0.005;
+  presentation.cameraOrbitPitch = Math.max(
+    MIN_CAMERA_PITCH,
+    Math.min(
+      MAX_CAMERA_PITCH,
+      presentation.cameraOrbitPitch + verticalPixels * 0.004,
+    ),
+  );
+}
+
+export function zoomPresentationCamera(
+  presentation: CinderwakePresentation,
+  wheelDeltaY: number,
+): void {
+  presentation.cameraDistance = Math.max(
+    MIN_CAMERA_DISTANCE,
+    Math.min(
+      MAX_CAMERA_DISTANCE,
+      presentation.cameraDistance * Math.exp(wheelDeltaY * 0.001),
+    ),
+  );
+}
 
 function ownGeometry<T extends BufferGeometry>(
   resources: OwnedPresentationResources,
@@ -652,13 +699,30 @@ export function setActivityCue(
   subject.recoveryLevel = clampUnit(recovery);
 }
 
+export function faceSubjectToward(
+  presentation: CinderwakePresentation,
+  subjectId: string,
+  target: ProjectedPosition,
+): void {
+  const subject = subjectById(presentation, subjectId);
+  if (subject === undefined) return;
+  const directionX = target.x - subject.root.position.x;
+  const directionZ = target.z - subject.root.position.z;
+  if (Math.abs(directionX) < 0.0001 && Math.abs(directionZ) < 0.0001) return;
+  subject.facingYaw = Math.atan2(directionX, directionZ);
+}
+
 export function setChargeCorridor(
   presentation: CinderwakePresentation,
   start: ProjectedPosition,
   end: ProjectedPosition,
   radius: number,
+  fillProgress: number,
+  charging: boolean,
 ): void {
   const corridor = presentation.chargeCorridor;
+  const fill = presentation.chargeCorridorFill;
+  const progress = clampUnit(fillProgress);
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const dz = end.z - start.z;
@@ -673,6 +737,12 @@ export function setChargeCorridor(
   corridor.rotation.y = -Math.atan2(dz, dx);
   corridor.rotation.z = Math.atan2(dy, horizontal);
   corridor.visible = true;
+  fill.visible = progress > 0.001;
+  fill.position.x = (progress - 1) / 2;
+  fill.scale.set(Math.max(0.001, progress), 0.82, 0.82);
+  presentation.chargeCorridorFillMaterial.opacity = charging
+    ? 0.58
+    : 0.16 + progress * 0.38;
 }
 
 export function hideChargeCorridor(
@@ -776,10 +846,18 @@ export function renderPresentationFrame(
     updateMountedArenaRig(presentation.wayfarerRig, delta);
   }
   const impulse = presentation.cameraImpulse;
+  const horizontalReach =
+    Math.cos(presentation.cameraOrbitPitch) * presentation.cameraDistance;
+  const verticalReach =
+    Math.sin(presentation.cameraOrbitPitch) * presentation.cameraDistance;
   presentation.camera.position.set(
-    presentation.cameraFollowX + impulse * 0.52,
-    presentation.cameraFollowY + 9.6 + impulse * 0.34,
-    presentation.cameraFollowZ + 8.2 - impulse * 0.28,
+    presentation.cameraFollowX +
+      Math.sin(presentation.cameraOrbitYaw) * horizontalReach +
+      impulse * 0.52,
+    presentation.cameraFollowY + verticalReach + impulse * 0.34,
+    presentation.cameraFollowZ +
+      Math.cos(presentation.cameraOrbitYaw) * horizontalReach -
+      impulse * 0.28,
   );
   presentation.camera.lookAt(
     presentation.cameraFollowX,
@@ -808,10 +886,36 @@ export function createCinderwakePresentation(
     createRelic(ids.relic, resources),
     createMoonwell(ids.moonwell, resources),
   ];
-  const chargeCorridor = mesh(
-    ownGeometry(resources, new BoxGeometry(1, 1, 1)),
-    standardMaterial(resources, 0xff4f36, 0xff0000, 0, 0.28, true, 0.2),
+  const chargeCorridor = new Group();
+  const chargeCorridorGeometry = ownGeometry(resources, new BoxGeometry(1, 1, 1));
+  const chargeCorridorOutlineMaterial = standardMaterial(
+    resources,
+    0xff7b61,
+    0xff2400,
+    0,
+    0.18,
+    true,
+    0.72,
   );
+  chargeCorridorOutlineMaterial.wireframe = true;
+  const chargeCorridorFillMaterial = standardMaterial(
+    resources,
+    0xff3b24,
+    0xff0000,
+    0,
+    0.24,
+    true,
+    0.2,
+  );
+  const chargeCorridorOutline = mesh(
+    chargeCorridorGeometry,
+    chargeCorridorOutlineMaterial,
+  );
+  const chargeCorridorFill = mesh(
+    chargeCorridorGeometry,
+    chargeCorridorFillMaterial,
+  );
+  chargeCorridor.add(chargeCorridorOutline, chargeCorridorFill);
   chargeCorridor.visible = false;
   const presentation: CinderwakePresentation = {
     scene,
@@ -819,6 +923,8 @@ export function createCinderwakePresentation(
     renderer,
     subjects,
     chargeCorridor,
+    chargeCorridorFill,
+    chargeCorridorFillMaterial,
     resources,
     rigReady: Promise.resolve(),
     width: 0,
@@ -831,6 +937,9 @@ export function createCinderwakePresentation(
     cameraFollowX: 0,
     cameraFollowY: 0,
     cameraFollowZ: 0,
+    cameraOrbitYaw: 0,
+    cameraOrbitPitch: DEFAULT_CAMERA_PITCH,
+    cameraDistance: DEFAULT_CAMERA_DISTANCE,
     wayfarerRig: null,
     pendingWayfarerAttack: false,
     disposed: false,
@@ -838,7 +947,7 @@ export function createCinderwakePresentation(
 
   scene.background = new Color(0x030506);
   addArenaSilhouette(scene, resources);
-  camera.position.set(0, 9.6, 8.2);
+  camera.position.set(0, DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_REACH);
   camera.lookAt(0, 0.45, 0);
   const ambient = new AmbientLight(0x485250, 1.15);
   const keyLight = new DirectionalLight(0xffceb6, 3.7);

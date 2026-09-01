@@ -58,7 +58,9 @@ import {
   applyAdmittedFrame,
   createCinderwakePresentation,
   disposeCinderwakePresentation,
+  faceSubjectToward,
   hideChargeCorridor,
+  orbitPresentationCamera,
   playWayfarerSwordAction,
   renderPresentationFrame,
   setActivityCue,
@@ -66,6 +68,7 @@ import {
   signalDeath,
   signalImpact,
   signalPropulsion,
+  zoomPresentationCamera,
   type CinderwakePresentation,
   type ProjectedPosition,
 } from "./cinderwake-presentation.js";
@@ -128,6 +131,9 @@ interface SceneShell {
   readonly presentation: CinderwakePresentation;
   readonly canvas: HTMLCanvasElement;
   readonly pointerHandler: (event: PointerEvent) => void;
+  readonly pointerMoveHandler: (event: PointerEvent) => void;
+  readonly pointerReleaseHandler: (event: PointerEvent) => void;
+  readonly wheelHandler: (event: WheelEvent) => void;
   readonly enemyNameplate: HTMLElement;
   readonly enemyNameplateFill: HTMLElement;
   readonly enemyNameplateAnchor: Vector3;
@@ -226,8 +232,13 @@ interface ResidentLawSession {
   lastProjection: GameProjection | null;
   admittedOrdinal: number;
   candidateSeen: boolean;
-  readonly inputQueue: WorkbenchEnvelope[];
+  readonly inputQueue: QueuedGameInput[];
   inputInFlight: boolean;
+}
+
+interface QueuedGameInput {
+  readonly envelope: WorkbenchEnvelope;
+  readonly coalesceKey: string | null;
 }
 
 interface PlayApp {
@@ -569,6 +580,20 @@ function setVitalityBar(
   element(valueId).textContent = `${vitality} / ${maximum}`;
 }
 
+function showDamageNumber(amount: number, kind: string, critical: boolean): void {
+  const damageNumber = element("enemy-damage-number");
+  const kindClass =
+    kind === "auto-attack"
+      ? "damage-auto-attack"
+      : kind === "pet"
+        ? "damage-pet"
+        : "damage-special";
+  damageNumber.textContent = String(amount);
+  damageNumber.className = `enemy-damage-number ${kindClass}${critical ? " critical" : ""}`;
+  damageNumber.getBoundingClientRect();
+  damageNumber.classList.add("active");
+}
+
 function boundedGameEvent(event: Record<string, unknown>): void {
   const events = window.__GREYWROUGHT_GAME_EVENTS__;
   events.push(event);
@@ -592,6 +617,29 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
   };
   app.scene.enemyNameplateFill.style.transform =
     `scaleX(${Math.max(0, Math.min(1, enemy.vitality / Math.max(0.001, enemy.maximumVitality)))})`;
+  const hitStunVisible =
+    enemy.pressureState === "hit-recovery" ||
+    enemy.pressureState === "overrun-recovery";
+  const hitStun = element("enemy-hit-stun");
+  hitStun.hidden = !hitStunVisible;
+  if (hitStunVisible) {
+    const maximumTicks =
+      enemy.pressureState === "overrun-recovery" ? 31 : 30;
+    const remainingTicks = Math.max(
+      0,
+      Math.min(maximumTicks, enemy.recoveryClock),
+    );
+    hitStun.classList.toggle(
+      "punishable",
+      enemy.pressureState === "overrun-recovery",
+    );
+    hitStun.style.setProperty(
+      "--stun-progress",
+      String(remainingTicks / maximumTicks),
+    );
+    element("enemy-hit-stun-timer").textContent =
+      (remainingTicks * 0.016).toFixed(2);
+  }
   app.scene.enemyNameplate.setAttribute(
     "aria-label",
     `Corrupted Magitek Boar, ${enemy.vitality} of ${enemy.maximumVitality} health`,
@@ -664,12 +712,31 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
       ? 1
       : 0,
   );
-  if (enemy.chargeCommitted) {
+  if (
+    enemy.pressureState === "approach" ||
+    enemy.pressureState === "telegraph" ||
+    enemy.pressureState === "charging"
+  ) {
+    faceSubjectToward(
+      app.scene.presentation,
+      "magitek-boar",
+      enemy.pressureState === "approach" ? player.position : enemy.chargeEnd,
+    );
+  }
+  const chargeCorridorVisible =
+    enemy.pressureState === "telegraph" || enemy.chargeCommitted;
+  if (chargeCorridorVisible) {
+    const telegraphProgress = Math.max(
+      0,
+      Math.min(1, 1 - enemy.pressureClock / 63),
+    );
     setChargeCorridor(
       app.scene.presentation,
       enemy.chargeStart,
       enemy.chargeEnd,
       enemy.chargeRadius,
+      enemy.pressureState === "telegraph" ? telegraphProgress : 1,
+      enemy.pressureState === "charging",
     );
   } else {
     hideChargeCorridor(app.scene.presentation);
@@ -726,6 +793,7 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     gamePhase: objectiveStatus,
     gamePlayerVitality: String(player.vitality),
     gameEnemyVitality: String(enemy.vitality),
+    gameEnemyCombatStatus: enemy.combatStatus,
     gameCustody: loot.custody,
     gamePlayerX: String(player.position.x),
     gamePlayerZ: String(player.position.z),
@@ -746,7 +814,14 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     gameEnemyPressure: enemy.pressureState,
     gamePressureClock: String(enemy.pressureClock),
     gameBoarRecoveryClock: String(enemy.recoveryClock),
-    gameChargeCorridorVisible: String(enemy.chargeCommitted),
+    gameChargeCorridorVisible: String(chargeCorridorVisible),
+    gameChargeTelegraphProgress: String(
+      enemy.pressureState === "telegraph"
+        ? Math.max(0, Math.min(1, 1 - enemy.pressureClock / 63))
+        : enemy.pressureState === "charging"
+          ? 1
+          : 0,
+    ),
   });
 
   if (prior !== null) {
@@ -773,6 +848,7 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
         ordinal,
         damage / Math.max(0.001, enemy.maximumVitality),
       );
+      showDamageNumber(damage, "auto-attack", false);
     }
     if (player.vitality < prior.player.vitality) {
       const damage = prior.player.vitality - player.vitality;
@@ -1023,13 +1099,16 @@ function renderLoop(shell: SceneShell): void {
     gameCameraLookX: String(presentation.cameraFollowX),
     gameCameraLookY: String(presentation.cameraFollowY + 0.45),
     gameCameraLookZ: String(presentation.cameraFollowZ),
+    gameCameraOrbitYaw: String(presentation.cameraOrbitYaw),
+    gameCameraOrbitPitch: String(presentation.cameraOrbitPitch),
+    gameCameraDistance: String(presentation.cameraDistance),
   });
   shell.frameHandle = requestAnimationFrame(() => renderLoop(shell));
 }
 
 function renderEnemyNameplate(shell: SceneShell): void {
   const admitted = shell.enemyNameplateProjection;
-  if (admitted === null || !admitted.alive || admitted.vitality <= 0) {
+  if (admitted === null) {
     shell.enemyNameplate.hidden = true;
     return;
   }
@@ -1043,10 +1122,19 @@ function renderEnemyNameplate(shell: SceneShell): void {
     projected.y <= 1 &&
     projected.z >= -1 &&
     projected.z <= 1;
+  const left = `${(projected.x * 0.5 + 0.5) * shell.canvas.clientWidth}px`;
+  const top = `${(-projected.y * 0.5 + 0.5) * shell.canvas.clientHeight}px`;
+  const damageNumber = element("enemy-damage-number");
+  damageNumber.style.left = left;
+  damageNumber.style.top = top;
+  if (!admitted.alive || admitted.vitality <= 0) {
+    shell.enemyNameplate.hidden = true;
+    return;
+  }
   shell.enemyNameplate.hidden = !visible;
   if (!visible) return;
-  shell.enemyNameplate.style.left = `${(projected.x * 0.5 + 0.5) * shell.canvas.clientWidth}px`;
-  shell.enemyNameplate.style.top = `${(-projected.y * 0.5 + 0.5) * shell.canvas.clientHeight}px`;
+  shell.enemyNameplate.style.left = left;
+  shell.enemyNameplate.style.top = top;
 }
 
 function createScene(): SceneShell {
@@ -1065,13 +1153,59 @@ function createScene(): SceneShell {
   const enemyNameplate = element("enemy-nameplate");
   const enemyNameplateFill = element("enemy-nameplate-health-fill");
   let shell: SceneShell | null = null;
-  const pointerHandler = (_event: PointerEvent): void => {
-    if (shell !== null) focusScene(shell);
+  let cameraPointer: Readonly<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+  }> | null = null;
+  const pointerHandler = (event: PointerEvent): void => {
+    if (shell === null) return;
+    focusScene(shell);
+    if (event.button !== 0) return;
+    event.preventDefault();
+    cameraPointer = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    };
+    canvas.setPointerCapture(event.pointerId);
+  };
+  const pointerMoveHandler = (event: PointerEvent): void => {
+    if (cameraPointer === null || cameraPointer.pointerId !== event.pointerId) {
+      return;
+    }
+    event.preventDefault();
+    orbitPresentationCamera(
+      presentation,
+      event.clientX - cameraPointer.clientX,
+      event.clientY - cameraPointer.clientY,
+    );
+    cameraPointer = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    };
+  };
+  const pointerReleaseHandler = (event: PointerEvent): void => {
+    if (cameraPointer === null || cameraPointer.pointerId !== event.pointerId) {
+      return;
+    }
+    cameraPointer = null;
+    if (canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+  };
+  const wheelHandler = (event: WheelEvent): void => {
+    event.preventDefault();
+    zoomPresentationCamera(presentation, event.deltaY);
   };
   shell = {
     presentation,
     canvas,
     pointerHandler,
+    pointerMoveHandler,
+    pointerReleaseHandler,
+    wheelHandler,
     enemyNameplate,
     enemyNameplateFill,
     enemyNameplateAnchor: new Vector3(),
@@ -1084,6 +1218,10 @@ function createScene(): SceneShell {
   canvas.setAttribute("aria-label", "Greywrought semantic world");
   element("world-wrap").prepend(canvas);
   canvas.addEventListener("pointerdown", pointerHandler);
+  canvas.addEventListener("pointermove", pointerMoveHandler);
+  canvas.addEventListener("pointerup", pointerReleaseHandler);
+  canvas.addEventListener("pointercancel", pointerReleaseHandler);
+  canvas.addEventListener("wheel", wheelHandler, { passive: false });
   renderLoop(shell);
   return shell;
 }
@@ -1340,21 +1478,57 @@ function physicalKeyEnvelope(event: PhysicalKey, phase: "down" | "up") {
   );
 }
 
+function scalarInputEnvelope(channel: string, value: number) {
+  return createWorkbenchEnvelope(
+    residentPolicy(),
+    JSON.stringify([
+      JSON.stringify({ kind: "scalar-input", channel, value }),
+    ]),
+  );
+}
+
+function queueGameInput(
+  app: PlayApp,
+  envelope: WorkbenchEnvelope,
+  coalesceKey: string | null,
+): void {
+  const queue = app.residentLaw.inputQueue;
+  if (coalesceKey !== null) {
+    const pending = queue.findIndex((entry) => entry.coalesceKey === coalesceKey);
+    if (pending >= 0) queue.splice(pending, 1);
+  }
+  queue.push({ envelope, coalesceKey });
+  flushGameInput(app);
+}
+
 function observeGameKey(
   app: PlayApp,
   event: PhysicalKey,
   phase: "down" | "up",
 ): void {
-  app.residentLaw.inputQueue.push(physicalKeyEnvelope(event, phase));
-  flushGameInput(app);
+  queueGameInput(app, physicalKeyEnvelope(event, phase), null);
+}
+
+function observeCameraBasis(app: PlayApp): void {
+  const yaw = app.scene.presentation.cameraOrbitYaw;
+  queueGameInput(
+    app,
+    scalarInputEnvelope("CameraForwardX", -Math.sin(yaw)),
+    "CameraForwardX",
+  );
+  queueGameInput(
+    app,
+    scalarInputEnvelope("CameraForwardZ", -Math.cos(yaw)),
+    "CameraForwardZ",
+  );
 }
 
 function flushGameInput(app: PlayApp): void {
   const resident = app.residentLaw;
   if (resident.inputInFlight || resident.controller === null) return;
-  const envelope = resident.inputQueue[0];
-  if (envelope === undefined) return;
-  if (resident.controller.observeInput(envelope)) {
+  const input = resident.inputQueue[0];
+  if (input === undefined) return;
+  if (resident.controller.observeInput(input.envelope)) {
     resident.inputQueue.shift();
     resident.inputInFlight = true;
   }
@@ -1401,10 +1575,15 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
       observeGameKey(app, event, "up");
     }
   };
+  const cameraBasis = (event: PointerEvent): void => {
+    if ((event.buttons & 1) !== 0) observeCameraBasis(app);
+  };
   canvas.addEventListener("keydown", down);
   canvas.addEventListener("keyup", up);
+  canvas.addEventListener("pointermove", cameraBasis);
   listeners.push(() => canvas.removeEventListener("keydown", down));
   listeners.push(() => canvas.removeEventListener("keyup", up));
+  listeners.push(() => canvas.removeEventListener("pointermove", cameraBasis));
 }
 
 function pressReset(app: PlayApp): void {
@@ -1428,6 +1607,19 @@ function teardown(app: PlayApp): void {
   window.clearInterval(app.residentLaw.interval);
   cancelAnimationFrame(app.scene.frameHandle);
   app.scene.canvas.removeEventListener("pointerdown", app.scene.pointerHandler);
+  app.scene.canvas.removeEventListener(
+    "pointermove",
+    app.scene.pointerMoveHandler,
+  );
+  app.scene.canvas.removeEventListener(
+    "pointerup",
+    app.scene.pointerReleaseHandler,
+  );
+  app.scene.canvas.removeEventListener(
+    "pointercancel",
+    app.scene.pointerReleaseHandler,
+  );
+  app.scene.canvas.removeEventListener("wheel", app.scene.wheelHandler);
   for (const removeListener of app.listeners) removeListener();
   disposeCinderwakePresentation(app.scene.presentation);
   app.scene.canvas.remove();
