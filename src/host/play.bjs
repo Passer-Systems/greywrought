@@ -18,6 +18,7 @@
            clause_session_v1_command_bulk
            clause_session_v1_event_bulk
            clause_session_v1_open_bulk
+           clause_session_v1_reclaim_retired
            initSync
            InitOutput
            SyncInitInput]])
@@ -152,7 +153,9 @@
       (fn [request (Vec Int)] Float
         (clause_session_v1_command_bulk (new Uint8Array request)))
       :clause_session_v1_event_bulk
-      (fn [] Any (clause_session_v1_event_bulk))})))
+      (fn [] Any (clause_session_v1_event_bulk))
+      :clause_session_v1_reclaim_retired
+      (fn [] Bool (clause_session_v1_reclaim_retired))})))
 
 (defn open-effect-session!
   [module Any
@@ -241,8 +244,7 @@
   (let [resident ResidentLawSession (.-residentLaw app)
         prior Any @(.-lastProjection resident)
         ordinal Int (inc @(.-admittedOrdinal resident))
-        presentation cinder/CinderwakePresentation
-        (.-presentation (.-scene app))
+        presentation cinder/CinderwakePresentation (.-presentation (.-scene app))
         player Any (projected-property projection "player-1")
         enemy Any (projected-property projection "cinder-wraith")
         loot Any (projected-property projection "ashen-key")
@@ -521,8 +523,7 @@
 
 (defn create-scene! [] SceneShell
   (let [pixel-ratio Float (.-devicePixelRatio window)
-        presentation cinder/CinderwakePresentation
-        (cinder/create-cinderwake-presentation!
+        presentation cinder/CinderwakePresentation (cinder/create-cinderwake-presentation!
          (cinder/->CinderwakeSubjectIds
           "ashen-wayfarer" "cinder-wraith" "ashen-key" "moonwell")
          (max 1.0 (min 2.0 pixel-ratio)))

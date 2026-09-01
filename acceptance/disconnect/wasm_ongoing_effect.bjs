@@ -10,6 +10,7 @@
    :refer [clause_session_v1_command_bulk
            clause_session_v1_event_bulk
            clause_session_v1_open_bulk
+           clause_session_v1_reclaim_retired
            initSync
            InitOutput
            SyncInitInput]])
@@ -35,7 +36,9 @@
       (fn [request (Vec Int)] Float
         (clause_session_v1_command_bulk (new Uint8Array request)))
       :clause_session_v1_event_bulk
-      (fn [] Any (clause_session_v1_event_bulk))})))
+      (fn [] Any (clause_session_v1_event_bulk))
+      :clause_session_v1_reclaim_retired
+      (fn [] Bool (clause_session_v1_reclaim_retired))})))
 
 (defn identity-string [value Any] String
   (.stringify JSON value))

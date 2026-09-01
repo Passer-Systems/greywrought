@@ -77,6 +77,7 @@ combat Candidate Delta and Admission journey.
 
 Pinned inputs:
 
-- Clause `baf7f77ef48fc607b39c3dd3e5f5f9e2418162be` (includes resident-session
+- Clause `e2f58a5cf82176139c05312abddd751d61e48996` (includes incremental
+  resident-session retirement and the resident-session
   command budget `0dd73896f0d119342cb5d6f51211e15be6db0953`)
 - Beagle `6c1e80d2833d711a2bd16d7ea9b1ca090cc870a7`
