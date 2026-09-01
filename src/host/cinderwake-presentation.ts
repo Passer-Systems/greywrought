@@ -579,6 +579,9 @@ export function applyAdmittedFrame(
   presentation.cameraTargetX = frame.cameraTarget.x;
   presentation.cameraTargetY = frame.cameraTarget.y;
   presentation.cameraTargetZ = frame.cameraTarget.z;
+  presentation.cameraFollowX = frame.cameraTarget.x;
+  presentation.cameraFollowY = frame.cameraTarget.y;
+  presentation.cameraFollowZ = frame.cameraTarget.z;
   for (const admitted of frame.subjects) {
     const subject = subjectById(presentation, admitted.subject);
     if (subject === undefined) continue;
@@ -765,13 +768,6 @@ export function renderPresentationFrame(
     0,
     presentation.cameraImpulse - delta * 0.76,
   );
-  const damping = delta === 0 ? 1 : Math.min(1, delta * 6.5);
-  presentation.cameraFollowX +=
-    damping * (presentation.cameraTargetX - presentation.cameraFollowX);
-  presentation.cameraFollowY +=
-    damping * (presentation.cameraTargetY - presentation.cameraFollowY);
-  presentation.cameraFollowZ +=
-    damping * (presentation.cameraTargetZ - presentation.cameraFollowZ);
   updateViewport(presentation, viewportWidth, viewportHeight);
   for (const subject of presentation.subjects) {
     animateSubject(subject, elapsedSeconds, delta);

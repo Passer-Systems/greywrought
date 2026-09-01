@@ -79,6 +79,11 @@ relation jump-speed
   subject arena
   mode given arena yields value: one
 
+relation melee-range
+  reads {arena: Arena} melee range {value: F64}
+  subject arena
+  mode given arena yields value: one
+
 relation move-speed
   reads {player: Player} move speed {value: F64}
   subject player
@@ -412,6 +417,7 @@ game-objective ∈ Objective
 
 jump-arena gravity -12.0
 jump-arena jump speed 3.0
+jump-arena melee range 2.0
 jump-arena floor height 0.0
 jump-arena minimum x -4.6
 jump-arena maximum x 4.8
@@ -830,6 +836,29 @@ on count-sword-commitment ?player
     ?player sword commitment clock ?clock
   include
     ?player sword commitment clock ?clock - 1.0
+
+on resolve-targeted-sword-hit ?enemy
+  when
+    player-1 combat target ?enemy
+    player-1 target lock active ?lock-active
+    player-1 sword commitment clock ?commitment-clock
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 combat status ?player-status
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy combat status ?enemy-status
+    jump-arena melee range ?melee-range
+    ?lock-active = true
+    ?commitment-clock = 12.0
+    ?player-status = alive
+    ?enemy-status = alive
+    ?vitality > 0.0
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-y - ?enemy-y) * (?player-y - ?enemy-y)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= ?melee-range * ?melee-range
+    (?vitality - 2.0) clamped between 0.0 and ?maximum as ?next-vitality
+  withdraw
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ?enemy enemy vitals Vec3 { x: ?next-vitality, y: ?maximum, z: ?alive-flag }
 
 on reset-objective ?objective
   when
