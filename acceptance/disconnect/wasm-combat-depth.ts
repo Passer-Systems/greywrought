@@ -292,85 +292,119 @@ function vectorField(
   return numberField(projectedField(value, field, "subject"), component, field);
 }
 
-function verifyIdleSafety(module: object, request: unknown): void {
+function verifyBoarChargeAndBurstCustody(module: object, request: unknown): void {
   const opened = openCartridgeSession(module, request);
   const revision: Cell<unknown> = { value: opened.revision };
-  const visiblePositions: number[] = [];
-  let sawSpent = false;
-  for (let ordinal = 0; ordinal < 72; ordinal += 1) {
-    const tick = admitTick(
-      opened,
-      revision.value,
-      emptyInputConfiguration(ordinal + 1),
-    );
-    revision.value = tick.revision;
-    const player = projectedField(tick.projection, "player-1", "projection");
-    const bolt = projectedField(tick.projection, "cinder-bolt", "projection");
-    const vitals = projectedField(player, "player-vitals", "player-1");
-    requireCondition(
-      numberField(vitals, "x", "player-vitals") === 4,
-      "idle safe-spawn player lost vitality",
-    );
-    requireCondition(
-      stringField(player, "status-effect", "player-1") === "clear",
-      "idle safe-spawn player received a contact effect",
-    );
-    if (stringField(bolt, "projectile-state", "cinder-bolt") === "spent") {
-      sawSpent = true;
-    }
-    if (booleanField(bolt, "projectile-visible", "cinder-bolt")) {
-      const position = projectedField(bolt, "projectile-position", "cinder-bolt");
-      visiblePositions.push(numberField(position, "x", "projectile-position"));
-    }
-  }
-  requireCondition(
-    visiblePositions.length >= 5,
-    "missed projectile did not remain visible across admitted Steps",
-  );
-  for (let index = 1; index < visiblePositions.length; index += 1) {
-    const current = visiblePositions[index];
-    const previous = visiblePositions[index - 1];
-    requireCondition(
-      current !== undefined && previous !== undefined && current < previous,
-      "Clause did not advance the missed projectile monotonically",
-    );
-  }
-  requireCondition(sawSpent, "the first missed projectile never completed its flight");
-  opened.port.disposeSession(opened.session);
-}
+  const configurationRevision = { value: 0 };
+  const inputSequence = { value: 0 };
+  let priorVitality = 4;
+  let sawTelegraph = false;
+  let sawCharging = false;
+  let sawFirstHit = false;
+  let sawSpawnReset = false;
+  let postHitCharge: AdmittedTick | null = null;
 
-function verifyGroundedPressure(module: object, request: unknown): void {
-  const opened = openCartridgeSession(module, request);
-  const revision: Cell<unknown> = { value: opened.revision };
-  let markOrdinal = -1;
-  let damageOrdinal = -1;
-  let clearOrdinal = -1;
-  for (let ordinal = 0; ordinal < 72; ordinal += 1) {
-    const configuration =
-      ordinal === 0
-        ? keyInputConfiguration(policy(), 1, 1, "KeyD", "down")
-        : emptyInputConfiguration(ordinal + 1);
-    const tick = admitTick(opened, revision.value, configuration);
-    revision.value = tick.revision;
+  for (let ordinal = 0; ordinal < 120; ordinal += 1) {
+    const tick = admitEmpty(opened, revision, configurationRevision);
     const player = projectedField(tick.projection, "player-1", "projection");
+    const enemy = projectedField(tick.projection, "cinder-wraith", "projection");
     const vitals = projectedField(player, "player-vitals", "player-1");
     const vitality = numberField(vitals, "x", "player-vitals");
-    const status = stringField(player, "status-effect", "player-1");
-    if (status === "ember-mark" && markOrdinal === -1) markOrdinal = ordinal;
-    if (vitality === 2 && damageOrdinal === -1) damageOrdinal = ordinal;
-    if (damageOrdinal >= 0 && status === "clear" && clearOrdinal === -1) {
-      clearOrdinal = ordinal;
+    const pressure = stringField(enemy, "enemy-pressure-state", "cinder-wraith");
+    if (pressure === "telegraph") sawTelegraph = true;
+    if (!sawFirstHit && pressure === "charging") sawCharging = true;
+    if (!sawFirstHit && vitality === 2) {
+      requireCondition(priorVitality === 4, "first boar contact was not vitality 4→2");
+      requireCondition(
+        pressure === "hit-recovery",
+        "first boar contact did not enter hit recovery",
+      );
+      sawFirstHit = true;
+    }
+    requireCondition(
+      vitality >= 2,
+      `boar charge applied unexpected additional damage at tick ${ordinal}`,
+    );
+    if (sawFirstHit && pressure === "telegraph") {
+      const enemyPosition = projectedField(enemy, "enemy-position", "cinder-wraith");
+      requireCondition(
+        numberField(enemyPosition, "x", "enemy-position") === 4.5 &&
+          numberField(enemyPosition, "z", "enemy-position") === 0,
+        "hit recovery did not restore the boar spawn",
+      );
+      sawSpawnReset = true;
+    }
+    if (sawSpawnReset && pressure === "charging") {
+      postHitCharge = tick;
+      break;
+    }
+    priorVitality = vitality;
+  }
+  requireCondition(sawTelegraph, "boar exposed no telegraph phase");
+  requireCondition(sawCharging, "boar never committed its first charge");
+  requireCondition(sawFirstHit, "first boar charge produced no admitted contact");
+  requireCondition(sawSpawnReset, "boar did not rearm at its spawn after hit recovery");
+  requireCondition(
+    postHitCharge !== null,
+    "boar did not commit a second charge after hit recovery",
+  );
+
+  const beforeBurstPlayer = projectedField(
+    postHitCharge.projection,
+    "player-1",
+    "projection",
+  );
+  const beforeBurstPosition = projectedField(beforeBurstPlayer, "position", "player-1");
+  const beforeBurstZ = numberField(beforeBurstPosition, "z", "position");
+  admitKey(opened, revision, configurationRevision, inputSequence, "KeyW", "down");
+  const burst = admitKey(
+    opened,
+    revision,
+    configurationRevision,
+    inputSequence,
+    "KeyQ",
+    "down",
+  );
+  const burstPlayer = projectedField(burst.projection, "player-1", "projection");
+  requireCondition(
+    numberField(burstPlayer, "booster-energy", "player-1") === 80,
+    "Q dodge burst did not spend energy 100→80",
+  );
+  let afterBurst = admitKey(
+    opened,
+    revision,
+    configurationRevision,
+    inputSequence,
+    "KeyW",
+    "up",
+  );
+  let afterBurstPlayer = projectedField(afterBurst.projection, "player-1", "projection");
+  let afterBurstPosition = projectedField(afterBurstPlayer, "position", "player-1");
+  requireCondition(
+    Math.abs(numberField(afterBurstPosition, "z", "position") - beforeBurstZ) > 0.05,
+    "Q dodge burst produced no admitted displacement",
+  );
+
+  let sawOverrunRecovery = false;
+  for (let ordinal = 0; ordinal < 24; ordinal += 1) {
+    afterBurst = admitEmpty(opened, revision, configurationRevision);
+    afterBurstPlayer = projectedField(afterBurst.projection, "player-1", "projection");
+    afterBurstPosition = projectedField(afterBurstPlayer, "position", "player-1");
+    const enemy = projectedField(afterBurst.projection, "cinder-wraith", "projection");
+    const vitals = projectedField(afterBurstPlayer, "player-vitals", "player-1");
+    requireCondition(
+      numberField(vitals, "x", "player-vitals") === 2,
+      "dodged second charge changed player vitality",
+    );
+    if (
+      stringField(enemy, "enemy-pressure-state", "cinder-wraith") ===
+      "overrun-recovery"
+    ) {
+      sawOverrunRecovery = true;
+      break;
     }
   }
-  requireCondition(markOrdinal >= 0, "grounded projectile impact applied no ember mark");
-  requireCondition(
-    damageOrdinal >= markOrdinal + 8,
-    "ember mark damage was not delayed across admitted Steps",
-  );
-  requireCondition(
-    clearOrdinal === damageOrdinal,
-    "ember mark damage and clear escaped one Admission",
-  );
+  requireCondition(sawOverrunRecovery, "dodged charge entered no overrun recovery");
   opened.port.disposeSession(opened.session);
 }
 
@@ -711,12 +745,11 @@ async function main(): Promise<void> {
   ]);
   const module = initializeSessionModule(wasmBytes);
   const request = createExactProcessRequest(decodeCwr1Hex(source));
-  verifyIdleSafety(module, request);
-  verifyGroundedPressure(module, request);
+  verifyBoarChargeAndBurstCustody(module, request);
   verifyWorldFixedHorizontalPropulsion(module, request);
   verifyOrthogonalPropulsionAndEnergy(module, request);
   console.log(
-    "real Wasm combat depth: world-fixed orthogonal propulsion, energy recovery, reset, and custody admitted",
+    "real Wasm combat depth: boar charge, burst dodge, world-fixed orthogonal propulsion, energy recovery, reset, and custody admitted",
   );
 }
 

@@ -37,6 +37,7 @@ import {
   type LifecycleReceipt,
   type PackageCheck,
   type SessionCompletion,
+  type WorkbenchEnvelope,
   type WorkbenchPolicy,
 } from "../../build/host/jump-arena-shell/workbench.js";
 import {
@@ -207,6 +208,8 @@ interface ResidentLawSession {
   lastProjection: GameProjection | null;
   admittedOrdinal: number;
   candidateSeen: boolean;
+  readonly inputQueue: WorkbenchEnvelope[];
+  inputInFlight: boolean;
 }
 
 interface PlayApp {
@@ -350,6 +353,8 @@ function openResidentLawSession(module: object): ResidentLawSession {
     lastProjection: null,
     admittedOrdinal: 0,
     candidateSeen: false,
+    inputQueue: [],
+    inputInFlight: false,
   };
 }
 
@@ -755,6 +760,8 @@ function handleLifecycleReceipt(app: PlayApp, receipt: LifecycleReceipt): void {
   if (receipt.event === "admission-accepted") {
     const ordered = resident.candidateSeen;
     const pending = resident.pendingHot;
+    resident.inputInFlight = false;
+    flushGameInput(app);
     document.body.dataset.gameCustodyPhase = ordered
       ? "candidate-before-admission"
       : "order-violation";
@@ -860,6 +867,7 @@ function installResidentLaw(app: PlayApp, payload: GenerationPayload): void {
       (receipt) => handleLifecycleReceipt(app, receipt),
       request,
     );
+    flushGameInput(app);
     return;
   }
   if (!resident.controller.reloadPackage(request)) {
@@ -909,6 +917,7 @@ function renderLoop(shell: SceneShell): void {
     Math.max(1, Math.trunc(canvas.clientWidth)),
     Math.max(1, Math.trunc(canvas.clientHeight)),
   );
+  boundedGameEvent({ phase: "frame-rendered" });
   Object.assign(document.body.dataset, {
     gameCameraX: String(presentation.camera.position.x),
     gameCameraY: String(presentation.camera.position.y),
@@ -1213,7 +1222,19 @@ function observeGameKey(
   event: PhysicalKey,
   phase: "down" | "up",
 ): void {
-  app.residentLaw.controller?.observeInput(physicalKeyEnvelope(event, phase));
+  app.residentLaw.inputQueue.push(physicalKeyEnvelope(event, phase));
+  flushGameInput(app);
+}
+
+function flushGameInput(app: PlayApp): void {
+  const resident = app.residentLaw;
+  if (resident.inputInFlight || resident.controller === null) return;
+  const envelope = resident.inputQueue[0];
+  if (envelope === undefined) return;
+  if (resident.controller.observeInput(envelope)) {
+    resident.inputQueue.shift();
+    resident.inputInFlight = true;
+  }
 }
 
 const heldGameKeys = new Set([
@@ -1307,6 +1328,8 @@ function startApp(
   branchSource: string,
   effectSource: string,
 ): PlayApp {
+  window.__GREYWROUGHT_RESIDENT_EVENTS__ = [];
+  window.__GREYWROUGHT_GAME_EVENTS__ = [];
   const branchRequest = createExactProcessRequest(decodeCwr1Hex(branchSource));
   const occurrences = processRequestOccurrences(branchRequest);
   const effectRequest = createExactProcessRequest(decodeCwr1Hex(effectSource));
@@ -1322,8 +1345,6 @@ function startApp(
     scene: createScene(),
     listeners,
   };
-  window.__GREYWROUGHT_RESIDENT_EVENTS__ = [];
-  window.__GREYWROUGHT_GAME_EVENTS__ = [];
   bindGameInput(app, listeners);
   bindClick(listeners, "reset-encounter", () => pressReset(app));
   bindClick(listeners, "enter-world", () => enterWorld(app));
