@@ -39,6 +39,7 @@
       .bar > span { display: block; width: 100%; height: 100%; transform-origin: left; transition: transform .16s, background .16s; }
       #player-vitality-bar { background: #e9a860; }
       #enemy-vitality-bar { background: #a878ef; }
+      #booster-energy-bar { background: #69d8e7; }
       #objective { color: #f3d9a9; font-family: Georgia, serif; font-size: 17px; }
       #combat-feedback { min-height: 18px; color: #f8ca80; font-weight: 700; letter-spacing: .04em; }
       #control-hint { color: #b5c0d2; font-size: 11px; line-height: 1.45; }
@@ -78,11 +79,13 @@
           <div class="hud-panel">
             <div class="hud-row"><span>Wayfarer</span><div class="bar"><span id="player-vitality-bar"></span></div><strong id="player-vitality">4 / 4</strong></div>
             <div class="hud-row"><span>Cinder wraith</span><div class="bar"><span id="enemy-vitality-bar"></span></div><strong id="enemy-vitality">6 / 6</strong></div>
+            <div class="hud-row"><span>Booster</span><div class="bar"><span id="booster-energy-bar"></span></div><strong id="booster-energy">100 / 100</strong></div>
           </div>
           <div class="hud-panel">
             <div id="objective">Enter the ash circle and claim the key.</div>
+            <div id="combat-state">BOOST 100 / 100 · IGNITE 25 · REGEN 0   STATUS clear · 12</div>
             <div id="combat-feedback"></div>
-            <div id="control-hint">Click the arena · W forward · D backward · A left · S right · Space ashstep · R reset</div>
+            <div id="control-hint">Click the arena · W forward · S backward · A left · D right · Shift horizontal sustain · Q horizontal burst · Space jump · E vertical sustain · F vertical burst · R reset</div>
           </div>
         </div>
       </div>

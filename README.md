@@ -11,6 +11,17 @@ input and fixed ticks first produce a hidden Candidate Delta; only the following
 separate Admission installs the visible world revision. Beagle and Three.js
 transport input and render admitted projections without deciding gameplay.
 
+The wayfarer begins safely beside the western moonwell. The cinder wraith
+telegraphs and launches one projected bolt that travels across several
+admitted Steps. One Clause-owned contact law spends the bolt when it reaches
+the wayfarer: grounded contact applies `ember-mark`, whose timer delays bounded
+damage, while airborne contact defeats the wraith without applying the mark.
+The same actor-owned propulsion vocabulary supplies world-fixed
+movement, horizontal and vertical sustain, orthogonal bursts, one cumulative
+energy resource, an ignition threshold, and delayed regeneration. The
+revealed key uses a Clause-owned 0.6-unit pickup radius before custody
+transfers.
+
 The earlier disconnect proof remains available as a secondary journey: an
 ashen wayfarer forks from an exact authoritative revision while disconnected,
 attacks one cinder wraith under an explicit retained random Observation, and
@@ -44,7 +55,9 @@ bun run build:host
 bun run test:host
 bun run test:wasm-conquest
 bun run test:wasm-effect
+bun run test:wasm-combat-depth
 bun run check:conquest
+bun run check:combat-depth
 ```
 
 To run the playable browser shell:
@@ -55,9 +68,13 @@ bun run play
 
 Then open <http://127.0.0.1:4173/>. The shell presents and invokes the exact
 Clause/Wasm world, Candidate, Admission, explanation, and effect boundaries.
-Click the arena, move with `WASD`, strike with `Space`, and reset with `R`.
-Strike the cinder wraith from `x=1`, avoid contact at `x=2`, then carry the
-ashen key left to the moonwell at `x=-2`.
+Click the arena, move with `W` forward, `S` backward, `A` left, and `D` right;
+hold `Shift` for horizontal sustain, use `Q` for a horizontal burst, jump with
+`Space`, hold `E` for vertical sustain, use `F` for a vertical burst, and reset
+with `R`. A fixed high-oblique camera follows
+the admitted wayfarer position while keeping the encounter ahead in view. Read
+the wraith telegraph, meet its bolt while airborne, walk over the glowing key, then
+carry it west to the moonwell.
 
 A measured Clause-only gravity edit reached its first separately admitted
 browser frame in 323 ms with 60.5 ms of resident compilation; restoring the law
@@ -75,9 +92,16 @@ the recorded Beagle pin. No generated artifact is tracked.
 manufactured success flag. `bun run check:conquest` then runs the separate
 combat Candidate Delta and Admission journey.
 
+`bun run check:combat-depth` runs the focused native source assertions,
+materializes the embodied encounter, and exercises it through the real Clause
+Wasm cartridge port. It proves safe idle flight, contact-only delayed damage,
+world-fixed diagonal movement, sustained direction changes, orthogonal bursts,
+grounded-only jump, energy ignition and regeneration, reset, pickup proximity,
+and custody across separate Candidate and Admission operations.
+
 Pinned inputs:
 
-- Clause `e2f58a5cf82176139c05312abddd751d61e48996` (includes incremental
-  resident-session retirement and the resident-session
-  command budget `0dd73896f0d119342cb5d6f51211e15be6db0953`)
-- Beagle `6c1e80d2833d711a2bd16d7ea9b1ca090cc870a7`
+- Clause `b17356f218346771f231bda6acf3e516d6410357` (includes source-owned
+  keyboard binding, atomic multi-assignment handlers, actor-relative scalar
+  reads, and deterministic physical-input lowering)
+- Beagle `7be82567d25dc4eeafd06979be95d13fb87c6fe2`

@@ -247,18 +247,27 @@
         presentation cinder/CinderwakePresentation (.-presentation (.-scene app))
         player Any (projected-property projection "player-1")
         enemy Any (projected-property projection "cinder-wraith")
+        bolt Any (projected-property projection "cinder-bolt")
         loot Any (projected-property projection "ashen-key")
         objective Any (projected-property projection "game-objective")
         player-position Any (projected-object-property player "position")
         enemy-position Any (projected-object-property enemy "enemy-position")
+        bolt-position Any (projected-object-property bolt "projectile-position")
         loot-position Any (projected-object-property loot "loot-position")
         exit-position Any (projected-object-property objective "exit-position")
         player-vitals Any (projected-object-property player "player-vitals")
         enemy-vitals Any (projected-object-property enemy "enemy-vitals")
         grounded Bool (projected-property player "grounded")
+        booster-energy Float (projected-property player "booster-energy")
+        booster-capacity Float (projected-property player "booster-capacity")
+        booster-threshold Float (projected-property player "booster-ignition-threshold")
+        booster-delay Float (projected-property player "booster-regeneration-delay")
+        status-effect String (projected-property player "status-effect")
+        status-clock Float (projected-property player "status-clock")
         pressure-state String (projected-property enemy "enemy-pressure-state")
         pressure-clock Float (projected-property enemy "enemy-pressure-clock")
         random-sample Float (projected-property enemy "enemy-random-sample")
+        bolt-visible Bool (projected-property bolt "projectile-visible")
         objective-state Any (projected-object-property objective "objective-state")
         player-x Float (projected-property player-position "x")
         player-z Float (projected-property player-position "z")
@@ -287,6 +296,11 @@
         true
         (/ enemy-vitality (max 0.001 enemy-maximum)))
        (cinder/->AdmittedSubjectFrame
+        "cinder-bolt"
+        (presentation-position bolt-position)
+        bolt-visible
+        1.0)
+       (cinder/->AdmittedSubjectFrame
         "ashen-key"
         (presentation-position loot-position)
         (not (= loot-state "hidden"))
@@ -295,17 +309,26 @@
         "moonwell"
         (presentation-position exit-position)
         true
-        1.0)]))
+        1.0)]
+      (presentation-position player-position)))
     (cinder/set-activity-cue!
      presentation
      "cinder-wraith"
      (if (= pressure-state "telegraph") 1.0 0.0)
      (if (= pressure-state "lunge") 1.0 0.0)
      (if (= pressure-state "recovery") 1.0 0.0))
+    (cinder/set-activity-cue!
+     presentation
+     "ashen-key"
+     (if (= loot-state "available") 1.0 0.0)
+     (if (= loot-state "available") 0.7 0.0)
+     0.0)
     (vitality-bar! "player-vitality-bar" "player-vitality"
                    player-vitality player-maximum)
     (vitality-bar! "enemy-vitality-bar" "enemy-vitality"
                    enemy-vitality enemy-maximum)
+    (vitality-bar! "booster-energy-bar" "booster-energy"
+                   booster-energy booster-capacity)
     (set! (.-textContent (element "objective"))
           (cond
             (= objective-status "completed")
@@ -314,8 +337,14 @@
             (= objective-status "failed")
             "WAYFARER FALLEN · press R to restore the revision"
 
+            (= loot-state "available")
+            "ASHEN KEY REVEALED · walk over the glowing key"
+
+            (and (= loot-state "acquired") (= custody "player-1"))
+            "KEY CLAIMED · carry it west to the moonwell"
+
             :else
-            "Read the telegraph · ashstep through the lunge · claim the key · return west"))
+            "Read the telegraph · meet the bolt aloft · fell the wraith"))
     (set! (.-textContent (element "stage"))
           (str "world · " objective-status))
     (set! (.-textContent (element "summary"))
@@ -323,8 +352,16 @@
                " · wraith " enemy-status
                " / " pressure-state " " (str pressure-clock)
                " · key " loot-state " / " custody
-               " · ashstep " (if grounded "ready" "recovering")
+               " · booster " (str booster-energy) " / " (str booster-capacity)
+               " · ignition " (str booster-threshold)
+               " · regeneration delay " (str booster-delay)
+               " · status " status-effect " " (str status-clock)
                " · fixed sample " (str random-sample)))
+    (set! (.-textContent (element "combat-state"))
+          (str "BOOST " (str booster-energy) " / " (str booster-capacity)
+               " · IGNITE " (str booster-threshold)
+               " · REGEN " (str booster-delay)
+               "   STATUS " status-effect " · " (str status-clock)))
     (set! (.-gamePhase (.-dataset (.-body document))) objective-status)
     (set! (.-gamePlayerVitality (.-dataset (.-body document)))
           (str player-vitality))
@@ -333,8 +370,18 @@
     (set! (.-gameCustody (.-dataset (.-body document))) custody)
     (set! (.-gamePlayerX (.-dataset (.-body document))) (str player-x))
     (set! (.-gamePlayerZ (.-dataset (.-body document))) (str player-z))
-    (set! (.-gameDashResource (.-dataset (.-body document)))
-          (if grounded "ready" "recovering"))
+    (set! (.-gameBoosterEnergy (.-dataset (.-body document)))
+          (str booster-energy))
+    (set! (.-gameBoosterCapacity (.-dataset (.-body document)))
+          (str booster-capacity))
+    (set! (.-gameBoosterIgnitionThreshold (.-dataset (.-body document)))
+          (str booster-threshold))
+    (set! (.-gameBoosterRegenerationDelay (.-dataset (.-body document)))
+          (str booster-delay))
+    (set! (.-gameStatusEffect (.-dataset (.-body document))) status-effect)
+    (set! (.-gameStatusClock (.-dataset (.-body document))) (str status-clock))
+    (set! (.-gameProjectileVisible (.-dataset (.-body document)))
+          (str bolt-visible))
     (set! (.-gameEnemyPressure (.-dataset (.-body document))) pressure-state)
     (set! (.-gamePressureClock (.-dataset (.-body document)))
           (str pressure-clock))
@@ -366,7 +413,7 @@
            (/ (- prior-player-vitality player-vitality)
               (max 0.001 player-maximum))))
         (when (and prior-grounded (not grounded))
-          (cinder/signal-dash!
+          (cinder/signal-propulsion!
            presentation "ashen-wayfarer" ordinal 1.0))
         (when (and (= player-status "dead")
                    (not= prior-player-status "dead"))
@@ -383,7 +430,13 @@
       :objective objective-status
       :playerX player-x
       :playerZ player-z
-      :dashResource (if grounded "ready" "recovering")
+      :boosterEnergy booster-energy
+      :boosterCapacity booster-capacity
+      :boosterIgnitionThreshold booster-threshold
+      :boosterRegenerationDelay booster-delay
+      :statusEffect status-effect
+      :statusClock status-clock
+      :projectileVisible bolt-visible
       :enemyPressure pressure-state
       :pressureClock pressure-clock
       :playerVitality player-vitality
@@ -510,12 +563,31 @@
 (defn render-loop! [shell SceneShell] Nil
   (when @(.-alive shell)
     (let [canvas Any (.-canvas shell)
+          presentation cinder/CinderwakePresentation (.-presentation shell)
           now Float (.now Date)
           time Float (/ now 1000.0)
           width Int (max 1 (browser-int (.-clientWidth canvas)))
           height Int (max 1 (browser-int (.-clientHeight canvas)))]
       (cinder/render-presentation-frame!
-       (.-presentation shell) time width height))
+       presentation time width height)
+      (set! (.-gameCameraX (.-dataset (.-body document)))
+            (str (.-x (.-position (.-camera presentation)))))
+      (set! (.-gameCameraY (.-dataset (.-body document)))
+            (str (.-y (.-position (.-camera presentation)))))
+      (set! (.-gameCameraZ (.-dataset (.-body document)))
+            (str (.-z (.-position (.-camera presentation)))))
+      (set! (.-gameCameraTargetX (.-dataset (.-body document)))
+            (str @(.-cameraTargetX presentation)))
+      (set! (.-gameCameraTargetY (.-dataset (.-body document)))
+            (str @(.-cameraTargetY presentation)))
+      (set! (.-gameCameraTargetZ (.-dataset (.-body document)))
+            (str @(.-cameraTargetZ presentation)))
+      (set! (.-gameCameraLookX (.-dataset (.-body document)))
+            (str @(.-cameraFollowX presentation)))
+      (set! (.-gameCameraLookY (.-dataset (.-body document)))
+            (str (+ @(.-cameraFollowY presentation) 0.45)))
+      (set! (.-gameCameraLookZ (.-dataset (.-body document)))
+            (str @(.-cameraFollowZ presentation))))
     (reset! (.-frameHandle shell)
             (browser-int
              (requestAnimationFrame (fn [] Any (render-loop! shell))))))
@@ -525,7 +597,7 @@
   (let [pixel-ratio Float (.-devicePixelRatio window)
         presentation cinder/CinderwakePresentation (cinder/create-cinderwake-presentation!
          (cinder/->CinderwakeSubjectIds
-          "ashen-wayfarer" "cinder-wraith" "ashen-key" "moonwell")
+          "ashen-wayfarer" "cinder-wraith" "cinder-bolt" "ashen-key" "moonwell")
          (max 1.0 (min 2.0 pixel-ratio)))
         canvas Any (.-domElement (.-renderer presentation))
         frame (Atom Int) (atom 0)
@@ -745,14 +817,19 @@
       ((.-observeInput controller) (physical-key-envelope event phase))))
   nil)
 
-(defn movement-key? [code String] Bool
+(defn held-game-key? [code String] Bool
   (or (= code "KeyW")
       (= code "KeyA")
       (= code "KeyS")
-      (= code "KeyD")))
+      (= code "KeyD")
+      (= code "ShiftLeft")
+      (= code "ShiftRight")
+      (= code "KeyE")))
 
 (defn game-key? [code String] Bool
-  (or (movement-key? code)
+  (or (held-game-key? code)
+      (= code "KeyQ")
+      (= code "KeyF")
       (= code "Space")
       (= code "KeyR")))
 
@@ -766,7 +843,7 @@
                      (.preventDefault event)
                      (observe-game-key! app event "down")))
         up Any (fn [event Any] Any
-                 (when (movement-key? (.-code event))
+                 (when (held-game-key? (.-code event))
                    (.preventDefault event)
                    (observe-game-key! app event "up")))]
     (.addEventListener canvas "keydown" down)

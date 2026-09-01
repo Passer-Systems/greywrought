@@ -1,0 +1,507 @@
+#lang beagle/js
+
+(ns greywrought-clause.wasm-combat-depth
+  (:require [jump-arena-shell.wasm-cartridge-port :as wasm]
+            [jump-arena-shell.workbench :as workbench])
+  (:require-global ["@types/bun" :refer [Bun Uint8Array]]))
+
+(require
+ '["#clause-runtime-wasm"
+   :refer [clause_session_v1_command_bulk
+           clause_session_v1_event_bulk
+           clause_session_v1_open_bulk
+           clause_session_v1_reclaim_retired
+           initSync
+           InitOutput
+           SyncInitInput]])
+
+(declare-extern [console Reflect] Any)
+
+(defrecord OpenedSession
+  [port workbench/CartridgePort
+   session Any
+   revision Any])
+
+(defrecord AdmittedTick
+  [revision Any
+   projection Any])
+
+(defn policy [] workbench/WorkbenchPolicy
+  (let [maximum Int (.-MAX_SAFE_INTEGER Number)]
+    (workbench/->WorkbenchPolicy
+     8 8 32 wasm/cse1-projected-term-max-properties
+     wasm/cse1-projected-term-json-max-source-units
+     (workbench/->WorkbenchSequenceLimits
+      maximum maximum maximum maximum maximum))))
+
+(defn initialize-real-session-module [module ArrayBuffer] Any
+  (let [input SyncInitInput module
+        _initialized InitOutput (initSync input)]
+    (.freeze
+     Object
+     {:clause_session_v1_open_bulk
+      (fn [request (Vec Int)] Float
+        (clause_session_v1_open_bulk (new Uint8Array request)))
+      :clause_session_v1_command_bulk
+      (fn [request (Vec Int)] Float
+        (clause_session_v1_command_bulk (new Uint8Array request)))
+      :clause_session_v1_event_bulk
+      (fn [] Any (clause_session_v1_event_bulk))
+      :clause_session_v1_reclaim_retired
+      (fn [] Bool (clause_session_v1_reclaim_retired))})))
+
+(defn identity-string [value Any] String
+  (.stringify JSON value))
+
+(defn exact-field
+  [value Any
+   field String] Any
+  (.get Reflect value field))
+
+(defn require-combat!
+  [condition Bool
+   message String] Any
+  (when-not condition
+    (throw (new Error message))))
+
+(defn open-session!
+  [module Any
+   request wasm/ExactProcessRequest] OpenedSession
+  (let [port workbench/CartridgePort (wasm/create-wasm-cartridge-port
+                                      module
+                                      (policy))
+        accepted (Atom Any) (atom nil)
+        started (Atom Any) (atom nil)]
+    ((.-acceptPackage port) request
+     (fn [result Any] Any (reset! accepted result)))
+    (require-combat! (not (nil? (.-acceptedPackage @accepted)))
+                     "real Wasm rejected the embodied cartridge")
+    ((.-startSession port) (.-acceptedPackage @accepted) 1
+     (fn [result Any] Any (reset! started result)))
+    (require-combat! (not (nil? (.-session @started)))
+                     "real Wasm did not open the embodied session")
+    (->OpenedSession port (.-session @started) (.-revision @started))))
+
+(defn physical-key-envelope
+  [input-policy workbench/WorkbenchPolicy
+   code String
+   phase String] Any
+  (workbench/create-workbench-envelope
+   input-policy
+   (.stringify JSON
+               [(.stringify JSON {:kind "keyboard"
+                                  :code code
+                                  :phase phase
+                                  :repeat false})])))
+
+(defn empty-input-configuration [revision Int] workbench/InputConfiguration
+  (workbench/->InputConfiguration revision (.freeze Object [])))
+
+(defn key-input-configuration
+  [input-policy workbench/WorkbenchPolicy
+   revision Int
+   input-sequence Int
+   code String
+   phase String] workbench/InputConfiguration
+  (workbench/->InputConfiguration
+   revision
+   (.freeze Object
+            [(workbench/->InputObservation
+             input-sequence
+              (physical-key-envelope input-policy code phase))])))
+
+(defn admit-tick!
+  [module Any
+   opened OpenedSession
+   predecessor Any
+   configuration workbench/InputConfiguration] AdmittedTick
+  (let [produced (Atom Any) (atom nil)
+        candidate-failure (Atom Any) (atom nil)
+        admitted (Atom Any) (atom nil)
+        admission-failure (Atom Any) (atom nil)]
+    ((.-runCandidate (.-port opened))
+     (.-session opened)
+     (workbench/->FixedTick 16)
+     configuration
+     (fn [result workbench/CandidateCompletion] Any
+       (match result
+         [(workbench/CandidateProduced candidate)
+          (reset! produced candidate)]
+         [(workbench/CandidateFailed reason)
+          (reset! candidate-failure reason)])))
+    (let [candidate Any @produced]
+      (require-combat! (not (nil? candidate))
+                       (if (nil? @candidate-failure)
+                         "real Wasm returned no CandidateCompletion"
+                         (str "real Wasm Candidate failed: "
+                              (str @candidate-failure))))
+      (require-combat! (= (identity-string (.-base candidate))
+                          (identity-string predecessor))
+                       "Candidate production advanced the admitted world")
+      (require-combat! (nil? @admitted)
+                       "Admission occurred before its separate request")
+      ((.-requestAdmission (.-port opened))
+       (.-session opened)
+       candidate
+       (fn [result workbench/AdmissionCompletion] Any
+         (match result
+           [(workbench/AdmissionAccepted _successor _revision _frame)
+            (reset! admitted result)]
+           [(workbench/AdmissionRejected reason)
+            (reset! admission-failure reason)])))
+      (require-combat! (not (nil? @admitted))
+                       (if (nil? @admission-failure)
+                         "real Wasm returned no AdmissionCompletion"
+                         (str "real Wasm Admission failed: "
+                              (str @admission-failure))))
+      (let [accepted Any @admitted]
+        (require-combat! (not (nil? (.-frame accepted)))
+                         "real Wasm Admission produced no projection")
+        (require-combat! (not= (identity-string (.-revision accepted))
+                               (identity-string predecessor))
+                         "Admission installed no visible successor")
+        (->AdmittedTick
+         (.-revision accepted)
+         (wasm/decode-projected-term-frame (.-frame accepted)))))))
+
+(defn admit-key!
+  [module Any
+   opened OpenedSession
+   revision (Atom Any)
+   configuration-revision (Atom Int)
+   input-sequence (Atom Int)
+   code String
+   phase String] AdmittedTick
+  (let [_configuration Int (swap! configuration-revision inc)
+        _input Int (swap! input-sequence inc)
+        tick AdmittedTick (admit-tick!
+                           module opened @revision
+                           (key-input-configuration
+                            (policy) @configuration-revision @input-sequence
+                            code phase))]
+    (reset! revision (.-revision tick))
+    tick))
+
+(defn admit-empty!
+  [module Any
+   opened OpenedSession
+   revision (Atom Any)
+   configuration-revision (Atom Int)] AdmittedTick
+  (let [_configuration Int (swap! configuration-revision inc)
+        tick AdmittedTick (admit-tick!
+                           module opened @revision
+                           (empty-input-configuration @configuration-revision))]
+    (reset! revision (.-revision tick))
+    tick))
+
+(defn vector-field
+  [value Any
+   field String
+   component String] Float
+  (exact-field (exact-field value field) component))
+
+(defn verify-idle-safety!
+  [module Any
+   request wasm/ExactProcessRequest] Nil
+  (let [opened OpenedSession (open-session! module request)
+        revision (Atom Any) (atom (.-revision opened))
+        visible-positions (Vec Float) []
+        saw-spent (Atom Bool) (atom false)]
+    (doseq [ordinal Int (range 72)]
+      (let [tick AdmittedTick (admit-tick!
+                               module
+                               opened
+                               @revision
+                               (empty-input-configuration (inc ordinal)))
+            projection Any (.-projection tick)
+            player Any (exact-field projection "player-1")
+            bolt Any (exact-field projection "cinder-bolt")
+            vitals Any (exact-field player "player-vitals")
+            vitality Float (exact-field vitals "x")
+            status String (exact-field player "status-effect")
+            bolt-state String (exact-field bolt "projectile-state")
+            bolt-visible Bool (exact-field bolt "projectile-visible")]
+        (reset! revision (.-revision tick))
+        (require-combat! (= vitality 4.0)
+                         "idle safe-spawn player lost vitality")
+        (require-combat! (= status "clear")
+                         "idle safe-spawn player received a contact effect")
+        (when (= bolt-state "spent")
+          (reset! saw-spent true))
+        (when bolt-visible
+          (let [position Any (exact-field bolt "projectile-position")
+                projectile-x Float (exact-field position "x")]
+            (.push visible-positions projectile-x)))))
+    (require-combat! (>= (count visible-positions) 5)
+                     "missed projectile did not remain visible across admitted Steps")
+    (loop [index Int 1]
+      (when (< index (count visible-positions))
+        (require-combat! (< (nth visible-positions index)
+                            (nth visible-positions (dec index)))
+                         "Clause did not advance the missed projectile monotonically")
+        (recur (inc index))))
+    (require-combat! @saw-spent
+                     "the first missed projectile never completed its flight")
+    ((.-disposeSession (.-port opened)) (.-session opened))
+    nil))
+
+(defn verify-grounded-pressure!
+  [module Any
+   request wasm/ExactProcessRequest] Nil
+  (let [opened OpenedSession (open-session! module request)
+        input-policy workbench/WorkbenchPolicy (policy)
+        revision (Atom Any) (atom (.-revision opened))
+        mark-ordinal (Atom Int) (atom -1)
+        damage-ordinal (Atom Int) (atom -1)
+        clear-ordinal (Atom Int) (atom -1)]
+    (doseq [ordinal Int (range 72)]
+      (let [tick AdmittedTick (admit-tick!
+                               module
+                               opened
+                               @revision
+                               (if (= ordinal 0)
+                                 (key-input-configuration
+                                  input-policy 1 1 "KeyD" "down")
+                                 (empty-input-configuration (inc ordinal))))
+            projection Any (.-projection tick)
+            player Any (exact-field projection "player-1")
+            vitals Any (exact-field player "player-vitals")
+            vitality Float (exact-field vitals "x")
+            status String (exact-field player "status-effect")]
+        (reset! revision (.-revision tick))
+        (when (and (= status "ember-mark") (= @mark-ordinal -1))
+          (reset! mark-ordinal ordinal))
+        (when (and (= vitality 2.0) (= @damage-ordinal -1))
+          (reset! damage-ordinal ordinal))
+        (when (and (>= @damage-ordinal 0)
+                   (= status "clear")
+                   (= @clear-ordinal -1))
+          (reset! clear-ordinal ordinal))))
+    (require-combat! (>= @mark-ordinal 0)
+                     "grounded projectile impact applied no ember mark")
+    (require-combat! (>= @damage-ordinal (+ @mark-ordinal 8))
+                     "ember mark damage was not delayed across admitted Steps")
+    (require-combat! (= @clear-ordinal @damage-ordinal)
+                     "ember mark damage and clear escaped one Admission")
+    ((.-disposeSession (.-port opened)) (.-session opened))
+    nil))
+
+(defn verify-world-fixed-horizontal-propulsion!
+  [module Any
+   request wasm/ExactProcessRequest] Nil
+  (let [opened OpenedSession (open-session! module request)
+        revision (Atom Any) (atom (.-revision opened))
+        configuration-revision (Atom Int) (atom 0)
+        input-sequence (Atom Int) (atom 0)
+        forward AdmittedTick (admit-key! module opened revision
+                                         configuration-revision input-sequence
+                                         "KeyW" "down")
+        diagonal AdmittedTick (admit-key! module opened revision
+                                          configuration-revision input-sequence
+                                          "KeyA" "down")
+        diagonal-player Any (exact-field (.-projection diagonal) "player-1")
+        diagonal-position Any (exact-field diagonal-player "position")
+        sustained AdmittedTick (admit-key! module opened revision
+                                           configuration-revision input-sequence
+                                           "ShiftLeft" "down")
+        sustained-player Any (exact-field (.-projection sustained) "player-1")
+        sustained-position Any (exact-field sustained-player "position")]
+    (require-combat! (= (vector-field diagonal-player "horizontal-intent" "x") -1.0)
+                     "A did not produce world-fixed left intent")
+    (require-combat! (= (vector-field diagonal-player "horizontal-intent" "z") -1.0)
+                     "W did not produce world-fixed forward intent")
+    (require-combat! (= (exact-field sustained-player "move-speed") 7.0)
+                     "held Shift did not select sustained horizontal speed")
+    (require-combat! (< (exact-field sustained-player "booster-energy") 100.0)
+                     "horizontal sustain spent no shared booster energy")
+    (require-combat! (< (exact-field sustained-position "x")
+                        (exact-field diagonal-position "x"))
+                     "sustained diagonal movement did not continue left")
+    (require-combat! (< (exact-field sustained-position "z")
+                        (exact-field diagonal-position "z"))
+                     "sustained diagonal movement did not continue forward")
+    (admit-key! module opened revision configuration-revision input-sequence
+                "KeyW" "up")
+    (admit-key! module opened revision configuration-revision input-sequence
+                "KeyA" "up")
+    (let [right AdmittedTick (admit-key! module opened revision
+                                          configuration-revision input-sequence
+                                          "KeyD" "down")
+          right-player Any (exact-field (.-projection right) "player-1")]
+      (require-combat! (= (vector-field right-player "horizontal-intent" "x") 1.0)
+                       "D did not produce world-fixed right intent")
+      (require-combat! (= (vector-field right-player "horizontal-intent" "z") 0.0)
+                       "direction change retained stale forward intent"))
+    ((.-disposeSession (.-port opened)) (.-session opened))
+    nil))
+
+(defn verify-orthogonal-propulsion-and-energy!
+  [module Any
+   request wasm/ExactProcessRequest] Nil
+  (let [no-intent OpenedSession (open-session! module request)
+        no-intent-revision (Atom Any) (atom (.-revision no-intent))
+        no-intent-configuration (Atom Int) (atom 0)
+        no-intent-sequence (Atom Int) (atom 0)
+        no-intent-refused AdmittedTick (admit-key! module no-intent no-intent-revision
+                                                 no-intent-configuration no-intent-sequence
+                                                 "KeyQ" "down")
+        no-intent-player Any (exact-field (.-projection no-intent-refused) "player-1")]
+    (require-combat! (= (vector-field no-intent-player "velocity" "x") 0.0)
+                     "horizontal burst without intent changed x velocity")
+    (require-combat! (= (vector-field no-intent-player "velocity" "z") 0.0)
+                     "horizontal burst without intent changed z velocity")
+    (require-combat! (= (exact-field no-intent-player "booster-energy") 100.0)
+                     "horizontal burst without intent spent energy")
+    ((.-disposeSession (.-port no-intent)) (.-session no-intent)))
+  (let [sustain OpenedSession (open-session! module request)
+        sustain-revision (Atom Any) (atom (.-revision sustain))
+        sustain-configuration (Atom Int) (atom 0)
+        sustain-sequence (Atom Int) (atom 0)
+        thrust AdmittedTick (admit-key! module sustain sustain-revision
+                                        sustain-configuration sustain-sequence
+                                        "KeyE" "down")
+        thrust-player Any (exact-field (.-projection thrust) "player-1")
+        thrust-y Float (vector-field thrust-player "velocity" "y")
+        coast AdmittedTick (admit-key! module sustain sustain-revision
+                                       sustain-configuration sustain-sequence
+                                       "KeyE" "up")
+        coast-player Any (exact-field (.-projection coast) "player-1")]
+    (require-combat! (not (exact-field thrust-player "grounded"))
+                     "vertical sustain did not leave the ground")
+    (require-combat! (> thrust-y 0.0)
+                     "vertical sustain produced no upward velocity")
+    (require-combat! (< (exact-field thrust-player "booster-energy") 100.0)
+                     "vertical sustain spent no shared booster energy")
+    (require-combat! (< (vector-field coast-player "velocity" "y") thrust-y)
+                     "vertical sustain release did not coast under gravity")
+    ((.-disposeSession (.-port sustain)) (.-session sustain)))
+  (let [opened OpenedSession (open-session! module request)
+        propulsion-revision (Atom Any) (atom (.-revision opened))
+        propulsion-configuration (Atom Int) (atom 0)
+        propulsion-sequence (Atom Int) (atom 0)
+        jump AdmittedTick (admit-key! module opened propulsion-revision
+                                      propulsion-configuration propulsion-sequence
+                                      "Space" "down")
+        jump-player Any (exact-field (.-projection jump) "player-1")
+        jump-y Float (vector-field jump-player "velocity" "y")
+        repeated-jump AdmittedTick (admit-key! module opened propulsion-revision
+                                               propulsion-configuration propulsion-sequence
+                                               "Space" "down")
+        repeated-player Any (exact-field (.-projection repeated-jump) "player-1")]
+    (require-combat! (not (exact-field jump-player "grounded"))
+                     "Space did not perform the grounded jump")
+    (require-combat! (< (vector-field repeated-player "velocity" "y") jump-y)
+                     "airborne Space restarted the grounded jump")
+    (admit-key! module opened propulsion-revision propulsion-configuration propulsion-sequence
+                "KeyW" "down")
+    (let [horizontal AdmittedTick (admit-key! module opened propulsion-revision
+                                               propulsion-configuration propulsion-sequence
+                                               "KeyQ" "down")
+          horizontal-player Any (exact-field (.-projection horizontal) "player-1")]
+      (require-combat! (< (vector-field horizontal-player "velocity" "z") -20.0)
+                       "Q produced no immediate forward horizontal burst")
+      (require-combat! (= (exact-field horizontal-player "booster-energy") 80.0)
+                       "horizontal burst did not spend its source-owned cost"))
+    (let [released AdmittedTick (admit-key! module opened propulsion-revision
+                                             propulsion-configuration propulsion-sequence
+                                             "KeyW" "up")
+          released-player Any (exact-field (.-projection released) "player-1")
+          horizontal-x Float (vector-field released-player "velocity" "x")
+          horizontal-z Float (vector-field released-player "velocity" "z")
+          first-burst AdmittedTick (admit-key! module opened propulsion-revision
+                                               propulsion-configuration propulsion-sequence
+                                               "KeyF" "down")
+          first-player Any (exact-field (.-projection first-burst) "player-1")]
+      (require-combat! (= (vector-field first-player "velocity" "x") horizontal-x)
+                       "vertical burst changed horizontal x velocity")
+      (require-combat! (= (vector-field first-player "velocity" "z") horizontal-z)
+                       "vertical burst changed horizontal z velocity")
+      (require-combat! (> (vector-field first-player "velocity" "y")
+                          (vector-field released-player "velocity" "y"))
+                       "F produced no immediate vertical burst")
+      (require-combat! (= (exact-field first-player "booster-energy") 55.0)
+                       "vertical burst did not share booster energy"))
+    (admit-key! module opened propulsion-revision propulsion-configuration propulsion-sequence
+                "KeyF" "down")
+    (let [exhausted AdmittedTick (admit-key! module opened propulsion-revision
+                                             propulsion-configuration propulsion-sequence
+                                             "KeyF" "down")
+          exhausted-player Any (exact-field (.-projection exhausted) "player-1")
+          exhausted-y Float (vector-field exhausted-player "velocity" "y")
+          threshold-refused AdmittedTick (admit-key! module opened propulsion-revision
+                                                   propulsion-configuration propulsion-sequence
+                                                   "KeyF" "down")
+          refused-player Any (exact-field (.-projection threshold-refused) "player-1")
+          recovered (Atom Any) (atom threshold-refused)]
+      (require-combat! (= (exact-field exhausted-player "booster-energy") 5.0)
+                       "repeated bursts did not approach propulsion exhaustion")
+      (require-combat! (= (exact-field refused-player "booster-energy") 5.0)
+                       "burst below ignition threshold spent energy")
+      (require-combat! (< (vector-field refused-player "velocity" "y") exhausted-y)
+                       "burst below ignition threshold changed vertical velocity")
+      (require-combat! (> (exact-field refused-player "booster-regeneration-delay") 0.0)
+                       "energy expenditure installed no regeneration delay")
+      (loop [ordinal Int 0]
+        (let [current-player Any (exact-field (.-projection @recovered) "player-1")
+              energy Float (exact-field current-player "booster-energy")]
+          (when (and (< ordinal 48) (< energy 25.0))
+            (reset! recovered (admit-empty! module opened propulsion-revision
+                                             propulsion-configuration))
+            (recur (inc ordinal)))))
+      (let [recovered-player Any (exact-field (.-projection @recovered) "player-1")
+            recovered-energy Float (exact-field recovered-player "booster-energy")
+            recovered-x Float (vector-field recovered-player "velocity" "x")
+            recovered-z Float (vector-field recovered-player "velocity" "z")]
+        (require-combat! (= recovered-energy 25.0)
+                         "booster did not regenerate to its ignition threshold")
+        (require-combat! (= (exact-field recovered-player "booster-regeneration-delay") 0.0)
+                         "booster regenerated before its source-owned delay elapsed")
+        (let [reignited AdmittedTick (admit-key! module opened propulsion-revision
+                                                  propulsion-configuration propulsion-sequence
+                                                  "KeyF" "down")
+              reignited-player Any (exact-field (.-projection reignited) "player-1")]
+          (require-combat! (< (exact-field reignited-player "booster-energy") recovered-energy)
+                           "energy at the ignition threshold could not propel")
+          (require-combat! (= (vector-field reignited-player "velocity" "x") recovered-x)
+                           "reignition changed horizontal x velocity")
+          (require-combat! (= (vector-field reignited-player "velocity" "z") recovered-z)
+                           "reignition changed horizontal z velocity")))
+      (admit-key! module opened propulsion-revision propulsion-configuration propulsion-sequence
+                  "KeyR" "down")
+      (let [restored (Atom Any) (atom (admit-empty! module opened propulsion-revision
+                                                    propulsion-configuration))]
+        (doseq [ordinal Int (range 2)]
+          (reset! restored (admit-empty! module opened propulsion-revision
+                                         propulsion-configuration)))
+        (let [restored-player Any (exact-field (.-projection @restored) "player-1")
+              position Any (exact-field restored-player "position")]
+          (require-combat! (= (exact-field position "x") -2.0)
+                           "reset did not restore spawn x")
+          (require-combat! (= (exact-field position "z") 0.5)
+                           "reset did not restore spawn z")
+          (require-combat! (= (exact-field restored-player "booster-energy") 100.0)
+                           "reset did not restore booster capacity")
+          (require-combat! (= (exact-field restored-player "booster-regeneration-delay") 0.0)
+                           "reset retained propulsion regeneration delay")
+          (require-combat! (exact-field restored-player "grounded")
+                           "reset did not restore grounded state")))
+    ((.-disposeSession (.-port opened)) (.-session opened))
+    nil)))
+
+(.then
+ (.all Promise [(.arrayBuffer
+                 (.file Bun "./build/host/wasm/clause_runtime_bg.wasm"))
+                (.text
+                 (.file Bun
+                        "./build/embodied/embodied-encounter-v1.cwr1.hex"))])
+ (fn [assets Any] Any
+   (let [module Any (initialize-real-session-module (nth assets 0))
+         request wasm/ExactProcessRequest (wasm/->ExactProcessRequest
+          (wasm/decode-cwr1-hex (nth assets 1)))]
+     (verify-idle-safety! module request)
+     (verify-grounded-pressure! module request)
+     (verify-world-fixed-horizontal-propulsion! module request)
+     (verify-orthogonal-propulsion-and-energy! module request)
+     (.log console
+           "real Wasm combat depth: world-fixed orthogonal propulsion, energy recovery, reset, and custody admitted")
+     nil)))

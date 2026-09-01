@@ -30,6 +30,7 @@
  (defrecord CinderwakeSubjectIds
    [wayfarer String
     wraith String
+    bolt String
     relic String
     moonwell String]))
 
@@ -49,7 +50,8 @@
 (js/export
  (defrecord AdmittedPresentationFrame
    [ordinal Int
-    subjects (Vec AdmittedSubjectFrame)]))
+    subjects (Vec AdmittedSubjectFrame)
+    cameraTarget ProjectedPosition]))
 
 (defrecord SubjectPresentation
   [subject String
@@ -69,10 +71,10 @@
    attackLevel (Atom Float)
    recoveryLevel (Atom Float)
    impactLevel (Atom Float)
-   dashLevel (Atom Float)
+   propulsionLevel (Atom Float)
    deathLevel (Atom Float)
    lastImpact (Atom Int)
-   lastDash (Atom Int)
+   lastPropulsion (Atom Int)
    lastDeath (Atom Int)])
 
 (defrecord EffectShell
@@ -104,6 +106,12 @@
     height (Atom Int)
     lastTime (Atom Float)
     cameraImpulse (Atom Float)
+    cameraTargetX (Atom Float)
+    cameraTargetY (Atom Float)
+    cameraTargetZ (Atom Float)
+    cameraFollowX (Atom Float)
+    cameraFollowY (Atom Float)
+    cameraFollowZ (Atom Float)
     disposed (Atom Bool)]))
 
 (defn clamp-unit [value Float] Float
@@ -299,6 +307,22 @@
     (.add root core halo tail)
     (subject-presentation subject root coreMaterial effects 0.0 1.0)))
 
+(defn create-bolt!
+  [subject String
+   resources OwnedPresentationResources] SubjectPresentation
+  (let [root SceneGroup (new Group)
+        coreGeometry SphereGeometry (own-sphere! resources (new SphereGeometry 0.20 16 10))
+        coreMaterial MeshStandardMaterial (standard-material! resources 16748328 16724787 0.08 0.18 true 0.96)
+        core SceneObject (sphere-mesh! coreGeometry coreMaterial)
+        wakeGeometry TorusGeometry (own-torus! resources (new TorusGeometry 0.29 0.045 8 24))
+        wakeMaterial MeshStandardMaterial (standard-material! resources 16763904 16737024 0.0 0.24 true 0.72)
+        wake SceneObject (torus-mesh! wakeGeometry wakeMaterial)
+        effects EffectShell (effect-shell! resources root 0.34
+                                          16763904 16773175)]
+    (set! (.-y (.-rotation wake)) 1.5707963)
+    (.add root core wake)
+    (subject-presentation subject root coreMaterial effects 0.0 1.0)))
+
 (defn create-relic!
   [subject String
    resources OwnedPresentationResources] SubjectPresentation
@@ -423,6 +447,10 @@
    [presentation CinderwakePresentation
     frame AdmittedPresentationFrame] Nil
    (when-not @(.-disposed presentation)
+     (let [target ProjectedPosition (.-cameraTarget frame)]
+       (reset! (.-cameraTargetX presentation) (.-x target))
+       (reset! (.-cameraTargetY presentation) (.-y target))
+       (reset! (.-cameraTargetZ presentation) (.-z target)))
      (doseq [subject AdmittedSubjectFrame (.-subjects frame)]
        (apply-subject-frame! presentation subject)))
    nil))
@@ -458,16 +486,16 @@
    nil))
 
 (js/export
- (defn signal-dash!
+ (defn signal-propulsion!
    [presentation CinderwakePresentation
     subjectId String
     occurrenceOrdinal Int
     magnitude Float] Nil
    (let [subject (U SubjectPresentation Nil) (subject-by-id presentation subjectId)]
      (when (and (not (nil? subject))
-                (> occurrenceOrdinal @(.-lastDash subject)))
-       (reset! (.-lastDash subject) occurrenceOrdinal)
-       (reset! (.-dashLevel subject) (clamp-unit magnitude))))
+                (> occurrenceOrdinal @(.-lastPropulsion subject)))
+       (reset! (.-lastPropulsion subject) occurrenceOrdinal)
+       (reset! (.-propulsionLevel subject) (clamp-unit magnitude))))
    nil))
 
 (js/export
@@ -489,23 +517,24 @@
   (let [telegraph Float @(.-telegraphLevel subject)
         attack Float @(.-attackLevel subject)
         recovery Float @(.-recoveryLevel subject)
+        pulse Float (+ 1.0 (* 0.18 (.sin Math (* elapsed 6.4))))
         impact Float (max 0.0 (- @(.-impactLevel subject) (* delta 4.8)))
-        dash Float (max 0.0 (- @(.-dashLevel subject) (* delta 3.7)))
+        propulsion Float (max 0.0 (- @(.-propulsionLevel subject) (* delta 3.7)))
         death Float (max 0.0 (- @(.-deathLevel subject) (* delta 0.55)))
         telegraphMesh SceneObject (.-telegraph subject)
         afterimage SceneObject (.-afterimage subject)
         impactMesh SceneObject (.-impact subject)
         deathMesh SceneObject (.-death subject)]
     (reset! (.-impactLevel subject) impact)
-    (reset! (.-dashLevel subject) dash)
+    (reset! (.-propulsionLevel subject) propulsion)
     (reset! (.-deathLevel subject) death)
     (set! (.-visible telegraphMesh) (> telegraph 0.001))
-    (set! (.-opacity (.-telegraphMaterial subject)) (* telegraph 0.56))
-    (.setScalar (.-scale telegraphMesh) (+ 0.72 (* 0.42 telegraph)))
+    (set! (.-opacity (.-telegraphMaterial subject)) (* telegraph 0.56 pulse))
+    (.setScalar (.-scale telegraphMesh) (+ 0.72 (* 0.42 telegraph pulse)))
     (set! (.-z (.-rotation telegraphMesh)) (* elapsed (+ 0.45 attack)))
-    (set! (.-visible afterimage) (> dash 0.001))
-    (set! (.-opacity (.-afterimageMaterial subject)) (* 0.40 dash))
-    (.setScalar (.-scale afterimage) (+ 0.72 (* 1.45 (- 1.0 dash))))
+    (set! (.-visible afterimage) (> propulsion 0.001))
+    (set! (.-opacity (.-afterimageMaterial subject)) (* 0.40 propulsion))
+    (.setScalar (.-scale afterimage) (+ 0.72 (* 1.45 (- 1.0 propulsion))))
     (set! (.-visible impactMesh) (> impact 0.001))
     (set! (.-opacity (.-impactMaterial subject)) (* 0.46 impact))
     (.setScalar (.-scale impactMesh) (+ 0.78 (* 0.72 (- 1.0 impact))))
@@ -530,16 +559,34 @@
            impulse Float (max 0.0
                               (- @(.-cameraImpulse presentation)
                                  (* delta 0.76)))
+           damping Float (if (= prior 0.0)
+                           1.0
+                           (min 1.0 (* delta 6.5)))
+           follow-x Float (+ @(.-cameraFollowX presentation)
+                             (* damping
+                                (- @(.-cameraTargetX presentation)
+                                   @(.-cameraFollowX presentation))))
+           follow-y Float (+ @(.-cameraFollowY presentation)
+                             (* damping
+                                (- @(.-cameraTargetY presentation)
+                                   @(.-cameraFollowY presentation))))
+           follow-z Float (+ @(.-cameraFollowZ presentation)
+                             (* damping
+                                (- @(.-cameraTargetZ presentation)
+                                   @(.-cameraFollowZ presentation))))
            camera PerspectiveCamera (.-camera presentation)]
        (reset! (.-lastTime presentation) elapsedSeconds)
        (reset! (.-cameraImpulse presentation) impulse)
+       (reset! (.-cameraFollowX presentation) follow-x)
+       (reset! (.-cameraFollowY presentation) follow-y)
+       (reset! (.-cameraFollowZ presentation) follow-z)
        (update-viewport! presentation viewportWidth viewportHeight)
        (doseq [subject SubjectPresentation (.-subjects presentation)]
          (animate-subject! subject elapsedSeconds delta))
-       (set! (.-x (.-position camera)) (* impulse 0.52))
-       (set! (.-y (.-position camera)) (+ 7.6 (* impulse 0.34)))
-       (set! (.-z (.-position camera)) (+ 9.2 (* impulse -0.28)))
-       (.lookAt camera 0.0 0.42 0.0)
+       (set! (.-x (.-position camera)) (+ follow-x (* impulse 0.52)))
+       (set! (.-y (.-position camera)) (+ follow-y 9.6 (* impulse 0.34)))
+       (set! (.-z (.-position camera)) (+ follow-z 8.2 (* impulse -0.28)))
+       (.lookAt camera follow-x (+ follow-y 0.45) follow-z)
        (.render (.-renderer presentation) (.-scene presentation) camera)))
    nil))
 
@@ -553,6 +600,7 @@
          resources OwnedPresentationResources (->OwnedPresentationResources [] [] [] [] [] [])
          wayfarer SubjectPresentation (create-wayfarer! (.-wayfarer ids) resources)
          wraith SubjectPresentation (create-wraith! (.-wraith ids) resources)
+         bolt SubjectPresentation (create-bolt! (.-bolt ids) resources)
          relic SubjectPresentation (create-relic! (.-relic ids) resources)
          moonwell SubjectPresentation (create-moonwell! (.-moonwell ids) resources)
          ambient AmbientLight (new AmbientLight 4739664 1.15)
@@ -561,19 +609,23 @@
          wellLight PointLight (new PointLight 5745919 18.0 5.6 2.0)
          presentation CinderwakePresentation (->CinderwakePresentation
           scene camera renderer
-          [wayfarer wraith relic moonwell]
+          [wayfarer wraith bolt relic moonwell]
           resources
-          (atom 0) (atom 0) (atom 0.0) (atom 0.0) (atom false))]
+          (atom 0) (atom 0) (atom 0.0) (atom 0.0)
+          (atom 0.0) (atom 0.0) (atom 0.0)
+          (atom 0.0) (atom 0.0) (atom 0.0)
+          (atom false))]
      (set! (.-background scene) (new Color 197894))
      (add-arena-silhouette! scene resources)
-     (.set (.-position camera) 0.0 7.6 9.2)
-     (.lookAt camera 0.0 0.42 0.0)
+     (.set (.-position camera) 0.0 9.6 8.2)
+     (.lookAt camera 0.0 0.45 0.0)
      (.set (.-position keyLight) -4.0 8.5 4.0)
      (.set (.-position emberLight) 3.8 1.9 -1.8)
      (.set (.-position wellLight) -3.3 1.1 2.7)
      (.add scene
            (.-root wayfarer)
            (.-root wraith)
+           (.-root bolt)
            (.-root relic)
            (.-root moonwell)
            ambient keyLight emberLight wellLight)

@@ -127,6 +127,13 @@ body {
   text-transform: uppercase;
 }
 
+#combat-state {
+  color: #e2c29f;
+  font: 650 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
 #control-hint {
   color: #b6a6a2;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

@@ -3,9 +3,12 @@ referent Bool
 referent Player
 referent Arena
 referent Enemy
+referent Projectile
 referent Loot
 referent Custodian
 referent CombatStatus
+referent ProjectileState
+referent StatusEffect
 referent LootState
 referent Objective
 referent ObjectiveState
@@ -22,6 +25,17 @@ referent telegraph
 referent lunge
 referent recovery
 referent rearming
+referent ready
+referent queued
+referent active
+referent cooling
+referent recovering
+referent dormant
+referent flight
+referent spent
+referent clear
+referent ember-mark
+referent burning
 
 shape Vec3
   x: F64
@@ -63,9 +77,94 @@ relation jump-speed
   mode given arena yields value: one
 
 relation move-speed
-  reads {arena: Arena} move speed {value: F64}
-  subject arena
-  mode given arena yields value: one
+  reads {player: Player} move speed {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation base-move-speed
+  reads {player: Player} base move speed {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation sustained-move-speed
+  reads {player: Player} sustained move speed {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation negative-control
+  reads {player: Player} negative control {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation positive-control
+  reads {player: Player} positive control {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation booster-energy
+  reads {player: Player} booster energy {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation booster-capacity
+  reads {player: Player} booster capacity {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation booster-regeneration
+  reads {player: Player} booster regeneration {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation booster-ignition-threshold
+  reads {player: Player} booster ignition threshold {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation booster-regeneration-delay-limit
+  reads {player: Player} booster regeneration delay limit {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation booster-regeneration-delay
+  reads {player: Player} booster regeneration delay {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation horizontal-sustain-drain
+  reads {player: Player} horizontal sustain drain {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation horizontal-burst-impulse
+  reads {player: Player} horizontal burst impulse {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation horizontal-burst-cost
+  reads {player: Player} horizontal burst cost {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation vertical-sustain-thrust
+  reads {player: Player} vertical sustain thrust {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation vertical-sustain-drain
+  reads {player: Player} vertical sustain drain {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation vertical-burst-impulse
+  reads {player: Player} vertical burst impulse {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation vertical-burst-cost
+  reads {player: Player} vertical burst cost {value: F64}
+  subject player
+  mode given player yields value: one
 
 relation floor-height
   reads {arena: Arena} floor height {value: F64}
@@ -94,6 +193,16 @@ relation max-z
 
 relation player-vitals
   reads {player: Player} player vitals {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation status-effect
+  reads {player: Player} status effect {value: StatusEffect}
+  subject player
+  mode given player yields value: one
+
+relation status-clock
+  reads {player: Player} status clock {value: F64}
   subject player
   mode given player yields value: one
 
@@ -132,6 +241,31 @@ relation enemy-random-sample
   subject enemy
   mode given enemy yields value: one
 
+relation projectile-position
+  reads {projectile: Projectile} projectile position {value: Vec3}
+  subject projectile
+  mode given projectile yields value: one
+
+relation projectile-state
+  reads {projectile: Projectile} projectile state {value: ProjectileState}
+  subject projectile
+  mode given projectile yields value: one
+
+relation projectile-visible
+  reads {projectile: Projectile} projectile visible {value: Bool}
+  subject projectile
+  mode given projectile yields value: one
+
+relation projectile-contact-radius
+  reads {arena: Arena} projectile contact radius {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation projectile-contact
+  reads {player: Player} has projectile contact with {projectile: Projectile} as {value: Bool}
+  subject player
+  mode given player projectile yields value: maybe
+
 relation loot-state
   reads {loot: Loot} loot state {value: LootState}
   subject loot
@@ -146,6 +280,11 @@ relation loot-position
   reads {loot: Loot} loot position {value: Vec3}
   subject loot
   mode given loot yields value: one
+
+relation loot-pickup-radius
+  reads {arena: Arena} loot pickup radius {value: F64}
+  subject arena
+  mode given arena yields value: one
 
 relation exit-position
   reads {objective: Objective} exit position {value: Vec3}
@@ -183,33 +322,67 @@ law clamp-upper
   then
     ?value clamped between ?lower and ?upper as ?upper
 
+law projectile-contact-within-radius
+  if
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    ?projectile projectile state ?projectile-state
+    jump-arena projectile contact radius ?contact-radius
+    ?projectile-state = flight
+    ((?player-x - ?projectile-x) * (?player-x - ?projectile-x)) + ((?player-z - ?projectile-z) * (?player-z - ?projectile-z)) <= ?contact-radius * ?contact-radius
+  then
+    ?player has projectile contact with ?projectile as true
+
 derive clamp-lower
 derive clamp-interior
 derive clamp-upper
+derive projectile-contact-within-radius
 
 jump-arena ∈ Arena
 player-1 ∈ Player
 player-1 ∈ Custodian
 cinder-wraith ∈ Enemy
 cinder-wraith ∈ Custodian
+cinder-bolt ∈ Projectile
 ashen-key ∈ Loot
 game-objective ∈ Objective
 
 jump-arena gravity -12.0
 jump-arena jump speed 3.0
-jump-arena move speed 4.0
 jump-arena floor height 0.0
 jump-arena minimum x -4.6
 jump-arena maximum x 2.0
 jump-arena minimum z -3.2
 jump-arena maximum z 3.2
+jump-arena projectile contact radius 0.6
+jump-arena loot pickup radius 0.6
 
-player-1 position Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 position Vec3 { x: -2.0, y: 0.0, z: 0.5 }
 player-1 velocity Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 player-1 grounded true
 player-1 horizontal intent Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 move speed 4.0
+player-1 base move speed 4.0
+player-1 sustained move speed 7.0
+player-1 negative control Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 positive control Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 booster energy 100.0
+player-1 booster capacity 100.0
+player-1 booster regeneration 1.0
+player-1 booster ignition threshold 25.0
+player-1 booster regeneration delay limit 8.0
+player-1 booster regeneration delay 0.0
+player-1 horizontal sustain drain 0.5
+player-1 horizontal burst impulse 30.0
+player-1 horizontal burst cost 20.0
+player-1 vertical sustain thrust 0.55
+player-1 vertical sustain drain 1.0
+player-1 vertical burst impulse 5.0
+player-1 vertical burst cost 25.0
 player-1 player vitals Vec3 { x: 4.0, y: 4.0, z: 1.0 }
 player-1 combat status alive
+player-1 status effect clear
+player-1 status clock 12.0
 
 cinder-wraith enemy position Vec3 { x: 2.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
@@ -218,31 +391,303 @@ cinder-wraith enemy pressure state telegraph
 cinder-wraith enemy pressure clock 90.0
 cinder-wraith enemy random sample 0.5
 
+cinder-bolt projectile position Vec3 { x: 2.0, y: 0.55, z: 0.0 }
+cinder-bolt projectile state dormant
+cinder-bolt projectile visible false
+
 ashen-key loot state hidden
 ashen-key custody cinder-wraith
-ashen-key loot position Vec3 { x: 2.0, y: 0.0, z: 0.0 }
-game-objective exit position Vec3 { x: -2.0, y: 0.0, z: 0.0 }
+ashen-key loot position Vec3 { x: 1.2, y: 0.0, z: -1.0 }
+game-objective exit position Vec3 { x: -2.0, y: 0.0, z: -1.0 }
 game-objective objective state Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 game-objective reset signal Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 
-on input ?player Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
-  when
-    ?player horizontal intent ?old-intent
-  withdraw
-    ?player horizontal intent ?old-intent
-  include
-    ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
+bind keyboard KeyW down to hold-forward
+bind keyboard KeyW up to release-forward
+bind keyboard KeyS down to hold-backward
+bind keyboard KeyS up to release-backward
+bind keyboard KeyA down to hold-left
+bind keyboard KeyA up to release-left
+bind keyboard KeyD down to hold-right
+bind keyboard KeyD up to release-right
+bind keyboard ShiftLeft down to enable-horizontal-sustain
+bind keyboard ShiftLeft up to disable-horizontal-sustain
+bind keyboard ShiftRight down to enable-horizontal-sustain
+bind keyboard ShiftRight up to disable-horizontal-sustain
+bind keyboard KeyQ down to horizontal-burst
+bind keyboard Space down to jump
+bind keyboard KeyE down to enable-vertical-sustain
+bind keyboard KeyE up to disable-vertical-sustain
+bind keyboard KeyF down to vertical-burst
+bind keyboard KeyR down to reset-objective
 
-on dash ?player
+on hold-forward ?player
+  when
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  withdraw
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  include
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: 1.0 }
+
+on release-forward ?player
+  when
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  withdraw
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  include
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: 0.0 }
+
+on hold-backward ?player
+  when
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  withdraw
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  include
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: 1.0 }
+
+on release-backward ?player
+  when
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  withdraw
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  include
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: 0.0 }
+
+on hold-left ?player
+  when
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  withdraw
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  include
+    ?player negative control Vec3 { x: 1.0, y: ?vertical, z: ?forward }
+
+on release-left ?player
+  when
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  withdraw
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  include
+    ?player negative control Vec3 { x: 0.0, y: ?vertical, z: ?forward }
+
+on hold-right ?player
+  when
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  withdraw
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  include
+    ?player positive control Vec3 { x: 1.0, y: ?horizontal, z: ?backward }
+
+on release-right ?player
+  when
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  withdraw
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  include
+    ?player positive control Vec3 { x: 0.0, y: ?horizontal, z: ?backward }
+
+on enable-horizontal-sustain ?player
+  when
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  withdraw
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  include
+    ?player positive control Vec3 { x: ?right, y: 1.0, z: ?backward }
+
+on disable-horizontal-sustain ?player
+  when
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  withdraw
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  include
+    ?player positive control Vec3 { x: ?right, y: 0.0, z: ?backward }
+
+on enable-vertical-sustain ?player
+  when
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  withdraw
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  include
+    ?player negative control Vec3 { x: ?left, y: 1.0, z: ?forward }
+
+on disable-vertical-sustain ?player
+  when
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  withdraw
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+  include
+    ?player negative control Vec3 { x: ?left, y: 0.0, z: ?forward }
+
+on derive-horizontal-intent-x ?player
+  when
+    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  withdraw
+    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
+  include
+    ?player horizontal intent Vec3 { x: ?right - ?left, y: ?intent-y, z: ?intent-z }
+
+on derive-horizontal-intent-z ?player
+  when
+    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+  withdraw
+    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
+  include
+    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?backward - ?forward }
+
+on apply-horizontal-sustain ?player
+  when
+    ?player move speed ?speed
+    ?player booster energy ?energy
+    ?player booster ignition threshold ?threshold
+    ?player booster regeneration delay ?delay
+    ?player booster regeneration delay limit ?delay-limit
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+    ?player sustained move speed ?sustained
+    ?player horizontal sustain drain ?drain
+    ?horizontal = 1.0
+    ?threshold <= ?energy
+    ?drain <= ?energy
+  withdraw
+    ?player move speed ?speed
+    ?player booster energy ?energy
+    ?player booster regeneration delay ?delay
+  include
+    ?player move speed ?sustained
+    ?player booster energy ?energy - ?drain
+    ?player booster regeneration delay ?delay-limit
+
+on restore-horizontal-speed ?player
+  when
+    ?player move speed ?speed
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+    ?player base move speed ?base
+    ?horizontal = 0.0
+  withdraw
+    ?player move speed ?speed
+  include
+    ?player move speed ?base
+
+on restore-exhausted-horizontal-speed ?player
+  when
+    ?player move speed ?speed
+    ?player booster energy ?energy
+    ?player booster ignition threshold ?threshold
+    ?player base move speed ?base
+    ?energy < ?threshold
+  withdraw
+    ?player move speed ?speed
+  include
+    ?player move speed ?base
+
+on horizontal-burst ?player
+  when
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
+    ?player booster energy ?energy
+    ?player booster ignition threshold ?threshold
+    ?player booster regeneration delay ?delay
+    ?player booster regeneration delay limit ?delay-limit
+    ?player horizontal burst impulse ?impulse
+    ?player horizontal burst cost ?cost
+    ?intent-x * ?intent-x + ?intent-z * ?intent-z > 0.0
+    ?threshold <= ?energy
+    ?cost <= ?energy
+  withdraw
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player booster energy ?energy
+    ?player booster regeneration delay ?delay
+  include
+    ?player velocity Vec3 { x: ?velocity-x + ?intent-x * ?impulse, y: ?velocity-y, z: ?velocity-z + ?intent-z * ?impulse }
+    ?player booster energy ?energy - ?cost
+    ?player booster regeneration delay ?delay-limit
+
+on apply-vertical-sustain ?player
+  when
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player grounded ?grounded
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+    ?player booster energy ?energy
+    ?player booster ignition threshold ?threshold
+    ?player booster regeneration delay ?delay
+    ?player booster regeneration delay limit ?delay-limit
+    ?player vertical sustain thrust ?thrust
+    ?player vertical sustain drain ?drain
+    ?vertical = 1.0
+    ?threshold <= ?energy
+    ?drain <= ?energy
+  withdraw
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player grounded ?grounded
+    ?player booster energy ?energy
+    ?player booster regeneration delay ?delay
+  include
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y + ?thrust, z: ?velocity-z }
+    ?player grounded false
+    ?player booster energy ?energy - ?drain
+    ?player booster regeneration delay ?delay-limit
+
+on vertical-burst ?player
+  when
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player grounded ?grounded
+    ?player booster energy ?energy
+    ?player booster ignition threshold ?threshold
+    ?player booster regeneration delay ?delay
+    ?player booster regeneration delay limit ?delay-limit
+    ?player vertical burst impulse ?impulse
+    ?player vertical burst cost ?cost
+    ?threshold <= ?energy
+    ?cost <= ?energy
+  withdraw
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player grounded ?grounded
+    ?player booster energy ?energy
+    ?player booster regeneration delay ?delay
+  include
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y + ?impulse, z: ?velocity-z }
+    ?player grounded false
+    ?player booster energy ?energy - ?cost
+    ?player booster regeneration delay ?delay-limit
+
+on count-booster-regeneration-delay ?player
+  when
+    ?player booster regeneration delay ?delay
+    ?delay > 0.0
+  withdraw
+    ?player booster regeneration delay ?delay
+  include
+    ?player booster regeneration delay ?delay - 1.0
+
+on regenerate-booster-energy ?player
+  when
+    ?player booster energy ?energy
+    ?player booster capacity ?capacity
+    ?player booster regeneration ?regeneration
+    ?player booster regeneration delay ?delay
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+    ?delay <= 0.0
+    ?vertical = 0.0
+    ?horizontal = 0.0
+    ?energy <= ?capacity - ?regeneration
+  withdraw
+    ?player booster energy ?energy
+  include
+    ?player booster energy ?energy + ?regeneration
+
+on jump ?player
   when
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
     ?player grounded true
-    jump-arena jump speed ?dash-speed
+    jump-arena jump speed ?jump-speed
   withdraw
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
     ?player grounded true
   include
-    ?player velocity Vec3 { x: ?velocity-x, y: ?dash-speed, z: ?velocity-z }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?jump-speed, z: ?velocity-z }
     ?player grounded false
 
 on reset-objective ?objective
@@ -261,20 +706,20 @@ on tick ?player ?dt
     ?player velocity Vec3 { x: ?velocity-x, y: 0.0, z: ?velocity-z }
     ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
     ?player grounded true
-    jump-arena move speed ?move-speed
+    ?player move speed ?move-speed
     jump-arena floor height ?floor
     jump-arena minimum x ?min-x
     jump-arena maximum x ?max-x
     jump-arena minimum z ?min-z
     jump-arena maximum z ?max-z
-    (?position-x + (0.5 * ?intent-x - 0.5 * ?intent-z - 0.5 * ?intent-x * ?intent-x + 0.5 * ?intent-z * ?intent-z) * ?move-speed * ?dt) clamped between ?min-x and ?max-x as ?next-x
-    (?position-z + (0.5 * ?intent-x - 0.5 * ?intent-z + 0.5 * ?intent-x * ?intent-x - 0.5 * ?intent-z * ?intent-z) * ?move-speed * ?dt) clamped between ?min-z and ?max-z as ?next-z
+    (?position-x + (?velocity-x + ?intent-x * ?move-speed) * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + (?velocity-z + ?intent-z * ?move-speed) * ?dt) clamped between ?min-z and ?max-z as ?next-z
   withdraw
     ?player position Vec3 { x: ?position-x, y: ?floor, z: ?position-z }
     ?player velocity Vec3 { x: ?velocity-x, y: 0.0, z: ?velocity-z }
   include
     ?player position Vec3 { x: ?next-x, y: ?floor, z: ?next-z }
-    ?player velocity Vec3 { x: (?next-x - ?position-x) / ?dt, y: 0.0, z: (?next-z - ?position-z) / ?dt }
+    ?player velocity Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 
 on tick ?player ?dt
   when
@@ -284,14 +729,14 @@ on tick ?player ?dt
     ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
     ?player grounded false
     jump-arena gravity ?gravity
-    jump-arena move speed ?move-speed
+    ?player move speed ?move-speed
     jump-arena floor height ?floor
     jump-arena minimum x ?min-x
     jump-arena maximum x ?max-x
     jump-arena minimum z ?min-z
     jump-arena maximum z ?max-z
-    (?position-x + (?velocity-x + (0.5 * ?intent-x - 0.5 * ?intent-z - 0.5 * ?intent-x * ?intent-x + 0.5 * ?intent-z * ?intent-z) * ?move-speed * ?dt) * ?dt) clamped between ?min-x and ?max-x as ?next-x
-    (?position-z + (?velocity-z + (0.5 * ?intent-x - 0.5 * ?intent-z + 0.5 * ?intent-x * ?intent-x - 0.5 * ?intent-z * ?intent-z) * ?move-speed * ?dt) * ?dt) clamped between ?min-z and ?max-z as ?next-z
+    (?position-x + (?velocity-x + ?intent-x * ?move-speed * ?dt) * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + (?velocity-z + ?intent-z * ?move-speed * ?dt) * ?dt) clamped between ?min-z and ?max-z as ?next-z
     ?position-y + (?velocity-y + ?gravity * ?dt) * ?dt > ?floor
   withdraw
     ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
@@ -308,14 +753,14 @@ on tick ?player ?dt
     ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
     ?player grounded false
     jump-arena gravity ?gravity
-    jump-arena move speed ?move-speed
+    ?player move speed ?move-speed
     jump-arena floor height ?floor
     jump-arena minimum x ?min-x
     jump-arena maximum x ?max-x
     jump-arena minimum z ?min-z
     jump-arena maximum z ?max-z
-    (?position-x + (?velocity-x + (0.5 * ?intent-x - 0.5 * ?intent-z - 0.5 * ?intent-x * ?intent-x + 0.5 * ?intent-z * ?intent-z) * ?move-speed * ?dt) * ?dt) clamped between ?min-x and ?max-x as ?next-x
-    (?position-z + (?velocity-z + (0.5 * ?intent-x - 0.5 * ?intent-z + 0.5 * ?intent-x * ?intent-x - 0.5 * ?intent-z * ?intent-z) * ?move-speed * ?dt) * ?dt) clamped between ?min-z and ?max-z as ?next-z
+    (?position-x + (?velocity-x + ?intent-x * ?move-speed * ?dt) * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + (?velocity-z + ?intent-z * ?move-speed * ?dt) * ?dt) clamped between ?min-z and ?max-z as ?next-z
     ?position-y + (?velocity-y + ?gravity * ?dt) * ?dt <= ?floor
   withdraw
     ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
@@ -330,16 +775,11 @@ on combat-impact ?enemy
   when
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     cinder-wraith enemy combat status ?enemy-status
-    cinder-wraith enemy pressure state ?pressure
-    cinder-wraith enemy pressure clock ?clock
-    cinder-wraith enemy random sample ?sample
     player-1 grounded ?grounded
     player-1 combat status ?player-status
+    player-1 has projectile contact with cinder-bolt as true
     ?enemy-status = alive
     ?player-status = alive
-    ?pressure = lunge
-    ?clock = 51.0
-    ?sample = 0.5
     ?grounded = false
     ?vitality = 6.0
   withdraw
@@ -347,47 +787,107 @@ on combat-impact ?enemy
   include
     ?enemy enemy vitals Vec3 { x: ?vitality - 6.0, y: ?maximum, z: ?alive-flag }
 
-on wraith-impact ?player
+on apply-ember-mark ?player
   when
-    ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?player status effect ?effect
     player-1 grounded ?grounded
     player-1 combat status ?player-status
     cinder-wraith enemy combat status ?enemy-status
-    cinder-wraith enemy pressure state ?pressure
-    cinder-wraith enemy pressure clock ?clock
-    cinder-wraith enemy random sample ?sample
+    player-1 has projectile contact with cinder-bolt as true
     ?player-status = alive
     ?enemy-status = alive
-    ?pressure = lunge
-    ?clock = 50.0
-    ?sample = 0.5
     ?grounded = true
+    ?effect = clear
+  withdraw
+    ?player status effect ?effect
+  include
+    ?player status effect ember-mark
+
+on spend-cinder-bolt-on-contact ?projectile
+  when
+    ?projectile projectile state ?state
+    player-1 has projectile contact with ?projectile as true
+    ?state = flight
+  withdraw
+    ?projectile projectile state ?state
+  include
+    ?projectile projectile state spent
+
+on count-ember-mark ?player
+  when
+    ?player status clock ?clock
+    player-1 status effect ?effect
+    ?effect = ember-mark
+  withdraw
+    ?player status clock ?clock
+  include
+    ?player status clock ?clock - 1.0
+
+on ignite-ember-mark ?player
+  when
+    ?player status effect ?effect
+    player-1 status clock ?clock
+    ?effect = ember-mark
+    ?clock = 0.0
+  withdraw
+    ?player status effect ?effect
+  include
+    ?player status effect burning
+
+on resolve-ember-mark ?player
+  when
+    ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    player-1 status effect ?effect
+    ?effect = burning
     ?vitality = 4.0
   withdraw
     ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
   include
     ?player player vitals Vec3 { x: ?vitality - 2.0, y: ?maximum, z: ?alive-flag }
 
-on wraith-finishing-impact ?player
+on resolve-finishing-ember-mark ?player
   when
     ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
-    player-1 grounded ?grounded
-    player-1 combat status ?player-status
-    cinder-wraith enemy combat status ?enemy-status
-    cinder-wraith enemy pressure state ?pressure
-    cinder-wraith enemy pressure clock ?clock
-    cinder-wraith enemy random sample ?sample
-    ?player-status = alive
-    ?enemy-status = alive
-    ?pressure = lunge
-    ?clock = 59.0
-    ?sample = 0.5
-    ?grounded = true
+    player-1 status effect ?effect
+    ?effect = burning
     ?vitality = 2.0
   withdraw
     ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
   include
     ?player player vitals Vec3 { x: ?vitality - 2.0, y: ?maximum, z: ?alive-flag }
+
+on clear-ember-mark-after-impact ?player
+  when
+    ?player status effect ?effect
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?effect = burning
+    ?vitality = 2.0
+  withdraw
+    ?player status effect ?effect
+  include
+    ?player status effect clear
+
+on clear-ember-mark-after-finishing-impact ?player
+  when
+    ?player status effect ?effect
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?effect = burning
+    ?vitality = 0.0
+  withdraw
+    ?player status effect ?effect
+  include
+    ?player status effect clear
+
+on reset-status-clock ?player
+  when
+    ?player status clock ?clock
+    player-1 status effect ?effect
+    ?effect = clear
+    ?clock = 0.0
+  withdraw
+    ?player status clock ?clock
+  include
+    ?player status clock 12.0
 
 on count-pressure ?enemy
   when
@@ -413,6 +913,83 @@ on begin-lunge ?enemy
     ?enemy enemy pressure state ?pressure
   include
     ?enemy enemy pressure state lunge
+
+on launch-cinder-bolt ?projectile
+  when
+    ?projectile projectile state ?state
+    cinder-wraith enemy pressure state ?pressure
+    cinder-wraith enemy pressure clock ?clock
+    ?state = dormant
+    ?pressure = lunge
+    ?clock = 59.0
+  withdraw
+    ?projectile projectile state ?state
+  include
+    ?projectile projectile state flight
+
+on show-cinder-bolt ?projectile
+  when
+    ?projectile projectile visible ?visible
+    cinder-bolt projectile state ?state
+    ?visible = false
+    ?state = flight
+  withdraw
+    ?projectile projectile visible ?visible
+  include
+    ?projectile projectile visible true
+
+on advance-cinder-bolt ?projectile
+  when
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    cinder-bolt projectile state ?state
+    ?state = flight
+  withdraw
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+  include
+    ?projectile projectile position Vec3 { x: ?projectile-x - 0.25, y: ?projectile-y, z: ?projectile-z }
+
+on spend-cinder-bolt ?projectile
+  when
+    ?projectile projectile state ?state
+    cinder-wraith enemy pressure clock ?clock
+    ?state = flight
+    ?clock = 49.0
+  withdraw
+    ?projectile projectile state ?state
+  include
+    ?projectile projectile state spent
+
+on hide-cinder-bolt ?projectile
+  when
+    ?projectile projectile visible ?visible
+    cinder-bolt projectile state ?state
+    ?visible = true
+    ?state = spent
+  withdraw
+    ?projectile projectile visible ?visible
+  include
+    ?projectile projectile visible false
+
+on reset-cinder-bolt-x ?projectile
+  when
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    cinder-bolt projectile state ?state
+    ?state = spent
+  withdraw
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+  include
+    ?projectile projectile position Vec3 { x: 2.0, y: ?projectile-y, z: ?projectile-z }
+
+on rearm-cinder-bolt ?projectile
+  when
+    ?projectile projectile state ?state
+    cinder-wraith enemy pressure state ?pressure
+    ?state = spent
+    ?pressure = rearming
+  withdraw
+    ?projectile projectile state ?state
+  include
+    ?projectile projectile state dormant
 
 on begin-recovery ?enemy
   when
@@ -544,10 +1121,12 @@ on acquire-loot ?loot
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     ashen-key loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
     cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    cinder-wraith enemy combat status ?enemy-status
+    jump-arena loot pickup radius ?pickup-radius
     ?state = available
     ?vitality = 0.0
-    ?player-x = ?loot-x
-    ?player-z = ?loot-z
+    ?enemy-status = dead
+    ((?player-x - ?loot-x) * (?player-x - ?loot-x)) + ((?player-z - ?loot-z) * (?player-z - ?loot-z)) <= ?pickup-radius * ?pickup-radius
   withdraw
     ?loot loot state ?state
   include
@@ -589,26 +1168,59 @@ on clear-reset-signal ?objective
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
     player-1 grounded ?grounded
+    player-1 horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
+    player-1 negative control Vec3 { x: ?negative-x, y: ?negative-y, z: ?negative-z }
+    player-1 positive control Vec3 { x: ?positive-x, y: ?positive-y, z: ?positive-z }
+    player-1 move speed ?move-speed
+    player-1 base move speed ?base-speed
+    player-1 booster energy ?energy
+    player-1 booster capacity ?capacity
+    player-1 booster regeneration delay ?regeneration-delay
     player-1 player vitals Vec3 { x: ?player-vitality, y: ?player-maximum, z: ?player-alive }
+    player-1 status effect ?effect
+    player-1 status clock ?status-clock
     cinder-wraith enemy vitals Vec3 { x: ?enemy-vitality, y: ?enemy-maximum, z: ?enemy-alive }
     cinder-wraith enemy pressure state ?pressure
     cinder-wraith enemy pressure clock ?clock
+    cinder-bolt projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    cinder-bolt projectile state ?projectile-state
+    cinder-bolt projectile visible ?projectile-visible
     ashen-key loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
     game-objective objective state Vec3 { x: ?objective-state, y: ?branch, z: ?unused-state }
     ?reset = 1.0
-    ?player-x = 0.0
+    ?player-x = -2.0
     ?player-y = 0.0
-    ?player-z = 0.0
+    ?player-z = 0.5
     ?velocity-x = 0.0
     ?velocity-y = 0.0
     ?velocity-z = 0.0
     ?grounded = true
+    ?intent-x = 0.0
+    ?intent-y = 0.0
+    ?intent-z = 0.0
+    ?negative-x = 0.0
+    ?negative-y = 0.0
+    ?negative-z = 0.0
+    ?positive-x = 0.0
+    ?positive-y = 0.0
+    ?positive-z = 0.0
+    ?move-speed = ?base-speed
+    ?energy = ?capacity
+    ?regeneration-delay = 0.0
+    ?burst-recovery = 0.0
     ?player-vitality = ?player-maximum
+    ?effect = clear
+    ?status-clock = 12.0
     ?enemy-vitality = ?enemy-maximum
     ?pressure = telegraph
     ?clock = 90.0
-    ?loot-x = 2.0
-    ?loot-z = 0.0
+    ?projectile-x = 2.0
+    ?projectile-y = 0.55
+    ?projectile-z = 0.0
+    ?projectile-state = dormant
+    ?projectile-visible = false
+    ?loot-x = 1.2
+    ?loot-z = -1.0
     ?objective-state = 0.0
   withdraw
     ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
@@ -623,7 +1235,7 @@ on reset-player-x ?player
   withdraw
     ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
   include
-    ?player position Vec3 { x: 0.0, y: ?player-y, z: ?player-z }
+    ?player position Vec3 { x: -2.0, y: ?player-y, z: ?player-z }
 
 on reset-player-z ?player
   when
@@ -633,7 +1245,7 @@ on reset-player-z ?player
   withdraw
     ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
   include
-    ?player position Vec3 { x: ?player-x, y: ?player-y, z: 0.0 }
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: 0.5 }
 
 on reset-player-y ?player
   when
@@ -705,6 +1317,53 @@ on reset-player-status ?player
   include
     ?player combat status alive
 
+on reset-propulsion ?player
+  when
+    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
+    ?player negative control Vec3 { x: ?negative-x, y: ?negative-y, z: ?negative-z }
+    ?player positive control Vec3 { x: ?positive-x, y: ?positive-y, z: ?positive-z }
+    ?player move speed ?move-speed
+    ?player base move speed ?base-speed
+    ?player booster energy ?energy
+    ?player booster capacity ?capacity
+    ?player booster regeneration delay ?delay
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
+    ?player negative control Vec3 { x: ?negative-x, y: ?negative-y, z: ?negative-z }
+    ?player positive control Vec3 { x: ?positive-x, y: ?positive-y, z: ?positive-z }
+    ?player move speed ?move-speed
+    ?player booster energy ?energy
+    ?player booster regeneration delay ?delay
+  include
+    ?player horizontal intent Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?player negative control Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?player positive control Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?player move speed ?base-speed
+    ?player booster energy ?capacity
+    ?player booster regeneration delay 0.0
+
+on reset-player-effect ?player
+  when
+    ?player status effect ?effect
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player status effect ?effect
+  include
+    ?player status effect clear
+
+on reset-player-effect-clock ?player
+  when
+    ?player status clock ?clock
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player status clock ?clock
+  include
+    ?player status clock 12.0
+
 on reset-enemy-vitality ?enemy
   when
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
@@ -745,6 +1404,36 @@ on reset-enemy-pressure-clock ?enemy
   include
     ?enemy enemy pressure clock 90.0
 
+on reset-projectile-x ?projectile
+  when
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+  include
+    ?projectile projectile position Vec3 { x: 2.0, y: ?projectile-y, z: ?projectile-z }
+
+on reset-projectile-state ?projectile
+  when
+    ?projectile projectile state ?state
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?projectile projectile state ?state
+  include
+    ?projectile projectile state dormant
+
+on reset-projectile-visible ?projectile
+  when
+    ?projectile projectile visible ?visible
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?projectile projectile visible ?visible
+  include
+    ?projectile projectile visible false
+
 on reset-loot-state ?loot
   when
     ?loot loot state ?state
@@ -773,7 +1462,7 @@ on reset-loot-x ?loot
   withdraw
     ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
   include
-    ?loot loot position Vec3 { x: 2.0, y: ?loot-y, z: ?loot-z }
+    ?loot loot position Vec3 { x: 1.2, y: ?loot-y, z: ?loot-z }
 
 on reset-loot-z ?loot
   when
@@ -783,7 +1472,7 @@ on reset-loot-z ?loot
   withdraw
     ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
   include
-    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: 0.0 }
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: -1.0 }
 
 on reset-world-objective ?objective
   when
@@ -794,20 +1483,3 @@ on reset-world-objective ?objective
     ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
   include
     ?objective objective state Vec3 { x: 0.0, y: ?branch, z: ?unused-state }
-
-on recover-after-wraith-impact ?enemy
-  when
-    ?enemy enemy pressure state ?pressure
-    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
-    player-1 combat status ?player-status
-    cinder-wraith enemy combat status ?enemy-status
-    cinder-wraith enemy pressure clock ?clock
-    ?pressure = lunge
-    ?clock = 50.0
-    ?vitality = 2.0
-    ?player-status = alive
-    ?enemy-status = alive
-  withdraw
-    ?enemy enemy pressure state ?pressure
-  include
-    ?enemy enemy pressure state recovery
