@@ -95,6 +95,7 @@ const modulePromise = fetch("/wasm/clause_runtime_bg.wasm")
 let controller: CartridgeWorkbench | null = null;
 let inputInFlight = false;
 let inFlightEdgeCode: string | null = null;
+let simulationStarted = false;
 let disposed = false;
 let commands = Promise.resolve();
 const inputQueue: ResidentInput[] = [];
@@ -177,7 +178,12 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
       createFixedTick(16),
       policy,
       (milliseconds, callback) => {
-        const handle = setInterval(callback, milliseconds);
+        // Hold the fixed-tick clock at the authored spawn until the player
+        // supplies the first gameplay key. This prevents slow WebGL/asset
+        // startup from consuming the encounter before input can arrive.
+        const handle = setInterval(() => {
+          if (simulationStarted) callback();
+        }, milliseconds);
         return () => clearInterval(handle);
       },
       (frame) => {
@@ -199,6 +205,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
 }
 
 function queueInput(input: ResidentInput): void {
+  if (input.kind === "keyboard") simulationStarted = true;
   if (
     input.kind === "keyboard" &&
     input.phase === "down" &&
