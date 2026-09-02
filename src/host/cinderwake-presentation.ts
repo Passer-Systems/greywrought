@@ -44,6 +44,7 @@ import {
   type FrontierGateAccess,
   type OpenFieldEnvironment,
 } from "./open-field-environment.js";
+import { publicUrl } from "./public-url.js";
 
 export type { FrontierGateAccess } from "./open-field-environment.js";
 
@@ -516,7 +517,7 @@ async function mountBoarRig(
   subject: SubjectPresentation,
 ): Promise<MountedBoarRig> {
   const gltf = await new GLTFLoader().loadAsync(
-    "/assets/opengameart/teh-bucket-boar/boar.glb",
+    publicUrl("assets/opengameart/teh-bucket-boar/boar.glb"),
   );
   gltf.scene.name = "greywrought.boar.authored-rig";
   gltf.scene.rotation.y = -Math.PI / 2;
@@ -641,7 +642,7 @@ async function mountCephoriumCache(
   subject: SubjectPresentation,
 ): Promise<Object3D> {
   const gltf = await new GLTFLoader().loadAsync(
-    "/assets/quaternius/nature/Rock_Medium_3.gltf",
+    publicUrl("assets/quaternius/nature/Rock_Medium_3.gltf"),
   );
   gltf.scene.name = "greywrought.cephorium-cache.quaternius-rock";
   gltf.scene.updateWorldMatrix(true, true);

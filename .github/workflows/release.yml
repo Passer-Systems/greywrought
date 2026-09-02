@@ -1,0 +1,112 @@
+name: Verify and publish Greywrought
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact sources
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install Rust
+        run: rustup toolchain install 1.96.1 --profile minimal --component rustfmt --component clippy
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify portable immutable inputs
+        run: bun run check:portable
+
+      - name: Run native tests
+        run: cargo test --locked
+
+      - name: Build all release artifacts
+        run: bun run build:static
+
+      - name: Run host and Wasm gates
+        run: |
+          bun run test:host
+          bun run test:wasm-effect
+          bun run test:wasm-conquest
+          bun run test:wasm-combat-depth
+
+      - name: Install Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v2
+
+      - name: Run dynamic browser gates
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+          GREYWROUGHT_LIVENESS_MILLIS: "30000"
+        run: |
+          bun build/host/play-server.js > /tmp/greywrought-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 120); do
+            curl --fail --silent http://127.0.0.1:4173/ >/dev/null && break
+            sleep 0.25
+          done
+          curl --fail --silent http://127.0.0.1:4173/ >/dev/null
+          bun run test:browser-playability
+          bun run test:browser-camera-relative
+          bun run test:browser-encounter
+          bun run test:browser-liveness
+          bun run test:browser-behavior-hot-edit
+          bun run test:resident-source-recovery
+
+      - name: Run static subpath browser gate
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          bun run serve:static > /tmp/greywrought-static.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 120); do
+            curl --fail --silent http://127.0.0.1:4180/greywrought/ >/dev/null && break
+            sleep 0.25
+          done
+          curl --fail --silent http://127.0.0.1:4180/greywrought/ >/dev/null
+          bun run test:static-release
+
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

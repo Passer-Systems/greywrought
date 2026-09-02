@@ -78,6 +78,7 @@ import {
   requireNumber,
   requireString,
 } from "./foreign.js";
+import { publicUrl } from "./public-url.js";
 
 type ProcessBranch = ReturnType<typeof openProcessBranch>;
 type AuthoritativeAdvance = ReturnType<typeof admitAuthoritativeOccurrences>;
@@ -254,6 +255,7 @@ interface ResidentLawSession {
   projectionFrameHandle: number;
   admittedOrdinal: number;
   candidateGeneration: number | null;
+  staticGeneration: boolean;
 }
 
 interface ResidentProjection {
@@ -299,6 +301,13 @@ interface PhysicalKey {
   readonly repeat: boolean;
 }
 
+const footholdStorageKey = "greywrought/foothold-v1";
+
+interface PersistedFoothold {
+  readonly version: 1;
+  readonly progress: number;
+}
+
 declare global {
   interface Window {
     __GREYWROUGHT_RESIDENT_EVENTS__: Array<Record<string, unknown>>;
@@ -338,6 +347,40 @@ function button(id: string): HTMLButtonElement {
     throw new Error(`browser element #${id} is not a button`);
   }
   return value;
+}
+
+function readPersistedFoothold(): number | null {
+  try {
+    const source = localStorage.getItem(footholdStorageKey);
+    if (source === null) return null;
+    const value: unknown = JSON.parse(source);
+    if (!isProjectedObject(value) || value.version !== 1) return null;
+    return typeof value.progress === "number" && Number.isFinite(value.progress)
+      ? value.progress
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistFoothold(progress: number): void {
+  const value: PersistedFoothold = { version: 1, progress };
+  try {
+    localStorage.setItem(footholdStorageKey, JSON.stringify(value));
+    element("save-status").textContent = `Saved foothold · ${progress} / 3`;
+    document.body.dataset.gamePersistence = "saved";
+  } catch {
+    element("save-status").textContent = "Save unavailable in this browser";
+    document.body.dataset.gamePersistence = "unavailable";
+  }
+}
+
+function clearPersistedFoothold(): void {
+  try {
+    localStorage.removeItem(footholdStorageKey);
+  } finally {
+    location.reload();
+  }
 }
 
 function sequenceLimits() {
@@ -407,7 +450,7 @@ function openEffectSession(module: object, request: ExactProcessRequest): Effect
 
 function openResidentLawSession(): ResidentLawSession {
   return {
-    worker: new Worker("/app/greywrought-clause/resident-worker.js", {
+    worker: new Worker(publicUrl("app/greywrought-clause/resident-worker.js"), {
       type: "module",
       name: "greywrought-clause-resident",
     }),
@@ -420,6 +463,7 @@ function openResidentLawSession(): ResidentLawSession {
     projectionFrameHandle: 0,
     admittedOrdinal: 0,
     candidateGeneration: null,
+    staticGeneration: false,
   };
 }
 
@@ -741,6 +785,16 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const cephorium = lootById(projection, "cephorium-cache");
   const presentedBolt = wayfarerBolt.visible ? wayfarerBolt : bolt;
   const objectiveStatus = objectiveLabel(objective.state);
+  if (frontier.progress > 0 && (prior === null || frontier.progress > prior.frontier.progress)) {
+    persistFoothold(frontier.progress);
+  }
+  const expedition = Math.min(frontier.requirement, frontier.progress + 1);
+  element("expedition-progress").textContent =
+    frontier.access === "permanent-open"
+      ? `Foothold secured · ${frontier.progress} / ${frontier.requirement}`
+      : `Expedition ${expedition} of ${frontier.requirement} · foothold ${frontier.progress} / ${frontier.requirement}`;
+  element("expedition-progress").setAttribute("aria-valuenow", String(frontier.progress));
+  element("expedition-progress").setAttribute("aria-valuemax", String(frontier.requirement));
   const terminalFeedback = element("terminal-feedback");
   terminalFeedback.hidden = objectiveStatus === "playing";
   if (objectiveStatus === "failed") {
@@ -1010,6 +1064,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   Object.assign(document.body.dataset, {
     gamePhase: objectiveStatus,
     gamePlayerVitality: String(player.vitality),
+    gamePlayerGrounded: String(player.grounded),
     gameEnemyVitality: String(enemy.vitality),
     gameEnemyCombatStatus: enemy.combatStatus,
     gameEnemyBehavior: enemy.combatBehavior,
@@ -1448,13 +1503,30 @@ function bindResidentWorker(app: PlayApp, listeners: Array<() => void>): void {
 
 async function pollResidentLaw(app: PlayApp): Promise<void> {
   const resident = app.residentLaw;
-  if (resident.polling) return;
+  if (resident.polling || resident.staticGeneration) return;
   resident.polling = true;
   try {
     const response = await fetch(
-      `/resident-generation?after=${resident.generation}`,
+      publicUrl(`resident-generation?after=${resident.generation}`),
       { cache: "no-store" },
     );
+    if (response.status === 404 && resident.generation < 0) {
+      resident.staticGeneration = true;
+      document.body.dataset.residentMode = "static";
+      const cwr1 = await fetchText(
+        publicUrl("assets/embodied-encounter-v1.cwr1.hex"),
+      );
+      installResidentLaw(app, {
+        generation: 0,
+        compilerMicros: 0,
+        cwr1,
+        sourceModifiedMillis: 0,
+        hot: false,
+      });
+      element("resident-law").textContent =
+        "release law admitted\nstatic embodied cartridge";
+      return;
+    }
     if (response.status === 204) {
       if (response.headers.get("X-Greywrought-Source-State") === "rejected") {
         document.body.dataset.residentSourcePhase = "rejected";
@@ -2187,6 +2259,7 @@ function startApp(
     closeLootWindow();
   });
   bindClick(listeners, "reset-encounter", () => pressReset(app));
+  bindClick(listeners, "clear-progress", clearPersistedFoothold);
   bindClick(listeners, "enter-world", () => enterWorld(app));
   bindClick(listeners, "disconnect", () => disconnect(app));
   bindClick(listeners, "continue-branch", () => advanceBranch(app));
@@ -2194,6 +2267,24 @@ function startApp(
   bindClick(listeners, "admit-candidate", () => admitCandidate(app));
   bindClick(listeners, "pulse-moonwell", () => pulseMoonwell(app));
   renderStage(app);
+  const persistedFoothold = readPersistedFoothold();
+  if (persistedFoothold !== null) {
+    element("save-status").textContent = `Saved foothold ready · ${persistedFoothold} / 3`;
+    document.body.dataset.gamePersistence = "restoring";
+    queueGameInput(app, {
+      kind: "scalar-input",
+      channel: "PersistedFootholdProgress",
+      value: persistedFoothold,
+    });
+    queueGameInput(app, {
+      kind: "scalar-input",
+      channel: "PersistedPermanentFootholdProgress",
+      value: persistedFoothold,
+    });
+  } else {
+    element("save-status").textContent = "Progress saves after each extraction";
+    document.body.dataset.gamePersistence = "empty";
+  }
   window.addEventListener("beforeunload", () => teardown(app), { once: true });
   window.__GREYWROUGHT_TEARDOWN__ = () => teardown(app);
   void pollResidentLaw(app);
@@ -2217,8 +2308,8 @@ async function fetchText(url: string): Promise<string> {
 }
 
 const [wasmBytes, branchSource, effectSource] = await Promise.all([
-  fetchBytes("/wasm/clause_runtime_bg.wasm"),
-  fetchText("/assets/conquest-v1.cwr1.hex"),
-  fetchText("/assets/ongoing-effect-v1.cwr1.hex"),
+  fetchBytes(publicUrl("wasm/clause_runtime_bg.wasm")),
+  fetchText(publicUrl("assets/conquest-v1.cwr1.hex")),
+  fetchText(publicUrl("assets/ongoing-effect-v1.cwr1.hex")),
 ]);
 startApp(initializeRuntime(wasmBytes), branchSource, effectSource);

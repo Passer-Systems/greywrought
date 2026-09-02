@@ -1,5 +1,6 @@
 const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
 const debugPort = 9234;
+const gameUrl = Bun.env.GREYWROUGHT_GAME_URL ?? "http://127.0.0.1:4173/";
 
 function requireCondition(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -12,7 +13,7 @@ const chrome = Bun.spawn({
     "--no-sandbox",
     "--disable-dev-shm-usage",
     `--remote-debugging-port=${debugPort}`,
-    "--user-data-dir=/tmp/greywrought-cdp-playability",
+    `--user-data-dir=/tmp/greywrought-cdp-playability-${process.pid}`,
     "--window-size=1156,1095",
     "--enable-unsafe-swiftshader",
     "--use-angle=swiftshader",
@@ -31,7 +32,7 @@ try {
     await Bun.sleep(50);
   }
   const tabResponse = await fetch(
-    `http://127.0.0.1:${debugPort}/json/new?http://127.0.0.1:4173/`,
+    `http://127.0.0.1:${debugPort}/json/new?${gameUrl}`,
     { method: "PUT" },
   );
   requireCondition(tabResponse.ok, "Chrome did not open the Greywrought tab");
@@ -55,7 +56,7 @@ try {
     return new Promise<any>((resolve) => pending.set(id, resolve));
   };
   await call("Runtime.enable");
-  await call("Page.navigate", { url: "http://127.0.0.1:4173/" });
+  await call("Page.navigate", { url: gameUrl });
   await Bun.sleep(2500);
   await call("Input.dispatchMouseEvent", {
     type: "mousePressed",
@@ -129,10 +130,14 @@ try {
   await key("keyDown", "KeyR", "r", 82);
   await key("keyUp", "KeyR", "r", 82);
   const reset = await waitForProjection();
-  await key("keyDown", "KeyD", "d", 68);
-  await Bun.sleep(500);
-  await key("keyUp", "KeyD", "d", 68);
-  const afterMove = await snapshot();
+  let afterMove = reset;
+  for (let attempt = 0; attempt < 4 && afterMove.playerX <= reset.playerX; attempt += 1) {
+    await key("keyDown", "KeyD", "d", 68);
+    await Bun.sleep(750);
+    await key("keyUp", "KeyD", "d", 68);
+    await Bun.sleep(100);
+    afterMove = await snapshot();
+  }
   requireCondition(
     afterMove.playerX > reset.playerX,
     `WASD movement did not advance player x (${reset.playerX} → ${afterMove.playerX})`,

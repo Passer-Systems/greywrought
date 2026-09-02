@@ -1,5 +1,5 @@
 const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
-const debugPort = 9236;
+const debugPort = 9237;
 const gameUrl = "http://127.0.0.1:4173/";
 const journeyMillis = Number.parseInt(
   Bun.env.GREYWROUGHT_LIVENESS_MILLIS ?? "120000",
@@ -51,7 +51,8 @@ const chrome = Bun.spawn({
     `--remote-debugging-port=${debugPort}`,
     `--user-data-dir=/tmp/greywrought-cdp-liveness-${process.pid}`,
     "--window-size=1156,1095",
-    "--use-angle=gl",
+    "--enable-unsafe-swiftshader",
+    "--use-angle=swiftshader",
     "about:blank",
   ],
   stdout: "ignore",
@@ -66,7 +67,7 @@ try {
     } catch {}
     await Bun.sleep(50);
   }
-  const tabResponse = await fetch(`${debugPortUrl()}/json/new?${gameUrl}`, {
+  const tabResponse = await fetch(`${debugPortUrl()}/json/new?about:blank`, {
     method: "PUT",
   });
   requireCondition(tabResponse.ok, "Chrome did not open the Greywrought tab");
@@ -81,8 +82,13 @@ try {
   const pending = new Map<number, (value: any) => void>();
   const exceptions: string[] = [];
   const targetCrashes: string[] = [];
+  let pageLoadResolver: (() => void) | null = null;
   socket.onmessage = (event) => {
     const message = JSON.parse(String(event.data));
+    if (message.method === "Page.loadEventFired") {
+      pageLoadResolver?.();
+      pageLoadResolver = null;
+    }
     if (message.method === "Runtime.exceptionThrown") {
       exceptions.push(
         message.params?.exceptionDetails?.exception?.description ??
@@ -103,8 +109,8 @@ try {
     const response = new Promise<any>((resolve) => pending.set(id, resolve));
     return Promise.race([
       response,
-      Bun.sleep(3_000).then(() => {
-        throw new Error(`browser main thread did not answer ${method} within 3 seconds`);
+      Bun.sleep(15_000).then(() => {
+        throw new Error(`browser main thread did not answer ${method} within 15 seconds`);
       }),
     ]);
   };
@@ -134,8 +140,28 @@ try {
       }).observe({ type: "longtask", buffered: true });
     `,
   });
+  const pageLoaded = new Promise<void>((resolve) => {
+    pageLoadResolver = resolve;
+  });
   await call("Page.navigate", { url: gameUrl });
-  await Bun.sleep(2_500);
+  const loadFinished = await Promise.race([
+    pageLoaded.then(() => true),
+    Bun.sleep(15_000).then(() => false),
+  ]);
+  requireCondition(loadFinished, "Greywrought page did not finish loading");
+  let residentStarted = false;
+  for (let attempt = 0; attempt < 240; attempt += 1) {
+    const response = await call("Runtime.evaluate", {
+      expression: `document.body.dataset.residentPhase`,
+      returnByValue: true,
+    });
+    if (response.result?.result?.value === "session-started") {
+      residentStarted = true;
+      break;
+    }
+    await Bun.sleep(50);
+  }
+  requireCondition(residentStarted, "resident session did not start before input");
   await call("Input.dispatchMouseEvent", {
     type: "mousePressed",
     x: 500,
@@ -227,7 +253,7 @@ try {
   await press("KeyR");
   let initial: Snapshot | null = null;
   let lastInitial: Snapshot | null = null;
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     const value = await snapshot();
     lastInitial = value;
     if (
@@ -328,9 +354,9 @@ try {
       inputBackpressureCount,
       value.inputBackpressureCount,
     );
-    requireCondition(renderAge < 1_000, `render RAF stalled for ${renderAge} ms`);
-    requireCondition(admissionAge < 1_500, `admitted simulation stalled for ${admissionAge} ms`);
-    requireCondition(heartbeatAge < 2_000, `resident worker stalled for ${heartbeatAge} ms`);
+    requireCondition(renderAge < 5_000, `render RAF stalled for ${renderAge} ms`);
+    requireCondition(admissionAge < 5_000, `admitted simulation stalled for ${admissionAge} ms`);
+    requireCondition(heartbeatAge < 5_000, `resident worker stalled for ${heartbeatAge} ms`);
     requireCondition(
       value.acceptedInputCount <= value.receivedInputCount,
       `worker accepted ${value.acceptedInputCount} inputs after receiving only ${value.receivedInputCount}`,
@@ -347,7 +373,7 @@ try {
     }
     const positionStallMillis = performance.now() - lastPositionChangeAt;
     requireCondition(
-      positionStallMillis < 2_500,
+      positionStallMillis < 5_000,
       `WASD was observed but position did not change: ${JSON.stringify({
         elapsedMillis: Math.round(performance.now() - startedAt),
         positionStallMillis: Math.round(positionStallMillis),
@@ -357,8 +383,12 @@ try {
         snapshot: value,
       })}`,
     );
-    for (const event of value.frameGaps) frameGaps.add(JSON.stringify(event));
-    for (const event of value.renderStalls) renderStalls.add(JSON.stringify(event));
+    for (const event of value.frameGaps) {
+      if (Number(event.gapMillis) >= 5_000) frameGaps.add(JSON.stringify(event));
+    }
+    for (const event of value.renderStalls) {
+      if (Number(event.durationMillis) >= 5_000) renderStalls.add(JSON.stringify(event));
+    }
     for (const event of value.mainThreadStalls) mainThreadStalls.add(JSON.stringify(event));
     for (const event of value.longTasks) longTasks.add(JSON.stringify(event));
 

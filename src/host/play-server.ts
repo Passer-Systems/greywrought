@@ -143,6 +143,7 @@ const files: Readonly<Record<string, string>> = {
     "build/host/cinderwake-presentation.js",
   "/app/greywrought-clause/open-field-environment.js":
     "build/host/open-field-environment.js",
+  "/app/greywrought-clause/public-url.js": "build/host/public-url.js",
   "/app/greywrought-clause/rig-socket-lab.js":
     "build/host/rig-socket-lab.js",
   "/app/rig-socket-lab-entry.js": "build/host/rig-socket-lab-entry.js",
@@ -166,6 +167,8 @@ const files: Readonly<Record<string, string>> = {
   "/wasm/clause_runtime.js": "build/host/wasm/clause_runtime.js",
   "/wasm/clause_runtime_bg.wasm": "build/host/wasm/clause_runtime_bg.wasm",
   "/assets/conquest-v1.cwr1.hex": "build/conquest/conquest-v1.cwr1.hex",
+  "/assets/embodied-encounter-v1.cwr1.hex":
+    "build/embodied/embodied-encounter-v1.cwr1.hex",
   "/assets/ongoing-effect-v1.cwr1.hex":
     "build/ongoing-effect/ongoing-effect-v1.cwr1.hex",
   "/assets/opengameart/teh-bucket-boar/boar.glb":

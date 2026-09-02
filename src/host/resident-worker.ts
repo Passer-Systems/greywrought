@@ -95,7 +95,9 @@ const policy = createWorkbenchPolicy(
   projectedTermJsonLimit,
   createWorkbenchSequenceLimits(maximum, maximum, maximum, maximum, maximum),
 );
-const modulePromise = fetch("/wasm/clause_runtime_bg.wasm")
+const modulePromise = fetch(
+  new URL("../../wasm/clause_runtime_bg.wasm", self.location.href),
+)
   .then((response) => {
     if (!response.ok) {
       throw new Error(`failed to fetch Clause Wasm: ${response.status}`);

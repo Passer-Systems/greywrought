@@ -726,6 +726,8 @@ bind keyboard LootItem down to acquire-loot
 bind keyboard KeyR down to reset-objective
 bind scalar-input CameraForwardX to observe-camera-forward-x
 bind scalar-input CameraForwardZ to observe-camera-forward-z
+bind scalar-input PersistedFootholdProgress to restore-partial-foothold-progress
+bind scalar-input PersistedPermanentFootholdProgress to restore-permanent-foothold-progress
 
 on hold-forward ?player
   when
@@ -838,6 +840,35 @@ on observe-camera-forward-z ?player ?observed-z
     ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
   include
     ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?observed-z }
+
+on restore-partial-foothold-progress ?frontier ?observed-progress
+  when
+    ?frontier foothold progress ?progress
+    ?frontier foothold requirement ?requirement
+    ?progress = 0.0
+    0.0 < ?observed-progress
+    ?observed-progress < ?requirement
+  withdraw
+    ?frontier foothold progress ?progress
+  include
+    ?frontier foothold progress ?observed-progress
+
+on restore-permanent-foothold-progress ?frontier ?observed-progress
+  when
+    ?frontier foothold progress ?progress
+    ?frontier foothold requirement ?requirement
+    ?frontier frontier access ?access
+    jump-arena maximum x ?prior-maximum-x
+    ?progress = 0.0
+    ?requirement <= ?observed-progress
+  withdraw
+    ?frontier foothold progress ?progress
+    ?frontier frontier access ?access
+    jump-arena maximum x ?prior-maximum-x
+  include
+    ?frontier foothold progress ?requirement
+    ?frontier frontier access permanent-open
+    jump-arena maximum x 2048.0
 
 on derive-horizontal-intent-x ?player
   when

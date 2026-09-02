@@ -1,5 +1,5 @@
 const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
-const debugPort = 9237;
+const debugPort = 9239;
 const gameUrl = "http://127.0.0.1:4173/";
 
 type Snapshot = Readonly<{
@@ -7,6 +7,7 @@ type Snapshot = Readonly<{
   playerZ: number;
   cameraYaw: number;
   admittedFrames: number;
+  residentPhase: string;
 }>;
 
 function requireCondition(condition: boolean, message: string): asserts condition {
@@ -22,7 +23,8 @@ const chrome = Bun.spawn({
     `--remote-debugging-port=${debugPort}`,
     `--user-data-dir=/tmp/greywrought-cdp-camera-${process.pid}`,
     "--window-size=1156,1095",
-    "--use-angle=gl",
+    "--enable-unsafe-swiftshader",
+    "--use-angle=swiftshader",
     "about:blank",
   ],
   stdout: "ignore",
@@ -44,7 +46,7 @@ try {
   requireCondition(chromeReady, "Chrome did not open its debugging port");
 
   const tabResponse = await fetch(
-    `http://127.0.0.1:${debugPort}/json/new?${gameUrl}`,
+    `http://127.0.0.1:${debugPort}/json/new?about:blank`,
     { method: "PUT" },
   );
   requireCondition(tabResponse.ok, "Chrome did not open the Greywrought tab");
@@ -57,8 +59,13 @@ try {
   socket = new WebSocket(tab.webSocketDebuggerUrl);
   let nextId = 1;
   const pending = new Map<number, (value: unknown) => void>();
+  let pageLoadResolver: (() => void) | null = null;
   socket.onmessage = (event) => {
-    const message = JSON.parse(String(event.data)) as { id?: number };
+    const message = JSON.parse(String(event.data)) as { id?: number; method?: string };
+    if (message.method === "Page.loadEventFired") {
+      pageLoadResolver?.();
+      pageLoadResolver = null;
+    }
     if (message.id === undefined) return;
     pending.get(message.id)?.(message);
     pending.delete(message.id);
@@ -70,7 +77,7 @@ try {
     socket!.send(JSON.stringify({ id, method, params }));
     return Promise.race([
       new Promise<unknown>((resolve) => pending.set(id, resolve)),
-      Bun.sleep(3_000).then(() => {
+      Bun.sleep(15_000).then(() => {
         throw new Error(`browser main thread did not answer ${method}`);
       }),
     ]);
@@ -84,6 +91,7 @@ try {
         playerZ: Number(document.body.dataset.gamePlayerZ),
         cameraYaw: Number(document.body.dataset.gameCameraOrbitYaw),
         admittedFrames: (window.__GREYWROUGHT_GAME_EVENTS__ ?? []).filter((event) => event.phase === "frame-admitted").length,
+        residentPhase: document.body.dataset.residentPhase,
       })`,
       returnByValue: true,
     })) as { result?: { result?: { value?: string } } };
@@ -99,7 +107,7 @@ try {
     message: string,
   ): Promise<Snapshot> => {
     let last: Snapshot | null = null;
-    for (let attempt = 0; attempt < 100; attempt += 1) {
+    for (let attempt = 0; attempt < 240; attempt += 1) {
       const value = await snapshot();
       last = value;
       if (condition(value)) return value;
@@ -109,8 +117,20 @@ try {
   };
 
   await call("Runtime.enable");
+  await call("Page.enable");
+  const pageLoaded = new Promise<void>((resolve) => {
+    pageLoadResolver = resolve;
+  });
   await call("Page.navigate", { url: gameUrl });
-  await Bun.sleep(2_500);
+  const loadFinished = await Promise.race([
+    pageLoaded.then(() => true),
+    Bun.sleep(15_000).then(() => false),
+  ]);
+  requireCondition(loadFinished, "Greywrought page did not finish loading");
+  await waitFor(
+    (value) => value.residentPhase === "session-started",
+    "resident session did not start",
+  );
   await call("Input.dispatchMouseEvent", {
     type: "mousePressed",
     x: 500,

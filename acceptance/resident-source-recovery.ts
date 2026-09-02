@@ -1,8 +1,7 @@
 const sourcePath = `/tmp/greywrought-resident-source-recovery-${process.pid}.clause`;
 const port = 4174;
 const debugPort = 9238;
-const chromePath =
-  "/nix/store/mjf5jfq69yjprs4cq5dq5dafvf44c3nv-google-chrome-151.0.7922.173/bin/google-chrome";
+const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
 
 interface GenerationPayload {
   readonly generation: number;
@@ -54,7 +53,8 @@ async function openBrowser(): Promise<BrowserDriver> {
       `--remote-debugging-port=${debugPort}`,
       `--user-data-dir=/tmp/greywrought-source-recovery-browser-${process.pid}`,
       "--window-size=1156,1095",
-      "--use-angle=gl",
+      "--enable-unsafe-swiftshader",
+      "--use-angle=swiftshader",
       "about:blank",
     ],
     stdout: "ignore",
@@ -67,7 +67,7 @@ async function openBrowser(): Promise<BrowserDriver> {
     await Bun.sleep(25);
   }
   const tabResponse = await fetch(
-    `http://127.0.0.1:${debugPort}/json/new?http://127.0.0.1:${port}/`,
+    `http://127.0.0.1:${debugPort}/json/new?about:blank`,
     { method: "PUT" },
   );
   requireCondition(tabResponse.ok, "Chrome did not open the recovery page");
@@ -80,8 +80,13 @@ async function openBrowser(): Promise<BrowserDriver> {
   await new Promise<void>((resolve) => (socket.onopen = () => resolve()));
   let nextId = 1;
   const pending = new Map<number, (value: any) => void>();
+  let pageLoadResolver: (() => void) | null = null;
   socket.onmessage = (event) => {
     const message = JSON.parse(String(event.data));
+    if (message.method === "Page.loadEventFired") {
+      pageLoadResolver?.();
+      pageLoadResolver = null;
+    }
     pending.get(message.id)?.(message);
     pending.delete(message.id);
   };
@@ -90,12 +95,22 @@ async function openBrowser(): Promise<BrowserDriver> {
     socket.send(JSON.stringify({ id, method, params }));
     return Promise.race([
       new Promise<any>((resolve) => pending.set(id, resolve)),
-      Bun.sleep(3_000).then(() => {
-        throw new Error(`browser did not answer ${method} within three seconds`);
+      Bun.sleep(15_000).then(() => {
+        throw new Error(`browser did not answer ${method} within 15 seconds`);
       }),
     ]);
   };
   await call("Runtime.enable");
+  await call("Page.enable");
+  const pageLoaded = new Promise<void>((resolve) => {
+    pageLoadResolver = resolve;
+  });
+  await call("Page.navigate", { url: `http://127.0.0.1:${port}/` });
+  const loadFinished = await Promise.race([
+    pageLoaded.then(() => true),
+    Bun.sleep(15_000).then(() => false),
+  ]);
+  requireCondition(loadFinished, "recovery page did not finish loading");
   return { chrome, socket, call };
 }
 
@@ -123,7 +138,7 @@ async function waitForBrowser(
   failure: string,
 ): Promise<BrowserSnapshot> {
   let latest: BrowserSnapshot | null = null;
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     latest = await browserSnapshot(driver);
     if (predicate(latest)) return latest;
     await Bun.sleep(50);

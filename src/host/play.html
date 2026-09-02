@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="data:," />
     <title>Greywrought Clause — Magitek Boar</title>
-    <link rel="stylesheet" href="/app/greywrought-clause/cinderwake.css" />
+    <link rel="stylesheet" href="./app/greywrought-clause/cinderwake.css" />
     <script type="importmap">
       {
         "imports": {
-          "three": "/vendor/three.module.js",
-          "three/addons/": "/vendor/three-addons/",
-          "#clause-runtime-wasm": "/wasm/clause_runtime.js"
+          "three": "./vendor/three.module.js",
+          "three/addons/": "./vendor/three-addons/",
+          "#clause-runtime-wasm": "./wasm/clause_runtime.js"
         }
       }
     </script>
@@ -105,8 +105,11 @@
         <h1>Boar Breach</h1>
         <div class="kicker">One living Clause session</div>
         <div id="stage">Opening world…</div>
+        <div id="expedition-progress" class="expedition-progress" role="progressbar" aria-label="Ashen Verge foothold" aria-valuemin="0" aria-valuenow="0" aria-valuemax="3">Expedition 1 of 3 · foothold 0 / 3</div>
+        <div id="save-status" class="save-status" aria-live="polite">Checking saved foothold…</div>
         <p id="summary">The source-authored room is entering real Wasm.</p>
         <button id="reset-encounter" class="primary">Reset encounter · R</button>
+        <button id="clear-progress">Clear saved campaign</button>
         <section>
           <h2>Authoritative custody</h2>
           <div id="game-custody">No gameplay advance yet.</div>
@@ -138,6 +141,6 @@
         </details>
       </aside>
     </main>
-    <script type="module" src="/app/greywrought-clause/play.js"></script>
+    <script type="module" src="./app/greywrought-clause/play.js"></script>
   </body>
 </html>

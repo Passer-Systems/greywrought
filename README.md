@@ -1,107 +1,113 @@
 # Greywrought Clause
 
-This repository owns the Greywrought application written in Clause. Clause
-itself remains a language/runtime project; the older `greywrought` repository
-is context only and is neither imported nor modified here.
+Greywrought Clause is a playable Clause/Wasm action-RPG slice. The world law in
+`src/world/embodied-encounter.clause` owns movement, combat, vitality, death,
+loot custody, extraction, progression, failure, and reset. Strict TypeScript
+and Three.js transport physical input and render admitted projections without
+deciding gameplay.
 
-The primary playable slice is **Cinderwake**, one embodied field whose movement,
-combat, deterministic sample, vitality, death, loot custody, completion,
-failure, and reset are owned by `src/world/embodied-encounter.clause`. Keyboard
-input and fixed ticks first produce a hidden Candidate Delta; only the following
-separate Admission installs the visible world revision. Strict TypeScript and
-Three.js transport input and render admitted projections without deciding
-gameplay.
+Play the published build at <https://passer-systems.github.io/greywrought/>.
 
-The wayfarer begins safely beside the western moonwell. The cinder wraith
-telegraphs and launches one projected bolt that travels across several
-admitted Steps. One Clause-owned contact law spends the bolt when it reaches
-the wayfarer: grounded contact applies `ember-mark`, whose timer delays bounded
-damage, while airborne contact defeats the wraith without applying the mark.
-The same actor-owned propulsion vocabulary supplies world-fixed
-movement, horizontal and vertical sustain, orthogonal bursts, one cumulative
-energy resource, an ignition threshold, and delayed regeneration. The
-revealed key uses a Clause-owned 0.6-unit pickup radius before custody
-transfers.
+Every input and fixed tick first produces a hidden Candidate Delta. Only the
+following separate Admission installs the visible world revision. The sidebar
+keeps that custody order observable while the encounter runs.
 
-The earlier disconnect proof remains available as a secondary journey: an
-ashen wayfarer forks from an exact authoritative revision while disconnected,
-attacks one cinder wraith under an explicit retained random Observation, and
-returns non-authoritative damage, death, and loot consequences. The same
-Clause-owned occurrences replay against the independently advanced
-authoritative world, and only a separate Admission establishes the successor.
+## The three-expedition campaign
 
-A separate moonwell process now remains live across multiple Steps,
-suspension, and linear resumption. Its Clause-owned effect intent crosses one
-generic file boundary under exact one-shot authorization and returns distinct
-attempt, receipt, Observation, and Judgment evidence. That lifecycle creates
-no Candidate Delta or StateRevision; the combat journey's later Admission is
-still the only authoritative successor operation.
+The wayfarer fights a corrupted magitek boar, loots its Ashen Breach Key,
+spends the key at the moonwell, crosses the temporary breach, recovers a
+Cephorium cache, and carries it back to extract. The first two extractions
+advance a durable foothold; the third establishes permanent Ashen Verge
+access.
 
-Authority is divided as follows:
+The browser stores only the last admitted progress projection. On reload it
+returns that number as an observation. Clause law validates it, rejects invalid
+values, clamps completed progress to the authored requirement, and decides
+whether access is sealed or permanent. The sidebar shows the current expedition
+and provides an explicit control to clear the saved campaign.
 
-- `src/world/*.clause` owns world laws and domain transition meaning.
-- `src/host/*.ts` owns only passive presentation and the exact Clause Wasm ABI.
-- `acceptance/disconnect/` owns the bounded executable combat journey and its
-  source-only critical-threshold edit.
-- ignored `build/` owns every CPP1, CWR1, Wasm, JavaScript, and native
-  materialization.
+Combat includes a readable charge telegraph and corridor, perpendicular dodge
+and jump responses, recovery punish windows, sword commitment, ranged action,
+booster energy, status effects, health feedback, corpse and cache loot windows,
+and terminal success/failure feedback.
 
-Current focused loops:
+## Authority boundaries
+
+- `src/world/*.clause` is the sole authority for gameplay meaning.
+- `src/host/*.ts` is the passive browser presentation and exact Clause Wasm ABI.
+- `acceptance/` contains native, Wasm, browser, liveness, hot-edit, and custody
+  proofs.
+- ignored `build/` and `dist/` contain all generated artifacts.
+- `vendor/clause` is an immutable Git submodule, not a live local checkout.
+
+The earlier exact disconnect/reconnect proof and the independently authorized
+moonwell effect lifecycle remain available in the sidebar and acceptance suite.
+
+## Clean setup
+
+Prerequisites are Git, Bun 1.3.13, Rust 1.96.1, a C toolchain, and Chrome for
+browser acceptance.
 
 ```sh
-nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu/bin:$PATH; cargo test --test law_edit --locked -- --nocapture'
-nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu/bin:$PATH; cargo test --test disconnect --locked'
-nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu/bin:$PATH; cargo run --bin conquest --locked'
-bun run build:host
+git clone --recurse-submodules https://github.com/Passer-Systems/greywrought.git
+cd greywrought
+bun install --frozen-lockfile
+bun run check:portable
+```
+
+If the repository was cloned without submodules:
+
+```sh
+git submodule update --init --recursive
+```
+
+## Build and verify
+
+```sh
+cargo test --locked
+bun run check:release
 bun run test:host
 bun run test:wasm-conquest
 bun run test:wasm-effect
 bun run test:wasm-combat-depth
-bun run check:conquest
-bun run check:combat-depth
 ```
 
-To run the playable browser shell:
+`check:release` verifies the immutable Clause commit and Wasm digest, rejects
+machine-specific paths, runs the focused native and Wasm depth checks, and
+produces the complete static release in `dist/`.
+
+## Play locally
 
 ```sh
 bun run play
 ```
 
-Then open <http://127.0.0.1:4173/>. The shell presents and invokes the exact
-Clause/Wasm world, Candidate, Admission, explanation, and effect boundaries.
-Click the arena, move with `W` forward, `S` backward, `A` left, and `D` right;
-hold `Shift` for horizontal sustain, use `Q` for a horizontal burst, jump with
-`Space`, swing the equipped sword with `J`, hold `E` for vertical sustain, use `F` for a vertical burst, and reset
-with `R`. A fixed high-oblique camera follows
-the admitted wayfarer position while keeping the encounter ahead in view. Read
-the wraith telegraph, meet its bolt while airborne, walk over the glowing key, then
-carry it west to the moonwell.
+Open <http://127.0.0.1:4173/>. Click the arena, then use WASD to move, left-drag
+to orbit, the wheel to zoom, Tab to target, `1` for a ranged action, `J` for the
+sword, Space to jump, Shift/Q for horizontal propulsion, E/F for vertical
+propulsion, right-click to loot, and `R` to reset the expedition.
 
-Four consecutive typed combat-behavior edits reached their first separately
-admitted browser frames in 220, 190, 236, and 150 ms (205 ms median), with
-26.5–31.6 ms of resident compilation. Every sample stayed below the 250 ms
-budget. No edit rebuilt or restarted Rust, TypeScript, Wasm, the server, or the
-browser page.
+The development server keeps one resident source session and can admit hot
+Clause edits without rebuilding or reloading the browser. Acceptance performs
+four alternating, typed combat-law edits and requires each to reach an admitted
+browser frame in under 2.5 seconds, including compilation and headless rendering.
 
-`bun run check:conquest` materializes the current Clause source to CWR1,
-strictly checks and builds the passive TypeScript host, stages the exact pinned
-Clause adapters and Wasm runtime, and executes the bounded branch journey. No
-generated artifact is tracked.
+To inspect the exact static publication under a Pages-style subpath:
 
-`bun run test:wasm-effect` writes exact Clause payload bytes to ignored
-`build/ongoing-effect/wasm-receipt.bin`; this is the real foreign action, not a
-manufactured success flag. `bun run check:conquest` then runs the separate
-combat Candidate Delta and Admission journey.
+```sh
+bun run build:static
+bun run serve:static
+```
 
-`bun run check:combat-depth` runs the focused native source assertions,
-materializes the embodied encounter, and exercises it through the real Clause
-Wasm cartridge port. It proves safe idle flight, contact-only delayed damage,
-world-fixed diagonal movement, sustained direction changes, orthogonal bursts,
-grounded-only jump, energy ignition and regeneration, reset, pickup proximity,
-and custody across separate Candidate and Admission operations.
+Open <http://127.0.0.1:4180/greywrought/>. Static hosting uses the
+materialized embodied cartridge while preserving the same runtime, Candidate,
+Admission, and projection boundaries.
 
-Pinned inputs:
+## Continuous delivery
 
-- Clause `f0ca1bb912829572ced3feebd17a99cf749eb494` (includes strict generated
-  TypeScript adapters for the workbench, cartridge port, and process branch,
-  plus the source-owned world and deterministic physical-input lowering)
+`.github/workflows/release.yml` checks out the Clause submodule, pins Bun and
+Rust, runs every native, host, Wasm, dynamic-browser, three-expedition,
+persistence, liveness, hot-edit, recovery, and static-subpath gate, then
+publishes `dist/` to GitHub Pages from `main`.
+
+Pinned Clause input: `f0ca1bb912829572ced3feebd17a99cf749eb494`.

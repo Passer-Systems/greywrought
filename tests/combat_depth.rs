@@ -332,6 +332,44 @@ on prepare-frontier-key-proof ?objective
     source
 }
 
+#[test]
+fn persisted_foothold_is_revalidated_by_clause_law() -> Result<(), Box<dyn Error>> {
+    let mut partial = open_session()?;
+    scalar_input(&mut partial, b"PersistedFootholdProgress", 2.0)?;
+    scalar_input(
+        &mut partial,
+        b"PersistedPermanentFootholdProgress",
+        2.0,
+    )?;
+    let partial_projection = admitted_tick(&mut partial)?.1;
+    assert_eq!(frontier_progress(&partial_projection), 2.0);
+    assert_eq!(frontier_access(&partial_projection), b"sealed");
+
+    let mut permanent = open_session()?;
+    scalar_input(&mut permanent, b"PersistedFootholdProgress", 999.0)?;
+    scalar_input(
+        &mut permanent,
+        b"PersistedPermanentFootholdProgress",
+        999.0,
+    )?;
+    let permanent_projection = admitted_tick(&mut permanent)?.1;
+    assert_eq!(frontier_progress(&permanent_projection), 3.0);
+    assert_eq!(frontier_access(&permanent_projection), b"permanent-open");
+    assert_eq!(arena_max_x(&permanent_projection), 2048.0);
+
+    let mut rejected = open_session()?;
+    scalar_input(&mut rejected, b"PersistedFootholdProgress", -5.0)?;
+    scalar_input(
+        &mut rejected,
+        b"PersistedPermanentFootholdProgress",
+        -5.0,
+    )?;
+    let rejected_projection = admitted_tick(&mut rejected)?.1;
+    assert_eq!(frontier_progress(&rejected_projection), 0.0);
+    assert_eq!(frontier_access(&rejected_projection), b"sealed");
+    Ok(())
+}
+
 fn source_with_behavior(binding: &str) -> Vec<u8> {
     let source = str::from_utf8(EMBODIED_SOURCE).expect("embedded Clause source is UTF-8");
     let canonical = "cinder-wraith combat behavior relentless-charge";

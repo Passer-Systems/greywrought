@@ -873,6 +873,22 @@ body[data-game-phase="completed"] .terminal-feedback-title {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+.expedition-progress {
+  margin-top: 10px;
+  border-left: 3px solid #5ce1d4;
+  padding: 8px 10px;
+  background: #0d292a9c;
+  color: #a8fff5;
+  font: 700 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .04em;
+}
+
+.save-status {
+  margin: 6px 0 12px;
+  color: #adbbb8;
+  font: 10px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 button {
   border-color: #c4633c38;
   border-radius: 2px;

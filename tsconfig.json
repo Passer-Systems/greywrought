@@ -12,5 +12,9 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src/host/**/*.ts", "acceptance/disconnect/**/*.ts"]
+  "include": [
+    "src/host/**/*.ts",
+    "acceptance/disconnect/**/*.ts",
+    "scripts/**/*.ts"
+  ]
 }

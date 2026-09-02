@@ -12,8 +12,9 @@ import {
   type Scene,
 } from "three";
 import { GLTFLoader, type GLTF } from "three/addons/loaders/GLTFLoader.js";
+import { publicUrl } from "./public-url.js";
 
-const ASSET_ROOT = "/assets/quaternius/nature";
+const ASSET_ROOT = publicUrl("assets/quaternius/nature");
 
 interface Placement {
   readonly x: number;

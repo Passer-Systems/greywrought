@@ -27,9 +27,10 @@ import {
 } from "three";
 import { GLTFLoader, type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { clone } from "three/addons/utils/SkeletonUtils.js";
+import { publicUrl } from "./public-url.js";
 
 const BASE_MODEL_URL =
-  "/assets/quaternius/rig/wayfarer/Knight_Golden_Female.gltf";
+  publicUrl("assets/quaternius/rig/wayfarer/Knight_Golden_Female.gltf");
 
 interface RigSockets {
   readonly back: Group;
