@@ -1622,9 +1622,12 @@ const gameKeys = new Set([
 
 function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   const { canvas } = app.scene;
+  const keyboardListenerOptions: AddEventListenerOptions = { capture: true };
+  const heldKeys = new Set<string>();
   const down = (event: KeyboardEvent): void => {
     if (!event.repeat && gameKeys.has(event.code)) {
       event.preventDefault();
+      if (heldGameKeys.has(event.code)) heldKeys.add(event.code);
       observeGameKey(
         app,
         {
@@ -1638,8 +1641,15 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   const up = (event: KeyboardEvent): void => {
     if (heldGameKeys.has(event.code)) {
       event.preventDefault();
+      heldKeys.delete(event.code);
       observeGameKey(app, event, "up");
     }
+  };
+  const releaseHeldKeys = (): void => {
+    for (const code of heldKeys) {
+      observeGameKey(app, { code, repeat: false }, "up");
+    }
+    heldKeys.clear();
   };
   const cameraBasis = (event: PointerEvent): void => {
     if ((event.buttons & 1) !== 0) observeCameraBasis(app);
@@ -1647,11 +1657,21 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   // Keyboard control follows the active game page rather than canvas focus.
   // Camera/pointer capture remains canvas-local, but clicking another HUD
   // surface must not make ordinary WASD movement appear to stop.
-  window.addEventListener("keydown", down);
-  window.addEventListener("keyup", up);
+  window.addEventListener("keydown", down, keyboardListenerOptions);
+  window.addEventListener("keyup", up, keyboardListenerOptions);
+  window.addEventListener("blur", releaseHeldKeys);
+  document.addEventListener("visibilitychange", releaseHeldKeys);
   canvas.addEventListener("pointermove", cameraBasis);
-  listeners.push(() => window.removeEventListener("keydown", down));
-  listeners.push(() => window.removeEventListener("keyup", up));
+  listeners.push(() =>
+    window.removeEventListener("keydown", down, keyboardListenerOptions),
+  );
+  listeners.push(() =>
+    window.removeEventListener("keyup", up, keyboardListenerOptions),
+  );
+  listeners.push(() => window.removeEventListener("blur", releaseHeldKeys));
+  listeners.push(() =>
+    document.removeEventListener("visibilitychange", releaseHeldKeys),
+  );
   listeners.push(() => canvas.removeEventListener("pointermove", cameraBasis));
 }
 
