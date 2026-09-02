@@ -809,6 +809,7 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     gamePlayerVitality: String(player.vitality),
     gameEnemyVitality: String(enemy.vitality),
     gameEnemyCombatStatus: enemy.combatStatus,
+    gameLootState: loot.state,
     gameCustody: loot.custody,
     gamePlayerX: String(player.position.x),
     gamePlayerZ: String(player.position.z),
