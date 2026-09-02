@@ -131,6 +131,7 @@ interface SceneShell {
   readonly enemyNameplateAnchor: Vector3;
   enemyNameplateProjection: EnemyNameplateProjection | null;
   frameHandle: number;
+  lastFrameRenderedAt: number;
   alive: boolean;
 }
 
@@ -589,7 +590,7 @@ function showDamageNumber(amount: number, kind: string, critical: boolean): void
 
 function boundedGameEvent(event: Record<string, unknown>): void {
   const events = window.__GREYWROUGHT_GAME_EVENTS__;
-  events.push(event);
+  events.push({ atMillis: Math.round(performance.now()), ...event });
   if (events.length > 512) events.shift();
 }
 
@@ -1098,6 +1099,14 @@ function bindResidentWorker(app: PlayApp, listeners: Array<() => void>): void {
             requireField(value, "receipt", "resident worker event"),
           ),
         );
+      } else if (kind === "heartbeat") {
+        boundedGameEvent({
+          phase: "worker-heartbeat",
+          workerTimeMillis: requireNumber(
+            requireField(value, "workerTimeMillis", "resident worker heartbeat"),
+            "resident worker heartbeat.workerTimeMillis",
+          ),
+        });
       } else if (kind === "failure") {
         residentLawFailure(
           requireString(
@@ -1154,6 +1163,14 @@ function focusScene(shell: SceneShell): void {
 
 function renderLoop(shell: SceneShell): void {
   if (!shell.alive) return;
+  const now = performance.now();
+  if (shell.lastFrameRenderedAt > 0 && now - shell.lastFrameRenderedAt > 250) {
+    boundedGameEvent({
+      phase: "frame-gap",
+      gapMillis: Math.round(now - shell.lastFrameRenderedAt),
+    });
+  }
+  shell.lastFrameRenderedAt = now;
   const { canvas, presentation } = shell;
   renderPresentationFrame(
     presentation,
@@ -1285,6 +1302,7 @@ function createScene(): SceneShell {
     enemyNameplateAnchor: new Vector3(),
     enemyNameplateProjection: null,
     frameHandle: 0,
+    lastFrameRenderedAt: 0,
     alive: true,
   };
   canvas.id = "world-canvas";

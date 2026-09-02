@@ -53,6 +53,7 @@ type ResidentCommand =
 type ResidentEvent =
   | Readonly<{ kind: "projection-frame"; frame: string | readonly number[] }>
   | Readonly<{ kind: "receipt"; receipt: LifecycleReceipt }>
+  | Readonly<{ kind: "heartbeat"; workerTimeMillis: number }>
   | Readonly<{ kind: "failure"; message: string }>;
 
 interface ResidentWorkerScope {
@@ -99,6 +100,7 @@ let simulationStarted = false;
 let disposed = false;
 let commands = Promise.resolve();
 const inputQueue: ResidentInput[] = [];
+let heartbeatHandle: ReturnType<typeof setInterval> | null = null;
 
 // These bindings represent one discrete action per physical press. Keeping
 // duplicate edges out of the transport queue prevents browser key-repeat (or
@@ -196,6 +198,14 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
       handleReceipt,
       request,
     );
+    heartbeatHandle = setInterval(() => {
+      if (!disposed) {
+        workerScope.postMessage({
+          kind: "heartbeat",
+          workerTimeMillis: performance.now(),
+        });
+      }
+    }, 500);
     flushInput();
     return;
   }
@@ -242,6 +252,7 @@ async function handleCommand(command: ResidentCommand): Promise<void> {
     queueInput(command.input);
   } else {
     disposed = true;
+    if (heartbeatHandle !== null) clearInterval(heartbeatHandle);
     controller?.dispose();
     controller = null;
   }
