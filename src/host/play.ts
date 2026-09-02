@@ -1602,6 +1602,12 @@ function observeGameKey(
   event: PhysicalKey,
   phase: "down" | "up",
 ): void {
+  boundedGameEvent({
+    phase: "keyboard-observed",
+    code: event.code,
+    inputPhase: phase,
+    repeat: event.repeat,
+  });
   queueGameInput(app, {
     kind: "keyboard",
     code: event.code,
