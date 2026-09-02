@@ -148,8 +148,8 @@ try {
     throw new Error("resident projection did not become available");
   };
 
-  await key("keyDown", "KeyR", "r", 82);
-  await key("keyUp", "KeyR", "r", 82);
+  await key("keyDown", "ShiftR", "R", 82);
+  await key("keyUp", "ShiftR", "R", 82);
   const reset = await waitForProjection();
   let afterMove = reset;
   for (let attempt = 0; attempt < 4 && afterMove.playerX <= reset.playerX; attempt += 1) {
@@ -182,8 +182,8 @@ try {
   await call("Runtime.evaluate", {
     expression: `document.getElementById("reduced-motion").click(); const volume = document.getElementById("effects-volume"); volume.value = "0"; volume.dispatchEvent(new Event("input", { bubbles: true }))`,
   });
-  await key("keyDown", "KeyR", "r", 82);
-  await key("keyUp", "KeyR", "r", 82);
+  await key("keyDown", "ShiftR", "R", 82);
+  await key("keyUp", "ShiftR", "R", 82);
   await Bun.sleep(250);
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -221,8 +221,8 @@ try {
     if (value.residentPhase === "session-started") break;
     await Bun.sleep(50);
   }
-  await key("keyDown", "KeyR", "r", 82);
-  await key("keyUp", "KeyR", "r", 82);
+  await key("keyDown", "ShiftR", "R", 82);
+  await key("keyUp", "ShiftR", "R", 82);
   const recovered = await waitForProjection();
   requireCondition(
     recovered.gamePersistence === "recovered",

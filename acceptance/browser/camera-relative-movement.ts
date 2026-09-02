@@ -147,8 +147,8 @@ try {
     buttons: 0,
     clickCount: 1,
   });
-  await key("keyDown", "KeyR", "r");
-  await key("keyUp", "KeyR", "r");
+  await key("keyDown", "ShiftR", "R");
+  await key("keyUp", "ShiftR", "R");
   const reset = await waitFor(
     (value) => Number.isFinite(value.playerX) && value.admittedFrames > 0,
     "reset did not open an admitted game projection",

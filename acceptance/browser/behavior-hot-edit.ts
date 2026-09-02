@@ -109,7 +109,7 @@ try {
   for (const type of ["keyDown", "keyUp"] as const) {
     await call("Input.dispatchKeyEvent", {
       type,
-      code: "KeyR",
+      code: "ShiftR",
       key: "r",
       windowsVirtualKeyCode: 82,
       nativeVirtualKeyCode: 82,

@@ -141,7 +141,7 @@ const edgeTriggeredKeyboardCodes = new Set([
   "Tab",
   "ShiftTab",
   "LootItem",
-  "KeyR",
+  "ShiftR",
 ]);
 
 function envelope(input: ResidentInput): WorkbenchEnvelope {

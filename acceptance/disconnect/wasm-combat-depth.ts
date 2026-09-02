@@ -449,7 +449,7 @@ function verifyResourceGatedFrontier(module: object, request: unknown): void {
       revision,
       configurationRevision,
       inputSequence,
-      "KeyR",
+      "ShiftR",
       "down",
     );
     for (let ordinal = 0; ordinal < 3; ordinal += 1) {
@@ -1248,7 +1248,7 @@ function verifyOrthogonalPropulsionAndEnergy(module: object, request: unknown): 
       vectorField(reignitedPlayer, "velocity", "z") === recoveredZ,
     "reignition changed horizontal velocity",
   );
-  admitKey(opened, revision, configurationRevision, inputSequence, "KeyR", "down");
+  admitKey(opened, revision, configurationRevision, inputSequence, "ShiftR", "down");
   let restored = admitEmpty(opened, revision, configurationRevision);
   for (let ordinal = 0; ordinal < 2; ordinal += 1) {
     restored = admitEmpty(opened, revision, configurationRevision);
@@ -1436,7 +1436,7 @@ function verifySustainedWasmLiveness(
 
   for (let tick = 1; tick <= tickCount; tick += 1) {
     try {
-      if (tick % 1_250 === 0) press("KeyR");
+      if (tick % 1_250 === 0) press("ShiftR");
       if (tick % 313 === 0) {
         key(directions[directionIndex]!, "up");
         directionIndex = (directionIndex + 1) % directions.length;

@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         objective_state(&failed),
     );
     key(&mut fail, b"KeyD", ExecutableKeyPhaseV1::Up)?;
-    key(&mut fail, b"KeyR", ExecutableKeyPhaseV1::Down)?;
+    key(&mut fail, b"ShiftR", ExecutableKeyPhaseV1::Down)?;
     let (_, reset_first) = admitted_tick(&mut fail)?;
     eprintln!("reset-first objective={}", objective_state(&reset_first));
     let (_, reset_second) = admitted_tick(&mut fail)?;

@@ -250,7 +250,7 @@ try {
     return JSON.parse(result.result.result.value as string) as Snapshot;
   };
 
-  await press("KeyR");
+  await press("ShiftR");
   let initial: Snapshot | null = null;
   let lastInitial: Snapshot | null = null;
   for (let attempt = 0; attempt < 240; attempt += 1) {
@@ -393,7 +393,7 @@ try {
     for (const event of value.longTasks) longTasks.add(JSON.stringify(event));
 
     if (value.phase === "failed" || value.phase === "completed") {
-      await press("KeyR");
+      await press("ShiftR");
       resets += 1;
       lastPositionChangeAt = performance.now();
     }
@@ -458,7 +458,7 @@ try {
       lastPositionChangeAt = performance.now();
     }
     if (performance.now() - lastResetAt >= 20_000) {
-      await press("KeyR");
+      await press("ShiftR");
       resets += 1;
       lastResetAt = performance.now();
       lastPositionChangeAt = performance.now();

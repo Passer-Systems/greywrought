@@ -833,7 +833,7 @@ bind keyboard Digit1 down to begin-ranged-action
 bind keyboard Tab down to target-next-enemy
 bind keyboard ShiftTab down to target-previous-enemy
 bind keyboard LootItem down to acquire-loot
-bind keyboard KeyR down to reset-objective
+bind keyboard ShiftR down to reset-objective
 bind scalar-input CameraForwardX to observe-camera-forward-x
 bind scalar-input CameraForwardZ to observe-camera-forward-z
 bind scalar-input PersistedFootholdProgress to restore-partial-foothold-progress

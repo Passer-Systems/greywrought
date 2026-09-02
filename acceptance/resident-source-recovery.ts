@@ -224,7 +224,7 @@ try {
   );
   await browser.call("Input.dispatchKeyEvent", {
     type: "keyDown",
-    code: "KeyR",
+    code: "ShiftR",
     key: "r",
     windowsVirtualKeyCode: 82,
     nativeVirtualKeyCode: 82,

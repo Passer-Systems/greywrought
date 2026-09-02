@@ -2642,6 +2642,8 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   const keyboardListenerOptions: AddEventListenerOptions = { capture: true };
   const heldKeys = new Map<string, string>();
   loadInputPreferences(app);
+  const physicalBindingCode = (event: KeyboardEvent): string =>
+    event.shiftKey && event.code === "KeyR" ? "ShiftR" : event.code;
   const down = (event: KeyboardEvent): void => {
     if (app.playerInput.captureAction !== null) {
       event.preventDefault();
@@ -2649,17 +2651,18 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
       const action = app.playerInput.captureAction;
       app.playerInput.captureAction = null;
       if (event.code !== "Escape") {
+        const physicalCode = physicalBindingCode(event);
         app.playerInput.preferences = {
           ...app.playerInput.preferences,
           bindings: rebindAction(
             app.playerInput.preferences.bindings,
             action,
-            event.code,
+            physicalCode,
           ),
         };
         persistInputPreferences(app);
         element("input-preference-status").textContent =
-          `${definitionForAction(action).label} now uses ${displayKey(event.code)}.`;
+          `${definitionForAction(action).label} now uses ${displayKey(physicalCode)}.`;
       } else {
         element("input-preference-status").textContent = "Rebinding cancelled.";
       }
@@ -2668,7 +2671,7 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
     }
     const action = actionForPhysicalCode(
       app.playerInput.preferences.bindings,
-      event.code,
+      physicalBindingCode(event),
     );
     if (action === null || event.repeat) return;
     event.preventDefault();
@@ -2773,7 +2776,7 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
 
 function pressReset(app: PlayApp): void {
   app.scene.canvas.focus({ preventScroll: true });
-  observeGameKey(app, { code: "KeyR", repeat: false }, "down");
+  observeGameKey(app, { code: "ShiftR", repeat: false }, "down");
 }
 
 function stageProcessBranch(stage: JourneyStage): ProcessBranch | null {

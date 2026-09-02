@@ -1,4 +1,4 @@
-export const inputPreferencesStorageKey = "greywrought/input-preferences-v2";
+export const inputPreferencesStorageKey = "greywrought/input-preferences-v3";
 
 export type GameAction =
   | "forward"
@@ -35,7 +35,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   { action: "shield", label: "Pulse shield", semanticCode: "KeyE", held: true },
   { action: "horizontalSustain", label: "Horizontal sustain", semanticCode: "ShiftLeft", held: true },
   { action: "horizontalBurst", label: "Horizontal burst", semanticCode: "KeyQ", held: false },
-  { action: "reset", label: "Reset encounter", semanticCode: "KeyR", held: false },
+  { action: "reset", label: "Reset encounter", semanticCode: "ShiftR", held: false },
 ] as const;
 
 export type InputBindings = Readonly<Record<GameAction, string>>;
@@ -62,7 +62,7 @@ export const defaultBindings: InputBindings = Object.freeze({
   shield: "KeyE",
   horizontalSustain: "ShiftLeft",
   horizontalBurst: "KeyQ",
-  reset: "KeyR",
+  reset: "ShiftR",
 });
 
 export const defaultInputPreferences: InputPreferences = Object.freeze({
@@ -168,6 +168,7 @@ export function rebindAction(
 }
 
 export function displayKey(code: string): string {
+  if (code === "ShiftR") return "Shift+R";
   if (code.startsWith("Key")) return code.slice(3);
   if (code.startsWith("Digit")) return code.slice(5);
   if (code === "Space") return "Space";

@@ -302,7 +302,7 @@ try {
   const results: Snapshot[] = [];
 
   for (let expedition = 1; expedition <= 3; expedition += 1) {
-    await press("KeyR");
+    await press("ShiftR");
     const reset = await waitForExpeditionReset(expedition - 1);
     requireCondition(reset.phase === "playing", `expedition ${expedition} reset reached ${reset.phase}`);
 
@@ -346,7 +346,7 @@ try {
         retries += 1;
         requireCondition(retries <= 2, `expedition ${expedition} exhausted its recovery retries`);
         await setHeld(new Set());
-        await press("KeyR");
+        await press("ShiftR");
         await waitForExpeditionReset(expedition - 1);
         priorSummary = "";
         dodgeKey = null;
@@ -507,7 +507,7 @@ try {
     clickCount: 1,
   });
   await call("Runtime.evaluate", {
-    expression: `window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyR", key: "r" })); window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyR", key: "r" }))`,
+    expression: `window.dispatchEvent(new KeyboardEvent("keydown", { code: "ShiftR", key: "R", shiftKey: true })); window.dispatchEvent(new KeyboardEvent("keyup", { code: "ShiftR", key: "R", shiftKey: true }))`,
   });
   let restored: Snapshot | null = null;
   let latestRestoredSnapshot: Snapshot | null = null;
