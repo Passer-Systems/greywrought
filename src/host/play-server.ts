@@ -1,4 +1,5 @@
-const RESIDENT_SOURCE = "src/world/embodied-encounter.clause";
+const RESIDENT_SOURCE =
+  Bun.env.GREYWROUGHT_RESIDENT_SOURCE ?? "src/world/embodied-encounter.clause";
 
 interface GenerationPayload {
   readonly generation: number;
@@ -25,6 +26,7 @@ function spawnResidentGeneration() {
   let buffered = "";
   let source: string | null = null;
   let latest: string | null = null;
+  let active: Readonly<{ line: string; modified: number }> | null = null;
 
   async function readLine(): Promise<string> {
     for (;;) {
@@ -76,33 +78,56 @@ function spawnResidentGeneration() {
     return new Response("resident generation protocol failed", { status: 500 });
   }
 
+  function generationNumber(line: string): number | null {
+    const fields = line.split("\t");
+    if (fields[0] !== "generation" || fields.length !== 4) return null;
+    const generation = Number.parseInt(fields[1] ?? "", 10);
+    return Number.isSafeInteger(generation) ? generation : null;
+  }
+
+  function retainResult(line: string, modified: number): void {
+    latest = line;
+    if (generationNumber(line) !== null) active = { line, modified };
+  }
+
+  function currentResponse(after: number, modified: number): Response {
+    if (latest === null) {
+      return new Response("resident generation protocol failed", { status: 500 });
+    }
+    const generation = generationNumber(latest);
+    if (generation !== null) {
+      return after === generation
+        ? new Response(null, { status: 204 })
+        : generationResponse(latest, modified, after);
+    }
+    if (active === null) return generationResponse(latest, modified, after);
+    const activeGeneration = generationNumber(active.line);
+    if (after === activeGeneration) {
+      return new Response(null, {
+        status: 204,
+        headers: { "X-Greywrought-Source-State": "rejected" },
+      });
+    }
+    return generationResponse(active.line, active.modified, after);
+  }
+
   async function responseAfter(after: number): Promise<Response> {
     const file = Bun.file(RESIDENT_SOURCE);
     const nextSource = await file.text();
     const modified = file.lastModified;
     if (source === null) {
-      latest = await readLine();
+      retainResult(await readLine(), modified);
       source = nextSource;
-      return generationResponse(latest, modified, after);
+      return currentResponse(after, modified);
     }
     if (source === nextSource) {
-      if (latest === null) {
-        return new Response("resident generation protocol failed", { status: 500 });
-      }
-      const fields = latest.split("\t");
-      const generation =
-        fields.length === 4 && fields[1] !== undefined
-          ? Number.parseInt(fields[1], 10)
-          : -1;
-      return after === generation
-        ? new Response(null, { status: 204 })
-        : generationResponse(latest, modified, after);
+      return currentResponse(after, modified);
     }
     source = nextSource;
     child.stdin.write("reload\n");
     child.stdin.flush();
-    latest = await readLine();
-    return generationResponse(latest, modified, after);
+    retainResult(await readLine(), modified);
+    return currentResponse(after, modified);
   }
 
   return { child, responseAfter };

@@ -1243,7 +1243,17 @@ async function pollResidentLaw(app: PlayApp): Promise<void> {
       `/resident-generation?after=${resident.generation}`,
       { cache: "no-store" },
     );
-    if (response.status === 204) return;
+    if (response.status === 204) {
+      if (response.headers.get("X-Greywrought-Source-State") === "rejected") {
+        document.body.dataset.residentSourcePhase = "rejected";
+        element("resident-law").textContent =
+          `generation ${resident.generation} retained\n` +
+          "source edit rejected · play continues";
+      } else {
+        document.body.dataset.residentSourcePhase = "active";
+      }
+      return;
+    }
     const body: unknown = await response.json();
     if (!response.ok) {
       const record = requireForeignRecord(body, "resident rejection");
@@ -1253,6 +1263,7 @@ async function pollResidentLaw(app: PlayApp): Promise<void> {
       );
       throw new Error(`resident source rejected: ${errorHex}`);
     }
+    document.body.dataset.residentSourcePhase = "active";
     installResidentLaw(app, parseGenerationPayload(body));
   } catch (cause: unknown) {
     residentLawFailure(cause instanceof Error ? cause.message : String(cause));
