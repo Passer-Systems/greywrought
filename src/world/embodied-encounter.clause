@@ -205,6 +205,11 @@ relation max-z
   subject arena
   mode given arena yields value: one
 
+relation sword-commitment-ticks
+  reads {arena: Arena} sword commitment ticks {value: F64}
+  subject arena
+  mode given arena yields value: one
+
 relation player-vitals
   reads {player: Player} player vitals {value: Vec3}
   subject player
@@ -431,6 +436,7 @@ jump-arena minimum z -3.2
 jump-arena maximum z 3.2
 jump-arena projectile contact radius 0.6
 jump-arena loot pickup radius 0.6
+jump-arena sword commitment ticks 96.0
 
 player-1 position Vec3 { x: -2.0, y: 0.0, z: 0.5 }
 player-1 velocity Vec3 { x: 0.0, y: 0.0, z: 0.0 }
@@ -812,6 +818,7 @@ on begin-sword-action ?player
     ?player sword action sequence ?sequence
     ?player sword commitment clock ?clock
     ?player combat status ?combat-status
+    jump-arena sword commitment ticks ?commitment-ticks
     ?combat-status = alive
     ?clock = 0.0
   withdraw
@@ -819,7 +826,7 @@ on begin-sword-action ?player
     ?player sword commitment clock ?clock
   include
     ?player sword action sequence ?sequence + 1.0
-    ?player sword commitment clock 18.0
+    ?player sword commitment clock ?commitment-ticks
 
 on target-next-enemy ?player
   when

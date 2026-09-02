@@ -299,6 +299,37 @@ fn jump_vertical_sustain_and_energy_recovery_are_orthogonal() -> Result<(), Box<
 }
 
 #[test]
+fn sword_action_is_committed_until_the_animation_window_finishes() -> Result<(), Box<dyn Error>> {
+    let mut session = open_session()?;
+
+    key_down(&mut session, b"KeyJ")?;
+    let (_, started) = admitted_tick(&mut session)?;
+    assert_eq!(number(&started, b"sword-action-sequence"), 1.0);
+    assert!(number(&started, b"sword-commitment-clock") > 0.0);
+
+    // A second physical press during the committed Sword_Attack window must
+    // be ignored by the Clause law rather than queueing another action.
+    key_down(&mut session, b"KeyJ")?;
+    let (_, blocked) = admitted_tick(&mut session)?;
+    assert_eq!(number(&blocked, b"sword-action-sequence"), 1.0);
+
+    let mut settled = blocked;
+    for _ in 0..110 {
+        if number(&settled, b"sword-commitment-clock") == 0.0 {
+            break;
+        }
+        let (_, next) = admitted_tick(&mut session)?;
+        settled = next;
+    }
+    assert_eq!(number(&settled, b"sword-commitment-clock"), 0.0);
+
+    key_down(&mut session, b"KeyJ")?;
+    let (_, restarted) = admitted_tick(&mut session)?;
+    assert_eq!(number(&restarted, b"sword-action-sequence"), 2.0);
+    Ok(())
+}
+
+#[test]
 fn reset_restores_spawn_and_the_complete_propulsion_resource() -> Result<(), Box<dyn Error>> {
     let mut session = open_session()?;
     key_down(&mut session, b"KeyW")?;
