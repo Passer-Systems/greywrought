@@ -990,6 +990,8 @@ on reset-objective ?objective
 on tick ?player ?dt
   when
     ?dt > 0.0
+    game-objective reset signal Vec3 { x: ?reset, y: ?reset-phase, z: ?reset-unused }
+    ?reset = 0.0
     ?player position Vec3 { x: ?position-x, y: ?floor, z: ?position-z }
     ?player velocity Vec3 { x: ?velocity-x, y: 0.0, z: ?velocity-z }
     ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
@@ -1012,6 +1014,8 @@ on tick ?player ?dt
 on tick ?player ?dt
   when
     ?dt > 0.0
+    game-objective reset signal Vec3 { x: ?reset, y: ?reset-phase, z: ?reset-unused }
+    ?reset = 0.0
     ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
     ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
@@ -1036,6 +1040,8 @@ on tick ?player ?dt
 on tick ?player ?dt
   when
     ?dt > 0.0
+    game-objective reset signal Vec3 { x: ?reset, y: ?reset-phase, z: ?reset-unused }
+    ?reset = 0.0
     ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
     ?player horizontal intent Vec3 { x: ?intent-x, y: 0.0, z: ?intent-z }
@@ -1662,9 +1668,6 @@ on clear-reset-signal ?objective
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
     player-1 grounded ?grounded
-    player-1 horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
-    player-1 negative control Vec3 { x: ?negative-x, y: ?negative-y, z: ?negative-z }
-    player-1 positive control Vec3 { x: ?positive-x, y: ?positive-y, z: ?positive-z }
     player-1 move speed ?move-speed
     player-1 base move speed ?base-speed
     player-1 equipped booster ?booster
@@ -1690,15 +1693,6 @@ on clear-reset-signal ?objective
     ?velocity-y = 0.0
     ?velocity-z = 0.0
     ?grounded = true
-    ?intent-x = 0.0
-    ?intent-y = 0.0
-    ?intent-z = 0.0
-    ?negative-x = 0.0
-    ?negative-y = 0.0
-    ?negative-z = 0.0
-    ?positive-x = 0.0
-    ?positive-y = 0.0
-    ?positive-z = 0.0
     ?move-speed = ?base-speed
     ?energy = ?capacity
     ?regeneration-delay = 0.0
@@ -1813,9 +1807,6 @@ on reset-player-status ?player
 
 on reset-propulsion ?player
   when
-    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
-    ?player negative control Vec3 { x: ?negative-x, y: ?negative-y, z: ?negative-z }
-    ?player positive control Vec3 { x: ?positive-x, y: ?positive-y, z: ?positive-z }
     ?player move speed ?move-speed
     ?player base move speed ?base-speed
     ?player equipped booster ?booster
@@ -1825,16 +1816,10 @@ on reset-propulsion ?player
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
     ?reset = 1.0
   withdraw
-    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
-    ?player negative control Vec3 { x: ?negative-x, y: ?negative-y, z: ?negative-z }
-    ?player positive control Vec3 { x: ?positive-x, y: ?positive-y, z: ?positive-z }
     ?player move speed ?move-speed
     ?player booster energy ?energy
     ?player booster regeneration delay ?delay
   include
-    ?player horizontal intent Vec3 { x: 0.0, y: 0.0, z: 0.0 }
-    ?player negative control Vec3 { x: 0.0, y: 0.0, z: 0.0 }
-    ?player positive control Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?player move speed ?base-speed
     ?player booster energy ?capacity
     ?player booster regeneration delay 0.0

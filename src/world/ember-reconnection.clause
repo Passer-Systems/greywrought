@@ -1,13 +1,13 @@
-referent F64
-referent Wayfarer
-referent Enemy
-referent Attack
-referent AttackState
-referent CombatStatus
-referent Loot
-referent Custodian
-referent WorldObjective
-referent RandomSource
+F64
+Wayfarer
+Enemy
+Attack
+AttackState
+CombatStatus
+Loot
+Custodian
+WorldObjective
+RandomSource
 
 shape Vec3
   x: F64

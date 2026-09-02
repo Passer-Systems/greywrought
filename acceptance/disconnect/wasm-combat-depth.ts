@@ -1071,6 +1071,108 @@ function verifyOrthogonalPropulsionAndEnergy(module: object, request: unknown): 
   opened.port.disposeSession(opened.session);
 }
 
+function verifySustainedWasmLiveness(
+  module: object,
+  request: unknown,
+  tickCount: number,
+): void {
+  const opened = openCartridgeSession(module, request);
+  let revision = opened.revision;
+  const configurationRevision = { value: 0 };
+  const inputSequence = { value: 0 };
+  const directions: readonly MovementKey[] = ["KeyW", "KeyD", "KeyS", "KeyA"];
+  let directionIndex = 0;
+
+  const admit = (configuration: InputConfiguration): void => {
+    const candidateResult: Cell<CandidateCompletion | null> = { value: null };
+    opened.port.runCandidate(
+      opened.session,
+      createFixedTick(16),
+      configuration,
+      (result) => {
+        candidateResult.value = result;
+      },
+    );
+    const candidate = requireCandidate(candidateResult.value);
+    const admissionResult: Cell<AdmissionCompletion | null> = { value: null };
+    opened.port.requestAdmission(opened.session, candidate, (result) => {
+      admissionResult.value = result;
+    });
+    revision = requireAdmission(admissionResult.value).revision;
+  };
+
+  const key = (code: string, phase: "down" | "up"): void => {
+    configurationRevision.value += 1;
+    inputSequence.value += 1;
+    admit(
+      keyInputConfiguration(
+        policy(),
+        configurationRevision.value,
+        inputSequence.value,
+        code,
+        phase,
+      ),
+    );
+  };
+
+  const scalar = (channel: string, value: number): void => {
+    configurationRevision.value += 1;
+    inputSequence.value += 1;
+    admit(
+      scalarInputConfiguration(
+        policy(),
+        configurationRevision.value,
+        inputSequence.value,
+        channel,
+        value,
+      ),
+    );
+  };
+
+  const empty = (): void => {
+    configurationRevision.value += 1;
+    admit(emptyInputConfiguration(configurationRevision.value));
+  };
+
+  key(directions[directionIndex]!, "down");
+
+  const press = (code: string): void => {
+    key(code, "down");
+  };
+
+  for (let tick = 1; tick <= tickCount; tick += 1) {
+    try {
+      if (tick % 1_250 === 0) press("KeyR");
+      if (tick % 313 === 0) {
+        key(directions[directionIndex]!, "up");
+        directionIndex = (directionIndex + 1) % directions.length;
+        key(directions[directionIndex]!, "down");
+      }
+      if (tick % 188 === 0) press("KeyJ");
+      if (tick % 250 === 0) {
+        press("KeyQ");
+        press("KeyF");
+      }
+      if (tick % 375 === 0) press("Space");
+      if (tick % 438 === 0) press("Tab");
+      if (tick % 625 === 0) {
+        const quarter = (Math.floor(tick / 625) % 4) * (Math.PI / 2);
+        scalar("CameraForwardX", Math.sin(quarter));
+        scalar("CameraForwardZ", -Math.cos(quarter));
+      }
+      empty();
+    } catch (cause) {
+      throw new Error(
+        `sustained Wasm liveness failed at tick ${tick}, configuration ${configurationRevision.value}, input ${inputSequence.value}, revision ${identityString(revision)}`,
+        { cause },
+      );
+    }
+  }
+
+  opened.port.disposeSession(opened.session);
+  console.log(JSON.stringify({ sustainedWasmTicks: tickCount }));
+}
+
 async function main(): Promise<void> {
   const [wasmBytes, source] = await Promise.all([
     Bun.file("./build/host/wasm/clause_runtime_bg.wasm").arrayBuffer(),
@@ -1078,6 +1180,14 @@ async function main(): Promise<void> {
   ]);
   const module = initializeSessionModule(wasmBytes);
   const request = createExactProcessRequest(decodeCwr1Hex(source));
+  const sustainedTicks = Number.parseInt(
+    Bun.env.GREYWROUGHT_WASM_SOAK_TICKS ?? "0",
+    10,
+  );
+  if (sustainedTicks > 0) {
+    verifySustainedWasmLiveness(module, request, sustainedTicks);
+    return;
+  }
   verifyBoarChargeAndBurstCustody(module, request);
   verifyCameraRelativeHorizontalPropulsion(module, request);
   verifyOrthogonalPropulsionAndEnergy(module, request);

@@ -22,6 +22,9 @@ type Snapshot = Readonly<{
   latestAdmissionAt: number;
   latestHeartbeatAt: number;
   latestKeyboardAt: number;
+  eventCount: number;
+  contextLosses: number;
+  contextRestores: number;
   frameGaps: readonly Record<string, unknown>[];
   renderStalls: readonly Record<string, unknown>[];
   mainThreadStalls: readonly Record<string, unknown>[];
@@ -71,6 +74,7 @@ try {
   let nextId = 1;
   const pending = new Map<number, (value: any) => void>();
   const exceptions: string[] = [];
+  const targetCrashes: string[] = [];
   socket.onmessage = (event) => {
     const message = JSON.parse(String(event.data));
     if (message.method === "Runtime.exceptionThrown") {
@@ -79,6 +83,9 @@ try {
           message.params?.exceptionDetails?.text ??
           "unknown browser exception",
       );
+    }
+    if (message.method === "Inspector.targetCrashed") {
+      targetCrashes.push(JSON.stringify(message.params ?? {}));
     }
     pending.get(message.id)?.(message);
     pending.delete(message.id);
@@ -98,9 +105,18 @@ try {
 
   await call("Runtime.enable");
   await call("Page.enable");
+  await call("Inspector.enable");
   await call("Page.addScriptToEvaluateOnNewDocument", {
     source: `
       window.__GREYWROUGHT_LONG_TASKS__ = [];
+      window.__GREYWROUGHT_CONTEXT_LOSSES__ = 0;
+      window.__GREYWROUGHT_CONTEXT_RESTORES__ = 0;
+      document.addEventListener("webglcontextlost", () => {
+        window.__GREYWROUGHT_CONTEXT_LOSSES__ += 1;
+      }, true);
+      document.addEventListener("webglcontextrestored", () => {
+        window.__GREYWROUGHT_CONTEXT_RESTORES__ += 1;
+      }, true);
       new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
           window.__GREYWROUGHT_LONG_TASKS__.push({
@@ -130,8 +146,22 @@ try {
   });
 
   const dispatchKey = (type: "keyDown" | "keyUp", code: string) => {
-    const key = code.slice(-1).toLowerCase();
-    const keyCode = key.toUpperCase().charCodeAt(0);
+    const key =
+      code === "Space"
+        ? " "
+        : code === "Tab"
+          ? "Tab"
+          : code.startsWith("Shift")
+            ? "Shift"
+            : code.slice(-1).toLowerCase();
+    const keyCode =
+      code === "Space"
+        ? 32
+        : code === "Tab"
+          ? 9
+          : code.startsWith("Shift")
+            ? 16
+            : key.toUpperCase().charCodeAt(0);
     return call("Input.dispatchKeyEvent", {
       type,
       code,
@@ -162,6 +192,9 @@ try {
           latestAdmissionAt: latest("frame-admitted"),
           latestHeartbeatAt: latest("worker-heartbeat"),
           latestKeyboardAt: latest("keyboard-observed"),
+          eventCount: events.length,
+          contextLosses: window.__GREYWROUGHT_CONTEXT_LOSSES__ ?? 0,
+          contextRestores: window.__GREYWROUGHT_CONTEXT_RESTORES__ ?? 0,
           frameGaps: events.filter((event) => event.phase === "frame-gap" && event.atMillis >= ${eventsSince}),
           renderStalls: events.filter((event) => event.phase === "render-stall" && event.atMillis >= ${eventsSince}),
           mainThreadStalls: events.filter((event) =>
@@ -206,7 +239,12 @@ try {
   const startedAt = performance.now();
   let directionChangedAt = startedAt;
   let lastAttackAt = startedAt;
+  let lastBurstAt = startedAt;
+  let lastJumpAt = startedAt;
+  let lastTargetAt = startedAt;
   let lastCameraAt = startedAt;
+  let lastResetAt = startedAt;
+  let lastScreenshotAt = startedAt;
   let lastPositionChangeAt = startedAt;
   let priorX = initial.playerX;
   let priorZ = initial.playerZ;
@@ -216,6 +254,11 @@ try {
   let maxRenderAge = 0;
   let maxAdmissionAge = 0;
   let maxHeartbeatAge = 0;
+  let screenshots = 0;
+  let unchangedScreenshots = 0;
+  let priorScreenshot = "";
+  let initialHeapBytes = 0;
+  let maximumHeapBytes = 0;
   const frameGaps = new Set<string>();
   const renderStalls = new Set<string>();
   const mainThreadStalls = new Set<string>();
@@ -232,6 +275,18 @@ try {
       value.rigState !== "failed",
       `rig failed during sustained play: ${value.rigFailureMessage}`,
     );
+    requireCondition(
+      value.contextLosses === 0,
+      `WebGL context was lost ${value.contextLosses} time(s) and restored ${value.contextRestores} time(s)`,
+    );
+    requireCondition(
+      targetCrashes.length === 0,
+      `browser target crashed: ${targetCrashes.join("\n")}`,
+    );
+    requireCondition(
+      value.eventCount <= 512,
+      `browser event telemetry grew past its 512-entry bound to ${value.eventCount}`,
+    );
     const renderAge = value.now - value.latestRenderAt;
     const admissionAge = value.now - value.latestAdmissionAt;
     const heartbeatAge = value.now - value.latestHeartbeatAt;
@@ -247,9 +302,17 @@ try {
       priorX = value.playerX;
       priorZ = value.playerZ;
     }
+    const positionStallMillis = performance.now() - lastPositionChangeAt;
     requireCondition(
-      performance.now() - lastPositionChangeAt < 2_500,
-      `WASD was observed but position did not change for ${Math.round(performance.now() - lastPositionChangeAt)} ms`,
+      positionStallMillis < 2_500,
+      `WASD was observed but position did not change: ${JSON.stringify({
+        elapsedMillis: Math.round(performance.now() - startedAt),
+        positionStallMillis: Math.round(positionStallMillis),
+        held,
+        priorX,
+        priorZ,
+        snapshot: value,
+      })}`,
     );
     for (const event of value.frameGaps) frameGaps.add(JSON.stringify(event));
     for (const event of value.renderStalls) renderStalls.add(JSON.stringify(event));
@@ -257,9 +320,7 @@ try {
     for (const event of value.longTasks) longTasks.add(JSON.stringify(event));
 
     if (value.phase === "failed" || value.phase === "completed") {
-      await dispatchKey("keyUp", held);
       await press("KeyR");
-      await dispatchKey("keyDown", held);
       resets += 1;
       lastPositionChangeAt = performance.now();
     }
@@ -273,6 +334,19 @@ try {
     if (performance.now() - lastAttackAt >= 3_000) {
       await press("KeyJ");
       lastAttackAt = performance.now();
+    }
+    if (performance.now() - lastBurstAt >= 4_000) {
+      await press("KeyQ");
+      await press("KeyF");
+      lastBurstAt = performance.now();
+    }
+    if (performance.now() - lastJumpAt >= 6_000) {
+      await press("Space");
+      lastJumpAt = performance.now();
+    }
+    if (performance.now() - lastTargetAt >= 7_000) {
+      await press("Tab");
+      lastTargetAt = performance.now();
     }
     if (performance.now() - lastCameraAt >= 10_000) {
       await call("Input.dispatchMouseEvent", {
@@ -298,11 +372,43 @@ try {
       });
       lastCameraAt = performance.now();
     }
+    if (performance.now() - lastResetAt >= 20_000) {
+      await press("KeyR");
+      resets += 1;
+      lastResetAt = performance.now();
+      lastPositionChangeAt = performance.now();
+    }
+    if (performance.now() - lastScreenshotAt >= 5_000) {
+      const captured = await call("Page.captureScreenshot", {
+        format: "jpeg",
+        quality: 35,
+        fromSurface: true,
+      });
+      const screenshot = captured.result.data as string;
+      screenshots += 1;
+      if (screenshot === priorScreenshot) unchangedScreenshots += 1;
+      else unchangedScreenshots = 0;
+      priorScreenshot = screenshot;
+      const heap = await call("Runtime.getHeapUsage");
+      const usedHeapBytes = heap.result.usedSize as number;
+      if (initialHeapBytes === 0) initialHeapBytes = usedHeapBytes;
+      maximumHeapBytes = Math.max(maximumHeapBytes, usedHeapBytes);
+      requireCondition(
+        maximumHeapBytes - initialHeapBytes < 128 * 1024 * 1024,
+        `browser heap grew by ${maximumHeapBytes - initialHeapBytes} bytes`,
+      );
+      requireCondition(
+        unchangedScreenshots < 2,
+        "two consecutive five-second visual samples were pixel-identical",
+      );
+      lastScreenshotAt = performance.now();
+    }
     await Bun.sleep(250);
   }
 
   await dispatchKey("keyUp", held);
   requireCondition(exceptions.length === 0, `browser exceptions: ${exceptions.join("\n")}`);
+  requireCondition(targetCrashes.length === 0, `browser target crashes: ${targetCrashes.join("\n")}`);
   requireCondition(
     frameGaps.size === 0,
     `${frameGaps.size} render frame gaps observed: ${[...frameGaps].join("\n")}` +
@@ -321,6 +427,11 @@ try {
       maxRenderAge: Math.round(maxRenderAge),
       maxAdmissionAge: Math.round(maxAdmissionAge),
       maxHeartbeatAge: Math.round(maxHeartbeatAge),
+      screenshots,
+      initialHeapBytes,
+      maximumHeapBytes,
+      maximumHeapGrowthBytes: maximumHeapBytes - initialHeapBytes,
+      contextLosses: 0,
       frameGaps: frameGaps.size,
       renderStalls: renderStalls.size,
       exceptions: exceptions.length,

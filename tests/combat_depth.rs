@@ -612,6 +612,8 @@ fn reset_restores_spawn_and_the_complete_propulsion_resource() -> Result<(), Box
     key_down(&mut session, b"ShiftRight")?;
     key_down(&mut session, b"KeyF")?;
     admitted_tick(&mut session)?;
+    key_up(&mut session, b"KeyW")?;
+    key_up(&mut session, b"ShiftRight")?;
     key_down(&mut session, b"KeyR")?;
     let mut restored = admitted_tick(&mut session)?.1;
     for _ in 0..2 {
@@ -626,6 +628,28 @@ fn reset_restores_spawn_and_the_complete_propulsion_resource() -> Result<(), Box
     assert_eq!(number(&restored, b"booster-energy"), 100.0);
     assert_eq!(number(&restored, b"booster-regeneration-delay"), 0.0);
     assert!(boolean(&restored, b"grounded"));
+    Ok(())
+}
+
+#[test]
+fn reset_preserves_a_physically_held_movement_key() -> Result<(), Box<dyn Error>> {
+    let mut session = open_session()?;
+    key_down(&mut session, b"KeyA")?;
+    admitted_tick(&mut session)?;
+    key_down(&mut session, b"KeyR")?;
+
+    let mut resumed = admitted_tick(&mut session)?.1;
+    for _ in 0..8 {
+        resumed = admitted_tick(&mut session)?.1;
+    }
+
+    assert_eq!(vector(&resumed, b"negative-control"), [1.0, 0.0, 0.0]);
+    assert_eq!(vector(&resumed, b"horizontal-intent"), [-1.0, 0.0, 0.0]);
+    assert!(
+        vector(&resumed, b"position")[0] < -2.0,
+        "a physically held A key stopped moving after reset",
+    );
+    assert!(vector(&resumed, b"velocity")[0] < 0.0);
     Ok(())
 }
 

@@ -1,9 +1,9 @@
-referent MoonwellPulseOpen
-referent MoonwellPulse
-referent JournalAction
-referent JournalResource
-referent JournalPayload
-referent JournalResult
+MoonwellPulseOpen
+MoonwellPulse
+JournalAction
+JournalResource
+JournalPayload
+JournalResult
 
 capability world-journal-capability
 
