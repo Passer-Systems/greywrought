@@ -16,6 +16,7 @@
     "test:wasm-effect": "bun build/host/greywrought-clause/wasm-ongoing-effect.js",
     "test:wasm-combat-depth": "bun build/host/greywrought-clause/wasm-combat-depth.js",
     "test:browser-playability": "bun acceptance/browser/playability.ts",
+    "test:browser-camera-relative": "bun acceptance/browser/camera-relative-movement.ts",
     "test:browser-encounter": "bun acceptance/browser/encounter-journey.ts",
     "test:browser-liveness": "bun acceptance/browser/sustained-liveness.ts",
     "test:browser-behavior-hot-edit": "bun acceptance/browser/behavior-hot-edit.ts",

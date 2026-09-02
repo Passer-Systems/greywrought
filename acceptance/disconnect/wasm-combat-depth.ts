@@ -135,6 +135,17 @@ function physicalKeyEnvelope(
   );
 }
 
+function physicalScalarEnvelope(
+  inputPolicy: WorkbenchPolicy,
+  channel: string,
+  value: number,
+) {
+  return createWorkbenchEnvelope(
+    inputPolicy,
+    JSON.stringify([JSON.stringify({ kind: "scalar-input", channel, value })]),
+  );
+}
+
 function emptyInputConfiguration(revision: number): InputConfiguration {
   return createInputConfiguration(revision, Object.freeze([]));
 }
@@ -150,6 +161,24 @@ function keyInputConfiguration(
     revision,
     Object.freeze([
       createInputObservation(sequence, physicalKeyEnvelope(inputPolicy, code, phase)),
+    ]),
+  );
+}
+
+function scalarInputConfiguration(
+  inputPolicy: WorkbenchPolicy,
+  revision: number,
+  sequence: number,
+  channel: string,
+  value: number,
+): InputConfiguration {
+  return createInputConfiguration(
+    revision,
+    Object.freeze([
+      createInputObservation(
+        sequence,
+        physicalScalarEnvelope(inputPolicy, channel, value),
+      ),
     ]),
   );
 }
@@ -228,6 +257,31 @@ function admitKey(
       inputSequence.value,
       code,
       phase,
+    ),
+  );
+  revision.value = tick.revision;
+  return tick;
+}
+
+function admitScalar(
+  opened: OpenedSession,
+  revision: Cell<unknown>,
+  configurationRevision: Cell<number>,
+  inputSequence: Cell<number>,
+  channel: string,
+  value: number,
+): AdmittedTick {
+  configurationRevision.value += 1;
+  inputSequence.value += 1;
+  const tick = admitTick(
+    opened,
+    revision.value,
+    scalarInputConfiguration(
+      policy(),
+      configurationRevision.value,
+      inputSequence.value,
+      channel,
+      value,
     ),
   );
   revision.value = tick.revision;
@@ -628,7 +682,7 @@ function verifyBoarChargeAndBurstCustody(module: object, request: unknown): void
   opened.port.disposeSession(opened.session);
 }
 
-function verifyWorldFixedHorizontalPropulsion(module: object, request: unknown): void {
+function verifyCameraRelativeHorizontalPropulsion(module: object, request: unknown): void {
   const opened = openCartridgeSession(module, request);
   const revision: Cell<unknown> = { value: opened.revision };
   const configurationRevision = { value: 0 };
@@ -656,11 +710,11 @@ function verifyWorldFixedHorizontalPropulsion(module: object, request: unknown):
   const sustainedPosition = projectedField(sustainedPlayer, "position", "player-1");
   requireCondition(
     vectorField(diagonalPlayer, "horizontal-intent", "x") === -1,
-    "A did not produce world-fixed left intent",
+    "A did not produce default-camera left intent",
   );
   requireCondition(
     vectorField(diagonalPlayer, "horizontal-intent", "z") === -1,
-    "W did not produce world-fixed forward intent",
+    "W did not produce default-camera forward intent",
   );
   requireCondition(
     numberField(sustainedPlayer, "move-speed", "player-1") === 7,
@@ -698,6 +752,65 @@ function verifyWorldFixedHorizontalPropulsion(module: object, request: unknown):
   requireCondition(
     vectorField(rightPlayer, "horizontal-intent", "z") === 0,
     "direction change retained stale forward intent",
+  );
+
+  admitKey(opened, revision, configurationRevision, inputSequence, "KeyD", "up");
+  admitKey(
+    opened,
+    revision,
+    configurationRevision,
+    inputSequence,
+    "ShiftLeft",
+    "up",
+  );
+  admitScalar(
+    opened,
+    revision,
+    configurationRevision,
+    inputSequence,
+    "CameraForwardX",
+    1,
+  );
+  admitScalar(
+    opened,
+    revision,
+    configurationRevision,
+    inputSequence,
+    "CameraForwardZ",
+    0,
+  );
+  const rotated = admitKey(
+    opened,
+    revision,
+    configurationRevision,
+    inputSequence,
+    "KeyW",
+    "down",
+  );
+  const rotatedPlayer = projectedField(rotated.projection, "player-1", "projection");
+  requireCondition(
+    vectorField(rotatedPlayer, "horizontal-intent", "x") === 1,
+    "quarter-turned camera did not rotate W onto world x",
+  );
+  requireCondition(
+    vectorField(rotatedPlayer, "horizontal-intent", "z") === 0,
+    "quarter-turned camera retained world-fixed W movement",
+  );
+  const rotatedPosition = projectedField(rotatedPlayer, "position", "player-1");
+  const advanced = admitEmpty(opened, revision, configurationRevision);
+  const advancedPlayer = projectedField(advanced.projection, "player-1", "projection");
+  const advancedPosition = projectedField(advancedPlayer, "position", "player-1");
+  requireCondition(
+    numberField(advancedPosition, "x", "position") >
+      numberField(rotatedPosition, "x", "position"),
+    "camera-relative W did not advance along the rotated forward axis",
+  );
+  requireCondition(
+    Math.abs(
+      numberField(advancedPosition, "z", "position") -
+        numberField(rotatedPosition, "z", "position"),
+    ) < 1.0e-9,
+    "camera-relative W leaked motion along the retired world-forward axis",
   );
   opened.port.disposeSession(opened.session);
 }
@@ -966,7 +1079,7 @@ async function main(): Promise<void> {
   const module = initializeSessionModule(wasmBytes);
   const request = createExactProcessRequest(decodeCwr1Hex(source));
   verifyBoarChargeAndBurstCustody(module, request);
-  verifyWorldFixedHorizontalPropulsion(module, request);
+  verifyCameraRelativeHorizontalPropulsion(module, request);
   verifyOrthogonalPropulsionAndEnergy(module, request);
   verifyResourceGatedFrontier(module, request);
 }

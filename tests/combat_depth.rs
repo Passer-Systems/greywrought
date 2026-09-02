@@ -47,6 +47,20 @@ fn key_up(session: &mut PersistentProcessSessionV1, code: &[u8]) -> Result<(), B
     key(session, code, ExecutableKeyPhaseV1::Up)
 }
 
+fn scalar_input(
+    session: &mut PersistentProcessSessionV1,
+    channel: &[u8],
+    value: f64,
+) -> Result<(), Box<dyn Error>> {
+    session.apply_physical_input(
+        &ExecutableInputSourceV1::Scalar {
+            channel: channel.to_vec(),
+        },
+        Some(value),
+    )?;
+    Ok(())
+}
+
 fn admitted_tick(
     session: &mut PersistentProcessSessionV1,
 ) -> Result<(ExecutableCandidateV1, Term), Box<dyn Error>> {
@@ -331,7 +345,7 @@ fn admitted_workbench_tick(
 }
 
 #[test]
-fn world_fixed_wasd_supports_diagonal_holds_and_sustain_direction_changes()
+fn camera_relative_wasd_supports_diagonal_holds_and_sustain_direction_changes()
 -> Result<(), Box<dyn Error>> {
     let mut session = open_session()?;
     key_down(&mut session, b"KeyW")?;
@@ -372,6 +386,27 @@ fn world_fixed_wasd_supports_diagonal_holds_and_sustain_direction_changes()
     let redirected_position = vector(&redirected, b"position");
     assert!(redirected_position[0] > redirected_start[0]);
     assert!((redirected_position[2] - redirected_start[2]).abs() < 1.0e-9);
+    Ok(())
+}
+
+#[test]
+fn camera_relative_wasd_rotates_with_the_observed_camera_basis() -> Result<(), Box<dyn Error>> {
+    let mut session = open_session()?;
+    scalar_input(&mut session, b"CameraForwardX", 1.0)?;
+    scalar_input(&mut session, b"CameraForwardZ", 0.0)?;
+    key_down(&mut session, b"KeyW")?;
+
+    let (_, intent_frame) = admitted_tick(&mut session)?;
+    assert_eq!(
+        vector(&intent_frame, b"horizontal-intent"),
+        [1.0, 0.0, 0.0],
+        "camera-right became Clause-authored forward after the observed quarter turn",
+    );
+    let start = vector(&intent_frame, b"position");
+    let (_, moved) = admitted_tick(&mut session)?;
+    let position = vector(&moved, b"position");
+    assert!(position[0] > start[0]);
+    assert!((position[2] - start[2]).abs() < 1.0e-9);
     Ok(())
 }
 
