@@ -43,6 +43,24 @@ async function generationAfter(after: number): Promise<Response> {
   });
 }
 
+async function waitForFreshGeneration(after: number): Promise<GenerationPayload> {
+  let latestStatus = 0;
+  for (let attempt = 0; attempt < 160; attempt += 1) {
+    const response = await generationAfter(after);
+    latestStatus = response.status;
+    if (response.status === 200) {
+      const generation = (await response.json()) as GenerationPayload;
+      if (generation.generation > after && generation.cwr1.length > 0) {
+        return generation;
+      }
+    } else if (response.status !== 204 && response.status !== 422) {
+      throw new Error(`fresh generation returned ${response.status}`);
+    }
+    await Bun.sleep(25);
+  }
+  throw new Error(`fresh generation did not appear; latest status ${latestStatus}`);
+}
+
 async function openBrowser(): Promise<BrowserDriver> {
   const chrome = Bun.spawn({
     cmd: [
@@ -246,13 +264,7 @@ try {
   );
 
   await Bun.write(sourcePath, `${validSource}\n`);
-  const repairedResponse = await generationAfter(initial.generation);
-  requireCondition(repairedResponse.ok, `repaired source returned ${repairedResponse.status}`);
-  const repaired = (await repairedResponse.json()) as GenerationPayload;
-  requireCondition(
-    repaired.generation > initial.generation && repaired.cwr1.length > 0,
-    "repaired source did not advance to a fresh admitted generation",
-  );
+  const repaired = await waitForFreshGeneration(initial.generation);
 
   const settledResponse = await generationAfter(repaired.generation);
   requireCondition(settledResponse.status === 204, "settled generation did not become current");
