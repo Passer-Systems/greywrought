@@ -55,10 +55,15 @@ type ResidentCommand =
 type ResidentEvent =
   | Readonly<{
       kind: "projection";
+      generation: number;
       projection: ProjectedValue;
       frameUnits: number;
     }>
-  | Readonly<{ kind: "receipt"; receipt: LifecycleReceipt }>
+  | Readonly<{
+      kind: "receipt";
+      generation: number;
+      receipt: LifecycleReceipt;
+    }>
   | Readonly<{ kind: "heartbeat"; workerTimeMillis: number }>
   | Readonly<{ kind: "failure"; message: string }>;
 
@@ -100,6 +105,8 @@ const modulePromise = fetch("/wasm/clause_runtime_bg.wasm")
   });
 
 let controller: CartridgeWorkbench | null = null;
+let activeExternalGeneration = -1;
+let pendingExternalGeneration: number | null = null;
 let inputInFlight = false;
 let inFlightEdgeCode: string | null = null;
 let simulationStarted = false;
@@ -147,17 +154,35 @@ function flushInput(): void {
 }
 
 function handleReceipt(receipt: LifecycleReceipt): void {
+  if (receipt.event === "session-started" && pendingExternalGeneration !== null) {
+    activeExternalGeneration = pendingExternalGeneration;
+    pendingExternalGeneration = null;
+  }
+  const externalGeneration =
+    receipt.event === "package-rejected" || receipt.event === "session-failed"
+      ? (pendingExternalGeneration ?? activeExternalGeneration)
+      : activeExternalGeneration;
   if (receipt.event === "admission-accepted") {
     inputInFlight = false;
     inFlightEdgeCode = null;
   }
-  workerScope.postMessage({ kind: "receipt", receipt });
+  workerScope.postMessage({
+    kind: "receipt",
+    generation: externalGeneration,
+    receipt,
+  });
   if (
     receipt.event === "candidate-failed" ||
     receipt.event === "admission-rejected" ||
     receipt.event === "session-failed" ||
     receipt.event === "package-rejected"
   ) {
+    if (
+      receipt.event === "session-failed" ||
+      receipt.event === "package-rejected"
+    ) {
+      pendingExternalGeneration = null;
+    }
     simulationStarted = false;
     inputQueue.length = 0;
     inputInFlight = false;
@@ -191,6 +216,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
   if (disposed) return;
   const module = await modulePromise;
   const request = createExactProcessRequest(decodeCwr1Hex(payload.cwr1));
+  pendingExternalGeneration = payload.generation;
   if (controller === null) {
     const port = createWasmCartridgePort(module, policy);
     controller = createCartridgeWorkbench(
@@ -211,6 +237,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
         const exact = exactFrame(frame);
         workerScope.postMessage({
           kind: "projection",
+          generation: activeExternalGeneration,
           projection: decodeProjectedTermFrame(exact),
           frameUnits: exact.length,
         });
@@ -230,6 +257,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
     return;
   }
   if (!controller.reloadPackage(request)) {
+    pendingExternalGeneration = null;
     throw new Error("resident generation reload was not accepted");
   }
 }

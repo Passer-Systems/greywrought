@@ -4,7 +4,7 @@ This repository owns the Greywrought application written in Clause. Clause
 itself remains a language/runtime project; the older `greywrought` repository
 is context only and is neither imported nor modified here.
 
-The primary playable slice is **Cinderwake**, one embodied room whose movement,
+The primary playable slice is **Cinderwake**, one embodied field whose movement,
 combat, deterministic sample, vitality, death, loot custody, completion,
 failure, and reset are owned by `src/world/embodied-encounter.clause`. Keyboard
 input and fixed ticks first produce a hidden Candidate Delta; only the following
@@ -77,10 +77,11 @@ the admitted wayfarer position while keeping the encounter ahead in view. Read
 the wraith telegraph, meet its bolt while airborne, walk over the glowing key, then
 carry it west to the moonwell.
 
-A measured Clause-only gravity edit reached its first separately admitted
-browser frame in 323 ms with 60.5 ms of resident compilation; restoring the law
-reached the admitted frame in 233 ms with 66.6 ms of compilation. Neither edit
-rebuilt or restarted Rust, TypeScript, Wasm, the server, or the browser page.
+Four consecutive typed combat-behavior edits reached their first separately
+admitted browser frames in 220, 190, 236, and 150 ms (205 ms median), with
+26.5–31.6 ms of resident compilation. Every sample stayed below the 250 ms
+budget. No edit rebuilt or restarted Rust, TypeScript, Wasm, the server, or the
+browser page.
 
 `bun run check:conquest` materializes the current Clause source to CWR1,
 strictly checks and builds the passive TypeScript host, stages the exact pinned
@@ -101,6 +102,6 @@ and custody across separate Candidate and Admission operations.
 
 Pinned inputs:
 
-- Clause `ebaedcaf6aac98f40c1979795162fc56221c11a1` (includes strict generated
+- Clause `d72ca4c4fc7c71aa4f8c543ae7a14f8e4ceac01d` (includes strict generated
   TypeScript adapters for the workbench, cartridge port, and process branch,
   plus the source-owned world and deterministic physical-input lowering)

@@ -15,7 +15,7 @@ function configuredPort(): number {
 
 function spawnResidentGeneration() {
   const child = Bun.spawn({
-    cmd: ["build/cargo-target/debug/resident_generation", RESIDENT_SOURCE],
+    cmd: ["build/cargo-target/release/resident_generation", RESIDENT_SOURCE],
     stdin: "pipe",
     stdout: "pipe",
     stderr: "inherit",
@@ -43,7 +43,7 @@ function spawnResidentGeneration() {
   function generationResponse(
     line: string,
     modified: number,
-    hot: boolean,
+    after: number,
   ): Response {
     const fields = line.split("\t");
     const kind = fields[0];
@@ -63,7 +63,7 @@ function spawnResidentGeneration() {
         compilerMicros: Number.parseInt(compilerMicros, 10),
         cwr1,
         sourceModifiedMillis: modified,
-        hot,
+        hot: after >= 0,
       };
       return Response.json(payload);
     }
@@ -83,7 +83,7 @@ function spawnResidentGeneration() {
     if (source === null) {
       latest = await readLine();
       source = nextSource;
-      return generationResponse(latest, modified, false);
+      return generationResponse(latest, modified, after);
     }
     if (source === nextSource) {
       if (latest === null) {
@@ -96,13 +96,13 @@ function spawnResidentGeneration() {
           : -1;
       return after === generation
         ? new Response(null, { status: 204 })
-        : generationResponse(latest, modified, false);
+        : generationResponse(latest, modified, after);
     }
     source = nextSource;
     child.stdin.write("reload\n");
     child.stdin.flush();
     latest = await readLine();
-    return generationResponse(latest, modified, true);
+    return generationResponse(latest, modified, after);
   }
 
   return { child, responseAfter };

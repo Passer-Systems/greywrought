@@ -233,10 +233,11 @@ interface ResidentLawSession {
   pendingProjection: ResidentProjection | null;
   projectionFrameHandle: number;
   admittedOrdinal: number;
-  candidateSeen: boolean;
+  candidateGeneration: number | null;
 }
 
 interface ResidentProjection {
+  readonly generation: number;
   readonly value: unknown;
   readonly frameUnits: number;
 }
@@ -398,7 +399,7 @@ function openResidentLawSession(): ResidentLawSession {
     pendingProjection: null,
     projectionFrameHandle: 0,
     admittedOrdinal: 0,
-    candidateSeen: false,
+    candidateGeneration: null,
   };
 }
 
@@ -995,24 +996,29 @@ function residentLawFailure(message: string): void {
   document.body.dataset.residentPhase = "rejected";
 }
 
-function handleLifecycleReceipt(app: PlayApp, receipt: ResidentLifecycleReceipt): void {
+function handleLifecycleReceipt(
+  app: PlayApp,
+  generation: number,
+  receipt: ResidentLifecycleReceipt,
+): void {
   const resident = app.residentLaw;
   boundedGameEvent({
     phase: receipt.event,
-    generation: receipt.activeGeneration,
+    generation,
+    runtimeGeneration: receipt.activeGeneration,
     operation: receipt.operationId,
     detail: receipt.detail,
   });
   if (receipt.event === "candidate-produced") {
-    resident.candidateSeen = true;
+    resident.candidateGeneration = generation;
     document.body.dataset.gameCustodyPhase = "candidate-hidden";
     element("game-custody").textContent =
-      `CandidateDelta retained and hidden\ngeneration ${receipt.activeGeneration} · ` +
+      `CandidateDelta retained and hidden\ngeneration ${generation} · ` +
       `operation ${receipt.operationId}`;
     return;
   }
   if (receipt.event === "admission-accepted") {
-    const ordered = resident.candidateSeen;
+    const ordered = resident.candidateGeneration === generation;
     const pending = resident.pendingHot;
     document.body.dataset.gameCustodyPhase = ordered
       ? "candidate-before-admission"
@@ -1020,8 +1026,8 @@ function handleLifecycleReceipt(app: PlayApp, receipt: ResidentLifecycleReceipt)
     element("game-custody").textContent =
       `CandidateDelta hidden first\nseparate Admission installed successor\n` +
       `operation ${receipt.operationId}`;
-    resident.candidateSeen = false;
-    if (pending?.hot === true) {
+    if (ordered) resident.candidateGeneration = null;
+    if (pending?.hot === true && generation === pending.generation) {
       const latency = Date.now() - pending.sourceModifiedMillis;
       document.body.dataset.residentLatencyMillis = String(latency);
       element("resident-law").textContent =
@@ -1039,6 +1045,15 @@ function handleLifecycleReceipt(app: PlayApp, receipt: ResidentLifecycleReceipt)
     return;
   }
   if (receipt.event === "session-started") {
+    const pending = resident.pendingHot;
+    if (pending?.hot === true && generation === pending.generation) {
+      window.__GREYWROUGHT_RESIDENT_EVENTS__.push({
+        phase: "session-started",
+        generation: pending.generation,
+        latencyMillis: Date.now() - pending.sourceModifiedMillis,
+        compilerMicros: pending.compilerMicros,
+      });
+    }
     document.body.dataset.residentPhase = "session-started";
     return;
   }
@@ -1091,6 +1106,14 @@ function installResidentLaw(app: PlayApp, payload: GenerationPayload): void {
   const resident = app.residentLaw;
   resident.generation = payload.generation;
   resident.pendingHot = payload.hot ? payload : null;
+  if (payload.hot) {
+    window.__GREYWROUGHT_RESIDENT_EVENTS__.push({
+      phase: "generation-received",
+      generation: payload.generation,
+      latencyMillis: Date.now() - payload.sourceModifiedMillis,
+      compilerMicros: payload.compilerMicros,
+    });
+  }
   document.body.dataset.residentGeneration = String(payload.generation);
   document.body.dataset.residentCompilerMicros = String(payload.compilerMicros);
   element("resident-law").textContent =
@@ -1114,6 +1137,7 @@ function queueResidentProjection(
     const pending = resident.pendingProjection;
     resident.pendingProjection = null;
     if (pending === null) return;
+    if (pending.generation !== resident.generation) return;
     const startedAt = performance.now();
     renderGameProjection(app, pending.value);
     const finishedAt = performance.now();
@@ -1160,6 +1184,10 @@ function bindResidentWorker(app: PlayApp, listeners: Array<() => void>): void {
       );
       if (kind === "projection") {
         queueResidentProjection(app, {
+          generation: requireNumber(
+            requireField(value, "generation", "resident worker event"),
+            "resident worker event.generation",
+          ),
           value: requireField(value, "projection", "resident worker event"),
           frameUnits: requireNumber(
             requireField(value, "frameUnits", "resident worker event"),
@@ -1169,6 +1197,10 @@ function bindResidentWorker(app: PlayApp, listeners: Array<() => void>): void {
       } else if (kind === "receipt") {
         handleLifecycleReceipt(
           app,
+          requireNumber(
+            requireField(value, "generation", "resident worker event"),
+            "resident worker event.generation",
+          ),
           parseResidentReceipt(
             requireField(value, "receipt", "resident worker event"),
           ),
@@ -1859,7 +1891,7 @@ function startApp(
   void pollResidentLaw(app);
   app.residentLaw.interval = window.setInterval(() => {
     void pollResidentLaw(app);
-  }, 50);
+  }, 20);
   runSmokeIfRequested(app);
   return app;
 }

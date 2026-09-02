@@ -23,6 +23,7 @@ type Snapshot = Readonly<{
   residentMessage: string;
   timeOrigin: number;
   residentEvents: readonly ResidentEvent[];
+  gameEvents: readonly Record<string, unknown>[];
   renderStalls: number;
 }>;
 
@@ -122,6 +123,7 @@ try {
         residentMessage: document.getElementById("resident-law")?.textContent ?? "",
         timeOrigin: performance.timeOrigin,
         residentEvents: window.__GREYWROUGHT_RESIDENT_EVENTS__ ?? [],
+        gameEvents: (window.__GREYWROUGHT_GAME_EVENTS__ ?? []).slice(-64),
         renderStalls: (window.__GREYWROUGHT_GAME_EVENTS__ ?? []).filter((event) => event.phase === "render-stall").length,
       })`,
       returnByValue: true,
@@ -203,6 +205,9 @@ try {
         compilerMicros: admitted.compilerMicros,
         nonCompilerMillis:
           admitted.latencyMillis - admitted.compilerMicros / 1_000,
+        lifecycle: observed.residentEvents.filter(
+          (event) => event.generation === admitted.generation,
+        ),
       }),
     );
   }
