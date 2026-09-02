@@ -617,7 +617,19 @@ function updateViewport(
   presentation.height = height;
   presentation.camera.aspect = width / height;
   presentation.camera.updateProjectionMatrix();
-  presentation.renderer.setSize(width, height, false);
+  // Keep the CSS canvas full-size while bounding the actual framebuffer. On
+  // integrated/software GPUs a large retina framebuffer can block the main
+  // thread long enough to look like a game freeze.
+  const maxFramebufferPixels = 360_000; // 600 × 600; keeps SwiftShader responsive
+  const framebufferScale = Math.min(
+    1,
+    Math.sqrt(maxFramebufferPixels / (width * height)),
+  );
+  presentation.renderer.setSize(
+    Math.max(1, Math.round(width * framebufferScale)),
+    Math.max(1, Math.round(height * framebufferScale)),
+    false,
+  );
 }
 
 export function applyAdmittedFrame(
@@ -891,7 +903,14 @@ export function createCinderwakePresentation(
 ): CinderwakePresentation {
   const scene = new Scene();
   const camera = new PerspectiveCamera(43, 1, 0.1, 38);
-  const renderer = new WebGLRenderer({ antialias: true, alpha: false });
+  // Keep the presentation path responsive on integrated/software GPUs. The
+  // semantic session runs independently in the resident worker; rendering
+  // must never consume the browser's frame budget with multisample overhead.
+  const renderer = new WebGLRenderer({
+    antialias: false,
+    alpha: false,
+    powerPreference: "high-performance",
+  });
   const resources: OwnedPresentationResources = { geometries: [], materials: [] };
   const wayfarer = createWayfarer(ids.wayfarer, resources);
   const wraith = createWraith(ids.wraith, resources);
@@ -983,7 +1002,10 @@ export function createCinderwakePresentation(
     emberLight,
     wellLight,
   );
-  renderer.setPixelRatio(Math.max(1, Math.min(2, pixelRatio)));
+  // A device pixel ratio of 2 quadruples the framebuffer work and can make a
+  // software WebGL path appear frozen. One logical pixel is sufficient for
+  // this legible prototype and preserves input/tick responsiveness.
+  renderer.setPixelRatio(Math.max(1, Math.min(1, pixelRatio)));
   renderer.outputColorSpace = SRGBColorSpace;
 
   if (wayfarer.placeholder === null) {

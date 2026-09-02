@@ -94,9 +94,24 @@ const modulePromise = fetch("/wasm/clause_runtime_bg.wasm")
 
 let controller: CartridgeWorkbench | null = null;
 let inputInFlight = false;
+let inFlightEdgeCode: string | null = null;
 let disposed = false;
 let commands = Promise.resolve();
 const inputQueue: ResidentInput[] = [];
+
+// These bindings represent one discrete action per physical press. Keeping
+// duplicate edges out of the transport queue prevents browser key-repeat (or
+// a click storm) from becoming a delayed chain of attacks after the semantic
+// sword commitment has elapsed.
+const edgeTriggeredKeyboardCodes = new Set([
+  "KeyJ",
+  "KeyQ",
+  "KeyF",
+  "Space",
+  "Tab",
+  "ShiftTab",
+  "KeyR",
+]);
 
 function envelope(input: ResidentInput): WorkbenchEnvelope {
   const observation =
@@ -113,12 +128,19 @@ function flushInput(): void {
   if (controller.observeInput(envelope(input))) {
     inputQueue.shift();
     inputInFlight = true;
+    inFlightEdgeCode =
+      input.kind === "keyboard" &&
+      input.phase === "down" &&
+      edgeTriggeredKeyboardCodes.has(input.code)
+        ? input.code
+        : null;
   }
 }
 
 function handleReceipt(receipt: LifecycleReceipt): void {
   if (receipt.event === "admission-accepted") {
     inputInFlight = false;
+    inFlightEdgeCode = null;
   }
   workerScope.postMessage({ kind: "receipt", receipt });
   flushInput();
@@ -177,6 +199,25 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
 }
 
 function queueInput(input: ResidentInput): void {
+  if (
+    input.kind === "keyboard" &&
+    input.phase === "down" &&
+    edgeTriggeredKeyboardCodes.has(input.code)
+  ) {
+    // Browser key-repeat is not a second physical action. Also collapse an
+    // edge that is already in flight or waiting behind it.
+    if (input.repeat || inFlightEdgeCode === input.code) return;
+    if (
+      inputQueue.some(
+        (entry) =>
+          entry.kind === "keyboard" &&
+          entry.phase === "down" &&
+          entry.code === input.code,
+      )
+    ) {
+      return;
+    }
+  }
   if (input.kind === "scalar-input") {
     const pending = inputQueue.findIndex(
       (entry) => entry.kind === "scalar-input" && entry.channel === input.channel,

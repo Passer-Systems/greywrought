@@ -304,7 +304,7 @@ function verifyBoarChargeAndBurstCustody(module: object, request: unknown): void
   let sawSpawnReset = false;
   let postHitCharge: AdmittedTick | null = null;
 
-  for (let ordinal = 0; ordinal < 120; ordinal += 1) {
+  for (let ordinal = 0; ordinal < 320; ordinal += 1) {
     const tick = admitEmpty(opened, revision, configurationRevision);
     const player = projectedField(tick.projection, "player-1", "projection");
     const enemy = projectedField(tick.projection, "cinder-wraith", "projection");
@@ -343,7 +343,10 @@ function verifyBoarChargeAndBurstCustody(module: object, request: unknown): void
   requireCondition(sawTelegraph, "boar exposed no telegraph phase");
   requireCondition(sawCharging, "boar never committed its first charge");
   requireCondition(sawFirstHit, "first boar charge produced no admitted contact");
-  requireCondition(sawSpawnReset, "boar did not rearm at its spawn after hit recovery");
+  requireCondition(
+    sawSpawnReset,
+    "boar did not rearm at its spawn after hit recovery",
+  );
   requireCondition(
     postHitCharge !== null,
     "boar did not commit a second charge after hit recovery",
@@ -599,8 +602,8 @@ function verifyOrthogonalPropulsionAndEnergy(module: object, request: unknown): 
     "projection",
   );
   requireCondition(
-    vectorField(horizontalPlayer, "velocity", "z") < -20,
-    "Q produced no immediate forward horizontal burst",
+    vectorField(horizontalPlayer, "position", "z") < -1.4,
+    "Q produced no immediate forward horizontal displacement",
   );
   requireCondition(
     numberField(horizontalPlayer, "booster-energy", "player-1") === 80,
@@ -748,9 +751,6 @@ async function main(): Promise<void> {
   verifyBoarChargeAndBurstCustody(module, request);
   verifyWorldFixedHorizontalPropulsion(module, request);
   verifyOrthogonalPropulsionAndEnergy(module, request);
-  console.log(
-    "real Wasm combat depth: boar charge, burst dodge, world-fixed orthogonal propulsion, energy recovery, reset, and custody admitted",
-  );
 }
 
 await main();

@@ -929,15 +929,15 @@ on tick ?player ?dt
     jump-arena maximum x ?max-x
     jump-arena minimum z ?min-z
     jump-arena maximum z ?max-z
-    (?position-x + ?intent-x * ?move-speed * ?dt) clamped between ?min-x and ?max-x as ?next-x
-    (?position-z + ?intent-z * ?move-speed * ?dt) clamped between ?min-z and ?max-z as ?next-z
+    (?position-x + ?velocity-x * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + ?velocity-z * ?dt) clamped between ?min-z and ?max-z as ?next-z
     ?position-y + (?velocity-y + ?gravity * ?dt) * ?dt > ?floor
   withdraw
     ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
   include
     ?player position Vec3 { x: ?next-x, y: ?position-y + (?velocity-y + ?gravity * ?dt) * ?dt, z: ?next-z }
-    ?player velocity Vec3 { x: (?next-x - ?position-x) / ?dt, y: ?velocity-y + ?gravity * ?dt, z: (?next-z - ?position-z) / ?dt }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y + ?gravity * ?dt, z: ?velocity-z }
 
 on tick ?player ?dt
   when
@@ -953,8 +953,8 @@ on tick ?player ?dt
     jump-arena maximum x ?max-x
     jump-arena minimum z ?min-z
     jump-arena maximum z ?max-z
-    (?position-x + ?intent-x * ?move-speed * ?dt) clamped between ?min-x and ?max-x as ?next-x
-    (?position-z + ?intent-z * ?move-speed * ?dt) clamped between ?min-z and ?max-z as ?next-z
+    (?position-x + ?velocity-x * ?dt) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + ?velocity-z * ?dt) clamped between ?min-z and ?max-z as ?next-z
     ?position-y + (?velocity-y + ?gravity * ?dt) * ?dt <= ?floor
   withdraw
     ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
@@ -962,7 +962,7 @@ on tick ?player ?dt
     ?player grounded false
   include
     ?player position Vec3 { x: ?next-x, y: ?floor, z: ?next-z }
-    ?player velocity Vec3 { x: (?next-x - ?position-x) / ?dt, y: 0.0, z: (?next-z - ?position-z) / ?dt }
+    ?player velocity Vec3 { x: ?velocity-x, y: 0.0, z: ?velocity-z }
     ?player grounded true
 
 on combat-impact ?enemy
@@ -1332,6 +1332,7 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
     ?enemy enemy charge committed ?committed
+    ?enemy enemy position Vec3 { x: ?prior-x, y: ?prior-y, z: ?prior-z }
     ?pressure = hit-recovery
     ?recovery-clock = 0.0
   withdraw
@@ -1342,6 +1343,7 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
     ?enemy enemy charge committed ?committed
+    ?enemy enemy position Vec3 { x: ?prior-x, y: ?prior-y, z: ?prior-z }
   include
     ?enemy enemy pressure state approach
     ?enemy enemy pressure clock 0.0
@@ -1350,6 +1352,7 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge committed false
+    ?enemy enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
 
 on rearm-after-overrun-recovery ?enemy
   when
