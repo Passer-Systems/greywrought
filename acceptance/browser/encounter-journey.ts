@@ -428,7 +428,7 @@ try {
             await setHeld(new Set());
             if (value.swordClock === 0 && value.swordSequence !== lastAttackSequence) {
               lastAttackSequence = value.swordSequence;
-              await press("Digit2");
+              await press("Digit1");
             }
           }
         } else {

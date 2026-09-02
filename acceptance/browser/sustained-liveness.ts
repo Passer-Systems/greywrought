@@ -406,7 +406,7 @@ try {
     }
     if (performance.now() - lastAttackAt >= 3_000) {
       for (let pressIndex = 0; pressIndex < 8; pressIndex += 1) {
-        await press("Digit2");
+        await press("Digit1");
         await Bun.sleep(20);
       }
       lastAttackAt = performance.now();

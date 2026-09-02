@@ -828,8 +828,8 @@ bind keyboard KeyE down to pulse-shield
 bind keyboard KeyE up to release-shield
 bind keyboard Space down to jump-or-air-boost
 bind keyboard Space up to disable-air-sustain
-bind keyboard Digit2 down to begin-sword-action
-bind keyboard Digit1 down to begin-ranged-action
+bind keyboard Digit1 down to begin-sword-action
+bind keyboard Digit2 down to begin-ranged-action
 bind keyboard Tab down to target-next-enemy
 bind keyboard ShiftTab down to target-previous-enemy
 bind keyboard LootItem down to acquire-loot

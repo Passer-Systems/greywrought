@@ -856,10 +856,10 @@ body[data-game-phase="completed"] .terminal-feedback-title {
 .action-bars {
   position: absolute;
   left: 50%;
-  bottom: 24px;
+  bottom: 38px;
   display: grid;
   justify-items: center;
-  gap: 5px;
+  gap: 6px;
   transform: translateX(-50%);
   filter: drop-shadow(0 4px 3px #000) drop-shadow(0 12px 18px #000b);
 }

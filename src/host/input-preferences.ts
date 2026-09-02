@@ -1,4 +1,4 @@
-export const inputPreferencesStorageKey = "greywrought/input-preferences-v3";
+export const inputPreferencesStorageKey = "greywrought/input-preferences-v5";
 
 export type GameAction =
   | "forward"
@@ -28,13 +28,13 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   { action: "left", label: "Move left", semanticCode: "KeyA", held: true },
   { action: "right", label: "Move right", semanticCode: "KeyD", held: true },
   { action: "target", label: "Cycle target", semanticCode: "Tab", held: false },
-  { action: "bolt", label: "Lock-on bolt", semanticCode: "Digit1", held: false },
-  { action: "sword", label: "Sword", semanticCode: "Digit2", held: false },
-  { action: "loot", label: "Loot", semanticCode: "LootItem", held: false },
+  { action: "bolt", label: "Lock-on bolt", semanticCode: "Digit2", held: false },
+  { action: "sword", label: "Sword", semanticCode: "Digit1", held: false },
+  { action: "loot", label: "Loot / interact", semanticCode: "LootItem", held: false },
   { action: "jump", label: "Jump / air boost", semanticCode: "Space", held: true },
   { action: "shield", label: "Pulse shield", semanticCode: "KeyE", held: true },
-  { action: "horizontalSustain", label: "Horizontal sustain", semanticCode: "ShiftLeft", held: true },
-  { action: "horizontalBurst", label: "Horizontal burst", semanticCode: "KeyQ", held: false },
+  { action: "horizontalSustain", label: "Sprint", semanticCode: "ShiftLeft", held: true },
+  { action: "horizontalBurst", label: "Dash", semanticCode: "KeyQ", held: false },
   { action: "reset", label: "Reset encounter", semanticCode: "ShiftR", held: false },
 ] as const;
 
@@ -55,9 +55,9 @@ export const defaultBindings: InputBindings = Object.freeze({
   left: "KeyA",
   right: "KeyD",
   target: "Tab",
-  bolt: "Digit1",
-  sword: "Digit2",
-  loot: "KeyL",
+  bolt: "Digit2",
+  sword: "Digit1",
+  loot: "KeyF",
   jump: "Space",
   shield: "KeyE",
   horizontalSustain: "ShiftLeft",

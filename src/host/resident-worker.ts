@@ -135,6 +135,7 @@ let inputBackpressureCount = 0;
 // from becoming a delayed chain of attacks after the semantic commitment has
 // elapsed.
 const edgeTriggeredKeyboardCodes = new Set([
+  "Digit1",
   "Digit2",
   "KeyQ",
   "Space",

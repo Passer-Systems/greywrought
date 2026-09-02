@@ -718,7 +718,7 @@ function verifyResourceGatedFrontier(module: object, request: unknown): void {
                 revision,
                 configurationRevision,
                 inputSequence,
-                "Digit2",
+                "Digit1",
                 "down",
               );
             }
@@ -1300,7 +1300,7 @@ function verifyProjectileOpeningConversion(module: object, request: unknown): vo
     revision,
     configurationRevision,
     inputSequence,
-    "Digit1",
+    "Digit2",
     "down",
   );
   let sawProjectile = false;
@@ -1318,7 +1318,7 @@ function verifyProjectileOpeningConversion(module: object, request: unknown): vo
     }
     current = admitEmpty(opened, revision, configurationRevision);
   }
-  requireCondition(sawProjectile, "Digit1 launched no visible Wasm projectile");
+  requireCondition(sawProjectile, "Digit2 launched no visible Wasm projectile");
   requireCondition(sawOpening, "the Wasm projectile produced no opening");
 
   const beforePlayer = projectedField(current.projection, "player-1", "projection");
@@ -1442,7 +1442,7 @@ function verifySustainedWasmLiveness(
         directionIndex = (directionIndex + 1) % directions.length;
         key(directions[directionIndex]!, "down");
       }
-      if (tick % 188 === 0) press("Digit2");
+      if (tick % 188 === 0) press("Digit1");
       if (tick % 250 === 0) {
         press("KeyQ");
         press("Space");

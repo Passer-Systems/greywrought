@@ -105,20 +105,20 @@
           </section>
 
           <section class="action-bars" aria-label="Abilities">
-            <div class="action-bar primary-action-bar">
-              <div class="action-slot bolt-slot"><kbd>1</kbd><span>✦</span><small>Bolt</small></div>
-              <div class="action-slot sword-slot"><kbd>2</kbd><span>⚔</span><small>Sword</small></div>
-              <div class="action-slot shield-slot"><kbd>E</kbd><span>✧</span><small>Reflect</small></div>
-              <div class="action-slot dash-slot"><kbd>Q</kbd><span>➤</span><small>Dash</small></div>
-              <div class="action-slot boost-slot"><kbd>Space</kbd><span>⇧</span><small>Boost</small></div>
-              <div class="action-slot sprint-slot"><kbd>Shift</kbd><span>»</span><small>Sprint</small></div>
-            </div>
             <div class="action-bar secondary-action-bar">
-              <div class="action-slot loot-slot"><kbd>L</kbd><span>◆</span><small>Loot</small></div>
+              <div class="action-slot loot-slot"><kbd>F</kbd><span>◆</span><small>Interact</small></div>
               <div class="action-slot reset-slot"><kbd>Shift+R</kbd><span>↻</span><small>Reset</small></div>
               <div class="action-slot empty-slot"><kbd>3</kbd><span></span><small></small></div>
               <div class="action-slot empty-slot"><kbd>4</kbd><span></span><small></small></div>
               <div class="action-slot empty-slot"><kbd>5</kbd><span></span><small></small></div>
+            </div>
+            <div class="action-bar primary-action-bar">
+              <div class="action-slot sword-slot"><kbd>1</kbd><span>⚔</span><small>Sword</small></div>
+              <div class="action-slot bolt-slot"><kbd>2</kbd><span>✦</span><small>Bolt</small></div>
+              <div class="action-slot shield-slot"><kbd>E</kbd><span>✧</span><small>Reflect</small></div>
+              <div class="action-slot dash-slot"><kbd>Q</kbd><span>➤</span><small>Dash</small></div>
+              <div class="action-slot boost-slot"><kbd>Space</kbd><span>⇧</span><small>Boost</small></div>
+              <div class="action-slot sprint-slot"><kbd>Shift</kbd><span>»</span><small>Sprint</small></div>
             </div>
           </section>
 
@@ -150,7 +150,7 @@
             </div>
           </section>
 
-          <div id="control-hint">WASD move · 1 bolt · 2 sword · Q dash · E shield · Space jump / air boost · Shift sprint · Tab target · L loot</div>
+          <div id="control-hint">WASD move · 1 sword · 2 bolt · Q dash · E shield · F interact · Space jump / air boost · Shift sprint · Tab target</div>
           <nav class="micro-menu" aria-label="Bags and game menu">
             <div class="micro-slot bag-small" title="Utility bag"></div>
             <div class="micro-slot bag-medium" title="Inventory"></div>
@@ -187,18 +187,18 @@
             <span>Move left</span><button type="button" data-input-action="left">A</button>
             <span>Move right</span><button type="button" data-input-action="right">D</button>
             <span>Cycle target</span><button type="button" data-input-action="target">Tab</button>
-            <span>Lock-on bolt</span><button type="button" data-input-action="bolt">1</button>
-            <span>Sword</span><button type="button" data-input-action="sword">2</button>
-            <span>Loot</span><button type="button" data-input-action="loot">L</button>
+            <span>Lock-on bolt</span><button type="button" data-input-action="bolt">2</button>
+            <span>Sword</span><button type="button" data-input-action="sword">1</button>
+            <span>Loot / interact</span><button type="button" data-input-action="loot">F</button>
             <span>Jump / air boost</span><button type="button" data-input-action="jump">Space</button>
             <span>Pulse shield</span><button type="button" data-input-action="shield">E</button>
-            <span>Horizontal sustain</span><button type="button" data-input-action="horizontalSustain">Left Shift</button>
-            <span>Horizontal burst</span><button type="button" data-input-action="horizontalBurst">Q</button>
+            <span>Sprint</span><button type="button" data-input-action="horizontalSustain">Left Shift</button>
+            <span>Dash</span><button type="button" data-input-action="horizontalBurst">Q</button>
             <span>Reset encounter</span><button type="button" data-input-action="reset">Shift+R</button>
           </div>
           <button id="reset-bindings" type="button">Restore default bindings</button>
           <p id="input-preference-status" class="settings-status" aria-live="polite">Changes save in this browser.</p>
-          <p class="truth-note">Gamepad: left stick/D-pad move, hold A to jump and boost in air, B loot, X sword, Y target, shoulders dash/bolt, right trigger shield, Start reset.</p>
+          <p class="truth-note">Gamepad: left stick/D-pad move, A jumps/boosts, B loots/interacts, X uses Sword, Y cycles target, left bumper dashes, right bumper casts Bolt, right trigger shields, left-stick press sprints, and Start resets.</p>
         </details>
         <section>
           <h2>Authoritative custody</h2>

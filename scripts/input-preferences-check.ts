@@ -14,7 +14,7 @@ function assert(condition: boolean, message: string): void {
 
 const remapped = rebindAction(defaultBindings, "sword", "KeyK");
 assert(actionForPhysicalCode(remapped, "KeyK") === "sword", "sword did not rebind");
-assert(actionForPhysicalCode(remapped, "KeyJ") === null, "old sword binding remained active");
+assert(actionForPhysicalCode(remapped, "Digit1") === null, "old sword binding remained active");
 const swapped = rebindAction(remapped, "jump", "KeyK");
 assert(actionForPhysicalCode(swapped, "KeyK") === "jump", "collision did not move requested action");
 assert(actionForPhysicalCode(swapped, "Space") === "sword", "collision did not preserve the displaced action");

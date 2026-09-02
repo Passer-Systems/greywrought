@@ -2438,10 +2438,10 @@ function applyInputPreferences(app: PlayApp): void {
   }
   element("control-hint").textContent =
     `${displayKey(preferences.bindings.forward)}/${displayKey(preferences.bindings.left)}/${displayKey(preferences.bindings.backward)}/${displayKey(preferences.bindings.right)} move · ` +
-    `${displayKey(preferences.bindings.target)} target · ${displayKey(preferences.bindings.bolt)} bolt · ` +
-    `${displayKey(preferences.bindings.sword)} sword · ${displayKey(preferences.bindings.loot)} loot · ` +
-    `${displayKey(preferences.bindings.shield)} shield · ${displayKey(preferences.bindings.horizontalBurst)} dash · ` +
-    `${displayKey(preferences.bindings.jump)} jump / air boost · gamepad supported`;
+    `${displayKey(preferences.bindings.sword)} sword · ${displayKey(preferences.bindings.bolt)} bolt · ` +
+    `${displayKey(preferences.bindings.horizontalBurst)} dash · ${displayKey(preferences.bindings.shield)} shield · ` +
+    `${displayKey(preferences.bindings.loot)} interact · ${displayKey(preferences.bindings.horizontalSustain)} sprint · ` +
+    `${displayKey(preferences.bindings.jump)} jump / air boost · ${displayKey(preferences.bindings.target)} target · gamepad supported`;
 }
 
 function resumePresentationAudio(app: PlayApp): void {

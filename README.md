@@ -83,8 +83,8 @@ bun run play
 ```
 
 Open <http://127.0.0.1:4173/>. Click the arena, then use WASD to move, left-drag
-to orbit, the wheel to zoom, Tab to target, `1` for a ranged action, `2` for the
-sword, `L` or right-click to loot, Space to jump, Shift to sprint, `Q` to dash,
+to orbit, the wheel to zoom, Tab to target, `1` for the sword, `2` for a ranged
+action, `F` or right-click to loot/interact, Space to jump, Shift to sprint, `Q` to dash,
 `E` to shield, and `Shift+R` to reset the expedition.
 
 The in-game Controls & Accessibility panel remaps every keyboard action and
