@@ -102,6 +102,15 @@ import {
   type GameAction,
   type InputPreferences,
 } from "./input-preferences.js";
+import {
+  createPresentationAudio,
+  disposePresentationAudio,
+  playPresentationAudioCue,
+  setPresentationAudioVolume,
+  unlockPresentationAudio,
+  type PresentationAudio,
+  type PresentationAudioCue,
+} from "./presentation-audio.js";
 
 type ProcessBranch = ReturnType<typeof openProcessBranch>;
 type AuthoritativeAdvance = ReturnType<typeof admitAuthoritativeOccurrences>;
@@ -341,11 +350,7 @@ interface PlayApp {
   readonly scene: SceneShell;
   readonly listeners: Array<() => void>;
   readonly playerInput: PlayerInputState;
-  presentationAudio: AudioContext | null;
-  presentationMusic: GainNode | null;
-  presentationRain: GainNode | null;
-  presentationMusicTimer: number | null;
-  presentationMusicBeat: number;
+  readonly presentationAudio: PresentationAudio;
   stage: JourneyStage;
   effectSettled: boolean;
 }
@@ -879,59 +884,86 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const objectiveStatus = objectiveLabel(objective.state);
   if (prior !== null) {
     if (player.shieldActionSequence > prior.player.shieldActionSequence) {
-      playPresentationTone(app, 540, 0.16, 0.72);
+      playPresentationCue(app, "shield-activate");
     }
     if (player.shieldReflectSequence > prior.player.shieldReflectSequence) {
-      playPresentationTone(app, 1480, 0.3, 1);
-      playPresentationTone(app, 740, 0.42, 0.82);
+      playPresentationCue(app, "shield-reflect");
     }
     if (player.swordActionSequence > prior.player.swordActionSequence) {
-      playPresentationTone(app, 260, 0.11, 0.7);
+      playPresentationCue(app, "melee-swing");
     }
-    if (priorEnemy !== null && enemy.vitality < priorEnemy.vitality) {
-      playPresentationTone(app, 115, 0.16, 0.9);
+    if (
+      player.rangedActionState === "charging" &&
+      prior.player.rangedActionState !== "charging"
+    ) {
+      playPresentationCue(app, "bolt-cast");
     }
-    const priorCache = lootById(prior, "cephorium-cache");
-    if (cephorium.custody !== priorCache.custody && cephorium.custody === "player-1") {
-      playPresentationTone(app, 620, 0.22, 0.7);
+    if (wayfarerBolt.visible && !prior.wayfarerBolt.visible) {
+      playPresentationCue(app, "bolt-launch");
+    }
+    if (!wayfarerBolt.visible && prior.wayfarerBolt.visible) {
+      playPresentationCue(app, "bolt-impact");
+    }
+    if (
+      player.shieldActive &&
+      player.shieldReflectSequence === prior.player.shieldReflectSequence &&
+      prior.bolt.visible &&
+      !bolt.visible
+    ) {
+      playPresentationCue(app, "shield-absorb");
+    }
+    if (
+      projection.loots.some((loot) => {
+        const previous = prior.loots.find(({ id }) => id === loot.id);
+        return previous?.custody !== loot.custody && loot.custody === "player-1";
+      })
+    ) {
+      playPresentationCue(app, "loot");
     }
     if (objective.state !== prior.objective.state && objectiveStatus === "completed") {
-      playPresentationTone(app, 820, 0.38, 0.75);
+      playPresentationCue(app, "objective");
     }
     if (frontier.access !== prior.frontier.access && frontier.access !== "sealed") {
-      playPresentationTone(app, 196, 0.48, 0.85);
+      playPresentationCue(app, "gate");
     }
     for (const projectedEnemy of enemies) {
       const previousEnemy = prior.enemies.find(({ id }) => id === projectedEnemy.id);
       if (
+        previousEnemy !== undefined &&
+        projectedEnemy.vitality < previousEnemy.vitality
+      ) {
+        if (!prior.wayfarerBolt.visible) playPresentationCue(app, "melee-hit");
+        playPresentationCue(app, "boar-hit");
+      }
+      if (
         projectedEnemy.pressureState === "telegraph" &&
         previousEnemy?.pressureState !== "telegraph"
       ) {
-        playPresentationTone(
-          app,
-          projectedEnemy.id === "ashen-colossus" ? 72 : 98,
-          0.44,
-          0.9,
-        );
+        playPresentationCue(app, "boar-charge");
+      }
+      if (
+        projectedEnemy.pressureState === "charging" &&
+        previousEnemy?.pressureState !== "charging"
+      ) {
+        playPresentationCue(app, "boar-charge");
       }
       if (
         projectedEnemy.pressureState === "cannon-telegraph" &&
         previousEnemy?.pressureState !== "cannon-telegraph"
       ) {
-        playPresentationTone(app, 148, 0.9, 1);
+        playPresentationCue(app, "cannon-charge");
       }
       if (
         previousEnemy?.pressureState === "cannon-telegraph" &&
         projectedEnemy.pressureState === "projectile-opening"
       ) {
-        playPresentationTone(app, 1180, 0.28, 1);
+        playPresentationCue(app, "cannon-fire");
       }
       if (
         projectedEnemy.combatStatus === "dead" &&
         previousEnemy?.combatStatus !== "dead"
       ) {
-        playPresentationTone(app, 96, 0.78, 1.4);
-        playPresentationTone(app, 48, 1.15, 1.65);
+        playPresentationCue(app, "boar-death");
       }
     }
   }
@@ -2413,140 +2445,18 @@ function applyInputPreferences(app: PlayApp): void {
 }
 
 function resumePresentationAudio(app: PlayApp): void {
-  try {
-    app.presentationAudio ??= new AudioContext();
-    if (app.presentationAudio.state === "suspended") {
-      void app.presentationAudio.resume().then(() => startPlaceholderMusic(app));
-    } else {
-      startPlaceholderMusic(app);
-    }
-  } catch {
-    app.presentationAudio = null;
-  }
-}
-
-function startPlaceholderMusic(app: PlayApp): void {
-  const context = app.presentationAudio;
-  if (context === null || context.state !== "running") return;
-  if (app.presentationMusic !== null) {
-    app.presentationMusic.gain.setTargetAtTime(
-      app.playerInput.preferences.effectsVolume * 0.075,
-      context.currentTime,
-      0.08,
-    );
-    app.presentationRain?.gain.setTargetAtTime(
-      app.playerInput.preferences.effectsVolume * 0.055,
-      context.currentTime,
-      0.08,
-    );
-    return;
-  }
-  const master = context.createGain();
-  const filter = context.createBiquadFilter();
-  const lowDrone = context.createOscillator();
-  const fifth = context.createOscillator();
-  const pulse = context.createOscillator();
-  const pulseDepth = context.createGain();
-  lowDrone.type = "sawtooth";
-  fifth.type = "triangle";
-  lowDrone.frequency.value = 55;
-  fifth.frequency.value = 82.41;
-  pulse.frequency.value = 0.11;
-  pulseDepth.gain.value = 170;
-  filter.type = "lowpass";
-  filter.frequency.value = 430;
-  filter.Q.value = 2.4;
-  master.gain.value = app.playerInput.preferences.effectsVolume * 0.075;
-  pulse.connect(pulseDepth).connect(filter.frequency);
-  lowDrone.connect(filter);
-  fifth.connect(filter);
-  filter.connect(master).connect(context.destination);
-  lowDrone.start();
-  fifth.start();
-  pulse.start();
-  app.presentationMusic = master;
-  const rainBuffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
-  const rainSamples = rainBuffer.getChannelData(0);
-  let rainSeed = 0x7f4a7c15;
-  for (let index = 0; index < rainSamples.length; index += 1) {
-    rainSeed = (Math.imul(rainSeed, 1664525) + 1013904223) >>> 0;
-    rainSamples[index] = (rainSeed / 0xffffffff) * 2 - 1;
-  }
-  const rainSource = context.createBufferSource();
-  const rainFilter = context.createBiquadFilter();
-  const rainGain = context.createGain();
-  rainSource.buffer = rainBuffer;
-  rainSource.loop = true;
-  rainFilter.type = "bandpass";
-  rainFilter.frequency.value = 3200;
-  rainFilter.Q.value = 0.42;
-  rainGain.gain.value = app.playerInput.preferences.effectsVolume * 0.055;
-  rainSource.connect(rainFilter).connect(rainGain).connect(context.destination);
-  rainSource.start();
-  app.presentationRain = rainGain;
-  const fantasyNotes = [293.66, 349.23, 440, 523.25, 440, 349.23, 329.63, 261.63];
-  const playFantasyBeat = (): void => {
-    const musicContext = app.presentationAudio;
-    const musicBus = app.presentationMusic;
-    if (musicContext === null || musicBus === null || musicContext.state !== "running") return;
-    const start = musicContext.currentTime;
-    const note = fantasyNotes[app.presentationMusicBeat % fantasyNotes.length]!;
-    const voice = musicContext.createOscillator();
-    const voiceGain = musicContext.createGain();
-    voice.type = app.presentationMusicBeat % 2 === 0 ? "triangle" : "sine";
-    voice.frequency.setValueAtTime(note, start);
-    voiceGain.gain.setValueAtTime(0.0001, start);
-    voiceGain.gain.exponentialRampToValueAtTime(0.34, start + 0.018);
-    voiceGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.58);
-    voice.connect(voiceGain).connect(musicBus);
-    voice.start(start);
-    voice.stop(start + 0.6);
-    if (app.presentationMusicBeat % 4 === 0) {
-      const bass = musicContext.createOscillator();
-      const bassGain = musicContext.createGain();
-      bass.type = "triangle";
-      bass.frequency.value = note / 4;
-      bassGain.gain.setValueAtTime(0.2, start);
-      bassGain.gain.exponentialRampToValueAtTime(0.0001, start + 1.1);
-      bass.connect(bassGain).connect(musicBus);
-      bass.start(start);
-      bass.stop(start + 1.12);
-    }
-    app.presentationMusicBeat += 1;
-  };
-  playFantasyBeat();
-  app.presentationMusicTimer = window.setInterval(playFantasyBeat, 360);
-  document.body.dataset.placeholderMusic = "playing";
-  document.body.dataset.rainAudio = "playing";
-}
-
-function playPresentationTone(
-  app: PlayApp,
-  frequency: number,
-  durationSeconds: number,
-  intensity = 1,
-): void {
-  const context = app.presentationAudio;
-  const volume = app.playerInput.preferences.effectsVolume * intensity;
-  if (context === null || context.state !== "running" || volume <= 0) return;
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  const start = context.currentTime;
-  oscillator.type = "triangle";
-  oscillator.frequency.setValueAtTime(frequency, start);
-  oscillator.frequency.exponentialRampToValueAtTime(
-    Math.max(40, frequency * 0.72),
-    start + durationSeconds,
+  setPresentationAudioVolume(
+    app.presentationAudio,
+    app.playerInput.preferences.effectsVolume,
   );
-  gain.gain.setValueAtTime(Math.min(0.26, volume * 0.22), start);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + durationSeconds);
-  oscillator.connect(gain).connect(context.destination);
-  oscillator.start(start);
-  oscillator.stop(start + durationSeconds);
-  oscillator.addEventListener("ended", () => {
-    oscillator.disconnect();
-    gain.disconnect();
-  }, { once: true });
+  unlockPresentationAudio(app.presentationAudio);
+}
+
+function playPresentationCue(
+  app: PlayApp,
+  cue: PresentationAudioCue,
+): void {
+  playPresentationAudioCue(app.presentationAudio, cue);
 }
 
 function loadInputPreferences(app: PlayApp): void {
@@ -2740,7 +2650,7 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
     const value = Number.parseInt(inputElement("effects-volume").value, 10) / 100;
     updateInputPreferences(app, { effectsVolume: value });
     resumePresentationAudio(app);
-    playPresentationTone(app, 520, 0.09, 0.65);
+    playPresentationCue(app, "ui-confirm");
   };
   const resumeAudio = (): void => resumePresentationAudio(app);
   inputElement("reduced-motion").addEventListener("change", reducedMotion);
@@ -2818,8 +2728,7 @@ function teardown(app: PlayApp): void {
   );
   app.scene.canvas.removeEventListener("wheel", app.scene.wheelHandler);
   for (const removeListener of app.listeners) removeListener();
-  if (app.presentationMusicTimer !== null) window.clearInterval(app.presentationMusicTimer);
-  if (app.presentationAudio !== null) void app.presentationAudio.close();
+  disposePresentationAudio(app.presentationAudio);
   disposeCinderwakePresentation(app.scene.presentation);
   app.scene.canvas.remove();
   const processBranch = stageProcessBranch(app.stage);
@@ -2875,11 +2784,7 @@ function startApp(
       gamepadHeld: new Set<GameAction>(),
       gamepadPressed: new Set<GameAction>(),
     },
-    presentationAudio: null,
-    presentationMusic: null,
-    presentationRain: null,
-    presentationMusicTimer: null,
-    presentationMusicBeat: 0,
+    presentationAudio: createPresentationAudio(),
   };
   bindResidentWorker(app, listeners);
   bindGameInput(app, listeners);

@@ -157,6 +157,10 @@ interface RainField {
     readonly z: number;
     readonly speed: number;
     readonly length: number;
+    readonly width: number;
+    readonly wind: number;
+    readonly sway: number;
+    readonly phase: number;
   }[];
   readonly matrix: Matrix4;
   readonly scale: Vector3;
@@ -1376,13 +1380,14 @@ export function renderPresentationFrame(
     const drop = rain.drops[index]!;
     const fall = elapsedSeconds * drop.speed + drop.y;
     const phase = fall % 32;
-    rain.matrix.makeRotationZ(-0.16);
-    rain.scale.set(1, drop.length, 1);
+    const gust = Math.sin(elapsedSeconds * 0.72 + drop.phase) * drop.sway;
+    rain.matrix.makeRotationZ(-0.1 - drop.wind * 0.012);
+    rain.scale.set(drop.width, drop.length, drop.width);
     rain.matrix.scale(rain.scale);
     rain.matrix.setPosition(
-      drop.x + phase * 0.085 - 1.36,
+      drop.x + phase * drop.wind + gust,
       19 - phase,
-      drop.z,
+      drop.z + phase * 0.022,
     );
     rain.mesh.setMatrixAt(index, rain.matrix);
   }
@@ -1484,22 +1489,29 @@ export function createCinderwakePresentation(
   wayfarer.root.add(shieldBubble);
   const rainGeometry = ownGeometry(
     resources,
-    new BoxGeometry(0.018, 0.92, 0.018),
+    new BoxGeometry(1, 0.92, 1),
   );
   const rainMaterial = new MeshBasicMaterial({
-    color: 0xb9d9e6,
+    color: 0xe1f5fb,
     transparent: true,
-    opacity: 0.42,
+    opacity: 0.34,
     depthWrite: false,
   });
   resources.materials.push(rainMaterial);
-  const rainDrops = Array.from({ length: 420 }, (_, index) => ({
-    x: ((index * 47) % 211) / 210 * 42 - 21,
-    y: ((index * 97) % 223) / 222 * 32,
-    z: ((index * 71) % 227) / 226 * 42 - 21,
-    speed: 13 + ((index * 17) % 9),
-    length: 0.62 + ((index * 29) % 11) * 0.075,
-  }));
+  const rainDrops = Array.from({ length: 460 }, (_, index) => {
+    const depth = ((index * 83) % 229) / 228;
+    return {
+      x: ((index * 47) % 211) / 210 * 44 - 22,
+      y: ((index * 97) % 223) / 222 * 32,
+      z: depth * 44 - 22,
+      speed: 13 + depth * 8 + ((index * 17) % 5),
+      length: 0.5 + depth * 1.05 + ((index * 29) % 7) * 0.045,
+      width: 0.009 + depth * 0.016,
+      wind: 0.068 + ((index * 31) % 9) * 0.005,
+      sway: 0.035 + ((index * 43) % 13) * 0.009,
+      phase: ((index * 59) % 101) / 100 * Math.PI * 2,
+    };
+  });
   const rainMesh = new InstancedMesh(
     rainGeometry,
     rainMaterial,
@@ -1507,6 +1519,13 @@ export function createCinderwakePresentation(
   );
   rainMesh.instanceMatrix.setUsage(DynamicDrawUsage);
   rainMesh.frustumCulled = false;
+  const farRain = new Color(0x78939c);
+  const nearRain = new Color(0xd8f2f7);
+  for (let index = 0; index < rainDrops.length; index += 1) {
+    const depth = (rainDrops[index]!.z + 22) / 44;
+    rainMesh.setColorAt(index, farRain.clone().lerp(nearRain, depth));
+  }
+  if (rainMesh.instanceColor !== null) rainMesh.instanceColor.needsUpdate = true;
   const rain: RainField = {
     mesh: rainMesh,
     drops: rainDrops,
