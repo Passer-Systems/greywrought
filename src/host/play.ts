@@ -222,6 +222,8 @@ interface ResidentLawSession {
   interval: number;
   pendingHot: GenerationPayload | null;
   lastProjection: GameProjection | null;
+  pendingProjectionFrame: string | readonly number[] | null;
+  projectionFrameHandle: number;
   admittedOrdinal: number;
   candidateSeen: boolean;
 }
@@ -376,6 +378,8 @@ function openResidentLawSession(): ResidentLawSession {
     interval: 0,
     pendingHot: null,
     lastProjection: null,
+    pendingProjectionFrame: null,
+    projectionFrameHandle: 0,
     admittedOrdinal: 0,
     candidateSeen: false,
   };
@@ -1052,6 +1056,28 @@ function parseResidentProjectionFrame(value: unknown): string | readonly number[
   });
 }
 
+function queueResidentProjectionFrame(
+  app: PlayApp,
+  frame: string | readonly number[],
+): void {
+  const resident = app.residentLaw;
+  resident.pendingProjectionFrame = frame;
+  if (resident.projectionFrameHandle !== 0) return;
+  // Do not couple authoritative projection ingestion to RAF. RAF may be
+  // throttled while a tab is backgrounded or a compositor is busy; a timer
+  // keeps the latest admitted state and keyboard feedback flowing even then.
+  resident.projectionFrameHandle = window.setTimeout(() => {
+    resident.projectionFrameHandle = 0;
+    const pending = resident.pendingProjectionFrame;
+    resident.pendingProjectionFrame = null;
+    if (pending === null) return;
+    renderGameProjection(
+      app,
+      decodeProjectedTermFrame(parseResidentProjectionFrame(pending)),
+    );
+  }, 16);
+}
+
 function parseResidentReceipt(value: unknown): ResidentLifecycleReceipt {
   const receipt = requireForeignRecord(value, "resident lifecycle receipt");
   return {
@@ -1084,12 +1110,10 @@ function bindResidentWorker(app: PlayApp, listeners: Array<() => void>): void {
         "resident worker event.kind",
       );
       if (kind === "projection-frame") {
-        renderGameProjection(
+        queueResidentProjectionFrame(
           app,
-          decodeProjectedTermFrame(
-            parseResidentProjectionFrame(
-              requireField(value, "frame", "resident worker event"),
-            ),
+          parseResidentProjectionFrame(
+            requireField(value, "frame", "resident worker event"),
           ),
         );
       } else if (kind === "receipt") {
@@ -1694,6 +1718,11 @@ function teardown(app: PlayApp): void {
   if (!app.scene.alive) return;
   app.scene.alive = false;
   window.clearInterval(app.residentLaw.interval);
+  if (app.residentLaw.projectionFrameHandle !== 0) {
+    window.clearTimeout(app.residentLaw.projectionFrameHandle);
+    app.residentLaw.projectionFrameHandle = 0;
+  }
+  app.residentLaw.pendingProjectionFrame = null;
   cancelAnimationFrame(app.scene.frameHandle);
   app.scene.canvas.removeEventListener("pointerdown", app.scene.pointerHandler);
   app.scene.canvas.removeEventListener(
