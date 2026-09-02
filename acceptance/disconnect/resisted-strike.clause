@@ -54,10 +54,12 @@ relation custody
   subject loot
   mode given loot yields custodian: one
 
-ashen-wayfarer: Wayfarer
-ashen-wayfarer: Custodian
-cinder-wraith: Enemy
-cinder-wraith: Custodian
+ashen-wayfarer
+  shape: Wayfarer
+  shape: Custodian
+cinder-wraith
+  shape: Enemy
+  shape: Custodian
 ember-strike: Attack
 ashen-key: Loot
 moonwell-restoration: WorldObjective

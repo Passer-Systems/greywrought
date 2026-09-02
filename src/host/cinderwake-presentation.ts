@@ -1,21 +1,29 @@
 import {
   AmbientLight,
+  AnimationClip,
   AnimationMixer,
   BoxGeometry,
   Box3,
+  BufferGeometry,
   Color,
   ConeGeometry,
   CylinderGeometry,
   DirectionalLight,
+  DynamicDrawUsage,
   Group,
   HemisphereLight,
+  InstancedMesh,
   Material,
+  Matrix4,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
+  NumberKeyframeTrack,
   Object3D,
   PerspectiveCamera,
   PointLight,
+  Quaternion,
+  QuaternionKeyframeTrack,
   Raycaster,
   Scene,
   SphereGeometry,
@@ -27,7 +35,6 @@ import {
   LoopOnce,
   LoopRepeat,
   type AnimationAction,
-  type BufferGeometry,
 } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import {
@@ -51,7 +58,10 @@ export type { FrontierGateAccess } from "./open-field-environment.js";
 export interface CinderwakeSubjectIds {
   readonly wayfarer: string;
   readonly wraith: string;
-  readonly boar: string;
+  readonly boars: readonly {
+    readonly subject: string;
+    readonly baseScale: number;
+  }[];
   readonly bolt: string;
   readonly relic: string;
   readonly cache: string;
@@ -78,8 +88,11 @@ export interface AdmittedPresentationFrame {
   readonly wayfarerMotion: {
     readonly moving: boolean;
     readonly airborne: boolean;
+    readonly backpedaling: boolean;
     readonly directionX: number;
     readonly directionZ: number;
+    readonly facingDirectionX: number;
+    readonly facingDirectionZ: number;
   };
 }
 
@@ -103,6 +116,7 @@ interface SubjectPresentation extends EffectShell {
   readonly lootSparkleMaterial: MeshStandardMaterial | null;
   readonly baseElevation: number;
   readonly baseScale: number;
+  readonly boar: boolean;
   telegraphLevel: number;
   attackLevel: number;
   recoveryLevel: number;
@@ -114,19 +128,38 @@ interface SubjectPresentation extends EffectShell {
   lastDeath: number;
   facingYaw: number;
   lootable: boolean;
+  moving: boolean;
+  dead: boolean;
 }
 
 interface MountedBoarRig {
+  readonly subject: string;
   readonly root: Object3D;
   readonly mixer: AnimationMixer;
   readonly walk: AnimationAction;
   readonly attack: AnimationAction;
+  readonly death: AnimationAction;
+  readonly standingQuaternion: Quaternion;
+  readonly standingY: number;
   mode: "still" | "walk" | "charge" | "attack" | "dead";
 }
 
 interface OwnedPresentationResources {
   readonly geometries: BufferGeometry[];
   readonly materials: Material[];
+}
+
+interface RainField {
+  readonly mesh: InstancedMesh;
+  readonly drops: readonly {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly speed: number;
+    readonly length: number;
+  }[];
+  readonly matrix: Matrix4;
+  readonly scale: Vector3;
 }
 
 export interface CinderwakePresentation {
@@ -137,6 +170,9 @@ export interface CinderwakePresentation {
   readonly chargeCorridor: Object3D;
   readonly chargeCorridorFill: Object3D;
   readonly chargeCorridorFillMaterial: MeshStandardMaterial;
+  readonly shieldBubble: Object3D;
+  readonly shieldBubbleMaterial: MeshStandardMaterial;
+  readonly rain: RainField;
   readonly resources: OwnedPresentationResources;
   readonly environment: OpenFieldEnvironment;
   readonly environmentReady: Promise<void>;
@@ -156,12 +192,13 @@ export interface CinderwakePresentation {
   cameraOrbitYaw: number;
   cameraOrbitPitch: number;
   cameraDistance: number;
+  shieldClock: number;
+  shieldActive: boolean;
+  shieldEnergy: number;
+  shieldReflectLevel: number;
   wayfarerRig: MountedArenaRig | null;
-  boarRig: MountedBoarRig | null;
+  readonly boarRigs: Map<string, MountedBoarRig>;
   cacheRoot: Object3D | null;
-  boarMoving: boolean;
-  boarCharging: boolean;
-  boarDead: boolean;
   pendingWayfarerAttack: boolean;
   pendingWayfarerPropulsion: number;
   disposed: boolean;
@@ -336,6 +373,7 @@ function subjectPresentation(
   baseScale = 1,
   lootSparkles: Group | null = null,
   lootSparkleMaterial: MeshStandardMaterial | null = null,
+  boar = false,
 ): SubjectPresentation {
   root.visible = false;
   return {
@@ -348,6 +386,7 @@ function subjectPresentation(
     ...effects,
     baseElevation,
     baseScale,
+    boar,
     telegraphLevel: 0,
     attackLevel: 0,
     recoveryLevel: 0,
@@ -359,6 +398,8 @@ function subjectPresentation(
     lastDeath: -1,
     facingYaw: placeholder === null ? 0 : Math.PI / 2,
     lootable: false,
+    moving: false,
+    dead: false,
   };
 }
 
@@ -447,6 +488,7 @@ function createWraith(
 function createBoar(
   subject: string,
   resources: OwnedPresentationResources,
+  baseScale: number,
 ): SubjectPresentation {
   const root = new Group();
   const bodyMaterial = standardMaterial(
@@ -500,6 +542,66 @@ function createBoar(
   interactionProxy.name = "greywrought.boar.interaction-proxy";
   interactionProxy.position.y = 0.75;
   root.add(interactionProxy, lootSparkles);
+  if (subject === "ashen-colossus-boar") {
+    const cannon = new Group();
+    cannon.name = "greywrought.siegebore.back-mounted-laser-cannon";
+    const cannonArmor = standardMaterial(
+      resources,
+      0x171922,
+      0xff2a0a,
+      0.76,
+      0.24,
+    );
+    const cannonGlow = standardMaterial(
+      resources,
+      0xff3b12,
+      0xff1900,
+      0.08,
+      0.1,
+      true,
+      0.94,
+    );
+    const saddle = mesh(
+      ownGeometry(resources, new BoxGeometry(1.15, 0.28, 0.82)),
+      cannonArmor,
+    );
+    saddle.position.y = 1.32;
+    const barrel = mesh(
+      ownGeometry(resources, new CylinderGeometry(0.14, 0.2, 2.35, 10)),
+      cannonArmor,
+    );
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 1.72, 0.3);
+    const focusingRailLeft = mesh(
+      ownGeometry(resources, new BoxGeometry(0.11, 0.12, 1.9)),
+      cannonGlow,
+    );
+    focusingRailLeft.position.set(-0.24, 1.72, 0.28);
+    const focusingRailRight = focusingRailLeft.clone();
+    focusingRailRight.position.x = 0.24;
+    const muzzle = mesh(
+      ownGeometry(resources, new TorusGeometry(0.28, 0.075, 8, 18)),
+      cannonGlow,
+    );
+    muzzle.position.set(0, 1.72, 1.48);
+    const reactor = mesh(
+      ownGeometry(resources, new SphereGeometry(0.28, 12, 8)),
+      cannonGlow,
+    );
+    reactor.position.set(0, 1.55, -0.72);
+    const cannonLight = new PointLight(0xff2a08, 2.8, 7.5, 2);
+    cannonLight.position.set(0, 1.72, 1.38);
+    cannon.add(
+      saddle,
+      barrel,
+      focusingRailLeft,
+      focusingRailRight,
+      muzzle,
+      reactor,
+      cannonLight,
+    );
+    root.add(cannon);
+  }
   return subjectPresentation(
     subject,
     root,
@@ -507,9 +609,10 @@ function createBoar(
     bodyMaterial,
     createEffectShell(resources, root, 1.18, 0xffa000, 0xff2c00),
     0,
-    1,
+    baseScale,
     lootSparkles,
     sparkleMaterial,
+    true,
   );
 }
 
@@ -520,7 +623,7 @@ async function mountBoarRig(
     publicUrl("assets/opengameart/teh-bucket-boar/boar.glb"),
   );
   gltf.scene.name = "greywrought.boar.authored-rig";
-  gltf.scene.rotation.y = -Math.PI / 2;
+  gltf.scene.rotation.y = Math.PI / 2;
   subject.root.add(gltf.scene);
   gltf.scene.updateWorldMatrix(true, true);
   const initialBounds = new Box3().setFromObject(gltf.scene);
@@ -556,7 +659,44 @@ async function mountBoarRig(
   const attack = mixer.clipAction(attackClip);
   attack.setLoop(LoopOnce, 1);
   attack.clampWhenFinished = true;
-  return { root: gltf.scene, mixer, walk, attack, mode: "still" };
+  const standingQuaternion = gltf.scene.quaternion.clone();
+  const standingY = gltf.scene.position.y;
+  const fallenQuaternion = standingQuaternion
+    .clone()
+    .multiply(
+      new Quaternion().setFromAxisAngle(
+        new Vector3(0, 0, 1),
+        -Math.PI * 0.46,
+      ),
+    );
+  const deathClip = new AnimationClip("death", 1.05, [
+    new QuaternionKeyframeTrack(".quaternion", [0, 0.16, 0.78, 1.05], [
+      ...standingQuaternion.toArray(),
+      ...standingQuaternion.toArray(),
+      ...fallenQuaternion.toArray(),
+      ...fallenQuaternion.toArray(),
+    ]),
+    new NumberKeyframeTrack(".position[y]", [0, 0.16, 0.78, 1.05], [
+      standingY,
+      standingY + 0.09,
+      standingY + 0.015,
+      standingY + 0.015,
+    ]),
+  ]);
+  const death = mixer.clipAction(deathClip);
+  death.setLoop(LoopOnce, 1);
+  death.clampWhenFinished = true;
+  return {
+    subject: subject.subject,
+    root: gltf.scene,
+    mixer,
+    walk,
+    attack,
+    death,
+    standingQuaternion,
+    standingY,
+    mode: "still",
+  };
 }
 
 function createCephoriumCache(
@@ -674,10 +814,20 @@ function playBoarMode(
   rig: MountedBoarRig,
   mode: "still" | "walk" | "charge" | "dead",
 ): void {
-  if (rig.mode === "attack" && rig.attack.isRunning()) return;
+  if (mode !== "dead" && rig.mode === "attack" && rig.attack.isRunning()) return;
   if (rig.mode === mode) return;
+  if (rig.mode === "dead") {
+    rig.death.stop();
+    rig.root.quaternion.copy(rig.standingQuaternion);
+    rig.root.position.y = rig.standingY;
+  }
   rig.mode = mode;
   rig.attack.stop();
+  if (mode === "dead") {
+    rig.walk.stop();
+    rig.death.reset().play();
+    return;
+  }
   if (mode === "walk" || mode === "charge") {
     rig.walk
       .reset()
@@ -689,28 +839,37 @@ function playBoarMode(
   rig.walk.fadeOut(0.1);
 }
 
-function updateBoarRig(
+function updateBoarRigs(
   presentation: CinderwakePresentation,
   delta: number,
 ): void {
-  const rig = presentation.boarRig;
-  if (rig === null) return;
-  const desired = presentation.boarDead
-    ? "dead"
-    : presentation.boarCharging
-      ? "charge"
-      : presentation.boarMoving
-        ? "walk"
-        : "still";
-  playBoarMode(rig, desired);
-  rig.mixer.update(delta);
+  for (const [subjectId, rig] of presentation.boarRigs) {
+    const subject = subjectById(presentation, subjectId);
+    if (subject === undefined) continue;
+    const desired = subject.dead
+      ? "dead"
+      : subject.attackLevel > 0.001
+        ? "charge"
+        : subject.moving
+          ? "walk"
+          : "still";
+    playBoarMode(rig, desired);
+    rig.mixer.update(delta);
+    if (subjectId === "magitek-boar") {
+      document.body.dataset.boarAnimationMode = rig.mode;
+    } else {
+      document.body.dataset.bossBoarAnimationMode = rig.mode;
+    }
+  }
 }
 
 export function playBoarAttack(
   presentation: CinderwakePresentation,
+  subjectId: string,
 ): void {
-  const rig = presentation.boarRig;
-  if (rig === null || presentation.boarDead) return;
+  const rig = presentation.boarRigs.get(subjectId);
+  const subject = subjectById(presentation, subjectId);
+  if (rig === undefined || subject?.dead !== false) return;
   rig.walk.fadeOut(0.06);
   rig.attack.reset().fadeIn(0.04).play();
   rig.mode = "attack";
@@ -912,14 +1071,14 @@ export function applyAdmittedFrame(
   for (const admitted of frame.subjects) {
     const subject = subjectById(presentation, admitted.subject);
     if (subject === undefined) continue;
-    if (subject.subject === "magitek-boar") {
-      presentation.boarMoving =
+    if (subject.boar) {
+      subject.moving =
         admitted.visible &&
         Math.hypot(
           admitted.position.x - subject.root.position.x,
           admitted.position.z - subject.root.position.z,
         ) > 0.0001;
-      presentation.boarDead = admitted.vitalityRatio <= 0;
+      subject.dead = admitted.vitalityRatio <= 0;
     }
     const ratio = clampUnit(admitted.vitalityRatio);
     subject.root.position.set(
@@ -937,8 +1096,12 @@ export function applyAdmittedFrame(
     );
     if (wayfarer !== undefined) {
       wayfarer.facingYaw = Math.atan2(
-        frame.wayfarerMotion.directionX,
-        frame.wayfarerMotion.directionZ,
+        frame.wayfarerMotion.backpedaling
+          ? frame.wayfarerMotion.facingDirectionX
+          : frame.wayfarerMotion.directionX,
+        frame.wayfarerMotion.backpedaling
+          ? frame.wayfarerMotion.facingDirectionZ
+          : frame.wayfarerMotion.directionZ,
       );
     }
   }
@@ -986,9 +1149,6 @@ export function setActivityCue(
   subject.telegraphLevel = clampUnit(telegraph);
   subject.attackLevel = clampUnit(attack);
   subject.recoveryLevel = clampUnit(recovery);
-  if (subject.subject === "magitek-boar") {
-    presentation.boarCharging = subject.attackLevel > 0.001;
-  }
 }
 
 export function faceSubjectToward(
@@ -1001,6 +1161,22 @@ export function faceSubjectToward(
   const directionX = target.x - subject.root.position.x;
   const directionZ = target.z - subject.root.position.z;
   if (Math.abs(directionX) < 0.0001 && Math.abs(directionZ) < 0.0001) return;
+  subject.facingYaw = Math.atan2(directionX, directionZ);
+}
+
+export function faceSubjectAlong(
+  presentation: CinderwakePresentation,
+  subjectId: string,
+  directionX: number,
+  directionZ: number,
+): void {
+  const subject = subjectById(presentation, subjectId);
+  if (
+    subject === undefined ||
+    (Math.abs(directionX) < 0.0001 && Math.abs(directionZ) < 0.0001)
+  ) {
+    return;
+  }
   subject.facingYaw = Math.atan2(directionX, directionZ);
 }
 
@@ -1083,6 +1259,22 @@ export function signalPropulsion(
   );
 }
 
+export function setPulseShield(
+  presentation: CinderwakePresentation,
+  clock: number,
+  active: boolean,
+  energy: number,
+  reflected: boolean,
+): void {
+  presentation.shieldClock = Math.max(0, clock);
+  presentation.shieldActive = active;
+  presentation.shieldEnergy = Math.max(0, Math.min(100, energy));
+  if (reflected) {
+    presentation.shieldReflectLevel = 1;
+    presentation.cameraImpulse = Math.max(presentation.cameraImpulse, 0.22);
+  }
+}
+
 export function signalDeath(
   presentation: CinderwakePresentation,
   subjectId: string,
@@ -1155,6 +1347,51 @@ export function renderPresentationFrame(
     0,
     presentation.cameraImpulse - delta * 0.76,
   );
+  presentation.shieldReflectLevel = Math.max(
+    0,
+    presentation.shieldReflectLevel - delta * 4.2,
+  );
+  const shieldPerfect = presentation.shieldClock >= 9;
+  const shieldActive = presentation.shieldActive && presentation.shieldEnergy > 0;
+  const shieldPulse = 1 + Math.sin(elapsedSeconds * 34) * 0.055;
+  presentation.shieldBubble.visible = shieldActive;
+  presentation.shieldBubble.scale.setScalar(
+    (presentation.shieldEnergy / 60) * shieldPulse +
+      presentation.shieldReflectLevel * 0.42,
+  );
+  presentation.shieldBubble.rotation.y = elapsedSeconds * 2.4;
+  presentation.shieldBubble.rotation.z = elapsedSeconds * -1.6;
+  presentation.shieldBubbleMaterial.color.setHex(
+    shieldPerfect ? 0xfff5a8 : 0x65bfff,
+  );
+  presentation.shieldBubbleMaterial.emissive.setHex(
+    shieldPerfect ? 0xff9f16 : 0x075cff,
+  );
+  presentation.shieldBubbleMaterial.emissiveIntensity = shieldPerfect ? 3.4 : 1.8;
+  presentation.shieldBubbleMaterial.opacity = shieldActive
+    ? 0.18 + (shieldPerfect ? 0.23 : 0.08) + presentation.shieldReflectLevel * 0.4
+    : 0;
+  const rain = presentation.rain;
+  for (let index = 0; index < rain.drops.length; index += 1) {
+    const drop = rain.drops[index]!;
+    const fall = elapsedSeconds * drop.speed + drop.y;
+    const phase = fall % 32;
+    rain.matrix.makeRotationZ(-0.16);
+    rain.scale.set(1, drop.length, 1);
+    rain.matrix.scale(rain.scale);
+    rain.matrix.setPosition(
+      drop.x + phase * 0.085 - 1.36,
+      19 - phase,
+      drop.z,
+    );
+    rain.mesh.setMatrixAt(index, rain.matrix);
+  }
+  rain.mesh.instanceMatrix.needsUpdate = true;
+  rain.mesh.position.set(
+    presentation.cameraFollowX,
+    presentation.cameraFollowY,
+    presentation.cameraFollowZ,
+  );
   updateViewport(presentation, viewportWidth, viewportHeight);
   for (const subject of presentation.subjects) {
     animateSubject(subject, elapsedSeconds, delta);
@@ -1166,7 +1403,7 @@ export function renderPresentationFrame(
       presentation.wayfarerRig.propulsionLevel,
     );
   }
-  updateBoarRig(presentation, delta);
+  updateBoarRigs(presentation, delta);
   const impulse = presentation.cameraImpulse;
   const horizontalReach =
     Math.cos(presentation.cameraOrbitPitch) * presentation.cameraDistance;
@@ -1227,13 +1464,64 @@ export function createCinderwakePresentation(
     },
   );
   const wayfarer = createWayfarer(ids.wayfarer, resources);
+  const shieldBubbleMaterial = standardMaterial(
+    resources,
+    0xfff5a8,
+    0xff9f16,
+    0.15,
+    0.1,
+    true,
+    0,
+  );
+  shieldBubbleMaterial.wireframe = true;
+  shieldBubbleMaterial.depthWrite = false;
+  const shieldBubble = mesh(
+    ownGeometry(resources, new SphereGeometry(1.08, 24, 18)),
+    shieldBubbleMaterial,
+  );
+  shieldBubble.position.y = 0.78;
+  shieldBubble.visible = false;
+  wayfarer.root.add(shieldBubble);
+  const rainGeometry = ownGeometry(
+    resources,
+    new BoxGeometry(0.018, 0.92, 0.018),
+  );
+  const rainMaterial = new MeshBasicMaterial({
+    color: 0xb9d9e6,
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
+  });
+  resources.materials.push(rainMaterial);
+  const rainDrops = Array.from({ length: 420 }, (_, index) => ({
+    x: ((index * 47) % 211) / 210 * 42 - 21,
+    y: ((index * 97) % 223) / 222 * 32,
+    z: ((index * 71) % 227) / 226 * 42 - 21,
+    speed: 13 + ((index * 17) % 9),
+    length: 0.62 + ((index * 29) % 11) * 0.075,
+  }));
+  const rainMesh = new InstancedMesh(
+    rainGeometry,
+    rainMaterial,
+    rainDrops.length,
+  );
+  rainMesh.instanceMatrix.setUsage(DynamicDrawUsage);
+  rainMesh.frustumCulled = false;
+  const rain: RainField = {
+    mesh: rainMesh,
+    drops: rainDrops,
+    matrix: new Matrix4(),
+    scale: new Vector3(),
+  };
   const wraith = createWraith(ids.wraith, resources);
-  const boar = createBoar(ids.boar, resources);
+  const boars = ids.boars.map(({ subject, baseScale }) =>
+    createBoar(subject, resources, baseScale),
+  );
   const cache = createCephoriumCache(ids.cache, resources);
   const subjects = [
     wayfarer,
     wraith,
-    boar,
+    ...boars,
     createBolt(ids.bolt, resources),
     createRelic(ids.relic, resources),
     cache,
@@ -1278,6 +1566,9 @@ export function createCinderwakePresentation(
     chargeCorridor,
     chargeCorridorFill,
     chargeCorridorFillMaterial,
+    shieldBubble,
+    shieldBubbleMaterial,
+    rain,
     resources,
     environment,
     environmentReady,
@@ -1297,12 +1588,13 @@ export function createCinderwakePresentation(
     cameraOrbitYaw: 0,
     cameraOrbitPitch: DEFAULT_CAMERA_PITCH,
     cameraDistance: DEFAULT_CAMERA_DISTANCE,
+    shieldClock: 0,
+    shieldActive: false,
+    shieldEnergy: 100,
+    shieldReflectLevel: 0,
     wayfarerRig: null,
-    boarRig: null,
+    boarRigs: new Map(),
     cacheRoot: null,
-    boarMoving: false,
-    boarCharging: false,
-    boarDead: false,
     pendingWayfarerAttack: false,
     pendingWayfarerPropulsion: 0,
     disposed: false,
@@ -1322,6 +1614,7 @@ export function createCinderwakePresentation(
   scene.add(
     ...subjects.map(({ root }) => root),
     chargeCorridor,
+    rain.mesh,
     ambient,
     skyLight,
     keyLight,
@@ -1377,16 +1670,21 @@ export function createCinderwakePresentation(
     writable: false,
   });
   document.body.dataset.boarRigState = "loading";
-  const boarReady = mountBoarRig(boar).then(
-    (mounted) => {
+  const boarReady = Promise.all(boars.map((boar) => mountBoarRig(boar))).then(
+    (mountedBoars) => {
       if (presentation.disposed) {
-        mounted.mixer.stopAllAction();
-        mounted.mixer.uncacheRoot(mounted.root);
+        for (const mounted of mountedBoars) {
+          mounted.mixer.stopAllAction();
+          mounted.mixer.uncacheRoot(mounted.root);
+        }
         return;
       }
-      presentation.boarRig = mounted;
+      for (const mounted of mountedBoars) {
+        presentation.boarRigs.set(mounted.subject, mounted);
+      }
       document.body.dataset.boarRigState = "ready";
-      document.body.dataset.boarRigAnimations = "walk,attack";
+      document.body.dataset.boarRigCount = String(mountedBoars.length);
+      document.body.dataset.boarRigAnimations = "walk,attack,death";
     },
     (cause: unknown) => {
       document.body.dataset.boarRigState = "failed";
@@ -1435,8 +1733,7 @@ export function disposeCinderwakePresentation(
   if (presentation.wayfarerRig !== null) {
     disposeMountedArenaRig(presentation.wayfarerRig);
   }
-  if (presentation.boarRig !== null) {
-    const { root, mixer } = presentation.boarRig;
+  for (const { root, mixer } of presentation.boarRigs.values()) {
     mixer.stopAllAction();
     mixer.uncacheRoot(root);
     root.traverse((object) => {
@@ -1451,8 +1748,8 @@ export function disposeCinderwakePresentation(
       }
     });
     root.removeFromParent();
-    presentation.boarRig = null;
   }
+  presentation.boarRigs.clear();
   if (presentation.cacheRoot !== null) {
     const root = presentation.cacheRoot;
     root.traverse((object) => {

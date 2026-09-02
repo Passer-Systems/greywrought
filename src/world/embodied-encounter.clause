@@ -36,6 +36,7 @@ completed
 failed
 approach
 telegraph
+cannon-telegraph
 lunge
 recovery
 rearming
@@ -90,6 +91,11 @@ relation velocity
 
 relation grounded
   reads {player: Player} grounded {value: Bool}
+  subject player
+  mode given player yields value: one
+
+relation airborne-factor
+  reads {player: Player} airborne factor {value: F64}
   subject player
   mode given player yields value: one
 
@@ -183,8 +189,8 @@ relation horizontal-sustain-drain
   subject booster
   mode given booster yields value: one
 
-relation horizontal-burst-displacement
-  reads {booster: BoosterEquipment} horizontal burst displacement {value: F64}
+relation horizontal-burst-speed
+  reads {booster: BoosterEquipment} horizontal burst speed {value: F64}
   subject booster
   mode given booster yields value: one
 
@@ -193,23 +199,23 @@ relation horizontal-burst-cost
   subject booster
   mode given booster yields value: one
 
-relation vertical-sustain-thrust
-  reads {booster: BoosterEquipment} vertical sustain thrust {value: F64}
+relation air-sustain-thrust
+  reads {booster: BoosterEquipment} air sustain thrust {value: F64}
   subject booster
   mode given booster yields value: one
 
-relation vertical-sustain-drain
-  reads {booster: BoosterEquipment} vertical sustain drain {value: F64}
+relation air-sustain-drain
+  reads {booster: BoosterEquipment} air sustain drain {value: F64}
   subject booster
   mode given booster yields value: one
 
-relation vertical-burst-impulse
-  reads {booster: BoosterEquipment} vertical burst impulse {value: F64}
+relation air-boost-impulse
+  reads {booster: BoosterEquipment} air boost impulse {value: F64}
   subject booster
   mode given booster yields value: one
 
-relation vertical-burst-cost
-  reads {booster: BoosterEquipment} vertical burst cost {value: F64}
+relation air-boost-cost
+  reads {booster: BoosterEquipment} air boost cost {value: F64}
   subject booster
   mode given booster yields value: one
 
@@ -255,6 +261,31 @@ relation status-effect
 
 relation status-clock
   reads {player: Player} status clock {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation shield-clock
+  reads {player: Player} shield clock {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation shield-active-factor
+  reads {player: Player} shield active factor {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation shield-energy
+  reads {player: Player} shield energy {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation shield-action-sequence
+  reads {player: Player} shield action sequence {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation shield-reflect-sequence
+  reads {player: Player} shield reflect sequence {value: F64}
   subject player
   mode given player yields value: one
 
@@ -325,6 +356,16 @@ relation enemy-vitals
 
 relation enemy-combat-status
   reads {enemy: Enemy} enemy combat status {value: CombatStatus}
+  subject enemy
+  mode given enemy yields value: one
+
+relation enemy-body-visible
+  reads {enemy: Enemy} enemy body visible {value: Bool}
+  subject enemy
+  mode given enemy yields value: one
+
+relation enemy-corpse-clock
+  reads {enemy: Enemy} enemy corpse clock {value: F64}
   subject enemy
   mode given enemy yields value: one
 
@@ -415,6 +456,11 @@ relation projectile-contact-radius
 
 relation projectile-contact
   reads {player: Player} has hostile projectile contact {value: Bool}
+  subject player
+  mode given player yields value: maybe
+
+relation shield-projectile-contact
+  reads {player: Player} has shield projectile contact {value: Bool}
   subject player
   mode given player yields value: maybe
 
@@ -541,6 +587,21 @@ law projectile-contact-within-radius
   then
     ?player has hostile projectile contact true
 
+law shield-projectile-contact-within-radius
+  if
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ?player shield active factor ?active
+    ?player shield energy ?energy
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    ?projectile projectile state ?projectile-state
+    ?projectile projectile faction enemy-origin
+    ?active = 1.0
+    ?energy >= 34.0
+    ?projectile-state = flight
+    ((?player-x - ?projectile-x) * (?player-x - ?projectile-x)) + ((?player-z - ?projectile-z) * (?player-z - ?projectile-z)) <= (?energy * 0.018) * (?energy * 0.018)
+  then
+    ?player has shield projectile contact true
+
 law enemy-projectile-contact-within-radius
   if
     ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
@@ -557,32 +618,56 @@ derive clamp-lower
 derive clamp-interior
 derive clamp-upper
 derive projectile-contact-within-radius
+derive shield-projectile-contact-within-radius
 derive enemy-projectile-contact-within-radius
 
-jump-arena: Arena
-player-1: Player
-player-1: Custodian
-cinder-wraith: Enemy
-cinder-wraith: Custodian
-game-objective: Custodian
-ashen-verge: Custodian
-relentless-charge: CombatBehavior
-patient-charge: CombatBehavior
-balanced-booster-rig: BoosterEquipment
-burst-booster-rig: BoosterEquipment
-sealed: FrontierAccess
-temporary-open: FrontierAccess
-permanent-open: FrontierAccess
-ready: RangedActionState
-charging: RangedActionState
-player-origin: ProjectileFaction
-enemy-origin: ProjectileFaction
-cinder-bolt: Projectile
-wayfarer-bolt: Projectile
-ashen-key: Loot
-cephorium-cache: Loot
-game-objective: Objective
-ashen-verge: Frontier
+jump-arena
+  shape: Arena
+player-1
+  shape: Player
+  shape: Custodian
+cinder-wraith
+  shape: Enemy
+  shape: Custodian
+ashen-colossus
+  shape: Enemy
+  shape: Custodian
+game-objective
+  shape: Custodian
+  shape: Objective
+ashen-verge
+  shape: Custodian
+  shape: Frontier
+relentless-charge
+  shape: CombatBehavior
+patient-charge
+  shape: CombatBehavior
+balanced-booster-rig
+  shape: BoosterEquipment
+burst-booster-rig
+  shape: BoosterEquipment
+sealed
+  shape: FrontierAccess
+temporary-open
+  shape: FrontierAccess
+permanent-open
+  shape: FrontierAccess
+ready
+  shape: RangedActionState
+charging
+  shape: RangedActionState
+player-origin
+  shape: ProjectileFaction
+enemy-origin
+  shape: ProjectileFaction
+cinder-bolt
+  shape: Projectile
+wayfarer-bolt
+  shape: Projectile
+ashen-key
+  shape: Loot
+cephorium-cache
+  shape: Loot
 
 jump-arena gravity -12.0
 jump-arena jump speed 3.0
@@ -595,12 +680,13 @@ jump-arena maximum z 2048.0
 jump-arena projectile contact radius 0.6
 jump-arena loot pickup radius 2.5
 jump-arena sword commitment ticks 96.0
-jump-arena ranged charge ticks 94.0
+jump-arena ranged charge ticks 47.0
 jump-arena player projectile speed 0.24
 
 player-1 position Vec3 { x: -2.0, y: 0.0, z: 0.5 }
 player-1 velocity Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 player-1 grounded true
+player-1 airborne factor 0.0
 player-1 horizontal intent Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 player-1 camera forward Vec3 { x: 0.0, y: 0.0, z: -1.0 }
 player-1 move speed 4.0
@@ -614,6 +700,11 @@ player-1 player vitals Vec3 { x: 4.0, y: 4.0, z: 1.0 }
 player-1 combat status alive
 player-1 status effect clear
 player-1 status clock 12.0
+player-1 shield clock 0.0
+player-1 shield active factor 0.0
+player-1 shield energy 100.0
+player-1 shield action sequence 0.0
+player-1 shield reflect sequence 0.0
 player-1 sword action sequence 0.0
 player-1 sword commitment clock 0.0
 player-1 ranged action state ready
@@ -629,12 +720,12 @@ balanced-booster-rig booster regeneration 1.0
 balanced-booster-rig booster ignition threshold 25.0
 balanced-booster-rig booster regeneration delay limit 8.0
 balanced-booster-rig horizontal sustain drain 0.5
-balanced-booster-rig horizontal burst displacement 5.6
+balanced-booster-rig horizontal burst speed 34.0
 balanced-booster-rig horizontal burst cost 20.0
-balanced-booster-rig vertical sustain thrust 0.55
-balanced-booster-rig vertical sustain drain 1.0
-balanced-booster-rig vertical burst impulse 5.0
-balanced-booster-rig vertical burst cost 25.0
+balanced-booster-rig air sustain thrust 0.32
+balanced-booster-rig air sustain drain 2.25
+balanced-booster-rig air boost impulse 3.8
+balanced-booster-rig air boost cost 18.0
 
 burst-booster-rig sustained move speed 5.5
 burst-booster-rig booster capacity 100.0
@@ -642,16 +733,18 @@ burst-booster-rig booster regeneration 0.75
 burst-booster-rig booster ignition threshold 30.0
 burst-booster-rig booster regeneration delay limit 10.0
 burst-booster-rig horizontal sustain drain 0.8
-burst-booster-rig horizontal burst displacement 3.4
+burst-booster-rig horizontal burst speed 42.0
 burst-booster-rig horizontal burst cost 30.0
-burst-booster-rig vertical sustain thrust 0.4
-burst-booster-rig vertical sustain drain 1.5
-burst-booster-rig vertical burst impulse 7.0
-burst-booster-rig vertical burst cost 35.0
+burst-booster-rig air sustain thrust 0.24
+burst-booster-rig air sustain drain 3.0
+burst-booster-rig air boost impulse 5.0
+burst-booster-rig air boost cost 26.0
 
 cinder-wraith enemy position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
 cinder-wraith enemy combat status alive
+cinder-wraith enemy body visible true
+cinder-wraith enemy corpse clock 0.0
 cinder-wraith combat behavior relentless-charge
 relentless-charge behavior parameters CombatBehaviorParameters { minimum-step: -0.06, maximum-step: 0.06, engagement-radius-squared: 49.0 }
 patient-charge behavior parameters CombatBehaviorParameters { minimum-step: -0.02, maximum-step: 0.02, engagement-radius-squared: 25.0 }
@@ -665,6 +758,23 @@ cinder-wraith enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy charge committed false
 cinder-wraith enemy random sample 0.5
+
+ashen-colossus enemy position Vec3 { x: 29.0, y: 0.0, z: -2.0 }
+ashen-colossus enemy vitals Vec3 { x: 24.0, y: 24.0, z: 1.0 }
+ashen-colossus enemy combat status dormant
+ashen-colossus enemy body visible true
+ashen-colossus enemy corpse clock 0.0
+ashen-colossus combat behavior relentless-charge
+ashen-colossus next target ashen-colossus
+ashen-colossus previous target ashen-colossus
+ashen-colossus enemy pressure state dormant
+ashen-colossus enemy pressure clock 0.0
+ashen-colossus enemy recovery clock 0.0
+ashen-colossus enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+ashen-colossus enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+ashen-colossus enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+ashen-colossus enemy charge committed false
+ashen-colossus enemy random sample 0.82
 
 cinder-bolt projectile position Vec3 { x: 2.0, y: 0.55, z: 0.0 }
 cinder-bolt projectile state dormant
@@ -685,11 +795,11 @@ ashen-key loot claim rule defeated-source
 ashen-key loot name "Ashen Breach Key"
 ashen-key loot category quest-item
 cephorium-cache loot state hidden
-cephorium-cache custody ashen-verge
+cephorium-cache custody ashen-colossus
 cephorium-cache loot position Vec3 { x: 22.0, y: 0.0, z: -2.0 }
 cephorium-cache loot origin position Vec3 { x: 22.0, y: 0.0, z: -2.0 }
-cephorium-cache loot source ashen-verge
-cephorium-cache loot claim rule open-frontier
+cephorium-cache loot source ashen-colossus
+cephorium-cache loot claim rule defeated-source
 cephorium-cache loot name "Cephorium Core"
 cephorium-cache loot category crafting-material
 game-objective exit position Vec3 { x: -2.0, y: 0.0, z: -1.0 }
@@ -714,10 +824,10 @@ bind keyboard ShiftLeft up to disable-horizontal-sustain
 bind keyboard ShiftRight down to enable-horizontal-sustain
 bind keyboard ShiftRight up to disable-horizontal-sustain
 bind keyboard KeyQ down to horizontal-burst
-bind keyboard Space down to jump
-bind keyboard KeyE down to enable-vertical-sustain
-bind keyboard KeyE up to disable-vertical-sustain
-bind keyboard KeyF down to vertical-burst
+bind keyboard KeyE down to pulse-shield
+bind keyboard KeyE up to release-shield
+bind keyboard Space down to jump-or-air-boost
+bind keyboard Space up to disable-air-sustain
 bind keyboard KeyJ down to begin-sword-action
 bind keyboard Digit1 down to begin-ranged-action
 bind keyboard Tab down to target-next-enemy
@@ -809,15 +919,7 @@ on disable-horizontal-sustain ?player
   include
     ?player positive control Vec3 { x: ?right, y: 0.0, z: ?backward }
 
-on enable-vertical-sustain ?player
-  when
-    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
-  withdraw
-    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
-  include
-    ?player negative control Vec3 { x: ?left, y: 1.0, z: ?forward }
-
-on disable-vertical-sustain ?player
+on disable-air-sustain ?player
   when
     ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
   withdraw
@@ -941,83 +1043,86 @@ on restore-exhausted-horizontal-speed ?player
 
 on horizontal-burst ?player
   when
-    ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
-    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
-    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player grounded ?grounded
+    ?player airborne factor ?airborne
     ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
     ?player equipped booster ?booster
     ?player booster energy ?energy
     ?booster booster ignition threshold ?threshold
     ?player booster regeneration delay ?delay
     ?booster booster regeneration delay limit ?delay-limit
-    ?booster horizontal burst displacement ?displacement
+    ?booster horizontal burst speed ?burst-speed
     ?booster horizontal burst cost ?cost
-    jump-arena minimum x ?min-x
-    jump-arena maximum x ?max-x
-    jump-arena minimum z ?min-z
-    jump-arena maximum z ?max-z
-    (?position-x + (((?right - ?left) * (0.0 - ?camera-z)) + ((?backward - ?forward) * (0.0 - ?camera-x))) * ?displacement) clamped between ?min-x and ?max-x as ?next-x
-    (?position-z + (((?right - ?left) * ?camera-x) + ((?backward - ?forward) * (0.0 - ?camera-z))) * ?displacement) clamped between ?min-z and ?max-z as ?next-z
-    (?right - ?left) * (?right - ?left) + (?backward - ?forward) * (?backward - ?forward) > 0.0
     ?threshold <= ?energy
     ?cost <= ?energy
   withdraw
-    ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player grounded ?grounded
+    ?player airborne factor ?airborne
     ?player booster energy ?energy
     ?player booster regeneration delay ?delay
   include
-    ?player position Vec3 { x: ?next-x, y: ?position-y, z: ?next-z }
+    ?player velocity Vec3 { x: ?camera-x * ?burst-speed, y: 1.2, z: ?camera-z * ?burst-speed }
+    ?player grounded false
+    ?player airborne factor 1.0
     ?player booster energy ?energy - ?cost
     ?player booster regeneration delay ?delay-limit
 
-on apply-vertical-sustain ?player
+on apply-air-sustain ?player
   when
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
-    ?player grounded ?grounded
+    ?player airborne factor ?airborne
     ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
     ?player equipped booster ?booster
     ?player booster energy ?energy
     ?booster booster ignition threshold ?threshold
     ?player booster regeneration delay ?delay
     ?booster booster regeneration delay limit ?delay-limit
-    ?booster vertical sustain thrust ?thrust
-    ?booster vertical sustain drain ?drain
+    ?booster air sustain thrust ?thrust
+    ?booster air sustain drain ?drain
+    ?airborne = 1.0
     ?vertical = 1.0
     ?threshold <= ?energy
     ?drain <= ?energy
   withdraw
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
-    ?player grounded ?grounded
     ?player booster energy ?energy
     ?player booster regeneration delay ?delay
   include
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y + ?thrust, z: ?velocity-z }
-    ?player grounded false
     ?player booster energy ?energy - ?drain
     ?player booster regeneration delay ?delay-limit
 
-on vertical-burst ?player
+on jump-or-air-boost ?player
   when
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
     ?player grounded ?grounded
+    ?player airborne factor ?airborne
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
     ?player equipped booster ?booster
     ?player booster energy ?energy
     ?booster booster ignition threshold ?threshold
     ?player booster regeneration delay ?delay
     ?booster booster regeneration delay limit ?delay-limit
-    ?booster vertical burst impulse ?impulse
-    ?booster vertical burst cost ?cost
+    ?booster air boost impulse ?impulse
+    ?booster air boost cost ?cost
+    jump-arena jump speed ?jump-speed
     ?threshold <= ?energy
-    ?cost <= ?energy
+    ?airborne * ?cost <= ?energy
   withdraw
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
     ?player grounded ?grounded
+    ?player airborne factor ?airborne
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
     ?player booster energy ?energy
     ?player booster regeneration delay ?delay
   include
-    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y + ?impulse, z: ?velocity-z }
+    ?player velocity Vec3 { x: ?velocity-x, y: (?velocity-y * ?airborne) + ?jump-speed + ((?impulse - ?jump-speed) * ?airborne), z: ?velocity-z }
     ?player grounded false
-    ?player booster energy ?energy - ?cost
+    ?player airborne factor 1.0
+    ?player negative control Vec3 { x: ?left, y: 1.0, z: ?forward }
+    ?player booster energy ?energy - (?airborne * ?cost)
     ?player booster regeneration delay ?delay-limit
 
 on count-booster-regeneration-delay ?player
@@ -1047,18 +1152,6 @@ on regenerate-booster-energy ?player
   include
     ?player booster energy ?energy + ?regeneration
 
-on jump ?player
-  when
-    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
-    ?player grounded true
-    jump-arena jump speed ?jump-speed
-  withdraw
-    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
-    ?player grounded true
-  include
-    ?player velocity Vec3 { x: ?velocity-x, y: ?jump-speed, z: ?velocity-z }
-    ?player grounded false
-
 on begin-sword-action ?player
   when
     ?player sword action sequence ?sequence
@@ -1075,6 +1168,80 @@ on begin-sword-action ?player
   include
     ?player sword action sequence ?sequence + 1.0
     ?player sword commitment clock ?commitment-ticks
+
+on pulse-shield ?player
+  when
+    ?player shield clock ?clock
+    ?player shield active factor ?active
+    ?player shield energy ?energy
+    ?player shield action sequence ?sequence
+    ?player combat status ?status
+    ?status = alive
+    ?active = 0.0
+    ?energy > 0.0
+  withdraw
+    ?player shield clock ?clock
+    ?player shield active factor ?active
+    ?player shield action sequence ?sequence
+  include
+    ?player shield clock 4.0
+    ?player shield active factor 1.0
+    ?player shield action sequence ?sequence + 1.0
+
+on release-shield ?player
+  when
+    ?player shield active factor ?active
+    ?player shield clock ?clock
+  withdraw
+    ?player shield active factor ?active
+    ?player shield clock ?clock
+  include
+    ?player shield active factor 0.0
+    ?player shield clock 0.0
+
+on count-shield-clock ?player
+  when
+    ?player shield clock ?clock
+    ?clock > 0.0
+  withdraw
+    ?player shield clock ?clock
+  include
+    ?player shield clock ?clock - 1.0
+
+on drain-shield-energy ?player
+  when
+    ?player shield active factor ?active
+    ?player shield energy ?energy
+    (?energy - 1.6) clamped between 0.0 and 100.0 as ?next-energy
+    ?active = 1.0
+    ?energy > 0.0
+  withdraw
+    ?player shield energy ?energy
+  include
+    ?player shield energy ?next-energy
+
+on collapse-empty-shield ?player
+  when
+    ?player shield active factor ?active
+    ?player shield energy ?energy
+    ?active = 1.0
+    ?energy = 0.0
+  withdraw
+    ?player shield active factor ?active
+  include
+    ?player shield active factor 0.0
+
+on regenerate-shield-energy ?player
+  when
+    ?player shield active factor ?active
+    ?player shield energy ?energy
+    (?energy + 0.9) clamped between 0.0 and 100.0 as ?next-energy
+    ?active = 0.0
+    ?energy < 100.0
+  withdraw
+    ?player shield energy ?energy
+  include
+    ?player shield energy ?next-energy
 
 on begin-ranged-action ?player
   when
@@ -1344,6 +1511,17 @@ on tick ?player ?dt
     ?player velocity Vec3 { x: ?velocity-x, y: 0.0, z: ?velocity-z }
     ?player grounded true
 
+on reset-airborne-factor-after-landing ?player
+  when
+    ?player grounded ?grounded
+    ?player airborne factor ?airborne
+    ?grounded = true
+    ?airborne = 1.0
+  withdraw
+    ?player airborne factor ?airborne
+  include
+    ?player airborne factor 0.0
+
 on combat-impact ?enemy
   when
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
@@ -1351,9 +1529,12 @@ on combat-impact ?enemy
     player-1 grounded ?grounded
     player-1 combat status ?player-status
     player-1 has hostile projectile contact true
+    player-1 shield active factor ?shield-active
+    player-1 shield energy ?shield-energy
     ?enemy-status = alive
     ?player-status = alive
     ?grounded = false
+    ?shield-energy * ?shield-active < 34.0
     ?vitality = 6.0
   withdraw
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
@@ -1367,9 +1548,12 @@ on apply-ember-mark ?player
     player-1 combat status ?player-status
     cinder-wraith enemy combat status ?enemy-status
     player-1 has hostile projectile contact true
+    player-1 shield active factor ?shield-active
+    player-1 shield energy ?shield-energy
     ?player-status = alive
     ?enemy-status = alive
     ?grounded = true
+    ?shield-energy * ?shield-active < 34.0
     ?effect = clear
   withdraw
     ?player status effect ?effect
@@ -1381,11 +1565,77 @@ on spend-cinder-bolt-on-contact ?projectile
     ?projectile projectile state ?state
     ?projectile projectile faction enemy-origin
     player-1 has hostile projectile contact true
+    player-1 shield active factor ?shield-active
+    player-1 shield energy ?shield-energy
     ?state = flight
+    ?shield-energy * ?shield-active < 34.0
   withdraw
     ?projectile projectile state ?state
   include
     ?projectile projectile state spent
+
+on reflect-cinder-bolt ?projectile
+  when
+    ?projectile projectile state ?state
+    ?projectile projectile faction ?faction
+    player-1 has shield projectile contact true
+    player-1 shield clock ?shield-clock
+    player-1 shield reflect sequence ?sequence
+    ?state = flight
+    ?faction = enemy-origin
+    ?shield-clock > 0.0
+  withdraw
+    ?projectile projectile faction ?faction
+    player-1 shield reflect sequence ?sequence
+  include
+    ?projectile projectile faction player-origin
+    player-1 shield reflect sequence ?sequence + 1.0
+
+on absorb-cinder-bolt ?projectile
+  when
+    ?projectile projectile state ?state
+    ?projectile projectile faction enemy-origin
+    player-1 has shield projectile contact true
+    player-1 shield clock ?shield-clock
+    ?state = flight
+    ?shield-clock = 0.0
+  withdraw
+    ?projectile projectile state ?state
+  include
+    ?projectile projectile state spent
+
+on resolve-reflected-cinder-bolt ?enemy
+  when
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy combat status ?enemy-status
+    cinder-bolt projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    cinder-bolt projectile state ?state
+    cinder-bolt projectile visible ?visible
+    cinder-bolt projectile faction ?faction
+    jump-arena projectile contact radius ?contact-radius
+    ?enemy-status = alive
+    ?state = flight
+    ?visible = true
+    ?faction = player-origin
+    ((?enemy-x - ?projectile-x) * (?enemy-x - ?projectile-x)) + ((?enemy-z - ?projectile-z) * (?enemy-z - ?projectile-z)) <= ?contact-radius * ?contact-radius
+    (?vitality - 2.0) clamped between 0.0 and ?maximum as ?next-vitality
+  withdraw
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+    cinder-bolt projectile state ?state
+    cinder-bolt projectile visible ?visible
+    cinder-bolt projectile faction ?faction
+  include
+    ?enemy enemy vitals Vec3 { x: ?next-vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy pressure state projectile-opening
+    ?enemy enemy recovery clock 30.0
+    cinder-bolt projectile state spent
+    cinder-bolt projectile visible false
+    cinder-bolt projectile faction enemy-origin
 
 on count-ember-mark ?player
   when
@@ -1472,6 +1722,52 @@ on reconcile-relentless-combat-behavior ?enemy
   include
     ?enemy combat behavior relentless-charge
 
+on awaken-temporary-frontier-guardian ?frontier
+  when
+    ?frontier foothold requirement ?requirement
+    ashen-colossus enemy combat status ?status
+    ashen-colossus enemy pressure state ?pressure
+    ?frontier frontier access ?access
+    player-1 combat target ?target
+    player-1 target lock active ?target-active
+    ?requirement = 3.0
+    ?status = dormant
+    ?pressure = dormant
+    ?access = temporary-open
+  withdraw
+    ashen-colossus enemy combat status ?status
+    ashen-colossus enemy pressure state ?pressure
+    player-1 combat target ?target
+    player-1 target lock active ?target-active
+  include
+    ashen-colossus enemy combat status alive
+    ashen-colossus enemy pressure state approach
+    player-1 combat target ashen-colossus
+    player-1 target lock active true
+
+on awaken-permanent-frontier-guardian ?frontier
+  when
+    ?frontier foothold requirement ?requirement
+    ashen-colossus enemy combat status ?status
+    ashen-colossus enemy pressure state ?pressure
+    ?frontier frontier access ?access
+    player-1 combat target ?target
+    player-1 target lock active ?target-active
+    ?requirement = 3.0
+    ?status = dormant
+    ?pressure = dormant
+    ?access = permanent-open
+  withdraw
+    ashen-colossus enemy combat status ?status
+    ashen-colossus enemy pressure state ?pressure
+    player-1 combat target ?target
+    player-1 target lock active ?target-active
+  include
+    ashen-colossus enemy combat status alive
+    ashen-colossus enemy pressure state approach
+    player-1 combat target ashen-colossus
+    player-1 target lock active true
+
 on advance-boar-approach ?enemy
   when
     ?enemy enemy pressure state ?pressure
@@ -1498,8 +1794,10 @@ on begin-boar-telegraph ?enemy
     ?enemy enemy charge envelope ?prior-envelope
     ?enemy combat behavior ?behavior
     ?behavior behavior parameters CombatBehaviorParameters { minimum-step: ?minimum-step, maximum-step: ?maximum-step, engagement-radius-squared: ?engagement-radius-squared }
+    ?enemy enemy random sample ?random
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     ?pressure = approach
+    ?random < 0.75
     ?player-y <= 2.0
     ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= ?engagement-radius-squared
   withdraw
@@ -1512,14 +1810,179 @@ on begin-boar-telegraph ?enemy
     ?enemy enemy pressure state telegraph
     ?enemy enemy pressure clock 63.0
     ?enemy enemy charge start Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
-    ?enemy enemy charge end Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ?enemy enemy charge end Vec3 { x: ?player-x + ((?player-x - ?enemy-x) * 0.3), y: ?player-y, z: ?player-z + ((?player-z - ?enemy-z) * 0.3) }
     ?enemy enemy charge envelope Vec3 { x: 2.0, y: 8.0, z: 0.75 }
+
+on begin-siegebore-cannon ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy charge start ?prior-start
+    ?enemy enemy charge end ?prior-end
+    ?enemy enemy charge envelope ?prior-envelope
+    ?enemy enemy random sample ?random
+    ?enemy enemy combat status ?enemy-status
+    ?enemy enemy vitals Vec3 { x: ?enemy-vitality, y: ?enemy-maximum, z: ?enemy-alive-flag }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 combat status ?player-status
+    ?pressure = approach
+    ?enemy-status = alive
+    ?enemy-maximum = 24.0
+    ?player-status = alive
+    ?random >= 0.75
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= 225.0
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy charge start ?prior-start
+    ?enemy enemy charge end ?prior-end
+    ?enemy enemy charge envelope ?prior-envelope
+  include
+    ?enemy enemy pressure state cannon-telegraph
+    ?enemy enemy pressure clock 94.0
+    ?enemy enemy charge start Vec3 { x: ?enemy-x, y: ?enemy-y + 1.4, z: ?enemy-z }
+    ?enemy enemy charge end Vec3 { x: ?player-x, y: ?player-y + 0.8, z: ?player-z }
+    ?enemy enemy charge envelope Vec3 { x: 3.0, y: 15.0, z: 0.32 }
+
+on count-siegebore-cannon ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?pressure = cannon-telegraph
+    ?clock > 0.0
+  withdraw
+    ?enemy enemy pressure clock ?clock
+  include
+    ?enemy enemy pressure clock ?clock - 1.0
+
+on fire-siegebore-cannon ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy random sample ?random
+    ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    player-1 combat status ?player-status
+    player-1 shield active factor ?shield-active
+    player-1 shield energy ?shield-energy
+    ?pressure = cannon-telegraph
+    ?clock = 0.0
+    ?player-status = alive
+    ?shield-energy * ?shield-active < 34.0
+    ((?player-x - ?target-x) * (?player-x - ?target-x)) + ((?player-z - ?target-z) * (?player-z - ?target-z)) <= 2.25
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy random sample ?random
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ?enemy enemy pressure state projectile-opening
+    ?enemy enemy pressure clock 0.0
+    ?enemy enemy recovery clock 48.0
+    ?enemy enemy random sample 0.2
+    player-1 player vitals Vec3 { x: ?vitality - 2.0, y: ?maximum, z: ?alive-flag }
+
+on absorb-siegebore-cannon ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy random sample ?random
+    ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    player-1 combat status ?player-status
+    player-1 shield clock ?shield-clock
+    player-1 shield active factor ?shield-active
+    player-1 shield energy ?shield-energy
+    ?pressure = cannon-telegraph
+    ?clock = 0.0
+    ?player-status = alive
+    ?shield-clock = 0.0
+    ?shield-active = 1.0
+    ?shield-energy >= 34.0
+    ((?player-x - ?target-x) * (?player-x - ?target-x)) + ((?player-z - ?target-z) * (?player-z - ?target-z)) <= 2.25
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy random sample ?random
+    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ?enemy enemy pressure state projectile-opening
+    ?enemy enemy pressure clock 0.0
+    ?enemy enemy recovery clock 48.0
+    ?enemy enemy random sample 0.2
+    player-1 player vitals Vec3 { x: ?vitality - 1.0, y: ?maximum, z: ?alive-flag }
+
+on reflect-siegebore-cannon ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy random sample ?random
+    ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?enemy enemy vitals Vec3 { x: ?enemy-vitality, y: ?enemy-maximum, z: ?enemy-alive-flag }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 combat status ?player-status
+    player-1 shield clock ?shield-clock
+    player-1 shield active factor ?shield-active
+    player-1 shield energy ?shield-energy
+    player-1 shield reflect sequence ?sequence
+    ?pressure = cannon-telegraph
+    ?clock = 0.0
+    ?player-status = alive
+    ?shield-clock > 0.0
+    ?shield-active = 1.0
+    ?shield-energy >= 34.0
+    ((?player-x - ?target-x) * (?player-x - ?target-x)) + ((?player-z - ?target-z) * (?player-z - ?target-z)) <= 2.25
+    (?enemy-vitality - 4.0) clamped between 0.0 and ?enemy-maximum as ?next-vitality
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy random sample ?random
+    ?enemy enemy vitals Vec3 { x: ?enemy-vitality, y: ?enemy-maximum, z: ?enemy-alive-flag }
+    player-1 shield reflect sequence ?sequence
+  include
+    ?enemy enemy pressure state projectile-opening
+    ?enemy enemy pressure clock 0.0
+    ?enemy enemy recovery clock 48.0
+    ?enemy enemy random sample 0.2
+    ?enemy enemy vitals Vec3 { x: ?next-vitality, y: ?enemy-maximum, z: ?enemy-alive-flag }
+    player-1 shield reflect sequence ?sequence + 1.0
+
+on evade-siegebore-cannon ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy random sample ?random
+    ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ?pressure = cannon-telegraph
+    ?clock = 0.0
+    ((?player-x - ?target-x) * (?player-x - ?target-x)) + ((?player-z - ?target-z) * (?player-z - ?target-z)) > 2.25
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy random sample ?random
+  include
+    ?enemy enemy pressure state projectile-opening
+    ?enemy enemy pressure clock 0.0
+    ?enemy enemy recovery clock 48.0
+    ?enemy enemy random sample 0.2
 
 on count-telegraph-pressure ?enemy
   when
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?clock
-    cinder-wraith enemy combat status ?enemy-status
+    ?enemy enemy combat status ?enemy-status
     player-1 combat status ?player-status
     game-objective objective state Vec3 { x: ?objective, y: ?branch, z: ?unused }
     ?pressure = telegraph
@@ -1739,10 +2202,11 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?pressure-clock
     ?enemy enemy recovery clock ?recovery-clock
-    ?enemy enemy charge start ?start
+    ?enemy enemy charge start Vec3 { x: ?start-x, y: ?start-y, z: ?start-z }
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
     ?enemy enemy charge committed ?committed
+    ?enemy enemy random sample ?random
     ?enemy enemy position Vec3 { x: ?prior-x, y: ?prior-y, z: ?prior-z }
     ?pressure = hit-recovery
     ?recovery-clock = 0.0
@@ -1750,10 +2214,11 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?pressure-clock
     ?enemy enemy recovery clock ?recovery-clock
-    ?enemy enemy charge start ?start
+    ?enemy enemy charge start Vec3 { x: ?start-x, y: ?start-y, z: ?start-z }
     ?enemy enemy charge end ?end
     ?enemy enemy charge envelope ?envelope
     ?enemy enemy charge committed ?committed
+    ?enemy enemy random sample ?random
     ?enemy enemy position Vec3 { x: ?prior-x, y: ?prior-y, z: ?prior-z }
   include
     ?enemy enemy pressure state approach
@@ -1763,7 +2228,8 @@ on rearm-after-hit-recovery ?enemy
     ?enemy enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge committed false
-    ?enemy enemy position Vec3 { x: 4.5, y: 0.0, z: 0.0 }
+    ?enemy enemy random sample 1.0 - ?random
+    ?enemy enemy position Vec3 { x: ?start-x, y: ?start-y, z: ?start-z }
 
 on rearm-after-overrun-recovery ?enemy
   when
@@ -1928,6 +2394,50 @@ on acquire-loot ?loot
   include
     ?loot loot state acquired
     ?loot custody player-1
+
+on start-looted-corpse-decay ?loot
+  when
+    ?loot loot state ?state
+    ?loot loot source ?enemy
+    ?enemy enemy combat status ?status
+    ?enemy enemy body visible ?visible
+    ?enemy enemy corpse clock ?clock
+    ?state = acquired
+    ?status = dead
+    ?visible = true
+    ?clock = 0.0
+  withdraw
+    ?enemy enemy corpse clock ?clock
+  include
+    ?enemy enemy corpse clock 938.0
+
+on count-looted-corpse-decay ?enemy
+  when
+    ?enemy enemy combat status ?status
+    ?enemy enemy body visible ?visible
+    ?enemy enemy corpse clock ?clock
+    ?status = dead
+    ?visible = true
+    ?clock > 1.0
+  withdraw
+    ?enemy enemy corpse clock ?clock
+  include
+    ?enemy enemy corpse clock ?clock - 1.0
+
+on finish-looted-corpse-decay ?enemy
+  when
+    ?enemy enemy combat status ?status
+    ?enemy enemy body visible ?visible
+    ?enemy enemy corpse clock ?clock
+    ?status = dead
+    ?visible = true
+    ?clock = 1.0
+  withdraw
+    ?enemy enemy body visible ?visible
+    ?enemy enemy corpse clock ?clock
+  include
+    ?enemy enemy body visible false
+    ?enemy enemy corpse clock 0.0
 
 on open-frontier-with-breach-key ?objective
   when
@@ -2188,6 +2698,16 @@ on reset-player-grounding ?player
   include
     ?player grounded true
 
+on reset-player-airborne-factor ?player
+  when
+    ?player airborne factor ?airborne
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player airborne factor ?airborne
+  include
+    ?player airborne factor 0.0
+
 on reset-player-vitality ?player
   when
     ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
@@ -2247,6 +2767,56 @@ on reset-player-effect-clock ?player
   include
     ?player status clock 12.0
 
+on reset-player-shield-clock ?player
+  when
+    ?player shield clock ?clock
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player shield clock ?clock
+  include
+    ?player shield clock 0.0
+
+on reset-player-shield-active ?player
+  when
+    ?player shield active factor ?active
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player shield active factor ?active
+  include
+    ?player shield active factor 0.0
+
+on reset-player-shield-energy ?player
+  when
+    ?player shield energy ?energy
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player shield energy ?energy
+  include
+    ?player shield energy 100.0
+
+on reset-player-shield-action-sequence ?player
+  when
+    ?player shield action sequence ?sequence
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player shield action sequence ?sequence
+  include
+    ?player shield action sequence 0.0
+
+on reset-player-shield-reflect-sequence ?player
+  when
+    ?player shield reflect sequence ?sequence
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player shield reflect sequence ?sequence
+  include
+    ?player shield reflect sequence 0.0
+
 on reset-ranged-action-state ?player
   when
     ?player ranged action state ?state
@@ -2275,37 +2845,99 @@ on reset-enemy-vitality ?enemy
   withdraw
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
   include
-    ?enemy enemy vitals Vec3 { x: 6.0, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy vitals Vec3 { x: ?maximum, y: ?maximum, z: ?alive-flag }
 
-on reset-enemy-status ?enemy
+on reset-cinder-wraith-status ?enemy
   when
     ?enemy enemy combat status ?status
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?maximum = 6.0
     ?reset = 1.0
   withdraw
     ?enemy enemy combat status ?status
   include
     ?enemy enemy combat status alive
 
-on reset-enemy-pressure-state ?enemy
+on reset-ashen-colossus-status ?enemy
+  when
+    ?enemy enemy combat status ?status
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?maximum = 24.0
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy combat status ?status
+  include
+    ?enemy enemy combat status dormant
+
+on reset-cinder-wraith-pressure-state ?enemy
   when
     ?enemy enemy pressure state ?pressure
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?maximum = 6.0
     ?reset = 1.0
   withdraw
     ?enemy enemy pressure state ?pressure
   include
     ?enemy enemy pressure state approach
 
-on reset-enemy-position ?enemy
+on reset-ashen-colossus-pressure-state ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?maximum = 24.0
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy pressure state ?pressure
+  include
+    ?enemy enemy pressure state dormant
+
+on reset-cinder-wraith-position ?enemy
   when
     ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?maximum = 6.0
     ?reset = 1.0
   withdraw
     ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
   include
     ?enemy enemy position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
+
+on reset-ashen-colossus-position ?enemy
+  when
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?maximum = 24.0
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+  include
+    ?enemy enemy position Vec3 { x: 29.0, y: 0.0, z: -2.0 }
+
+on reset-enemy-body-visible ?enemy
+  when
+    ?enemy enemy body visible ?visible
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy body visible ?visible
+  include
+    ?enemy enemy body visible true
+
+on reset-enemy-corpse-clock ?enemy
+  when
+    ?enemy enemy corpse clock ?clock
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy corpse clock ?clock
+  include
+    ?enemy enemy corpse clock 0.0
 
 on reset-enemy-pressure-clock ?enemy
   when

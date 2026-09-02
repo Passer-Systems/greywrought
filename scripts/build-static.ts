@@ -1,6 +1,10 @@
 import { copyFile, mkdir, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 
+const iconFiles = await Array.fromAsync(
+  new Bun.Glob("**/*.png").scan({ cwd: "assets/ui/icons", onlyFiles: true }),
+);
+
 const files: readonly (readonly [string, string])[] = [
   ["src/host/play.html", "dist/index.html"],
   ["src/host/favicon.svg", "dist/favicon.svg"],
@@ -25,6 +29,12 @@ const files: readonly (readonly [string, string])[] = [
   ["assets/external/quaternius/rig-socket-prototype/wayfarer/Knight_Golden_Female.gltf", "dist/assets/quaternius/rig/wayfarer/Knight_Golden_Female.gltf"],
   ["assets/external/opengameart/teh-bucket-boar/SOURCE.md", "dist/licenses/boar-SOURCE.md"],
   ["assets/external/quaternius/rig-socket-prototype/SOURCE.md", "dist/licenses/wayfarer-SOURCE.md"],
+  ["assets/ui/icons/SOURCE.md", "dist/assets/ui/icons/SOURCE.md"],
+  ["assets/ui/icons/manifest.json", "dist/assets/ui/icons/manifest.json"],
+  ...iconFiles.map((name): readonly [string, string] => [
+    `assets/ui/icons/${name}`,
+    `dist/assets/ui/icons/${name}`,
+  ]),
   ...[
     "CommonTree_2.gltf",
     "CommonTree_2.bin",

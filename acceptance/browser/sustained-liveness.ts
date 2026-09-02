@@ -413,7 +413,7 @@ try {
     }
     if (performance.now() - lastBurstAt >= 4_000) {
       await press("KeyQ");
-      await press("KeyF");
+      await press("Space");
       lastBurstAt = performance.now();
     }
     if (performance.now() - lastJumpAt >= 6_000) {

@@ -10,10 +10,9 @@ export type GameAction =
   | "sword"
   | "loot"
   | "jump"
+  | "shield"
   | "horizontalSustain"
   | "horizontalBurst"
-  | "verticalSustain"
-  | "verticalBurst"
   | "reset";
 
 export interface ActionDefinition {
@@ -32,11 +31,10 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   { action: "bolt", label: "Lock-on bolt", semanticCode: "Digit1", held: false },
   { action: "sword", label: "Sword", semanticCode: "KeyJ", held: false },
   { action: "loot", label: "Loot", semanticCode: "LootItem", held: false },
-  { action: "jump", label: "Jump", semanticCode: "Space", held: false },
+  { action: "jump", label: "Jump / air boost", semanticCode: "Space", held: true },
+  { action: "shield", label: "Pulse shield", semanticCode: "KeyE", held: true },
   { action: "horizontalSustain", label: "Horizontal sustain", semanticCode: "ShiftLeft", held: true },
   { action: "horizontalBurst", label: "Horizontal burst", semanticCode: "KeyQ", held: false },
-  { action: "verticalSustain", label: "Vertical sustain", semanticCode: "KeyE", held: true },
-  { action: "verticalBurst", label: "Vertical burst", semanticCode: "KeyF", held: false },
   { action: "reset", label: "Reset encounter", semanticCode: "KeyR", held: false },
 ] as const;
 
@@ -61,10 +59,9 @@ export const defaultBindings: InputBindings = Object.freeze({
   sword: "KeyJ",
   loot: "KeyL",
   jump: "Space",
+  shield: "KeyE",
   horizontalSustain: "ShiftLeft",
   horizontalBurst: "KeyQ",
-  verticalSustain: "KeyE",
-  verticalBurst: "KeyF",
   reset: "KeyR",
 });
 
@@ -197,8 +194,7 @@ export function actionsForStandardGamepad(
   if (pressed(3)) actions.add("target");
   if (pressed(4)) actions.add("horizontalBurst");
   if (pressed(5)) actions.add("bolt");
-  if (pressed(6)) actions.add("verticalSustain");
-  if (pressed(7)) actions.add("verticalBurst");
+  if (pressed(7)) actions.add("shield");
   if (pressed(9)) actions.add("reset");
   if (pressed(10)) actions.add("horizontalSustain");
   return actions;

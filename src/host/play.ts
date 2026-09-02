@@ -49,6 +49,7 @@ import {
   applyAdmittedFrame,
   createCinderwakePresentation,
   disposeCinderwakePresentation,
+  faceSubjectAlong,
   faceSubjectToward,
   hideChargeCorridor,
   orbitPresentationCamera,
@@ -59,6 +60,7 @@ import {
   setActivityCue,
   setChargeCorridor,
   setFrontierAccess,
+  setPulseShield,
   setSubjectLootable,
   signalDeath,
   signalImpact,
@@ -193,6 +195,8 @@ interface Vector3Projection extends ProjectedPosition {}
 
 interface PlayerProjection {
   readonly position: Vector3Projection;
+  readonly cameraForward: Vector3Projection;
+  readonly backwardIntent: number;
   readonly vitality: number;
   readonly maximumVitality: number;
   readonly grounded: boolean;
@@ -203,8 +207,15 @@ interface PlayerProjection {
   readonly boosterDelay: number;
   readonly statusEffect: string;
   readonly statusClock: number;
+  readonly shieldClock: number;
+  readonly shieldActive: boolean;
+  readonly shieldEnergy: number;
+  readonly shieldActionSequence: number;
+  readonly shieldReflectSequence: number;
   readonly swordActionSequence: number;
   readonly swordCommitmentClock: number;
+  readonly rangedActionState: string;
+  readonly rangedActionClock: number;
   readonly combatTarget: string;
   readonly targetLockActive: boolean;
   readonly targetSelectionSequence: number;
@@ -212,6 +223,7 @@ interface PlayerProjection {
 }
 
 interface EnemyProjection {
+  readonly id: string;
   readonly position: Vector3Projection;
   readonly vitality: number;
   readonly maximumVitality: number;
@@ -225,6 +237,8 @@ interface EnemyProjection {
   readonly recoveryClock: number;
   readonly randomSample: number;
   readonly combatStatus: string;
+  readonly bodyVisible: boolean;
+  readonly corpseClock: number;
 }
 
 interface BoltProjection {
@@ -257,12 +271,25 @@ interface FrontierProjection {
 interface GameProjection {
   readonly player: PlayerProjection;
   readonly enemy: EnemyProjection;
+  readonly enemies: readonly EnemyProjection[];
   readonly bolt: BoltProjection;
   readonly wayfarerBolt: BoltProjection;
   readonly loots: readonly LootProjection[];
   readonly objective: ObjectiveProjection;
   readonly frontier: FrontierProjection;
   readonly lootPickupRadius: number;
+}
+
+const ENEMY_PRESENTATIONS = [
+  { world: "cinder-wraith", presentation: "magitek-boar", baseScale: 1 },
+  { world: "ashen-colossus", presentation: "ashen-colossus-boar", baseScale: 2.35 },
+] as const;
+
+function presentationSubjectForEnemy(enemyId: string): string {
+  return requireValue(
+    ENEMY_PRESENTATIONS.find(({ world }) => world === enemyId)?.presentation,
+    `enemy presentation ${enemyId}`,
+  );
 }
 
 interface ResidentLawSession {
@@ -315,6 +342,10 @@ interface PlayApp {
   readonly listeners: Array<() => void>;
   readonly playerInput: PlayerInputState;
   presentationAudio: AudioContext | null;
+  presentationMusic: GainNode | null;
+  presentationRain: GainNode | null;
+  presentationMusicTimer: number | null;
+  presentationMusicBeat: number;
   stage: JourneyStage;
   effectSettled: boolean;
 }
@@ -585,9 +616,51 @@ function decodeLootProjection(value: unknown, id: string): LootProjection {
   };
 }
 
+function decodeEnemyProjection(value: unknown, id: string): EnemyProjection {
+  const enemy = projectedField(value, id, "game projection");
+  const vitals = projectedField(enemy, "enemy-vitals", id);
+  return {
+    id,
+    position: projectedPosition(
+      projectedField(enemy, "enemy-position", id),
+      `${id}.enemy-position`,
+    ),
+    vitality: projectedNumber(vitals, "x", `${id}.enemy-vitals`),
+    maximumVitality: projectedNumber(vitals, "y", `${id}.enemy-vitals`),
+    combatBehavior: projectedString(enemy, "combat-behavior", id),
+    pressureState: projectedString(enemy, "enemy-pressure-state", id),
+    pressureClock: projectedNumber(enemy, "enemy-pressure-clock", id),
+    chargeStart: projectedPosition(
+      projectedField(enemy, "enemy-charge-start", id),
+      `${id}.enemy-charge-start`,
+    ),
+    chargeEnd: projectedPosition(
+      projectedField(enemy, "enemy-charge-end", id),
+      `${id}.enemy-charge-end`,
+    ),
+    chargeRadius: projectedNumber(
+      projectedField(enemy, "enemy-charge-envelope", id),
+      "z",
+      `${id}.enemy-charge-envelope`,
+    ),
+    chargeCommitted: projectedBoolean(enemy, "enemy-charge-committed", id),
+    recoveryClock: projectedNumber(enemy, "enemy-recovery-clock", id),
+    randomSample: projectedNumber(enemy, "enemy-random-sample", id),
+    combatStatus: projectedString(enemy, "enemy-combat-status", id),
+    bodyVisible: projectedBoolean(enemy, "enemy-body-visible", id),
+    corpseClock: projectedNumber(enemy, "enemy-corpse-clock", id),
+  };
+}
+
 function decodeGameProjection(value: unknown): GameProjection {
   const player = projectedField(value, "player-1", "game projection");
-  const enemy = projectedField(value, "cinder-wraith", "game projection");
+  const enemies = ENEMY_PRESENTATIONS.map(({ world }) =>
+    decodeEnemyProjection(value, world),
+  );
+  const combatTarget = projectedString(player, "combat-target", "player-1");
+  const enemy =
+    enemies.find(({ id }) => id === combatTarget) ??
+    requireValue(enemies[0], "primary enemy projection");
   const bolt = projectedField(value, "cinder-bolt", "game projection");
   const wayfarerBolt = projectedField(value, "wayfarer-bolt", "game projection");
   const loots = [
@@ -604,13 +677,21 @@ function decodeGameProjection(value: unknown): GameProjection {
   );
   const booster = projectedField(value, boosterEquipment, "game projection");
   const playerVitals = projectedField(player, "player-vitals", "player-1");
-  const enemyVitals = projectedField(enemy, "enemy-vitals", "cinder-wraith");
   const objectiveState = projectedField(objective, "objective-state", "game-objective");
   return {
     player: {
       position: projectedPosition(
         projectedField(player, "position", "player-1"),
         "player-1.position",
+      ),
+      cameraForward: projectedPosition(
+        projectedField(player, "camera-forward", "player-1"),
+        "player-1.camera-forward",
+      ),
+      backwardIntent: projectedNumber(
+        projectedField(player, "positive-control", "player-1"),
+        "z",
+        "player-1.positive-control",
       ),
       vitality: projectedNumber(playerVitals, "x", "player-vitals"),
       maximumVitality: projectedNumber(playerVitals, "y", "player-vitals"),
@@ -634,6 +715,20 @@ function decodeGameProjection(value: unknown): GameProjection {
       ),
       statusEffect: projectedString(player, "status-effect", "player-1"),
       statusClock: projectedNumber(player, "status-clock", "player-1"),
+      shieldClock: projectedNumber(player, "shield-clock", "player-1"),
+      shieldActive:
+        projectedNumber(player, "shield-active-factor", "player-1") === 1,
+      shieldEnergy: projectedNumber(player, "shield-energy", "player-1"),
+      shieldActionSequence: projectedNumber(
+        player,
+        "shield-action-sequence",
+        "player-1",
+      ),
+      shieldReflectSequence: projectedNumber(
+        player,
+        "shield-reflect-sequence",
+        "player-1",
+      ),
       swordActionSequence: projectedNumber(
         player,
         "sword-action-sequence",
@@ -644,7 +739,9 @@ function decodeGameProjection(value: unknown): GameProjection {
         "sword-commitment-clock",
         "player-1",
       ),
-      combatTarget: projectedString(player, "combat-target", "player-1"),
+      rangedActionState: projectedString(player, "ranged-action-state", "player-1"),
+      rangedActionClock: projectedNumber(player, "ranged-action-clock", "player-1"),
+      combatTarget,
       targetLockActive: projectedBoolean(
         player,
         "target-lock-active",
@@ -657,62 +754,8 @@ function decodeGameProjection(value: unknown): GameProjection {
       ),
       combatStatus: projectedString(player, "combat-status", "player-1"),
     },
-    enemy: {
-      position: projectedPosition(
-        projectedField(enemy, "enemy-position", "cinder-wraith"),
-        "cinder-wraith.enemy-position",
-      ),
-      vitality: projectedNumber(enemyVitals, "x", "enemy-vitals"),
-      maximumVitality: projectedNumber(enemyVitals, "y", "enemy-vitals"),
-      combatBehavior: projectedString(
-        enemy,
-        "combat-behavior",
-        "cinder-wraith",
-      ),
-      pressureState: projectedString(
-        enemy,
-        "enemy-pressure-state",
-        "cinder-wraith",
-      ),
-      pressureClock: projectedNumber(
-        enemy,
-        "enemy-pressure-clock",
-        "cinder-wraith",
-      ),
-      chargeStart: projectedPosition(
-        projectedField(enemy, "enemy-charge-start", "cinder-wraith"),
-        "cinder-wraith.enemy-charge-start",
-      ),
-      chargeEnd: projectedPosition(
-        projectedField(enemy, "enemy-charge-end", "cinder-wraith"),
-        "cinder-wraith.enemy-charge-end",
-      ),
-      chargeRadius: projectedNumber(
-        projectedField(enemy, "enemy-charge-envelope", "cinder-wraith"),
-        "z",
-        "cinder-wraith.enemy-charge-envelope",
-      ),
-      chargeCommitted: projectedBoolean(
-        enemy,
-        "enemy-charge-committed",
-        "cinder-wraith",
-      ),
-      recoveryClock: projectedNumber(
-        enemy,
-        "enemy-recovery-clock",
-        "cinder-wraith",
-      ),
-      randomSample: projectedNumber(
-        enemy,
-        "enemy-random-sample",
-        "cinder-wraith",
-      ),
-      combatStatus: projectedString(
-        enemy,
-        "enemy-combat-status",
-        "cinder-wraith",
-      ),
-    },
+    enemy,
+    enemies,
     bolt: {
       position: projectedPosition(
         projectedField(bolt, "projectile-position", "cinder-bolt"),
@@ -818,16 +861,34 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const resident = app.residentLaw;
   const prior = resident.lastProjection;
   const ordinal = resident.admittedOrdinal + 1;
-  const { player, enemy, bolt, wayfarerBolt, objective, frontier } = projection;
+  const { player, enemy, enemies, bolt, wayfarerBolt, objective, frontier } = projection;
+  const priorEnemy = prior?.enemies.find(({ id }) => id === enemy.id) ?? null;
+  const enemyPresentationSubject = presentationSubjectForEnemy(enemy.id);
+  const enemyTitle =
+    enemy.id === "ashen-colossus"
+      ? "ASHEN COLOSSUS // SIEGEBORE"
+      : "CORRUPTED MAGITEK BOAR";
+  element("target-frame-name").textContent = enemyTitle;
+  const boss = requireValue(
+    enemies.find(({ id }) => id === "ashen-colossus"),
+    "Ashen Colossus projection",
+  );
   const ashenKey = lootById(projection, "ashen-key");
   const cephorium = lootById(projection, "cephorium-cache");
   const presentedBolt = wayfarerBolt.visible ? wayfarerBolt : bolt;
   const objectiveStatus = objectiveLabel(objective.state);
   if (prior !== null) {
+    if (player.shieldActionSequence > prior.player.shieldActionSequence) {
+      playPresentationTone(app, 540, 0.16, 0.72);
+    }
+    if (player.shieldReflectSequence > prior.player.shieldReflectSequence) {
+      playPresentationTone(app, 1480, 0.3, 1);
+      playPresentationTone(app, 740, 0.42, 0.82);
+    }
     if (player.swordActionSequence > prior.player.swordActionSequence) {
       playPresentationTone(app, 260, 0.11, 0.7);
     }
-    if (enemy.vitality < prior.enemy.vitality) {
+    if (priorEnemy !== null && enemy.vitality < priorEnemy.vitality) {
       playPresentationTone(app, 115, 0.16, 0.9);
     }
     const priorCache = lootById(prior, "cephorium-cache");
@@ -836,6 +897,42 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     }
     if (objective.state !== prior.objective.state && objectiveStatus === "completed") {
       playPresentationTone(app, 820, 0.38, 0.75);
+    }
+    if (frontier.access !== prior.frontier.access && frontier.access !== "sealed") {
+      playPresentationTone(app, 196, 0.48, 0.85);
+    }
+    for (const projectedEnemy of enemies) {
+      const previousEnemy = prior.enemies.find(({ id }) => id === projectedEnemy.id);
+      if (
+        projectedEnemy.pressureState === "telegraph" &&
+        previousEnemy?.pressureState !== "telegraph"
+      ) {
+        playPresentationTone(
+          app,
+          projectedEnemy.id === "ashen-colossus" ? 72 : 98,
+          0.44,
+          0.9,
+        );
+      }
+      if (
+        projectedEnemy.pressureState === "cannon-telegraph" &&
+        previousEnemy?.pressureState !== "cannon-telegraph"
+      ) {
+        playPresentationTone(app, 148, 0.9, 1);
+      }
+      if (
+        previousEnemy?.pressureState === "cannon-telegraph" &&
+        projectedEnemy.pressureState === "projectile-opening"
+      ) {
+        playPresentationTone(app, 1180, 0.28, 1);
+      }
+      if (
+        projectedEnemy.combatStatus === "dead" &&
+        previousEnemy?.combatStatus !== "dead"
+      ) {
+        playPresentationTone(app, 96, 0.78, 1.4);
+        playPresentationTone(app, 48, 1.15, 1.65);
+      }
     }
   }
   if (frontier.progress > 0 && (prior === null || frontier.progress > prior.frontier.progress)) {
@@ -881,6 +978,16 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   };
   app.scene.enemyNameplateFill.style.transform =
     `scaleX(${Math.max(0, Math.min(1, enemy.vitality / Math.max(0.001, enemy.maximumVitality)))})`;
+  const cannonCasting = enemy.pressureState === "cannon-telegraph";
+  const enemyCast = element("enemy-cast");
+  enemyCast.hidden = !cannonCasting;
+  element("enemy-cast-fill").style.transform =
+    `scaleX(${cannonCasting ? Math.max(0, Math.min(1, 1 - enemy.pressureClock / 94)) : 0})`;
+  const playerCasting = player.rangedActionState === "charging";
+  const playerCast = element("player-cast");
+  playerCast.hidden = !playerCasting;
+  element("player-cast-fill").style.transform =
+    `scaleX(${playerCasting ? Math.max(0, Math.min(1, 1 - player.rangedActionClock / 47)) : 0})`;
   const hitStunVisible =
     enemy.pressureState === "hit-recovery" ||
     enemy.pressureState === "overrun-recovery";
@@ -906,11 +1013,11 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   }
   app.scene.enemyNameplate.setAttribute(
     "aria-label",
-    `Corrupted Magitek Boar, ${enemy.vitality} of ${enemy.maximumVitality} health`,
+    `${enemyTitle}, ${enemy.vitality} of ${enemy.maximumVitality} health`,
   );
   app.scene.enemyNameplate.classList.toggle(
     "targeted",
-    player.targetLockActive && player.combatTarget === "cinder-wraith",
+    player.targetLockActive && player.combatTarget === enemy.id,
   );
 
   applyAdmittedFrame(app.scene.presentation, {
@@ -922,18 +1029,26 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
         visible: true,
         vitalityRatio: player.vitality / Math.max(0.001, player.maximumVitality),
       },
-      {
-        subject: "cinder-wraith",
-        position: enemy.position,
-        visible: false,
-        vitalityRatio: enemy.vitality / Math.max(0.001, enemy.maximumVitality),
-      },
-      {
-        subject: "magitek-boar",
-        position: enemy.position,
-        visible: true,
-        vitalityRatio: enemy.vitality / Math.max(0.001, enemy.maximumVitality),
-      },
+      ...enemies.flatMap((projectedEnemy) => [
+        {
+          subject: projectedEnemy.id,
+          position: projectedEnemy.position,
+          visible: false,
+          vitalityRatio:
+            projectedEnemy.vitality /
+            Math.max(0.001, projectedEnemy.maximumVitality),
+        },
+        {
+          subject: presentationSubjectForEnemy(projectedEnemy.id),
+          position: projectedEnemy.position,
+          visible:
+            projectedEnemy.bodyVisible &&
+            projectedEnemy.combatStatus !== "dormant",
+          vitalityRatio:
+            projectedEnemy.vitality /
+            Math.max(0.001, projectedEnemy.maximumVitality),
+        },
+      ]),
       {
         subject: "cinder-bolt",
         position: presentedBolt.position,
@@ -966,12 +1081,25 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
         (Math.abs(player.position.x - prior.player.position.x) > 0.0001 ||
           Math.abs(player.position.z - prior.player.position.z) > 0.0001),
       airborne: !player.grounded,
+      backpedaling: player.backwardIntent > 0,
       directionX:
         prior === null ? 0 : player.position.x - prior.player.position.x,
       directionZ:
         prior === null ? 0 : player.position.z - prior.player.position.z,
+      facingDirectionX: player.cameraForward.x,
+      facingDirectionZ: player.cameraForward.z,
     },
   });
+  const reflected =
+    prior !== null &&
+    player.shieldReflectSequence > prior.player.shieldReflectSequence;
+  setPulseShield(
+    app.scene.presentation,
+    player.shieldClock,
+    player.shieldActive,
+    player.shieldEnergy,
+    reflected,
+  );
   app.scene.lootInteractions = projection.loots.flatMap((loot) =>
     loot.state === "available"
       ? [
@@ -1011,45 +1139,75 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   ) {
     closeLootWindow();
   }
-  setActivityCue(
-    app.scene.presentation,
-    "magitek-boar",
-    enemy.pressureState === "telegraph" ? 1 : 0,
-    enemy.pressureState === "charging" ? 1 : 0,
-    enemy.pressureState === "hit-recovery" ||
-      enemy.pressureState === "overrun-recovery"
-      ? 1
-      : 0,
-  );
-  if (
-    enemy.pressureState === "approach" ||
-    enemy.pressureState === "telegraph" ||
-    enemy.pressureState === "charging"
-  ) {
-    faceSubjectToward(
+  for (const projectedEnemy of enemies) {
+    const presentationSubject = presentationSubjectForEnemy(projectedEnemy.id);
+    setActivityCue(
       app.scene.presentation,
-      "magitek-boar",
-      player.position,
+      presentationSubject,
+      projectedEnemy.pressureState === "telegraph" ||
+        projectedEnemy.pressureState === "cannon-telegraph"
+        ? 1
+        : 0,
+      projectedEnemy.pressureState === "charging" ? 1 : 0,
+      projectedEnemy.pressureState === "hit-recovery" ||
+        projectedEnemy.pressureState === "overrun-recovery"
+        ? 1
+        : 0,
     );
+    if (
+      projectedEnemy.pressureState === "approach" ||
+      projectedEnemy.pressureState === "telegraph" ||
+      projectedEnemy.pressureState === "cannon-telegraph" ||
+      projectedEnemy.pressureState === "charging"
+    ) {
+      faceSubjectToward(
+        app.scene.presentation,
+        presentationSubject,
+        projectedEnemy.pressureState === "charging"
+          ? projectedEnemy.chargeEnd
+          : player.position,
+      );
+    }
   }
   const chargeCorridorVisible =
-    enemy.pressureState === "telegraph" || enemy.chargeCommitted;
+    enemy.pressureState === "telegraph" ||
+    enemy.pressureState === "cannon-telegraph" ||
+    (enemy.id === "ashen-colossus" &&
+      enemy.pressureState === "projectile-opening" &&
+      enemy.recoveryClock > 40) ||
+    enemy.chargeCommitted;
   if (chargeCorridorVisible) {
     const telegraphProgress = Math.max(
       0,
-      Math.min(1, 1 - enemy.pressureClock / 63),
+      Math.min(
+        1,
+        1 -
+          enemy.pressureClock /
+            (enemy.pressureState === "cannon-telegraph" ? 94 : 63),
+      ),
     );
     setChargeCorridor(
       app.scene.presentation,
       enemy.chargeStart,
       enemy.chargeEnd,
       enemy.chargeRadius,
-      enemy.pressureState === "telegraph" ? telegraphProgress : 1,
-      enemy.pressureState === "charging",
+      enemy.pressureState === "telegraph" ||
+        enemy.pressureState === "cannon-telegraph"
+        ? telegraphProgress
+        : 1,
+      enemy.pressureState === "charging" ||
+        enemy.pressureState === "projectile-opening",
     );
   } else {
     hideChargeCorridor(app.scene.presentation);
   }
+  setActivityCue(
+    app.scene.presentation,
+    "ashen-wayfarer",
+    playerCasting ? Math.max(0.25, 1 - player.rangedActionClock / 47) : 0,
+    0,
+    0,
+  );
   setActivityCue(
     app.scene.presentation,
     "ashen-key",
@@ -1070,6 +1228,8 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     player.vitality,
     player.maximumVitality,
   );
+  element("shield-energy-bar").style.transform =
+    `scaleX(${Math.max(0, Math.min(1, player.shieldEnergy / 100))})`;
   setVitalityBar(
     "enemy-vitality-bar",
     "enemy-vitality",
@@ -1091,13 +1251,13 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
         ? "WAYFARER FALLEN · press R to restore the revision"
         : ashenKey.state === "available"
           ? "CORPSE CONTAINS LOOT · move close and right-click the sparkling boar"
-          : ashenKey.state === "acquired" && ashenKey.custody === "player-1"
-            ? "KEY CLAIMED · carry it west to the moonwell"
+          : boss.combatStatus === "alive"
+            ? "ASHEN COLOSSUS AWAKENED · cross the breach and bring it down"
             : cephorium.state === "available"
-              ? "ASHEN VERGE CACHE EXPOSED · cross the breach and right-click it"
+              ? "COLOSSUS SLAIN · right-click the exposed Cephorium cache"
               : cephorium.state === "acquired" && cephorium.custody === "player-1"
                 ? "CEPHORIUM SECURED · extract west to the moonwell"
-            : "Read the boar telegraph · burst perpendicular · punish recovery";
+                : "Read the boar telegraph · burst perpendicular · punish recovery";
   element("stage").textContent = `world · ${objectiveStatus}`;
   element("summary").textContent =
     `wayfarer ${player.combatStatus} · boar ${enemy.combatStatus} / ${enemy.combatBehavior} / ` +
@@ -1112,15 +1272,22 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   element("combat-state").textContent =
     `BOOST ${player.boosterEnergy} / ${player.boosterCapacity} · ` +
     `IGNITE ${player.boosterThreshold} · REGEN ${player.boosterDelay}   ` +
-    `STATUS ${player.statusEffect} · ${player.statusClock}`;
+    `STATUS ${player.statusEffect} · ${player.statusClock} · ` +
+    `SHIELD ${player.shieldClock > 0 ? "REFLECT" : player.shieldActive ? "GUARD" : "READY"} ${Math.round(player.shieldEnergy)}`;
 
   Object.assign(document.body.dataset, {
     gamePhase: objectiveStatus,
     gamePlayerVitality: String(player.vitality),
     gamePlayerGrounded: String(player.grounded),
+    gameEnemyId: enemy.id,
     gameEnemyVitality: String(enemy.vitality),
     gameEnemyCombatStatus: enemy.combatStatus,
+    gameEnemyBodyVisible: String(enemy.bodyVisible),
+    gameEnemyCorpseClock: String(enemy.corpseClock),
     gameEnemyBehavior: enemy.combatBehavior,
+    gameBossVitality: String(boss.vitality),
+    gameBossCombatStatus: boss.combatStatus,
+    gameBossBodyVisible: String(boss.bodyVisible),
     gameLootState: ashenKey.state,
     gameCustody: ashenKey.custody,
     gameCephoriumState: cephorium.state,
@@ -1142,6 +1309,11 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     gameBoosterRegenerationDelay: String(player.boosterDelay),
     gameStatusEffect: player.statusEffect,
     gameStatusClock: String(player.statusClock),
+    gameShieldClock: String(player.shieldClock),
+    gameShieldActive: String(player.shieldActive),
+    gameShieldEnergy: String(player.shieldEnergy),
+    gameShieldActionSequence: String(player.shieldActionSequence),
+    gameShieldReflectSequence: String(player.shieldReflectSequence),
     gameSwordActionSequence: String(player.swordActionSequence),
     gameSwordCommitmentClock: String(player.swordCommitmentClock),
     gameCombatTarget: player.combatTarget,
@@ -1164,9 +1336,15 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
 
   if (prior !== null) {
     element("combat-feedback").textContent = "";
+    if (player.shieldActionSequence > prior.player.shieldActionSequence) {
+      element("combat-feedback").textContent = "PULSE SHIELD · PERFECT WINDOW";
+    }
+    if (player.shieldReflectSequence > prior.player.shieldReflectSequence) {
+      element("combat-feedback").textContent = "PERFECT REFLECT";
+    }
     if (player.swordActionSequence > prior.player.swordActionSequence) {
       const targetsEnemy =
-        player.targetLockActive && player.combatTarget === "cinder-wraith";
+        player.targetLockActive && player.combatTarget === enemy.id;
       playWayfarerSwordAction(
         app.scene.presentation,
         targetsEnemy ? enemy.position.x - player.position.x : 0,
@@ -1175,14 +1353,14 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
       element("combat-feedback").textContent = "SWORD ACTION ADMITTED";
     }
     if (player.targetSelectionSequence > prior.player.targetSelectionSequence) {
-      element("combat-feedback").textContent = "TARGET ACQUIRED · CORRUPTED MAGITEK BOAR";
+      element("combat-feedback").textContent = `TARGET ACQUIRED · ${enemyTitle}`;
     }
-    if (enemy.vitality < prior.enemy.vitality) {
-      const damage = prior.enemy.vitality - enemy.vitality;
+    if (priorEnemy !== null && enemy.vitality < priorEnemy.vitality) {
+      const damage = priorEnemy.vitality - enemy.vitality;
       element("combat-feedback").textContent = `EMBER IMPACT · -${damage}`;
       signalImpact(
         app.scene.presentation,
-        "magitek-boar",
+        enemyPresentationSubject,
         ordinal,
         damage / Math.max(0.001, enemy.maximumVitality),
       );
@@ -1191,7 +1369,16 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     if (player.vitality < prior.player.vitality) {
       const damage = prior.player.vitality - player.vitality;
       element("combat-feedback").textContent = `WRAITH IMPACT · -${damage}`;
-      playBoarAttack(app.scene.presentation);
+      const attackingEnemy =
+        enemies.find(({ pressureState }) =>
+          pressureState === "charging" ||
+          pressureState === "hit-recovery" ||
+          pressureState === "overrun-recovery",
+        ) ?? enemy;
+      playBoarAttack(
+        app.scene.presentation,
+        presentationSubjectForEnemy(attackingEnemy.id),
+      );
       signalImpact(
         app.scene.presentation,
         "ashen-wayfarer",
@@ -1215,8 +1402,20 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     if (player.combatStatus === "dead" && prior.player.combatStatus !== "dead") {
       signalDeath(app.scene.presentation, "ashen-wayfarer", ordinal);
     }
-    if (enemy.combatStatus === "dead" && prior.enemy.combatStatus !== "dead") {
-      signalDeath(app.scene.presentation, "magitek-boar", ordinal);
+    for (const projectedEnemy of enemies) {
+      const priorProjectedEnemy = prior.enemies.find(
+        ({ id }) => id === projectedEnemy.id,
+      );
+      if (
+        projectedEnemy.combatStatus === "dead" &&
+        priorProjectedEnemy?.combatStatus !== "dead"
+      ) {
+        signalDeath(
+          app.scene.presentation,
+          presentationSubjectForEnemy(projectedEnemy.id),
+          ordinal,
+        );
+      }
     }
   }
   resident.lastProjection = projection;
@@ -1740,7 +1939,10 @@ function createScene(): SceneShell {
     {
       wayfarer: "ashen-wayfarer",
       wraith: "cinder-wraith",
-      boar: "magitek-boar",
+      boars: ENEMY_PRESENTATIONS.map(({ presentation: subject, baseScale }) => ({
+        subject,
+        baseScale,
+      })),
       bolt: "cinder-bolt",
       relic: "ashen-key",
       cache: "cephorium-cache",
@@ -1754,18 +1956,23 @@ function createScene(): SceneShell {
   let shell: SceneShell | null = null;
   let cameraPointer: Readonly<{
     pointerId: number;
+    button: 0 | 2;
     clientX: number;
     clientY: number;
+    dragged: boolean;
   }> | null = null;
+  let suppressContextMenu = false;
   const pointerHandler = (event: PointerEvent): void => {
     if (shell === null) return;
     focusScene(shell);
-    if (event.button !== 0) return;
+    if (event.button !== 0 && event.button !== 2) return;
     event.preventDefault();
     cameraPointer = {
       pointerId: event.pointerId,
+      button: event.button,
       clientX: event.clientX,
       clientY: event.clientY,
+      dragged: false,
     };
     canvas.setPointerCapture(event.pointerId);
   };
@@ -1774,21 +1981,37 @@ function createScene(): SceneShell {
       return;
     }
     event.preventDefault();
+    const horizontal = event.clientX - cameraPointer.clientX;
+    const vertical = event.clientY - cameraPointer.clientY;
     orbitPresentationCamera(
       presentation,
-      event.clientX - cameraPointer.clientX,
-      event.clientY - cameraPointer.clientY,
+      horizontal,
+      vertical,
     );
+    const dragged =
+      cameraPointer.dragged || Math.hypot(horizontal, vertical) >= 2;
+    if (cameraPointer.button === 2) {
+      faceSubjectAlong(
+        presentation,
+        "ashen-wayfarer",
+        -Math.sin(presentation.cameraOrbitYaw),
+        -Math.cos(presentation.cameraOrbitYaw),
+      );
+    }
     cameraPointer = {
       pointerId: event.pointerId,
+      button: cameraPointer.button,
       clientX: event.clientX,
       clientY: event.clientY,
+      dragged,
     };
   };
   const pointerReleaseHandler = (event: PointerEvent): void => {
     if (cameraPointer === null || cameraPointer.pointerId !== event.pointerId) {
       return;
     }
+    suppressContextMenu =
+      cameraPointer.button === 2 && cameraPointer.dragged;
     cameraPointer = null;
     if (canvas.hasPointerCapture(event.pointerId)) {
       canvas.releasePointerCapture(event.pointerId);
@@ -1796,6 +2019,10 @@ function createScene(): SceneShell {
   };
   const contextMenuHandler = (event: MouseEvent): void => {
     event.preventDefault();
+    if (suppressContextMenu) {
+      suppressContextMenu = false;
+      return;
+    }
     if (shell === null) return;
     for (const interaction of shell.lootInteractions) {
       if (
@@ -2181,18 +2408,116 @@ function applyInputPreferences(app: PlayApp): void {
     `${displayKey(preferences.bindings.forward)}/${displayKey(preferences.bindings.left)}/${displayKey(preferences.bindings.backward)}/${displayKey(preferences.bindings.right)} move · ` +
     `${displayKey(preferences.bindings.target)} target · ${displayKey(preferences.bindings.bolt)} bolt · ` +
     `${displayKey(preferences.bindings.sword)} sword · ${displayKey(preferences.bindings.loot)} loot · ` +
-    `${displayKey(preferences.bindings.jump)} jump · gamepad supported · Controls panel for all bindings`;
+    `${displayKey(preferences.bindings.shield)} shield · ${displayKey(preferences.bindings.horizontalBurst)} dash · ` +
+    `${displayKey(preferences.bindings.jump)} jump / air boost · gamepad supported`;
 }
 
 function resumePresentationAudio(app: PlayApp): void {
   try {
     app.presentationAudio ??= new AudioContext();
     if (app.presentationAudio.state === "suspended") {
-      void app.presentationAudio.resume();
+      void app.presentationAudio.resume().then(() => startPlaceholderMusic(app));
+    } else {
+      startPlaceholderMusic(app);
     }
   } catch {
     app.presentationAudio = null;
   }
+}
+
+function startPlaceholderMusic(app: PlayApp): void {
+  const context = app.presentationAudio;
+  if (context === null || context.state !== "running") return;
+  if (app.presentationMusic !== null) {
+    app.presentationMusic.gain.setTargetAtTime(
+      app.playerInput.preferences.effectsVolume * 0.075,
+      context.currentTime,
+      0.08,
+    );
+    app.presentationRain?.gain.setTargetAtTime(
+      app.playerInput.preferences.effectsVolume * 0.055,
+      context.currentTime,
+      0.08,
+    );
+    return;
+  }
+  const master = context.createGain();
+  const filter = context.createBiquadFilter();
+  const lowDrone = context.createOscillator();
+  const fifth = context.createOscillator();
+  const pulse = context.createOscillator();
+  const pulseDepth = context.createGain();
+  lowDrone.type = "sawtooth";
+  fifth.type = "triangle";
+  lowDrone.frequency.value = 55;
+  fifth.frequency.value = 82.41;
+  pulse.frequency.value = 0.11;
+  pulseDepth.gain.value = 170;
+  filter.type = "lowpass";
+  filter.frequency.value = 430;
+  filter.Q.value = 2.4;
+  master.gain.value = app.playerInput.preferences.effectsVolume * 0.075;
+  pulse.connect(pulseDepth).connect(filter.frequency);
+  lowDrone.connect(filter);
+  fifth.connect(filter);
+  filter.connect(master).connect(context.destination);
+  lowDrone.start();
+  fifth.start();
+  pulse.start();
+  app.presentationMusic = master;
+  const rainBuffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
+  const rainSamples = rainBuffer.getChannelData(0);
+  let rainSeed = 0x7f4a7c15;
+  for (let index = 0; index < rainSamples.length; index += 1) {
+    rainSeed = (Math.imul(rainSeed, 1664525) + 1013904223) >>> 0;
+    rainSamples[index] = (rainSeed / 0xffffffff) * 2 - 1;
+  }
+  const rainSource = context.createBufferSource();
+  const rainFilter = context.createBiquadFilter();
+  const rainGain = context.createGain();
+  rainSource.buffer = rainBuffer;
+  rainSource.loop = true;
+  rainFilter.type = "bandpass";
+  rainFilter.frequency.value = 3200;
+  rainFilter.Q.value = 0.42;
+  rainGain.gain.value = app.playerInput.preferences.effectsVolume * 0.055;
+  rainSource.connect(rainFilter).connect(rainGain).connect(context.destination);
+  rainSource.start();
+  app.presentationRain = rainGain;
+  const fantasyNotes = [293.66, 349.23, 440, 523.25, 440, 349.23, 329.63, 261.63];
+  const playFantasyBeat = (): void => {
+    const musicContext = app.presentationAudio;
+    const musicBus = app.presentationMusic;
+    if (musicContext === null || musicBus === null || musicContext.state !== "running") return;
+    const start = musicContext.currentTime;
+    const note = fantasyNotes[app.presentationMusicBeat % fantasyNotes.length]!;
+    const voice = musicContext.createOscillator();
+    const voiceGain = musicContext.createGain();
+    voice.type = app.presentationMusicBeat % 2 === 0 ? "triangle" : "sine";
+    voice.frequency.setValueAtTime(note, start);
+    voiceGain.gain.setValueAtTime(0.0001, start);
+    voiceGain.gain.exponentialRampToValueAtTime(0.34, start + 0.018);
+    voiceGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.58);
+    voice.connect(voiceGain).connect(musicBus);
+    voice.start(start);
+    voice.stop(start + 0.6);
+    if (app.presentationMusicBeat % 4 === 0) {
+      const bass = musicContext.createOscillator();
+      const bassGain = musicContext.createGain();
+      bass.type = "triangle";
+      bass.frequency.value = note / 4;
+      bassGain.gain.setValueAtTime(0.2, start);
+      bassGain.gain.exponentialRampToValueAtTime(0.0001, start + 1.1);
+      bass.connect(bassGain).connect(musicBus);
+      bass.start(start);
+      bass.stop(start + 1.12);
+    }
+    app.presentationMusicBeat += 1;
+  };
+  playFantasyBeat();
+  app.presentationMusicTimer = window.setInterval(playFantasyBeat, 360);
+  document.body.dataset.placeholderMusic = "playing";
+  document.body.dataset.rainAudio = "playing";
 }
 
 function playPresentationTone(
@@ -2213,7 +2538,7 @@ function playPresentationTone(
     Math.max(40, frequency * 0.72),
     start + durationSeconds,
   );
-  gain.gain.setValueAtTime(Math.min(0.12, volume * 0.12), start);
+  gain.gain.setValueAtTime(Math.min(0.26, volume * 0.22), start);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + durationSeconds);
   oscillator.connect(gain).connect(context.destination);
   oscillator.start(start);
@@ -2294,6 +2619,7 @@ function pollGamepads(app: PlayApp): void {
       const { action } = definition;
       if (definition.held) {
         if (current.has(action) && !app.playerInput.gamepadHeld.has(action)) {
+          if (action === "horizontalBurst") observeCameraBasis(app);
           observeGameKey(app, { code: semanticCode(action), repeat: false }, "down");
           app.playerInput.gamepadHeld.add(action);
         } else if (!current.has(action) && app.playerInput.gamepadHeld.has(action)) {
@@ -2301,6 +2627,7 @@ function pollGamepads(app: PlayApp): void {
           app.playerInput.gamepadHeld.delete(action);
         }
       } else if (current.has(action) && !app.playerInput.gamepadPressed.has(action)) {
+        if (action === "horizontalBurst") observeCameraBasis(app);
         observeGameKey(app, { code: semanticCode(action), repeat: false }, "down");
       }
     }
@@ -2349,6 +2676,7 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
     const definition = definitionForAction(action);
     const code = semanticCode(action, action === "target" && event.shiftKey);
     if (definition.held) heldKeys.set(event.code, code);
+    if (action === "horizontalBurst") observeCameraBasis(app);
     observeGameKey(app, { code, repeat: false }, "down");
   };
   const up = (event: KeyboardEvent): void => {
@@ -2365,7 +2693,7 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
     heldKeys.clear();
   };
   const cameraBasis = (event: PointerEvent): void => {
-    if ((event.buttons & 1) !== 0) observeCameraBasis(app);
+    if ((event.buttons & 2) !== 0) observeCameraBasis(app);
   };
   // Keyboard control follows the active game page rather than canvas focus.
   // Camera/pointer capture remains canvas-local, but clicking another HUD
@@ -2417,6 +2745,7 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   inputElement("large-text").addEventListener("change", largeText);
   inputElement("effects-volume").addEventListener("input", effectsVolume);
   window.addEventListener("pointerdown", resumeAudio, { capture: true });
+  window.addEventListener("keydown", resumeAudio, { capture: true });
   app.playerInput.gamepadFrame = requestAnimationFrame(() => pollGamepads(app));
   listeners.push(() =>
     window.removeEventListener("keydown", down, keyboardListenerOptions),
@@ -2435,6 +2764,7 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   listeners.push(() => inputElement("large-text").removeEventListener("change", largeText));
   listeners.push(() => inputElement("effects-volume").removeEventListener("input", effectsVolume));
   listeners.push(() => window.removeEventListener("pointerdown", resumeAudio, { capture: true }));
+  listeners.push(() => window.removeEventListener("keydown", resumeAudio, { capture: true }));
   listeners.push(() => {
     cancelAnimationFrame(app.playerInput.gamepadFrame);
     releaseGamepad(app);
@@ -2485,6 +2815,7 @@ function teardown(app: PlayApp): void {
   );
   app.scene.canvas.removeEventListener("wheel", app.scene.wheelHandler);
   for (const removeListener of app.listeners) removeListener();
+  if (app.presentationMusicTimer !== null) window.clearInterval(app.presentationMusicTimer);
   if (app.presentationAudio !== null) void app.presentationAudio.close();
   disposeCinderwakePresentation(app.scene.presentation);
   app.scene.canvas.remove();
@@ -2542,6 +2873,10 @@ function startApp(
       gamepadPressed: new Set<GameAction>(),
     },
     presentationAudio: null,
+    presentationMusic: null,
+    presentationRain: null,
+    presentationMusicTimer: null,
+    presentationMusicBeat: 0,
   };
   bindResidentWorker(app, listeners);
   bindGameInput(app, listeners);

@@ -192,15 +192,28 @@ try {
   const deltaX = moved.playerX - rotated.playerX;
   const deltaZ = moved.playerZ - rotated.playerZ;
   requireCondition(
-    deltaX > 0.75,
-    `rotated-camera W moved ${deltaX.toFixed(3)} on x instead of forward`,
+    Math.abs(deltaX) < Math.abs(deltaZ) * 0.35,
+    `left free-look steered W by ${deltaX.toFixed(3)} on x`,
   );
   requireCondition(
-    Math.abs(deltaZ) < Math.abs(deltaX) * 0.35,
-    `rotated-camera W leaked ${deltaZ.toFixed(3)} on z for ${deltaX.toFixed(3)} x`,
+    deltaZ < -0.75,
+    `left free-look changed original W forward travel: ${deltaZ.toFixed(3)} z`,
   );
 
-  console.log(JSON.stringify({ reset, rotated, moved, deltaX, deltaZ }));
+  await key("keyDown", "KeyQ", "q");
+  await key("keyUp", "KeyQ", "q");
+  await Bun.sleep(300);
+  const dashed = await waitFor(
+    (value) => value.admittedFrames > moved.admittedFrames + 2,
+    "camera-facing Q dash did not reach Admission",
+  );
+  const dashX = dashed.playerX - moved.playerX;
+  requireCondition(
+    dashX > 1,
+    `Q did not launch along the actively facing camera: ${dashX.toFixed(3)} x`,
+  );
+
+  console.log(JSON.stringify({ reset, rotated, moved, dashed, deltaX, deltaZ, dashX }));
 } finally {
   socket?.close();
   chrome.kill();

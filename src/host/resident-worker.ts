@@ -137,7 +137,6 @@ let inputBackpressureCount = 0;
 const edgeTriggeredKeyboardCodes = new Set([
   "KeyJ",
   "KeyQ",
-  "KeyF",
   "Space",
   "Tab",
   "ShiftTab",

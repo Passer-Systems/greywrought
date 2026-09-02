@@ -1,0 +1,249 @@
+{
+  "format": "Greywrought UI individual transparent PNG assets",
+  "source_sheet_size": [
+    1448,
+    1086
+  ],
+  "variants": {
+    "source-crops": "Tight crops preserving source pixels, with transparent padding.",
+    "512": "512x512 transparent canvases, icon centered and scaled to fit."
+  },
+  "collections": {
+    "spells": [
+      {
+        "name": "fire-spell",
+        "source_crop": "spells/source-crops/fire-spell.png",
+        "game_ready_512": "spells/512/fire-spell.png"
+      },
+      {
+        "name": "frost-spell",
+        "source_crop": "spells/source-crops/frost-spell.png",
+        "game_ready_512": "spells/512/frost-spell.png"
+      },
+      {
+        "name": "arcane-starburst",
+        "source_crop": "spells/source-crops/arcane-starburst.png",
+        "game_ready_512": "spells/512/arcane-starburst.png"
+      },
+      {
+        "name": "lightning-bolt",
+        "source_crop": "spells/source-crops/lightning-bolt.png",
+        "game_ready_512": "spells/512/lightning-bolt.png"
+      },
+      {
+        "name": "defensive-shield",
+        "source_crop": "spells/source-crops/defensive-shield.png",
+        "game_ready_512": "spells/512/defensive-shield.png"
+      },
+      {
+        "name": "void-portal",
+        "source_crop": "spells/source-crops/void-portal.png",
+        "game_ready_512": "spells/512/void-portal.png"
+      },
+      {
+        "name": "healing-cross",
+        "source_crop": "spells/source-crops/healing-cross.png",
+        "game_ready_512": "spells/512/healing-cross.png"
+      },
+      {
+        "name": "nature-leaf",
+        "source_crop": "spells/source-crops/nature-leaf.png",
+        "game_ready_512": "spells/512/nature-leaf.png"
+      },
+      {
+        "name": "sword-strike",
+        "source_crop": "spells/source-crops/sword-strike.png",
+        "game_ready_512": "spells/512/sword-strike.png"
+      },
+      {
+        "name": "ranged-projectile",
+        "source_crop": "spells/source-crops/ranged-projectile.png",
+        "game_ready_512": "spells/512/ranged-projectile.png"
+      },
+      {
+        "name": "holy-light",
+        "source_crop": "spells/source-crops/holy-light.png",
+        "game_ready_512": "spells/512/holy-light.png"
+      },
+      {
+        "name": "poison-vial",
+        "source_crop": "spells/source-crops/poison-vial.png",
+        "game_ready_512": "spells/512/poison-vial.png"
+      },
+      {
+        "name": "protective-ward",
+        "source_crop": "spells/source-crops/protective-ward.png",
+        "game_ready_512": "spells/512/protective-ward.png"
+      },
+      {
+        "name": "energy-burst",
+        "source_crop": "spells/source-crops/energy-burst.png",
+        "game_ready_512": "spells/512/energy-burst.png"
+      },
+      {
+        "name": "earth-stone",
+        "source_crop": "spells/source-crops/earth-stone.png",
+        "game_ready_512": "spells/512/earth-stone.png"
+      },
+      {
+        "name": "mobility-boots",
+        "source_crop": "spells/source-crops/mobility-boots.png",
+        "game_ready_512": "spells/512/mobility-boots.png"
+      }
+    ],
+    "items": [
+      {
+        "name": "health-potion-red",
+        "source_crop": "items/source-crops/health-potion-red.png",
+        "game_ready_512": "items/512/health-potion-red.png"
+      },
+      {
+        "name": "mana-potion-blue",
+        "source_crop": "items/source-crops/mana-potion-blue.png",
+        "game_ready_512": "items/512/mana-potion-blue.png"
+      },
+      {
+        "name": "potion-green",
+        "source_crop": "items/source-crops/potion-green.png",
+        "game_ready_512": "items/512/potion-green.png"
+      },
+      {
+        "name": "scroll",
+        "source_crop": "items/source-crops/scroll.png",
+        "game_ready_512": "items/512/scroll.png"
+      },
+      {
+        "name": "spellbook",
+        "source_crop": "items/source-crops/spellbook.png",
+        "game_ready_512": "items/512/spellbook.png"
+      },
+      {
+        "name": "treasure-chest",
+        "source_crop": "items/source-crops/treasure-chest.png",
+        "game_ready_512": "items/512/treasure-chest.png"
+      },
+      {
+        "name": "boots",
+        "source_crop": "items/source-crops/boots.png",
+        "game_ready_512": "items/512/boots.png"
+      },
+      {
+        "name": "purple-crystal",
+        "source_crop": "items/source-crops/purple-crystal.png",
+        "game_ready_512": "items/512/purple-crystal.png"
+      },
+      {
+        "name": "sealed-parchment",
+        "source_crop": "items/source-crops/sealed-parchment.png",
+        "game_ready_512": "items/512/sealed-parchment.png"
+      },
+      {
+        "name": "leather-satchel",
+        "source_crop": "items/source-crops/leather-satchel.png",
+        "game_ready_512": "items/512/leather-satchel.png"
+      },
+      {
+        "name": "food-ration",
+        "source_crop": "items/source-crops/food-ration.png",
+        "game_ready_512": "items/512/food-ration.png"
+      },
+      {
+        "name": "key",
+        "source_crop": "items/source-crops/key.png",
+        "game_ready_512": "items/512/key.png"
+      },
+      {
+        "name": "blue-gem",
+        "source_crop": "items/source-crops/blue-gem.png",
+        "game_ready_512": "items/512/blue-gem.png"
+      },
+      {
+        "name": "ruby-ring",
+        "source_crop": "items/source-crops/ruby-ring.png",
+        "game_ready_512": "items/512/ruby-ring.png"
+      },
+      {
+        "name": "bomb",
+        "source_crop": "items/source-crops/bomb.png",
+        "game_ready_512": "items/512/bomb.png"
+      },
+      {
+        "name": "shield-emblem",
+        "source_crop": "items/source-crops/shield-emblem.png",
+        "game_ready_512": "items/512/shield-emblem.png"
+      }
+    ],
+    "menu": [
+      {
+        "name": "bag-small",
+        "source_crop": "menu/source-crops/bag-small.png",
+        "game_ready_512": "menu/512/bag-small.png"
+      },
+      {
+        "name": "bag-medium",
+        "source_crop": "menu/source-crops/bag-medium.png",
+        "game_ready_512": "menu/512/bag-medium.png"
+      },
+      {
+        "name": "backpack-large",
+        "source_crop": "menu/source-crops/backpack-large.png",
+        "game_ready_512": "menu/512/backpack-large.png"
+      },
+      {
+        "name": "character-profile",
+        "source_crop": "menu/source-crops/character-profile.png",
+        "game_ready_512": "menu/512/character-profile.png"
+      },
+      {
+        "name": "talents-skills",
+        "source_crop": "menu/source-crops/talents-skills.png",
+        "game_ready_512": "menu/512/talents-skills.png"
+      },
+      {
+        "name": "quests",
+        "source_crop": "menu/source-crops/quests.png",
+        "game_ready_512": "menu/512/quests.png"
+      },
+      {
+        "name": "help",
+        "source_crop": "menu/source-crops/help.png",
+        "game_ready_512": "menu/512/help.png"
+      },
+      {
+        "name": "menu-list",
+        "source_crop": "menu/source-crops/menu-list.png",
+        "game_ready_512": "menu/512/menu-list.png"
+      },
+      {
+        "name": "settings",
+        "source_crop": "menu/source-crops/settings.png",
+        "game_ready_512": "menu/512/settings.png"
+      },
+      {
+        "name": "chat",
+        "source_crop": "menu/source-crops/chat.png",
+        "game_ready_512": "menu/512/chat.png"
+      },
+      {
+        "name": "mail",
+        "source_crop": "menu/source-crops/mail.png",
+        "game_ready_512": "menu/512/mail.png"
+      },
+      {
+        "name": "friends-party",
+        "source_crop": "menu/source-crops/friends-party.png",
+        "game_ready_512": "menu/512/friends-party.png"
+      },
+      {
+        "name": "add",
+        "source_crop": "menu/source-crops/add.png",
+        "game_ready_512": "menu/512/add.png"
+      },
+      {
+        "name": "remove",
+        "source_crop": "menu/source-crops/remove.png",
+        "game_ready_512": "menu/512/remove.png"
+      }
+    ]
+  }
+}
