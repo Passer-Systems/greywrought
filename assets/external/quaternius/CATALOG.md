@@ -1,8 +1,9 @@
 # Quaternius pack catalog
 
-- Last full crawl: 2026-09-02T11:31:54Z
+- Last full crawl: 2026-09-02T11:43:10Z
 - Seed URL: https://quaternius.com/index.html
 - Scope/counts: 83 unique /packs/*.html index links discovered; 83 pages fetched; 0 failures.
+- Completeness basis: exact URL-set equality with the published pack index after fetching every discovered page. Quaternius did not publish a sitemap at `/sitemap.xml` (HTTP 404) at crawl time.
 
 This is a discovery snapshot, not vendored content. Before acquisition, inspect the exact archive/release license: Quaternius's general license changed, and individual page, store, or archive terms may differ.
 
