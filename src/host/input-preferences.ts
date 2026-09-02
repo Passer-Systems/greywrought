@@ -125,7 +125,7 @@ export function decodeInputPreferences(source: string | null): Readonly<{
       largeText: value.largeText,
       effectsVolume: value.effectsVolume,
     },
-    recovered: value.version === 1,
+    recovered: false,
   };
 }
 

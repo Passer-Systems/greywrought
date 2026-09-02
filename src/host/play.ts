@@ -1043,21 +1043,6 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     if (player.shieldReflectSequence > prior.player.shieldReflectSequence) {
       playPresentationCue(app, "shield-reflect");
     }
-    if (player.shieldAbsorbSequence > prior.player.shieldAbsorbSequence) {
-      playPresentationTone(app, 380, 0.24, 0.9);
-      playPresentationTone(app, 190, 0.32, 0.68);
-    }
-    if (player.rangedActionSequence > prior.player.rangedActionSequence) {
-      playPresentationTone(app, 420, 0.18, 0.58);
-    }
-    if (wayfarerBolt.visible && !prior.wayfarerBolt.visible) {
-      playPresentationTone(app, 920, 0.18, 0.9);
-      playPresentationTone(app, 1380, 0.12, 0.62);
-    }
-    if (!wayfarerBolt.visible && prior.wayfarerBolt.visible) {
-      playPresentationTone(app, 210, 0.22, 0.92);
-      playPresentationTone(app, 660, 0.16, 0.7);
-    }
     if (player.swordActionSequence > prior.player.swordActionSequence) {
       playPresentationCue(app, "melee-swing");
     }
@@ -1139,8 +1124,6 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
         projectedEnemy.shieldImpactSequence >
           previousEnemy.shieldImpactSequence
       ) {
-        playPresentationTone(app, 86, 0.24, 1.2);
-        playPresentationTone(app, 980, 0.18, 0.88);
         signalImpact(
           app.scene.presentation,
           presentationSubjectForEnemy(projectedEnemy.id),
