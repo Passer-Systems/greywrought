@@ -1636,11 +1636,14 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   const cameraBasis = (event: PointerEvent): void => {
     if ((event.buttons & 1) !== 0) observeCameraBasis(app);
   };
-  canvas.addEventListener("keydown", down);
-  canvas.addEventListener("keyup", up);
+  // Keyboard control follows the active game page rather than canvas focus.
+  // Camera/pointer capture remains canvas-local, but clicking another HUD
+  // surface must not make ordinary WASD movement appear to stop.
+  window.addEventListener("keydown", down);
+  window.addEventListener("keyup", up);
   canvas.addEventListener("pointermove", cameraBasis);
-  listeners.push(() => canvas.removeEventListener("keydown", down));
-  listeners.push(() => canvas.removeEventListener("keyup", up));
+  listeners.push(() => window.removeEventListener("keydown", down));
+  listeners.push(() => window.removeEventListener("keyup", up));
   listeners.push(() => canvas.removeEventListener("pointermove", cameraBasis));
 }
 
