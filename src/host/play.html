@@ -28,6 +28,17 @@
     <div id="fantasy-cursor" class="fantasy-cursor" aria-hidden="true"></div>
     <main>
       <div id="world-wrap">
+        <section id="character-select" class="character-select" aria-labelledby="character-select-title">
+          <div class="character-select-card">
+            <div class="kicker">Choose your Greywrought archetype</div>
+            <h2 id="character-select-title">Who enters the Boar Breach?</h2>
+            <div class="character-choices">
+              <button type="button" data-character-code="F1" data-archetype="warrior"><strong>Warrior</strong><span>Rage · charge · whirlwind · block</span><kbd>F1</kbd></button>
+              <button type="button" data-character-code="F2" data-archetype="mage"><strong>Mage</strong><span>Mana · Frostbolt · nova · blink</span><kbd>F2</kbd></button>
+              <button type="button" data-character-code="F3" data-archetype="hunter"><strong>Hunter</strong><span>Focus · aimed shot · trap · disengage</span><kbd>F3</kbd></button>
+            </div>
+          </div>
+        </section>
         <div id="branch-label" class="realm-label">Disconnected branch · retained</div>
         <div id="enemy-damage-number" class="enemy-damage-number">0</div>
         <div id="enemy-nameplate" class="enemy-nameplate" hidden>
@@ -79,15 +90,15 @@
           <section id="player-frame" class="unit-frame player-frame" aria-label="Player status">
             <div class="unit-portrait player-portrait" aria-hidden="true"><span>70</span></div>
             <div class="unit-readout">
-              <div class="unit-heading"><strong>Wayfarer</strong><span id="player-vitality">4 / 4</span></div>
+              <div class="unit-heading"><strong id="player-frame-name">Wayfarer</strong><span id="player-vitality">4 / 4</span></div>
               <div class="bar health-bar" aria-hidden="true"><span id="player-vitality-bar"></span></div>
               <div class="bar resource-bar" aria-hidden="true"><span id="booster-energy-bar"></span></div>
               <div class="bar shield-resource-bar" aria-hidden="true"><span id="shield-energy-bar"></span></div>
-              <div class="unit-resource"><span>Booster</span><strong id="booster-energy">100 / 100</strong></div>
+              <div class="unit-resource"><span id="class-resource-name">Resource</span><strong id="class-resource-value">0 / 100</strong></div>
               <div class="unit-resource shield-resource"><span>Shield</span><strong id="shield-energy">100 / 100</strong></div>
               <div id="player-cast" class="enemy-cast player-cast" hidden>
                 <span id="player-cast-fill" class="enemy-cast-fill"></span>
-                <strong class="enemy-cast-name">BOLT</strong>
+                <strong id="player-cast-name" class="enemy-cast-name">BOLT</strong>
                 <span id="player-cast-time" class="player-cast-time">0.75</span>
               </div>
             </div>
@@ -110,18 +121,19 @@
           <section class="action-bars" aria-label="Abilities">
             <div class="action-bar secondary-action-bar">
               <div class="action-slot loot-slot"><kbd>F</kbd><span>◆</span><small>Interact</small></div>
+              <div class="action-slot shield-slot"><kbd>E</kbd><span>◉</span><small>Shield</small></div>
+              <div class="action-slot dash-slot"><kbd>Q</kbd><span>»</span><small>Dash</small></div>
+              <div class="action-slot boost-slot"><kbd>Space</kbd><span>⇧</span><small>Boost</small></div>
+              <div class="action-slot sprint-slot"><kbd>Shift</kbd><span>⇧</span><small>Sprint</small></div>
               <div class="action-slot reset-slot"><kbd>Shift+R</kbd><span>↻</span><small>Reset</small></div>
-              <div class="action-slot empty-slot"><kbd>3</kbd><span></span><small>Class</small></div>
-              <div class="action-slot empty-slot"><kbd>4</kbd><span></span><small>Class</small></div>
-              <div class="action-slot empty-slot"><kbd>5</kbd><span></span><small>Class</small></div>
             </div>
             <div class="action-bar primary-action-bar">
-              <div class="action-slot sword-slot"><kbd>1</kbd><span>⚔</span><small>Sword</small></div>
-              <div class="action-slot bolt-slot"><kbd>2</kbd><span>✦</span><small>Bolt</small></div>
-              <div class="action-slot shield-slot"><kbd>E</kbd><span>✧</span><small>Reflect</small></div>
-              <div class="action-slot dash-slot"><kbd>Q</kbd><span>➤</span><small>Dash</small></div>
-              <div class="action-slot boost-slot"><kbd>Space</kbd><span>⇧</span><small>Boost</small></div>
-              <div class="action-slot sprint-slot"><kbd>Shift</kbd><span>»</span><small>Sprint</small></div>
+              <div id="ability-slot-1" class="action-slot sword-slot"><kbd>1</kbd><span>⚔</span><small>Melee</small></div>
+              <div id="ability-slot-2" class="action-slot bolt-slot"><kbd>2</kbd><span>✦</span><small>Bolt</small></div>
+              <div id="ability-slot-3" class="action-slot spell-slot"><kbd>3</kbd><span>✹</span><small>Ability</small></div>
+              <div id="ability-slot-4" class="action-slot shield-slot"><kbd>4</kbd><span>✧</span><small>Ability</small></div>
+              <div id="ability-slot-5" class="action-slot dash-slot"><kbd>5</kbd><span>➤</span><small>Ability</small></div>
+              <div id="class-utility-slot" class="action-slot interrupt-slot"><kbd>R</kbd><span>!</span><small>Interrupt</small></div>
             </div>
           </section>
 
@@ -182,8 +194,12 @@
             <span>Move left</span><button type="button" data-input-action="left">A</button>
             <span>Move right</span><button type="button" data-input-action="right">D</button>
             <span>Cycle target</span><button type="button" data-input-action="target">Tab</button>
-            <span>Sword</span><button type="button" data-input-action="sword">1</button>
-            <span>Bolt / Frostbolt</span><button type="button" data-input-action="bolt">2</button>
+            <span>Melee primary</span><button type="button" data-input-action="ability1">1</button>
+            <span>Bolt / cast</span><button type="button" data-input-action="ability2">2</button>
+            <span>Ability 3</span><button type="button" data-input-action="ability3">3</button>
+            <span>Ability 4</span><button type="button" data-input-action="ability4">4</button>
+            <span>Ability 5</span><button type="button" data-input-action="ability5">5</button>
+            <span>Class utility / interrupt</span><button type="button" data-input-action="classUtility">R</button>
             <span>Interact / loot</span><button type="button" data-input-action="loot">F</button>
             <span>Jump / air boost</span><button type="button" data-input-action="jump">Space</button>
             <span>Shield</span><button type="button" data-input-action="shield">E</button>
@@ -194,7 +210,7 @@
           <button id="reset-bindings" type="button">Restore default bindings</button>
           <button id="reset-encounter" class="primary">Reset encounter · Shift+R</button>
           <p id="input-preference-status" class="settings-status" aria-live="polite">Changes save in this browser.</p>
-          <p class="truth-note">Gamepad: left stick/D-pad move; A jump/air boost; B interact/loot; X Sword (1); Y target; LB Dash (Q); RB Bolt (2); RT Shield (E); L3 Sprint (Shift); Start Reset (Shift+R).</p>
+          <p class="truth-note">Gamepad: left stick/D-pad move; A jump/air boost; B interact/loot; X ability 1; Y target; LB Dash; RB ability 2; RT Shield; L3 Sprint; Start Reset.</p>
         </details>
         <details class="player-settings accessibility-panel">
           <summary>Accessibility</summary>

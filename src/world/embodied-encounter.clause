@@ -23,6 +23,9 @@ BoosterEquipment
 Frontier
 FrontierAccess
 RangedActionState
+CharacterArchetype
+Ability
+AbilityRequest
 
 alive
 dead
@@ -66,6 +69,38 @@ temporary-open
 permanent-open
 player-origin
 enemy-origin
+unselected
+warrior
+mage
+hunter
+warrior-strike
+staff-strike
+raptor-strike
+heroic-throw
+warrior-charge
+warrior-whirlwind
+warrior-block
+battle-shout
+frostbolt
+fire-blast
+frost-nova
+blink
+mana-shield
+steady-shot
+aimed-shot
+concussive-shot
+hunter-trap
+disengage
+pummel
+counterspell
+scatter-shot
+idle-request
+primary-request
+secondary-request
+third-request
+fourth-request
+fifth-request
+utility-request
 
 shape Vec3
   x: F64
@@ -335,6 +370,66 @@ relation ranged-action-sequence
   reads {player: Player} ranged action sequence {value: F64}
   subject player
   mode given player yields value: one
+
+relation character-archetype
+  reads {player: Player} character archetype {archetype: CharacterArchetype}
+  subject player
+  mode given player yields archetype: one
+
+relation class-resource
+  reads {player: Player} class resource {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation ability-cooldowns
+  reads {player: Player} ability cooldowns {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation utility-cooldowns
+  reads {player: Player} utility cooldowns {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation ability-sequences
+  reads {player: Player} ability sequences {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation utility-sequences
+  reads {player: Player} utility sequences {value: Vec3}
+  subject player
+  mode given player yields value: one
+
+relation last-ability
+  reads {player: Player} last ability {ability: Ability}
+  subject player
+  mode given player yields ability: one
+
+relation ranged-action-duration
+  reads {player: Player} ranged action duration {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation projectile-damage
+  reads {player: Player} projectile damage {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation class-utility-sequence
+  reads {player: Player} class utility sequence {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation selection-sequence
+  reads {player: Player} selection sequence {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation ability-request
+  reads {player: Player} ability request {request: AbilityRequest}
+  subject player
+  mode given player yields request: one
 
 relation ranged-charge-ticks
   reads {arena: Arena} ranged charge ticks {value: F64}
@@ -765,6 +860,70 @@ player-origin
   shape: ProjectileFaction
 enemy-origin
   shape: ProjectileFaction
+unselected
+  shape: CharacterArchetype
+warrior
+  shape: CharacterArchetype
+mage
+  shape: CharacterArchetype
+hunter
+  shape: CharacterArchetype
+warrior-strike
+  shape: Ability
+staff-strike
+  shape: Ability
+raptor-strike
+  shape: Ability
+heroic-throw
+  shape: Ability
+warrior-charge
+  shape: Ability
+warrior-whirlwind
+  shape: Ability
+warrior-block
+  shape: Ability
+battle-shout
+  shape: Ability
+frostbolt
+  shape: Ability
+fire-blast
+  shape: Ability
+frost-nova
+  shape: Ability
+blink
+  shape: Ability
+mana-shield
+  shape: Ability
+steady-shot
+  shape: Ability
+aimed-shot
+  shape: Ability
+concussive-shot
+  shape: Ability
+hunter-trap
+  shape: Ability
+disengage
+  shape: Ability
+pummel
+  shape: Ability
+counterspell
+  shape: Ability
+scatter-shot
+  shape: Ability
+idle-request
+  shape: AbilityRequest
+primary-request
+  shape: AbilityRequest
+secondary-request
+  shape: AbilityRequest
+third-request
+  shape: AbilityRequest
+fourth-request
+  shape: AbilityRequest
+fifth-request
+  shape: AbilityRequest
+utility-request
+  shape: AbilityRequest
 cinder-bolt
   shape: Projectile
 wayfarer-bolt
@@ -820,6 +979,18 @@ player-1 sword commitment clock 0.0
 player-1 ranged action state ready
 player-1 ranged action clock 0.0
 player-1 ranged action sequence 0.0
+player-1 character archetype unselected
+player-1 class resource Vec3 { x: 0.0, y: 100.0, z: 1.0 }
+player-1 ability cooldowns Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 utility cooldowns Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 ability sequences Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 utility sequences Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 last ability frostbolt
+player-1 ranged action duration 47.0
+player-1 projectile damage 2.0
+player-1 class utility sequence 0.0
+player-1 selection sequence 0.0
+player-1 ability request idle-request
 player-1 combat target cinder-wraith
 player-1 target lock active false
 player-1 target selection sequence 0.0
@@ -979,16 +1150,851 @@ bind keyboard KeyE down to pulse-shield
 bind keyboard KeyE up to release-shield
 bind keyboard Space down to jump-or-air-boost
 bind keyboard Space up to disable-air-sustain
-bind keyboard Digit1 down to begin-sword-action
-bind keyboard Digit2 down to begin-ranged-action
+bind keyboard F1 down to select-warrior
+bind keyboard F2 down to select-mage
+bind keyboard F3 down to select-hunter
+bind keyboard Digit1 down to primary-ability
+bind keyboard Digit2 down to secondary-ability
+bind keyboard Digit3 down to third-ability
+bind keyboard Digit4 down to fourth-ability
+bind keyboard Digit5 down to fifth-ability
+bind keyboard KeyR down to class-utility
+bind keyboard ShiftR down to reset-objective
 bind keyboard Tab down to target-next-enemy
 bind keyboard ShiftTab down to target-previous-enemy
 bind keyboard LootItem down to acquire-loot
-bind keyboard ShiftR down to reset-objective
 bind scalar-input CameraForwardX to observe-camera-forward-x
 bind scalar-input CameraForwardZ to observe-camera-forward-z
 bind scalar-input PersistedFootholdProgress to restore-partial-foothold-progress
 bind scalar-input PersistedPermanentFootholdProgress to restore-permanent-foothold-progress
+
+on select-warrior ?player
+  when
+    ?player target lock active ?target-active
+    ?player character archetype ?prior
+    ?player class resource ?resource
+    ?player ability cooldowns ?cooldowns
+    ?player utility cooldowns ?utility-cooldowns
+    ?player last ability ?last
+    ?player selection sequence ?sequence
+  withdraw
+    ?player target lock active ?target-active
+    ?player character archetype ?prior
+    ?player class resource ?resource
+    ?player ability cooldowns ?cooldowns
+    ?player utility cooldowns ?utility-cooldowns
+    ?player last ability ?last
+    ?player selection sequence ?sequence
+  include
+    ?player target lock active true
+    ?player character archetype warrior
+    ?player class resource Vec3 { x: 0.0, y: 100.0, z: 0.0 }
+    ?player ability cooldowns Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?player utility cooldowns Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?player last ability battle-shout
+    ?player selection sequence ?sequence + 1.0
+
+on select-mage ?player
+  when
+    ?player target lock active ?target-active
+    ?player character archetype ?prior
+    ?player class resource ?resource
+    ?player ability cooldowns ?cooldowns
+    ?player utility cooldowns ?utility-cooldowns
+    ?player last ability ?last
+    ?player selection sequence ?sequence
+  withdraw
+    ?player target lock active ?target-active
+    ?player character archetype ?prior
+    ?player class resource ?resource
+    ?player ability cooldowns ?cooldowns
+    ?player utility cooldowns ?utility-cooldowns
+    ?player last ability ?last
+    ?player selection sequence ?sequence
+  include
+    ?player target lock active true
+    ?player character archetype mage
+    ?player class resource Vec3 { x: 100.0, y: 100.0, z: 0.65 }
+    ?player ability cooldowns Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?player utility cooldowns Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?player last ability frostbolt
+    ?player selection sequence ?sequence + 1.0
+
+on select-hunter ?player
+  when
+    ?player target lock active ?target-active
+    ?player character archetype ?prior
+    ?player class resource ?resource
+    ?player ability cooldowns ?cooldowns
+    ?player utility cooldowns ?utility-cooldowns
+    ?player last ability ?last
+    ?player selection sequence ?sequence
+  withdraw
+    ?player target lock active ?target-active
+    ?player character archetype ?prior
+    ?player class resource ?resource
+    ?player ability cooldowns ?cooldowns
+    ?player utility cooldowns ?utility-cooldowns
+    ?player last ability ?last
+    ?player selection sequence ?sequence
+  include
+    ?player target lock active true
+    ?player character archetype hunter
+    ?player class resource Vec3 { x: 100.0, y: 100.0, z: 0.9 }
+    ?player ability cooldowns Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?player utility cooldowns Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?player last ability steady-shot
+    ?player selection sequence ?sequence + 1.0
+
+on primary-ability ?player
+  when
+    ?player ability request ?request
+    ?request = idle-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request primary-request
+
+on secondary-ability ?player
+  when
+    ?player ability request ?request
+    ?request = idle-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request secondary-request
+
+on third-ability ?player
+  when
+    ?player ability request ?request
+    ?request = idle-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request third-request
+
+on fourth-ability ?player
+  when
+    ?player ability request ?request
+    ?request = idle-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request fourth-request
+
+on fifth-ability ?player
+  when
+    ?player ability request ?request
+    ?request = idle-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request fifth-request
+
+on class-utility ?player
+  when
+    ?player ability request ?request
+    ?request = idle-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request utility-request
+
+on resolve-warrior-primary ?player
+  when
+    ?player ability request ?request
+    ?request = primary-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence
+    ?player sword commitment clock ?clock
+    ?player last ability ?last
+    ?player combat status ?status
+    jump-arena sword commitment ticks ?commitment
+    (?resource + 20.0) clamped between 0.0 and ?maximum as ?next-resource
+    ?archetype = warrior
+    ?status = alive
+    ?clock = 0.0
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence
+    ?player sword commitment clock ?clock
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?next-resource, y: ?maximum, z: ?regeneration }
+    ?player ability sequences Vec3 { x: ?first + 1.0, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence + 1.0
+    ?player sword commitment clock ?commitment
+    ?player last ability warrior-strike
+
+on resolve-mage-primary ?player
+  when
+    ?player ability request ?request
+    ?request = primary-request
+    ?player character archetype ?archetype
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence
+    ?player sword commitment clock ?clock
+    ?player last ability ?last
+    ?player combat status ?status
+    jump-arena sword commitment ticks ?commitment
+    ?archetype = mage
+    ?clock = 0.0
+    ?status = alive
+  withdraw
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence
+    ?player sword commitment clock ?clock
+    ?player last ability ?last
+  include
+    ?player ability sequences Vec3 { x: ?first + 1.0, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence + 1.0
+    ?player sword commitment clock ?commitment
+    ?player last ability staff-strike
+
+on resolve-hunter-primary ?player
+  when
+    ?player ability request ?request
+    ?request = primary-request
+    ?player character archetype ?archetype
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence
+    ?player sword commitment clock ?clock
+    ?player last ability ?last
+    ?player combat status ?status
+    jump-arena sword commitment ticks ?commitment
+    ?archetype = hunter
+    ?clock = 0.0
+    ?status = alive
+  withdraw
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence
+    ?player sword commitment clock ?clock
+    ?player last ability ?last
+  include
+    ?player ability sequences Vec3 { x: ?first + 1.0, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence + 1.0
+    ?player sword commitment clock ?commitment
+    ?player last ability raptor-strike
+
+on resolve-warrior-secondary ?player
+  when
+    ?player ability request ?request
+    ?request = secondary-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?cooldown, y: ?third-cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player ranged action state ?state
+    ?player ranged action clock ?clock
+    ?player ranged action sequence ?ranged-sequence
+    ?player ranged action duration ?duration
+    ?player projectile damage ?damage
+    ?player last ability ?last
+    ?player target lock active ?target-active
+    wayfarer-bolt projectile state ?projectile-state
+    ?archetype = warrior
+    ?cooldown = 0.0
+    ?state = ready
+    ?clock = 0.0
+    ?target-active = true
+    ?projectile-state = dormant
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?cooldown, y: ?third-cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player ranged action state ?state
+    ?player ranged action clock ?clock
+    ?player ranged action sequence ?ranged-sequence
+    ?player ranged action duration ?duration
+    ?player projectile damage ?damage
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: 45.0, y: ?third-cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second + 1.0, z: ?third }
+    ?player ranged action state charging
+    ?player ranged action clock 24.0
+    ?player ranged action sequence ?ranged-sequence + 1.0
+    ?player ranged action duration 24.0
+    ?player projectile damage 3.0
+    ?player last ability heroic-throw
+
+on resolve-mage-secondary ?player
+  when
+    ?player ability request ?request
+    ?request = secondary-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?cooldown, y: ?third-cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player ranged action state ?state
+    ?player ranged action clock ?clock
+    ?player ranged action sequence ?ranged-sequence
+    ?player ranged action duration ?duration
+    ?player projectile damage ?damage
+    ?player last ability ?last
+    ?player target lock active ?target-active
+    wayfarer-bolt projectile state ?projectile-state
+    ?archetype = mage
+    ?resource >= 15.0
+    ?cooldown = 0.0
+    ?state = ready
+    ?clock = 0.0
+    ?target-active = true
+    ?projectile-state = dormant
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?cooldown, y: ?third-cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player ranged action state ?state
+    ?player ranged action clock ?clock
+    ?player ranged action sequence ?ranged-sequence
+    ?player ranged action duration ?duration
+    ?player projectile damage ?damage
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?resource - 15.0, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: 0.0, y: ?third-cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second + 1.0, z: ?third }
+    ?player ranged action state charging
+    ?player ranged action clock 47.0
+    ?player ranged action sequence ?ranged-sequence + 1.0
+    ?player ranged action duration 47.0
+    ?player projectile damage 3.0
+    ?player last ability frostbolt
+
+on resolve-hunter-secondary ?player
+  when
+    ?player ability request ?request
+    ?request = secondary-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?cooldown, y: ?third-cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player ranged action state ?state
+    ?player ranged action clock ?clock
+    ?player ranged action sequence ?ranged-sequence
+    ?player ranged action duration ?duration
+    ?player projectile damage ?damage
+    ?player last ability ?last
+    ?player target lock active ?target-active
+    wayfarer-bolt projectile state ?projectile-state
+    ?archetype = hunter
+    ?resource >= 25.0
+    ?cooldown = 0.0
+    ?state = ready
+    ?clock = 0.0
+    ?target-active = true
+    ?projectile-state = dormant
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?cooldown, y: ?third-cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player ranged action state ?state
+    ?player ranged action clock ?clock
+    ?player ranged action sequence ?ranged-sequence
+    ?player ranged action duration ?duration
+    ?player projectile damage ?damage
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?resource - 25.0, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: 90.0, y: ?third-cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second + 1.0, z: ?third }
+    ?player ranged action state charging
+    ?player ranged action clock 38.0
+    ?player ranged action sequence ?ranged-sequence + 1.0
+    ?player ranged action duration 38.0
+    ?player projectile damage 4.0
+    ?player last ability aimed-shot
+
+on resolve-warrior-third ?player
+  when
+    ?player ability request ?request
+    ?request = third-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
+    ?player grounded ?grounded
+    ?player airborne factor ?airborne
+    ?player last ability ?last
+    ?archetype = warrior
+    ?resource >= 10.0
+    ?cooldown = 0.0
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player grounded ?grounded
+    ?player airborne factor ?airborne
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?resource - 10.0, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: 90.0, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third + 1.0 }
+    ?player velocity Vec3 { x: ?camera-x * 18.0, y: 0.8, z: ?camera-z * 18.0 }
+    ?player grounded false
+    ?player airborne factor 1.0
+    ?player last ability warrior-charge
+
+on resolve-mage-third ?player
+  when
+    ?player ability request ?request
+    ?request = third-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player combat target ?target
+    ?target enemy vitals Vec3 { x: ?vitality, y: ?enemy-maximum, z: ?alive }
+    ?target enemy combat status ?target-status
+    ?player last ability ?last
+    (?vitality - 2.0) clamped between 0.0 and ?enemy-maximum as ?next-vitality
+    ?archetype = mage
+    ?resource >= 18.0
+    ?cooldown = 0.0
+    ?target-status = alive
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?target enemy vitals Vec3 { x: ?vitality, y: ?enemy-maximum, z: ?alive }
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?resource - 18.0, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: 50.0, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third + 1.0 }
+    ?target enemy vitals Vec3 { x: ?next-vitality, y: ?enemy-maximum, z: ?alive }
+    ?player last ability fire-blast
+
+on resolve-hunter-third ?player
+  when
+    ?player ability request ?request
+    ?request = third-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player combat target ?target
+    ?target enemy vitals Vec3 { x: ?vitality, y: ?enemy-maximum, z: ?alive }
+    ?target enemy pressure state ?pressure
+    ?target enemy recovery clock ?recovery
+    ?player last ability ?last
+    (?vitality - 1.0) clamped between 0.0 and ?enemy-maximum as ?next-vitality
+    ?archetype = hunter
+    ?resource >= 12.0
+    ?cooldown = 0.0
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?cooldown, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?target enemy vitals Vec3 { x: ?vitality, y: ?enemy-maximum, z: ?alive }
+    ?target enemy pressure state ?pressure
+    ?target enemy recovery clock ?recovery
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?resource - 12.0, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: 75.0, z: ?fourth-cooldown }
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third + 1.0 }
+    ?target enemy vitals Vec3 { x: ?next-vitality, y: ?enemy-maximum, z: ?alive }
+    ?target enemy pressure state hit-recovery
+    ?target enemy recovery clock 75.0
+    ?player last ability concussive-shot
+
+on resolve-warrior-fourth ?player
+  when
+    ?player ability request ?request
+    ?request = fourth-request
+    ?player character archetype ?archetype
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?third-cooldown, z: ?cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player shield active factor ?shield-active
+    ?player shield clock ?shield-clock
+    ?player shield action sequence ?shield-sequence
+    ?player last ability ?last
+    ?archetype = warrior
+    ?cooldown = 0.0
+  withdraw
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?third-cooldown, z: ?cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player shield active factor ?shield-active
+    ?player shield clock ?shield-clock
+    ?player shield action sequence ?shield-sequence
+    ?player last ability ?last
+  include
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?third-cooldown, z: 120.0 }
+    ?player utility sequences Vec3 { x: ?fourth + 1.0, y: ?fifth, z: ?unused }
+    ?player shield active factor 1.0
+    ?player shield clock 4.0
+    ?player shield action sequence ?shield-sequence + 1.0
+    ?player last ability warrior-block
+
+on resolve-mage-fourth ?player
+  when
+    ?player ability request ?request
+    ?request = fourth-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?third-cooldown, z: ?cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
+    ?player last ability ?last
+    jump-arena minimum x ?minimum-x
+    jump-arena maximum x ?maximum-x
+    jump-arena minimum z ?minimum-z
+    jump-arena maximum z ?maximum-z
+    (?position-x + ?camera-x * 6.0) clamped between ?minimum-x and ?maximum-x as ?next-x
+    (?position-z + ?camera-z * 6.0) clamped between ?minimum-z and ?maximum-z as ?next-z
+    ?archetype = mage
+    ?resource >= 20.0
+    ?cooldown = 0.0
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?third-cooldown, z: ?cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?resource - 20.0, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?third-cooldown, z: 95.0 }
+    ?player utility sequences Vec3 { x: ?fourth + 1.0, y: ?fifth, z: ?unused }
+    ?player position Vec3 { x: ?next-x, y: ?position-y, z: ?next-z }
+    ?player last ability blink
+
+on resolve-hunter-fourth ?player
+  when
+    ?player ability request ?request
+    ?request = fourth-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?third-cooldown, z: ?cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player combat target ?target
+    ?target enemy pressure state ?pressure
+    ?target enemy recovery clock ?recovery
+    ?player last ability ?last
+    ?archetype = hunter
+    ?resource >= 20.0
+    ?cooldown = 0.0
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?third-cooldown, z: ?cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?target enemy pressure state ?pressure
+    ?target enemy recovery clock ?recovery
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?resource - 20.0, y: ?maximum, z: ?regeneration }
+    ?player ability cooldowns Vec3 { x: ?second-cooldown, y: ?third-cooldown, z: 150.0 }
+    ?player utility sequences Vec3 { x: ?fourth + 1.0, y: ?fifth, z: ?unused }
+    ?target enemy pressure state hit-recovery
+    ?target enemy recovery clock 150.0
+    ?player last ability hunter-trap
+
+on resolve-warrior-fifth ?player
+  when
+    ?player ability request ?request
+    ?request = fifth-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player utility cooldowns Vec3 { x: ?cooldown, y: ?interrupt-cooldown, z: ?unused-cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player last ability ?last
+    (?resource + 35.0) clamped between 0.0 and ?maximum as ?next-resource
+    ?archetype = warrior
+    ?cooldown = 0.0
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player utility cooldowns Vec3 { x: ?cooldown, y: ?interrupt-cooldown, z: ?unused-cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?next-resource, y: ?maximum, z: ?regeneration }
+    ?player utility cooldowns Vec3 { x: 180.0, y: ?interrupt-cooldown, z: ?unused-cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth + 1.0, z: ?unused }
+    ?player last ability battle-shout
+
+on resolve-mage-fifth ?player
+  when
+    ?player ability request ?request
+    ?request = fifth-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player utility cooldowns Vec3 { x: ?cooldown, y: ?interrupt-cooldown, z: ?unused-cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player shield active factor ?shield-active
+    ?player shield clock ?shield-clock
+    ?player shield action sequence ?shield-sequence
+    ?player last ability ?last
+    ?archetype = mage
+    ?resource >= 25.0
+    ?cooldown = 0.0
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player utility cooldowns Vec3 { x: ?cooldown, y: ?interrupt-cooldown, z: ?unused-cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player shield active factor ?shield-active
+    ?player shield clock ?shield-clock
+    ?player shield action sequence ?shield-sequence
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?resource - 25.0, y: ?maximum, z: ?regeneration }
+    ?player utility cooldowns Vec3 { x: 150.0, y: ?interrupt-cooldown, z: ?unused-cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth + 1.0, z: ?unused }
+    ?player shield active factor 1.0
+    ?player shield clock 4.0
+    ?player shield action sequence ?shield-sequence + 1.0
+    ?player last ability mana-shield
+
+on resolve-hunter-fifth ?player
+  when
+    ?player ability request ?request
+    ?request = fifth-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player utility cooldowns Vec3 { x: ?cooldown, y: ?interrupt-cooldown, z: ?unused-cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
+    ?player grounded ?grounded
+    ?player airborne factor ?airborne
+    ?player last ability ?last
+    ?archetype = hunter
+    ?resource >= 15.0
+    ?cooldown = 0.0
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?player utility cooldowns Vec3 { x: ?cooldown, y: ?interrupt-cooldown, z: ?unused-cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth, z: ?unused }
+    ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
+    ?player grounded ?grounded
+    ?player airborne factor ?airborne
+    ?player last ability ?last
+  include
+    ?player class resource Vec3 { x: ?resource - 15.0, y: ?maximum, z: ?regeneration }
+    ?player utility cooldowns Vec3 { x: 90.0, y: ?interrupt-cooldown, z: ?unused-cooldown }
+    ?player utility sequences Vec3 { x: ?fourth, y: ?fifth + 1.0, z: ?unused }
+    ?player velocity Vec3 { x: 0.0 - ?camera-x * 16.0, y: 2.4, z: 0.0 - ?camera-z * 16.0 }
+    ?player grounded false
+    ?player airborne factor 1.0
+    ?player last ability disengage
+
+on resolve-warrior-utility ?player
+  when
+    ?player ability request ?request
+    ?request = utility-request
+    ?player character archetype ?archetype
+    ?player utility cooldowns Vec3 { x: ?fifth-cooldown, y: ?cooldown, z: ?unused }
+    ?player class utility sequence ?sequence
+    ?player combat target ?target
+    ?target enemy pressure state ?pressure
+    ?target enemy recovery clock ?recovery
+    ?player last ability ?last
+    ?archetype = warrior
+    ?cooldown = 0.0
+  withdraw
+    ?player utility cooldowns Vec3 { x: ?fifth-cooldown, y: ?cooldown, z: ?unused }
+    ?player class utility sequence ?sequence
+    ?target enemy pressure state ?pressure
+    ?target enemy recovery clock ?recovery
+    ?player last ability ?last
+  include
+    ?player utility cooldowns Vec3 { x: ?fifth-cooldown, y: 55.0, z: ?unused }
+    ?player class utility sequence ?sequence + 1.0
+    ?target enemy pressure state hit-recovery
+    ?target enemy recovery clock 55.0
+    ?player last ability pummel
+
+on resolve-mage-utility ?player
+  when
+    ?player ability request ?request
+    ?request = utility-request
+    ?player character archetype ?archetype
+    ?player utility cooldowns Vec3 { x: ?fifth-cooldown, y: ?cooldown, z: ?unused }
+    ?player class utility sequence ?sequence
+    ?player combat target ?target
+    ?target enemy pressure state ?pressure
+    ?target enemy recovery clock ?recovery
+    ?player last ability ?last
+    ?archetype = mage
+    ?cooldown = 0.0
+  withdraw
+    ?player utility cooldowns Vec3 { x: ?fifth-cooldown, y: ?cooldown, z: ?unused }
+    ?player class utility sequence ?sequence
+    ?target enemy pressure state ?pressure
+    ?target enemy recovery clock ?recovery
+    ?player last ability ?last
+  include
+    ?player utility cooldowns Vec3 { x: ?fifth-cooldown, y: 80.0, z: ?unused }
+    ?player class utility sequence ?sequence + 1.0
+    ?target enemy pressure state hit-recovery
+    ?target enemy recovery clock 80.0
+    ?player last ability counterspell
+
+on resolve-hunter-utility ?player
+  when
+    ?player ability request ?request
+    ?request = utility-request
+    ?player character archetype ?archetype
+    ?player utility cooldowns Vec3 { x: ?fifth-cooldown, y: ?cooldown, z: ?unused }
+    ?player class utility sequence ?sequence
+    ?player combat target ?target
+    ?target enemy pressure state ?pressure
+    ?target enemy recovery clock ?recovery
+    ?player last ability ?last
+    ?archetype = hunter
+    ?cooldown = 0.0
+  withdraw
+    ?player utility cooldowns Vec3 { x: ?fifth-cooldown, y: ?cooldown, z: ?unused }
+    ?player class utility sequence ?sequence
+    ?target enemy pressure state ?pressure
+    ?target enemy recovery clock ?recovery
+    ?player last ability ?last
+  include
+    ?player utility cooldowns Vec3 { x: ?fifth-cooldown, y: 80.0, z: ?unused }
+    ?player class utility sequence ?sequence + 1.0
+    ?target enemy pressure state hit-recovery
+    ?target enemy recovery clock 80.0
+    ?player last ability scatter-shot
+
+on settle-ability-request ?player
+  when
+    ?player ability request ?request
+    ?request = primary-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request idle-request
+
+on settle-ability-request ?player
+  when
+    ?player ability request ?request
+    ?request = secondary-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request idle-request
+
+on settle-ability-request ?player
+  when
+    ?player ability request ?request
+    ?request = third-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request idle-request
+
+on settle-ability-request ?player
+  when
+    ?player ability request ?request
+    ?request = fourth-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request idle-request
+
+on settle-ability-request ?player
+  when
+    ?player ability request ?request
+    ?request = fifth-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request idle-request
+
+on settle-ability-request ?player
+  when
+    ?player ability request ?request
+    ?request = utility-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request idle-request
+
+on regenerate-mage-resource ?player
+  when
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?archetype = mage
+    ?resource <= ?maximum - ?regeneration
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+  include
+    ?player class resource Vec3 { x: ?resource + ?regeneration, y: ?maximum, z: ?regeneration }
+
+on regenerate-hunter-resource ?player
+  when
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?archetype = hunter
+    ?resource <= ?maximum - ?regeneration
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+  include
+    ?player class resource Vec3 { x: ?resource + ?regeneration, y: ?maximum, z: ?regeneration }
+
+on decay-warrior-rage ?player
+  when
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+    ?archetype = warrior
+    ?resource >= 0.25
+  withdraw
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
+  include
+    ?player class resource Vec3 { x: ?resource - 0.25, y: ?maximum, z: ?regeneration }
+
+on count-secondary-cooldown ?player
+  when
+    ?player ability cooldowns Vec3 { x: ?cooldown, y: ?third, z: ?fourth }
+    ?cooldown > 0.0
+  withdraw
+    ?player ability cooldowns Vec3 { x: ?cooldown, y: ?third, z: ?fourth }
+  include
+    ?player ability cooldowns Vec3 { x: ?cooldown - 1.0, y: ?third, z: ?fourth }
+
+on count-third-cooldown ?player
+  when
+    ?player ability cooldowns Vec3 { x: ?second, y: ?cooldown, z: ?fourth }
+    ?cooldown > 0.0
+  withdraw
+    ?player ability cooldowns Vec3 { x: ?second, y: ?cooldown, z: ?fourth }
+  include
+    ?player ability cooldowns Vec3 { x: ?second, y: ?cooldown - 1.0, z: ?fourth }
+
+on count-fourth-cooldown ?player
+  when
+    ?player ability cooldowns Vec3 { x: ?second, y: ?third, z: ?cooldown }
+    ?cooldown > 0.0
+  withdraw
+    ?player ability cooldowns Vec3 { x: ?second, y: ?third, z: ?cooldown }
+  include
+    ?player ability cooldowns Vec3 { x: ?second, y: ?third, z: ?cooldown - 1.0 }
+
+on count-fifth-cooldown ?player
+  when
+    ?player utility cooldowns Vec3 { x: ?cooldown, y: ?utility, z: ?unused }
+    ?cooldown > 0.0
+  withdraw
+    ?player utility cooldowns Vec3 { x: ?cooldown, y: ?utility, z: ?unused }
+  include
+    ?player utility cooldowns Vec3 { x: ?cooldown - 1.0, y: ?utility, z: ?unused }
+
+on count-class-utility-cooldown ?player
+  when
+    ?player utility cooldowns Vec3 { x: ?fifth, y: ?cooldown, z: ?unused }
+    ?cooldown > 0.0
+  withdraw
+    ?player utility cooldowns Vec3 { x: ?fifth, y: ?cooldown, z: ?unused }
+  include
+    ?player utility cooldowns Vec3 { x: ?fifth, y: ?cooldown - 1.0, z: ?unused }
 
 on hold-forward ?player
   when
@@ -1518,22 +2524,27 @@ on advance-wayfarer-bolt ?projectile
 on resolve-wayfarer-bolt-contact ?enemy
   when
     ?enemy has player projectile contact true
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive }
     ?enemy enemy pressure state ?pressure
     ?enemy enemy recovery clock ?recovery-clock
     ?enemy enemy combat status ?enemy-status
+    player-1 projectile damage ?damage
     wayfarer-bolt projectile state ?projectile-state
     wayfarer-bolt projectile visible ?projectile-visible
+    (?vitality - ?damage) clamped between 0.0 and ?maximum as ?next-vitality
     ?enemy-status = alive
     ?projectile-state = flight
     ?projectile-visible = true
   withdraw
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive }
     ?enemy enemy pressure state ?pressure
     ?enemy enemy recovery clock ?recovery-clock
     wayfarer-bolt projectile state ?projectile-state
     wayfarer-bolt projectile visible ?projectile-visible
   include
-    ?enemy enemy pressure state projectile-opening
-    ?enemy enemy recovery clock 30.0
+    ?enemy enemy vitals Vec3 { x: ?next-vitality, y: ?maximum, z: ?alive }
+    ?enemy enemy pressure state hit-recovery
+    ?enemy enemy recovery clock 60.0
     wayfarer-bolt projectile state spent
     wayfarer-bolt projectile visible false
 

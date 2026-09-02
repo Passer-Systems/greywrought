@@ -604,6 +604,86 @@ body[data-game-phase="completed"] .terminal-feedback-title {
   pointer-events: none;
 }
 
+.character-select {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: radial-gradient(circle at center, rgba(44, 61, 76, 0.7), rgba(4, 6, 10, 0.96));
+  backdrop-filter: blur(5px);
+}
+
+.character-select[hidden] { display: none; }
+
+.character-select-card {
+  width: min(860px, 94vw);
+  padding: 2rem;
+  border: 1px solid rgba(211, 176, 92, 0.72);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(24, 24, 29, 0.98), rgba(10, 13, 18, 0.98));
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.72), inset 0 0 35px rgba(191, 145, 55, 0.08);
+  text-align: center;
+}
+
+.character-select-card h2 {
+  margin: 0.35rem 0 1.5rem;
+  color: #f1d792;
+  font: 600 clamp(1.6rem, 4vw, 2.6rem) Georgia, serif;
+}
+
+.character-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.character-choices button {
+  min-height: 170px;
+  display: grid;
+  align-content: center;
+  gap: 0.6rem;
+  padding: 1.1rem;
+  color: #ece3cf;
+  border: 1px solid #725f3d;
+  border-radius: 7px;
+  background: linear-gradient(#252b31, #11151a);
+  cursor: pointer;
+}
+
+.character-choices button:hover,
+.character-choices button:focus-visible {
+  border-color: #f2c867;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 26px rgba(225, 174, 70, 0.24);
+}
+
+.character-choices strong { font: 700 1.45rem Georgia, serif; color: #f4d78c; }
+.character-choices span { min-height: 2.5em; color: #bfc8cf; }
+.character-choices kbd { justify-self: center; }
+
+.action-slot.cooling::after {
+  content: attr(data-cooldown);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(5, 8, 12, 0.62);
+  font: 800 1.1rem system-ui, sans-serif;
+  text-shadow: 0 1px 2px #000;
+}
+
+body[data-archetype="warrior"] .resource-bar { --bar-color: #b0442d; }
+body[data-archetype="mage"] .resource-bar { --bar-color: #377fd0; }
+body[data-archetype="hunter"] .resource-bar { --bar-color: #8a9f45; }
+
+@media (max-width: 760px) {
+  .character-choices { grid-template-columns: 1fr; }
+  .character-choices button { min-height: 105px; }
+}
+
 .minimap {
   position: absolute;
   top: 18px;

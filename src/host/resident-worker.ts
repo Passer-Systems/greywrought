@@ -135,14 +135,21 @@ let inputBackpressureCount = 0;
 // from becoming a delayed chain of attacks after the semantic commitment has
 // elapsed.
 const edgeTriggeredKeyboardCodes = new Set([
+  "F1",
+  "F2",
+  "F3",
   "Digit1",
   "Digit2",
+  "Digit3",
+  "Digit4",
+  "Digit5",
+  "KeyR",
+  "ShiftR",
   "KeyQ",
   "Space",
   "Tab",
   "ShiftTab",
   "LootItem",
-  "ShiftR",
 ]);
 
 function envelope(input: ResidentInput): WorkbenchEnvelope {

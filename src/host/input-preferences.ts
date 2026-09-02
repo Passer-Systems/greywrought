@@ -6,8 +6,12 @@ export type GameAction =
   | "left"
   | "right"
   | "target"
-  | "bolt"
-  | "sword"
+  | "ability1"
+  | "ability2"
+  | "ability3"
+  | "ability4"
+  | "ability5"
+  | "classUtility"
   | "loot"
   | "jump"
   | "shield"
@@ -28,8 +32,12 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   { action: "left", label: "Move left", semanticCode: "KeyA", held: true },
   { action: "right", label: "Move right", semanticCode: "KeyD", held: true },
   { action: "target", label: "Cycle target", semanticCode: "Tab", held: false },
-  { action: "bolt", label: "Bolt / Frostbolt", semanticCode: "Digit2", held: false },
-  { action: "sword", label: "Sword / melee", semanticCode: "Digit1", held: false },
+  { action: "ability1", label: "Melee primary", semanticCode: "Digit1", held: false },
+  { action: "ability2", label: "Bolt / cast", semanticCode: "Digit2", held: false },
+  { action: "ability3", label: "Ability 3", semanticCode: "Digit3", held: false },
+  { action: "ability4", label: "Ability 4", semanticCode: "Digit4", held: false },
+  { action: "ability5", label: "Ability 5", semanticCode: "Digit5", held: false },
+  { action: "classUtility", label: "Class utility / interrupt", semanticCode: "KeyR", held: false },
   { action: "loot", label: "Interact / loot", semanticCode: "LootItem", held: false },
   { action: "jump", label: "Jump / air boost", semanticCode: "Space", held: true },
   { action: "shield", label: "Shield", semanticCode: "KeyE", held: true },
@@ -55,8 +63,12 @@ export const defaultBindings: InputBindings = Object.freeze({
   left: "KeyA",
   right: "KeyD",
   target: "Tab",
-  bolt: "Digit2",
-  sword: "Digit1",
+  ability1: "Digit1",
+  ability2: "Digit2",
+  ability3: "Digit3",
+  ability4: "Digit4",
+  ability5: "Digit5",
+  classUtility: "KeyR",
   loot: "KeyF",
   jump: "Space",
   shield: "KeyE",
@@ -174,6 +186,7 @@ export function displayKey(code: string): string {
   if (code === "Space") return "Space";
   if (code === "ShiftLeft") return "Left Shift";
   if (code === "ShiftRight") return "Right Shift";
+  if (code === "ShiftR") return "Shift+R";
   return code;
 }
 
@@ -191,10 +204,13 @@ export function actionsForStandardGamepad(
   if (axisX > 0.35 || pressed(15)) actions.add("right");
   if (pressed(0)) actions.add("jump");
   if (pressed(1)) actions.add("loot");
-  if (pressed(2)) actions.add("sword");
+  if (pressed(2)) actions.add("ability1");
   if (pressed(3)) actions.add("target");
   if (pressed(4)) actions.add("horizontalBurst");
-  if (pressed(5)) actions.add("bolt");
+  if (pressed(5)) actions.add("ability2");
+  if (pressed(6)) actions.add("ability3");
+  if (pressed(8)) actions.add("ability4");
+  if (pressed(11)) actions.add("ability5");
   if (pressed(7)) actions.add("shield");
   if (pressed(9)) actions.add("reset");
   if (pressed(10)) actions.add("horizontalSustain");

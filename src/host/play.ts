@@ -232,6 +232,16 @@ interface PlayerProjection {
   readonly rangedActionState: string;
   readonly rangedActionClock: number;
   readonly rangedActionSequence: number;
+  readonly rangedActionDuration: number;
+  readonly archetype: "unselected" | "warrior" | "mage" | "hunter";
+  readonly classResource: Vector3Projection;
+  readonly abilityCooldowns: Vector3Projection;
+  readonly utilityCooldowns: Vector3Projection;
+  readonly abilitySequences: Vector3Projection;
+  readonly utilitySequences: Vector3Projection;
+  readonly lastAbility: string;
+  readonly classUtilitySequence: number;
+  readonly selectionSequence: number;
   readonly combatTarget: string;
   readonly targetLockActive: boolean;
   readonly targetSelectionSequence: number;
@@ -301,6 +311,33 @@ interface GameProjection {
   readonly shieldRadiusPerEnergy: number;
   readonly shieldProtectionThreshold: number;
 }
+
+const ARCHETYPE_HUD = {
+  unselected: {
+    name: "Wayfarer",
+    resource: "Resource",
+    abilities: ["Melee", "Bolt", "Ability 3", "Ability 4", "Ability 5"],
+    utility: "Interrupt",
+  },
+  warrior: {
+    name: "Warrior",
+    resource: "Rage",
+    abilities: ["Heroic Strike", "Heroic Throw", "Whirlwind", "Shield Block", "Battle Shout"],
+    utility: "Pummel",
+  },
+  mage: {
+    name: "Mage",
+    resource: "Mana",
+    abilities: ["Staff Strike", "Frostbolt", "Frost Nova", "Blink", "Mana Shield"],
+    utility: "Counterspell",
+  },
+  hunter: {
+    name: "Hunter",
+    resource: "Focus",
+    abilities: ["Raptor Strike", "Aimed Shot", "Concussive Shot", "Freezing Trap", "Disengage"],
+    utility: "Scatter Shot",
+  },
+} as const;
 
 const ENEMY_PRESENTATIONS = [
   { world: "cinder-wraith", presentation: "magitek-boar", baseScale: 1 },
@@ -729,6 +766,15 @@ function decodeGameProjection(value: unknown): GameProjection {
   );
   const booster = projectedField(value, boosterEquipment, "game projection");
   const playerVitals = projectedField(player, "player-vitals", "player-1");
+  const archetype = projectedString(player, "character-archetype", "player-1");
+  if (
+    archetype !== "unselected" &&
+    archetype !== "warrior" &&
+    archetype !== "mage" &&
+    archetype !== "hunter"
+  ) {
+    throw new Error(`player-1.character-archetype is invalid: ${archetype}`);
+  }
   const objectiveState = projectedField(objective, "objective-state", "game-objective");
   return {
     player: {
@@ -803,6 +849,39 @@ function decodeGameProjection(value: unknown): GameProjection {
         "ranged-action-sequence",
         "player-1",
       ),
+      rangedActionDuration: projectedNumber(
+        player,
+        "ranged-action-duration",
+        "player-1",
+      ),
+      archetype,
+      classResource: projectedPosition(
+        projectedField(player, "class-resource", "player-1"),
+        "player-1.class-resource",
+      ),
+      abilityCooldowns: projectedPosition(
+        projectedField(player, "ability-cooldowns", "player-1"),
+        "player-1.ability-cooldowns",
+      ),
+      utilityCooldowns: projectedPosition(
+        projectedField(player, "utility-cooldowns", "player-1"),
+        "player-1.utility-cooldowns",
+      ),
+      abilitySequences: projectedPosition(
+        projectedField(player, "ability-sequences", "player-1"),
+        "player-1.ability-sequences",
+      ),
+      utilitySequences: projectedPosition(
+        projectedField(player, "utility-sequences", "player-1"),
+        "player-1.utility-sequences",
+      ),
+      lastAbility: projectedString(player, "last-ability", "player-1"),
+      classUtilitySequence: projectedNumber(
+        player,
+        "class-utility-sequence",
+        "player-1",
+      ),
+      selectionSequence: projectedNumber(player, "selection-sequence", "player-1"),
       combatTarget,
       targetLockActive: projectedBoolean(
         player,
@@ -985,6 +1064,15 @@ function renderMinimapAndQuest(
   document.body.dataset.questProgress = `${completed}/3`;
 }
 
+function setAbilitySlot(id: string, label: string, cooldown: number): void {
+  const slot = element(id);
+  const caption = slot.querySelector("small");
+  if (caption === null) throw new Error(`#${id} is missing its ability caption`);
+  caption.textContent = label;
+  slot.dataset.cooldown = cooldown > 0 ? String(Math.ceil(cooldown / 60)) : "";
+  slot.classList.toggle("cooling", cooldown > 0);
+}
+
 function showDamageNumber(amount: number, kind: string, critical: boolean): void {
   const damageNumber = element("enemy-damage-number");
   const kindClass =
@@ -1021,6 +1109,20 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     wall,
     traps,
   } = projection;
+  const archetypeHud = ARCHETYPE_HUD[player.archetype];
+  const characterSelect = element("character-select");
+  characterSelect.hidden = player.archetype !== "unselected";
+  document.body.dataset.archetype = player.archetype;
+  element("player-frame-name").textContent = archetypeHud.name;
+  element("class-resource-name").textContent = archetypeHud.resource;
+  element("class-resource-value").textContent =
+    `${Math.round(player.classResource.x)} / ${Math.round(player.classResource.y)}`;
+  setAbilitySlot("ability-slot-1", archetypeHud.abilities[0], 0);
+  setAbilitySlot("ability-slot-2", archetypeHud.abilities[1], player.abilityCooldowns.x);
+  setAbilitySlot("ability-slot-3", archetypeHud.abilities[2], player.abilityCooldowns.y);
+  setAbilitySlot("ability-slot-4", archetypeHud.abilities[3], player.abilityCooldowns.z);
+  setAbilitySlot("ability-slot-5", archetypeHud.abilities[4], player.utilityCooldowns.x);
+  setAbilitySlot("class-utility-slot", archetypeHud.utility, player.utilityCooldowns.y);
   const priorEnemy = prior?.enemies.find(({ id }) => id === enemy.id) ?? null;
   const enemyPresentationSubject = presentationSubjectForEnemy(enemy.id);
   const enemyTitle =
@@ -1190,14 +1292,15 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const playerCast = element("player-cast");
   playerCast.hidden = !playerCasting;
   const playerCastProgress = playerCasting
-    ? Math.max(0, Math.min(1, 1 - player.rangedActionClock / 47))
+    ? Math.max(0, Math.min(1, 1 - player.rangedActionClock / Math.max(1, player.rangedActionDuration)))
     : 0;
   element("player-cast-fill").style.transform = `scaleX(${playerCastProgress})`;
   element("player-cast-time").textContent =
     playerCasting ? (player.rangedActionClock * 0.016).toFixed(2) : "0.00";
+  element("player-cast-name").textContent = player.lastAbility.replaceAll("-", " ").toUpperCase();
   playerCast.setAttribute(
     "aria-label",
-    `Bolt ${Math.round(playerCastProgress * 100)} percent`,
+    `${player.lastAbility.replaceAll("-", " ")} ${Math.round(playerCastProgress * 100)} percent`,
   );
   const hitStunVisible =
     enemy.pressureState === "hit-recovery" ||
@@ -1450,7 +1553,12 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   setActivityCue(
     app.scene.presentation,
     "ashen-wayfarer",
-    playerCasting ? Math.max(0.25, 1 - player.rangedActionClock / 47) : 0,
+    playerCasting
+      ? Math.max(
+          0.25,
+          1 - player.rangedActionClock / Math.max(1, player.rangedActionDuration),
+        )
+      : 0,
     0,
     0,
   );
@@ -1483,12 +1591,8 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     enemy.vitality,
     enemy.maximumVitality,
   );
-  setVitalityBar(
-    "booster-energy-bar",
-    "booster-energy",
-    player.boosterEnergy,
-    player.boosterCapacity,
-  );
+  element("booster-energy-bar").style.transform =
+    `scaleX(${Math.max(0, Math.min(1, player.classResource.x / Math.max(1, player.classResource.y)))})`;
   renderMinimapAndQuest(projection, objectiveStatus);
   element("objective").textContent =
     objectiveStatus === "completed"
@@ -2882,6 +2986,12 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
       applyInputPreferences(app);
       return;
     }
+    if (event.code === "F1" || event.code === "F2" || event.code === "F3") {
+      event.preventDefault();
+      resumePresentationAudio(app);
+      observeGameKey(app, { code: event.code, repeat: event.repeat }, "down");
+      return;
+    }
     const action = actionForPhysicalCode(
       app.playerInput.preferences.bindings,
       physicalBindingCode(event),
@@ -2932,6 +3042,19 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
     };
     control.addEventListener("click", capture);
     listeners.push(() => control.removeEventListener("click", capture));
+  }
+  for (const choice of document.querySelectorAll<HTMLButtonElement>(
+    "[data-character-code]",
+  )) {
+    const choose = (): void => {
+      const code = choice.dataset.characterCode;
+      if (code !== "F1" && code !== "F2" && code !== "F3") return;
+      resumePresentationAudio(app);
+      observeGameKey(app, { code, repeat: false }, "down");
+      canvas.focus();
+    };
+    choice.addEventListener("click", choose);
+    listeners.push(() => choice.removeEventListener("click", choose));
   }
   const resetBindings = (): void => {
     app.playerInput.preferences = {

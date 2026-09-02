@@ -12,21 +12,20 @@ function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
 }
 
-const remapped = rebindAction(defaultBindings, "sword", "KeyK");
-assert(actionForPhysicalCode(remapped, "KeyK") === "sword", "sword did not rebind");
-assert(actionForPhysicalCode(remapped, "Digit1") === null, "old sword binding remained active");
+const remapped = rebindAction(defaultBindings, "ability1", "KeyK");
+assert(actionForPhysicalCode(remapped, "KeyK") === "ability1", "melee primary did not rebind");
+assert(actionForPhysicalCode(remapped, "Digit1") === null, "old melee binding remained active");
 assert(actionForPhysicalCode(defaultBindings, "KeyJ") === null, "J must remain unbound");
 assert(actionForPhysicalCode(defaultBindings, "ShiftR") === "reset", "Shift+R reset binding failed");
-assert(actionForPhysicalCode(defaultBindings, "KeyR") === null, "bare R must remain available");
 const swapped = rebindAction(remapped, "jump", "KeyK");
 assert(actionForPhysicalCode(swapped, "KeyK") === "jump", "collision did not move requested action");
-assert(actionForPhysicalCode(swapped, "Space") === "sword", "collision did not preserve the displaced action");
+assert(actionForPhysicalCode(swapped, "Space") === "ability1", "collision did not preserve the displaced action");
 assert(actionForPhysicalCode(defaultBindings, "ShiftRight") === "horizontalSustain", "right Shift alias failed");
-assert(actionForPhysicalCode(defaultBindings, "Digit1") === "sword", "1 did not bind sword");
-assert(actionForPhysicalCode(defaultBindings, "Digit2") === "bolt", "2 did not bind bolt");
+assert(actionForPhysicalCode(defaultBindings, "Digit1") === "ability1", "1 did not bind melee primary");
+assert(actionForPhysicalCode(defaultBindings, "Digit2") === "ability2", "2 did not bind Bolt/cast");
 assert(actionForPhysicalCode(defaultBindings, "KeyF") === "loot", "F did not bind interact");
-assert(actionForPhysicalCode(defaultBindings, "KeyR") === null, "unmodified R must remain free");
-assert(actionForPhysicalCode(defaultBindings, "Shift+KeyR") === "reset", "Shift + R did not bind reset");
+assert(actionForPhysicalCode(defaultBindings, "KeyR") === "classUtility", "R did not bind class utility");
+assert(actionForPhysicalCode(defaultBindings, "ShiftR") === "reset", "Shift+R did not bind reset");
 
 const decoded = decodeInputPreferences(encodeInputPreferences({
   ...defaultInputPreferences,
@@ -37,20 +36,12 @@ const decoded = decodeInputPreferences(encodeInputPreferences({
   effectsVolume: 0.6,
 }));
 assert(!decoded.recovered, "valid preferences were discarded");
-assert(decoded.preferences.bindings.sword === "KeyK", "valid remap did not round trip");
+assert(decoded.preferences.bindings.ability1 === "KeyK", "valid remap did not round trip");
 assert(decoded.preferences.reducedMotion, "reduced motion did not round trip");
 assert(decoded.preferences.effectsVolume === 0.6, "effects volume did not round trip");
-const migrated = decodeInputPreferences(JSON.stringify({
-  ...defaultInputPreferences,
-  version: 1,
-  bindings: { ...defaultBindings, bolt: "Digit1", sword: "KeyJ" },
-}));
-assert(migrated.recovered, "legacy slot order did not trigger migration");
-assert(migrated.preferences.bindings.sword === "Digit1", "legacy Sword did not migrate to slot 1");
-assert(migrated.preferences.bindings.bolt === "Digit2", "legacy Bolt did not migrate to slot 2");
 const gamepad = actionsForStandardGamepad([0.7, -0.8], [true, false, true]);
 assert(gamepad.has("forward") && gamepad.has("right"), "gamepad axes did not map movement");
-assert(gamepad.has("jump") && gamepad.has("sword"), "gamepad buttons did not map actions");
+assert(gamepad.has("jump") && gamepad.has("ability1"), "gamepad buttons did not map actions");
 assert(decodeInputPreferences("bad json").recovered, "bad JSON was not recovered");
 assert(
   decodeInputPreferences('{"version":1,"bindings":{}}').recovered,
