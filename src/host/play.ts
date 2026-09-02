@@ -1061,7 +1061,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     element("terminal-feedback-detail").textContent =
       "The corrupted magitek boar reduced your vitality to zero.";
     element("terminal-feedback-action").textContent =
-      "PRESS R TO RESTORE THE REVISION";
+      "PRESS SHIFT+R TO RESTORE THE REVISION";
   } else if (objectiveStatus === "completed") {
     const permanent = frontier.access === "permanent-open";
     element("terminal-feedback-kicker").textContent = permanent
@@ -1074,7 +1074,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
       ? "Repeated successful expeditions established durable access to the Ashen Verge."
       : `The temporary breach yielded durable value · foothold ${frontier.progress} / ${frontier.requirement}.`;
     element("terminal-feedback-action").textContent =
-      "PRESS R TO RUN THE ENCOUNTER AGAIN";
+      "PRESS SHIFT+R TO RUN THE ENCOUNTER AGAIN";
   }
   resident.admittedOrdinal = ordinal;
 
@@ -2538,12 +2538,6 @@ function applyInputPreferences(app: PlayApp): void {
       `${definitionForAction(action).label}: ${control.textContent}. Activate to rebind.`,
     );
   }
-  element("control-hint").textContent =
-    `${displayKey(preferences.bindings.forward)}/${displayKey(preferences.bindings.left)}/${displayKey(preferences.bindings.backward)}/${displayKey(preferences.bindings.right)} move · ` +
-    `${displayKey(preferences.bindings.sword)} sword · ${displayKey(preferences.bindings.bolt)} bolt · ` +
-    `${displayKey(preferences.bindings.horizontalBurst)} dash · ${displayKey(preferences.bindings.shield)} shield · ` +
-    `${displayKey(preferences.bindings.loot)} interact · ${displayKey(preferences.bindings.horizontalSustain)} sprint · ` +
-    `${displayKey(preferences.bindings.jump)} jump / air boost · ${displayKey(preferences.bindings.target)} target · gamepad supported`;
 }
 
 function resumePresentationAudio(app: PlayApp): void {
