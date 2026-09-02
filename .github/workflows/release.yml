@@ -38,6 +38,11 @@ jobs:
       - name: Verify portable immutable inputs
         run: bun run check:portable
 
+      - name: Verify browser-owned schemas and controls
+        run: |
+          bun run test:campaign-persistence
+          bun run test:input-preferences
+
       - name: Run native tests
         run: cargo test --locked
 

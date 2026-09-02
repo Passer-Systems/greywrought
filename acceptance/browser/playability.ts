@@ -44,8 +44,13 @@ try {
   socket = new WebSocket(tab.webSocketDebuggerUrl);
   let nextId = 1;
   const pending = new Map<number, (value: any) => void>();
+  let pageLoadResolver: (() => void) | null = null;
   socket.onmessage = (event) => {
     const message = JSON.parse(String(event.data));
+    if (message.method === "Page.loadEventFired") {
+      pageLoadResolver?.();
+      pageLoadResolver = null;
+    }
     pending.get(message.id)?.(message);
     pending.delete(message.id);
   };
@@ -56,6 +61,7 @@ try {
     return new Promise<any>((resolve) => pending.set(id, resolve));
   };
   await call("Runtime.enable");
+  await call("Page.enable");
   await call("Page.navigate", { url: gameUrl });
   await Bun.sleep(2500);
   await call("Input.dispatchMouseEvent", {
@@ -98,10 +104,18 @@ try {
         rigLoadStartedAt: Number(document.body.dataset.rigLoadStartedAt),
         rigReadyAt: Number(document.body.dataset.rigReadyAt),
         rigFailureMessage: document.body.dataset.rigFailureMessage,
+        inputPreferences: document.body.dataset.inputPreferences,
+        reducedMotion: document.body.dataset.reducedMotion,
+        effectsVolume: document.body.dataset.effectsVolume,
+        controlsVisible: Boolean(document.querySelector('[data-input-action="right"]')),
+        gamePersistence: document.body.dataset.gamePersistence,
+        campaignStored: localStorage.getItem("greywrought/campaign-v2") !== null,
+        residentPhase: document.body.dataset.residentPhase,
       })`,
       returnByValue: true,
     });
-    return JSON.parse(result.result.result.value as string) as {
+    const serialized = result.result?.result?.value;
+    return JSON.parse(typeof serialized === "string" ? serialized : "{}") as {
       phase: string;
       playerX: number;
       swordSequence: number;
@@ -116,6 +130,13 @@ try {
       rigLoadStartedAt: number;
       rigReadyAt: number;
       rigFailureMessage: string | undefined;
+      inputPreferences: string | undefined;
+      reducedMotion: string | undefined;
+      effectsVolume: string | undefined;
+      controlsVisible: boolean;
+      gamePersistence: string | undefined;
+      campaignStored: boolean;
+      residentPhase: string | undefined;
     };
   };
   const waitForProjection = async () => {
@@ -143,6 +164,28 @@ try {
     `WASD movement did not advance player x (${reset.playerX} → ${afterMove.playerX})`,
   );
 
+  await call("Runtime.evaluate", {
+    expression: `document.querySelector('[data-input-action="right"]').click()`,
+  });
+  await key("keyDown", "KeyK", "k", 75);
+  await key("keyUp", "KeyK", "k", 75);
+  const beforeRemappedMove = await snapshot();
+  await key("keyDown", "KeyK", "k", 75);
+  await Bun.sleep(250);
+  await key("keyUp", "KeyK", "k", 75);
+  await Bun.sleep(100);
+  const afterRemappedMove = await snapshot();
+  requireCondition(
+    afterRemappedMove.playerX > beforeRemappedMove.playerX,
+    `remapped movement did not advance player x (${beforeRemappedMove.playerX} → ${afterRemappedMove.playerX})`,
+  );
+  await call("Runtime.evaluate", {
+    expression: `document.getElementById("reduced-motion").click(); const volume = document.getElementById("effects-volume"); volume.value = "0"; volume.dispatchEvent(new Event("input", { bubbles: true }))`,
+  });
+  await key("keyDown", "KeyR", "r", 82);
+  await key("keyUp", "KeyR", "r", 82);
+  await Bun.sleep(250);
+
   for (let attempt = 0; attempt < 8; attempt += 1) {
     await key("keyDown", "KeyJ", "j", 74);
     await key("keyUp", "KeyJ", "j", 74);
@@ -157,7 +200,36 @@ try {
   );
   requireCondition(result.frames >= 20, `only ${result.frames} admitted frames observed`);
   requireCondition(result.heartbeats >= 2, `only ${result.heartbeats} worker heartbeats observed`);
-  console.log(JSON.stringify(result));
+  requireCondition(result.controlsVisible, "remappable controls are absent");
+  requireCondition(result.inputPreferences === "saved", "input preferences did not persist");
+  requireCondition(result.reducedMotion === "true", "reduced-motion preference did not apply");
+  requireCondition(result.effectsVolume === "0", "effects-volume preference did not apply");
+  await call("Runtime.evaluate", {
+    expression: `localStorage.setItem("greywrought/campaign-v2", "damaged")`,
+  });
+  const pageLoaded = new Promise<void>((resolve) => {
+    pageLoadResolver = resolve;
+  });
+  await call("Page.reload", { ignoreCache: true });
+  const loaded = await Promise.race([
+    pageLoaded.then(() => true),
+    Bun.sleep(10_000).then(() => false),
+  ]);
+  requireCondition(loaded, "browser did not finish corrupt-save recovery reload");
+  for (let attempt = 0; attempt < 150; attempt += 1) {
+    const value = await snapshot();
+    if (value.residentPhase === "session-started") break;
+    await Bun.sleep(50);
+  }
+  await key("keyDown", "KeyR", "r", 82);
+  await key("keyUp", "KeyR", "r", 82);
+  const recovered = await waitForProjection();
+  requireCondition(
+    recovered.gamePersistence === "recovered",
+    `damaged campaign reached ${recovered.gamePersistence} instead of recovered`,
+  );
+  requireCondition(!recovered.campaignStored, "damaged campaign remained in storage");
+  console.log(JSON.stringify({ ...result, campaignRecovery: recovered.gamePersistence }));
 } finally {
   socket?.close();
   chrome.kill();

@@ -851,7 +851,117 @@ body[data-game-phase="completed"] .terminal-feedback-title {
 }
 
 #sidebar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 12;
+  width: min(330px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+#sidebar > * {
   display: none;
+}
+
+#sidebar > .player-settings {
+  display: block;
+  pointer-events: auto;
+}
+
+.player-settings {
+  border: 1px solid #c77c516b;
+  border-radius: 4px;
+  background: #0b080bdd;
+  color: #d7c8bd;
+  box-shadow: 0 8px 28px #000a;
+  backdrop-filter: blur(8px);
+}
+
+.player-settings > summary {
+  padding: 9px 12px;
+  color: #f0e2c6;
+  font: 700 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer;
+}
+
+.player-settings[open] {
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  padding: 0 12px 12px;
+}
+
+.accessibility-options {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 12px;
+  font: 11px/1.35 system-ui, sans-serif;
+}
+
+.accessibility-options label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.volume-setting {
+  display: grid !important;
+  grid-template-columns: auto minmax(80px, 1fr) 34px;
+}
+
+.volume-setting input {
+  width: 100%;
+}
+
+.volume-setting output {
+  text-align: right;
+}
+
+.binding-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(86px, auto);
+  align-items: center;
+  gap: 5px 8px;
+  margin-bottom: 10px;
+  font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.binding-list button {
+  min-width: 86px;
+  padding: 5px 7px;
+  color: #ffd4a1;
+}
+
+.settings-status {
+  color: #adbbb8;
+  font: 10px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+body[data-high-contrast="true"] {
+  --cinder-bone: #fff6e8;
+  --cinder-muted: #e1d1cb;
+}
+
+body[data-high-contrast="true"] #world-canvas {
+  filter: saturate(1.08) contrast(1.22) brightness(1.06);
+}
+
+body[data-high-contrast="true"] #control-hint,
+body[data-high-contrast="true"] .chat-panel,
+body[data-high-contrast="true"] .objective-tracker {
+  color: #fff;
+  background-color: #050306ed;
+}
+
+body[data-large-text="true"] #control-hint,
+body[data-large-text="true"] .chat-panel,
+body[data-large-text="true"] #combat-state,
+body[data-large-text="true"] .objective-kicker {
+  font-size: 12px;
+}
+
+body[data-large-text="true"] #objective,
+body[data-large-text="true"] .unit-heading {
+  font-size: 15px;
 }
 
 #sidebar h1 {
@@ -1059,4 +1169,13 @@ body[data-game-phase="completed"] #world-wrap::before {
     scroll-behavior: auto !important;
     transition-duration: 0s !important;
   }
+}
+
+body[data-reduced-motion="true"] *,
+body[data-reduced-motion="true"] *::before,
+body[data-reduced-motion="true"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0s !important;
 }

@@ -79,6 +79,27 @@ import {
   requireString,
 } from "./foreign.js";
 import { publicUrl } from "./public-url.js";
+import {
+  campaignStorageKey,
+  decodeCampaignStorage,
+  encodeCampaignStorage,
+  legacyFootholdStorageKey,
+  type CampaignRead,
+} from "./campaign-persistence.js";
+import {
+  actionDefinitions,
+  actionForPhysicalCode,
+  actionsForStandardGamepad,
+  decodeInputPreferences,
+  defaultInputPreferences,
+  definitionForAction,
+  displayKey,
+  encodeInputPreferences,
+  inputPreferencesStorageKey,
+  rebindAction,
+  type GameAction,
+  type InputPreferences,
+} from "./input-preferences.js";
 
 type ProcessBranch = ReturnType<typeof openProcessBranch>;
 type AuthoritativeAdvance = ReturnType<typeof admitAuthoritativeOccurrences>;
@@ -292,6 +313,8 @@ interface PlayApp {
   readonly residentLaw: ResidentLawSession;
   readonly scene: SceneShell;
   readonly listeners: Array<() => void>;
+  readonly playerInput: PlayerInputState;
+  presentationAudio: AudioContext | null;
   stage: JourneyStage;
   effectSettled: boolean;
 }
@@ -301,12 +324,15 @@ interface PhysicalKey {
   readonly repeat: boolean;
 }
 
-const footholdStorageKey = "greywrought/foothold-v1";
-
-interface PersistedFoothold {
-  readonly version: 1;
-  readonly progress: number;
+interface PlayerInputState {
+  preferences: InputPreferences;
+  captureAction: GameAction | null;
+  gamepadFrame: number;
+  readonly gamepadHeld: Set<GameAction>;
+  readonly gamepadPressed: Set<GameAction>;
 }
+
+type BrowserCampaignRead = CampaignRead | Readonly<{ kind: "unavailable" }>;
 
 declare global {
   interface Window {
@@ -349,24 +375,35 @@ function button(id: string): HTMLButtonElement {
   return value;
 }
 
-function readPersistedFoothold(): number | null {
+function readPersistedFoothold(): BrowserCampaignRead {
   try {
-    const source = localStorage.getItem(footholdStorageKey);
-    if (source === null) return null;
-    const value: unknown = JSON.parse(source);
-    if (!isProjectedObject(value) || value.version !== 1) return null;
-    return typeof value.progress === "number" && Number.isFinite(value.progress)
-      ? value.progress
-      : null;
+    const result = decodeCampaignStorage(
+      localStorage.getItem(campaignStorageKey),
+      localStorage.getItem(legacyFootholdStorageKey),
+    );
+    if (result.kind === "migrated") {
+      localStorage.setItem(
+        campaignStorageKey,
+        encodeCampaignStorage(result.progress, Date.now()),
+      );
+      localStorage.removeItem(legacyFootholdStorageKey);
+    } else if (result.kind === "corrupt") {
+      localStorage.removeItem(campaignStorageKey);
+      localStorage.removeItem(legacyFootholdStorageKey);
+    }
+    return result;
   } catch {
-    return null;
+    return { kind: "unavailable" };
   }
 }
 
 function persistFoothold(progress: number): void {
-  const value: PersistedFoothold = { version: 1, progress };
   try {
-    localStorage.setItem(footholdStorageKey, JSON.stringify(value));
+    localStorage.setItem(
+      campaignStorageKey,
+      encodeCampaignStorage(progress, Date.now()),
+    );
+    localStorage.removeItem(legacyFootholdStorageKey);
     element("save-status").textContent = `Saved foothold · ${progress} / 3`;
     document.body.dataset.gamePersistence = "saved";
   } catch {
@@ -377,7 +414,8 @@ function persistFoothold(progress: number): void {
 
 function clearPersistedFoothold(): void {
   try {
-    localStorage.removeItem(footholdStorageKey);
+    localStorage.removeItem(campaignStorageKey);
+    localStorage.removeItem(legacyFootholdStorageKey);
   } finally {
     location.reload();
   }
@@ -785,6 +823,21 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const cephorium = lootById(projection, "cephorium-cache");
   const presentedBolt = wayfarerBolt.visible ? wayfarerBolt : bolt;
   const objectiveStatus = objectiveLabel(objective.state);
+  if (prior !== null) {
+    if (player.swordActionSequence > prior.player.swordActionSequence) {
+      playPresentationTone(app, 260, 0.11, 0.7);
+    }
+    if (enemy.vitality < prior.enemy.vitality) {
+      playPresentationTone(app, 115, 0.16, 0.9);
+    }
+    const priorCache = lootById(prior, "cephorium-cache");
+    if (cephorium.custody !== priorCache.custody && cephorium.custody === "player-1") {
+      playPresentationTone(app, 620, 0.22, 0.7);
+    }
+    if (objective.state !== prior.objective.state && objectiveStatus === "completed") {
+      playPresentationTone(app, 820, 0.38, 0.75);
+    }
+  }
   if (frontier.progress > 0 && (prior === null || frontier.progress > prior.frontier.progress)) {
     persistFoothold(frontier.progress);
   }
@@ -2079,54 +2132,234 @@ function observeCameraBasis(app: PlayApp): void {
   });
 }
 
-const heldGameKeys = new Set([
-  "KeyW",
-  "KeyA",
-  "KeyS",
-  "KeyD",
-  "ShiftLeft",
-  "ShiftRight",
-  "KeyE",
-]);
+function inputElement(id: string): HTMLInputElement {
+  const value = element(id);
+  if (!(value instanceof HTMLInputElement)) {
+    throw new Error(`browser element #${id} is not an input`);
+  }
+  return value;
+}
 
-const gameKeys = new Set([
-  ...heldGameKeys,
-  "KeyQ",
-  "KeyF",
-  "KeyJ",
-  "Digit1",
-  "Tab",
-  "Space",
-  "KeyR",
-]);
+function persistInputPreferences(app: PlayApp): void {
+  try {
+    localStorage.setItem(
+      inputPreferencesStorageKey,
+      encodeInputPreferences(app.playerInput.preferences),
+    );
+    document.body.dataset.inputPreferences = "saved";
+  } catch {
+    document.body.dataset.inputPreferences = "unavailable";
+  }
+}
+
+function applyInputPreferences(app: PlayApp): void {
+  const { preferences } = app.playerInput;
+  document.body.dataset.reducedMotion = String(preferences.reducedMotion);
+  document.body.dataset.highContrast = String(preferences.highContrast);
+  document.body.dataset.largeText = String(preferences.largeText);
+  document.body.dataset.effectsVolume = String(preferences.effectsVolume);
+  inputElement("reduced-motion").checked = preferences.reducedMotion;
+  inputElement("high-contrast").checked = preferences.highContrast;
+  inputElement("large-text").checked = preferences.largeText;
+  inputElement("effects-volume").value = String(
+    Math.round(preferences.effectsVolume * 100),
+  );
+  element("effects-volume-value").textContent =
+    `${Math.round(preferences.effectsVolume * 100)}%`;
+  for (const control of document.querySelectorAll<HTMLButtonElement>(
+    "[data-input-action]",
+  )) {
+    const action = control.dataset.inputAction as GameAction | undefined;
+    if (action === undefined) continue;
+    control.textContent = displayKey(preferences.bindings[action]);
+    control.setAttribute(
+      "aria-label",
+      `${definitionForAction(action).label}: ${control.textContent}. Activate to rebind.`,
+    );
+  }
+  element("control-hint").textContent =
+    `${displayKey(preferences.bindings.forward)}/${displayKey(preferences.bindings.left)}/${displayKey(preferences.bindings.backward)}/${displayKey(preferences.bindings.right)} move · ` +
+    `${displayKey(preferences.bindings.target)} target · ${displayKey(preferences.bindings.bolt)} bolt · ` +
+    `${displayKey(preferences.bindings.sword)} sword · ${displayKey(preferences.bindings.loot)} loot · ` +
+    `${displayKey(preferences.bindings.jump)} jump · gamepad supported · Controls panel for all bindings`;
+}
+
+function resumePresentationAudio(app: PlayApp): void {
+  try {
+    app.presentationAudio ??= new AudioContext();
+    if (app.presentationAudio.state === "suspended") {
+      void app.presentationAudio.resume();
+    }
+  } catch {
+    app.presentationAudio = null;
+  }
+}
+
+function playPresentationTone(
+  app: PlayApp,
+  frequency: number,
+  durationSeconds: number,
+  intensity = 1,
+): void {
+  const context = app.presentationAudio;
+  const volume = app.playerInput.preferences.effectsVolume * intensity;
+  if (context === null || context.state !== "running" || volume <= 0) return;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const start = context.currentTime;
+  oscillator.type = "triangle";
+  oscillator.frequency.setValueAtTime(frequency, start);
+  oscillator.frequency.exponentialRampToValueAtTime(
+    Math.max(40, frequency * 0.72),
+    start + durationSeconds,
+  );
+  gain.gain.setValueAtTime(Math.min(0.12, volume * 0.12), start);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + durationSeconds);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(start + durationSeconds);
+  oscillator.addEventListener("ended", () => {
+    oscillator.disconnect();
+    gain.disconnect();
+  }, { once: true });
+}
+
+function loadInputPreferences(app: PlayApp): void {
+  try {
+    const result = decodeInputPreferences(
+      localStorage.getItem(inputPreferencesStorageKey),
+    );
+    app.playerInput.preferences = result.preferences;
+    if (result.recovered) {
+      localStorage.removeItem(inputPreferencesStorageKey);
+      document.body.dataset.inputPreferences = "recovered";
+      element("input-preference-status").textContent =
+        "Damaged control preferences were reset safely.";
+    } else {
+      document.body.dataset.inputPreferences = "ready";
+    }
+  } catch {
+    app.playerInput.preferences = defaultInputPreferences;
+    document.body.dataset.inputPreferences = "unavailable";
+  }
+  applyInputPreferences(app);
+}
+
+function updateInputPreferences(
+  app: PlayApp,
+  update: Partial<Pick<InputPreferences, "reducedMotion" | "highContrast" | "largeText" | "effectsVolume">>,
+): void {
+  app.playerInput.preferences = {
+    ...app.playerInput.preferences,
+    ...update,
+  };
+  persistInputPreferences(app);
+  applyInputPreferences(app);
+}
+
+function semanticCode(action: GameAction, reverseTarget = false): string {
+  if (action === "target" && reverseTarget) return "ShiftTab";
+  return definitionForAction(action).semanticCode;
+}
+
+function releaseGamepad(app: PlayApp): void {
+  for (const action of app.playerInput.gamepadHeld) {
+    observeGameKey(
+      app,
+      { code: semanticCode(action), repeat: false },
+      "up",
+    );
+  }
+  app.playerInput.gamepadHeld.clear();
+  app.playerInput.gamepadPressed.clear();
+}
+
+function pollGamepads(app: PlayApp): void {
+  const gamepad = Array.from(navigator.getGamepads()).find(
+    (candidate): candidate is Gamepad => candidate !== null && candidate.connected,
+  );
+  if (gamepad === undefined) {
+    if (app.playerInput.gamepadHeld.size > 0) releaseGamepad(app);
+    document.body.dataset.gamepad = "disconnected";
+    element("gamepad-status").textContent = "Gamepad ready · connect or press any button";
+  } else {
+    document.body.dataset.gamepad = "connected";
+    element("gamepad-status").textContent = `Gamepad connected · ${gamepad.id}`;
+    const current = actionsForStandardGamepad(
+      gamepad.axes,
+      gamepad.buttons.map((candidate) => candidate.pressed),
+    );
+    if (current.size > 0) resumePresentationAudio(app);
+    for (const definition of actionDefinitions) {
+      const { action } = definition;
+      if (definition.held) {
+        if (current.has(action) && !app.playerInput.gamepadHeld.has(action)) {
+          observeGameKey(app, { code: semanticCode(action), repeat: false }, "down");
+          app.playerInput.gamepadHeld.add(action);
+        } else if (!current.has(action) && app.playerInput.gamepadHeld.has(action)) {
+          observeGameKey(app, { code: semanticCode(action), repeat: false }, "up");
+          app.playerInput.gamepadHeld.delete(action);
+        }
+      } else if (current.has(action) && !app.playerInput.gamepadPressed.has(action)) {
+        observeGameKey(app, { code: semanticCode(action), repeat: false }, "down");
+      }
+    }
+    app.playerInput.gamepadPressed.clear();
+    for (const action of current) app.playerInput.gamepadPressed.add(action);
+  }
+  app.playerInput.gamepadFrame = requestAnimationFrame(() => pollGamepads(app));
+}
 
 function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   const { canvas } = app.scene;
   const keyboardListenerOptions: AddEventListenerOptions = { capture: true };
-  const heldKeys = new Set<string>();
+  const heldKeys = new Map<string, string>();
+  loadInputPreferences(app);
   const down = (event: KeyboardEvent): void => {
-    if (!event.repeat && gameKeys.has(event.code)) {
+    if (app.playerInput.captureAction !== null) {
       event.preventDefault();
-      if (heldGameKeys.has(event.code)) heldKeys.add(event.code);
-      observeGameKey(
-        app,
-        {
-          code: event.code === "Tab" && event.shiftKey ? "ShiftTab" : event.code,
-          repeat: event.repeat,
-        },
-        "down",
-      );
+      if (event.repeat) return;
+      const action = app.playerInput.captureAction;
+      app.playerInput.captureAction = null;
+      if (event.code !== "Escape") {
+        app.playerInput.preferences = {
+          ...app.playerInput.preferences,
+          bindings: rebindAction(
+            app.playerInput.preferences.bindings,
+            action,
+            event.code,
+          ),
+        };
+        persistInputPreferences(app);
+        element("input-preference-status").textContent =
+          `${definitionForAction(action).label} now uses ${displayKey(event.code)}.`;
+      } else {
+        element("input-preference-status").textContent = "Rebinding cancelled.";
+      }
+      applyInputPreferences(app);
+      return;
     }
+    const action = actionForPhysicalCode(
+      app.playerInput.preferences.bindings,
+      event.code,
+    );
+    if (action === null || event.repeat) return;
+    event.preventDefault();
+    resumePresentationAudio(app);
+    const definition = definitionForAction(action);
+    const code = semanticCode(action, action === "target" && event.shiftKey);
+    if (definition.held) heldKeys.set(event.code, code);
+    observeGameKey(app, { code, repeat: false }, "down");
   };
   const up = (event: KeyboardEvent): void => {
-    if (heldGameKeys.has(event.code)) {
-      event.preventDefault();
-      heldKeys.delete(event.code);
-      observeGameKey(app, event, "up");
-    }
+    const code = heldKeys.get(event.code);
+    if (code === undefined) return;
+    event.preventDefault();
+    heldKeys.delete(event.code);
+    observeGameKey(app, { code, repeat: false }, "up");
   };
   const releaseHeldKeys = (): void => {
-    for (const code of heldKeys) {
+    for (const code of heldKeys.values()) {
       observeGameKey(app, { code, repeat: false }, "up");
     }
     heldKeys.clear();
@@ -2142,6 +2375,49 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   window.addEventListener("blur", releaseHeldKeys);
   document.addEventListener("visibilitychange", releaseHeldKeys);
   canvas.addEventListener("pointermove", cameraBasis);
+  for (const control of document.querySelectorAll<HTMLButtonElement>(
+    "[data-input-action]",
+  )) {
+    const capture = (): void => {
+      const action = control.dataset.inputAction as GameAction | undefined;
+      if (action === undefined) return;
+      app.playerInput.captureAction = action;
+      control.textContent = "Press key…";
+      element("input-preference-status").textContent =
+        `Press a key for ${definitionForAction(action).label}, or Escape to cancel.`;
+    };
+    control.addEventListener("click", capture);
+    listeners.push(() => control.removeEventListener("click", capture));
+  }
+  const resetBindings = (): void => {
+    app.playerInput.preferences = {
+      ...app.playerInput.preferences,
+      bindings: defaultInputPreferences.bindings,
+    };
+    persistInputPreferences(app);
+    applyInputPreferences(app);
+    element("input-preference-status").textContent = "Default bindings restored.";
+  };
+  button("reset-bindings").addEventListener("click", resetBindings);
+  const reducedMotion = (): void =>
+    updateInputPreferences(app, { reducedMotion: inputElement("reduced-motion").checked });
+  const highContrast = (): void =>
+    updateInputPreferences(app, { highContrast: inputElement("high-contrast").checked });
+  const largeText = (): void =>
+    updateInputPreferences(app, { largeText: inputElement("large-text").checked });
+  const effectsVolume = (): void => {
+    const value = Number.parseInt(inputElement("effects-volume").value, 10) / 100;
+    updateInputPreferences(app, { effectsVolume: value });
+    resumePresentationAudio(app);
+    playPresentationTone(app, 520, 0.09, 0.65);
+  };
+  const resumeAudio = (): void => resumePresentationAudio(app);
+  inputElement("reduced-motion").addEventListener("change", reducedMotion);
+  inputElement("high-contrast").addEventListener("change", highContrast);
+  inputElement("large-text").addEventListener("change", largeText);
+  inputElement("effects-volume").addEventListener("input", effectsVolume);
+  window.addEventListener("pointerdown", resumeAudio, { capture: true });
+  app.playerInput.gamepadFrame = requestAnimationFrame(() => pollGamepads(app));
   listeners.push(() =>
     window.removeEventListener("keydown", down, keyboardListenerOptions),
   );
@@ -2153,6 +2429,16 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
     document.removeEventListener("visibilitychange", releaseHeldKeys),
   );
   listeners.push(() => canvas.removeEventListener("pointermove", cameraBasis));
+  listeners.push(() => button("reset-bindings").removeEventListener("click", resetBindings));
+  listeners.push(() => inputElement("reduced-motion").removeEventListener("change", reducedMotion));
+  listeners.push(() => inputElement("high-contrast").removeEventListener("change", highContrast));
+  listeners.push(() => inputElement("large-text").removeEventListener("change", largeText));
+  listeners.push(() => inputElement("effects-volume").removeEventListener("input", effectsVolume));
+  listeners.push(() => window.removeEventListener("pointerdown", resumeAudio, { capture: true }));
+  listeners.push(() => {
+    cancelAnimationFrame(app.playerInput.gamepadFrame);
+    releaseGamepad(app);
+  });
 }
 
 function pressReset(app: PlayApp): void {
@@ -2199,6 +2485,7 @@ function teardown(app: PlayApp): void {
   );
   app.scene.canvas.removeEventListener("wheel", app.scene.wheelHandler);
   for (const removeListener of app.listeners) removeListener();
+  if (app.presentationAudio !== null) void app.presentationAudio.close();
   disposeCinderwakePresentation(app.scene.presentation);
   app.scene.canvas.remove();
   const processBranch = stageProcessBranch(app.stage);
@@ -2247,6 +2534,14 @@ function startApp(
     effectSettled: false,
     scene: createScene(),
     listeners,
+    playerInput: {
+      preferences: defaultInputPreferences,
+      captureAction: null,
+      gamepadFrame: 0,
+      gamepadHeld: new Set<GameAction>(),
+      gamepadPressed: new Set<GameAction>(),
+    },
+    presentationAudio: null,
   };
   bindResidentWorker(app, listeners);
   bindGameInput(app, listeners);
@@ -2268,19 +2563,30 @@ function startApp(
   bindClick(listeners, "pulse-moonwell", () => pulseMoonwell(app));
   renderStage(app);
   const persistedFoothold = readPersistedFoothold();
-  if (persistedFoothold !== null) {
-    element("save-status").textContent = `Saved foothold ready · ${persistedFoothold} / 3`;
+  if (persistedFoothold.kind === "ready" || persistedFoothold.kind === "migrated") {
+    element("save-status").textContent =
+      `${persistedFoothold.kind === "migrated" ? "Migrated" : "Saved"} foothold ready · ${persistedFoothold.progress} / 3`;
     document.body.dataset.gamePersistence = "restoring";
     queueGameInput(app, {
       kind: "scalar-input",
       channel: "PersistedFootholdProgress",
-      value: persistedFoothold,
+      value: persistedFoothold.progress,
     });
     queueGameInput(app, {
       kind: "scalar-input",
       channel: "PersistedPermanentFootholdProgress",
-      value: persistedFoothold,
+      value: persistedFoothold.progress,
     });
+  } else if (persistedFoothold.kind === "corrupt") {
+    element("save-status").textContent = "Damaged save cleared safely · starting sealed";
+    document.body.dataset.gamePersistence = "recovered";
+  } else if (persistedFoothold.kind === "future") {
+    element("save-status").textContent =
+      `Newer save v${persistedFoothold.version} retained · starting sealed`;
+    document.body.dataset.gamePersistence = "future";
+  } else if (persistedFoothold.kind === "unavailable") {
+    element("save-status").textContent = "Save unavailable in this browser";
+    document.body.dataset.gamePersistence = "unavailable";
   } else {
     element("save-status").textContent = "Progress saves after each extraction";
     document.body.dataset.gamePersistence = "empty";

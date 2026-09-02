@@ -20,11 +20,11 @@ Cephorium cache, and carries it back to extract. The first two extractions
 advance a durable foothold; the third establishes permanent Ashen Verge
 access.
 
-The browser stores only the last admitted progress projection. On reload it
-returns that number as an observation. Clause law validates it, rejects invalid
-values, clamps completed progress to the authored requirement, and decides
-whether access is sealed or permanent. The sidebar shows the current expedition
-and provides an explicit control to clear the saved campaign.
+The browser stores only the last admitted progress projection. Version-two
+storage migrates the original v1 shape, clears malformed records, preserves
+unknown future versions, and returns only finite observations. Clause law still
+validates their meaning, rejects invalid values, clamps completed progress to
+the authored requirement, and decides whether access is sealed or permanent.
 
 Combat includes a readable charge telegraph and corridor, perpendicular dodge
 and jump responses, recovery punish windows, sword commitment, ranged action,
@@ -84,8 +84,16 @@ bun run play
 
 Open <http://127.0.0.1:4173/>. Click the arena, then use WASD to move, left-drag
 to orbit, the wheel to zoom, Tab to target, `1` for a ranged action, `J` for the
-sword, Space to jump, Shift/Q for horizontal propulsion, E/F for vertical
-propulsion, right-click to loot, and `R` to reset the expedition.
+sword, `L` or right-click to loot, Space to jump, Shift/Q for horizontal
+propulsion, E/F for vertical propulsion, and `R` to reset the expedition.
+
+The in-game Controls & Accessibility panel remaps every keyboard action and
+persists collision-safe bindings. It also provides reduced-motion,
+high-contrast, larger-text, and synthesized-effects-volume controls. Standard
+gamepads support left-stick or D-pad movement, face-button
+jump/loot/sword/target actions, propulsion controls,
+the lock-on bolt, and reset. These are physical-input transport choices only;
+they map to existing Clause observations and do not decide gameplay.
 
 The development server keeps one resident source session and can admit hot
 Clause edits without rebuilding or reloading the browser. Acceptance performs
@@ -103,11 +111,21 @@ Open <http://127.0.0.1:4180/greywrought/>. Static hosting uses the
 materialized embodied cartridge while preserving the same runtime, Candidate,
 Admission, and projection boundaries.
 
+Static publication copies an explicit runtime asset closure rather than entire
+source packs. `dist/release-manifest.json` records every shipped file, and the
+release fails above 32 MiB total or 12 MiB for one file. The current artifact is
+about 19.3 MiB, down from the earlier roughly 51 MiB bundle.
+
 ## Continuous delivery
 
 `.github/workflows/release.yml` checks out the Clause submodule, pins Bun and
 Rust, runs every native, host, Wasm, dynamic-browser, three-expedition,
 persistence, liveness, hot-edit, recovery, and static-subpath gate, then
 publishes `dist/` to GitHub Pages from `main`.
+
+`.github/workflows/production-smoke.yml` also checks the deployed HTML, release
+manifest, Wasm identity, admitted frames, movement, remapped input, accessibility
+preferences, combat commitment, and corrupt-save recovery every day. Its log is
+retained as a workflow artifact whether the check passes or fails.
 
 Pinned Clause input: `f0ca1bb912829572ced3feebd17a99cf749eb494`.

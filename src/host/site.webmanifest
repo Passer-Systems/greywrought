@@ -1,0 +1,16 @@
+{
+  "name": "Greywrought Clause",
+  "short_name": "Greywrought",
+  "description": "A Clause/Wasm action-RPG expedition.",
+  "start_url": "./",
+  "display": "fullscreen",
+  "background_color": "#050306",
+  "theme_color": "#100a0d",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
