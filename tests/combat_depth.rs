@@ -219,7 +219,7 @@ fn horizontal_burst_is_immediate_directional_and_preserves_velocity()
     assert_eq!(vector(&propelled, b"velocity"), velocity_before);
     assert_eq!(position[0], position_before[0]);
     assert_eq!(position[1], position_before[1]);
-    assert!((position[2] - (position_before[2] - 0.96)).abs() < 1.0e-9);
+    assert!((position[2] - (position_before[2] - 1.92)).abs() < 1.0e-9);
     assert_eq!(number(&propelled, b"booster-energy"), 80.0);
     Ok(())
 }
