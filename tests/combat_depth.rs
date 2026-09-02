@@ -11,13 +11,17 @@ use clause_runtime::{
 use clause_workbench::ResidentSourceWorkbenchV1;
 use greywrought_clause::EMBODIED_SOURCE;
 
-fn open_session() -> Result<PersistentProcessSessionV1, Box<dyn Error>> {
-    let source = ResidentSourceWorkbenchV1::open(EMBODIED_SOURCE)?;
+fn open_session_from_source(source: &[u8]) -> Result<PersistentProcessSessionV1, Box<dyn Error>> {
+    let source = ResidentSourceWorkbenchV1::open(source)?;
     let mut request = decode_wasm_process_request_v1(&source.generation().cwr1)?;
     request.authority.budget_units = 1_000_000;
     Ok(open_fresh_persistent_process_session_v1(
         &encode_wasm_process_request_v1(&request)?,
     )?)
+}
+
+fn open_session() -> Result<PersistentProcessSessionV1, Box<dyn Error>> {
+    open_session_from_source(EMBODIED_SOURCE)
 }
 
 fn key(
@@ -72,6 +76,70 @@ fn admitted_tick(
     ))
 }
 
+fn admitted_opaque_input(
+    session: &mut PersistentProcessSessionV1,
+    occurrence: &[u8],
+) -> Result<Term, Box<dyn Error>> {
+    let predecessor = session.world_base();
+    session.apply_opaque_input_and_emit_candidate(occurrence)?;
+    let candidate = session
+        .candidate()?
+        .ok_or("opaque input did not retain a CandidateDelta")?
+        .clone();
+    assert_eq!(candidate.base, predecessor);
+    assert_eq!(session.world_base(), predecessor);
+    let authorization = session.issue_candidate_admission_authorization()?;
+    let (successor, projection) = session.admit_issued_candidate_with_projection(authorization)?;
+    assert_eq!(successor.predecessor, candidate.base);
+    Ok(projection
+        .ok_or("opaque-input Admission emitted no renderer projection")?
+        .term)
+}
+
+#[test]
+fn sustained_mixed_input_session_remains_live() -> Result<(), Box<dyn Error>> {
+    let mut session = open_session()?;
+    key_down(&mut session, b"KeyR")?;
+
+    let directions: [&[u8]; 4] = [b"KeyW", b"KeyD", b"KeyS", b"KeyA"];
+    let mut direction = 0;
+    key_down(&mut session, directions[direction])?;
+    let mut projection = admitted_tick(&mut session)?.1;
+
+    for tick in 1..=1_000 {
+        if tick % 55 == 0 {
+            key_up(&mut session, directions[direction])?;
+            direction = (direction + 1) % directions.len();
+            key_down(&mut session, directions[direction])?;
+        }
+        if tick % 33 == 0 {
+            key_down(&mut session, b"KeyJ")?;
+        }
+        if objective_phase(&projection) != 0.0 {
+            key_down(&mut session, b"KeyR")?;
+        }
+
+        projection = match admitted_tick(&mut session) {
+            Ok((_, projection)) => projection,
+            Err(error) => panic!(
+                "persistent mixed-input tick {tick} failed at player {:?}, enemy {:?}, pressure {}: {error:#}",
+                vector(&projection, b"position"),
+                enemy_vector(&projection, b"position"),
+                String::from_utf8_lossy(enemy_symbol(&projection, b"pressure-state")),
+            ),
+        };
+    }
+
+    key_up(&mut session, directions[direction])?;
+    let usage = session.carrier()?.resource_usage();
+    assert!(
+        usage.accepted_ingress_bytes < 64 * 1024 * 1024,
+        "1,000 mixed-input ticks retained {} ingress bytes, exceeding the 64 MiB liveness budget",
+        usage.accepted_ingress_bytes,
+    );
+    Ok(())
+}
+
 fn projected_field<'a>(term: &'a Term, expected: &[u8]) -> &'a Term {
     let mut current = term;
     loop {
@@ -117,6 +185,14 @@ fn enemy<'a>(projection: &'a Term) -> &'a Term {
     projected_field(projection, b"cinder-wraith")
 }
 
+fn objective<'a>(projection: &'a Term) -> &'a Term {
+    projected_field(projection, b"game-objective")
+}
+
+fn frontier<'a>(projection: &'a Term) -> &'a Term {
+    projected_field(projection, b"ashen-verge")
+}
+
 fn number(projection: &Term, field: &[u8]) -> f64 {
     projected_number(projected_field(player(projection), field))
 }
@@ -140,6 +216,61 @@ fn enemy_symbol<'a>(projection: &'a Term, field: &[u8]) -> &'a [u8] {
         .as_atom()
         .expect("projected behavior is an Atom")
         .canonical_payload()
+}
+
+fn objective_phase(projection: &Term) -> f64 {
+    let state = projected_field(objective(projection), b"objective-state");
+    projected_number(projected_field(state, b"x"))
+}
+
+fn frontier_access(projection: &Term) -> &[u8] {
+    projected_field(frontier(projection), b"frontier-access")
+        .as_atom()
+        .expect("projected frontier access is an Atom")
+        .canonical_payload()
+}
+
+fn frontier_progress(projection: &Term) -> f64 {
+    projected_number(projected_field(frontier(projection), b"foothold-progress"))
+}
+
+fn frontier_proof_source() -> Vec<u8> {
+    let mut source = EMBODIED_SOURCE.to_vec();
+    source.extend_from_slice(
+        br#"
+
+on prepare-frontier-player-proof ?player
+  when
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+  withdraw
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+  include
+    ?player position Vec3 { x: -2.0, y: ?player-y, z: -1.0 }
+
+on prepare-frontier-enemy-proof ?enemy
+  when
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy combat status ?enemy-status
+  withdraw
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy combat status ?enemy-status
+  include
+    ?enemy enemy vitals Vec3 { x: 0.0, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy combat status dead
+
+on prepare-frontier-loot-proof ?loot
+  when
+    ?loot loot state ?loot-state
+    ?loot custody ?custodian
+  withdraw
+    ?loot loot state ?loot-state
+    ?loot custody ?custodian
+  include
+    ?loot loot state acquired
+    ?loot custody player-1
+"#,
+    );
+    source
 }
 
 fn source_with_behavior(binding: &str) -> Vec<u8> {
@@ -399,6 +530,104 @@ fn reset_restores_spawn_and_the_complete_propulsion_resource() -> Result<(), Box
     assert_eq!(number(&restored, b"booster-energy"), 100.0);
     assert_eq!(number(&restored, b"booster-regeneration-delay"), 0.0);
     assert!(boolean(&restored, b"grounded"));
+    Ok(())
+}
+
+#[test]
+fn open_field_movement_does_not_clamp_at_the_retired_arena_edge() -> Result<(), Box<dyn Error>> {
+    let source = frontier_proof_source();
+    let workbench = ResidentSourceWorkbenchV1::open(&source)?;
+    let mut request = decode_wasm_process_request_v1(&workbench.generation().cwr1)?;
+    request.authority.budget_units = 1_000_000;
+    let mut session =
+        open_fresh_persistent_process_session_v1(&encode_wasm_process_request_v1(&request)?)?;
+    let disable_enemy = workbench.handler_occurrence(b"prepare-frontier-enemy-proof", &[])?;
+    admitted_opaque_input(&mut session, &disable_enemy)?;
+    key_down(&mut session, b"KeyW")?;
+
+    let mut projection = admitted_tick(&mut session)?.1;
+    for _ in 0..255 {
+        projection = admitted_tick(&mut session)?.1;
+    }
+
+    assert!(
+        vector(&projection, b"position")[2] < -10.0,
+        "open-field movement stopped at the retired jump-arena boundary",
+    );
+    assert!(vector(&projection, b"velocity")[2] < 0.0);
+    Ok(())
+}
+
+#[test]
+fn repeated_resource_gated_expeditions_establish_a_durable_frontier() -> Result<(), Box<dyn Error>>
+{
+    let source = frontier_proof_source();
+    let workbench = ResidentSourceWorkbenchV1::open(&source)?;
+    let mut request = decode_wasm_process_request_v1(&workbench.generation().cwr1)?;
+    request.authority.budget_units = 1_000_000;
+    let mut session =
+        open_fresh_persistent_process_session_v1(&encode_wasm_process_request_v1(&request)?)?;
+    let mut latest = None;
+
+    for expedition in 1..=3 {
+        let prepare = [
+            workbench.handler_occurrence(b"prepare-frontier-player-proof", &[])?,
+            workbench.handler_occurrence(b"prepare-frontier-enemy-proof", &[])?,
+            workbench.handler_occurrence(b"prepare-frontier-loot-proof", &[])?,
+        ];
+        for occurrence in &prepare {
+            admitted_opaque_input(&mut session, occurrence)?;
+        }
+        let mut completed = None;
+        for _ in 0..16 {
+            let projection = admitted_tick(&mut session)?.1;
+            if objective_phase(&projection) == 1.0 {
+                completed = Some(projection);
+                break;
+            }
+        }
+        let completed = completed.ok_or("resource-gated breach did not complete")?;
+        assert_eq!(frontier_progress(&completed), f64::from(expedition));
+        assert_eq!(
+            frontier_access(&completed),
+            if expedition < 3 {
+                b"temporary-open"
+            } else {
+                b"permanent-open"
+            },
+            "each admitted key breach must advance typed frontier access"
+        );
+
+        let reset = workbench.handler_occurrence(b"reset-objective", &[])?;
+        admitted_opaque_input(&mut session, &reset)?;
+        let mut restored = None;
+        for _ in 0..16 {
+            let projection = admitted_tick(&mut session)?.1;
+            if objective_phase(&projection) == 0.0 {
+                restored = Some(projection);
+                break;
+            }
+        }
+        let mut restored = restored.ok_or("expedition reset did not restore the playable phase")?;
+        for _ in 0..2 {
+            restored = admitted_tick(&mut session)?.1;
+        }
+        assert_eq!(frontier_progress(&restored), f64::from(expedition));
+        assert_eq!(
+            frontier_access(&restored),
+            if expedition < 3 {
+                b"sealed".as_slice()
+            } else {
+                b"permanent-open".as_slice()
+            },
+            "routine reset must reoccupy temporary access without erasing durable progress"
+        );
+        latest = Some(restored);
+    }
+
+    let secured = latest.expect("three expeditions produce one final admitted projection");
+    assert_eq!(frontier_access(&secured), b"permanent-open");
+    assert_eq!(frontier_progress(&secured), 3.0);
     Ok(())
 }
 

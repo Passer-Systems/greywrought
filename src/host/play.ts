@@ -21,7 +21,6 @@ import {
   "suspend-session!" as suspendSession,
   type ExactBytes,
   type ExactProcessRequest,
-  type ProjectedObject,
   type ProjectedValue,
 } from "../../build/host/jump-arena-shell/wasm-cartridge-port.js";
 import {
@@ -208,12 +207,19 @@ interface ObjectiveProjection {
   readonly state: number;
 }
 
+interface FrontierProjection {
+  readonly access: string;
+  readonly progress: number;
+  readonly requirement: number;
+}
+
 interface GameProjection {
   readonly player: PlayerProjection;
   readonly enemy: EnemyProjection;
   readonly bolt: BoltProjection;
   readonly loot: LootProjection;
   readonly objective: ObjectiveProjection;
+  readonly frontier: FrontierProjection;
 }
 
 interface ResidentLawSession {
@@ -223,10 +229,15 @@ interface ResidentLawSession {
   interval: number;
   pendingHot: GenerationPayload | null;
   lastProjection: GameProjection | null;
-  pendingProjectionFrame: string | readonly number[] | null;
+  pendingProjection: ResidentProjection | null;
   projectionFrameHandle: number;
   admittedOrdinal: number;
   candidateSeen: boolean;
+}
+
+interface ResidentProjection {
+  readonly value: unknown;
+  readonly frameUnits: number;
 }
 
 type ResidentInput =
@@ -283,10 +294,14 @@ function requireValue<T>(value: T | undefined, context: string): T {
   return value;
 }
 
-function isProjectedArray(
-  value: ProjectedValue,
-): value is readonly ProjectedValue[] {
+function isProjectedArray(value: unknown): value is readonly unknown[] {
   return Array.isArray(value);
+}
+
+function isProjectedObject(
+  value: unknown,
+): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !isProjectedArray(value);
 }
 
 function element(id: string): HTMLElement {
@@ -379,31 +394,34 @@ function openResidentLawSession(): ResidentLawSession {
     interval: 0,
     pendingHot: null,
     lastProjection: null,
-    pendingProjectionFrame: null,
+    pendingProjection: null,
     projectionFrameHandle: 0,
     admittedOrdinal: 0,
     candidateSeen: false,
   };
 }
 
-function projectedObject(value: ProjectedValue, context: string): ProjectedObject {
-  if (typeof value !== "object" || value === null || isProjectedArray(value)) {
+function projectedObject(
+  value: unknown,
+  context: string,
+): Readonly<Record<string, unknown>> {
+  if (!isProjectedObject(value)) {
     throw new Error(`${context} is not a projected object`);
   }
   return value;
 }
 
 function projectedField(
-  value: ProjectedValue,
+  value: unknown,
   field: string,
   context: string,
-): ProjectedValue {
+): unknown {
   const result = projectedObject(value, context)[field];
   if (result === undefined) throw new Error(`${context}.${field} is absent`);
   return result;
 }
 
-function projectedNumber(value: ProjectedValue, field: string, context: string): number {
+function projectedNumber(value: unknown, field: string, context: string): number {
   const result = projectedField(value, field, context);
   if (typeof result !== "number" || !Number.isFinite(result)) {
     throw new Error(`${context}.${field} is not a finite number`);
@@ -411,19 +429,19 @@ function projectedNumber(value: ProjectedValue, field: string, context: string):
   return result;
 }
 
-function projectedString(value: ProjectedValue, field: string, context: string): string {
+function projectedString(value: unknown, field: string, context: string): string {
   const result = projectedField(value, field, context);
   if (typeof result !== "string") throw new Error(`${context}.${field} is not text`);
   return result;
 }
 
-function projectedBoolean(value: ProjectedValue, field: string, context: string): boolean {
+function projectedBoolean(value: unknown, field: string, context: string): boolean {
   const result = projectedField(value, field, context);
   if (typeof result !== "boolean") throw new Error(`${context}.${field} is not boolean`);
   return result;
 }
 
-function projectedPosition(value: ProjectedValue, context: string): Vector3Projection {
+function projectedPosition(value: unknown, context: string): Vector3Projection {
   return {
     x: projectedNumber(value, "x", context),
     y: projectedNumber(value, "y", context),
@@ -431,12 +449,13 @@ function projectedPosition(value: ProjectedValue, context: string): Vector3Proje
   };
 }
 
-function decodeGameProjection(value: ProjectedValue): GameProjection {
+function decodeGameProjection(value: unknown): GameProjection {
   const player = projectedField(value, "player-1", "game projection");
   const enemy = projectedField(value, "cinder-wraith", "game projection");
   const bolt = projectedField(value, "cinder-bolt", "game projection");
   const loot = projectedField(value, "ashen-key", "game projection");
   const objective = projectedField(value, "game-objective", "game projection");
+  const frontier = projectedField(value, "ashen-verge", "game projection");
   const playerVitals = projectedField(player, "player-vitals", "player-1");
   const enemyVitals = projectedField(enemy, "enemy-vitals", "cinder-wraith");
   const objectiveState = projectedField(objective, "objective-state", "game-objective");
@@ -564,6 +583,15 @@ function decodeGameProjection(value: ProjectedValue): GameProjection {
       ),
       state: projectedNumber(objectiveState, "x", "objective-state"),
     },
+    frontier: {
+      access: projectedString(frontier, "frontier-access", "ashen-verge"),
+      progress: projectedNumber(frontier, "foothold-progress", "ashen-verge"),
+      requirement: projectedNumber(
+        frontier,
+        "foothold-requirement",
+        "ashen-verge",
+      ),
+    },
   };
 }
 
@@ -604,12 +632,12 @@ function boundedGameEvent(event: Record<string, unknown>): void {
   if (events.length > 512) events.shift();
 }
 
-function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void {
+function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const projection = decodeGameProjection(rawProjection);
   const resident = app.residentLaw;
   const prior = resident.lastProjection;
   const ordinal = resident.admittedOrdinal + 1;
-  const { player, enemy, bolt, loot, objective } = projection;
+  const { player, enemy, bolt, loot, objective, frontier } = projection;
   const objectiveStatus = objectiveLabel(objective.state);
   const terminalFeedback = element("terminal-feedback");
   terminalFeedback.hidden = objectiveStatus === "playing";
@@ -621,10 +649,16 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     element("terminal-feedback-action").textContent =
       "PRESS R TO RESTORE THE REVISION";
   } else if (objectiveStatus === "completed") {
-    element("terminal-feedback-kicker").textContent = "REVISION SECURED";
-    element("terminal-feedback-title").textContent = "ASHEN KEY ADMITTED";
-    element("terminal-feedback-detail").textContent =
-      "The moonwell accepted the key and stabilized this world revision.";
+    const permanent = frontier.access === "permanent-open";
+    element("terminal-feedback-kicker").textContent = permanent
+      ? "FOOTHOLD SECURED"
+      : "BREACH WINDOW OPEN";
+    element("terminal-feedback-title").textContent = permanent
+      ? "ASHEN VERGE ACCESS IS PERMANENT"
+      : "ASHEN KEY SPENT ON THE FRONTIER";
+    element("terminal-feedback-detail").textContent = permanent
+      ? "Repeated successful expeditions established durable access to the Ashen Verge."
+      : `Temporary access admitted · foothold ${frontier.progress} / ${frontier.requirement}.`;
     element("terminal-feedback-action").textContent =
       "PRESS R TO RUN THE ENCOUNTER AGAIN";
   }
@@ -789,7 +823,9 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
   );
   element("objective").textContent =
     objectiveStatus === "completed"
-      ? "MOONWELL RESTORED · the ashen key is admitted"
+      ? frontier.access === "permanent-open"
+        ? "ASHEN VERGE SECURED · permanent access established"
+        : `BREACH OPEN · foothold ${frontier.progress} / ${frontier.requirement}`
       : objectiveStatus === "failed"
         ? "WAYFARER FALLEN · press R to restore the revision"
         : loot.state === "available"
@@ -803,6 +839,7 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     `${enemy.pressureState} ${enemy.pressureClock} · recovery ${enemy.recoveryClock} · ` +
     `key ${loot.state} / ` +
     `${loot.custody} · booster ${player.boosterEnergy} / ${player.boosterCapacity} · ` +
+    `frontier ${frontier.access} ${frontier.progress}/${frontier.requirement} · ` +
     `ignition ${player.boosterThreshold} · regeneration delay ${player.boosterDelay} · ` +
     `status ${player.statusEffect} ${player.statusClock} · fixed sample ${enemy.randomSample}`;
   element("combat-state").textContent =
@@ -818,6 +855,9 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     gameEnemyBehavior: enemy.combatBehavior,
     gameLootState: loot.state,
     gameCustody: loot.custody,
+    gameFrontierAccess: frontier.access,
+    gameFootholdProgress: String(frontier.progress),
+    gameFootholdRequirement: String(frontier.requirement),
     gamePlayerX: String(player.position.x),
     gamePlayerZ: String(player.position.z),
     gameBoarX: String(enemy.position.x),
@@ -1045,45 +1085,31 @@ function installResidentLaw(app: PlayApp, payload: GenerationPayload): void {
   resident.worker.postMessage({ kind: "install-generation", payload });
 }
 
-function parseResidentProjectionFrame(value: unknown): string | readonly number[] {
-  if (typeof value === "string") {
-    for (let index = 0; index < value.length; index += 1) {
-      requireCondition(
-        value.charCodeAt(index) <= 255,
-        `resident projection frame[${index}] must be a byte`,
-      );
-    }
-    return value;
-  }
-  return requireArray(value, "resident projection frame").map((byte, index) => {
-    const number = requireNumber(byte, `resident projection frame[${index}]`);
-    requireCondition(
-      Number.isSafeInteger(number) && number >= 0 && number <= 255,
-      `resident projection frame[${index}] must be a byte`,
-    );
-    return number;
-  });
-}
-
-function queueResidentProjectionFrame(
+function queueResidentProjection(
   app: PlayApp,
-  frame: string | readonly number[],
+  projection: ResidentProjection,
 ): void {
   const resident = app.residentLaw;
-  resident.pendingProjectionFrame = frame;
+  resident.pendingProjection = projection;
   if (resident.projectionFrameHandle !== 0) return;
   // Do not couple authoritative projection ingestion to RAF. RAF may be
   // throttled while a tab is backgrounded or a compositor is busy; a timer
   // keeps the latest admitted state and keyboard feedback flowing even then.
   resident.projectionFrameHandle = window.setTimeout(() => {
     resident.projectionFrameHandle = 0;
-    const pending = resident.pendingProjectionFrame;
-    resident.pendingProjectionFrame = null;
+    const pending = resident.pendingProjection;
+    resident.pendingProjection = null;
     if (pending === null) return;
-    renderGameProjection(
-      app,
-      decodeProjectedTermFrame(parseResidentProjectionFrame(pending)),
-    );
+    const startedAt = performance.now();
+    renderGameProjection(app, pending.value);
+    const finishedAt = performance.now();
+    if (finishedAt - startedAt > 50) {
+      boundedGameEvent({
+        phase: "projection-main-thread-stall",
+        frameUnits: pending.frameUnits,
+        totalMillis: Math.round(finishedAt - startedAt),
+      });
+    }
   }, 16);
 }
 
@@ -1118,13 +1144,14 @@ function bindResidentWorker(app: PlayApp, listeners: Array<() => void>): void {
         requireField(value, "kind", "resident worker event"),
         "resident worker event.kind",
       );
-      if (kind === "projection-frame") {
-        queueResidentProjectionFrame(
-          app,
-          parseResidentProjectionFrame(
-            requireField(value, "frame", "resident worker event"),
+      if (kind === "projection") {
+        queueResidentProjection(app, {
+          value: requireField(value, "projection", "resident worker event"),
+          frameUnits: requireNumber(
+            requireField(value, "frameUnits", "resident worker event"),
+            "resident worker event.frameUnits",
           ),
-        );
+        });
       } else if (kind === "receipt") {
         handleLifecycleReceipt(
           app,
@@ -1737,7 +1764,7 @@ function teardown(app: PlayApp): void {
     window.clearTimeout(app.residentLaw.projectionFrameHandle);
     app.residentLaw.projectionFrameHandle = 0;
   }
-  app.residentLaw.pendingProjectionFrame = null;
+  app.residentLaw.pendingProjection = null;
   cancelAnimationFrame(app.scene.frameHandle);
   app.scene.canvas.removeEventListener("pointerdown", app.scene.pointerHandler);
   app.scene.canvas.removeEventListener(

@@ -15,6 +15,9 @@ type Snapshot = Readonly<{
   enemyCombatStatus: string;
   lootState: string;
   custody: string;
+  frontierAccess: string;
+  footholdProgress: number;
+  footholdRequirement: number;
   playerX: number;
   playerZ: number;
   boarX: number;
@@ -164,6 +167,9 @@ try {
           enemyCombatStatus: document.body.dataset.gameEnemyCombatStatus,
           lootState: document.body.dataset.gameLootState,
           custody: document.body.dataset.gameCustody,
+          frontierAccess: document.body.dataset.gameFrontierAccess,
+          footholdProgress: Number(document.body.dataset.gameFootholdProgress),
+          footholdRequirement: Number(document.body.dataset.gameFootholdRequirement),
           playerX: Number(document.body.dataset.gamePlayerX),
           playerZ: Number(document.body.dataset.gamePlayerZ),
           boarX: Number(document.body.dataset.gameBoarX),
@@ -251,6 +257,8 @@ try {
       value.enemyVitality,
       value.lootState,
       value.custody,
+      value.frontierAccess,
+      value.footholdProgress,
       value.swordSequence,
     ].join(":");
     if (summary !== priorSummary) {
@@ -262,6 +270,8 @@ try {
         enemyVitality: value.enemyVitality,
         lootState: value.lootState,
         custody: value.custody,
+        frontierAccess: value.frontierAccess,
+        footholdProgress: value.footholdProgress,
         swordSequence: value.swordSequence,
       });
       priorSummary = summary;
@@ -335,6 +345,12 @@ try {
   requireCondition(result.enemyVitality === 0, "the boar did not die");
   requireCondition(result.lootState === "acquired", "the ashen key was not acquired");
   requireCondition(result.custody === "player-1", "the player never received key custody");
+  requireCondition(
+    result.frontierAccess === "temporary-open",
+    `first breach admitted ${result.frontierAccess} instead of temporary access`,
+  );
+  requireCondition(result.footholdProgress === 1, "first breach did not advance foothold progress");
+  requireCondition(result.footholdRequirement === 3, "frontier requirement changed");
   requireCondition(result.orderViolations === 0, "Admission preceded its CandidateDelta");
   requireCondition(result.candidateReceipts > 0, "no CandidateDelta receipt was observed");
   requireCondition(result.admissionReceipts > 0, "no Admission receipt was observed");
@@ -352,7 +368,26 @@ try {
     `only ${observedHeartbeats} distinct worker heartbeats observed`,
   );
 
-  console.log(JSON.stringify({ result, observedHeartbeats, trace }));
+  await press("KeyR");
+  let resetAfterBreach: Snapshot | null = null;
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const value = await snapshot();
+    if (
+      value.phase === "playing" &&
+      value.frontierAccess === "sealed" &&
+      value.footholdProgress === 1
+    ) {
+      resetAfterBreach = value;
+      break;
+    }
+    await Bun.sleep(20);
+  }
+  requireCondition(
+    resetAfterBreach !== null,
+    "reset did not re-seal temporary access while preserving foothold progress",
+  );
+
+  console.log(JSON.stringify({ result, resetAfterBreach, observedHeartbeats, trace }));
 } finally {
   socket?.close();
   chrome.kill();

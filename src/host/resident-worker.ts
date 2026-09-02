@@ -4,6 +4,8 @@ import {
   "cse1-projected-term-json-max-source-units" as projectedTermJsonLimit,
   "cse1-projected-term-max-properties" as projectedTermPropertyLimit,
   "decode-cwr1-hex" as decodeCwr1Hex,
+  "decode-projected-term-frame" as decodeProjectedTermFrame,
+  type ProjectedValue,
 } from "../../build/host/jump-arena-shell/wasm-cartridge-port.js";
 import {
   "->FixedTick" as createFixedTick,
@@ -51,7 +53,11 @@ type ResidentCommand =
   | Readonly<{ kind: "dispose" }>;
 
 type ResidentEvent =
-  | Readonly<{ kind: "projection-frame"; frame: string | readonly number[] }>
+  | Readonly<{
+      kind: "projection";
+      projection: ProjectedValue;
+      frameUnits: number;
+    }>
   | Readonly<{ kind: "receipt"; receipt: LifecycleReceipt }>
   | Readonly<{ kind: "heartbeat"; workerTimeMillis: number }>
   | Readonly<{ kind: "failure"; message: string }>;
@@ -146,6 +152,18 @@ function handleReceipt(receipt: LifecycleReceipt): void {
     inFlightEdgeCode = null;
   }
   workerScope.postMessage({ kind: "receipt", receipt });
+  if (
+    receipt.event === "candidate-failed" ||
+    receipt.event === "admission-rejected" ||
+    receipt.event === "session-failed" ||
+    receipt.event === "package-rejected"
+  ) {
+    simulationStarted = false;
+    inputQueue.length = 0;
+    inputInFlight = false;
+    inFlightEdgeCode = null;
+    return;
+  }
   flushInput();
 }
 
@@ -190,9 +208,11 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
       },
       (frame) => {
         if (frame.length === 0) return;
+        const exact = exactFrame(frame);
         workerScope.postMessage({
-          kind: "projection-frame",
-          frame: exactFrame(frame),
+          kind: "projection",
+          projection: decodeProjectedTermFrame(exact),
+          frameUnits: exact.length,
         });
       },
       handleReceipt,

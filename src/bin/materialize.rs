@@ -5,9 +5,9 @@ use std::path::Path;
 
 use clause_runtime::{decode_wasm_process_request_v1, encode_wasm_process_request_v1};
 use clause_workbench::ResidentSourceWorkbenchV1;
-use greywrought_clause::EMBODIED_SOURCE;
 use greywrought_clause::conquest::materialize_conquest_program_v1;
 use greywrought_clause::ongoing_effect::materialize_ongoing_effect_program_v1;
+use greywrought_clause::EMBODIED_SOURCE;
 
 const EMBODIED_SESSION_BUDGET_UNITS: u64 = 1_000_000;
 const EMBODIED_SESSION_CONTEXT: &[u8] =

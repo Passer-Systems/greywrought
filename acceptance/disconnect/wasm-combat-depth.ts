@@ -292,6 +292,223 @@ function vectorField(
   return numberField(projectedField(value, field, "subject"), component, field);
 }
 
+type MovementKey = "KeyW" | "KeyA" | "KeyS" | "KeyD";
+
+function movementToward(
+  playerX: number,
+  playerZ: number,
+  targetX: number,
+  targetZ: number,
+  tolerance: number,
+): ReadonlySet<MovementKey> {
+  const desired = new Set<MovementKey>();
+  if (playerX < targetX - tolerance) desired.add("KeyD");
+  if (playerX > targetX + tolerance) desired.add("KeyA");
+  if (playerZ < targetZ - tolerance) desired.add("KeyS");
+  if (playerZ > targetZ + tolerance) desired.add("KeyW");
+  return desired;
+}
+
+function choosePerpendicularDodge(
+  playerX: number,
+  playerZ: number,
+  enemyX: number,
+  enemyZ: number,
+): MovementKey {
+  const chargeX = playerX - enemyX;
+  const chargeZ = playerZ - enemyZ;
+  if (Math.abs(chargeX) >= Math.abs(chargeZ)) {
+    return playerZ >= 0 ? "KeyW" : "KeyS";
+  }
+  return playerX >= 0 ? "KeyA" : "KeyD";
+}
+
+function verifyResourceGatedFrontier(module: object, request: unknown): void {
+  const opened = openCartridgeSession(module, request);
+  const revision: Cell<unknown> = { value: opened.revision };
+  const configurationRevision = { value: 0 };
+  const inputSequence = { value: 0 };
+  const held = new Set<MovementKey>();
+
+  const settleReset = (): AdmittedTick => {
+    let latest = admitKey(
+      opened,
+      revision,
+      configurationRevision,
+      inputSequence,
+      "KeyR",
+      "down",
+    );
+    for (let ordinal = 0; ordinal < 3; ordinal += 1) {
+      latest = admitEmpty(opened, revision, configurationRevision);
+    }
+    return latest;
+  };
+  const setHeld = (desired: ReadonlySet<MovementKey>): AdmittedTick => {
+    let latest: AdmittedTick | null = null;
+    for (const code of [...held]) {
+      if (desired.has(code)) continue;
+      latest = admitKey(
+        opened,
+        revision,
+        configurationRevision,
+        inputSequence,
+        code,
+        "up",
+      );
+      held.delete(code);
+    }
+    for (const code of desired) {
+      if (held.has(code)) continue;
+      latest = admitKey(
+        opened,
+        revision,
+        configurationRevision,
+        inputSequence,
+        code,
+        "down",
+      );
+      held.add(code);
+    }
+    return latest ?? admitEmpty(opened, revision, configurationRevision);
+  };
+
+  let current = settleReset();
+  for (let expedition = 1; expedition <= 3; expedition += 1) {
+    let dodgeKey: MovementKey | null = null;
+    let lastAttackSequence = -1;
+    let completed = false;
+
+    for (let ordinal = 0; ordinal < 1_600; ordinal += 1) {
+      const player = projectedField(current.projection, "player-1", "projection");
+      const enemy = projectedField(
+        current.projection,
+        "cinder-wraith",
+        "projection",
+      );
+      const loot = projectedField(current.projection, "ashen-key", "projection");
+      const objective = projectedField(
+        current.projection,
+        "game-objective",
+        "projection",
+      );
+      const frontier = projectedField(
+        current.projection,
+        "ashen-verge",
+        "projection",
+      );
+      const playerPosition = projectedField(player, "position", "player-1");
+      const enemyPosition = projectedField(enemy, "enemy-position", "cinder-wraith");
+      const playerX = numberField(playerPosition, "x", "position");
+      const playerZ = numberField(playerPosition, "z", "position");
+      const enemyX = numberField(enemyPosition, "x", "enemy-position");
+      const enemyZ = numberField(enemyPosition, "z", "enemy-position");
+      const objectiveState = projectedField(
+        objective,
+        "objective-state",
+        "game-objective",
+      );
+
+      if (numberField(objectiveState, "x", "objective-state") === 1) {
+        requireCondition(
+          numberField(frontier, "foothold-progress", "ashen-verge") === expedition,
+          `Wasm expedition ${expedition} did not advance foothold progress`,
+        );
+        requireCondition(
+          stringField(frontier, "frontier-access", "ashen-verge") ===
+            (expedition < 3 ? "temporary-open" : "permanent-open"),
+          `Wasm expedition ${expedition} admitted the wrong frontier access`,
+        );
+        completed = true;
+        break;
+      }
+
+      const lootState = stringField(loot, "loot-state", "ashen-key");
+      const custody = stringField(loot, "custody", "ashen-key");
+      const enemyStatus = stringField(
+        enemy,
+        "enemy-combat-status",
+        "cinder-wraith",
+      );
+      const pressure = stringField(
+        enemy,
+        "enemy-pressure-state",
+        "cinder-wraith",
+      );
+
+      if (lootState === "available") {
+        dodgeKey = null;
+        current = setHeld(movementToward(playerX, playerZ, 1.2, -1, 0.18));
+      } else if (lootState === "acquired" && custody === "player-1") {
+        dodgeKey = null;
+        current = setHeld(movementToward(playerX, playerZ, -2, -1, 0.18));
+      } else if (enemyStatus === "alive") {
+        const pressureClock = numberField(
+          enemy,
+          "enemy-pressure-clock",
+          "cinder-wraith",
+        );
+        if ((pressure === "telegraph" && pressureClock <= 32) || pressure === "charging") {
+          dodgeKey ??= choosePerpendicularDodge(playerX, playerZ, enemyX, enemyZ);
+          current = setHeld(new Set([dodgeKey]));
+        } else if (pressure === "overrun-recovery" || pressure === "hit-recovery") {
+          dodgeKey = null;
+          if (Math.hypot(playerX - enemyX, playerZ - enemyZ) > 1.65) {
+            current = setHeld(movementToward(playerX, playerZ, enemyX, enemyZ, 1.45));
+          } else {
+            current = setHeld(new Set());
+            const swordClock = numberField(
+              player,
+              "sword-commitment-clock",
+              "player-1",
+            );
+            const swordSequence = numberField(
+              player,
+              "sword-action-sequence",
+              "player-1",
+            );
+            if (swordClock === 0 && swordSequence !== lastAttackSequence) {
+              lastAttackSequence = swordSequence;
+              current = admitKey(
+                opened,
+                revision,
+                configurationRevision,
+                inputSequence,
+                "KeyJ",
+                "down",
+              );
+            }
+          }
+        } else {
+          dodgeKey = null;
+          current = setHeld(new Set());
+        }
+      } else {
+        current = setHeld(new Set());
+      }
+    }
+
+    requireCondition(completed, `Wasm expedition ${expedition} did not complete`);
+    current = settleReset();
+    const restoredFrontier = projectedField(
+      current.projection,
+      "ashen-verge",
+      "projection",
+    );
+    requireCondition(
+      numberField(restoredFrontier, "foothold-progress", "ashen-verge") === expedition,
+      `Wasm reset erased expedition ${expedition} progress`,
+    );
+    requireCondition(
+      stringField(restoredFrontier, "frontier-access", "ashen-verge") ===
+        (expedition < 3 ? "sealed" : "permanent-open"),
+      `Wasm reset admitted the wrong access after expedition ${expedition}`,
+    );
+  }
+
+  opened.port.disposeSession(opened.session);
+}
+
 function verifyBoarChargeAndBurstCustody(module: object, request: unknown): void {
   const opened = openCartridgeSession(module, request);
   const revision: Cell<unknown> = { value: opened.revision };
@@ -751,6 +968,7 @@ async function main(): Promise<void> {
   verifyBoarChargeAndBurstCustody(module, request);
   verifyWorldFixedHorizontalPropulsion(module, request);
   verifyOrthogonalPropulsionAndEnergy(module, request);
+  verifyResourceGatedFrontier(module, request);
 }
 
 await main();
