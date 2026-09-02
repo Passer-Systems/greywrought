@@ -92,10 +92,12 @@ try {
         heartbeats: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "worker-heartbeat").length,
         frameGaps: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "frame-gap"),
         renderStalls: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "render-stall"),
+        actionTrace: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "frame-admitted" && e.swordActionSequence > 0).map((e) => ({ atMillis: e.atMillis, sequence: e.swordActionSequence, clock: e.swordCommitmentClock })),
         timeline: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.atMillis >= 3500 && e.atMillis <= 8000).slice(-24),
         rigState: document.body.dataset.rigState,
         rigLoadStartedAt: Number(document.body.dataset.rigLoadStartedAt),
         rigReadyAt: Number(document.body.dataset.rigReadyAt),
+        rigFailureMessage: document.body.dataset.rigFailureMessage,
       })`,
       returnByValue: true,
     });
@@ -108,17 +110,26 @@ try {
       heartbeats: number;
       frameGaps: readonly unknown[];
       renderStalls: readonly unknown[];
+      actionTrace: readonly unknown[];
       timeline: readonly unknown[];
       rigState: string | undefined;
       rigLoadStartedAt: number;
       rigReadyAt: number;
+      rigFailureMessage: string | undefined;
     };
+  };
+  const waitForProjection = async () => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const value = await snapshot();
+      if (Number.isFinite(value.playerX)) return value;
+      await Bun.sleep(100);
+    }
+    throw new Error("resident projection did not become available");
   };
 
   await key("keyDown", "KeyR", "r", 82);
   await key("keyUp", "KeyR", "r", 82);
-  await Bun.sleep(500);
-  const reset = await snapshot();
+  const reset = await waitForProjection();
   await key("keyDown", "KeyD", "d", 68);
   await Bun.sleep(500);
   await key("keyUp", "KeyD", "d", 68);

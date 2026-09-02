@@ -52,15 +52,20 @@ import {
   faceSubjectToward,
   hideChargeCorridor,
   orbitPresentationCamera,
+  pickPresentationSubject,
+  playBoarAttack,
   playWayfarerSwordAction,
   renderPresentationFrame,
   setActivityCue,
   setChargeCorridor,
+  setFrontierAccess,
+  setSubjectLootable,
   signalDeath,
   signalImpact,
   signalPropulsion,
   zoomPresentationCamera,
   type CinderwakePresentation,
+  type FrontierGateAccess,
   type ProjectedPosition,
 } from "./cinderwake-presentation.js";
 import {
@@ -124,11 +129,13 @@ interface SceneShell {
   readonly pointerHandler: (event: PointerEvent) => void;
   readonly pointerMoveHandler: (event: PointerEvent) => void;
   readonly pointerReleaseHandler: (event: PointerEvent) => void;
+  readonly contextMenuHandler: (event: MouseEvent) => void;
   readonly wheelHandler: (event: WheelEvent) => void;
   readonly enemyNameplate: HTMLElement;
   readonly enemyNameplateFill: HTMLElement;
   readonly enemyNameplateAnchor: Vector3;
   enemyNameplateProjection: EnemyNameplateProjection | null;
+  lootInteractions: readonly LootInteraction[];
   frameHandle: number;
   lastFrameRenderedAt: number;
   alive: boolean;
@@ -139,6 +146,12 @@ interface EnemyNameplateProjection {
   readonly vitality: number;
   readonly maximumVitality: number;
   readonly alive: boolean;
+}
+
+interface LootInteraction {
+  readonly loot: LootProjection;
+  readonly presentationSubject: string;
+  readonly inRange: boolean;
 }
 
 interface EffectSession {
@@ -198,6 +211,10 @@ interface BoltProjection {
 }
 
 interface LootProjection {
+  readonly id: string;
+  readonly name: string;
+  readonly category: string;
+  readonly source: string;
   readonly position: Vector3Projection;
   readonly state: string;
   readonly custody: string;
@@ -209,18 +226,21 @@ interface ObjectiveProjection {
 }
 
 interface FrontierProjection {
-  readonly access: string;
+  readonly access: FrontierGateAccess;
   readonly progress: number;
   readonly requirement: number;
+  readonly boundaryX: number;
 }
 
 interface GameProjection {
   readonly player: PlayerProjection;
   readonly enemy: EnemyProjection;
   readonly bolt: BoltProjection;
-  readonly loot: LootProjection;
+  readonly wayfarerBolt: BoltProjection;
+  readonly loots: readonly LootProjection[];
   readonly objective: ObjectiveProjection;
   readonly frontier: FrontierProjection;
+  readonly lootPickupRadius: number;
 }
 
 interface ResidentLawSession {
@@ -437,6 +457,22 @@ function projectedString(value: unknown, field: string, context: string): string
   return result;
 }
 
+function projectedFrontierAccess(
+  value: unknown,
+  field: string,
+  context: string,
+): FrontierGateAccess {
+  const access = projectedString(value, field, context);
+  if (
+    access !== "sealed" &&
+    access !== "temporary-open" &&
+    access !== "permanent-open"
+  ) {
+    throw new Error(`${context}.${field} is not a frontier access mode`);
+  }
+  return access;
+}
+
 function projectedBoolean(value: unknown, field: string, context: string): boolean {
   const result = projectedField(value, field, context);
   if (typeof result !== "boolean") throw new Error(`${context}.${field} is not boolean`);
@@ -451,13 +487,34 @@ function projectedPosition(value: unknown, context: string): Vector3Projection {
   };
 }
 
+function decodeLootProjection(value: unknown, id: string): LootProjection {
+  const loot = projectedField(value, id, "game projection");
+  return {
+    id,
+    name: projectedString(loot, "loot-name", id),
+    category: projectedString(loot, "loot-category", id),
+    source: projectedString(loot, "loot-source", id),
+    position: projectedPosition(
+      projectedField(loot, "loot-position", id),
+      `${id}.loot-position`,
+    ),
+    state: projectedString(loot, "loot-state", id),
+    custody: projectedString(loot, "custody", id),
+  };
+}
+
 function decodeGameProjection(value: unknown): GameProjection {
   const player = projectedField(value, "player-1", "game projection");
   const enemy = projectedField(value, "cinder-wraith", "game projection");
   const bolt = projectedField(value, "cinder-bolt", "game projection");
-  const loot = projectedField(value, "ashen-key", "game projection");
+  const wayfarerBolt = projectedField(value, "wayfarer-bolt", "game projection");
+  const loots = [
+    decodeLootProjection(value, "ashen-key"),
+    decodeLootProjection(value, "cephorium-cache"),
+  ];
   const objective = projectedField(value, "game-objective", "game projection");
   const frontier = projectedField(value, "ashen-verge", "game projection");
+  const arena = projectedField(value, "jump-arena", "game projection");
   const boosterEquipment = projectedString(
     player,
     "equipped-booster",
@@ -581,14 +638,18 @@ function decodeGameProjection(value: unknown): GameProjection {
       ),
       visible: projectedBoolean(bolt, "projectile-visible", "cinder-bolt"),
     },
-    loot: {
+    wayfarerBolt: {
       position: projectedPosition(
-        projectedField(loot, "loot-position", "ashen-key"),
-        "ashen-key.loot-position",
+        projectedField(wayfarerBolt, "projectile-position", "wayfarer-bolt"),
+        "wayfarer-bolt.projectile-position",
       ),
-      state: projectedString(loot, "loot-state", "ashen-key"),
-      custody: projectedString(loot, "custody", "ashen-key"),
+      visible: projectedBoolean(
+        wayfarerBolt,
+        "projectile-visible",
+        "wayfarer-bolt",
+      ),
     },
+    loots,
     objective: {
       position: projectedPosition(
         projectedField(objective, "exit-position", "game-objective"),
@@ -597,14 +658,28 @@ function decodeGameProjection(value: unknown): GameProjection {
       state: projectedNumber(objectiveState, "x", "objective-state"),
     },
     frontier: {
-      access: projectedString(frontier, "frontier-access", "ashen-verge"),
+      access: projectedFrontierAccess(
+        frontier,
+        "frontier-access",
+        "ashen-verge",
+      ),
       progress: projectedNumber(frontier, "foothold-progress", "ashen-verge"),
       requirement: projectedNumber(
         frontier,
         "foothold-requirement",
         "ashen-verge",
       ),
+      boundaryX: projectedNumber(
+        frontier,
+        "frontier-boundary-x",
+        "ashen-verge",
+      ),
     },
+    lootPickupRadius: projectedNumber(
+      arena,
+      "loot-pickup-radius",
+      "jump-arena",
+    ),
   };
 }
 
@@ -612,6 +687,17 @@ function objectiveLabel(state: number): "completed" | "failed" | "playing" {
   if (state === 1) return "completed";
   if (state === -1) return "failed";
   return "playing";
+}
+
+function lootById(projection: GameProjection, id: string): LootProjection {
+  return requireValue(
+    projection.loots.find((loot) => loot.id === id),
+    `loot projection ${id}`,
+  );
+}
+
+function lootPresentationSubject(loot: LootProjection): string {
+  return loot.source === "cinder-wraith" ? "magitek-boar" : loot.id;
 }
 
 function setVitalityBar(
@@ -650,7 +736,10 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const resident = app.residentLaw;
   const prior = resident.lastProjection;
   const ordinal = resident.admittedOrdinal + 1;
-  const { player, enemy, bolt, loot, objective, frontier } = projection;
+  const { player, enemy, bolt, wayfarerBolt, objective, frontier } = projection;
+  const ashenKey = lootById(projection, "ashen-key");
+  const cephorium = lootById(projection, "cephorium-cache");
+  const presentedBolt = wayfarerBolt.visible ? wayfarerBolt : bolt;
   const objectiveStatus = objectiveLabel(objective.state);
   const terminalFeedback = element("terminal-feedback");
   terminalFeedback.hidden = objectiveStatus === "playing";
@@ -665,13 +754,13 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     const permanent = frontier.access === "permanent-open";
     element("terminal-feedback-kicker").textContent = permanent
       ? "FOOTHOLD SECURED"
-      : "BREACH WINDOW OPEN";
+      : "EXPEDITION EXTRACTED";
     element("terminal-feedback-title").textContent = permanent
       ? "ASHEN VERGE ACCESS IS PERMANENT"
-      : "ASHEN KEY SPENT ON THE FRONTIER";
+      : "CEPHORIUM RECOVERED";
     element("terminal-feedback-detail").textContent = permanent
       ? "Repeated successful expeditions established durable access to the Ashen Verge."
-      : `Temporary access admitted · foothold ${frontier.progress} / ${frontier.requirement}.`;
+      : `The temporary breach yielded durable value · foothold ${frontier.progress} / ${frontier.requirement}.`;
     element("terminal-feedback-action").textContent =
       "PRESS R TO RUN THE ENCOUNTER AGAIN";
   }
@@ -740,14 +829,20 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
       },
       {
         subject: "cinder-bolt",
-        position: bolt.position,
-        visible: bolt.visible,
+        position: presentedBolt.position,
+        visible: presentedBolt.visible,
         vitalityRatio: 1,
       },
       {
         subject: "ashen-key",
-        position: loot.position,
-        visible: loot.state !== "hidden",
+        position: ashenKey.position,
+        visible: ashenKey.state === "available",
+        vitalityRatio: 1,
+      },
+      {
+        subject: "cephorium-cache",
+        position: cephorium.position,
+        visible: cephorium.state === "available",
         vitalityRatio: 1,
       },
       {
@@ -770,6 +865,45 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
         prior === null ? 0 : player.position.z - prior.player.position.z,
     },
   });
+  app.scene.lootInteractions = projection.loots.flatMap((loot) =>
+    loot.state === "available"
+      ? [
+          {
+            loot,
+            presentationSubject: lootPresentationSubject(loot),
+            inRange:
+              Math.hypot(
+                player.position.x - loot.position.x,
+                player.position.z - loot.position.z,
+              ) <= projection.lootPickupRadius,
+          },
+        ]
+      : [],
+  );
+  setSubjectLootable(
+    app.scene.presentation,
+    "magitek-boar",
+    ashenKey.state === "available",
+  );
+  setSubjectLootable(
+    app.scene.presentation,
+    "cephorium-cache",
+    cephorium.state === "available",
+  );
+  setFrontierAccess(
+    app.scene.presentation,
+    frontier.boundaryX,
+    frontier.access,
+  );
+  const openLootId = document.body.dataset.lootWindowItem;
+  if (
+    openLootId !== undefined &&
+    !projection.loots.some(
+      (loot) => loot.id === openLootId && loot.state === "available",
+    )
+  ) {
+    closeLootWindow();
+  }
   setActivityCue(
     app.scene.presentation,
     "magitek-boar",
@@ -788,7 +922,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     faceSubjectToward(
       app.scene.presentation,
       "magitek-boar",
-      enemy.pressureState === "approach" ? player.position : enemy.chargeEnd,
+      player.position,
     );
   }
   const chargeCorridorVisible =
@@ -812,8 +946,15 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   setActivityCue(
     app.scene.presentation,
     "ashen-key",
-    loot.state === "available" ? 1 : 0,
-    loot.state === "available" ? 0.7 : 0,
+    ashenKey.state === "available" ? 1 : 0,
+    ashenKey.state === "available" ? 0.7 : 0,
+    0,
+  );
+  setActivityCue(
+    app.scene.presentation,
+    "cephorium-cache",
+    cephorium.state === "available" ? 1 : 0,
+    cephorium.state === "available" ? 0.7 : 0,
     0,
   );
   setVitalityBar(
@@ -838,20 +979,25 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     objectiveStatus === "completed"
       ? frontier.access === "permanent-open"
         ? "ASHEN VERGE SECURED · permanent access established"
-        : `BREACH OPEN · foothold ${frontier.progress} / ${frontier.requirement}`
+        : `CEPHORIUM EXTRACTED · foothold ${frontier.progress} / ${frontier.requirement}`
       : objectiveStatus === "failed"
         ? "WAYFARER FALLEN · press R to restore the revision"
-        : loot.state === "available"
-          ? "ASHEN KEY REVEALED · walk over the glowing key"
-          : loot.state === "acquired" && loot.custody === "player-1"
+        : ashenKey.state === "available"
+          ? "CORPSE CONTAINS LOOT · move close and right-click the sparkling boar"
+          : ashenKey.state === "acquired" && ashenKey.custody === "player-1"
             ? "KEY CLAIMED · carry it west to the moonwell"
+            : cephorium.state === "available"
+              ? "ASHEN VERGE CACHE EXPOSED · cross the breach and right-click it"
+              : cephorium.state === "acquired" && cephorium.custody === "player-1"
+                ? "CEPHORIUM SECURED · extract west to the moonwell"
             : "Read the boar telegraph · burst perpendicular · punish recovery";
   element("stage").textContent = `world · ${objectiveStatus}`;
   element("summary").textContent =
     `wayfarer ${player.combatStatus} · boar ${enemy.combatStatus} / ${enemy.combatBehavior} / ` +
     `${enemy.pressureState} ${enemy.pressureClock} · recovery ${enemy.recoveryClock} · ` +
-    `key ${loot.state} / ` +
-    `${loot.custody} · booster ${player.boosterEnergy} / ${player.boosterCapacity} · ` +
+    `key ${ashenKey.state} / ${ashenKey.custody} · ` +
+    `cephorium ${cephorium.state} / ${cephorium.custody} · ` +
+    `booster ${player.boosterEnergy} / ${player.boosterCapacity} · ` +
     `rig ${player.boosterEquipment} · ` +
     `frontier ${frontier.access} ${frontier.progress}/${frontier.requirement} · ` +
     `ignition ${player.boosterThreshold} · regeneration delay ${player.boosterDelay} · ` +
@@ -867,11 +1013,16 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     gameEnemyVitality: String(enemy.vitality),
     gameEnemyCombatStatus: enemy.combatStatus,
     gameEnemyBehavior: enemy.combatBehavior,
-    gameLootState: loot.state,
-    gameCustody: loot.custody,
+    gameLootState: ashenKey.state,
+    gameCustody: ashenKey.custody,
+    gameCephoriumState: cephorium.state,
+    gameCephoriumCustody: cephorium.custody,
+    gameCephoriumX: String(cephorium.position.x),
+    gameCephoriumZ: String(cephorium.position.z),
     gameFrontierAccess: frontier.access,
     gameFootholdProgress: String(frontier.progress),
     gameFootholdRequirement: String(frontier.requirement),
+    gameFrontierBoundaryX: String(frontier.boundaryX),
     gamePlayerX: String(player.position.x),
     gamePlayerZ: String(player.position.z),
     gameBoarX: String(enemy.position.x),
@@ -889,6 +1040,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     gameTargetLockActive: String(player.targetLockActive),
     gameTargetSelectionSequence: String(player.targetSelectionSequence),
     gameProjectileVisible: String(bolt.visible),
+    gameWayfarerProjectileVisible: String(wayfarerBolt.visible),
     gameEnemyPressure: enemy.pressureState,
     gamePressureClock: String(enemy.pressureClock),
     gameBoarRecoveryClock: String(enemy.recoveryClock),
@@ -922,7 +1074,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
       element("combat-feedback").textContent = `EMBER IMPACT · -${damage}`;
       signalImpact(
         app.scene.presentation,
-        "cinder-wraith",
+        "magitek-boar",
         ordinal,
         damage / Math.max(0.001, enemy.maximumVitality),
       );
@@ -931,6 +1083,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     if (player.vitality < prior.player.vitality) {
       const damage = prior.player.vitality - player.vitality;
       element("combat-feedback").textContent = `WRAITH IMPACT · -${damage}`;
+      playBoarAttack(app.scene.presentation);
       signalImpact(
         app.scene.presentation,
         "ashen-wayfarer",
@@ -955,7 +1108,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
       signalDeath(app.scene.presentation, "ashen-wayfarer", ordinal);
     }
     if (enemy.combatStatus === "dead" && prior.enemy.combatStatus !== "dead") {
-      signalDeath(app.scene.presentation, "cinder-wraith", ordinal);
+      signalDeath(app.scene.presentation, "magitek-boar", ordinal);
     }
   }
   resident.lastProjection = projection;
@@ -979,6 +1132,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     targetLockActive: player.targetLockActive,
     targetSelectionSequence: player.targetSelectionSequence,
     projectileVisible: bolt.visible,
+    wayfarerProjectileVisible: wayfarerBolt.visible,
     enemyPressure: enemy.pressureState,
     pressureClock: enemy.pressureClock,
     boarRecoveryClock: enemy.recoveryClock,
@@ -986,8 +1140,10 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     playerVitality: player.vitality,
     enemyVitality: enemy.vitality,
     enemyBehavior: enemy.combatBehavior,
-    lootState: loot.state,
-    custody: loot.custody,
+    lootState: ashenKey.state,
+    custody: ashenKey.custody,
+    cephoriumState: cephorium.state,
+    cephoriumCustody: cephorium.custody,
   });
 }
 
@@ -1334,6 +1490,51 @@ function focusScene(shell: SceneShell): void {
     "Arena focused. Keyboard input enters the resident Clause session.";
 }
 
+function closeLootWindow(): void {
+  element("loot-window").hidden = true;
+  document.body.dataset.lootWindow = "closed";
+  delete document.body.dataset.lootWindowItem;
+}
+
+function lootCategoryLabel(category: string): string {
+  return category === "quest-item" ? "Quest Item" : "Crafting Material";
+}
+
+function openLootWindow(
+  canvas: HTMLCanvasElement,
+  clientX: number,
+  clientY: number,
+  loot: LootProjection,
+): void {
+  const lootWindow = element("loot-window");
+  element("loot-item-icon").textContent =
+    loot.category === "quest-item" ? "⚿" : "◈";
+  element("loot-item-name").textContent = loot.name;
+  element("loot-item-category").textContent = lootCategoryLabel(loot.category);
+  const canvasRectangle = canvas.getBoundingClientRect();
+  lootWindow.hidden = false;
+  const lootRectangle = lootWindow.getBoundingClientRect();
+  const left = Math.max(
+    12,
+    Math.min(
+      canvasRectangle.width - lootRectangle.width - 12,
+      clientX - canvasRectangle.left + 12,
+    ),
+  );
+  const top = Math.max(
+    12,
+    Math.min(
+      canvasRectangle.height - lootRectangle.height - 12,
+      clientY - canvasRectangle.top + 12,
+    ),
+  );
+  lootWindow.style.left = `${left}px`;
+  lootWindow.style.top = `${top}px`;
+  document.body.dataset.lootWindow = "open";
+  document.body.dataset.lootWindowItem = loot.id;
+  button("loot-item").focus({ preventScroll: true });
+}
+
 function renderLoop(shell: SceneShell): void {
   if (!shell.alive) return;
   const now = performance.now();
@@ -1417,6 +1618,7 @@ function createScene(): SceneShell {
       boar: "magitek-boar",
       bolt: "cinder-bolt",
       relic: "ashen-key",
+      cache: "cephorium-cache",
       moonwell: "moonwell",
     },
     Math.max(1, Math.min(2, window.devicePixelRatio)),
@@ -1467,6 +1669,29 @@ function createScene(): SceneShell {
       canvas.releasePointerCapture(event.pointerId);
     }
   };
+  const contextMenuHandler = (event: MouseEvent): void => {
+    event.preventDefault();
+    if (shell === null) return;
+    for (const interaction of shell.lootInteractions) {
+      if (
+        !pickPresentationSubject(
+          presentation,
+          interaction.presentationSubject,
+          event.clientX,
+          event.clientY,
+        )
+      ) {
+        continue;
+      }
+      if (!interaction.inRange) {
+        element("combat-feedback").textContent = "TOO FAR AWAY TO LOOT";
+        return;
+      }
+      focusScene(shell);
+      openLootWindow(canvas, event.clientX, event.clientY, interaction.loot);
+      return;
+    }
+  };
   const wheelHandler = (event: WheelEvent): void => {
     event.preventDefault();
     zoomPresentationCamera(presentation, event.deltaY);
@@ -1477,11 +1702,13 @@ function createScene(): SceneShell {
     pointerHandler,
     pointerMoveHandler,
     pointerReleaseHandler,
+    contextMenuHandler,
     wheelHandler,
     enemyNameplate,
     enemyNameplateFill,
     enemyNameplateAnchor: new Vector3(),
     enemyNameplateProjection: null,
+    lootInteractions: [],
     frameHandle: 0,
     lastFrameRenderedAt: 0,
     alive: true,
@@ -1494,6 +1721,7 @@ function createScene(): SceneShell {
   canvas.addEventListener("pointermove", pointerMoveHandler);
   canvas.addEventListener("pointerup", pointerReleaseHandler);
   canvas.addEventListener("pointercancel", pointerReleaseHandler);
+  canvas.addEventListener("contextmenu", contextMenuHandler);
   canvas.addEventListener("wheel", wheelHandler, { passive: false });
   renderLoop(shell);
   return shell;
@@ -1794,6 +2022,7 @@ const gameKeys = new Set([
   "KeyQ",
   "KeyF",
   "KeyJ",
+  "Digit1",
   "Tab",
   "Space",
   "KeyR",
@@ -1892,6 +2121,10 @@ function teardown(app: PlayApp): void {
     "pointercancel",
     app.scene.pointerReleaseHandler,
   );
+  app.scene.canvas.removeEventListener(
+    "contextmenu",
+    app.scene.contextMenuHandler,
+  );
   app.scene.canvas.removeEventListener("wheel", app.scene.wheelHandler);
   for (const removeListener of app.listeners) removeListener();
   disposeCinderwakePresentation(app.scene.presentation);
@@ -1945,6 +2178,14 @@ function startApp(
   };
   bindResidentWorker(app, listeners);
   bindGameInput(app, listeners);
+  bindClick(listeners, "loot-close", closeLootWindow);
+  bindClick(listeners, "loot-item", () => {
+    const item = document.body.dataset.lootWindowItem;
+    if (item === undefined) return;
+    observeGameKey(app, { code: "LootItem", repeat: false }, "down");
+    boundedGameEvent({ phase: "loot-take-requested", item });
+    closeLootWindow();
+  });
   bindClick(listeners, "reset-encounter", () => pressReset(app));
   bindClick(listeners, "enter-world", () => enterWorld(app));
   bindClick(listeners, "disconnect", () => disconnect(app));

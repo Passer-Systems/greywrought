@@ -168,6 +168,8 @@ const files: Readonly<Record<string, string>> = {
   "/assets/conquest-v1.cwr1.hex": "build/conquest/conquest-v1.cwr1.hex",
   "/assets/ongoing-effect-v1.cwr1.hex":
     "build/ongoing-effect/ongoing-effect-v1.cwr1.hex",
+  "/assets/opengameart/teh-bucket-boar/boar.glb":
+    "assets/external/opengameart/teh-bucket-boar/boar.glb",
   "/assets/quaternius/rig/base/Superhero_Female_FullBody.gltf":
     "assets/external/quaternius/rig-socket-prototype/base/Superhero_Female_FullBody.gltf",
   "/assets/quaternius/rig/base/Superhero_Female_FullBody.bin":

@@ -1,0 +1,6 @@
+CC0 1.0 Universal (CC0 1.0)
+Public Domain Dedication
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The source author dedicated this boar model to the public domain through CC0.
+No attribution is required. Source and authorship are retained in SOURCE.md.

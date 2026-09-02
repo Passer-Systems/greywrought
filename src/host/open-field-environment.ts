@@ -1,5 +1,7 @@
 import {
+  BoxGeometry,
   CircleGeometry,
+  CylinderGeometry,
   Group,
   Material,
   Mesh,
@@ -33,7 +35,19 @@ interface LoadedFieldAsset {
 export interface OpenFieldEnvironment {
   readonly root: Group;
   readonly ready: Promise<void>;
+  setFrontierAccess(boundaryX: number, access: FrontierGateAccess): void;
   dispose(): void;
+}
+
+export type FrontierGateAccess =
+  | "sealed"
+  | "temporary-open"
+  | "permanent-open";
+
+interface FrontierGatePresentation {
+  readonly root: Group;
+  readonly barrier: Mesh;
+  readonly signalMaterial: MeshStandardMaterial;
 }
 
 const FIELD_ASSETS: readonly FieldAssetSpec[] = [
@@ -194,8 +208,78 @@ function createTerrain(): Group {
   clearing.rotation.x = -Math.PI / 2;
   clearing.position.y = -0.065;
   clearing.scale.set(1.35, 1, 0.92);
-  root.add(field, clearing);
+  const vergeMaterial = new MeshStandardMaterial({
+    color: 0x453733,
+    roughness: 1,
+    metalness: 0,
+  });
+  const verge = new Mesh(new CircleGeometry(16, 64), vergeMaterial);
+  verge.name = "greywrought.open-field.ashen-verge";
+  verge.rotation.x = -Math.PI / 2;
+  verge.position.set(28, -0.055, 0);
+  verge.scale.set(1.15, 1, 0.82);
+  root.add(field, clearing, verge);
   return root;
+}
+
+function createFrontierGate(): FrontierGatePresentation {
+  const root = new Group();
+  root.name = "greywrought.frontier-gate";
+
+  const barrierMaterial = new MeshStandardMaterial({
+    color: 0xff6b35,
+    emissive: 0xb5250b,
+    emissiveIntensity: 1.4,
+    roughness: 0.36,
+    metalness: 0.18,
+    transparent: true,
+    opacity: 0.56,
+    depthWrite: false,
+  });
+  const barrier = new Mesh(new BoxGeometry(0.22, 3.4, 13.5), barrierMaterial);
+  barrier.name = "greywrought.frontier-gate.seal";
+  barrier.position.y = 1.7;
+
+  const signalMaterial = new MeshStandardMaterial({
+    color: 0x5b4536,
+    emissive: 0xff4b1f,
+    emissiveIntensity: 0.85,
+    roughness: 0.62,
+    metalness: 0.48,
+  });
+  const pillarGeometry = new CylinderGeometry(0.42, 0.6, 4.2, 8);
+  for (const z of [-7.1, 7.1]) {
+    const pillar = new Mesh(pillarGeometry, signalMaterial);
+    pillar.name = `greywrought.frontier-gate.pillar.${z < 0 ? "north" : "south"}`;
+    pillar.position.set(0, 2.1, z);
+    root.add(pillar);
+  }
+  root.add(barrier);
+  return { root, barrier, signalMaterial };
+}
+
+function applyFrontierAccess(
+  gate: FrontierGatePresentation,
+  boundaryX: number,
+  access: FrontierGateAccess,
+): void {
+  gate.root.position.x = boundaryX;
+  gate.barrier.visible = access === "sealed";
+  if (access === "permanent-open") {
+    gate.signalMaterial.color.setHex(0x315f61);
+    gate.signalMaterial.emissive.setHex(0x42e7d2);
+    gate.signalMaterial.emissiveIntensity = 1.45;
+    return;
+  }
+  if (access === "temporary-open") {
+    gate.signalMaterial.color.setHex(0x6b552f);
+    gate.signalMaterial.emissive.setHex(0xffc349);
+    gate.signalMaterial.emissiveIntensity = 1.3;
+    return;
+  }
+  gate.signalMaterial.color.setHex(0x5b4536);
+  gate.signalMaterial.emissive.setHex(0xff4b1f);
+  gate.signalMaterial.emissiveIntensity = 0.85;
 }
 
 function instantiateAssets(assets: readonly LoadedFieldAsset[]): Group {
@@ -218,6 +302,9 @@ export function createOpenFieldEnvironment(
   scene: Scene,
 ): OpenFieldEnvironment {
   const root = createTerrain();
+  const frontierGate = createFrontierGate();
+  root.add(frontierGate.root);
+  applyFrontierAccess(frontierGate, 16, "sealed");
   scene.add(root);
   let disposed = false;
   let loadedRoots: readonly Object3D[] = [];
@@ -233,6 +320,9 @@ export function createOpenFieldEnvironment(
   return {
     root,
     ready,
+    setFrontierAccess(boundaryX, access): void {
+      applyFrontierAccess(frontierGate, boundaryX, access);
+    },
     dispose(): void {
       if (disposed) return;
       disposed = true;

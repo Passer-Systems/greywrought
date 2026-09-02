@@ -15,9 +15,16 @@ type Snapshot = Readonly<{
   enemyCombatStatus: string;
   lootState: string;
   custody: string;
+  cephoriumState: string;
+  cephoriumCustody: string;
+  cephoriumX: number;
+  cephoriumZ: number;
   frontierAccess: string;
+  frontierGateAccess: string;
+  frontierGateSealed: boolean;
   footholdProgress: number;
   footholdRequirement: number;
+  frontierBoundaryX: number;
   playerX: number;
   playerZ: number;
   boarX: number;
@@ -138,6 +145,47 @@ try {
       held.add(code);
     }
   };
+  const lootAtCanvasCenter = async (expectedItem: string) => {
+    const canvasBounds = await call("Runtime.evaluate", {
+      expression: `JSON.stringify((() => {
+        const rectangle = document.getElementById("world-canvas").getBoundingClientRect();
+        return { x: rectangle.left + rectangle.width / 2, y: rectangle.top + rectangle.height / 2 };
+      })())`,
+      returnByValue: true,
+    });
+    const point = JSON.parse(
+      canvasBounds.result.result.value as string,
+    ) as { x: number; y: number };
+    await call("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x: point.x,
+      y: point.y,
+      button: "right",
+      clickCount: 1,
+    });
+    await call("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x: point.x,
+      y: point.y,
+      button: "right",
+      clickCount: 1,
+    });
+    const opened = await call("Runtime.evaluate", {
+      expression: `JSON.stringify({ open: document.body.dataset.lootWindow === "open", item: document.body.dataset.lootWindowItem })`,
+      returnByValue: true,
+    });
+    const lootWindow = JSON.parse(opened.result.result.value as string) as {
+      open: boolean;
+      item?: string;
+    };
+    requireCondition(
+      lootWindow.open && lootWindow.item === expectedItem,
+      `right-click did not open ${expectedItem} in the loot window`,
+    );
+    await call("Runtime.evaluate", {
+      expression: `document.getElementById("loot-item").click()`,
+    });
+  };
   const snapshot = async (): Promise<Snapshot> => {
     const result = await call("Runtime.evaluate", {
       expression: `JSON.stringify((() => {
@@ -167,9 +215,16 @@ try {
           enemyCombatStatus: document.body.dataset.gameEnemyCombatStatus,
           lootState: document.body.dataset.gameLootState,
           custody: document.body.dataset.gameCustody,
+          cephoriumState: document.body.dataset.gameCephoriumState,
+          cephoriumCustody: document.body.dataset.gameCephoriumCustody,
+          cephoriumX: Number(document.body.dataset.gameCephoriumX),
+          cephoriumZ: Number(document.body.dataset.gameCephoriumZ),
           frontierAccess: document.body.dataset.gameFrontierAccess,
+          frontierGateAccess: document.body.dataset.frontierGateAccess,
+          frontierGateSealed: document.body.dataset.frontierGateSealed === "true",
           footholdProgress: Number(document.body.dataset.gameFootholdProgress),
           footholdRequirement: Number(document.body.dataset.gameFootholdRequirement),
+          frontierBoundaryX: Number(document.body.dataset.gameFrontierBoundaryX),
           playerX: Number(document.body.dataset.gamePlayerX),
           playerZ: Number(document.body.dataset.gamePlayerZ),
           boarX: Number(document.body.dataset.gameBoarX),
@@ -239,8 +294,12 @@ try {
   let dodgeKey: GameKey | null = null;
   let lastAttackSequence = -1;
   let completed: Snapshot | null = null;
+  let keyRequested = false;
+  let cephoriumRequested = false;
   let lastHeartbeatTime = Number.NaN;
   let observedHeartbeats = 0;
+  let crossedOpenFrontier = false;
+  let sawUnrewardedBreach = false;
 
   while (performance.now() - startedAt < 50_000) {
     const value = await snapshot();
@@ -257,6 +316,8 @@ try {
       value.enemyVitality,
       value.lootState,
       value.custody,
+      value.cephoriumState,
+      value.cephoriumCustody,
       value.frontierAccess,
       value.footholdProgress,
       value.swordSequence,
@@ -270,6 +331,8 @@ try {
         enemyVitality: value.enemyVitality,
         lootState: value.lootState,
         custody: value.custody,
+        cephoriumState: value.cephoriumState,
+        cephoriumCustody: value.cephoriumCustody,
         frontierAccess: value.frontierAccess,
         footholdProgress: value.footholdProgress,
         swordSequence: value.swordSequence,
@@ -281,18 +344,44 @@ try {
       "resident Clause generation was rejected during the journey",
     );
     requireCondition(value.phase !== "failed", "the boar killed the wayfarer");
+    requireCondition(
+      value.frontierGateAccess === value.frontierAccess,
+      "the rendered frontier gate diverged from Clause access",
+    );
 
     if (value.phase === "completed") {
       completed = value;
-      await setHeld(new Set());
-      if (performance.now() - startedAt >= minimumJourneyMillis) break;
+      if (value.playerX > value.frontierBoundaryX + 0.5) {
+        crossedOpenFrontier = true;
+        await setHeld(new Set());
+      } else {
+        await setHeld(new Set<GameKey>(["KeyD"]));
+      }
+      if (
+        crossedOpenFrontier &&
+        performance.now() - startedAt >= minimumJourneyMillis
+      ) {
+        break;
+      }
       await Bun.sleep(20);
       continue;
     }
 
     if (value.lootState === "available") {
       dodgeKey = null;
-      await setHeld(movementToward(value, 1.2, -1.0, 0.18));
+      const distance = Math.hypot(
+        value.playerX - value.boarX,
+        value.playerZ - value.boarZ,
+      );
+      if (distance > 0.36) {
+        await setHeld(movementToward(value, value.boarX, value.boarZ, 0.18));
+      } else {
+        await setHeld(new Set());
+        if (!keyRequested) {
+          await lootAtCanvasCenter("ashen-key");
+          keyRequested = true;
+        }
+      }
     } else if (value.lootState === "acquired") {
       dodgeKey = null;
       if (value.custody === "player-1") {
@@ -300,6 +389,34 @@ try {
       } else {
         await setHeld(new Set());
       }
+    } else if (value.cephoriumState === "available") {
+      dodgeKey = null;
+      requireCondition(
+        value.frontierAccess === "temporary-open" && value.footholdProgress === 0,
+        "the browser granted foothold progress before Cephorium extraction",
+      );
+      sawUnrewardedBreach = true;
+      const distance = Math.hypot(
+        value.playerX - value.cephoriumX,
+        value.playerZ - value.cephoriumZ,
+      );
+      if (distance > 0.36) {
+        await setHeld(
+          movementToward(value, value.cephoriumX, value.cephoriumZ, 0.18),
+        );
+      } else {
+        await setHeld(new Set());
+        if (!cephoriumRequested) {
+          await lootAtCanvasCenter("cephorium-cache");
+          cephoriumRequested = true;
+        }
+      }
+    } else if (
+      value.cephoriumState === "acquired" &&
+      value.cephoriumCustody === "player-1"
+    ) {
+      dodgeKey = null;
+      await setHeld(movementToward(value, -2.0, -1.0, 0.18));
     } else if (value.enemyCombatStatus === "alive") {
       if (value.pressure === "telegraph" && value.pressureClock <= 32) {
         dodgeKey ??= choosePerpendicularDodge(value);
@@ -343,14 +460,33 @@ try {
   completed ??= result.phase === "completed" ? result : null;
   requireCondition(completed !== null, `journey ended in ${result.phase}`);
   requireCondition(result.enemyVitality === 0, "the boar did not die");
-  requireCondition(result.lootState === "acquired", "the ashen key was not acquired");
-  requireCondition(result.custody === "player-1", "the player never received key custody");
+  requireCondition(
+    result.lootState === "hidden" && result.custody === "game-objective",
+    "the acquired Ashen key was not spent on the frontier",
+  );
+  requireCondition(
+    result.cephoriumState === "hidden" &&
+      result.cephoriumCustody === "game-objective",
+    "the Cephorium cache was not carried back and extracted",
+  );
   requireCondition(
     result.frontierAccess === "temporary-open",
     `first breach admitted ${result.frontierAccess} instead of temporary access`,
   );
-  requireCondition(result.footholdProgress === 1, "first breach did not advance foothold progress");
+  requireCondition(
+    result.footholdProgress === 1,
+    "extracted Cephorium did not advance foothold progress",
+  );
+  requireCondition(
+    sawUnrewardedBreach,
+    "the browser never exposed a temporary breach without premature progress",
+  );
   requireCondition(result.footholdRequirement === 3, "frontier requirement changed");
+  requireCondition(!result.frontierGateSealed, "temporary access left the field gate sealed");
+  requireCondition(
+    crossedOpenFrontier && result.playerX > result.frontierBoundaryX,
+    "the admitted temporary breach never became traversable in the browser",
+  );
   requireCondition(result.orderViolations === 0, "Admission preceded its CandidateDelta");
   requireCondition(result.candidateReceipts > 0, "no CandidateDelta receipt was observed");
   requireCondition(result.admissionReceipts > 0, "no Admission receipt was observed");

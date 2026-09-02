@@ -264,6 +264,134 @@ body[data-game-phase="completed"] .terminal-feedback-title {
   box-shadow: 0 0 0 1px #000, inset 0 0 0 1px #0008;
 }
 
+.loot-window {
+  position: absolute;
+  z-index: 9;
+  width: 238px;
+  padding: 8px;
+  border: 2px solid #74634c;
+  border-radius: 5px 5px 10px 10px;
+  background:
+    linear-gradient(#28231e, #11100e 42px, #080909e8),
+    #0d0d0c;
+  box-shadow:
+    0 0 0 1px #0a0704,
+    0 12px 34px #000d,
+    inset 0 0 0 1px #b69a6a3d;
+  color: #eadbbf;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.loot-window[hidden] {
+  display: none;
+}
+
+.loot-window-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 38px;
+  margin: -4px -4px 7px 18px;
+  padding: 0 34px 0 31px;
+  border: 1px solid #81705a;
+  border-radius: 3px;
+  background: linear-gradient(#332e27, #171512);
+  box-shadow: inset 0 0 7px #000c, 0 1px #c2a26e2e;
+  color: #e3c989;
+  font: 700 17px/1 Georgia, "Times New Roman", serif;
+  letter-spacing: .03em;
+  text-shadow: 0 2px 1px #000;
+}
+
+.loot-window-emblem {
+  position: absolute;
+  left: -24px;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 2px solid #87714b;
+  border-radius: 50%;
+  background: radial-gradient(circle at 45% 38%, #37352f, #090908 68%);
+  box-shadow: 0 0 0 2px #080706, inset 0 0 9px #000;
+  color: #dbd7ca;
+  font: 25px/1 serif;
+}
+
+.loot-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0 0 2px;
+  place-items: center;
+  border: 1px solid #a17a55;
+  border-radius: 4px;
+  background: linear-gradient(#70251c, #310d09);
+  box-shadow: inset 0 0 5px #000a;
+  color: #f0bd78;
+  font: 800 22px/1 Arial, sans-serif;
+  cursor: pointer;
+}
+
+.loot-item {
+  display: grid;
+  width: 100%;
+  min-height: 58px;
+  grid-template-columns: 48px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 5px;
+  border: 1px solid #342f27;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #171817, #0b0c0b);
+  color: #fff0ad;
+  text-align: left;
+  cursor: pointer;
+}
+
+.loot-item:hover,
+.loot-item:focus-visible {
+  border-color: #a98b4d;
+  background: linear-gradient(90deg, #29261d, #11120f);
+  outline: none;
+}
+
+.loot-item-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 2px solid #a48943;
+  border-radius: 4px;
+  background: radial-gradient(circle at 42% 36%, #dfc66d, #675015 58%, #1b1306);
+  box-shadow: 0 0 0 1px #050505, inset 0 0 8px #0008;
+  color: #fff2a6;
+  font: 800 27px/1 serif;
+  text-shadow: 0 2px 2px #000;
+}
+
+.loot-item-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.loot-item-copy strong {
+  color: #ffe65a;
+  font: 700 14px/1.15 Arial, Helvetica, sans-serif;
+  text-shadow: 0 1px 1px #000;
+}
+
+.loot-item-copy small {
+  color: #a89b86;
+  font: 600 10px/1 Arial, Helvetica, sans-serif;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
 .enemy-nameplate-health > span {
   display: block;
   width: 100%;

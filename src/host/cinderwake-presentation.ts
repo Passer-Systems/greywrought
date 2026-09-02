@@ -1,6 +1,8 @@
 import {
   AmbientLight,
+  AnimationMixer,
   BoxGeometry,
+  Box3,
   Color,
   ConeGeometry,
   CylinderGeometry,
@@ -9,17 +11,25 @@ import {
   HemisphereLight,
   Material,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
   PerspectiveCamera,
   PointLight,
+  Raycaster,
   Scene,
   SphereGeometry,
   SRGBColorSpace,
   TorusGeometry,
+  Vector2,
+  Vector3,
   WebGLRenderer,
+  LoopOnce,
+  LoopRepeat,
+  type AnimationAction,
   type BufferGeometry,
 } from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import {
   disposeMountedArenaRig,
   mountArenaRig,
@@ -31,8 +41,11 @@ import {
 } from "./rig-socket-lab.js";
 import {
   createOpenFieldEnvironment,
+  type FrontierGateAccess,
   type OpenFieldEnvironment,
 } from "./open-field-environment.js";
+
+export type { FrontierGateAccess } from "./open-field-environment.js";
 
 export interface CinderwakeSubjectIds {
   readonly wayfarer: string;
@@ -40,6 +53,7 @@ export interface CinderwakeSubjectIds {
   readonly boar: string;
   readonly bolt: string;
   readonly relic: string;
+  readonly cache: string;
   readonly moonwell: string;
 }
 
@@ -84,6 +98,8 @@ interface SubjectPresentation extends EffectShell {
   readonly root: Group;
   readonly placeholder: Group | null;
   readonly coreMaterial: MeshStandardMaterial;
+  readonly lootSparkles: Group | null;
+  readonly lootSparkleMaterial: MeshStandardMaterial | null;
   readonly baseElevation: number;
   readonly baseScale: number;
   telegraphLevel: number;
@@ -96,6 +112,15 @@ interface SubjectPresentation extends EffectShell {
   lastPropulsion: number;
   lastDeath: number;
   facingYaw: number;
+  lootable: boolean;
+}
+
+interface MountedBoarRig {
+  readonly root: Object3D;
+  readonly mixer: AnimationMixer;
+  readonly walk: AnimationAction;
+  readonly attack: AnimationAction;
+  mode: "still" | "walk" | "charge" | "attack" | "dead";
 }
 
 interface OwnedPresentationResources {
@@ -115,6 +140,8 @@ export interface CinderwakePresentation {
   readonly environment: OpenFieldEnvironment;
   readonly environmentReady: Promise<void>;
   readonly rigReady: Promise<void>;
+  readonly boarReady: Promise<void>;
+  readonly cacheReady: Promise<void>;
   width: number;
   height: number;
   lastTime: number;
@@ -129,6 +156,11 @@ export interface CinderwakePresentation {
   cameraOrbitPitch: number;
   cameraDistance: number;
   wayfarerRig: MountedArenaRig | null;
+  boarRig: MountedBoarRig | null;
+  cacheRoot: Object3D | null;
+  boarMoving: boolean;
+  boarCharging: boolean;
+  boarDead: boolean;
   pendingWayfarerAttack: boolean;
   pendingWayfarerPropulsion: number;
   disposed: boolean;
@@ -301,12 +333,17 @@ function subjectPresentation(
   effects: EffectShell,
   baseElevation = 0,
   baseScale = 1,
+  lootSparkles: Group | null = null,
+  lootSparkleMaterial: MeshStandardMaterial | null = null,
 ): SubjectPresentation {
+  root.visible = false;
   return {
     subject,
     root,
     placeholder,
     coreMaterial,
+    lootSparkles,
+    lootSparkleMaterial,
     ...effects,
     baseElevation,
     baseScale,
@@ -320,6 +357,7 @@ function subjectPresentation(
     lastPropulsion: -1,
     lastDeath: -1,
     facingYaw: placeholder === null ? 0 : Math.PI / 2,
+    lootable: false,
   };
 }
 
@@ -417,55 +455,313 @@ function createBoar(
     0.78,
     0.36,
   );
-  const body = mesh(
-    ownGeometry(resources, new BoxGeometry(1.45, 0.82, 0.92)),
-    bodyMaterial,
-  );
-  const head = mesh(
-    ownGeometry(resources, new BoxGeometry(0.72, 0.62, 0.78)),
-    standardMaterial(resources, 0x2e3842, 0x070500, 0.72, 0.4),
-  );
-  const tuskGeometry = ownGeometry(resources, new ConeGeometry(0.11, 0.58, 8));
-  const tuskMaterial = standardMaterial(
+  const sparkleGeometry = ownGeometry(
     resources,
-    0xe7dfd8,
-    0x282828,
-    0.88,
-    0.26,
+    new SphereGeometry(0.055, 6, 4),
   );
-  const leftTusk = mesh(tuskGeometry, tuskMaterial);
-  const rightTusk = mesh(tuskGeometry, tuskMaterial);
-  const boosterGeometry = ownGeometry(
+  const sparkleMaterial = standardMaterial(
     resources,
-    new SphereGeometry(0.18, 12, 8),
-  );
-  const boosterMaterial = standardMaterial(
-    resources,
-    0xff7339,
-    0xff3333,
-    0.16,
-    0.18,
+    0xffed8a,
+    0xffc12d,
+    0,
+    0.12,
     true,
-    0.94,
+    0.9,
   );
-  const leftBooster = mesh(boosterGeometry, boosterMaterial);
-  const rightBooster = mesh(boosterGeometry, boosterMaterial);
-  body.position.y = 0.62;
-  head.position.set(0.86, 0.66, 0);
-  leftTusk.rotation.z = -Math.PI / 2;
-  rightTusk.rotation.z = -Math.PI / 2;
-  leftTusk.position.set(1.22, 0.52, 0.29);
-  rightTusk.position.set(1.22, 0.52, -0.29);
-  leftBooster.position.set(-0.78, 0.7, 0.31);
-  rightBooster.position.set(-0.78, 0.7, -0.31);
-  root.add(body, head, leftTusk, rightTusk, leftBooster, rightBooster);
+  const lootSparkles = new Group();
+  lootSparkles.name = "greywrought.boar.loot-sparkles";
+  const sparklePositions = [
+    [-0.74, 0.58, -0.46],
+    [-0.48, 1.02, 0.38],
+    [-0.08, 1.26, -0.34],
+    [0.34, 1.1, 0.4],
+    [0.72, 0.72, -0.42],
+    [0.18, 0.5, 0.5],
+  ] as const;
+  for (const [x, y, z] of sparklePositions) {
+    const sparkle = mesh(sparkleGeometry, sparkleMaterial);
+    sparkle.position.set(x, y, z);
+    sparkle.userData.baseY = y;
+    lootSparkles.add(sparkle);
+  }
+  lootSparkles.visible = false;
+  const interactionProxyMaterial = new MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    colorWrite: false,
+  });
+  resources.materials.push(interactionProxyMaterial);
+  const interactionProxy = mesh(
+    ownGeometry(resources, new BoxGeometry(3.0, 2.0, 2.2)),
+    interactionProxyMaterial,
+  );
+  interactionProxy.name = "greywrought.boar.interaction-proxy";
+  interactionProxy.position.y = 0.75;
+  root.add(interactionProxy, lootSparkles);
   return subjectPresentation(
     subject,
     root,
     null,
     bodyMaterial,
     createEffectShell(resources, root, 1.18, 0xffa000, 0xff2c00),
+    0,
+    1,
+    lootSparkles,
+    sparkleMaterial,
   );
+}
+
+async function mountBoarRig(
+  subject: SubjectPresentation,
+): Promise<MountedBoarRig> {
+  const gltf = await new GLTFLoader().loadAsync(
+    "/assets/opengameart/teh-bucket-boar/boar.glb",
+  );
+  gltf.scene.name = "greywrought.boar.authored-rig";
+  gltf.scene.rotation.y = -Math.PI / 2;
+  subject.root.add(gltf.scene);
+  gltf.scene.updateWorldMatrix(true, true);
+  const initialBounds = new Box3().setFromObject(gltf.scene);
+  const initialSize = initialBounds.getSize(new Vector3());
+  const horizontalLength = Math.max(initialSize.x, initialSize.z);
+  if (!Number.isFinite(horizontalLength) || horizontalLength <= 0) {
+    subject.root.remove(gltf.scene);
+    throw new Error("CC0 boar has no finite renderable bounds");
+  }
+  gltf.scene.scale.setScalar(2.2 / horizontalLength);
+  gltf.scene.updateWorldMatrix(true, true);
+  const fittedBounds = new Box3().setFromObject(gltf.scene);
+  const fittedCenter = fittedBounds.getCenter(new Vector3());
+  gltf.scene.position.set(
+    gltf.scene.position.x - fittedCenter.x,
+    gltf.scene.position.y - fittedBounds.min.y,
+    gltf.scene.position.z - fittedCenter.z,
+  );
+  gltf.scene.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    object.castShadow = true;
+    object.receiveShadow = true;
+  });
+  const walkClip = gltf.animations.find(({ name }) => name === "walk");
+  const attackClip = gltf.animations.find(({ name }) => name === "attack");
+  if (walkClip === undefined || attackClip === undefined) {
+    subject.root.remove(gltf.scene);
+    throw new Error("CC0 boar is missing its authored walk or attack action");
+  }
+  const mixer = new AnimationMixer(gltf.scene);
+  const walk = mixer.clipAction(walkClip);
+  walk.setLoop(LoopRepeat, Infinity);
+  const attack = mixer.clipAction(attackClip);
+  attack.setLoop(LoopOnce, 1);
+  attack.clampWhenFinished = true;
+  return { root: gltf.scene, mixer, walk, attack, mode: "still" };
+}
+
+function createCephoriumCache(
+  subject: string,
+  resources: OwnedPresentationResources,
+): SubjectPresentation {
+  const root = new Group();
+  const coreMaterial = standardMaterial(
+    resources,
+    0x4fffe1,
+    0x16d9c8,
+    0.18,
+    0.24,
+    true,
+    0.82,
+  );
+  const core = mesh(
+    ownGeometry(resources, new SphereGeometry(0.34, 8, 6)),
+    coreMaterial,
+  );
+  core.name = "greywrought.cephorium-cache.core";
+  core.position.y = 0.66;
+  core.scale.set(0.72, 1.55, 0.72);
+
+  const sparkleMaterial = standardMaterial(
+    resources,
+    0xc9fff5,
+    0x3fffe8,
+    0,
+    0.08,
+    true,
+    0.92,
+  );
+  const sparkleGeometry = ownGeometry(
+    resources,
+    new SphereGeometry(0.06, 6, 4),
+  );
+  const lootSparkles = new Group();
+  lootSparkles.name = "greywrought.cephorium-cache.loot-sparkles";
+  const sparklePositions = [
+    [-0.68, 0.54, -0.38],
+    [-0.36, 1.12, 0.32],
+    [0.0, 1.46, -0.16],
+    [0.42, 1.08, 0.36],
+    [0.72, 0.62, -0.34],
+  ] as const;
+  for (const [x, y, z] of sparklePositions) {
+    const sparkle = mesh(sparkleGeometry, sparkleMaterial);
+    sparkle.position.set(x, y, z);
+    sparkle.userData.baseY = y;
+    lootSparkles.add(sparkle);
+  }
+  lootSparkles.visible = false;
+
+  const interactionProxyMaterial = new MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    colorWrite: false,
+  });
+  resources.materials.push(interactionProxyMaterial);
+  const interactionProxy = mesh(
+    ownGeometry(resources, new BoxGeometry(2.8, 2.1, 2.5)),
+    interactionProxyMaterial,
+  );
+  interactionProxy.name = "greywrought.cephorium-cache.interaction-proxy";
+  interactionProxy.position.y = 0.8;
+  root.add(core, interactionProxy, lootSparkles);
+  return subjectPresentation(
+    subject,
+    root,
+    null,
+    coreMaterial,
+    createEffectShell(resources, root, 1.08, 0x6effee, 0x26ffe4),
+    0,
+    1,
+    lootSparkles,
+    sparkleMaterial,
+  );
+}
+
+async function mountCephoriumCache(
+  subject: SubjectPresentation,
+): Promise<Object3D> {
+  const gltf = await new GLTFLoader().loadAsync(
+    "/assets/quaternius/nature/Rock_Medium_3.gltf",
+  );
+  gltf.scene.name = "greywrought.cephorium-cache.quaternius-rock";
+  gltf.scene.updateWorldMatrix(true, true);
+  const initialBounds = new Box3().setFromObject(gltf.scene);
+  const initialSize = initialBounds.getSize(new Vector3());
+  const horizontalLength = Math.max(initialSize.x, initialSize.z);
+  if (!Number.isFinite(horizontalLength) || horizontalLength <= 0) {
+    throw new Error("Quaternius Cephorium cache has no finite renderable bounds");
+  }
+  gltf.scene.scale.setScalar(2.25 / horizontalLength);
+  gltf.scene.updateWorldMatrix(true, true);
+  const fittedBounds = new Box3().setFromObject(gltf.scene);
+  const fittedCenter = fittedBounds.getCenter(new Vector3());
+  gltf.scene.position.set(
+    gltf.scene.position.x - fittedCenter.x,
+    gltf.scene.position.y - fittedBounds.min.y,
+    gltf.scene.position.z - fittedCenter.z,
+  );
+  gltf.scene.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    object.castShadow = true;
+    object.receiveShadow = true;
+  });
+  subject.root.add(gltf.scene);
+  return gltf.scene;
+}
+
+function playBoarMode(
+  rig: MountedBoarRig,
+  mode: "still" | "walk" | "charge" | "dead",
+): void {
+  if (rig.mode === "attack" && rig.attack.isRunning()) return;
+  if (rig.mode === mode) return;
+  rig.mode = mode;
+  rig.attack.stop();
+  if (mode === "walk" || mode === "charge") {
+    rig.walk
+      .reset()
+      .setEffectiveTimeScale(mode === "charge" ? 2.05 : 1)
+      .fadeIn(0.1)
+      .play();
+    return;
+  }
+  rig.walk.fadeOut(0.1);
+}
+
+function updateBoarRig(
+  presentation: CinderwakePresentation,
+  delta: number,
+): void {
+  const rig = presentation.boarRig;
+  if (rig === null) return;
+  const desired = presentation.boarDead
+    ? "dead"
+    : presentation.boarCharging
+      ? "charge"
+      : presentation.boarMoving
+        ? "walk"
+        : "still";
+  playBoarMode(rig, desired);
+  rig.mixer.update(delta);
+}
+
+export function playBoarAttack(
+  presentation: CinderwakePresentation,
+): void {
+  const rig = presentation.boarRig;
+  if (rig === null || presentation.boarDead) return;
+  rig.walk.fadeOut(0.06);
+  rig.attack.reset().fadeIn(0.04).play();
+  rig.mode = "attack";
+}
+
+export function setSubjectLootable(
+  presentation: CinderwakePresentation,
+  subjectId: string,
+  lootable: boolean,
+): void {
+  const subject = subjectById(presentation, subjectId);
+  if (subject !== undefined) subject.lootable = lootable;
+}
+
+export function setFrontierAccess(
+  presentation: CinderwakePresentation,
+  boundaryX: number,
+  access: FrontierGateAccess,
+): void {
+  presentation.environment.setFrontierAccess(boundaryX, access);
+  document.body.dataset.frontierGateAccess = access;
+  document.body.dataset.frontierGateBoundaryX = String(boundaryX);
+  document.body.dataset.frontierGateSealed = String(access === "sealed");
+}
+
+export function pickPresentationSubject(
+  presentation: CinderwakePresentation,
+  subjectId: string,
+  clientX: number,
+  clientY: number,
+): boolean {
+  const subject = subjectById(presentation, subjectId);
+  if (subject === undefined || !subject.root.visible) return false;
+  const rectangle = presentation.renderer.domElement.getBoundingClientRect();
+  if (
+    rectangle.width <= 0 ||
+    rectangle.height <= 0 ||
+    clientX < rectangle.left ||
+    clientX > rectangle.right ||
+    clientY < rectangle.top ||
+    clientY > rectangle.bottom
+  ) {
+    return false;
+  }
+  const pointer = new Vector2(
+    ((clientX - rectangle.left) / rectangle.width) * 2 - 1,
+    -((clientY - rectangle.top) / rectangle.height) * 2 + 1,
+  );
+  subject.root.updateWorldMatrix(true, true);
+  const raycaster = new Raycaster();
+  raycaster.setFromCamera(pointer, presentation.camera);
+  return raycaster.intersectObject(subject.root, true).length > 0;
 }
 
 function createBolt(
@@ -615,6 +911,15 @@ export function applyAdmittedFrame(
   for (const admitted of frame.subjects) {
     const subject = subjectById(presentation, admitted.subject);
     if (subject === undefined) continue;
+    if (subject.subject === "magitek-boar") {
+      presentation.boarMoving =
+        admitted.visible &&
+        Math.hypot(
+          admitted.position.x - subject.root.position.x,
+          admitted.position.z - subject.root.position.z,
+        ) > 0.0001;
+      presentation.boarDead = admitted.vitalityRatio <= 0;
+    }
     const ratio = clampUnit(admitted.vitalityRatio);
     subject.root.position.set(
       admitted.position.x,
@@ -680,6 +985,9 @@ export function setActivityCue(
   subject.telegraphLevel = clampUnit(telegraph);
   subject.attackLevel = clampUnit(attack);
   subject.recoveryLevel = clampUnit(recovery);
+  if (subject.subject === "magitek-boar") {
+    presentation.boarCharging = subject.attackLevel > 0.001;
+  }
 }
 
 export function faceSubjectToward(
@@ -811,10 +1119,23 @@ function animateSubject(
   subject.death.visible = subject.deathLevel > 0.001;
   subject.deathMaterial.opacity = 0.62 * subject.deathLevel;
   subject.death.scale.setScalar(0.55 + 2.4 * (1 - subject.deathLevel));
-  subject.root.rotation.y =
-    subject.facingYaw +
-    elapsed * 0.22 * subject.attackLevel +
-    subject.recoveryLevel * 0.08;
+  if (subject.lootSparkles !== null) {
+    subject.lootSparkles.visible = subject.lootable;
+    if (subject.lootable) {
+      subject.lootSparkles.rotation.y = elapsed * 1.25;
+      subject.lootSparkles.children.forEach((sparkle, index) => {
+        const phase = elapsed * 4.8 + index * 1.7;
+        const pulseScale = 0.45 + 0.8 * (0.5 + 0.5 * Math.sin(phase));
+        sparkle.scale.setScalar(pulseScale);
+        sparkle.position.y = Number(sparkle.userData.baseY) + Math.sin(phase) * 0.08;
+      });
+      if (subject.lootSparkleMaterial !== null) {
+        subject.lootSparkleMaterial.opacity =
+          0.5 + 0.45 * (0.5 + 0.5 * Math.sin(elapsed * 6.2));
+      }
+    }
+  }
+  subject.root.rotation.y = subject.facingYaw;
 }
 
 export function renderPresentationFrame(
@@ -844,6 +1165,7 @@ export function renderPresentationFrame(
       presentation.wayfarerRig.propulsionLevel,
     );
   }
+  updateBoarRig(presentation, delta);
   const impulse = presentation.cameraImpulse;
   const horizontalReach =
     Math.cos(presentation.cameraOrbitPitch) * presentation.cameraDistance;
@@ -906,12 +1228,14 @@ export function createCinderwakePresentation(
   const wayfarer = createWayfarer(ids.wayfarer, resources);
   const wraith = createWraith(ids.wraith, resources);
   const boar = createBoar(ids.boar, resources);
+  const cache = createCephoriumCache(ids.cache, resources);
   const subjects = [
     wayfarer,
     wraith,
     boar,
     createBolt(ids.bolt, resources),
     createRelic(ids.relic, resources),
+    cache,
     createMoonwell(ids.moonwell, resources),
   ];
   const chargeCorridor = new Group();
@@ -957,6 +1281,8 @@ export function createCinderwakePresentation(
     environment,
     environmentReady,
     rigReady: Promise.resolve(),
+    boarReady: Promise.resolve(),
+    cacheReady: Promise.resolve(),
     width: 0,
     height: 0,
     lastTime: 0,
@@ -971,6 +1297,11 @@ export function createCinderwakePresentation(
     cameraOrbitPitch: DEFAULT_CAMERA_PITCH,
     cameraDistance: DEFAULT_CAMERA_DISTANCE,
     wayfarerRig: null,
+    boarRig: null,
+    cacheRoot: null,
+    boarMoving: false,
+    boarCharging: false,
+    boarDead: false,
     pendingWayfarerAttack: false,
     pendingWayfarerPropulsion: 0,
     disposed: false,
@@ -1044,6 +1375,54 @@ export function createCinderwakePresentation(
     value: rigReady,
     writable: false,
   });
+  document.body.dataset.boarRigState = "loading";
+  const boarReady = mountBoarRig(boar).then(
+    (mounted) => {
+      if (presentation.disposed) {
+        mounted.mixer.stopAllAction();
+        mounted.mixer.uncacheRoot(mounted.root);
+        return;
+      }
+      presentation.boarRig = mounted;
+      document.body.dataset.boarRigState = "ready";
+      document.body.dataset.boarRigAnimations = "walk,attack";
+    },
+    (cause: unknown) => {
+      document.body.dataset.boarRigState = "failed";
+      document.body.dataset.boarRigFailureMessage =
+        cause instanceof Error ? cause.message : String(cause);
+      throw cause;
+    },
+  );
+  Object.defineProperty(presentation, "boarReady", {
+    configurable: false,
+    enumerable: true,
+    value: boarReady,
+    writable: false,
+  });
+  document.body.dataset.cacheState = "loading";
+  const cacheReady = mountCephoriumCache(cache).then(
+    (mounted) => {
+      if (presentation.disposed) {
+        mounted.removeFromParent();
+        return;
+      }
+      presentation.cacheRoot = mounted;
+      document.body.dataset.cacheState = "ready";
+    },
+    (cause: unknown) => {
+      document.body.dataset.cacheState = "failed";
+      document.body.dataset.cacheFailureMessage =
+        cause instanceof Error ? cause.message : String(cause);
+      throw cause;
+    },
+  );
+  Object.defineProperty(presentation, "cacheReady", {
+    configurable: false,
+    enumerable: true,
+    value: cacheReady,
+    writable: false,
+  });
   return presentation;
 }
 
@@ -1054,6 +1433,40 @@ export function disposeCinderwakePresentation(
   presentation.disposed = true;
   if (presentation.wayfarerRig !== null) {
     disposeMountedArenaRig(presentation.wayfarerRig);
+  }
+  if (presentation.boarRig !== null) {
+    const { root, mixer } = presentation.boarRig;
+    mixer.stopAllAction();
+    mixer.uncacheRoot(root);
+    root.traverse((object) => {
+      if (!(object instanceof Mesh)) return;
+      object.geometry.dispose();
+      const materials = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+      for (const material of materials) {
+        if (material instanceof MeshStandardMaterial) material.map?.dispose();
+        material.dispose();
+      }
+    });
+    root.removeFromParent();
+    presentation.boarRig = null;
+  }
+  if (presentation.cacheRoot !== null) {
+    const root = presentation.cacheRoot;
+    root.traverse((object) => {
+      if (!(object instanceof Mesh)) return;
+      object.geometry.dispose();
+      const materials = Array.isArray(object.material)
+        ? object.material
+        : [object.material];
+      for (const material of materials) {
+        if (material instanceof MeshStandardMaterial) material.map?.dispose();
+        material.dispose();
+      }
+    });
+    root.removeFromParent();
+    presentation.cacheRoot = null;
   }
   presentation.environment.dispose();
   for (const geometry of presentation.resources.geometries) geometry.dispose();

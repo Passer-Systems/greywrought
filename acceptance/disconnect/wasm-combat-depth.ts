@@ -124,6 +124,65 @@ function openCartridgeSession(module: object, request: unknown): OpenedSession {
   return { port, session: started.session, revision: started.revision };
 }
 
+function verifyUnauthorizedBehaviorAdmission(module: object, request: unknown): void {
+  const target = openCartridgeSession(module, request);
+
+  const targetCandidateResult: Cell<CandidateCompletion | null> = { value: null };
+  target.port.runCandidate(
+    target.session,
+    createFixedTick(16),
+    emptyInputConfiguration(1),
+    (result) => {
+      targetCandidateResult.value = result;
+    },
+  );
+  const targetCandidate = requireCandidate(targetCandidateResult.value);
+  const targetCandidateRecord = requireForeignRecord(
+    targetCandidate,
+    "target behavior Candidate",
+  );
+  const targetCandidateId = requireField(
+    targetCandidateRecord,
+    "candidateId",
+    "target behavior Candidate",
+  );
+  requireCondition(
+    Array.isArray(targetCandidateId) &&
+      targetCandidateId.length === 32 &&
+      targetCandidateId.every(
+        (byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255,
+      ),
+    "target behavior Candidate has no exact identity",
+  );
+  const unauthorizedCandidateId = [...targetCandidateId];
+  unauthorizedCandidateId[0] ^= 1;
+  const unauthorizedCandidate = Object.freeze({
+    candidateId: Object.freeze(unauthorizedCandidateId),
+    base: requireField(targetCandidateRecord, "base", "target behavior Candidate"),
+  });
+
+  const rejectedResult: Cell<AdmissionCompletion | null> = { value: null };
+  target.port.requestAdmission(target.session, unauthorizedCandidate, (result) => {
+    rejectedResult.value = result;
+  });
+  requireCondition(
+    rejectedResult.value?._tag === "AdmissionRejected",
+    "the target Wasm session admitted an unauthorized behavior Candidate",
+  );
+
+  const acceptedResult: Cell<AdmissionCompletion | null> = { value: null };
+  target.port.requestAdmission(target.session, targetCandidate, (result) => {
+    acceptedResult.value = result;
+  });
+  const accepted = requireAdmission(acceptedResult.value);
+  requireCondition(
+    identityString(accepted.revision) !== identityString(target.revision),
+    "authorized behavior Admission did not establish a successor after rejection",
+  );
+
+  target.port.disposeSession(target.session);
+}
+
 function physicalKeyEnvelope(
   inputPolicy: WorkbenchPolicy,
   code: string,
@@ -441,6 +500,11 @@ function verifyResourceGatedFrontier(module: object, request: unknown): void {
         "projection",
       );
       const loot = projectedField(current.projection, "ashen-key", "projection");
+      const cephorium = projectedField(
+        current.projection,
+        "cephorium-cache",
+        "projection",
+      );
       const objective = projectedField(
         current.projection,
         "game-objective",
@@ -453,14 +517,45 @@ function verifyResourceGatedFrontier(module: object, request: unknown): void {
       );
       const playerPosition = projectedField(player, "position", "player-1");
       const enemyPosition = projectedField(enemy, "enemy-position", "cinder-wraith");
+      const lootPosition = projectedField(loot, "loot-position", "ashen-key");
+      const cephoriumPosition = projectedField(
+        cephorium,
+        "loot-position",
+        "cephorium-cache",
+      );
+      const exitPosition = projectedField(
+        objective,
+        "exit-position",
+        "game-objective",
+      );
       const playerX = numberField(playerPosition, "x", "position");
       const playerZ = numberField(playerPosition, "z", "position");
       const enemyX = numberField(enemyPosition, "x", "enemy-position");
       const enemyZ = numberField(enemyPosition, "z", "enemy-position");
+      const lootX = numberField(lootPosition, "x", "loot-position");
+      const lootZ = numberField(lootPosition, "z", "loot-position");
+      const cephoriumX = numberField(
+        cephoriumPosition,
+        "x",
+        "cephorium-cache.loot-position",
+      );
+      const cephoriumZ = numberField(
+        cephoriumPosition,
+        "z",
+        "cephorium-cache.loot-position",
+      );
+      const exitX = numberField(exitPosition, "x", "exit-position");
+      const exitZ = numberField(exitPosition, "z", "exit-position");
       const objectiveState = projectedField(
         objective,
         "objective-state",
         "game-objective",
+      );
+      const arena = projectedField(current.projection, "jump-arena", "projection");
+      const lootPickupRadius = numberField(
+        arena,
+        "loot-pickup-radius",
+        "jump-arena",
       );
 
       if (numberField(objectiveState, "x", "objective-state") === 1) {
@@ -473,12 +568,35 @@ function verifyResourceGatedFrontier(module: object, request: unknown): void {
             (expedition < 3 ? "temporary-open" : "permanent-open"),
           `Wasm expedition ${expedition} admitted the wrong frontier access`,
         );
+        requireCondition(
+          numberField(
+            projectedField(current.projection, "jump-arena", "projection"),
+            "max-x",
+            "jump-arena",
+          ) === 2048,
+          `Wasm expedition ${expedition} did not open the physical frontier bound`,
+        );
         completed = true;
         break;
       }
 
       const lootState = stringField(loot, "loot-state", "ashen-key");
       const custody = stringField(loot, "custody", "ashen-key");
+      const cephoriumState = stringField(
+        cephorium,
+        "loot-state",
+        "cephorium-cache",
+      );
+      const cephoriumCustody = stringField(
+        cephorium,
+        "custody",
+        "cephorium-cache",
+      );
+      const frontierAccess = stringField(
+        frontier,
+        "frontier-access",
+        "ashen-verge",
+      );
       const enemyStatus = stringField(
         enemy,
         "enemy-combat-status",
@@ -492,10 +610,53 @@ function verifyResourceGatedFrontier(module: object, request: unknown): void {
 
       if (lootState === "available") {
         dodgeKey = null;
-        current = setHeld(movementToward(playerX, playerZ, 1.2, -1, 0.18));
+        if (Math.hypot(playerX - lootX, playerZ - lootZ) > lootPickupRadius * 0.75) {
+          current = setHeld(movementToward(playerX, playerZ, lootX, lootZ, 0.18));
+        } else {
+          current = setHeld(new Set());
+          current = admitKey(
+            opened,
+            revision,
+            configurationRevision,
+            inputSequence,
+            "LootItem",
+            "down",
+          );
+        }
       } else if (lootState === "acquired" && custody === "player-1") {
         dodgeKey = null;
-        current = setHeld(movementToward(playerX, playerZ, -2, -1, 0.18));
+        current = setHeld(movementToward(playerX, playerZ, exitX, exitZ, 0.18));
+      } else if (frontierAccess === "temporary-open" && cephoriumState === "available") {
+        dodgeKey = null;
+        requireCondition(
+          numberField(frontier, "foothold-progress", "ashen-verge") ===
+            expedition - 1,
+          `Wasm expedition ${expedition} granted progress before Cephorium extraction`,
+        );
+        if (
+          Math.hypot(playerX - cephoriumX, playerZ - cephoriumZ) >
+          lootPickupRadius * 0.75
+        ) {
+          current = setHeld(
+            movementToward(playerX, playerZ, cephoriumX, cephoriumZ, 0.18),
+          );
+        } else {
+          current = setHeld(new Set());
+          current = admitKey(
+            opened,
+            revision,
+            configurationRevision,
+            inputSequence,
+            "LootItem",
+            "down",
+          );
+        }
+      } else if (
+        cephoriumState === "acquired" &&
+        cephoriumCustody === "player-1"
+      ) {
+        dodgeKey = null;
+        current = setHeld(movementToward(playerX, playerZ, exitX, exitZ, 0.18));
       } else if (enemyStatus === "alive") {
         const pressureClock = numberField(
           enemy,
@@ -557,6 +718,17 @@ function verifyResourceGatedFrontier(module: object, request: unknown): void {
       stringField(restoredFrontier, "frontier-access", "ashen-verge") ===
         (expedition < 3 ? "sealed" : "permanent-open"),
       `Wasm reset admitted the wrong access after expedition ${expedition}`,
+    );
+    requireCondition(
+      numberField(
+        projectedField(current.projection, "jump-arena", "projection"),
+        "max-x",
+        "jump-arena",
+      ) ===
+        (expedition < 3
+          ? numberField(restoredFrontier, "frontier-boundary-x", "ashen-verge")
+          : 2048),
+      `Wasm reset admitted the wrong movement boundary after expedition ${expedition}`,
     );
   }
 
@@ -1071,6 +1243,117 @@ function verifyOrthogonalPropulsionAndEnergy(module: object, request: unknown): 
   opened.port.disposeSession(opened.session);
 }
 
+function verifyProjectileOpeningConversion(module: object, request: unknown): void {
+  const opened = openCartridgeSession(module, request);
+  const revision: Cell<unknown> = { value: opened.revision };
+  const configurationRevision = { value: 0 };
+  const inputSequence = { value: 0 };
+
+  const targeted = admitKey(
+    opened,
+    revision,
+    configurationRevision,
+    inputSequence,
+    "Tab",
+    "down",
+  );
+  const targetedPlayer = projectedField(targeted.projection, "player-1", "projection");
+  requireCondition(
+    booleanField(targetedPlayer, "target-lock-active", "player-1"),
+    "Tab did not acquire the projectile target",
+  );
+
+  let current = admitKey(
+    opened,
+    revision,
+    configurationRevision,
+    inputSequence,
+    "Digit1",
+    "down",
+  );
+  let sawProjectile = false;
+  let sawOpening = false;
+  for (let ordinal = 0; ordinal < 160; ordinal += 1) {
+    const bolt = projectedField(current.projection, "wayfarer-bolt", "projection");
+    const enemy = projectedField(current.projection, "cinder-wraith", "projection");
+    sawProjectile ||= booleanField(bolt, "projectile-visible", "wayfarer-bolt");
+    if (
+      stringField(enemy, "enemy-pressure-state", "cinder-wraith") ===
+      "projectile-opening"
+    ) {
+      sawOpening = true;
+      break;
+    }
+    current = admitEmpty(opened, revision, configurationRevision);
+  }
+  requireCondition(sawProjectile, "Digit1 launched no visible Wasm projectile");
+  requireCondition(sawOpening, "the Wasm projectile produced no opening");
+
+  const beforePlayer = projectedField(current.projection, "player-1", "projection");
+  const beforeX = vectorField(beforePlayer, "position", "x");
+  configurationRevision.value += 1;
+  inputSequence.value += 1;
+  const directionSequence = inputSequence.value;
+  inputSequence.value += 1;
+  const burst = admitTick(
+    opened,
+    revision.value,
+    createInputConfiguration(
+      configurationRevision.value,
+      Object.freeze([
+        createInputObservation(
+          directionSequence,
+          physicalKeyEnvelope(policy(), "KeyD", "down"),
+        ),
+        createInputObservation(
+          inputSequence.value,
+          physicalKeyEnvelope(policy(), "KeyQ", "down"),
+        ),
+      ]),
+    ),
+  );
+  revision.value = burst.revision;
+  const burstPlayer = projectedField(burst.projection, "player-1", "projection");
+  requireCondition(
+    vectorField(burstPlayer, "position", "x") - beforeX > 5,
+    "current D input did not atomically direct the Wasm Q burst",
+  );
+  requireCondition(
+    numberField(burstPlayer, "booster-energy", "player-1") === 80,
+    "the Wasm Q burst did not spend exactly 20 energy",
+  );
+
+  admitKey(
+    opened,
+    revision,
+    configurationRevision,
+    inputSequence,
+    "KeyD",
+    "up",
+  );
+  current = admitKey(
+    opened,
+    revision,
+    configurationRevision,
+    inputSequence,
+    "KeyJ",
+    "down",
+  );
+  let enemyVitality = 6;
+  for (let ordinal = 0; ordinal < 24; ordinal += 1) {
+    const enemy = projectedField(current.projection, "cinder-wraith", "projection");
+    const vitals = projectedField(enemy, "enemy-vitals", "cinder-wraith");
+    enemyVitality = numberField(vitals, "x", "enemy-vitals");
+    if (enemyVitality < 6) break;
+    current = admitEmpty(opened, revision, configurationRevision);
+  }
+  requireCondition(
+    enemyVitality === 4,
+    `the committed Wasm sword action produced vitality ${enemyVitality} instead of 4`,
+  );
+  opened.port.disposeSession(opened.session);
+}
+
 function verifySustainedWasmLiveness(
   module: object,
   request: unknown,
@@ -1191,6 +1474,8 @@ async function main(): Promise<void> {
   verifyBoarChargeAndBurstCustody(module, request);
   verifyCameraRelativeHorizontalPropulsion(module, request);
   verifyOrthogonalPropulsionAndEnergy(module, request);
+  verifyProjectileOpeningConversion(module, request);
+  verifyUnauthorizedBehaviorAdmission(module, request);
   verifyResourceGatedFrontier(module, request);
 }
 

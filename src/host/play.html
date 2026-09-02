@@ -33,6 +33,20 @@
             <strong id="enemy-hit-stun-timer" class="enemy-hit-stun-timer">0.00</strong>
           </div>
         </div>
+        <section id="loot-window" class="loot-window" aria-label="Corpse loot" hidden>
+          <header class="loot-window-header">
+            <span class="loot-window-emblem" aria-hidden="true">☠</span>
+            <strong>Loot</strong>
+            <button id="loot-close" class="loot-close" type="button" aria-label="Close loot window">×</button>
+          </header>
+          <button id="loot-item" class="loot-item" type="button">
+            <span id="loot-item-icon" class="loot-item-icon" aria-hidden="true">⚿</span>
+            <span class="loot-item-copy">
+              <strong id="loot-item-name">Ashen Breach Key</strong>
+              <small id="loot-item-category">Quest Item</small>
+            </span>
+          </button>
+        </section>
         <div id="terminal-feedback" class="terminal-feedback" aria-live="assertive" hidden>
           <div class="terminal-feedback-card">
             <div id="terminal-feedback-kicker" class="terminal-feedback-kicker">ENCOUNTER TERMINATED</div>
@@ -84,7 +98,7 @@
             </div>
           </section>
 
-          <div id="control-hint">WASD move · hold left mouse + drag orbit · wheel zoom · Tab / Shift+Tab target · 1 lock-on bolt · J sword · Space jump · Shift horizontal sustain · Q horizontal burst · E vertical sustain · F vertical burst · R reset</div>
+          <div id="control-hint">WASD move · hold left mouse + drag orbit · wheel zoom · Tab / Shift+Tab target · right-click sparkling corpses to loot · 1 lock-on bolt · J sword · Space jump · Shift horizontal sustain · Q horizontal burst · E vertical sustain · F vertical burst · R reset</div>
         </div>
       </div>
       <aside id="sidebar">

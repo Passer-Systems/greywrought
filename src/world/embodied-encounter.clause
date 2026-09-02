@@ -1,10 +1,14 @@
 F64
 Bool
+Text
 Player
 Arena
 Enemy
 Projectile
+ProjectileFaction
 Loot
+LootClaimRule
+LootCategory
 Custodian
 CombatStatus
 ProjectileState
@@ -16,12 +20,17 @@ CombatBehavior
 BoosterEquipment
 Frontier
 FrontierAccess
+RangedActionState
 
 alive
 dead
 hidden
 available
 acquired
+defeated-source
+open-frontier
+quest-item
+crafting-material
 playing
 completed
 failed
@@ -33,6 +42,7 @@ rearming
 charging
 hit-recovery
 overrun-recovery
+projectile-opening
 ready
 queued
 active
@@ -51,6 +61,8 @@ burst-booster-rig
 sealed
 temporary-open
 permanent-open
+player-origin
+enemy-origin
 
 shape Vec3
   x: F64
@@ -256,6 +268,31 @@ relation sword-commitment-clock
   subject player
   mode given player yields value: one
 
+relation ranged-action-state
+  reads {player: Player} ranged action state {value: RangedActionState}
+  subject player
+  mode given player yields value: one
+
+relation ranged-action-clock
+  reads {player: Player} ranged action clock {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation ranged-action-sequence
+  reads {player: Player} ranged action sequence {value: F64}
+  subject player
+  mode given player yields value: one
+
+relation ranged-charge-ticks
+  reads {arena: Arena} ranged charge ticks {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation player-projectile-speed
+  reads {arena: Arena} player projectile speed {value: F64}
+  subject arena
+  mode given arena yields value: one
+
 relation combat-target
   reads {player: Player} combat target {enemy: Enemy}
   subject player
@@ -366,15 +403,25 @@ relation projectile-visible
   subject projectile
   mode given projectile yields value: one
 
+relation projectile-faction
+  reads {projectile: Projectile} projectile faction {value: ProjectileFaction}
+  subject projectile
+  mode given projectile yields value: one
+
 relation projectile-contact-radius
   reads {arena: Arena} projectile contact radius {value: F64}
   subject arena
   mode given arena yields value: one
 
 relation projectile-contact
-  reads {player: Player} has projectile contact with {projectile: Projectile} as {value: Bool}
+  reads {player: Player} has hostile projectile contact {value: Bool}
   subject player
-  mode given player projectile yields value: maybe
+  mode given player yields value: maybe
+
+relation enemy-projectile-contact
+  reads {enemy: Enemy} has player projectile contact {value: Bool}
+  subject enemy
+  mode given enemy yields value: maybe
 
 relation loot-state
   reads {loot: Loot} loot state {value: LootState}
@@ -390,6 +437,31 @@ relation loot-position
   reads {loot: Loot} loot position {value: Vec3}
   subject loot
   mode given loot yields value: one
+
+relation loot-origin-position
+  reads {loot: Loot} loot origin position {value: Vec3}
+  subject loot
+  mode given loot yields value: one
+
+relation loot-source
+  reads {loot: Loot} loot source {source: Custodian}
+  subject loot
+  mode given loot yields source: one
+
+relation loot-claim-rule
+  reads {loot: Loot} loot claim rule {rule: LootClaimRule}
+  subject loot
+  mode given loot yields rule: one
+
+relation loot-name
+  reads {loot: Loot} loot name {value: Text}
+  subject loot
+  mode given loot yields value: one
+
+relation loot-category
+  reads {loot: Loot} loot category {category: LootCategory}
+  subject loot
+  mode given loot yields category: one
 
 relation loot-pickup-radius
   reads {arena: Arena} loot pickup radius {value: F64}
@@ -431,6 +503,11 @@ relation foothold-requirement
   subject frontier
   mode given frontier yields value: one
 
+relation frontier-boundary-x
+  reads {frontier: Frontier} frontier boundary x {value: F64}
+  subject frontier
+  mode given frontier yields value: one
+
 law clamp-lower
   if
     ?lower <= ?upper
@@ -457,45 +534,69 @@ law projectile-contact-within-radius
     ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
     ?projectile projectile state ?projectile-state
+    ?projectile projectile faction enemy-origin
     jump-arena projectile contact radius ?contact-radius
     ?projectile-state = flight
     ((?player-x - ?projectile-x) * (?player-x - ?projectile-x)) + ((?player-z - ?projectile-z) * (?player-z - ?projectile-z)) <= ?contact-radius * ?contact-radius
   then
-    ?player has projectile contact with ?projectile as true
+    ?player has hostile projectile contact true
+
+law enemy-projectile-contact-within-radius
+  if
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    ?projectile projectile state ?projectile-state
+    ?projectile projectile faction player-origin
+    jump-arena projectile contact radius ?contact-radius
+    ?projectile-state = flight
+    ((?enemy-x - ?projectile-x) * (?enemy-x - ?projectile-x)) + ((?enemy-z - ?projectile-z) * (?enemy-z - ?projectile-z)) <= ?contact-radius * ?contact-radius
+  then
+    ?enemy has player projectile contact true
 
 derive clamp-lower
 derive clamp-interior
 derive clamp-upper
 derive projectile-contact-within-radius
+derive enemy-projectile-contact-within-radius
 
-jump-arena ∈ Arena
-player-1 ∈ Player
-player-1 ∈ Custodian
-cinder-wraith ∈ Enemy
-cinder-wraith ∈ Custodian
-relentless-charge ∈ CombatBehavior
-patient-charge ∈ CombatBehavior
-balanced-booster-rig ∈ BoosterEquipment
-burst-booster-rig ∈ BoosterEquipment
-sealed ∈ FrontierAccess
-temporary-open ∈ FrontierAccess
-permanent-open ∈ FrontierAccess
-cinder-bolt ∈ Projectile
-ashen-key ∈ Loot
-game-objective ∈ Objective
-ashen-verge ∈ Frontier
+jump-arena: Arena
+player-1: Player
+player-1: Custodian
+cinder-wraith: Enemy
+cinder-wraith: Custodian
+game-objective: Custodian
+ashen-verge: Custodian
+relentless-charge: CombatBehavior
+patient-charge: CombatBehavior
+balanced-booster-rig: BoosterEquipment
+burst-booster-rig: BoosterEquipment
+sealed: FrontierAccess
+temporary-open: FrontierAccess
+permanent-open: FrontierAccess
+ready: RangedActionState
+charging: RangedActionState
+player-origin: ProjectileFaction
+enemy-origin: ProjectileFaction
+cinder-bolt: Projectile
+wayfarer-bolt: Projectile
+ashen-key: Loot
+cephorium-cache: Loot
+game-objective: Objective
+ashen-verge: Frontier
 
 jump-arena gravity -12.0
 jump-arena jump speed 3.0
 jump-arena melee range 2.0
 jump-arena floor height 0.0
 jump-arena minimum x -2048.0
-jump-arena maximum x 2048.0
+jump-arena maximum x 16.0
 jump-arena minimum z -2048.0
 jump-arena maximum z 2048.0
 jump-arena projectile contact radius 0.6
-jump-arena loot pickup radius 0.6
+jump-arena loot pickup radius 2.5
 jump-arena sword commitment ticks 96.0
+jump-arena ranged charge ticks 94.0
+jump-arena player projectile speed 0.24
 
 player-1 position Vec3 { x: -2.0, y: 0.0, z: 0.5 }
 player-1 velocity Vec3 { x: 0.0, y: 0.0, z: 0.0 }
@@ -515,6 +616,9 @@ player-1 status effect clear
 player-1 status clock 12.0
 player-1 sword action sequence 0.0
 player-1 sword commitment clock 0.0
+player-1 ranged action state ready
+player-1 ranged action clock 0.0
+player-1 ranged action sequence 0.0
 player-1 combat target cinder-wraith
 player-1 target lock active false
 player-1 target selection sequence 0.0
@@ -525,7 +629,7 @@ balanced-booster-rig booster regeneration 1.0
 balanced-booster-rig booster ignition threshold 25.0
 balanced-booster-rig booster regeneration delay limit 8.0
 balanced-booster-rig horizontal sustain drain 0.5
-balanced-booster-rig horizontal burst displacement 1.92
+balanced-booster-rig horizontal burst displacement 5.6
 balanced-booster-rig horizontal burst cost 20.0
 balanced-booster-rig vertical sustain thrust 0.55
 balanced-booster-rig vertical sustain drain 1.0
@@ -565,10 +669,29 @@ cinder-wraith enemy random sample 0.5
 cinder-bolt projectile position Vec3 { x: 2.0, y: 0.55, z: 0.0 }
 cinder-bolt projectile state dormant
 cinder-bolt projectile visible false
+cinder-bolt projectile faction enemy-origin
+
+wayfarer-bolt projectile position Vec3 { x: -2.0, y: 0.7, z: 0.5 }
+wayfarer-bolt projectile state dormant
+wayfarer-bolt projectile visible false
+wayfarer-bolt projectile faction player-origin
 
 ashen-key loot state hidden
 ashen-key custody cinder-wraith
 ashen-key loot position Vec3 { x: 1.2, y: 0.0, z: -1.0 }
+ashen-key loot origin position Vec3 { x: 1.2, y: 0.0, z: -1.0 }
+ashen-key loot source cinder-wraith
+ashen-key loot claim rule defeated-source
+ashen-key loot name "Ashen Breach Key"
+ashen-key loot category quest-item
+cephorium-cache loot state hidden
+cephorium-cache custody ashen-verge
+cephorium-cache loot position Vec3 { x: 22.0, y: 0.0, z: -2.0 }
+cephorium-cache loot origin position Vec3 { x: 22.0, y: 0.0, z: -2.0 }
+cephorium-cache loot source ashen-verge
+cephorium-cache loot claim rule open-frontier
+cephorium-cache loot name "Cephorium Core"
+cephorium-cache loot category crafting-material
 game-objective exit position Vec3 { x: -2.0, y: 0.0, z: -1.0 }
 game-objective objective radius 0.6
 game-objective objective state Vec3 { x: 0.0, y: 0.0, z: 0.0 }
@@ -576,6 +699,7 @@ game-objective reset signal Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 ashen-verge frontier access sealed
 ashen-verge foothold progress 0.0
 ashen-verge foothold requirement 3.0
+ashen-verge frontier boundary x 16.0
 
 bind keyboard KeyW down to hold-forward
 bind keyboard KeyW up to release-forward
@@ -595,8 +719,10 @@ bind keyboard KeyE down to enable-vertical-sustain
 bind keyboard KeyE up to disable-vertical-sustain
 bind keyboard KeyF down to vertical-burst
 bind keyboard KeyJ down to begin-sword-action
+bind keyboard Digit1 down to begin-ranged-action
 bind keyboard Tab down to target-next-enemy
 bind keyboard ShiftTab down to target-previous-enemy
+bind keyboard LootItem down to acquire-loot
 bind keyboard KeyR down to reset-objective
 bind scalar-input CameraForwardX to observe-camera-forward-x
 bind scalar-input CameraForwardZ to observe-camera-forward-z
@@ -785,7 +911,9 @@ on restore-exhausted-horizontal-speed ?player
 on horizontal-burst ?player
   when
     ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
-    ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
+    ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+    ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
+    ?player camera forward Vec3 { x: ?camera-x, y: ?camera-y, z: ?camera-z }
     ?player equipped booster ?booster
     ?player booster energy ?energy
     ?booster booster ignition threshold ?threshold
@@ -797,9 +925,9 @@ on horizontal-burst ?player
     jump-arena maximum x ?max-x
     jump-arena minimum z ?min-z
     jump-arena maximum z ?max-z
-    (?position-x + ?intent-x * ?displacement) clamped between ?min-x and ?max-x as ?next-x
-    (?position-z + ?intent-z * ?displacement) clamped between ?min-z and ?max-z as ?next-z
-    ?intent-x * ?intent-x + ?intent-z * ?intent-z > 0.0
+    (?position-x + (((?right - ?left) * (0.0 - ?camera-z)) + ((?backward - ?forward) * (0.0 - ?camera-x))) * ?displacement) clamped between ?min-x and ?max-x as ?next-x
+    (?position-z + (((?right - ?left) * ?camera-x) + ((?backward - ?forward) * (0.0 - ?camera-z))) * ?displacement) clamped between ?min-z and ?max-z as ?next-z
+    (?right - ?left) * (?right - ?left) + (?backward - ?forward) * (?backward - ?forward) > 0.0
     ?threshold <= ?energy
     ?cost <= ?energy
   withdraw
@@ -904,9 +1032,11 @@ on begin-sword-action ?player
   when
     ?player sword action sequence ?sequence
     ?player sword commitment clock ?clock
+    ?player ranged action state ?ranged-state
     ?player combat status ?combat-status
     jump-arena sword commitment ticks ?commitment-ticks
     ?combat-status = alive
+    ?ranged-state = ready
     ?clock = 0.0
   withdraw
     ?player sword action sequence ?sequence
@@ -914,6 +1044,124 @@ on begin-sword-action ?player
   include
     ?player sword action sequence ?sequence + 1.0
     ?player sword commitment clock ?commitment-ticks
+
+on begin-ranged-action ?player
+  when
+    ?player ranged action state ?state
+    ?player ranged action clock ?clock
+    ?player ranged action sequence ?sequence
+    ?player sword commitment clock ?sword-clock
+    ?player target lock active ?target-active
+    ?player combat target ?target
+    ?player combat status ?player-status
+    ?target enemy combat status ?target-status
+    wayfarer-bolt projectile state ?projectile-state
+    jump-arena ranged charge ticks ?charge-ticks
+    ?state = ready
+    ?clock = 0.0
+    ?sword-clock = 0.0
+    ?target-active = true
+    ?player-status = alive
+    ?target-status = alive
+    ?projectile-state = dormant
+  withdraw
+    ?player ranged action state ?state
+    ?player ranged action clock ?clock
+    ?player ranged action sequence ?sequence
+  include
+    ?player ranged action state charging
+    ?player ranged action clock ?charge-ticks
+    ?player ranged action sequence ?sequence + 1.0
+
+on count-ranged-action ?player
+  when
+    ?player ranged action state ?state
+    ?player ranged action clock ?clock
+    ?state = charging
+    ?clock > 0.0
+  withdraw
+    ?player ranged action clock ?clock
+  include
+    ?player ranged action clock ?clock - 1.0
+
+on launch-wayfarer-bolt ?projectile
+  when
+    player-1 ranged action state ?ranged-state
+    player-1 ranged action clock ?clock
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 combat target ?target
+    player-1 target lock active ?target-active
+    ?target enemy combat status ?target-status
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    ?projectile projectile state ?projectile-state
+    ?projectile projectile visible ?projectile-visible
+    ?projectile projectile faction player-origin
+    ?ranged-state = charging
+    ?clock = 0.0
+    ?target-active = true
+    ?target-status = alive
+    ?projectile-state = dormant
+    ?projectile-visible = false
+  withdraw
+    player-1 ranged action state ?ranged-state
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    ?projectile projectile state ?projectile-state
+    ?projectile projectile visible ?projectile-visible
+  include
+    player-1 ranged action state ready
+    ?projectile projectile position Vec3 { x: ?player-x, y: ?player-y + 0.7, z: ?player-z }
+    ?projectile projectile state flight
+    ?projectile projectile visible true
+
+on advance-wayfarer-bolt ?projectile
+  when
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    ?projectile projectile state ?state
+    ?projectile projectile faction player-origin
+    player-1 combat target ?target
+    ?target enemy position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    jump-arena player projectile speed ?speed
+    (?target-x - ?projectile-x) clamped between 0.0 - ?speed and ?speed as ?step-x
+    (?target-z - ?projectile-z) clamped between 0.0 - ?speed and ?speed as ?step-z
+    ?state = flight
+  withdraw
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+  include
+    ?projectile projectile position Vec3 { x: ?projectile-x + ?step-x, y: ?projectile-y, z: ?projectile-z + ?step-z }
+
+on resolve-wayfarer-bolt-contact ?enemy
+  when
+    ?enemy has player projectile contact true
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy combat status ?enemy-status
+    wayfarer-bolt projectile state ?projectile-state
+    wayfarer-bolt projectile visible ?projectile-visible
+    ?enemy-status = alive
+    ?projectile-state = flight
+    ?projectile-visible = true
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+    wayfarer-bolt projectile state ?projectile-state
+    wayfarer-bolt projectile visible ?projectile-visible
+  include
+    ?enemy enemy pressure state projectile-opening
+    ?enemy enemy recovery clock 30.0
+    wayfarer-bolt projectile state spent
+    wayfarer-bolt projectile visible false
+
+on rearm-wayfarer-bolt ?projectile
+  when
+    ?projectile projectile state ?state
+    ?projectile projectile visible ?visible
+    ?projectile projectile faction player-origin
+    ?state = spent
+    ?visible = false
+  withdraw
+    ?projectile projectile state ?state
+  include
+    ?projectile projectile state dormant
 
 on target-next-enemy ?player
   when
@@ -1071,7 +1319,7 @@ on combat-impact ?enemy
     cinder-wraith enemy combat status ?enemy-status
     player-1 grounded ?grounded
     player-1 combat status ?player-status
-    player-1 has projectile contact with cinder-bolt as true
+    player-1 has hostile projectile contact true
     ?enemy-status = alive
     ?player-status = alive
     ?grounded = false
@@ -1087,7 +1335,7 @@ on apply-ember-mark ?player
     player-1 grounded ?grounded
     player-1 combat status ?player-status
     cinder-wraith enemy combat status ?enemy-status
-    player-1 has projectile contact with cinder-bolt as true
+    player-1 has hostile projectile contact true
     ?player-status = alive
     ?enemy-status = alive
     ?grounded = true
@@ -1100,7 +1348,8 @@ on apply-ember-mark ?player
 on spend-cinder-bolt-on-contact ?projectile
   when
     ?projectile projectile state ?state
-    player-1 has projectile contact with ?projectile as true
+    ?projectile projectile faction enemy-origin
+    player-1 has hostile projectile contact true
     ?state = flight
   withdraw
     ?projectile projectile state ?state
@@ -1340,6 +1589,7 @@ on begin-boar-overrun-recovery ?enemy
 on launch-cinder-bolt ?projectile
   when
     ?projectile projectile state ?state
+    ?projectile projectile faction enemy-origin
     cinder-wraith enemy pressure state ?pressure
     cinder-wraith enemy pressure clock ?clock
     ?state = dormant
@@ -1353,6 +1603,7 @@ on launch-cinder-bolt ?projectile
 on show-cinder-bolt ?projectile
   when
     ?projectile projectile visible ?visible
+    ?projectile projectile faction enemy-origin
     cinder-bolt projectile state ?state
     ?visible = false
     ?state = flight
@@ -1364,6 +1615,7 @@ on show-cinder-bolt ?projectile
 on advance-cinder-bolt ?projectile
   when
     ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    ?projectile projectile faction enemy-origin
     cinder-bolt projectile state ?state
     ?state = flight
   withdraw
@@ -1374,6 +1626,7 @@ on advance-cinder-bolt ?projectile
 on spend-cinder-bolt ?projectile
   when
     ?projectile projectile state ?state
+    ?projectile projectile faction enemy-origin
     cinder-wraith enemy pressure clock ?clock
     ?state = flight
     ?clock = 49.0
@@ -1385,6 +1638,7 @@ on spend-cinder-bolt ?projectile
 on hide-cinder-bolt ?projectile
   when
     ?projectile projectile visible ?visible
+    ?projectile projectile faction enemy-origin
     cinder-bolt projectile state ?state
     ?visible = true
     ?state = spent
@@ -1396,6 +1650,7 @@ on hide-cinder-bolt ?projectile
 on reset-cinder-bolt-x ?projectile
   when
     ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    ?projectile projectile faction enemy-origin
     cinder-bolt projectile state ?state
     ?state = spent
   withdraw
@@ -1406,6 +1661,7 @@ on reset-cinder-bolt-x ?projectile
 on rearm-cinder-bolt ?projectile
   when
     ?projectile projectile state ?state
+    ?projectile projectile faction enemy-origin
     cinder-wraith enemy pressure state ?pressure
     ?state = spent
     ?pressure = rearming
@@ -1430,6 +1686,17 @@ on count-overrun-recovery ?enemy
     ?enemy enemy pressure state ?pressure
     ?enemy enemy recovery clock ?clock
     ?pressure = overrun-recovery
+    ?clock > 0.0
+  withdraw
+    ?enemy enemy recovery clock ?clock
+  include
+    ?enemy enemy recovery clock ?clock - 1.0
+
+on count-projectile-opening ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?clock
+    ?pressure = projectile-opening
     ?clock > 0.0
   withdraw
     ?enemy enemy recovery clock ?clock
@@ -1495,6 +1762,34 @@ on rearm-after-overrun-recovery ?enemy
     ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge committed false
 
+on rearm-after-projectile-opening ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?pressure-clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy charge start ?start
+    ?enemy enemy charge end ?end
+    ?enemy enemy charge envelope ?envelope
+    ?enemy enemy charge committed ?committed
+    ?pressure = projectile-opening
+    ?recovery-clock = 0.0
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?pressure-clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy charge start ?start
+    ?enemy enemy charge end ?end
+    ?enemy enemy charge envelope ?envelope
+    ?enemy enemy charge committed ?committed
+  include
+    ?enemy enemy pressure state approach
+    ?enemy enemy pressure clock 0.0
+    ?enemy enemy recovery clock 0.0
+    ?enemy enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?enemy enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+    ?enemy enemy charge committed false
+
 on resolve-wraith-death ?enemy
   when
     ?enemy enemy combat status ?status
@@ -1517,27 +1812,49 @@ on resolve-player-death ?player
   include
     ?player combat status dead
 
-on reveal-loot ?loot
+on reveal-defeated-source-loot ?loot
   when
     ?loot loot state ?state
-    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    ?loot loot source ?source
+    ?loot custody ?source
+    ?loot loot claim rule ?claim-rule
+    ?source enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?source enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?source enemy combat status ?enemy-status
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused-reset }
     ?state = hidden
+    ?claim-rule = defeated-source
     ?vitality = 0.0
+    ?enemy-status = dead
+    ?reset = 0.0
   withdraw
     ?loot loot state ?state
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
   include
     ?loot loot state available
+    ?loot loot position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
 
-on transfer-loot ?loot
+on reveal-frontier-loot ?loot
   when
-    ?loot custody ?custodian
-    ashen-key loot state ?state
-    ?custodian = cinder-wraith
-    ?state = acquired
+    ?loot loot state ?state
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    ?loot loot origin position ?origin
+    ?loot loot source ?source
+    ?loot custody ?source
+    ?loot loot claim rule ?claim-rule
+    ?source frontier access ?access
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused-reset }
+    ?state = hidden
+    ?claim-rule = open-frontier
+    ?access = temporary-open
+    ?reset = 0.0
   withdraw
-    ?loot custody ?custodian
+    ?loot loot state ?state
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
   include
-    ?loot custody player-1
+    ?loot loot state available
+    ?loot loot position ?origin
 
 on carry-loot-x ?loot
   when
@@ -1568,21 +1885,20 @@ on carry-loot-z ?loot
 on acquire-loot ?loot
   when
     ?loot loot state ?state
+    ?loot custody ?custodian
+    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
-    ashen-key loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
-    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
-    cinder-wraith enemy combat status ?enemy-status
     jump-arena loot pickup radius ?pickup-radius
     ?state = available
-    ?vitality = 0.0
-    ?enemy-status = dead
     ((?player-x - ?loot-x) * (?player-x - ?loot-x)) + ((?player-z - ?loot-z) * (?player-z - ?loot-z)) <= ?pickup-radius * ?pickup-radius
   withdraw
     ?loot loot state ?state
+    ?loot custody ?custodian
   include
     ?loot loot state acquired
+    ?loot custody player-1
 
-on complete-objective-with-temporary-access ?objective
+on open-frontier-with-breach-key ?objective
   when
     ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused-reset }
@@ -1593,63 +1909,101 @@ on complete-objective-with-temporary-access ?objective
     ashen-key loot state ?loot-state
     ashen-key custody ?custodian
     ashen-verge frontier access ?prior-access
-    ashen-verge foothold progress ?progress
-    ashen-verge foothold requirement ?requirement
+    jump-arena maximum x ?prior-maximum-x
     ?state = 0.0
     ?reset = 0.0
     ?vitality = 0.0
     ?loot-state = acquired
     ?custodian = player-1
+    ?prior-access = sealed
+    ((?player-x - ?exit-x) * (?player-x - ?exit-x)) + ((?player-z - ?exit-z) * (?player-z - ?exit-z)) <= ?objective-radius * ?objective-radius
+  withdraw
+    ashen-key loot state ?loot-state
+    ashen-key custody ?custodian
+    ashen-verge frontier access ?prior-access
+    jump-arena maximum x ?prior-maximum-x
+  include
+    ashen-key loot state hidden
+    ashen-key custody game-objective
+    ashen-verge frontier access temporary-open
+    jump-arena maximum x 2048.0
+
+on extract-cephorium-with-temporary-access ?objective
+  when
+    ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused-reset }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    game-objective exit position Vec3 { x: ?exit-x, y: ?exit-y, z: ?exit-z }
+    game-objective objective radius ?objective-radius
+    cephorium-cache loot state ?loot-state
+    cephorium-cache custody ?custodian
+    ashen-verge frontier access ?prior-access
+    ashen-verge foothold progress ?progress
+    ashen-verge foothold requirement ?requirement
+    ?state = 0.0
+    ?reset = 0.0
+    ?loot-state = acquired
+    ?custodian = player-1
+    ?prior-access = temporary-open
     ?progress + 1.0 < ?requirement
     ((?player-x - ?exit-x) * (?player-x - ?exit-x)) + ((?player-z - ?exit-z) * (?player-z - ?exit-z)) <= ?objective-radius * ?objective-radius
   withdraw
     ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
-    ashen-verge frontier access ?prior-access
+    cephorium-cache loot state ?loot-state
+    cephorium-cache custody ?custodian
     ashen-verge foothold progress ?progress
   include
     ?objective objective state Vec3 { x: 1.0, y: ?branch, z: ?unused-state }
-    ashen-verge frontier access temporary-open
+    cephorium-cache loot state hidden
+    cephorium-cache custody game-objective
     ashen-verge foothold progress ?progress + 1.0
 
-on complete-objective-with-permanent-access ?objective
+on extract-cephorium-with-permanent-access ?objective
   when
     ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused-reset }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     game-objective exit position Vec3 { x: ?exit-x, y: ?exit-y, z: ?exit-z }
     game-objective objective radius ?objective-radius
-    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
-    ashen-key loot state ?loot-state
-    ashen-key custody ?custodian
+    cephorium-cache loot state ?loot-state
+    cephorium-cache custody ?custodian
     ashen-verge frontier access ?prior-access
     ashen-verge foothold progress ?progress
     ashen-verge foothold requirement ?requirement
     ?state = 0.0
     ?reset = 0.0
-    ?vitality = 0.0
     ?loot-state = acquired
     ?custodian = player-1
+    ?prior-access = temporary-open
     ?requirement <= ?progress + 1.0
     ((?player-x - ?exit-x) * (?player-x - ?exit-x)) + ((?player-z - ?exit-z) * (?player-z - ?exit-z)) <= ?objective-radius * ?objective-radius
   withdraw
     ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
+    cephorium-cache loot state ?loot-state
+    cephorium-cache custody ?custodian
     ashen-verge frontier access ?prior-access
     ashen-verge foothold progress ?progress
   include
     ?objective objective state Vec3 { x: 1.0, y: ?branch, z: ?unused-state }
+    cephorium-cache loot state hidden
+    cephorium-cache custody game-objective
     ashen-verge frontier access permanent-open
     ashen-verge foothold progress ?requirement
 
 on reseal-temporary-frontier ?frontier
   when
     ?frontier frontier access ?access
+    ?frontier frontier boundary x ?boundary-x
+    jump-arena maximum x ?prior-maximum-x
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
     ?access = temporary-open
     ?reset = 1.0
   withdraw
     ?frontier frontier access ?access
+    jump-arena maximum x ?prior-maximum-x
   include
     ?frontier frontier access sealed
+    jump-arena maximum x ?boundary-x
 
 on fail-objective ?objective
   when
@@ -1677,12 +2031,16 @@ on clear-reset-signal ?objective
     player-1 player vitals Vec3 { x: ?player-vitality, y: ?player-maximum, z: ?player-alive }
     player-1 status effect ?effect
     player-1 status clock ?status-clock
+    player-1 ranged action state ?ranged-state
+    player-1 ranged action clock ?ranged-clock
     cinder-wraith enemy vitals Vec3 { x: ?enemy-vitality, y: ?enemy-maximum, z: ?enemy-alive }
     cinder-wraith enemy pressure state ?pressure
     cinder-wraith enemy pressure clock ?clock
     cinder-bolt projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
     cinder-bolt projectile state ?projectile-state
     cinder-bolt projectile visible ?projectile-visible
+    wayfarer-bolt projectile state ?wayfarer-projectile-state
+    wayfarer-bolt projectile visible ?wayfarer-projectile-visible
     ashen-key loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
     game-objective objective state Vec3 { x: ?objective-state, y: ?branch, z: ?unused-state }
     ?reset = 1.0
@@ -1699,6 +2057,8 @@ on clear-reset-signal ?objective
     ?player-vitality = ?player-maximum
     ?effect = clear
     ?status-clock = 12.0
+    ?ranged-state = ready
+    ?ranged-clock = 0.0
     ?enemy-vitality = ?enemy-maximum
     ?pressure = approach
     ?clock = 0.0
@@ -1707,6 +2067,8 @@ on clear-reset-signal ?objective
     ?projectile-z = 0.0
     ?projectile-state = dormant
     ?projectile-visible = false
+    ?wayfarer-projectile-state = dormant
+    ?wayfarer-projectile-visible = false
     ?loot-x = 1.2
     ?loot-z = -1.0
     ?objective-state = 0.0
@@ -1844,6 +2206,26 @@ on reset-player-effect-clock ?player
   include
     ?player status clock 12.0
 
+on reset-ranged-action-state ?player
+  when
+    ?player ranged action state ?state
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player ranged action state ?state
+  include
+    ?player ranged action state ready
+
+on reset-ranged-action-clock ?player
+  when
+    ?player ranged action clock ?clock
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player ranged action clock ?clock
+  include
+    ?player ranged action clock 0.0
+
 on reset-enemy-vitality ?enemy
   when
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
@@ -1947,6 +2329,7 @@ on reset-enemy-charge-committed ?enemy
 on reset-projectile-x ?projectile
   when
     ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    ?projectile projectile faction enemy-origin
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
     ?reset = 1.0
   withdraw
@@ -1957,6 +2340,7 @@ on reset-projectile-x ?projectile
 on reset-projectile-state ?projectile
   when
     ?projectile projectile state ?state
+    ?projectile projectile faction enemy-origin
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
     ?reset = 1.0
   withdraw
@@ -1967,6 +2351,40 @@ on reset-projectile-state ?projectile
 on reset-projectile-visible ?projectile
   when
     ?projectile projectile visible ?visible
+    ?projectile projectile faction enemy-origin
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?projectile projectile visible ?visible
+  include
+    ?projectile projectile visible false
+
+on reset-wayfarer-projectile-position ?projectile
+  when
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+    ?projectile projectile faction player-origin
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
+  include
+    ?projectile projectile position Vec3 { x: -2.0, y: 0.7, z: 0.5 }
+
+on reset-wayfarer-projectile-state ?projectile
+  when
+    ?projectile projectile state ?state
+    ?projectile projectile faction player-origin
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?projectile projectile state ?state
+  include
+    ?projectile projectile state dormant
+
+on reset-wayfarer-projectile-visible ?projectile
+  when
+    ?projectile projectile visible ?visible
+    ?projectile projectile faction player-origin
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
     ?reset = 1.0
   withdraw
@@ -1987,32 +2405,24 @@ on reset-loot-state ?loot
 on reset-custody ?loot
   when
     ?loot custody ?custodian
+    ?loot loot source ?source
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
     ?reset = 1.0
   withdraw
     ?loot custody ?custodian
   include
-    ?loot custody cinder-wraith
+    ?loot custody ?source
 
-on reset-loot-x ?loot
+on reset-loot-position ?loot
   when
-    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    ?loot loot position ?position
+    ?loot loot origin position ?origin
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
     ?reset = 1.0
   withdraw
-    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    ?loot loot position ?position
   include
-    ?loot loot position Vec3 { x: 1.2, y: ?loot-y, z: ?loot-z }
-
-on reset-loot-z ?loot
-  when
-    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
-    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
-    ?reset = 1.0
-  withdraw
-    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
-  include
-    ?loot loot position Vec3 { x: ?loot-x, y: ?loot-y, z: -1.0 }
+    ?loot loot position ?origin
 
 on reset-world-objective ?objective
   when

@@ -2,7 +2,9 @@ use std::error::Error;
 use std::str;
 use std::time::Instant;
 
-use clause_package::{CausalRef, Term, decode_canonical_term_bytes};
+use clause_package::{
+    CausalRef, IssuedAdmissionAuthorizationOccurrenceId, Term, decode_canonical_term_bytes,
+};
 use clause_runtime::{
     ExecutableCandidateV1, ExecutableInputSourceV1, ExecutableKeyPhaseV1,
     PersistentProcessSessionV1, decode_wasm_process_request_v1, encode_wasm_process_request_v1,
@@ -199,8 +201,16 @@ fn enemy<'a>(projection: &'a Term) -> &'a Term {
     projected_field(projection, b"cinder-wraith")
 }
 
+fn wayfarer_bolt<'a>(projection: &'a Term) -> &'a Term {
+    projected_field(projection, b"wayfarer-bolt")
+}
+
 fn objective<'a>(projection: &'a Term) -> &'a Term {
     projected_field(projection, b"game-objective")
+}
+
+fn arena<'a>(projection: &'a Term) -> &'a Term {
+    projected_field(projection, b"jump-arena")
 }
 
 fn frontier<'a>(projection: &'a Term) -> &'a Term {
@@ -232,6 +242,11 @@ fn enemy_symbol<'a>(projection: &'a Term, field: &[u8]) -> &'a [u8] {
         .canonical_payload()
 }
 
+fn enemy_vitality(projection: &Term) -> f64 {
+    let vitals = projected_field(enemy(projection), b"enemy-vitals");
+    projected_number(projected_field(vitals, b"x"))
+}
+
 fn objective_phase(projection: &Term) -> f64 {
     let state = projected_field(objective(projection), b"objective-state");
     projected_number(projected_field(state, b"x"))
@@ -248,6 +263,21 @@ fn frontier_progress(projection: &Term) -> f64 {
     projected_number(projected_field(frontier(projection), b"foothold-progress"))
 }
 
+fn frontier_boundary_x(projection: &Term) -> f64 {
+    projected_number(projected_field(frontier(projection), b"frontier-boundary-x"))
+}
+
+fn arena_max_x(projection: &Term) -> f64 {
+    projected_number(projected_field(arena(projection), b"max-x"))
+}
+
+fn loot_symbol<'a>(projection: &'a Term, loot: &[u8], field: &[u8]) -> &'a [u8] {
+    projected_field(projected_field(projection, loot), field)
+        .as_atom()
+        .expect("projected loot field is an Atom")
+        .canonical_payload()
+}
+
 fn frontier_proof_source() -> Vec<u8> {
     let mut source = EMBODIED_SOURCE.to_vec();
     source.extend_from_slice(
@@ -261,6 +291,14 @@ on prepare-frontier-player-proof ?player
   include
     ?player position Vec3 { x: -2.0, y: ?player-y, z: -1.0 }
 
+on prepare-frontier-cache-player-proof ?player
+  when
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+  withdraw
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+  include
+    ?player position Vec3 { x: 22.0, y: ?player-y, z: -2.0 }
+
 on prepare-frontier-enemy-proof ?enemy
   when
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
@@ -272,16 +310,17 @@ on prepare-frontier-enemy-proof ?enemy
     ?enemy enemy vitals Vec3 { x: 0.0, y: ?maximum, z: ?alive-flag }
     ?enemy enemy combat status dead
 
-on prepare-frontier-loot-proof ?loot
+on prepare-frontier-key-proof ?objective
   when
-    ?loot loot state ?loot-state
-    ?loot custody ?custodian
+    ?objective objective state ?objective-state
+    ashen-key loot state ?loot-state
+    ashen-key custody ?custodian
   withdraw
-    ?loot loot state ?loot-state
-    ?loot custody ?custodian
+    ashen-key loot state ?loot-state
+    ashen-key custody ?custodian
   include
-    ?loot loot state acquired
-    ?loot custody player-1
+    ashen-key loot state acquired
+    ashen-key custody player-1
 "#,
     );
     source
@@ -501,6 +540,60 @@ fn horizontal_burst_is_immediate_directional_and_preserves_velocity() -> Result<
 }
 
 #[test]
+fn projectile_opening_converts_through_atomic_burst_into_committed_melee()
+-> Result<(), Box<dyn Error>> {
+    let mut session = open_session()?;
+
+    key_down(&mut session, b"Tab")?;
+    let (_, targeted) = admitted_tick(&mut session)?;
+    assert!(boolean(&targeted, b"target-lock-active"));
+
+    key_down(&mut session, b"Digit1")?;
+    let (_, mut projection) = admitted_tick(&mut session)?;
+    let mut saw_projectile = false;
+    let mut saw_opening = false;
+    for _ in 0..160 {
+        saw_projectile |= projected_bool(projected_field(
+            wayfarer_bolt(&projection),
+            b"projectile-visible",
+        ));
+        if enemy_symbol(&projection, b"enemy-pressure-state") == b"projectile-opening" {
+            saw_opening = true;
+            break;
+        }
+        projection = admitted_tick(&mut session)?.1;
+    }
+    assert!(saw_projectile, "Digit1 launched no visible wayfarer projectile");
+    assert!(saw_opening, "the projectile produced no admitted opening");
+
+    let before_burst = vector(&projection, b"position");
+    key_down(&mut session, b"KeyD")?;
+    key_down(&mut session, b"KeyQ")?;
+    let (_, burst) = admitted_tick(&mut session)?;
+    let after_burst = vector(&burst, b"position");
+    assert!(
+        after_burst[0] - before_burst[0] > 5.0,
+        "current D input did not atomically direct the Q burst"
+    );
+    assert_eq!(number(&burst, b"booster-energy"), 80.0);
+
+    key_up(&mut session, b"KeyD")?;
+    admitted_tick(&mut session)?;
+    key_down(&mut session, b"KeyJ")?;
+    let mut damaged = false;
+    for _ in 0..24 {
+        projection = admitted_tick(&mut session)?.1;
+        if enemy_vitality(&projection) < 6.0 {
+            damaged = true;
+            break;
+        }
+    }
+    assert!(damaged, "the committed sword action did not convert the opening");
+    assert_eq!(enemy_vitality(&projection), 4.0);
+    Ok(())
+}
+
+#[test]
 fn jump_vertical_sustain_and_energy_recovery_are_orthogonal() -> Result<(), Box<dyn Error>> {
     let mut session = open_session()?;
     key_down(&mut session, b"Space")?;
@@ -689,15 +782,87 @@ fn repeated_resource_gated_expeditions_establish_a_durable_frontier() -> Result<
         open_fresh_persistent_process_session_v1(&encode_wasm_process_request_v1(&request)?)?;
     let mut latest = None;
 
+    let disable_enemy = workbench.handler_occurrence(b"prepare-frontier-enemy-proof", &[])?;
+    admitted_opaque_input(&mut session, &disable_enemy)?;
+    key_down(&mut session, b"KeyD")?;
+    let mut sealed = admitted_tick(&mut session)?.1;
+    for _ in 0..320 {
+        sealed = admitted_tick(&mut session)?.1;
+    }
+    key_up(&mut session, b"KeyD")?;
+    assert_eq!(arena_max_x(&sealed), frontier_boundary_x(&sealed));
+    assert!(
+        vector(&sealed, b"position")[0] <= frontier_boundary_x(&sealed),
+        "the sealed Clause frontier allowed the player into the Ashen Verge"
+    );
+
     for expedition in 1..=3 {
         let prepare = [
             workbench.handler_occurrence(b"prepare-frontier-player-proof", &[])?,
             workbench.handler_occurrence(b"prepare-frontier-enemy-proof", &[])?,
-            workbench.handler_occurrence(b"prepare-frontier-loot-proof", &[])?,
+            workbench.handler_occurrence(b"prepare-frontier-key-proof", &[])?,
         ];
         for occurrence in &prepare {
             admitted_opaque_input(&mut session, occurrence)?;
         }
+        let mut opened = None;
+        for _ in 0..16 {
+            let projection = admitted_tick(&mut session)?.1;
+            if frontier_access(&projection) == b"temporary-open"
+                && loot_symbol(&projection, b"cephorium-cache", b"loot-state") == b"available"
+            {
+                opened = Some(projection);
+                break;
+            }
+        }
+        let opened = opened.ok_or("the admitted key did not open the frontier and reveal Cephorium")?;
+        assert_eq!(objective_phase(&opened), 0.0);
+        assert_eq!(frontier_progress(&opened), f64::from(expedition - 1));
+        assert_eq!(arena_max_x(&opened), 2048.0);
+        assert_eq!(
+            loot_symbol(&opened, b"ashen-key", b"custody"),
+            b"game-objective",
+            "opening the breach must spend the carried key without granting progress",
+        );
+
+        if expedition == 1 {
+            key_down(&mut session, b"KeyD")?;
+            let mut crossed = opened.clone();
+            for _ in 0..320 {
+                crossed = admitted_tick(&mut session)?.1;
+                if vector(&crossed, b"position")[0] > frontier_boundary_x(&crossed) + 0.5 {
+                    break;
+                }
+            }
+            key_up(&mut session, b"KeyD")?;
+            assert!(
+                vector(&crossed, b"position")[0] > frontier_boundary_x(&crossed),
+                "temporary access did not make the Ashen Verge traversable"
+            );
+        }
+
+        let move_to_cache =
+            workbench.handler_occurrence(b"prepare-frontier-cache-player-proof", &[])?;
+        admitted_opaque_input(&mut session, &move_to_cache)?;
+        key_down(&mut session, b"LootItem")?;
+        let mut acquired = None;
+        for _ in 0..8 {
+            let projection = admitted_tick(&mut session)?.1;
+            if loot_symbol(&projection, b"cephorium-cache", b"loot-state") == b"acquired"
+                && loot_symbol(&projection, b"cephorium-cache", b"custody") == b"player-1"
+            {
+                acquired = Some(projection);
+                break;
+            }
+        }
+        key_up(&mut session, b"LootItem")?;
+        let acquired = acquired.ok_or("the in-range Cephorium cache was not acquired")?;
+        assert_eq!(objective_phase(&acquired), 0.0);
+        assert_eq!(frontier_progress(&acquired), f64::from(expedition - 1));
+
+        let return_to_moonwell =
+            workbench.handler_occurrence(b"prepare-frontier-player-proof", &[])?;
+        admitted_opaque_input(&mut session, &return_to_moonwell)?;
         let mut completed = None;
         for _ in 0..16 {
             let projection = admitted_tick(&mut session)?.1;
@@ -706,7 +871,7 @@ fn repeated_resource_gated_expeditions_establish_a_durable_frontier() -> Result<
                 break;
             }
         }
-        let completed = completed.ok_or("resource-gated breach did not complete")?;
+        let completed = completed.ok_or("carried Cephorium did not extract at the moonwell")?;
         assert_eq!(frontier_progress(&completed), f64::from(expedition));
         assert_eq!(
             frontier_access(&completed),
@@ -715,7 +880,7 @@ fn repeated_resource_gated_expeditions_establish_a_durable_frontier() -> Result<
             } else {
                 b"permanent-open"
             },
-            "each admitted key breach must advance typed frontier access"
+            "only extracted Cephorium may advance typed frontier access",
         );
 
         let reset = workbench.handler_occurrence(b"reset-objective", &[])?;
@@ -733,6 +898,15 @@ fn repeated_resource_gated_expeditions_establish_a_durable_frontier() -> Result<
             restored = admitted_tick(&mut session)?.1;
         }
         assert_eq!(frontier_progress(&restored), f64::from(expedition));
+        assert_eq!(
+            arena_max_x(&restored),
+            if expedition < 3 {
+                frontier_boundary_x(&restored)
+            } else {
+                2048.0
+            },
+            "reset must restore the movement boundary only for temporary access"
+        );
         assert_eq!(
             frontier_access(&restored),
             if expedition < 3 {
@@ -824,6 +998,37 @@ fn typed_combat_behavior_selection_swaps_rejects_and_remains_explainable()
             .any(|cause| matches!(cause, CausalRef::Step(_) | CausalRef::Observation(_))),
         "behavior CandidateDelta must retain its producing step or formation evidence"
     );
+
+    let unauthorized = IssuedAdmissionAuthorizationOccurrenceId::from_bytes([0xa5; 32]);
+    let records_before_rejection = session.carrier()?.accepted_ingress_record_count();
+    let revisions_before_rejection = session.carrier()?.state_revision_count();
+    let base_before_rejection = session.world_base();
+    assert!(
+        session
+            .admit_issued_candidate_with_projection(unauthorized)
+            .is_err(),
+        "an unissued occurrence must not authorize the behavior CandidateDelta"
+    );
+    assert_eq!(
+        session.carrier()?.accepted_ingress_record_count(),
+        records_before_rejection,
+        "rejected behavior Admission must not retain partial ingress"
+    );
+    assert_eq!(
+        session.carrier()?.state_revision_count(),
+        revisions_before_rejection,
+        "rejected behavior Admission must not create a StateRevision"
+    );
+    assert_eq!(session.world_base(), base_before_rejection);
+    assert_eq!(
+        session
+            .candidate()?
+            .ok_or("rejected behavior Admission discarded its CandidateDelta")?
+            .id,
+        candidate.id,
+        "rejected behavior Admission must leave the exact CandidateDelta pending"
+    );
+
     let authorization = session.issue_candidate_admission_authorization()?;
     let (successor, projection) = session.admit_issued_candidate_with_projection(authorization)?;
     let decision = session

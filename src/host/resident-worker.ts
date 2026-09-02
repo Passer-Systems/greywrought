@@ -139,6 +139,7 @@ const edgeTriggeredKeyboardCodes = new Set([
   "Space",
   "Tab",
   "ShiftTab",
+  "LootItem",
   "KeyR",
 ]);
 
