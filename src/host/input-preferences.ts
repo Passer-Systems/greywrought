@@ -29,7 +29,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   { action: "right", label: "Move right", semanticCode: "KeyD", held: true },
   { action: "target", label: "Cycle target", semanticCode: "Tab", held: false },
   { action: "bolt", label: "Bolt / Frostbolt", semanticCode: "Digit2", held: false },
-  { action: "sword", label: "Sword", semanticCode: "Digit1", held: false },
+  { action: "sword", label: "Sword / melee", semanticCode: "Digit1", held: false },
   { action: "loot", label: "Interact / loot", semanticCode: "LootItem", held: false },
   { action: "jump", label: "Jump / air boost", semanticCode: "Space", held: true },
   { action: "shield", label: "Shield", semanticCode: "KeyE", held: true },
@@ -125,7 +125,7 @@ export function decodeInputPreferences(source: string | null): Readonly<{
       largeText: value.largeText,
       effectsVolume: value.effectsVolume,
     },
-    recovered: false,
+    recovered: value.version === 1,
   };
 }
 

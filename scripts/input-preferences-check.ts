@@ -40,6 +40,14 @@ assert(!decoded.recovered, "valid preferences were discarded");
 assert(decoded.preferences.bindings.sword === "KeyK", "valid remap did not round trip");
 assert(decoded.preferences.reducedMotion, "reduced motion did not round trip");
 assert(decoded.preferences.effectsVolume === 0.6, "effects volume did not round trip");
+const migrated = decodeInputPreferences(JSON.stringify({
+  ...defaultInputPreferences,
+  version: 1,
+  bindings: { ...defaultBindings, bolt: "Digit1", sword: "KeyJ" },
+}));
+assert(migrated.recovered, "legacy slot order did not trigger migration");
+assert(migrated.preferences.bindings.sword === "Digit1", "legacy Sword did not migrate to slot 1");
+assert(migrated.preferences.bindings.bolt === "Digit2", "legacy Bolt did not migrate to slot 2");
 const gamepad = actionsForStandardGamepad([0.7, -0.8], [true, false, true]);
 assert(gamepad.has("forward") && gamepad.has("right"), "gamepad axes did not map movement");
 assert(gamepad.has("jump") && gamepad.has("sword"), "gamepad buttons did not map actions");

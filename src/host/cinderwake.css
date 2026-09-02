@@ -465,12 +465,34 @@ body[data-game-phase="completed"] .terminal-feedback-title {
 }
 
 .player-cast {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 9px);
+  z-index: 4;
+  width: 250px;
+  height: 24px;
+  margin-top: 0;
   border-color: #a987ff;
-  box-shadow: 0 0 0 1px #000, 0 0 10px #744cff9c;
+  box-shadow: 0 0 0 2px #000, 0 0 18px #744cffdc, inset 0 0 12px #f2eaff4d;
 }
 
 .player-cast .enemy-cast-fill {
   background: linear-gradient(90deg, #39218d, #8b62ff 68%, #e9ddff);
+}
+
+.player-cast .enemy-cast-name {
+  font-size: 11px;
+  line-height: 22px;
+  letter-spacing: .14em;
+}
+
+.player-cast-time {
+  position: absolute;
+  right: 7px;
+  top: 0;
+  color: #fff;
+  font: 800 10px/22px ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-shadow: 0 1px 3px #000;
 }
 
 .enemy-hit-stun {

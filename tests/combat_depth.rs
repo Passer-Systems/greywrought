@@ -211,6 +211,17 @@ fn wayfarer_bolt<'a>(projection: &'a Term) -> &'a Term {
     projected_field(projection, b"wayfarer-bolt")
 }
 
+fn cinder_bolt<'a>(projection: &'a Term) -> &'a Term {
+    projected_field(projection, b"cinder-bolt")
+}
+
+fn projectile_symbol<'a>(projectile: &'a Term, field: &[u8]) -> &'a [u8] {
+    projected_field(projectile, field)
+        .as_atom()
+        .expect("projected projectile symbol is an Atom")
+        .canonical_payload()
+}
+
 fn objective<'a>(projection: &'a Term) -> &'a Term {
     projected_field(projection, b"game-objective")
 }
@@ -248,8 +259,20 @@ fn enemy_symbol<'a>(projection: &'a Term, field: &[u8]) -> &'a [u8] {
         .canonical_payload()
 }
 
+fn player_symbol<'a>(projection: &'a Term, field: &[u8]) -> &'a [u8] {
+    projected_field(player(projection), field)
+        .as_atom()
+        .expect("projected player symbol is an Atom")
+        .canonical_payload()
+}
+
 fn enemy_vitality(projection: &Term) -> f64 {
     let vitals = projected_field(enemy(projection), b"enemy-vitals");
+    projected_number(projected_field(vitals, b"x"))
+}
+
+fn player_vitality(projection: &Term) -> f64 {
+    let vitals = projected_field(player(projection), b"player-vitals");
     projected_number(projected_field(vitals, b"x"))
 }
 
@@ -412,6 +435,95 @@ fn burst_booster_source() -> Vec<u8> {
     source_with_booster_equipment("player-1 equipped booster burst-booster-rig")
 }
 
+fn shield_scenario_source(
+    projectile_position: &str,
+    shield_clock: f64,
+    shield_active: f64,
+    shield_energy: f64,
+) -> Vec<u8> {
+    let source = str::from_utf8(EMBODIED_SOURCE).expect("embedded Clause source is UTF-8");
+    let replacements = [
+        (
+            "cinder-bolt projectile position Vec3 { x: 2.0, y: 0.55, z: 0.0 }".to_owned(),
+            projectile_position.to_owned(),
+        ),
+        (
+            "cinder-bolt projectile state dormant".to_owned(),
+            "cinder-bolt projectile state flight".to_owned(),
+        ),
+        (
+            "cinder-bolt projectile visible false".to_owned(),
+            "cinder-bolt projectile visible true".to_owned(),
+        ),
+        (
+            "player-1 shield clock 0.0".to_owned(),
+            format!("player-1 shield clock {shield_clock:.1}"),
+        ),
+        (
+            "player-1 shield active factor 0.0".to_owned(),
+            format!("player-1 shield active factor {shield_active:.1}"),
+        ),
+        (
+            "player-1 shield energy 100.0".to_owned(),
+            format!("player-1 shield energy {shield_energy:.1}"),
+        ),
+    ];
+    let mut scenario = source.to_owned();
+    for (expected, replacement) in replacements {
+        assert!(scenario.contains(&expected), "shield fixture is present");
+        scenario = scenario.replacen(&expected, &replacement, 1);
+    }
+    scenario.into_bytes()
+}
+
+fn charge_shield_scenario_source(
+    enemy_x: f64,
+    shield_clock: f64,
+    shield_energy: f64,
+) -> Vec<u8> {
+    let source = str::from_utf8(EMBODIED_SOURCE).expect("embedded Clause source is UTF-8");
+    let replacements = [
+        (
+            "cinder-wraith enemy position Vec3 { x: 12.0, y: 0.0, z: 0.0 }".to_owned(),
+            format!("cinder-wraith enemy position Vec3 {{ x: {enemy_x:.1}, y: 0.0, z: 0.0 }}"),
+        ),
+        (
+            "cinder-wraith enemy pressure state approach".to_owned(),
+            "cinder-wraith enemy pressure state charging".to_owned(),
+        ),
+        (
+            "cinder-wraith enemy pressure clock 0.0".to_owned(),
+            "cinder-wraith enemy pressure clock 12.0".to_owned(),
+        ),
+        (
+            "cinder-wraith enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }".to_owned(),
+            "cinder-wraith enemy charge envelope Vec3 { x: 2.0, y: 8.0, z: 0.75 }".to_owned(),
+        ),
+        (
+            "cinder-wraith enemy charge committed false".to_owned(),
+            "cinder-wraith enemy charge committed true".to_owned(),
+        ),
+        (
+            "player-1 shield clock 0.0".to_owned(),
+            format!("player-1 shield clock {shield_clock:.1}"),
+        ),
+        (
+            "player-1 shield active factor 0.0".to_owned(),
+            "player-1 shield active factor 1.0".to_owned(),
+        ),
+        (
+            "player-1 shield energy 100.0".to_owned(),
+            format!("player-1 shield energy {shield_energy:.1}"),
+        ),
+    ];
+    let mut scenario = source.to_owned();
+    for (expected, replacement) in replacements {
+        assert_eq!(scenario.matches(&expected).count(), 1, "unique charge fixture");
+        scenario = scenario.replacen(&expected, &replacement, 1);
+    }
+    scenario.into_bytes()
+}
+
 fn admit_workbench(
     workbench: &mut ResidentSourceWorkbenchV1,
     occurrences: &[Vec<u8>],
@@ -436,6 +548,136 @@ fn admitted_workbench_tick(
     let mut occurrences = prefix;
     occurrences.extend(workbench.fixed_tick_occurrences(0.016)?);
     admit_workbench(workbench, &occurrences)
+}
+
+#[test]
+fn shield_uses_visible_radius_then_reflects_only_during_four_tick_window()
+-> Result<(), Box<dyn Error>> {
+    let source = shield_scenario_source(
+        "cinder-bolt projectile position Vec3 { x: -0.3, y: 0.55, z: 0.5 }",
+        0.0,
+        0.0,
+        100.0,
+    );
+    let mut session = open_session_from_source(&source)?;
+    key_down(&mut session, b"KeyE")?;
+    let (_, reflected) = admitted_tick(&mut session)?;
+
+    assert_eq!(number(&reflected, b"shield-action-sequence"), 1.0);
+    assert_eq!(number(&reflected, b"shield-reflect-sequence"), 1.0);
+    assert_eq!(number(&reflected, b"shield-absorb-sequence"), 0.0);
+    assert!(number(&reflected, b"shield-clock") < 4.0);
+    assert!(number(&reflected, b"shield-clock") > 0.0);
+    assert_eq!(
+        projectile_symbol(cinder_bolt(&reflected), b"projectile-faction"),
+        b"player-origin",
+    );
+    Ok(())
+}
+
+#[test]
+fn held_shield_shrinks_absorbs_late_and_stops_protecting_below_threshold()
+-> Result<(), Box<dyn Error>> {
+    let late_source = shield_scenario_source(
+        "cinder-bolt projectile position Vec3 { x: 2.0, y: 0.55, z: 0.5 }",
+        0.0,
+        0.0,
+        100.0,
+    );
+    let mut late = open_session_from_source(&late_source)?;
+    key_down(&mut late, b"KeyE")?;
+    let (_, mut projection) = admitted_tick(&mut late)?;
+    let initial_energy = number(&projection, b"shield-energy");
+    for _ in 0..24 {
+        if number(&projection, b"shield-absorb-sequence") > 0.0 {
+            break;
+        }
+        projection = admitted_tick(&mut late)?.1;
+    }
+    assert!(number(&projection, b"shield-energy") < initial_energy);
+    assert_eq!(number(&projection, b"shield-clock"), 0.0);
+    assert_eq!(number(&projection, b"shield-reflect-sequence"), 0.0);
+    assert_eq!(number(&projection, b"shield-absorb-sequence"), 1.0);
+    assert_eq!(
+        projectile_symbol(cinder_bolt(&projection), b"projectile-state"),
+        b"spent",
+    );
+
+    let tiny_source = shield_scenario_source(
+        "cinder-bolt projectile position Vec3 { x: -1.5, y: 0.55, z: 0.5 }",
+        0.0,
+        1.0,
+        32.0,
+    );
+    let mut tiny = open_session_from_source(&tiny_source)?;
+    let (_, unprotected) = admitted_tick(&mut tiny)?;
+    assert!(number(&unprotected, b"shield-energy") < 32.0);
+    assert_eq!(number(&unprotected, b"shield-reflect-sequence"), 0.0);
+    assert_eq!(number(&unprotected, b"shield-absorb-sequence"), 0.0);
+    assert_eq!(
+        projectile_symbol(cinder_bolt(&unprotected), b"projectile-state"),
+        b"spent",
+    );
+    Ok(())
+}
+
+#[test]
+fn visible_shield_surface_deflects_or_absorbs_boar_charge_before_body_contact()
+-> Result<(), Box<dyn Error>> {
+    let perfect_source = charge_shield_scenario_source(0.0, 4.0, 100.0);
+    let mut perfect = open_session_from_source(&perfect_source)?;
+    let (_, deflected) = admitted_tick(&mut perfect)?;
+    assert_eq!(enemy_symbol(&deflected, b"enemy-pressure-state"), b"overrun-recovery");
+    assert_eq!(enemy_vitality(&deflected), 4.0);
+    assert_eq!(number(&deflected, b"shield-reflect-sequence"), 1.0);
+    assert_eq!(number(&deflected, b"shield-absorb-sequence"), 0.0);
+    assert_eq!(player_vitality(&deflected), 4.0);
+
+    let absorb_source = charge_shield_scenario_source(-0.9, 0.0, 50.0);
+    let mut absorb = open_session_from_source(&absorb_source)?;
+    let (_, absorbed) = admitted_tick(&mut absorb)?;
+    assert_eq!(enemy_symbol(&absorbed, b"enemy-pressure-state"), b"hit-recovery");
+    assert_eq!(number(&absorbed, b"shield-reflect-sequence"), 0.0);
+    assert_eq!(number(&absorbed, b"shield-absorb-sequence"), 1.0);
+
+    let tiny_source = charge_shield_scenario_source(-1.5, 0.0, 32.0);
+    let mut tiny = open_session_from_source(&tiny_source)?;
+    let (_, hit) = admitted_tick(&mut tiny)?;
+    assert_eq!(enemy_symbol(&hit, b"enemy-pressure-state"), b"hit-recovery");
+    assert_eq!(number(&hit, b"shield-reflect-sequence"), 0.0);
+    assert_eq!(number(&hit, b"shield-absorb-sequence"), 0.0);
+    let vitals = projected_field(player(&hit), b"player-vitals");
+    assert_eq!(projected_number(projected_field(vitals, b"x")), 2.0);
+    Ok(())
+}
+
+#[test]
+fn digit2_starts_and_completes_bolt_cast_without_explicit_target_lock()
+-> Result<(), Box<dyn Error>> {
+    let mut session = open_session()?;
+    key_down(&mut session, b"Digit2")?;
+    let (_, started) = admitted_tick(&mut session)?;
+    assert!(!boolean(&started, b"target-lock-active"));
+    assert_eq!(number(&started, b"ranged-action-sequence"), 1.0);
+    assert_eq!(player_symbol(&started, b"ranged-action-state"), b"charging");
+    assert!(number(&started, b"ranged-action-clock") > 0.0);
+
+    let mut projection = started;
+    let mut launched = false;
+    for _ in 0..56 {
+        projection = admitted_tick(&mut session)?.1;
+        if projected_bool(projected_field(
+            wayfarer_bolt(&projection),
+            b"projectile-visible",
+        )) {
+            launched = true;
+            break;
+        }
+    }
+    assert!(launched, "Digit2 cast completed without launching the Bolt");
+    assert_eq!(player_symbol(&projection, b"ranged-action-state"), b"ready");
+    assert_eq!(number(&projection, b"ranged-action-clock"), 0.0);
+    Ok(())
 }
 
 #[test]
@@ -588,10 +830,6 @@ fn projectile_opening_converts_through_atomic_burst_into_committed_melee()
 -> Result<(), Box<dyn Error>> {
     let mut session = open_session()?;
 
-    key_down(&mut session, b"Tab")?;
-    let (_, targeted) = admitted_tick(&mut session)?;
-    assert!(boolean(&targeted, b"target-lock-active"));
-
     key_down(&mut session, b"Digit2")?;
     let (_, mut projection) = admitted_tick(&mut session)?;
     let mut saw_projectile = false;
@@ -607,7 +845,7 @@ fn projectile_opening_converts_through_atomic_burst_into_committed_melee()
         }
         projection = admitted_tick(&mut session)?.1;
     }
-    assert!(saw_projectile, "Digit2 launched no visible wayfarer projectile");
+    assert!(saw_projectile, "direct Digit2 launched no visible wayfarer projectile");
     assert!(saw_opening, "the projectile produced no admitted opening");
 
     let before_burst = vector(&projection, b"position");

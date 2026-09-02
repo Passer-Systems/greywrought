@@ -120,6 +120,8 @@ interface SubjectPresentation extends EffectShell {
   readonly coreMaterial: MeshStandardMaterial;
   readonly lootSparkles: Group | null;
   readonly lootSparkleMaterial: MeshStandardMaterial | null;
+  readonly castingSparkles: Group | null;
+  readonly castingSparkleMaterial: MeshStandardMaterial | null;
   readonly baseElevation: number;
   readonly baseScale: number;
   readonly boar: boolean;
@@ -205,7 +207,10 @@ export interface CinderwakePresentation {
   shieldClock: number;
   shieldActive: boolean;
   shieldEnergy: number;
+  shieldRadius: number;
+  shieldProtective: boolean;
   shieldReflectLevel: number;
+  shieldAbsorbLevel: number;
   wayfarerRig: MountedArenaRig | null;
   readonly boarRigs: Map<string, MountedBoarRig>;
   cacheRoot: Object3D | null;
@@ -384,6 +389,8 @@ function subjectPresentation(
   lootSparkles: Group | null = null,
   lootSparkleMaterial: MeshStandardMaterial | null = null,
   boar = false,
+  castingSparkles: Group | null = null,
+  castingSparkleMaterial: MeshStandardMaterial | null = null,
 ): SubjectPresentation {
   root.visible = false;
   return {
@@ -393,6 +400,8 @@ function subjectPresentation(
     coreMaterial,
     lootSparkles,
     lootSparkleMaterial,
+    castingSparkles,
+    castingSparkleMaterial,
     ...effects,
     baseElevation,
     baseScale,
@@ -445,13 +454,47 @@ function createWayfarer(
   blade.position.set(0.46, 0.72, 0.12);
   blade.rotation.z = -0.34;
   placeholder.add(body, hood, blade);
-  root.add(placeholder);
+  const castingSparkleMaterial = standardMaterial(
+    resources,
+    0xf3ddff,
+    0xa85cff,
+    0,
+    0.18,
+    true,
+    0,
+  );
+  const castingSparkleGeometry = ownGeometry(
+    resources,
+    new SphereGeometry(0.075, 8, 6),
+  );
+  const castingSparkles = new Group();
+  castingSparkles.name = "greywrought.wayfarer.casting-sparkles";
+  for (let index = 0; index < 12; index += 1) {
+    const sparkle = mesh(castingSparkleGeometry, castingSparkleMaterial);
+    const angle = index / 12 * Math.PI * 2;
+    sparkle.position.set(
+      Math.cos(angle) * (0.7 + (index % 3) * 0.13),
+      0.38 + (index % 4) * 0.34,
+      Math.sin(angle) * (0.7 + (index % 3) * 0.13),
+    );
+    sparkle.userData.baseY = sparkle.position.y;
+    castingSparkles.add(sparkle);
+  }
+  castingSparkles.visible = false;
+  root.add(placeholder, castingSparkles);
   return subjectPresentation(
     subject,
     root,
     placeholder,
     bodyMaterial,
     createEffectShell(resources, root, 0.78, 0xffd2b7, 0xffe853),
+    0,
+    1,
+    null,
+    null,
+    false,
+    castingSparkles,
+    castingSparkleMaterial,
   );
 }
 
@@ -1313,14 +1356,23 @@ export function setPulseShield(
   clock: number,
   active: boolean,
   energy: number,
+  radius: number,
+  protective: boolean,
   reflected: boolean,
+  absorbed: boolean,
 ): void {
   presentation.shieldClock = Math.max(0, clock);
   presentation.shieldActive = active;
   presentation.shieldEnergy = Math.max(0, Math.min(100, energy));
+  presentation.shieldRadius = Math.max(0, radius);
+  presentation.shieldProtective = protective;
   if (reflected) {
     presentation.shieldReflectLevel = 1;
     presentation.cameraImpulse = Math.max(presentation.cameraImpulse, 0.22);
+  }
+  if (absorbed) {
+    presentation.shieldAbsorbLevel = 1;
+    presentation.cameraImpulse = Math.max(presentation.cameraImpulse, 0.1);
   }
 }
 
@@ -1377,6 +1429,22 @@ function animateSubject(
       }
     }
   }
+  if (subject.castingSparkles !== null) {
+    const casting = subject.telegraphLevel > 0.001;
+    subject.castingSparkles.visible = casting;
+    if (casting) {
+      subject.castingSparkles.rotation.y = elapsed * 3.8;
+      subject.castingSparkles.children.forEach((sparkle, index) => {
+        const phase = elapsed * 8.5 + index * 0.73;
+        sparkle.position.y = Number(sparkle.userData.baseY) + Math.sin(phase) * 0.18;
+        sparkle.scale.setScalar(0.7 + subject.telegraphLevel * (0.8 + 0.5 * Math.sin(phase)));
+      });
+      if (subject.castingSparkleMaterial !== null) {
+        subject.castingSparkleMaterial.opacity = 0.5 + subject.telegraphLevel * 0.5;
+        subject.castingSparkleMaterial.emissiveIntensity = 2.2 + subject.telegraphLevel * 2.8;
+      }
+    }
+  }
   subject.root.rotation.y = subject.facingYaw;
 }
 
@@ -1400,26 +1468,54 @@ export function renderPresentationFrame(
     0,
     presentation.shieldReflectLevel - delta * 4.2,
   );
-  const shieldPerfect = presentation.shieldClock >= 9;
+  presentation.shieldAbsorbLevel = Math.max(
+    0,
+    presentation.shieldAbsorbLevel - delta * 5.5,
+  );
+  const shieldPerfect = presentation.shieldClock > 0;
   const shieldActive = presentation.shieldActive && presentation.shieldEnergy > 0;
   const shieldPulse = 1 + Math.sin(elapsedSeconds * 34) * 0.055;
   presentation.shieldBubble.visible = shieldActive;
   presentation.shieldBubble.scale.setScalar(
-    (presentation.shieldEnergy / 60) * shieldPulse +
-      presentation.shieldReflectLevel * 0.42,
+    (presentation.shieldRadius / 1.08) * shieldPulse +
+      presentation.shieldReflectLevel * 0.42 +
+      presentation.shieldAbsorbLevel * 0.18,
   );
   presentation.shieldBubble.rotation.y = elapsedSeconds * 2.4;
   presentation.shieldBubble.rotation.z = elapsedSeconds * -1.6;
   presentation.shieldBubbleMaterial.color.setHex(
-    shieldPerfect ? 0xfff5a8 : 0x65bfff,
+    presentation.shieldReflectLevel > 0
+      ? 0xfff5a8
+      : presentation.shieldAbsorbLevel > 0
+        ? 0xdff8ff
+        : shieldPerfect
+          ? 0xffd56b
+          : 0x65bfff,
   );
   presentation.shieldBubbleMaterial.emissive.setHex(
-    shieldPerfect ? 0xff9f16 : 0x075cff,
+    presentation.shieldReflectLevel > 0
+      ? 0xff9f16
+      : presentation.shieldAbsorbLevel > 0
+        ? 0x46d9ff
+        : shieldPerfect
+          ? 0xff7d16
+          : 0x075cff,
   );
-  presentation.shieldBubbleMaterial.emissiveIntensity = shieldPerfect ? 3.4 : 1.8;
+  presentation.shieldBubbleMaterial.emissiveIntensity =
+    presentation.shieldReflectLevel > 0
+      ? 4.8
+      : presentation.shieldAbsorbLevel > 0
+        ? 3.2
+        : shieldPerfect
+          ? 3.4
+          : 1.8;
   presentation.shieldBubbleMaterial.opacity = shieldActive
-    ? 0.18 + (shieldPerfect ? 0.23 : 0.08) + presentation.shieldReflectLevel * 0.4
+    ? 0.18 +
+      (shieldPerfect ? 0.23 : 0.08) +
+      presentation.shieldReflectLevel * 0.4 +
+      presentation.shieldAbsorbLevel * 0.26
     : 0;
+  presentation.shieldBubbleMaterial.wireframe = !presentation.shieldProtective;
   const rain = presentation.rain;
   for (let index = 0; index < rain.drops.length; index += 1) {
     const drop = rain.drops[index]!;
@@ -1655,7 +1751,10 @@ export function createCinderwakePresentation(
     shieldClock: 0,
     shieldActive: false,
     shieldEnergy: 100,
+    shieldRadius: 2.6,
+    shieldProtective: true,
     shieldReflectLevel: 0,
+    shieldAbsorbLevel: 0,
     wayfarerRig: null,
     boarRigs: new Map(),
     cacheRoot: null,

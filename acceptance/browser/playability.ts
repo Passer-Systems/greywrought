@@ -94,6 +94,13 @@ try {
         playerX: Number(document.body.dataset.gamePlayerX),
         swordSequence: Number(document.body.dataset.gameSwordActionSequence),
         swordClock: Number(document.body.dataset.gameSwordCommitmentClock),
+        rangedState: document.body.dataset.gameRangedActionState,
+        rangedClock: Number(document.body.dataset.gameRangedActionClock),
+        castVisible: !document.getElementById("player-cast")?.hidden,
+        castLabel: document.querySelector("#player-cast .enemy-cast-name")?.textContent,
+        castTime: document.getElementById("player-cast-time")?.textContent,
+        castWidth: document.getElementById("player-cast")?.getBoundingClientRect().width,
+        castHeight: document.getElementById("player-cast")?.getBoundingClientRect().height,
         frames: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "frame-admitted").length,
         heartbeats: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "worker-heartbeat").length,
         frameGaps: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "frame-gap"),
@@ -120,6 +127,13 @@ try {
       playerX: number;
       swordSequence: number;
       swordClock: number;
+      rangedState: string | undefined;
+      rangedClock: number;
+      castVisible: boolean;
+      castLabel: string | undefined;
+      castTime: string | undefined;
+      castWidth: number | undefined;
+      castHeight: number | undefined;
       frames: number;
       heartbeats: number;
       frameGaps: readonly unknown[];
@@ -151,6 +165,21 @@ try {
   await key("keyDown", "ShiftR", "R", 82);
   await key("keyUp", "ShiftR", "R", 82);
   const reset = await waitForProjection();
+  await key("keyDown", "Digit2", "2", 50);
+  await key("keyUp", "Digit2", "2", 50);
+  let casting = await snapshot();
+  for (let attempt = 0; attempt < 20 && !casting.castVisible; attempt += 1) {
+    await Bun.sleep(20);
+    casting = await snapshot();
+  }
+  requireCondition(casting.rangedState === "charging", "Digit2 did not start Clause Bolt casting");
+  requireCondition(casting.castVisible, "Digit2 Bolt cast bar remained hidden");
+  requireCondition(casting.castLabel === "BOLT", `unexpected cast label ${casting.castLabel}`);
+  requireCondition(Number(casting.castTime) > 0, `cast time was not visible: ${casting.castTime}`);
+  requireCondition(
+    (casting.castWidth ?? 0) >= 240 && (casting.castHeight ?? 0) >= 22,
+    `cast bar was not unmistakable: ${casting.castWidth}x${casting.castHeight}`,
+  );
   let afterMove = reset;
   for (let attempt = 0; attempt < 4 && afterMove.playerX <= reset.playerX; attempt += 1) {
     await key("keyDown", "KeyD", "d", 68);
@@ -196,7 +225,7 @@ try {
   requireCondition(result.phase === "playing", `encounter reached ${result.phase}`);
   requireCondition(
     result.swordSequence === 1,
-    `1 mash admitted ${result.swordSequence} sword actions instead of one committed action`,
+    `Digit1 mash admitted ${result.swordSequence} sword actions instead of one committed action`,
   );
   requireCondition(result.frames >= 20, `only ${result.frames} admitted frames observed`);
   requireCondition(result.heartbeats >= 2, `only ${result.heartbeats} worker heartbeats observed`);

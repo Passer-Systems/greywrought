@@ -306,6 +306,11 @@ relation shield-reflect-sequence
   subject player
   mode given player yields value: one
 
+relation shield-absorb-sequence
+  reads {player: Player} shield absorb sequence {value: F64}
+  subject player
+  mode given player yields value: one
+
 relation sword-action-sequence
   reads {player: Player} sword action sequence {value: F64}
   subject player
@@ -511,6 +516,16 @@ relation projectile-contact-radius
   subject arena
   mode given arena yields value: one
 
+relation shield-radius-per-energy
+  reads {arena: Arena} shield radius per energy {value: F64}
+  subject arena
+  mode given arena yields value: one
+
+relation shield-protection-threshold
+  reads {arena: Arena} shield protection threshold {value: F64}
+  subject arena
+  mode given arena yields value: one
+
 relation projectile-contact
   reads {player: Player} has hostile projectile contact {value: Bool}
   subject player
@@ -657,10 +672,12 @@ law shield-projectile-contact-within-radius
     ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
     ?projectile projectile state ?projectile-state
     ?projectile projectile faction enemy-origin
+    jump-arena shield radius per energy ?radius-per-energy
+    jump-arena shield protection threshold ?protection-threshold
     ?active = 1.0
-    ?energy >= 34.0
+    ?energy >= ?protection-threshold
     ?projectile-state = flight
-    ((?player-x - ?projectile-x) * (?player-x - ?projectile-x)) + ((?player-z - ?projectile-z) * (?player-z - ?projectile-z)) <= (?energy * 0.018) * (?energy * 0.018)
+    ((?player-x - ?projectile-x) * (?player-x - ?projectile-x)) + ((?player-z - ?projectile-z) * (?player-z - ?projectile-z)) <= (?energy * ?radius-per-energy) * (?energy * ?radius-per-energy)
   then
     ?player has shield projectile contact true
 
@@ -766,6 +783,8 @@ jump-arena maximum x 16.0
 jump-arena minimum z -2048.0
 jump-arena maximum z 2048.0
 jump-arena projectile contact radius 0.6
+jump-arena shield radius per energy 0.026
+jump-arena shield protection threshold 34.0
 jump-arena loot pickup radius 2.5
 jump-arena sword commitment ticks 96.0
 jump-arena ranged charge ticks 47.0
@@ -795,6 +814,7 @@ player-1 shield active factor 0.0
 player-1 shield energy 100.0
 player-1 shield action sequence 0.0
 player-1 shield reflect sequence 0.0
+player-1 shield absorb sequence 0.0
 player-1 sword action sequence 0.0
 player-1 sword commitment clock 0.0
 player-1 ranged action state ready
@@ -1384,7 +1404,7 @@ on drain-shield-energy ?player
   when
     ?player shield active factor ?active
     ?player shield energy ?energy
-    (?energy - 1.6) clamped between 0.0 and 100.0 as ?next-energy
+    (?energy - 0.32) clamped between 0.0 and 100.0 as ?next-energy
     ?active = 1.0
     ?energy > 0.0
   withdraw
@@ -1421,7 +1441,6 @@ on begin-ranged-action ?player
     ?player ranged action clock ?clock
     ?player ranged action sequence ?sequence
     ?player sword commitment clock ?sword-clock
-    ?player target lock active ?target-active
     ?player combat target ?target
     ?player combat status ?player-status
     ?target enemy combat status ?target-status
@@ -1430,7 +1449,6 @@ on begin-ranged-action ?player
     ?state = ready
     ?clock = 0.0
     ?sword-clock = 0.0
-    ?target-active = true
     ?player-status = alive
     ?target-status = alive
     ?projectile-state = dormant
@@ -1460,7 +1478,6 @@ on launch-wayfarer-bolt ?projectile
     player-1 ranged action clock ?clock
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 combat target ?target
-    player-1 target lock active ?target-active
     ?target enemy combat status ?target-status
     ?projectile projectile position Vec3 { x: ?projectile-x, y: ?projectile-y, z: ?projectile-z }
     ?projectile projectile state ?projectile-state
@@ -1468,7 +1485,6 @@ on launch-wayfarer-bolt ?projectile
     ?projectile projectile faction player-origin
     ?ranged-state = charging
     ?clock = 0.0
-    ?target-active = true
     ?target-status = alive
     ?projectile-state = dormant
     ?projectile-visible = false
@@ -1703,10 +1719,11 @@ on combat-impact ?enemy
     player-1 has hostile projectile contact true
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
+    jump-arena shield protection threshold ?protection-threshold
     ?enemy-status = alive
     ?player-status = alive
     ?grounded = false
-    ?shield-energy * ?shield-active < 34.0
+    ?shield-energy * ?shield-active < ?protection-threshold
     ?vitality = 6.0
   withdraw
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
@@ -1722,10 +1739,11 @@ on apply-ember-mark ?player
     player-1 has hostile projectile contact true
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
+    jump-arena shield protection threshold ?protection-threshold
     ?player-status = alive
     ?enemy-status = alive
     ?grounded = true
-    ?shield-energy * ?shield-active < 34.0
+    ?shield-energy * ?shield-active < ?protection-threshold
     ?effect = clear
   withdraw
     ?player status effect ?effect
@@ -1739,8 +1757,9 @@ on spend-cinder-bolt-on-contact ?projectile
     player-1 has hostile projectile contact true
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
+    jump-arena shield protection threshold ?protection-threshold
     ?state = flight
-    ?shield-energy * ?shield-active < 34.0
+    ?shield-energy * ?shield-active < ?protection-threshold
   withdraw
     ?projectile projectile state ?state
   include
@@ -1769,12 +1788,15 @@ on absorb-cinder-bolt ?projectile
     ?projectile projectile faction enemy-origin
     player-1 has shield projectile contact true
     player-1 shield clock ?shield-clock
+    player-1 shield absorb sequence ?sequence
     ?state = flight
     ?shield-clock = 0.0
   withdraw
     ?projectile projectile state ?state
+    player-1 shield absorb sequence ?sequence
   include
     ?projectile projectile state spent
+    player-1 shield absorb sequence ?sequence + 1.0
 
 on resolve-reflected-cinder-bolt ?enemy
   when
@@ -2042,10 +2064,11 @@ on fire-siegebore-cannon ?enemy
     ?player-x >= ?wall-x
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
+    jump-arena shield protection threshold ?protection-threshold
     ?pressure = cannon-telegraph
     ?clock = 0.0
     ?player-status = alive
-    ?shield-energy * ?shield-active < 34.0
+    ?shield-energy * ?shield-active < ?protection-threshold
     ((?player-x - ?target-x) * (?player-x - ?target-x)) + ((?player-z - ?target-z) * (?player-z - ?target-z)) <= 2.25
   withdraw
     ?enemy enemy pressure state ?pressure
@@ -2068,32 +2091,33 @@ on absorb-siegebore-cannon ?enemy
     ?enemy enemy random sample ?random
     ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
-    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     player-1 combat status ?player-status
     ashen-bulwark feature position Vec3 { x: ?wall-x, y: ?wall-y, z: ?wall-z }
     ?player-x >= ?wall-x
     player-1 shield clock ?shield-clock
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
+    player-1 shield absorb sequence ?sequence
+    jump-arena shield protection threshold ?protection-threshold
     ?pressure = cannon-telegraph
     ?clock = 0.0
     ?player-status = alive
     ?shield-clock = 0.0
     ?shield-active = 1.0
-    ?shield-energy >= 34.0
+    ?shield-energy >= ?protection-threshold
     ((?player-x - ?target-x) * (?player-x - ?target-x)) + ((?player-z - ?target-z) * (?player-z - ?target-z)) <= 2.25
   withdraw
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?clock
     ?enemy enemy recovery clock ?recovery-clock
     ?enemy enemy random sample ?random
-    player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    player-1 shield absorb sequence ?sequence
   include
     ?enemy enemy pressure state projectile-opening
     ?enemy enemy pressure clock 0.0
     ?enemy enemy recovery clock 48.0
     ?enemy enemy random sample 0.2
-    player-1 player vitals Vec3 { x: ?vitality - 1.0, y: ?maximum, z: ?alive-flag }
+    player-1 shield absorb sequence ?sequence + 1.0
 
 on reflect-siegebore-cannon ?enemy
   when
@@ -2111,12 +2135,13 @@ on reflect-siegebore-cannon ?enemy
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
     player-1 shield reflect sequence ?sequence
+    jump-arena shield protection threshold ?protection-threshold
     ?pressure = cannon-telegraph
     ?clock = 0.0
     ?player-status = alive
     ?shield-clock > 0.0
     ?shield-active = 1.0
-    ?shield-energy >= 34.0
+    ?shield-energy >= ?protection-threshold
     ((?player-x - ?target-x) * (?player-x - ?target-x)) + ((?player-z - ?target-z) * (?player-z - ?target-z)) <= 2.25
     (?enemy-vitality - 4.0) clamped between 0.0 and ?enemy-maximum as ?next-vitality
   withdraw
@@ -2368,25 +2393,67 @@ on advance-boar-charge ?enemy
   include
     ?enemy enemy position Vec3 { x: ?enemy-x + ((?end-x - ?start-x) / 12.0), y: ?enemy-y + ((?end-y - ?start-y) / 12.0), z: ?enemy-z + ((?end-z - ?start-z) / 12.0) }
 
-on observe-boar-charge-shield-impact ?enemy
+on deflect-boar-charge-with-perfect-shield ?enemy
   when
     ?enemy enemy pressure state ?pressure
     ?enemy enemy recovery clock ?recovery-clock
-    ?enemy enemy charge committed ?committed
-    ?enemy enemy shield impact sequence ?sequence
-    ?enemy has visible shield contact true
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy shield impact sequence ?impact-sequence
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 shield clock ?shield-clock
+    player-1 shield active factor ?shield-active
+    player-1 shield energy ?shield-energy
+    player-1 shield reflect sequence ?sequence
+    jump-arena shield radius per energy ?radius-per-energy
+    jump-arena shield protection threshold ?protection-threshold
     ?pressure = charging
-    ?committed = true
+    ?shield-clock > 0.0
+    ?shield-active = 1.0
+    ?shield-energy >= ?protection-threshold
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= (?shield-energy * ?radius-per-energy) * (?shield-energy * ?radius-per-energy)
+    (?vitality - 2.0) clamped between 0.0 and ?maximum as ?next-vitality
   withdraw
     ?enemy enemy pressure state ?pressure
     ?enemy enemy recovery clock ?recovery-clock
-    ?enemy enemy charge committed ?committed
-    ?enemy enemy shield impact sequence ?sequence
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy shield impact sequence ?impact-sequence
+    player-1 shield reflect sequence ?sequence
+  include
+    ?enemy enemy pressure state overrun-recovery
+    ?enemy enemy recovery clock 31.0
+    ?enemy enemy vitals Vec3 { x: ?next-vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy shield impact sequence ?impact-sequence + 1.0
+    player-1 shield reflect sequence ?sequence + 1.0
+
+on absorb-boar-charge-with-shield ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy shield impact sequence ?impact-sequence
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    player-1 shield clock ?shield-clock
+    player-1 shield active factor ?shield-active
+    player-1 shield energy ?shield-energy
+    player-1 shield absorb sequence ?sequence
+    jump-arena shield radius per energy ?radius-per-energy
+    jump-arena shield protection threshold ?protection-threshold
+    ?pressure = charging
+    ?shield-clock = 0.0
+    ?shield-active = 1.0
+    ?shield-energy >= ?protection-threshold
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= (?shield-energy * ?radius-per-energy) * (?shield-energy * ?radius-per-energy)
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy shield impact sequence ?impact-sequence
+    player-1 shield absorb sequence ?sequence
   include
     ?enemy enemy pressure state hit-recovery
     ?enemy enemy recovery clock 30.0
-    ?enemy enemy charge committed false
-    ?enemy enemy shield impact sequence ?sequence + 1.0
+    ?enemy enemy shield impact sequence ?impact-sequence + 1.0
+    player-1 shield absorb sequence ?sequence + 1.0
 
 on observe-boar-charge-hit ?enemy
   when
@@ -2398,8 +2465,9 @@ on observe-boar-charge-hit ?enemy
     player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
+    jump-arena shield protection threshold ?protection-threshold
     ?pressure = charging
-    ?shield-energy * ?shield-active < 42.0
+    ?shield-energy * ?shield-active < ?protection-threshold
     ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-y - ?enemy-y) * (?player-y - ?enemy-y)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= ?corridor-radius * ?corridor-radius
   withdraw
     ?enemy enemy pressure state ?pressure
@@ -3170,6 +3238,16 @@ on reset-player-shield-reflect-sequence ?player
     ?player shield reflect sequence ?sequence
   include
     ?player shield reflect sequence 0.0
+
+on reset-player-shield-absorb-sequence ?player
+  when
+    ?player shield absorb sequence ?sequence
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?player shield absorb sequence ?sequence
+  include
+    ?player shield absorb sequence 0.0
 
 on reset-ranged-action-state ?player
   when

@@ -226,10 +226,12 @@ interface PlayerProjection {
   readonly shieldEnergy: number;
   readonly shieldActionSequence: number;
   readonly shieldReflectSequence: number;
+  readonly shieldAbsorbSequence: number;
   readonly swordActionSequence: number;
   readonly swordCommitmentClock: number;
   readonly rangedActionState: string;
   readonly rangedActionClock: number;
+  readonly rangedActionSequence: number;
   readonly combatTarget: string;
   readonly targetLockActive: boolean;
   readonly targetSelectionSequence: number;
@@ -296,6 +298,8 @@ interface GameProjection {
   readonly wall: EncounterFeatureFrame;
   readonly traps: readonly EncounterTrapFrame[];
   readonly lootPickupRadius: number;
+  readonly shieldRadiusPerEnergy: number;
+  readonly shieldProtectionThreshold: number;
 }
 
 const ENEMY_PRESENTATIONS = [
@@ -777,6 +781,11 @@ function decodeGameProjection(value: unknown): GameProjection {
         "shield-reflect-sequence",
         "player-1",
       ),
+      shieldAbsorbSequence: projectedNumber(
+        player,
+        "shield-absorb-sequence",
+        "player-1",
+      ),
       swordActionSequence: projectedNumber(
         player,
         "sword-action-sequence",
@@ -789,6 +798,11 @@ function decodeGameProjection(value: unknown): GameProjection {
       ),
       rangedActionState: projectedString(player, "ranged-action-state", "player-1"),
       rangedActionClock: projectedNumber(player, "ranged-action-clock", "player-1"),
+      rangedActionSequence: projectedNumber(
+        player,
+        "ranged-action-sequence",
+        "player-1",
+      ),
       combatTarget,
       targetLockActive: projectedBoolean(
         player,
@@ -856,6 +870,16 @@ function decodeGameProjection(value: unknown): GameProjection {
     lootPickupRadius: projectedNumber(
       arena,
       "loot-pickup-radius",
+      "jump-arena",
+    ),
+    shieldRadiusPerEnergy: projectedNumber(
+      arena,
+      "shield-radius-per-energy",
+      "jump-arena",
+    ),
+    shieldProtectionThreshold: projectedNumber(
+      arena,
+      "shield-protection-threshold",
       "jump-arena",
     ),
   };
@@ -1019,6 +1043,21 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     if (player.shieldReflectSequence > prior.player.shieldReflectSequence) {
       playPresentationCue(app, "shield-reflect");
     }
+    if (player.shieldAbsorbSequence > prior.player.shieldAbsorbSequence) {
+      playPresentationTone(app, 380, 0.24, 0.9);
+      playPresentationTone(app, 190, 0.32, 0.68);
+    }
+    if (player.rangedActionSequence > prior.player.rangedActionSequence) {
+      playPresentationTone(app, 420, 0.18, 0.58);
+    }
+    if (wayfarerBolt.visible && !prior.wayfarerBolt.visible) {
+      playPresentationTone(app, 920, 0.18, 0.9);
+      playPresentationTone(app, 1380, 0.12, 0.62);
+    }
+    if (!wayfarerBolt.visible && prior.wayfarerBolt.visible) {
+      playPresentationTone(app, 210, 0.22, 0.92);
+      playPresentationTone(app, 660, 0.16, 0.7);
+    }
     if (player.swordActionSequence > prior.player.swordActionSequence) {
       playPresentationCue(app, "melee-swing");
     }
@@ -1167,8 +1206,16 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const playerCasting = player.rangedActionState === "charging";
   const playerCast = element("player-cast");
   playerCast.hidden = !playerCasting;
-  element("player-cast-fill").style.transform =
-    `scaleX(${playerCasting ? Math.max(0, Math.min(1, 1 - player.rangedActionClock / 47)) : 0})`;
+  const playerCastProgress = playerCasting
+    ? Math.max(0, Math.min(1, 1 - player.rangedActionClock / 47))
+    : 0;
+  element("player-cast-fill").style.transform = `scaleX(${playerCastProgress})`;
+  element("player-cast-time").textContent =
+    playerCasting ? (player.rangedActionClock * 0.016).toFixed(2) : "0.00";
+  playerCast.setAttribute(
+    "aria-label",
+    `Bolt ${Math.round(playerCastProgress * 100)} percent`,
+  );
   const hitStunVisible =
     enemy.pressureState === "hit-recovery" ||
     enemy.pressureState === "overrun-recovery";
@@ -1274,12 +1321,19 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const reflected =
     prior !== null &&
     player.shieldReflectSequence > prior.player.shieldReflectSequence;
+  const absorbed =
+    prior !== null &&
+    player.shieldAbsorbSequence > prior.player.shieldAbsorbSequence;
   setPulseShield(
     app.scene.presentation,
     player.shieldClock,
     player.shieldActive,
     player.shieldEnergy,
+    player.shieldEnergy * projection.shieldRadiusPerEnergy,
+    player.shieldActive &&
+      player.shieldEnergy >= projection.shieldProtectionThreshold,
     reflected,
+    absorbed,
   );
   app.scene.lootInteractions = projection.loots.flatMap((loot) =>
     loot.state === "available"
@@ -1439,6 +1493,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   );
   element("shield-energy-bar").style.transform =
     `scaleX(${Math.max(0, Math.min(1, player.shieldEnergy / 100))})`;
+  element("shield-energy").textContent = `${Math.round(player.shieldEnergy)} / 100`;
   setVitalityBar(
     "enemy-vitality-bar",
     "enemy-vitality",
@@ -1524,8 +1579,18 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     gameShieldEnergy: String(player.shieldEnergy),
     gameShieldActionSequence: String(player.shieldActionSequence),
     gameShieldReflectSequence: String(player.shieldReflectSequence),
+    gameShieldAbsorbSequence: String(player.shieldAbsorbSequence),
+    gameShieldRadius: String(player.shieldEnergy * projection.shieldRadiusPerEnergy),
+    gameShieldProtective: String(
+      player.shieldActive &&
+        player.shieldEnergy >= projection.shieldProtectionThreshold,
+    ),
     gameSwordActionSequence: String(player.swordActionSequence),
     gameSwordCommitmentClock: String(player.swordCommitmentClock),
+    gameRangedActionState: player.rangedActionState,
+    gameRangedActionClock: String(player.rangedActionClock),
+    gameRangedActionSequence: String(player.rangedActionSequence),
+    gamePlayerCasting: String(playerCasting),
     gameCombatTarget: player.combatTarget,
     gameTargetLockActive: String(player.targetLockActive),
     gameTargetSelectionSequence: String(player.targetSelectionSequence),
@@ -1556,6 +1621,15 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     }
     if (player.shieldReflectSequence > prior.player.shieldReflectSequence) {
       element("combat-feedback").textContent = "PERFECT REFLECT";
+    }
+    if (player.shieldAbsorbSequence > prior.player.shieldAbsorbSequence) {
+      element("combat-feedback").textContent = "SHIELD ABSORB";
+    }
+    if (player.rangedActionSequence > prior.player.rangedActionSequence) {
+      element("combat-feedback").textContent = "BOLT CASTING";
+    }
+    if (wayfarerBolt.visible && !prior.wayfarerBolt.visible) {
+      element("combat-feedback").textContent = "BOLT LAUNCHED";
     }
     if (player.swordActionSequence > prior.player.swordActionSequence) {
       const targetsEnemy =
