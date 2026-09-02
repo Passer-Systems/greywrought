@@ -1,6 +1,7 @@
 import {
   BoxGeometry,
   CircleGeometry,
+  ConeGeometry,
   CylinderGeometry,
   Group,
   Material,
@@ -37,7 +38,22 @@ export interface OpenFieldEnvironment {
   readonly root: Group;
   readonly ready: Promise<void>;
   setFrontierAccess(boundaryX: number, access: FrontierGateAccess): void;
+  setEncounterFeatures(
+    wall: EncounterFeatureFrame,
+    traps: readonly EncounterTrapFrame[],
+  ): void;
   dispose(): void;
+}
+
+export interface EncounterFeatureFrame {
+  readonly id: string;
+  readonly position: { readonly x: number; readonly y: number; readonly z: number };
+  readonly halfExtents: { readonly x: number; readonly y: number; readonly z: number };
+}
+
+export interface EncounterTrapFrame extends EncounterFeatureFrame {
+  readonly armed: boolean;
+  readonly triggerSequence: number;
 }
 
 export type FrontierGateAccess =
@@ -49,6 +65,15 @@ interface FrontierGatePresentation {
   readonly root: Group;
   readonly barrier: Mesh;
   readonly signalMaterial: MeshStandardMaterial;
+}
+
+interface EncounterFeaturePresentation {
+  readonly root: Group;
+  readonly wall: Mesh;
+  readonly traps: Map<
+    string,
+    { readonly root: Group; readonly warning: MeshStandardMaterial }
+  >;
 }
 
 const FIELD_ASSETS: readonly FieldAssetSpec[] = [
@@ -259,6 +284,82 @@ function createFrontierGate(): FrontierGatePresentation {
   return { root, barrier, signalMaterial };
 }
 
+function createEncounterFeatures(): EncounterFeaturePresentation {
+  const root = new Group();
+  root.name = "greywrought.encounter-features";
+  const wallMaterial = new MeshStandardMaterial({
+    color: 0x392e37,
+    emissive: 0x40162e,
+    emissiveIntensity: 0.38,
+    roughness: 0.72,
+    metalness: 0.3,
+  });
+  const wall = new Mesh(new BoxGeometry(1, 1, 1), wallMaterial);
+  wall.name = "greywrought.encounter-features.ashen-bulwark";
+  wall.visible = false;
+  root.add(wall);
+
+  const traps = new Map<
+    string,
+    { readonly root: Group; readonly warning: MeshStandardMaterial }
+  >();
+  for (const id of ["ember-trap-west", "ember-trap-east"]) {
+    const trap = new Group();
+    trap.name = `greywrought.encounter-features.${id}`;
+    const baseMaterial = new MeshStandardMaterial({
+      color: 0x241b20,
+      roughness: 0.58,
+      metalness: 0.72,
+    });
+    const warning = new MeshStandardMaterial({
+      color: 0xff6b20,
+      emissive: 0xff2508,
+      emissiveIntensity: 2.1,
+      roughness: 0.26,
+      metalness: 0.24,
+    });
+    const base = new Mesh(new CylinderGeometry(1, 1.1, 0.18, 12), baseMaterial);
+    base.position.y = 0.09;
+    trap.add(base);
+    for (let index = 0; index < 8; index += 1) {
+      const angle = (index / 8) * Math.PI * 2;
+      const spike = new Mesh(new ConeGeometry(0.13, 0.72, 6), warning);
+      spike.position.set(Math.cos(angle) * 0.68, 0.44, Math.sin(angle) * 0.68);
+      spike.rotation.z = Math.sin(angle) * 0.18;
+      spike.rotation.x = Math.cos(angle) * -0.18;
+      trap.add(spike);
+    }
+    trap.visible = false;
+    root.add(trap);
+    traps.set(id, { root: trap, warning });
+  }
+  return { root, wall, traps };
+}
+
+function applyEncounterFeatures(
+  presentation: EncounterFeaturePresentation,
+  wall: EncounterFeatureFrame,
+  traps: readonly EncounterTrapFrame[],
+): void {
+  presentation.wall.visible = true;
+  presentation.wall.position.set(wall.position.x, wall.position.y, wall.position.z);
+  presentation.wall.scale.set(
+    wall.halfExtents.x * 2,
+    wall.halfExtents.y * 2,
+    wall.halfExtents.z * 2,
+  );
+  for (const trap of traps) {
+    const target = presentation.traps.get(trap.id);
+    if (target === undefined) continue;
+    target.root.visible = true;
+    target.root.position.set(trap.position.x, trap.position.y, trap.position.z);
+    target.root.scale.set(trap.halfExtents.x, 1, trap.halfExtents.z);
+    target.warning.color.setHex(trap.armed ? 0xff6b20 : 0x50484f);
+    target.warning.emissive.setHex(trap.armed ? 0xff2508 : 0x160d12);
+    target.warning.emissiveIntensity = trap.armed ? 2.1 : 0.18;
+  }
+}
+
 function applyFrontierAccess(
   gate: FrontierGatePresentation,
   boundaryX: number,
@@ -304,7 +405,8 @@ export function createOpenFieldEnvironment(
 ): OpenFieldEnvironment {
   const root = createTerrain();
   const frontierGate = createFrontierGate();
-  root.add(frontierGate.root);
+  const encounterFeatures = createEncounterFeatures();
+  root.add(frontierGate.root, encounterFeatures.root);
   applyFrontierAccess(frontierGate, 16, "sealed");
   scene.add(root);
   let disposed = false;
@@ -323,6 +425,9 @@ export function createOpenFieldEnvironment(
     ready,
     setFrontierAccess(boundaryX, access): void {
       applyFrontierAccess(frontierGate, boundaryX, access);
+    },
+    setEncounterFeatures(wall, traps): void {
+      applyEncounterFeatures(encounterFeatures, wall, traps);
     },
     dispose(): void {
       if (disposed) return;

@@ -59,14 +59,18 @@ import {
   renderPresentationFrame,
   setActivityCue,
   setChargeCorridor,
+  setEncounterFeatures,
   setFrontierAccess,
   setPulseShield,
   setSubjectLootable,
+  setSubjectStealthVisibility,
   signalDeath,
   signalImpact,
   signalPropulsion,
   zoomPresentationCamera,
   type CinderwakePresentation,
+  type EncounterFeatureFrame,
+  type EncounterTrapFrame,
   type FrontierGateAccess,
   type ProjectedPosition,
 } from "./cinderwake-presentation.js";
@@ -243,11 +247,13 @@ interface EnemyProjection {
   readonly chargeEnd: Vector3Projection;
   readonly chargeRadius: number;
   readonly chargeCommitted: boolean;
+  readonly shieldImpactSequence: number;
   readonly recoveryClock: number;
   readonly randomSample: number;
   readonly combatStatus: string;
   readonly bodyVisible: boolean;
   readonly corpseClock: number;
+  readonly stealthRadius: number;
 }
 
 interface BoltProjection {
@@ -286,11 +292,14 @@ interface GameProjection {
   readonly loots: readonly LootProjection[];
   readonly objective: ObjectiveProjection;
   readonly frontier: FrontierProjection;
+  readonly wall: EncounterFeatureFrame;
+  readonly traps: readonly EncounterTrapFrame[];
   readonly lootPickupRadius: number;
 }
 
 const ENEMY_PRESENTATIONS = [
   { world: "cinder-wraith", presentation: "magitek-boar", baseScale: 1 },
+  { world: "veil-tusk", presentation: "veil-tusk-boar", baseScale: 0.92 },
   { world: "ashen-colossus", presentation: "ashen-colossus-boar", baseScale: 2.35 },
 ] as const;
 
@@ -649,11 +658,44 @@ function decodeEnemyProjection(value: unknown, id: string): EnemyProjection {
       `${id}.enemy-charge-envelope`,
     ),
     chargeCommitted: projectedBoolean(enemy, "enemy-charge-committed", id),
+    shieldImpactSequence: projectedNumber(
+      enemy,
+      "enemy-shield-impact-sequence",
+      id,
+    ),
     recoveryClock: projectedNumber(enemy, "enemy-recovery-clock", id),
     randomSample: projectedNumber(enemy, "enemy-random-sample", id),
     combatStatus: projectedString(enemy, "enemy-combat-status", id),
     bodyVisible: projectedBoolean(enemy, "enemy-body-visible", id),
     corpseClock: projectedNumber(enemy, "enemy-corpse-clock", id),
+    stealthRadius: projectedNumber(enemy, "enemy-stealth-radius", id),
+  };
+}
+
+function decodeEncounterFeature(
+  value: unknown,
+  id: string,
+): EncounterFeatureFrame {
+  const feature = projectedField(value, id, "game projection");
+  return {
+    id,
+    position: projectedPosition(
+      projectedField(feature, "feature-position", id),
+      `${id}.feature-position`,
+    ),
+    halfExtents: projectedPosition(
+      projectedField(feature, "feature-half-extents", id),
+      `${id}.feature-half-extents`,
+    ),
+  };
+}
+
+function decodeEncounterTrap(value: unknown, id: string): EncounterTrapFrame {
+  const feature = projectedField(value, id, "game projection");
+  return {
+    ...decodeEncounterFeature(value, id),
+    armed: projectedBoolean(feature, "trap-armed", id),
+    triggerSequence: projectedNumber(feature, "trap-trigger-sequence", id),
   };
 }
 
@@ -805,6 +847,11 @@ function decodeGameProjection(value: unknown): GameProjection {
         "ashen-verge",
       ),
     },
+    wall: decodeEncounterFeature(value, "ashen-bulwark"),
+    traps: [
+      decodeEncounterTrap(value, "ember-trap-west"),
+      decodeEncounterTrap(value, "ember-trap-east"),
+    ],
     lootPickupRadius: projectedNumber(
       arena,
       "loot-pickup-radius",
@@ -866,7 +913,17 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const resident = app.residentLaw;
   const prior = resident.lastProjection;
   const ordinal = resident.admittedOrdinal + 1;
-  const { player, enemy, enemies, bolt, wayfarerBolt, objective, frontier } = projection;
+  const {
+    player,
+    enemy,
+    enemies,
+    bolt,
+    wayfarerBolt,
+    objective,
+    frontier,
+    wall,
+    traps,
+  } = projection;
   const priorEnemy = prior?.enemies.find(({ id }) => id === enemy.id) ?? null;
   const enemyPresentationSubject = presentationSubjectForEnemy(enemy.id);
   const enemyTitle =
@@ -964,6 +1021,25 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
         previousEnemy?.combatStatus !== "dead"
       ) {
         playPresentationCue(app, "boar-death");
+      }
+      if (
+        previousEnemy !== undefined &&
+        projectedEnemy.shieldImpactSequence >
+          previousEnemy.shieldImpactSequence
+      ) {
+        playPresentationTone(app, 86, 0.24, 1.2);
+        playPresentationTone(app, 980, 0.18, 0.88);
+        signalImpact(
+          app.scene.presentation,
+          presentationSubjectForEnemy(projectedEnemy.id),
+          ordinal,
+          1,
+        );
+        boundedGameEvent({
+          phase: "boar-shield-impact",
+          enemy: projectedEnemy.id,
+          sequence: projectedEnemy.shieldImpactSequence,
+        });
       }
     }
   }
@@ -1162,6 +1238,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     frontier.boundaryX,
     frontier.access,
   );
+  setEncounterFeatures(app.scene.presentation, wall, traps);
   const openLootId = document.body.dataset.lootWindowItem;
   if (
     openLootId !== undefined &&
@@ -1173,6 +1250,26 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   }
   for (const projectedEnemy of enemies) {
     const presentationSubject = presentationSubjectForEnemy(projectedEnemy.id);
+    if (projectedEnemy.stealthRadius > 0) {
+      const distance = Math.hypot(
+        projectedEnemy.position.x - player.position.x,
+        projectedEnemy.position.z - player.position.z,
+      );
+      const visibility = Math.max(
+        0.08,
+        Math.min(
+          1,
+          1 -
+            (distance - projectedEnemy.stealthRadius) /
+              (projectedEnemy.stealthRadius * 1.25),
+        ),
+      );
+      setSubjectStealthVisibility(
+        app.scene.presentation,
+        presentationSubject,
+        visibility,
+      );
+    }
     setActivityCue(
       app.scene.presentation,
       presentationSubject,
@@ -1356,6 +1453,11 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     gameEnemyPressure: enemy.pressureState,
     gamePressureClock: String(enemy.pressureClock),
     gameBoarRecoveryClock: String(enemy.recoveryClock),
+    gameBoarShieldImpactSequence: String(enemy.shieldImpactSequence),
+    gameWestTrapArmed: String(traps[0]?.armed ?? false),
+    gameEastTrapArmed: String(traps[1]?.armed ?? false),
+    gameWestTrapTriggerSequence: String(traps[0]?.triggerSequence ?? 0),
+    gameEastTrapTriggerSequence: String(traps[1]?.triggerSequence ?? 0),
     gameChargeCorridorVisible: String(chargeCorridorVisible),
     gameChargeTelegraphProgress: String(
       enemy.pressureState === "telegraph"

@@ -4,6 +4,8 @@ Text
 Player
 Arena
 Enemy
+EncounterFeature
+EncounterTrap
 Projectile
 ProjectileFaction
 Loot
@@ -364,6 +366,11 @@ relation enemy-position
   subject enemy
   mode given enemy yields value: one
 
+relation enemy-spawn-position
+  reads {enemy: Enemy} enemy spawn position {value: Vec3}
+  subject enemy
+  mode given enemy yields value: one
+
 relation enemy-vitals
   reads {enemy: Enemy} enemy vitals {value: Vec3}
   subject enemy
@@ -434,6 +441,11 @@ relation enemy-charge-committed
   subject enemy
   mode given enemy yields value: one
 
+relation enemy-shield-impact-sequence
+  reads {enemy: Enemy} enemy shield impact sequence {value: F64}
+  subject enemy
+  mode given enemy yields value: one
+
 relation enemy-recovery-clock
   reads {enemy: Enemy} enemy recovery clock {value: F64}
   subject enemy
@@ -443,6 +455,36 @@ relation enemy-random-sample
   reads {enemy: Enemy} enemy random sample {value: F64}
   subject enemy
   mode given enemy yields value: one
+
+relation enemy-stealth-radius
+  reads {enemy: Enemy} enemy stealth radius {value: F64}
+  subject enemy
+  mode given enemy yields value: one
+
+relation feature-position
+  reads {feature: EncounterFeature} feature position {value: Vec3}
+  subject feature
+  mode given feature yields value: one
+
+relation feature-half-extents
+  reads {feature: EncounterFeature} feature half extents {value: Vec3}
+  subject feature
+  mode given feature yields value: one
+
+relation trap-armed
+  reads {trap: EncounterTrap} trap armed {value: Bool}
+  subject trap
+  mode given trap yields value: one
+
+relation trap-damage
+  reads {trap: EncounterTrap} trap damage {value: F64}
+  subject trap
+  mode given trap yields value: one
+
+relation trap-trigger-sequence
+  reads {trap: EncounterTrap} trap trigger sequence {value: F64}
+  subject trap
+  mode given trap yields value: one
 
 relation projectile-position
   reads {projectile: Projectile} projectile position {value: Vec3}
@@ -478,6 +520,11 @@ relation shield-projectile-contact
   reads {player: Player} has shield projectile contact {value: Bool}
   subject player
   mode given player yields value: maybe
+
+relation enemy-shield-contact
+  reads {enemy: Enemy} has visible shield contact {value: Bool}
+  subject enemy
+  mode given enemy yields value: maybe
 
 relation enemy-projectile-contact
   reads {enemy: Enemy} has player projectile contact {value: Bool}
@@ -617,6 +664,20 @@ law shield-projectile-contact-within-radius
   then
     ?player has shield projectile contact true
 
+law charging-enemy-visible-shield-contact
+  if
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ?player shield active factor ?shield-active
+    ?player shield energy ?shield-energy
+    ?pressure = charging
+    ?shield-active = 1.0
+    ?shield-energy >= 42.0
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= (?shield-energy * 0.018) * (?shield-energy * 0.018)
+  then
+    ?enemy has visible shield contact true
+
 law enemy-projectile-contact-within-radius
   if
     ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
@@ -634,6 +695,7 @@ derive clamp-interior
 derive clamp-upper
 derive projectile-contact-within-radius
 derive shield-projectile-contact-within-radius
+derive charging-enemy-visible-shield-contact
 derive enemy-projectile-contact-within-radius
 
 jump-arena
@@ -644,9 +706,20 @@ player-1
 cinder-wraith
   shape: Enemy
   shape: Custodian
+veil-tusk
+  shape: Enemy
+  shape: Custodian
 ashen-colossus
   shape: Enemy
   shape: Custodian
+ashen-bulwark
+  shape: EncounterFeature
+ember-trap-west
+  shape: EncounterFeature
+  shape: EncounterTrap
+ember-trap-east
+  shape: EncounterFeature
+  shape: EncounterTrap
 game-objective
   shape: Custodian
   shape: Objective
@@ -760,6 +833,7 @@ burst-booster-rig air boost impulse 5.0
 burst-booster-rig air boost cost 26.0
 
 cinder-wraith enemy position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
+cinder-wraith enemy spawn position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
 cinder-wraith enemy combat status alive
 cinder-wraith enemy body visible true
@@ -767,8 +841,8 @@ cinder-wraith enemy corpse clock 0.0
 cinder-wraith combat behavior relentless-charge
 relentless-charge behavior parameters CombatBehaviorParameters { minimum-step: -0.06, maximum-step: 0.06, engagement-radius-squared: 49.0 }
 patient-charge behavior parameters CombatBehaviorParameters { minimum-step: -0.02, maximum-step: 0.02, engagement-radius-squared: 25.0 }
-cinder-wraith next target cinder-wraith
-cinder-wraith previous target cinder-wraith
+cinder-wraith next target veil-tusk
+cinder-wraith previous target veil-tusk
 cinder-wraith enemy pressure state approach
 cinder-wraith enemy pressure clock 0.0
 cinder-wraith enemy recovery clock 0.0
@@ -776,9 +850,32 @@ cinder-wraith enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy charge committed false
+cinder-wraith enemy shield impact sequence 0.0
 cinder-wraith enemy random sample 0.5
+cinder-wraith enemy stealth radius 0.0
+
+veil-tusk enemy position Vec3 { x: 13.5, y: 0.0, z: 5.0 }
+veil-tusk enemy spawn position Vec3 { x: 13.5, y: 0.0, z: 5.0 }
+veil-tusk enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
+veil-tusk enemy combat status alive
+veil-tusk enemy body visible true
+veil-tusk enemy corpse clock 0.0
+veil-tusk combat behavior relentless-charge
+veil-tusk next target cinder-wraith
+veil-tusk previous target cinder-wraith
+veil-tusk enemy pressure state approach
+veil-tusk enemy pressure clock 0.0
+veil-tusk enemy recovery clock 0.0
+veil-tusk enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+veil-tusk enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+veil-tusk enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+veil-tusk enemy charge committed false
+veil-tusk enemy shield impact sequence 0.0
+veil-tusk enemy random sample 0.32
+veil-tusk enemy stealth radius 6.0
 
 ashen-colossus enemy position Vec3 { x: 29.0, y: 0.0, z: -2.0 }
+ashen-colossus enemy spawn position Vec3 { x: 29.0, y: 0.0, z: -2.0 }
 ashen-colossus enemy vitals Vec3 { x: 24.0, y: 24.0, z: 1.0 }
 ashen-colossus enemy combat status dormant
 ashen-colossus enemy body visible true
@@ -793,7 +890,22 @@ ashen-colossus enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 ashen-colossus enemy charge end Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 ashen-colossus enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 ashen-colossus enemy charge committed false
+ashen-colossus enemy shield impact sequence 0.0
 ashen-colossus enemy random sample 0.82
+ashen-colossus enemy stealth radius 0.0
+
+ashen-bulwark feature position Vec3 { x: 22.0, y: 1.6, z: 0.0 }
+ashen-bulwark feature half extents Vec3 { x: 0.65, y: 1.6, z: 3.8 }
+ember-trap-west feature position Vec3 { x: 7.0, y: 0.0, z: 3.0 }
+ember-trap-west feature half extents Vec3 { x: 1.25, y: 0.2, z: 1.25 }
+ember-trap-west trap armed true
+ember-trap-west trap damage 2.0
+ember-trap-west trap trigger sequence 0.0
+ember-trap-east feature position Vec3 { x: 25.0, y: 0.0, z: -5.0 }
+ember-trap-east feature half extents Vec3 { x: 1.45, y: 0.2, z: 1.45 }
+ember-trap-east trap armed true
+ember-trap-east trap damage 4.0
+ember-trap-east trap trigger sequence 0.0
 
 cinder-bolt projectile position Vec3 { x: 2.0, y: 0.55, z: 0.0 }
 cinder-bolt projectile state dormant
@@ -1926,6 +2038,8 @@ on fire-siegebore-cannon ?enemy
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     player-1 combat status ?player-status
+    ashen-bulwark feature position Vec3 { x: ?wall-x, y: ?wall-y, z: ?wall-z }
+    ?player-x >= ?wall-x
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
     ?pressure = cannon-telegraph
@@ -1956,6 +2070,8 @@ on absorb-siegebore-cannon ?enemy
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     player-1 combat status ?player-status
+    ashen-bulwark feature position Vec3 { x: ?wall-x, y: ?wall-y, z: ?wall-z }
+    ?player-x >= ?wall-x
     player-1 shield clock ?shield-clock
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
@@ -1989,6 +2105,8 @@ on reflect-siegebore-cannon ?enemy
     ?enemy enemy vitals Vec3 { x: ?enemy-vitality, y: ?enemy-maximum, z: ?enemy-alive-flag }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 combat status ?player-status
+    ashen-bulwark feature position Vec3 { x: ?wall-x, y: ?wall-y, z: ?wall-z }
+    ?player-x >= ?wall-x
     player-1 shield clock ?shield-clock
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
@@ -2024,6 +2142,8 @@ on evade-siegebore-cannon ?enemy
     ?enemy enemy random sample ?random
     ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ashen-bulwark feature position Vec3 { x: ?wall-x, y: ?wall-y, z: ?wall-z }
+    ?player-x >= ?wall-x
     ?pressure = cannon-telegraph
     ?clock = 0.0
     ((?player-x - ?target-x) * (?player-x - ?target-x)) + ((?player-z - ?target-z) * (?player-z - ?target-z)) > 2.25
@@ -2037,6 +2157,147 @@ on evade-siegebore-cannon ?enemy
     ?enemy enemy pressure clock 0.0
     ?enemy enemy recovery clock 48.0
     ?enemy enemy random sample 0.2
+
+on interrupt-siegebore-cannon-behind-bulwark ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy random sample ?random
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ashen-bulwark feature position Vec3 { x: ?wall-x, y: ?wall-y, z: ?wall-z }
+    ashen-bulwark feature half extents Vec3 { x: ?half-x, y: ?half-y, z: ?half-z }
+    ?pressure = cannon-telegraph
+    ?clock <= 40.0
+    ?enemy-x > ?wall-x
+    ?player-x < ?wall-x
+    ?player-z > ?wall-z - ?half-z
+    ?player-z < ?wall-z + ?half-z
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy random sample ?random
+  include
+    ?enemy enemy pressure state projectile-opening
+    ?enemy enemy pressure clock 0.0
+    ?enemy enemy recovery clock 30.0
+    ?enemy enemy random sample 0.2
+
+on interrupt-siegebore-cannon-with-sword ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    player-1 sword commitment clock ?commitment-clock
+    player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    jump-arena melee range ?melee-range
+    ?pressure = cannon-telegraph
+    ?clock > 0.0
+    ?commitment-clock = 84.0
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= ?melee-range * ?melee-range
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?clock
+    ?enemy enemy recovery clock ?recovery-clock
+  include
+    ?enemy enemy pressure state hit-recovery
+    ?enemy enemy pressure clock 0.0
+    ?enemy enemy recovery clock 30.0
+
+on spring-west-trap-on-player ?player
+  when
+    ember-trap-west trap armed ?armed
+    ember-trap-west trap damage ?damage
+    ember-trap-west trap trigger sequence ?sequence
+    ember-trap-west feature position Vec3 { x: ?trap-x, y: ?trap-y, z: ?trap-z }
+    ember-trap-west feature half extents Vec3 { x: ?radius, y: ?radius-y, z: ?radius-z }
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?player combat status ?player-status
+    ?armed = true
+    ?player-status = alive
+    ((?player-x - ?trap-x) * (?player-x - ?trap-x)) + ((?player-z - ?trap-z) * (?player-z - ?trap-z)) <= ?radius * ?radius
+    (?vitality - ?damage) clamped between 0.0 and ?maximum as ?next-vitality
+  withdraw
+    ember-trap-west trap armed ?armed
+    ember-trap-west trap trigger sequence ?sequence
+    ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ember-trap-west trap armed false
+    ember-trap-west trap trigger sequence ?sequence + 1.0
+    ?player player vitals Vec3 { x: ?next-vitality, y: ?maximum, z: ?alive-flag }
+
+on spring-east-trap-on-player ?player
+  when
+    ember-trap-east trap armed ?armed
+    ember-trap-east trap damage ?damage
+    ember-trap-east trap trigger sequence ?sequence
+    ember-trap-east feature position Vec3 { x: ?trap-x, y: ?trap-y, z: ?trap-z }
+    ember-trap-east feature half extents Vec3 { x: ?radius, y: ?radius-y, z: ?radius-z }
+    ?player position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
+    ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?player combat status ?player-status
+    ?armed = true
+    ?player-status = alive
+    ((?player-x - ?trap-x) * (?player-x - ?trap-x)) + ((?player-z - ?trap-z) * (?player-z - ?trap-z)) <= ?radius * ?radius
+    (?vitality - ?damage) clamped between 0.0 and ?maximum as ?next-vitality
+  withdraw
+    ember-trap-east trap armed ?armed
+    ember-trap-east trap trigger sequence ?sequence
+    ?player player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ember-trap-east trap armed false
+    ember-trap-east trap trigger sequence ?sequence + 1.0
+    ?player player vitals Vec3 { x: ?next-vitality, y: ?maximum, z: ?alive-flag }
+
+on spring-west-trap-on-enemy ?enemy
+  when
+    ember-trap-west trap armed ?armed
+    ember-trap-west trap damage ?damage
+    ember-trap-west trap trigger sequence ?sequence
+    ember-trap-west feature position Vec3 { x: ?trap-x, y: ?trap-y, z: ?trap-z }
+    ember-trap-west feature half extents Vec3 { x: ?radius, y: ?radius-y, z: ?radius-z }
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy combat status ?enemy-status
+    ?armed = true
+    ?enemy-status = alive
+    ((?enemy-x - ?trap-x) * (?enemy-x - ?trap-x)) + ((?enemy-z - ?trap-z) * (?enemy-z - ?trap-z)) <= ?radius * ?radius
+    (?vitality - ?damage) clamped between 0.0 and ?maximum as ?next-vitality
+  withdraw
+    ember-trap-west trap armed ?armed
+    ember-trap-west trap trigger sequence ?sequence
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ember-trap-west trap armed false
+    ember-trap-west trap trigger sequence ?sequence + 1.0
+    ?enemy enemy vitals Vec3 { x: ?next-vitality, y: ?maximum, z: ?alive-flag }
+
+on spring-east-trap-on-enemy ?enemy
+  when
+    ember-trap-east trap armed ?armed
+    ember-trap-east trap damage ?damage
+    ember-trap-east trap trigger sequence ?sequence
+    ember-trap-east feature position Vec3 { x: ?trap-x, y: ?trap-y, z: ?trap-z }
+    ember-trap-east feature half extents Vec3 { x: ?radius, y: ?radius-y, z: ?radius-z }
+    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy combat status ?enemy-status
+    ?armed = true
+    ?enemy-status = alive
+    ((?enemy-x - ?trap-x) * (?enemy-x - ?trap-x)) + ((?enemy-z - ?trap-z) * (?enemy-z - ?trap-z)) <= ?radius * ?radius
+    (?vitality - ?damage) clamped between 0.0 and ?maximum as ?next-vitality
+  withdraw
+    ember-trap-east trap armed ?armed
+    ember-trap-east trap trigger sequence ?sequence
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+  include
+    ember-trap-east trap armed false
+    ember-trap-east trap trigger sequence ?sequence + 1.0
+    ?enemy enemy vitals Vec3 { x: ?next-vitality, y: ?maximum, z: ?alive-flag }
 
 on count-telegraph-pressure ?enemy
   when
@@ -2107,6 +2368,26 @@ on advance-boar-charge ?enemy
   include
     ?enemy enemy position Vec3 { x: ?enemy-x + ((?end-x - ?start-x) / 12.0), y: ?enemy-y + ((?end-y - ?start-y) / 12.0), z: ?enemy-z + ((?end-z - ?start-z) / 12.0) }
 
+on observe-boar-charge-shield-impact ?enemy
+  when
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy charge committed ?committed
+    ?enemy enemy shield impact sequence ?sequence
+    ?enemy has visible shield contact true
+    ?pressure = charging
+    ?committed = true
+  withdraw
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy recovery clock ?recovery-clock
+    ?enemy enemy charge committed ?committed
+    ?enemy enemy shield impact sequence ?sequence
+  include
+    ?enemy enemy pressure state hit-recovery
+    ?enemy enemy recovery clock 30.0
+    ?enemy enemy charge committed false
+    ?enemy enemy shield impact sequence ?sequence + 1.0
+
 on observe-boar-charge-hit ?enemy
   when
     ?enemy enemy pressure state ?pressure
@@ -2115,7 +2396,10 @@ on observe-boar-charge-hit ?enemy
     ?enemy enemy charge envelope Vec3 { x: ?maximum-height, y: ?maximum-distance, z: ?corridor-radius }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    player-1 shield active factor ?shield-active
+    player-1 shield energy ?shield-energy
     ?pressure = charging
+    ?shield-energy * ?shield-active < 42.0
     ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-y - ?enemy-y) * (?player-y - ?enemy-y)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= ?corridor-radius * ?corridor-radius
   withdraw
     ?enemy enemy pressure state ?pressure
@@ -2347,10 +2631,10 @@ on rearm-after-projectile-opening ?enemy
     ?enemy enemy charge envelope Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?enemy enemy charge committed false
 
-on resolve-wraith-death ?enemy
+on resolve-enemy-death ?enemy
   when
     ?enemy enemy combat status ?status
-    cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     ?status = alive
     ?vitality = 0.0
   withdraw
@@ -2649,6 +2933,8 @@ on clear-reset-signal ?objective
     cephorium-cache loot state ?cache-state
     cephorium-cache custody ?cache-custodian
     cephorium-cache loot source ?cache-source
+    ember-trap-west trap armed ?west-trap-armed
+    ember-trap-east trap armed ?east-trap-armed
     game-objective objective state Vec3 { x: ?objective-state, y: ?branch, z: ?unused-state }
     ?reset = 1.0
     ?player-x = -2.0
@@ -2682,6 +2968,8 @@ on clear-reset-signal ?objective
     ?key-custodian = ?key-source
     ?cache-state = hidden
     ?cache-custodian = ?cache-source
+    ?west-trap-armed = true
+    ?east-trap-armed = true
     ?objective-state = 0.0
   withdraw
     ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
@@ -2961,29 +3249,16 @@ on reset-ashen-colossus-pressure-state ?enemy
   include
     ?enemy enemy pressure state dormant
 
-on reset-cinder-wraith-position ?enemy
+on reset-enemy-position ?enemy
   when
     ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
-    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy spawn position Vec3 { x: ?spawn-x, y: ?spawn-y, z: ?spawn-z }
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
-    ?maximum = 6.0
     ?reset = 1.0
   withdraw
     ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
   include
-    ?enemy enemy position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
-
-on reset-ashen-colossus-position ?enemy
-  when
-    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
-    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
-    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
-    ?maximum = 24.0
-    ?reset = 1.0
-  withdraw
-    ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
-  include
-    ?enemy enemy position Vec3 { x: 29.0, y: 0.0, z: -2.0 }
+    ?enemy enemy position Vec3 { x: ?spawn-x, y: ?spawn-y, z: ?spawn-z }
 
 on reset-enemy-body-visible ?enemy
   when
@@ -3064,6 +3339,26 @@ on reset-enemy-charge-committed ?enemy
     ?enemy enemy charge committed ?committed
   include
     ?enemy enemy charge committed false
+
+on reset-enemy-shield-impact-sequence ?enemy
+  when
+    ?enemy enemy shield impact sequence ?sequence
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?enemy enemy shield impact sequence ?sequence
+  include
+    ?enemy enemy shield impact sequence 0.0
+
+on reset-trap ?trap
+  when
+    ?trap trap armed ?armed
+    game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
+    ?reset = 1.0
+  withdraw
+    ?trap trap armed ?armed
+  include
+    ?trap trap armed true
 
 on reset-projectile-x ?projectile
   when

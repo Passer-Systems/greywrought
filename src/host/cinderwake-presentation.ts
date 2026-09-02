@@ -48,12 +48,18 @@ import {
 } from "./rig-socket-lab.js";
 import {
   createOpenFieldEnvironment,
+  type EncounterFeatureFrame,
+  type EncounterTrapFrame,
   type FrontierGateAccess,
   type OpenFieldEnvironment,
 } from "./open-field-environment.js";
 import { publicUrl } from "./public-url.js";
 
 export type { FrontierGateAccess } from "./open-field-environment.js";
+export type {
+  EncounterFeatureFrame,
+  EncounterTrapFrame,
+} from "./open-field-environment.js";
 
 export interface CinderwakeSubjectIds {
   readonly wayfarer: string;
@@ -497,8 +503,8 @@ function createBoar(
   const root = new Group();
   const bodyMaterial = standardMaterial(
     resources,
-    0x5a462d,
-    0x161720,
+    subject === "veil-tusk-boar" ? 0x53306f : 0x5a462d,
+    subject === "veil-tusk-boar" ? 0x2b083d : 0x161720,
     0.78,
     0.36,
   );
@@ -650,6 +656,15 @@ async function mountBoarRig(
     if (!(object instanceof Mesh)) return;
     object.castShadow = true;
     object.receiveShadow = true;
+    if (subject.subject !== "veil-tusk-boar") return;
+    const materials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    for (const material of materials) {
+      if ("color" in material && material.color instanceof Color) {
+        material.color.multiply(new Color(0x8a56c7));
+      }
+    }
   });
   const walkClip = gltf.animations.find(({ name }) => name === "walk");
   const attackClip = gltf.animations.find(({ name }) => name === "attack");
@@ -897,6 +912,36 @@ export function setFrontierAccess(
   document.body.dataset.frontierGateAccess = access;
   document.body.dataset.frontierGateBoundaryX = String(boundaryX);
   document.body.dataset.frontierGateSealed = String(access === "sealed");
+}
+
+export function setEncounterFeatures(
+  presentation: CinderwakePresentation,
+  wall: EncounterFeatureFrame,
+  traps: readonly EncounterTrapFrame[],
+): void {
+  presentation.environment.setEncounterFeatures(wall, traps);
+}
+
+export function setSubjectStealthVisibility(
+  presentation: CinderwakePresentation,
+  subjectId: string,
+  visibility: number,
+): void {
+  const opacity = Math.max(0.08, Math.min(1, visibility));
+  const rig = presentation.boarRigs.get(subjectId);
+  if (rig === undefined) return;
+  rig.root.traverse((object) => {
+    if (!(object instanceof Mesh)) return;
+    const materials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+    for (const material of materials) {
+      material.transparent = opacity < 0.99;
+      material.opacity = opacity;
+      material.depthWrite = opacity > 0.32;
+    }
+  });
+  document.body.dataset.stealthBoarVisibility = opacity.toFixed(3);
 }
 
 export function pickPresentationSubject(
