@@ -718,7 +718,7 @@ function verifyResourceGatedFrontier(module: object, request: unknown): void {
                 revision,
                 configurationRevision,
                 inputSequence,
-                "KeyJ",
+                "Digit2",
                 "down",
               );
             }
@@ -1442,7 +1442,7 @@ function verifySustainedWasmLiveness(
         directionIndex = (directionIndex + 1) % directions.length;
         key(directions[directionIndex]!, "down");
       }
-      if (tick % 188 === 0) press("KeyJ");
+      if (tick % 188 === 0) press("Digit2");
       if (tick % 250 === 0) {
         press("KeyQ");
         press("Space");

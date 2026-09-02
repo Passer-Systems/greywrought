@@ -1,4 +1,4 @@
-export const inputPreferencesStorageKey = "greywrought/input-preferences-v1";
+export const inputPreferencesStorageKey = "greywrought/input-preferences-v2";
 
 export type GameAction =
   | "forward"
@@ -29,7 +29,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   { action: "right", label: "Move right", semanticCode: "KeyD", held: true },
   { action: "target", label: "Cycle target", semanticCode: "Tab", held: false },
   { action: "bolt", label: "Lock-on bolt", semanticCode: "Digit1", held: false },
-  { action: "sword", label: "Sword", semanticCode: "KeyJ", held: false },
+  { action: "sword", label: "Sword", semanticCode: "Digit2", held: false },
   { action: "loot", label: "Loot", semanticCode: "LootItem", held: false },
   { action: "jump", label: "Jump / air boost", semanticCode: "Space", held: true },
   { action: "shield", label: "Pulse shield", semanticCode: "KeyE", held: true },
@@ -56,7 +56,7 @@ export const defaultBindings: InputBindings = Object.freeze({
   right: "KeyD",
   target: "Tab",
   bolt: "Digit1",
-  sword: "KeyJ",
+  sword: "Digit2",
   loot: "KeyL",
   jump: "Space",
   shield: "KeyE",

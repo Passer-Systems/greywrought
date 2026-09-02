@@ -187,8 +187,8 @@ try {
   await Bun.sleep(250);
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    await key("keyDown", "KeyJ", "j", 74);
-    await key("keyUp", "KeyJ", "j", 74);
+    await key("keyDown", "Digit2", "2", 50);
+    await key("keyUp", "Digit2", "2", 50);
     await Bun.sleep(120);
   }
   await Bun.sleep(500);
@@ -196,7 +196,7 @@ try {
   requireCondition(result.phase === "playing", `encounter reached ${result.phase}`);
   requireCondition(
     result.swordSequence === 1,
-    `J mash admitted ${result.swordSequence} sword actions instead of one committed action`,
+    `2 mash admitted ${result.swordSequence} sword actions instead of one committed action`,
   );
   requireCondition(result.frames >= 20, `only ${result.frames} admitted frames observed`);
   requireCondition(result.heartbeats >= 2, `only ${result.heartbeats} worker heartbeats observed`);
