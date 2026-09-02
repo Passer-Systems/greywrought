@@ -1034,6 +1034,11 @@ function verifyOrthogonalPropulsionAndEnergy(module: object, request: unknown): 
     "horizontal burst did not follow camera-forward without movement input",
   );
   requireCondition(
+    vectorField(noIntentPlayer, "velocity", "y") === 0 &&
+      booleanField(noIntentPlayer, "grounded", "player-1"),
+    "horizontal burst introduced a retired vertical dash",
+  );
+  requireCondition(
     numberField(noIntentPlayer, "booster-energy", "player-1") < 100,
     "camera-forward horizontal burst spent no energy",
   );
@@ -1356,6 +1361,11 @@ function verifyProjectileOpeningConversion(module: object, request: unknown): vo
     vectorField(burstPlayer, "velocity", "x") > 30 &&
       vectorField(burstPlayer, "position", "x") - beforeX < 2,
     "current camera basis did not produce a non-teleporting Wasm Q burst",
+  );
+  requireCondition(
+    vectorField(burstPlayer, "velocity", "y") === 0 &&
+      booleanField(burstPlayer, "grounded", "player-1"),
+    "the Wasm Q burst introduced a retired vertical dash",
   );
   requireCondition(
     numberField(burstPlayer, "booster-energy", "player-1") === 80,

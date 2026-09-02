@@ -130,7 +130,7 @@ fn sustained_mixed_input_session_remains_live() -> Result<(), Box<dyn Error>> {
             key_down(&mut session, directions[direction])?;
         }
         if tick % 33 == 0 {
-            key_down(&mut session, b"KeyJ")?;
+            key_down(&mut session, b"Digit1")?;
         }
         if objective_phase(&projection) != 0.0 {
             key_down(&mut session, b"KeyR")?;
@@ -592,7 +592,7 @@ fn projectile_opening_converts_through_atomic_burst_into_committed_melee()
     let (_, targeted) = admitted_tick(&mut session)?;
     assert!(boolean(&targeted, b"target-lock-active"));
 
-    key_down(&mut session, b"Digit1")?;
+    key_down(&mut session, b"Digit2")?;
     let (_, mut projection) = admitted_tick(&mut session)?;
     let mut saw_projectile = false;
     let mut saw_opening = false;
@@ -607,7 +607,7 @@ fn projectile_opening_converts_through_atomic_burst_into_committed_melee()
         }
         projection = admitted_tick(&mut session)?.1;
     }
-    assert!(saw_projectile, "Digit1 launched no visible wayfarer projectile");
+    assert!(saw_projectile, "Digit2 launched no visible wayfarer projectile");
     assert!(saw_opening, "the projectile produced no admitted opening");
 
     let before_burst = vector(&projection, b"position");
@@ -623,7 +623,7 @@ fn projectile_opening_converts_through_atomic_burst_into_committed_melee()
 
     key_up(&mut session, b"KeyD")?;
     admitted_tick(&mut session)?;
-    key_down(&mut session, b"KeyJ")?;
+    key_down(&mut session, b"Digit1")?;
     let mut damaged = false;
     for _ in 0..24 {
         projection = admitted_tick(&mut session)?.1;
@@ -715,14 +715,14 @@ fn jump_vertical_sustain_and_energy_recovery_are_orthogonal() -> Result<(), Box<
 fn sword_action_is_committed_until_the_animation_window_finishes() -> Result<(), Box<dyn Error>> {
     let mut session = open_session()?;
 
-    key_down(&mut session, b"KeyJ")?;
+    key_down(&mut session, b"Digit1")?;
     let (_, started) = admitted_tick(&mut session)?;
     assert_eq!(number(&started, b"sword-action-sequence"), 1.0);
     assert!(number(&started, b"sword-commitment-clock") > 0.0);
 
     // A second physical press during the committed Sword_Attack window must
     // be ignored by the Clause law rather than queueing another action.
-    key_down(&mut session, b"KeyJ")?;
+    key_down(&mut session, b"Digit1")?;
     let (_, blocked) = admitted_tick(&mut session)?;
     assert_eq!(number(&blocked, b"sword-action-sequence"), 1.0);
 
@@ -736,7 +736,7 @@ fn sword_action_is_committed_until_the_animation_window_finishes() -> Result<(),
     }
     assert_eq!(number(&settled, b"sword-commitment-clock"), 0.0);
 
-    key_down(&mut session, b"KeyJ")?;
+    key_down(&mut session, b"Digit1")?;
     let (_, restarted) = admitted_tick(&mut session)?;
     assert_eq!(number(&restarted, b"sword-action-sequence"), 2.0);
     Ok(())

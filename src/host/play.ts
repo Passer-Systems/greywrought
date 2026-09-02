@@ -2558,6 +2558,7 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
     if (app.playerInput.captureAction !== null) {
       event.preventDefault();
       if (event.repeat) return;
+      if (event.code === "ShiftLeft" || event.code === "ShiftRight") return;
       const action = app.playerInput.captureAction;
       app.playerInput.captureAction = null;
       if (event.code !== "Escape") {

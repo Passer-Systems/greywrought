@@ -28,8 +28,8 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   { action: "left", label: "Move left", semanticCode: "KeyA", held: true },
   { action: "right", label: "Move right", semanticCode: "KeyD", held: true },
   { action: "target", label: "Cycle target", semanticCode: "Tab", held: false },
-  { action: "bolt", label: "Lock-on bolt", semanticCode: "Digit2", held: false },
   { action: "sword", label: "Sword", semanticCode: "Digit1", held: false },
+  { action: "bolt", label: "Lock-on bolt", semanticCode: "Digit2", held: false },
   { action: "loot", label: "Loot / interact", semanticCode: "LootItem", held: false },
   { action: "jump", label: "Jump / air boost", semanticCode: "Space", held: true },
   { action: "shield", label: "Pulse shield", semanticCode: "KeyE", held: true },
@@ -41,7 +41,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
 export type InputBindings = Readonly<Record<GameAction, string>>;
 
 export interface InputPreferences {
-  readonly version: 1;
+  readonly version: 2;
   readonly bindings: InputBindings;
   readonly reducedMotion: boolean;
   readonly highContrast: boolean;
@@ -66,7 +66,7 @@ export const defaultBindings: InputBindings = Object.freeze({
 });
 
 export const defaultInputPreferences: InputPreferences = Object.freeze({
-  version: 1,
+  version: 2,
   bindings: defaultBindings,
   reducedMotion: false,
   highContrast: false,
@@ -94,7 +94,7 @@ export function decodeInputPreferences(source: string | null): Readonly<{
   const value = record(parsed);
   const bindings = record(value?.bindings);
   if (
-    value?.version !== 1 ||
+    value?.version !== 2 ||
     bindings === null ||
     typeof value.reducedMotion !== "boolean" ||
     typeof value.highContrast !== "boolean" ||
@@ -118,7 +118,7 @@ export function decodeInputPreferences(source: string | null): Readonly<{
   }
   return {
     preferences: {
-      version: 1,
+      version: 2,
       bindings: Object.freeze(next),
       reducedMotion: value.reducedMotion,
       highContrast: value.highContrast,

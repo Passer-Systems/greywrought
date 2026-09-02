@@ -15,6 +15,9 @@ function assert(condition: boolean, message: string): void {
 const remapped = rebindAction(defaultBindings, "sword", "KeyK");
 assert(actionForPhysicalCode(remapped, "KeyK") === "sword", "sword did not rebind");
 assert(actionForPhysicalCode(remapped, "Digit1") === null, "old sword binding remained active");
+assert(actionForPhysicalCode(defaultBindings, "KeyJ") === null, "J must remain unbound");
+assert(actionForPhysicalCode(defaultBindings, "ShiftR") === "reset", "Shift+R reset binding failed");
+assert(actionForPhysicalCode(defaultBindings, "KeyR") === null, "bare R must remain available");
 const swapped = rebindAction(remapped, "jump", "KeyK");
 assert(actionForPhysicalCode(swapped, "KeyK") === "jump", "collision did not move requested action");
 assert(actionForPhysicalCode(swapped, "Space") === "sword", "collision did not preserve the displaced action");
@@ -38,7 +41,7 @@ assert(gamepad.has("jump") && gamepad.has("sword"), "gamepad buttons did not map
 assert(decodeInputPreferences("bad json").recovered, "bad JSON was not recovered");
 assert(
   decodeInputPreferences('{"version":1,"bindings":{}}').recovered,
-  "incomplete bindings were not recovered",
+  "stale v1 bindings were not migrated to the new defaults",
 );
 
 console.log("Input remapping and accessibility preference checks passed.");

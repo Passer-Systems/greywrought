@@ -83,9 +83,11 @@ bun run play
 ```
 
 Open <http://127.0.0.1:4173/>. Click the arena, then use WASD to move, left-drag
-to orbit, the wheel to zoom, Tab to target, `1` for the sword, `2` for a ranged
-action, `F` or right-click to loot/interact, Space to jump, Shift to sprint, `Q` to dash,
-`E` to shield, and `Shift+R` to reset the expedition.
+to free-look without steering, right-drag to turn the character with the camera,
+the wheel to zoom, Tab to target, `1` for the sword, `2` for Bolt/Frostbolt,
+`F` or right-click to interact/loot, Space to jump or sustain an air boost,
+Shift to sprint, Q for a camera-facing planar dash, E for the shield, and
+`Shift+R` to reset the expedition. Bare `R` remains available for class utility.
 
 The in-game Controls & Accessibility panel remaps every keyboard action and
 persists collision-safe bindings. It also provides reduced-motion,
