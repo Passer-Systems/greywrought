@@ -91,6 +91,11 @@ try {
         frames: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "frame-admitted").length,
         heartbeats: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "worker-heartbeat").length,
         frameGaps: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "frame-gap"),
+        renderStalls: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.phase === "render-stall"),
+        timeline: window.__GREYWROUGHT_GAME_EVENTS__.filter((e) => e.atMillis >= 3500 && e.atMillis <= 8000).slice(-24),
+        rigState: document.body.dataset.rigState,
+        rigLoadStartedAt: Number(document.body.dataset.rigLoadStartedAt),
+        rigReadyAt: Number(document.body.dataset.rigReadyAt),
       })`,
       returnByValue: true,
     });
@@ -102,6 +107,11 @@ try {
       frames: number;
       heartbeats: number;
       frameGaps: readonly unknown[];
+      renderStalls: readonly unknown[];
+      timeline: readonly unknown[];
+      rigState: string | undefined;
+      rigLoadStartedAt: number;
+      rigReadyAt: number;
     };
   };
 

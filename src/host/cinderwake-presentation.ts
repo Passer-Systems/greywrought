@@ -1012,6 +1012,7 @@ export function createCinderwakePresentation(
     throw new Error("Wayfarer presentation has no rig placeholder");
   }
   document.body.dataset.rigState = "loading";
+  document.body.dataset.rigLoadStartedAt = String(Math.round(performance.now()));
   const rigReady = mountArenaRig(wayfarer.root, wayfarer.placeholder).then(
     (mounted) => {
       if (presentation.disposed) {
@@ -1031,11 +1032,13 @@ export function createCinderwakePresentation(
         presentation.pendingWayfarerPropulsion = 0;
       }
       document.body.dataset.rigState = "ready";
+      document.body.dataset.rigReadyAt = String(Math.round(performance.now()));
       document.body.dataset.rigEquipmentCount = "6";
       document.body.dataset.rigSocketCount = "6";
     },
     (cause: unknown) => {
       document.body.dataset.rigState = "failed";
+      document.body.dataset.rigFailedAt = String(Math.round(performance.now()));
       throw cause;
     },
   );

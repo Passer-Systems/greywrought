@@ -1172,12 +1172,20 @@ function renderLoop(shell: SceneShell): void {
   }
   shell.lastFrameRenderedAt = now;
   const { canvas, presentation } = shell;
+  const renderStartedAt = performance.now();
   renderPresentationFrame(
     presentation,
     Date.now() / 1000,
     Math.max(1, Math.trunc(canvas.clientWidth)),
     Math.max(1, Math.trunc(canvas.clientHeight)),
   );
+  const renderDuration = performance.now() - renderStartedAt;
+  if (renderDuration > 100) {
+    boundedGameEvent({
+      phase: "render-stall",
+      durationMillis: Math.round(renderDuration),
+    });
+  }
   renderEnemyNameplate(shell);
   boundedGameEvent({ phase: "frame-rendered" });
   Object.assign(document.body.dataset, {
