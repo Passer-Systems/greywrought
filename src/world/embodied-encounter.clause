@@ -370,6 +370,11 @@ relation exit-position
   subject objective
   mode given objective yields value: one
 
+relation objective-radius
+  reads {objective: Objective} objective radius {value: F64}
+  subject objective
+  mode given objective yields value: one
+
 relation objective-state
   reads {objective: Objective} objective state {value: Vec3}
   subject objective
@@ -493,6 +498,7 @@ ashen-key loot state hidden
 ashen-key custody cinder-wraith
 ashen-key loot position Vec3 { x: 1.2, y: 0.0, z: -1.0 }
 game-objective exit position Vec3 { x: -2.0, y: 0.0, z: -1.0 }
+game-objective objective radius 0.6
 game-objective objective state Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 game-objective reset signal Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 
@@ -1481,6 +1487,7 @@ on complete-objective ?objective
     ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     game-objective exit position Vec3 { x: ?exit-x, y: ?exit-y, z: ?exit-z }
+    game-objective objective radius ?objective-radius
     cinder-wraith enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     ashen-key loot state ?loot-state
     ashen-key custody ?custodian
@@ -1488,8 +1495,7 @@ on complete-objective ?objective
     ?vitality = 0.0
     ?loot-state = acquired
     ?custodian = player-1
-    ?player-x = ?exit-x
-    ?player-z = ?exit-z
+    ((?player-x - ?exit-x) * (?player-x - ?exit-x)) + ((?player-z - ?exit-z) * (?player-z - ?exit-z)) <= ?objective-radius * ?objective-radius
   withdraw
     ?objective objective state Vec3 { x: ?state, y: ?branch, z: ?unused-state }
   include

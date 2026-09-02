@@ -16,6 +16,7 @@
     "test:wasm-effect": "bun build/host/greywrought-clause/wasm-ongoing-effect.js",
     "test:wasm-combat-depth": "bun build/host/greywrought-clause/wasm-combat-depth.js",
     "test:browser-playability": "bun acceptance/browser/playability.ts",
+    "test:browser-encounter": "bun acceptance/browser/encounter-journey.ts",
     "test:combat-depth": "nix shell nixpkgs#gcc -c bash -lc 'export PATH=/home/tom/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu/bin:$PATH; cargo test --locked --test combat_depth'",
     "check:conquest": "bun run materialize:conquest && bun run build:host && bun run test:host && bun run test:wasm-effect && bun run test:wasm-conquest",
     "check:combat-depth": "bun run materialize:conquest && bun run test:combat-depth && bun run build:host && bun run test:wasm-combat-depth",
