@@ -13,6 +13,7 @@ LootState
 Objective
 ObjectiveState
 CombatBehavior
+BoosterEquipment
 Frontier
 FrontierAccess
 
@@ -45,6 +46,8 @@ ember-mark
 burning
 relentless-charge
 patient-charge
+balanced-booster-rig
+burst-booster-rig
 sealed
 temporary-open
 permanent-open
@@ -113,10 +116,15 @@ relation base-move-speed
   subject player
   mode given player yields value: one
 
-relation sustained-move-speed
-  reads {player: Player} sustained move speed {value: F64}
+relation equipped-booster
+  reads {player: Player} equipped booster {booster: BoosterEquipment}
   subject player
-  mode given player yields value: one
+  mode given player yields booster: one
+
+relation sustained-move-speed
+  reads {booster: BoosterEquipment} sustained move speed {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation negative-control
   reads {player: Player} negative control {value: Vec3}
@@ -134,24 +142,24 @@ relation booster-energy
   mode given player yields value: one
 
 relation booster-capacity
-  reads {player: Player} booster capacity {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} booster capacity {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation booster-regeneration
-  reads {player: Player} booster regeneration {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} booster regeneration {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation booster-ignition-threshold
-  reads {player: Player} booster ignition threshold {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} booster ignition threshold {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation booster-regeneration-delay-limit
-  reads {player: Player} booster regeneration delay limit {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} booster regeneration delay limit {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation booster-regeneration-delay
   reads {player: Player} booster regeneration delay {value: F64}
@@ -159,39 +167,39 @@ relation booster-regeneration-delay
   mode given player yields value: one
 
 relation horizontal-sustain-drain
-  reads {player: Player} horizontal sustain drain {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} horizontal sustain drain {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation horizontal-burst-displacement
-  reads {player: Player} horizontal burst displacement {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} horizontal burst displacement {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation horizontal-burst-cost
-  reads {player: Player} horizontal burst cost {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} horizontal burst cost {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation vertical-sustain-thrust
-  reads {player: Player} vertical sustain thrust {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} vertical sustain thrust {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation vertical-sustain-drain
-  reads {player: Player} vertical sustain drain {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} vertical sustain drain {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation vertical-burst-impulse
-  reads {player: Player} vertical burst impulse {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} vertical burst impulse {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation vertical-burst-cost
-  reads {player: Player} vertical burst cost {value: F64}
-  subject player
-  mode given player yields value: one
+  reads {booster: BoosterEquipment} vertical burst cost {value: F64}
+  subject booster
+  mode given booster yields value: one
 
 relation floor-height
   reads {arena: Arena} floor height {value: F64}
@@ -467,6 +475,8 @@ cinder-wraith ∈ Enemy
 cinder-wraith ∈ Custodian
 relentless-charge ∈ CombatBehavior
 patient-charge ∈ CombatBehavior
+balanced-booster-rig ∈ BoosterEquipment
+burst-booster-rig ∈ BoosterEquipment
 sealed ∈ FrontierAccess
 temporary-open ∈ FrontierAccess
 permanent-open ∈ FrontierAccess
@@ -494,22 +504,11 @@ player-1 horizontal intent Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 player-1 camera forward Vec3 { x: 0.0, y: 0.0, z: -1.0 }
 player-1 move speed 4.0
 player-1 base move speed 4.0
-player-1 sustained move speed 7.0
+player-1 equipped booster balanced-booster-rig
 player-1 negative control Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 player-1 positive control Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 player-1 booster energy 100.0
-player-1 booster capacity 100.0
-player-1 booster regeneration 1.0
-player-1 booster ignition threshold 25.0
-player-1 booster regeneration delay limit 8.0
 player-1 booster regeneration delay 0.0
-player-1 horizontal sustain drain 0.5
-player-1 horizontal burst displacement 1.92
-player-1 horizontal burst cost 20.0
-player-1 vertical sustain thrust 0.55
-player-1 vertical sustain drain 1.0
-player-1 vertical burst impulse 5.0
-player-1 vertical burst cost 25.0
 player-1 player vitals Vec3 { x: 4.0, y: 4.0, z: 1.0 }
 player-1 combat status alive
 player-1 status effect clear
@@ -519,6 +518,32 @@ player-1 sword commitment clock 0.0
 player-1 combat target cinder-wraith
 player-1 target lock active false
 player-1 target selection sequence 0.0
+
+balanced-booster-rig sustained move speed 7.0
+balanced-booster-rig booster capacity 100.0
+balanced-booster-rig booster regeneration 1.0
+balanced-booster-rig booster ignition threshold 25.0
+balanced-booster-rig booster regeneration delay limit 8.0
+balanced-booster-rig horizontal sustain drain 0.5
+balanced-booster-rig horizontal burst displacement 1.92
+balanced-booster-rig horizontal burst cost 20.0
+balanced-booster-rig vertical sustain thrust 0.55
+balanced-booster-rig vertical sustain drain 1.0
+balanced-booster-rig vertical burst impulse 5.0
+balanced-booster-rig vertical burst cost 25.0
+
+burst-booster-rig sustained move speed 5.5
+burst-booster-rig booster capacity 100.0
+burst-booster-rig booster regeneration 0.75
+burst-booster-rig booster ignition threshold 30.0
+burst-booster-rig booster regeneration delay limit 10.0
+burst-booster-rig horizontal sustain drain 0.8
+burst-booster-rig horizontal burst displacement 3.4
+burst-booster-rig horizontal burst cost 30.0
+burst-booster-rig vertical sustain thrust 0.4
+burst-booster-rig vertical sustain drain 1.5
+burst-booster-rig vertical burst impulse 7.0
+burst-booster-rig vertical burst cost 35.0
 
 cinder-wraith enemy position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
@@ -713,13 +738,14 @@ on derive-horizontal-intent-z ?player
 on apply-horizontal-sustain ?player
   when
     ?player move speed ?speed
+    ?player equipped booster ?booster
     ?player booster energy ?energy
-    ?player booster ignition threshold ?threshold
+    ?booster booster ignition threshold ?threshold
     ?player booster regeneration delay ?delay
-    ?player booster regeneration delay limit ?delay-limit
+    ?booster booster regeneration delay limit ?delay-limit
     ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
-    ?player sustained move speed ?sustained
-    ?player horizontal sustain drain ?drain
+    ?booster sustained move speed ?sustained
+    ?booster horizontal sustain drain ?drain
     ?horizontal = 1.0
     ?threshold <= ?energy
     ?drain <= ?energy
@@ -746,8 +772,9 @@ on restore-horizontal-speed ?player
 on restore-exhausted-horizontal-speed ?player
   when
     ?player move speed ?speed
+    ?player equipped booster ?booster
     ?player booster energy ?energy
-    ?player booster ignition threshold ?threshold
+    ?booster booster ignition threshold ?threshold
     ?player base move speed ?base
     ?energy < ?threshold
   withdraw
@@ -759,12 +786,13 @@ on horizontal-burst ?player
   when
     ?player position Vec3 { x: ?position-x, y: ?position-y, z: ?position-z }
     ?player horizontal intent Vec3 { x: ?intent-x, y: ?intent-y, z: ?intent-z }
+    ?player equipped booster ?booster
     ?player booster energy ?energy
-    ?player booster ignition threshold ?threshold
+    ?booster booster ignition threshold ?threshold
     ?player booster regeneration delay ?delay
-    ?player booster regeneration delay limit ?delay-limit
-    ?player horizontal burst displacement ?displacement
-    ?player horizontal burst cost ?cost
+    ?booster booster regeneration delay limit ?delay-limit
+    ?booster horizontal burst displacement ?displacement
+    ?booster horizontal burst cost ?cost
     jump-arena minimum x ?min-x
     jump-arena maximum x ?max-x
     jump-arena minimum z ?min-z
@@ -788,12 +816,13 @@ on apply-vertical-sustain ?player
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
     ?player grounded ?grounded
     ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
+    ?player equipped booster ?booster
     ?player booster energy ?energy
-    ?player booster ignition threshold ?threshold
+    ?booster booster ignition threshold ?threshold
     ?player booster regeneration delay ?delay
-    ?player booster regeneration delay limit ?delay-limit
-    ?player vertical sustain thrust ?thrust
-    ?player vertical sustain drain ?drain
+    ?booster booster regeneration delay limit ?delay-limit
+    ?booster vertical sustain thrust ?thrust
+    ?booster vertical sustain drain ?drain
     ?vertical = 1.0
     ?threshold <= ?energy
     ?drain <= ?energy
@@ -812,12 +841,13 @@ on vertical-burst ?player
   when
     ?player velocity Vec3 { x: ?velocity-x, y: ?velocity-y, z: ?velocity-z }
     ?player grounded ?grounded
+    ?player equipped booster ?booster
     ?player booster energy ?energy
-    ?player booster ignition threshold ?threshold
+    ?booster booster ignition threshold ?threshold
     ?player booster regeneration delay ?delay
-    ?player booster regeneration delay limit ?delay-limit
-    ?player vertical burst impulse ?impulse
-    ?player vertical burst cost ?cost
+    ?booster booster regeneration delay limit ?delay-limit
+    ?booster vertical burst impulse ?impulse
+    ?booster vertical burst cost ?cost
     ?threshold <= ?energy
     ?cost <= ?energy
   withdraw
@@ -842,9 +872,10 @@ on count-booster-regeneration-delay ?player
 
 on regenerate-booster-energy ?player
   when
+    ?player equipped booster ?booster
     ?player booster energy ?energy
-    ?player booster capacity ?capacity
-    ?player booster regeneration ?regeneration
+    ?booster booster capacity ?capacity
+    ?booster booster regeneration ?regeneration
     ?player booster regeneration delay ?delay
     ?player negative control Vec3 { x: ?left, y: ?vertical, z: ?forward }
     ?player positive control Vec3 { x: ?right, y: ?horizontal, z: ?backward }
@@ -1636,8 +1667,9 @@ on clear-reset-signal ?objective
     player-1 positive control Vec3 { x: ?positive-x, y: ?positive-y, z: ?positive-z }
     player-1 move speed ?move-speed
     player-1 base move speed ?base-speed
+    player-1 equipped booster ?booster
     player-1 booster energy ?energy
-    player-1 booster capacity ?capacity
+    ?booster booster capacity ?capacity
     player-1 booster regeneration delay ?regeneration-delay
     player-1 player vitals Vec3 { x: ?player-vitality, y: ?player-maximum, z: ?player-alive }
     player-1 status effect ?effect
@@ -1786,8 +1818,9 @@ on reset-propulsion ?player
     ?player positive control Vec3 { x: ?positive-x, y: ?positive-y, z: ?positive-z }
     ?player move speed ?move-speed
     ?player base move speed ?base-speed
+    ?player equipped booster ?booster
     ?player booster energy ?energy
-    ?player booster capacity ?capacity
+    ?booster booster capacity ?capacity
     ?player booster regeneration delay ?delay
     game-objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
     ?reset = 1.0

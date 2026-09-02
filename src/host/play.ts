@@ -161,6 +161,7 @@ interface PlayerProjection {
   readonly vitality: number;
   readonly maximumVitality: number;
   readonly grounded: boolean;
+  readonly boosterEquipment: string;
   readonly boosterEnergy: number;
   readonly boosterCapacity: number;
   readonly boosterThreshold: number;
@@ -456,6 +457,12 @@ function decodeGameProjection(value: unknown): GameProjection {
   const loot = projectedField(value, "ashen-key", "game projection");
   const objective = projectedField(value, "game-objective", "game projection");
   const frontier = projectedField(value, "ashen-verge", "game projection");
+  const boosterEquipment = projectedString(
+    player,
+    "equipped-booster",
+    "player-1",
+  );
+  const booster = projectedField(value, boosterEquipment, "game projection");
   const playerVitals = projectedField(player, "player-vitals", "player-1");
   const enemyVitals = projectedField(enemy, "enemy-vitals", "cinder-wraith");
   const objectiveState = projectedField(objective, "objective-state", "game-objective");
@@ -468,12 +475,17 @@ function decodeGameProjection(value: unknown): GameProjection {
       vitality: projectedNumber(playerVitals, "x", "player-vitals"),
       maximumVitality: projectedNumber(playerVitals, "y", "player-vitals"),
       grounded: projectedBoolean(player, "grounded", "player-1"),
+      boosterEquipment,
       boosterEnergy: projectedNumber(player, "booster-energy", "player-1"),
-      boosterCapacity: projectedNumber(player, "booster-capacity", "player-1"),
+      boosterCapacity: projectedNumber(
+        booster,
+        "booster-capacity",
+        boosterEquipment,
+      ),
       boosterThreshold: projectedNumber(
-        player,
+        booster,
         "booster-ignition-threshold",
-        "player-1",
+        boosterEquipment,
       ),
       boosterDelay: projectedNumber(
         player,
@@ -839,6 +851,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     `${enemy.pressureState} ${enemy.pressureClock} · recovery ${enemy.recoveryClock} · ` +
     `key ${loot.state} / ` +
     `${loot.custody} · booster ${player.boosterEnergy} / ${player.boosterCapacity} · ` +
+    `rig ${player.boosterEquipment} · ` +
     `frontier ${frontier.access} ${frontier.progress}/${frontier.requirement} · ` +
     `ignition ${player.boosterThreshold} · regeneration delay ${player.boosterDelay} · ` +
     `status ${player.statusEffect} ${player.statusClock} · fixed sample ${enemy.randomSample}`;
@@ -864,6 +877,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     gameBoarZ: String(enemy.position.z),
     gameBoosterEnergy: String(player.boosterEnergy),
     gameBoosterCapacity: String(player.boosterCapacity),
+    gameBoosterEquipment: player.boosterEquipment,
     gameBoosterIgnitionThreshold: String(player.boosterThreshold),
     gameBoosterRegenerationDelay: String(player.boosterDelay),
     gameStatusEffect: player.statusEffect,

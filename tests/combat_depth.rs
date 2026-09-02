@@ -318,6 +318,17 @@ fn patient_behavior_source() -> Vec<u8> {
         .into_bytes()
 }
 
+fn source_with_booster_equipment(binding: &str) -> Vec<u8> {
+    let source = str::from_utf8(EMBODIED_SOURCE).expect("embedded Clause source is UTF-8");
+    let canonical = "player-1 equipped booster balanced-booster-rig";
+    assert_eq!(source.matches(canonical).count(), 1);
+    source.replacen(canonical, binding, 1).into_bytes()
+}
+
+fn burst_booster_source() -> Vec<u8> {
+    source_with_booster_equipment("player-1 equipped booster burst-booster-rig")
+}
+
 fn admit_workbench(
     workbench: &mut ResidentSourceWorkbenchV1,
     occurrences: &[Vec<u8>],
@@ -407,6 +418,56 @@ fn camera_relative_wasd_rotates_with_the_observed_camera_basis() -> Result<(), B
     let position = vector(&moved, b"position");
     assert!(position[0] > start[0]);
     assert!((position[2] - start[2]).abs() < 1.0e-9);
+    Ok(())
+}
+
+fn observed_booster_signature(source: &[u8]) -> Result<[f64; 6], Box<dyn Error>> {
+    let mut sustained = ResidentSourceWorkbenchV1::open(source)?;
+    let hold_forward = sustained.handler_occurrence(b"hold-forward", &[])?;
+    admit_workbench(&mut sustained, &[hold_forward])?;
+    let enable_sustain = sustained.handler_occurrence(b"enable-horizontal-sustain", &[])?;
+    admit_workbench(&mut sustained, &[enable_sustain])?;
+    let sustained_frame = admitted_workbench_tick(&mut sustained, vec![])?;
+
+    let mut horizontal = ResidentSourceWorkbenchV1::open(source)?;
+    let hold_forward = horizontal.handler_occurrence(b"hold-forward", &[])?;
+    let held = admitted_workbench_tick(&mut horizontal, vec![hold_forward])?;
+    let horizontal_burst = horizontal.handler_occurrence(b"horizontal-burst", &[])?;
+    let burst = admit_workbench(&mut horizontal, &[horizontal_burst])?;
+
+    let mut vertical = ResidentSourceWorkbenchV1::open(source)?;
+    let vertical_burst = vertical.handler_occurrence(b"vertical-burst", &[])?;
+    let launched = admit_workbench(&mut vertical, &[vertical_burst])?;
+
+    Ok([
+        number(&sustained_frame, b"move-speed"),
+        100.0 - number(&sustained_frame, b"booster-energy"),
+        vector(&held, b"position")[2] - vector(&burst, b"position")[2],
+        100.0 - number(&burst, b"booster-energy"),
+        vector(&launched, b"velocity")[1],
+        100.0 - number(&launched, b"booster-energy"),
+    ])
+}
+
+fn assert_booster_signature(actual: [f64; 6], expected: [f64; 6]) {
+    for (index, (actual, expected)) in actual.into_iter().zip(expected).enumerate() {
+        assert!(
+            (actual - expected).abs() < 1.0e-9,
+            "booster signature field {index} was {actual}, expected {expected}",
+        );
+    }
+}
+
+#[test]
+fn typed_equipped_booster_selects_sustained_and_burst_parameters() -> Result<(), Box<dyn Error>> {
+    assert_booster_signature(
+        observed_booster_signature(EMBODIED_SOURCE)?,
+        [7.0, 0.5, 1.92, 20.0, 5.0, 25.0],
+    );
+    assert_booster_signature(
+        observed_booster_signature(&burst_booster_source())?,
+        [5.5, 0.8, 3.4, 30.0, 7.0, 35.0],
+    );
     Ok(())
 }
 
