@@ -254,11 +254,13 @@ const server = Bun.serve({
       const after = source === null ? -1 : Number.parseInt(source, 10);
       return resident.responseAfter(after);
     }
-    const iconPath = url.pathname.startsWith("/assets/ui/icons/") &&
-        /^\/assets\/ui\/icons\/[a-z0-9_./-]+$/.test(url.pathname)
+    const uiAssetPath =
+      (url.pathname.startsWith("/assets/ui/icons/") ||
+        url.pathname.startsWith("/assets/ui/cursors/")) &&
+        /^\/assets\/ui\/(?:icons|cursors)\/[a-z0-9_./-]+$/.test(url.pathname)
       ? url.pathname.slice(1)
       : undefined;
-    const path = files[url.pathname] ?? iconPath;
+    const path = files[url.pathname] ?? uiAssetPath;
     return path === undefined
       ? new Response("Not found", { status: 404 })
       : new Response(Bun.file(path));

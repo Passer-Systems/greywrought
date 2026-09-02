@@ -4,6 +4,9 @@ import { dirname } from "node:path";
 const iconFiles = await Array.fromAsync(
   new Bun.Glob("**/*.png").scan({ cwd: "assets/ui/icons", onlyFiles: true }),
 );
+const cursorFiles = await Array.fromAsync(
+  new Bun.Glob("*.png").scan({ cwd: "assets/ui/cursors", onlyFiles: true }),
+);
 
 const files: readonly (readonly [string, string])[] = [
   ["src/host/play.html", "dist/index.html"],
@@ -31,9 +34,14 @@ const files: readonly (readonly [string, string])[] = [
   ["assets/external/quaternius/rig-socket-prototype/SOURCE.md", "dist/licenses/wayfarer-SOURCE.md"],
   ["assets/ui/icons/SOURCE.md", "dist/assets/ui/icons/SOURCE.md"],
   ["assets/ui/icons/manifest.json", "dist/assets/ui/icons/manifest.json"],
+  ["assets/ui/cursors/SOURCE.md", "dist/assets/ui/cursors/SOURCE.md"],
   ...iconFiles.map((name): readonly [string, string] => [
     `assets/ui/icons/${name}`,
     `dist/assets/ui/icons/${name}`,
+  ]),
+  ...cursorFiles.map((name): readonly [string, string] => [
+    `assets/ui/cursors/${name}`,
+    `dist/assets/ui/cursors/${name}`,
   ]),
   ...[
     "CommonTree_2.gltf",

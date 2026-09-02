@@ -173,6 +173,7 @@ interface SceneShell {
   readonly enemyNameplateAnchor: Vector3;
   enemyNameplateProjection: EnemyNameplateProjection | null;
   lootInteractions: readonly LootInteraction[];
+  cursorSubjects: readonly string[];
   frameHandle: number;
   lastFrameRenderedAt: number;
   alive: boolean;
@@ -888,6 +889,78 @@ function setVitalityBar(
   element(valueId).textContent = `${vitality} / ${maximum}`;
 }
 
+function placeMinimapMarker(
+  id: string,
+  player: Vector3Projection,
+  destination: Vector3Projection,
+  visible: boolean,
+): void {
+  const marker = element(id);
+  marker.hidden = !visible;
+  if (!visible) return;
+  const maximumWorldOffset = 20;
+  const maximumMapOffset = 38;
+  const offsetX = destination.x - player.x;
+  const offsetZ = destination.z - player.z;
+  const distance = Math.hypot(offsetX, offsetZ);
+  const scale = distance > maximumWorldOffset ? maximumWorldOffset / distance : 1;
+  marker.style.left = `${50 + (offsetX * scale / maximumWorldOffset) * maximumMapOffset}%`;
+  marker.style.top = `${50 + (offsetZ * scale / maximumWorldOffset) * maximumMapOffset}%`;
+}
+
+function setQuestStep(id: string, complete: boolean, label: string): void {
+  const step = element(id);
+  step.classList.toggle("complete", complete);
+  step.textContent = `${complete ? "✓" : "—"} ${label}: ${complete ? "1/1" : "0/1"}`;
+}
+
+function renderMinimapAndQuest(
+  projection: GameProjection,
+  objectiveStatus: "completed" | "failed" | "playing",
+): void {
+  const { player, enemy, enemies, objective } = projection;
+  const boss = requireValue(
+    enemies.find(({ id }) => id === "ashen-colossus"),
+    "Ashen Colossus projection",
+  );
+  const ashenKey = lootById(projection, "ashen-key");
+  const cephorium = lootById(projection, "cephorium-cache");
+  const playerMarker = element("minimap-player");
+  playerMarker.style.left = "50%";
+  playerMarker.style.top = "50%";
+  playerMarker.style.rotate = `${Math.atan2(player.cameraForward.x, -player.cameraForward.z)}rad`;
+  placeMinimapMarker(
+    "minimap-target",
+    player.position,
+    enemy.position,
+    enemy.bodyVisible && enemy.combatStatus !== "dead" && enemy.combatStatus !== "dormant",
+  );
+  const nextObjective =
+    ashenKey.state === "available"
+      ? ashenKey.position
+      : boss.combatStatus === "alive"
+        ? boss.position
+        : cephorium.state === "available" || cephorium.custody === "player-1"
+          ? cephorium.position
+          : objective.position;
+  placeMinimapMarker(
+    "minimap-objective",
+    player.position,
+    nextObjective,
+    objectiveStatus !== "completed",
+  );
+
+  const gateComplete = ashenKey.state === "acquired";
+  const bossComplete = boss.combatStatus === "dead";
+  const coreComplete = cephorium.custody === "player-1" || objectiveStatus === "completed";
+  const completed = Number(gateComplete) + Number(bossComplete) + Number(coreComplete);
+  element("quest-tracker-heading").textContent = `Quest Tracker · ${completed}/3`;
+  setQuestStep("quest-step-gate", gateComplete, "Breach key");
+  setQuestStep("quest-step-boss", bossComplete, "Ashen Colossus");
+  setQuestStep("quest-step-core", coreComplete, "Cephorium Core");
+  document.body.dataset.questProgress = `${completed}/3`;
+}
+
 function showDamageNumber(amount: number, kind: string, critical: boolean): void {
   const damageNumber = element("enemy-damage-number");
   const kindClass =
@@ -1223,6 +1296,13 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
         ]
       : [],
   );
+  app.scene.cursorSubjects = Array.from(new Set([
+    ...enemies
+      .filter(({ bodyVisible, combatStatus }) =>
+        bodyVisible && combatStatus !== "dead" && combatStatus !== "dormant")
+      .map(({ id }) => presentationSubjectForEnemy(id)),
+    ...app.scene.lootInteractions.map(({ presentationSubject }) => presentationSubject),
+  ]));
   setSubjectLootable(
     app.scene.presentation,
     "magitek-boar",
@@ -1371,13 +1451,14 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     player.boosterEnergy,
     player.boosterCapacity,
   );
+  renderMinimapAndQuest(projection, objectiveStatus);
   element("objective").textContent =
     objectiveStatus === "completed"
       ? frontier.access === "permanent-open"
         ? "ASHEN VERGE SECURED · permanent access established"
         : `CEPHORIUM EXTRACTED · foothold ${frontier.progress} / ${frontier.requirement}`
       : objectiveStatus === "failed"
-        ? "WAYFARER FALLEN · press R to restore the revision"
+        ? "WAYFARER FALLEN · press Shift + R to restore the revision"
         : ashenKey.state === "available"
           ? "CORPSE CONTAINS LOOT · move close and right-click the sparkling boar"
           : boss.combatStatus === "alive"
@@ -1942,6 +2023,71 @@ async function pollResidentLaw(app: PlayApp): Promise<void> {
   }
 }
 
+function bindFantasyCursor(app: PlayApp, listeners: Array<() => void>): void {
+  const cursor = element("fantasy-cursor");
+  let pendingPoint: Readonly<{
+    clientX: number;
+    clientY: number;
+    target: EventTarget | null;
+  }> | null = null;
+  let frame = 0;
+  const paint = (): void => {
+    frame = 0;
+    const point = pendingPoint;
+    pendingPoint = null;
+    if (point === null) return;
+    const target = point.target instanceof Element ? point.target : null;
+    let glow = target?.closest("button, input, label, summary, [role='button']") !== null;
+    if (target === app.scene.canvas) {
+      glow = app.scene.cursorSubjects.some((subject) =>
+        pickPresentationSubject(
+          app.scene.presentation,
+          subject,
+          point.clientX,
+          point.clientY,
+        ));
+    }
+    cursor.dataset.glow = String(glow);
+    cursor.style.transform =
+      `translate3d(${point.clientX - 7}px, ${point.clientY - 7}px, 0)`;
+    document.body.dataset.cursorVisible = "true";
+  };
+  const move = (event: PointerEvent): void => {
+    if (event.pointerType === "touch") return;
+    pendingPoint = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      target: event.target,
+    };
+    if (frame === 0) frame = requestAnimationFrame(paint);
+  };
+  const hide = (): void => {
+    document.body.dataset.cursorVisible = "false";
+  };
+  window.addEventListener("pointermove", move, { passive: true });
+  document.documentElement.addEventListener("mouseleave", hide);
+  listeners.push(() => {
+    window.removeEventListener("pointermove", move);
+    document.documentElement.removeEventListener("mouseleave", hide);
+    if (frame !== 0) cancelAnimationFrame(frame);
+  });
+}
+
+function bindHudClock(listeners: Array<() => void>): void {
+  const renderClock = (): void => {
+    const now = new Date();
+    const clock = element("minimap-clock");
+    const hour = String(now.getHours()).padStart(2, "0");
+    const minute = String(now.getMinutes()).padStart(2, "0");
+    clock.textContent = `${hour}:${minute}`;
+    clock.setAttribute("datetime", now.toISOString());
+    clock.setAttribute("aria-label", `Local time ${hour}:${minute}`);
+  };
+  renderClock();
+  const interval = window.setInterval(renderClock, 30_000);
+  listeners.push(() => window.clearInterval(interval));
+}
+
 function focusScene(shell: SceneShell): void {
   shell.canvas.focus({ preventScroll: true });
   element("selection").textContent =
@@ -2195,6 +2341,7 @@ function createScene(): SceneShell {
     enemyNameplateAnchor: new Vector3(),
     enemyNameplateProjection: null,
     lootInteractions: [],
+    cursorSubjects: [],
     frameHandle: 0,
     lastFrameRenderedAt: 0,
     alive: true,
@@ -2654,7 +2801,9 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
     if (app.playerInput.captureAction !== null) {
       event.preventDefault();
       if (event.repeat) return;
-      if (event.code === "ShiftLeft" || event.code === "ShiftRight") return;
+      if (["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight"].includes(event.code)) {
+        return;
+      }
       const action = app.playerInput.captureAction;
       app.playerInput.captureAction = null;
       if (event.code !== "Escape") {
@@ -2885,6 +3034,8 @@ function startApp(
   };
   bindResidentWorker(app, listeners);
   bindGameInput(app, listeners);
+  bindFantasyCursor(app, listeners);
+  bindHudClock(listeners);
   bindClick(listeners, "loot-close", closeLootWindow);
   bindClick(listeners, "loot-item", () => {
     const item = document.body.dataset.lootWindowItem;

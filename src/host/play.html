@@ -25,6 +25,7 @@
     </script>
   </head>
   <body data-journey="loading" data-game-phase="loading">
+    <div id="fantasy-cursor" class="fantasy-cursor" aria-hidden="true"></div>
     <main>
       <div id="world-wrap">
         <div id="branch-label" class="realm-label">Disconnected branch · retained</div>
@@ -73,7 +74,7 @@
             </div>
             <div class="minimap-zoom"><span>+</span><span>−</span></div>
             <div class="minimap-tracking" aria-hidden="true"></div>
-            <time id="minimap-clock" class="minimap-clock">--:--</time>
+            <time id="minimap-clock" class="minimap-clock" aria-label="Local time">--:--</time>
           </section>
           <section id="player-frame" class="unit-frame player-frame" aria-label="Player status">
             <div class="unit-portrait player-portrait" aria-hidden="true"><span>70</span></div>
@@ -108,9 +109,9 @@
             <div class="action-bar secondary-action-bar">
               <div class="action-slot loot-slot"><kbd>F</kbd><span>◆</span><small>Interact</small></div>
               <div class="action-slot reset-slot"><kbd>Shift+R</kbd><span>↻</span><small>Reset</small></div>
-              <div class="action-slot empty-slot"><kbd>3</kbd><span></span><small></small></div>
-              <div class="action-slot empty-slot"><kbd>4</kbd><span></span><small></small></div>
-              <div class="action-slot empty-slot"><kbd>5</kbd><span></span><small></small></div>
+              <div class="action-slot empty-slot"><kbd>3</kbd><span></span><small>Class</small></div>
+              <div class="action-slot empty-slot"><kbd>4</kbd><span></span><small>Class</small></div>
+              <div class="action-slot empty-slot"><kbd>5</kbd><span></span><small>Class</small></div>
             </div>
             <div class="action-bar primary-action-bar">
               <div class="action-slot sword-slot"><kbd>1</kbd><span>⚔</span><small>Sword</small></div>
@@ -123,7 +124,7 @@
           </section>
 
           <section class="objective-tracker" aria-label="Current objective">
-            <div class="quest-tracker-heading">Quest Tracker: 1/20</div>
+            <div id="quest-tracker-heading" class="quest-tracker-heading">Quest Tracker · 0/3</div>
             <div class="objective-kicker"><span>!</span> [60] Boar Breach</div>
             <div id="objective">Defeat the corrupted boar and recover its breach key.</div>
             <div class="quest-objectives">
@@ -169,17 +170,10 @@
         <div id="expedition-progress" class="expedition-progress" role="progressbar" aria-label="Ashen Verge foothold" aria-valuemin="0" aria-valuenow="0" aria-valuemax="3">Expedition 1 of 3 · foothold 0 / 3</div>
         <div id="save-status" class="save-status" aria-live="polite">Checking saved foothold…</div>
         <p id="summary">The source-authored room is entering real Wasm.</p>
-        <button id="reset-encounter" class="primary">Reset encounter · Shift+R</button>
         <button id="clear-progress">Clear saved campaign</button>
-        <details id="player-settings" class="player-settings">
-          <summary>Controls &amp; accessibility</summary>
+        <details id="player-settings" class="player-settings controls-panel">
+          <summary>Controls</summary>
           <p id="gamepad-status" class="settings-status" aria-live="polite">Gamepad ready · connect or press any button</p>
-          <div class="accessibility-options">
-            <label><input id="reduced-motion" type="checkbox" /> Reduce motion</label>
-            <label><input id="high-contrast" type="checkbox" /> High contrast</label>
-            <label><input id="large-text" type="checkbox" /> Larger interface text</label>
-            <label class="volume-setting">Effects volume <input id="effects-volume" type="range" min="0" max="100" step="5" value="35" /><output id="effects-volume-value" for="effects-volume">35%</output></label>
-          </div>
           <div class="binding-list" aria-label="Keyboard bindings">
             <span>Move forward</span><button type="button" data-input-action="forward">W</button>
             <span>Move backward</span><button type="button" data-input-action="backward">S</button>
@@ -187,17 +181,27 @@
             <span>Move right</span><button type="button" data-input-action="right">D</button>
             <span>Cycle target</span><button type="button" data-input-action="target">Tab</button>
             <span>Sword</span><button type="button" data-input-action="sword">1</button>
-            <span>Lock-on bolt</span><button type="button" data-input-action="bolt">2</button>
-            <span>Loot / interact</span><button type="button" data-input-action="loot">F</button>
+            <span>Bolt / Frostbolt</span><button type="button" data-input-action="bolt">2</button>
+            <span>Interact / loot</span><button type="button" data-input-action="loot">F</button>
             <span>Jump / air boost</span><button type="button" data-input-action="jump">Space</button>
-            <span>Pulse shield</span><button type="button" data-input-action="shield">E</button>
+            <span>Shield</span><button type="button" data-input-action="shield">E</button>
             <span>Sprint</span><button type="button" data-input-action="horizontalSustain">Left Shift</button>
             <span>Dash</span><button type="button" data-input-action="horizontalBurst">Q</button>
             <span>Reset encounter</span><button type="button" data-input-action="reset">Shift+R</button>
           </div>
           <button id="reset-bindings" type="button">Restore default bindings</button>
+          <button id="reset-encounter" class="primary">Reset encounter · Shift+R</button>
           <p id="input-preference-status" class="settings-status" aria-live="polite">Changes save in this browser.</p>
           <p class="truth-note">Gamepad: left stick/D-pad move; A jump/air boost; B interact/loot; X Sword (1); Y target; LB Dash (Q); RB Bolt (2); RT Shield (E); L3 Sprint (Shift); Start Reset (Shift+R).</p>
+        </details>
+        <details class="player-settings accessibility-panel">
+          <summary>Accessibility</summary>
+          <div class="accessibility-options">
+            <label><input id="reduced-motion" type="checkbox" /> Reduce motion</label>
+            <label><input id="high-contrast" type="checkbox" /> High contrast</label>
+            <label><input id="large-text" type="checkbox" /> Larger interface text</label>
+            <label class="volume-setting">Effects volume <input id="effects-volume" type="range" min="0" max="100" step="5" value="35" /><output id="effects-volume-value" for="effects-volume">35%</output></label>
+          </div>
         </details>
         <section>
           <h2>Authoritative custody</h2>

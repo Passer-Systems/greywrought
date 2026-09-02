@@ -22,6 +22,11 @@ const swapped = rebindAction(remapped, "jump", "KeyK");
 assert(actionForPhysicalCode(swapped, "KeyK") === "jump", "collision did not move requested action");
 assert(actionForPhysicalCode(swapped, "Space") === "sword", "collision did not preserve the displaced action");
 assert(actionForPhysicalCode(defaultBindings, "ShiftRight") === "horizontalSustain", "right Shift alias failed");
+assert(actionForPhysicalCode(defaultBindings, "Digit1") === "sword", "1 did not bind sword");
+assert(actionForPhysicalCode(defaultBindings, "Digit2") === "bolt", "2 did not bind bolt");
+assert(actionForPhysicalCode(defaultBindings, "KeyF") === "loot", "F did not bind interact");
+assert(actionForPhysicalCode(defaultBindings, "KeyR") === null, "unmodified R must remain free");
+assert(actionForPhysicalCode(defaultBindings, "Shift+KeyR") === "reset", "Shift + R did not bind reset");
 
 const decoded = decodeInputPreferences(encodeInputPreferences({
   ...defaultInputPreferences,
@@ -42,6 +47,10 @@ assert(decodeInputPreferences("bad json").recovered, "bad JSON was not recovered
 assert(
   decodeInputPreferences('{"version":1,"bindings":{}}').recovered,
   "stale v1 bindings were not migrated to the new defaults",
+);
+assert(
+  decodeInputPreferences('{"version":2,"bindings":{}}').recovered,
+  "incomplete current-version bindings were not recovered",
 );
 
 console.log("Input remapping and accessibility preference checks passed.");
