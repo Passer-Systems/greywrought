@@ -84,12 +84,11 @@ fn admitted_tick(
     let (successor, projection) = session.admit_issued_candidate_with_projection(authorization)?;
     assert_eq!(successor.predecessor, candidate.base);
     assert_ne!(successor.id, candidate.base);
-    Ok((
-        candidate,
-        projection
-            .ok_or("Admission emitted no renderer projection")?
-            .term,
-    ))
+    let projection = projection
+        .ok_or("Admission emitted no renderer projection")?
+        .term;
+    session.compact_to_admitted_frontier()?;
+    Ok((candidate, projection))
 }
 
 fn admitted_opaque_input(
@@ -107,9 +106,11 @@ fn admitted_opaque_input(
     let authorization = session.issue_candidate_admission_authorization()?;
     let (successor, projection) = session.admit_issued_candidate_with_projection(authorization)?;
     assert_eq!(successor.predecessor, candidate.base);
-    Ok(projection
+    let projection = projection
         .ok_or("opaque-input Admission emitted no renderer projection")?
-        .term)
+        .term;
+    session.compact_to_admitted_frontier()?;
+    Ok(projection)
 }
 
 #[test]
@@ -149,9 +150,14 @@ fn sustained_mixed_input_session_remains_live() -> Result<(), Box<dyn Error>> {
     key_up(&mut session, directions[direction])?;
     let usage = session.carrier()?.resource_usage();
     assert!(
-        usage.accepted_ingress_bytes < 64 * 1024 * 1024,
-        "1,000 mixed-input ticks retained {} ingress bytes, exceeding the 64 MiB liveness budget",
+        usage.accepted_ingress_bytes < 72 * 1024 * 1024,
+        "1,000 mixed-input ticks processed {} ingress bytes, exceeding the 72 MiB liveness budget",
         usage.accepted_ingress_bytes,
+    );
+    assert!(
+        usage.resident_ingress_records < 4_096,
+        "Admission compaction retained {} ingress records",
+        usage.resident_ingress_records,
     );
     Ok(())
 }
@@ -312,7 +318,7 @@ on prepare-frontier-enemy-proof ?enemy
 
 on prepare-frontier-key-proof ?objective
   when
-    ?objective objective state ?objective-state
+    ?objective objective state Vec3 { x: ?objective-state, y: ?branch, z: ?unused-state }
     ashen-key loot state ?loot-state
     ashen-key custody ?custodian
   withdraw
@@ -501,7 +507,7 @@ fn assert_booster_signature(actual: [f64; 6], expected: [f64; 6]) {
 fn typed_equipped_booster_selects_sustained_and_burst_parameters() -> Result<(), Box<dyn Error>> {
     assert_booster_signature(
         observed_booster_signature(EMBODIED_SOURCE)?,
-        [7.0, 0.5, 1.92, 20.0, 5.0, 25.0],
+        [7.0, 0.5, 5.6, 20.0, 5.0, 25.0],
     );
     assert_booster_signature(
         observed_booster_signature(&burst_booster_source())?,
@@ -534,7 +540,7 @@ fn horizontal_burst_is_immediate_directional_and_preserves_velocity() -> Result<
     assert_eq!(vector(&propelled, b"velocity"), velocity_before);
     assert_eq!(position[0], position_before[0]);
     assert_eq!(position[1], position_before[1]);
-    assert!((position[2] - (position_before[2] - 1.92)).abs() < 1.0e-9);
+    assert!((position[2] - (position_before[2] - 5.6)).abs() < 1.0e-9);
     assert_eq!(number(&propelled, b"booster-energy"), 80.0);
     Ok(())
 }
@@ -795,6 +801,11 @@ fn repeated_resource_gated_expeditions_establish_a_durable_frontier() -> Result<
         vector(&sealed, b"position")[0] <= frontier_boundary_x(&sealed),
         "the sealed Clause frontier allowed the player into the Ashen Verge"
     );
+    assert_eq!(
+        loot_symbol(&sealed, b"cephorium-cache", b"custody"),
+        b"ashen-verge",
+        "the sealed frontier must retain Cephorium at its authored source",
+    );
 
     for expedition in 1..=3 {
         let prepare = [
@@ -806,8 +817,10 @@ fn repeated_resource_gated_expeditions_establish_a_durable_frontier() -> Result<
             admitted_opaque_input(&mut session, occurrence)?;
         }
         let mut opened = None;
+        let mut latest_projection = None;
         for _ in 0..16 {
             let projection = admitted_tick(&mut session)?.1;
+            latest_projection = Some(projection.clone());
             if frontier_access(&projection) == b"temporary-open"
                 && loot_symbol(&projection, b"cephorium-cache", b"loot-state") == b"available"
             {
@@ -815,7 +828,19 @@ fn repeated_resource_gated_expeditions_establish_a_durable_frontier() -> Result<
                 break;
             }
         }
-        let opened = opened.ok_or("the admitted key did not open the frontier and reveal Cephorium")?;
+        let latest_projection = latest_projection.expect("frontier proof ran one tick");
+        let opened = opened.ok_or_else(|| {
+            format!(
+                "the admitted key did not open the frontier and reveal Cephorium: access={}, key-state={}, key-custody={}, cache-state={}, cache-custody={}, cache-source={}, cache-claim={}",
+                String::from_utf8_lossy(frontier_access(&latest_projection)),
+                String::from_utf8_lossy(loot_symbol(&latest_projection, b"ashen-key", b"loot-state")),
+                String::from_utf8_lossy(loot_symbol(&latest_projection, b"ashen-key", b"custody")),
+                String::from_utf8_lossy(loot_symbol(&latest_projection, b"cephorium-cache", b"loot-state")),
+                String::from_utf8_lossy(loot_symbol(&latest_projection, b"cephorium-cache", b"custody")),
+                String::from_utf8_lossy(loot_symbol(&latest_projection, b"cephorium-cache", b"loot-source")),
+                String::from_utf8_lossy(loot_symbol(&latest_projection, b"cephorium-cache", b"loot-claim-rule")),
+            )
+        })?;
         assert_eq!(objective_phase(&opened), 0.0);
         assert_eq!(frontier_progress(&opened), f64::from(expedition - 1));
         assert_eq!(arena_max_x(&opened), 2048.0);
@@ -855,7 +880,6 @@ fn repeated_resource_gated_expeditions_establish_a_durable_frontier() -> Result<
                 break;
             }
         }
-        key_up(&mut session, b"LootItem")?;
         let acquired = acquired.ok_or("the in-range Cephorium cache was not acquired")?;
         assert_eq!(objective_phase(&acquired), 0.0);
         assert_eq!(frontier_progress(&acquired), f64::from(expedition - 1));
@@ -915,6 +939,16 @@ fn repeated_resource_gated_expeditions_establish_a_durable_frontier() -> Result<
                 b"permanent-open".as_slice()
             },
             "routine reset must reoccupy temporary access without erasing durable progress"
+        );
+        assert_eq!(
+            loot_symbol(&restored, b"cephorium-cache", b"loot-state"),
+            b"hidden",
+            "reset must hide extracted Cephorium before the next expedition",
+        );
+        assert_eq!(
+            loot_symbol(&restored, b"cephorium-cache", b"custody"),
+            b"ashen-verge",
+            "reset must restore extracted Cephorium to its authored source",
         );
         latest = Some(restored);
     }

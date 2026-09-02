@@ -1,5 +1,4 @@
-const chromePath =
-  "/nix/store/mjf5jfq69yjprs4cq5dq5dafvf44c3nv-google-chrome-151.0.7922.173/bin/google-chrome";
+const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
 const debugPort = 9235;
 const gameUrl = "http://127.0.0.1:4173/";
 const minimumJourneyMillis = 30_000;
@@ -156,28 +155,33 @@ try {
     const point = JSON.parse(
       canvasBounds.result.result.value as string,
     ) as { x: number; y: number };
-    await call("Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x: point.x,
-      y: point.y,
-      button: "right",
-      clickCount: 1,
-    });
-    await call("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x: point.x,
-      y: point.y,
-      button: "right",
-      clickCount: 1,
-    });
-    const opened = await call("Runtime.evaluate", {
-      expression: `JSON.stringify({ open: document.body.dataset.lootWindow === "open", item: document.body.dataset.lootWindowItem })`,
-      returnByValue: true,
-    });
-    const lootWindow = JSON.parse(opened.result.result.value as string) as {
-      open: boolean;
-      item?: string;
-    };
+    let lootWindow: { open: boolean; item?: string } = { open: false };
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await call("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        x: point.x,
+        y: point.y,
+        button: "right",
+        clickCount: 1,
+      });
+      await call("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        x: point.x,
+        y: point.y,
+        button: "right",
+        clickCount: 1,
+      });
+      const opened = await call("Runtime.evaluate", {
+        expression: `JSON.stringify({ open: document.body.dataset.lootWindow === "open", item: document.body.dataset.lootWindowItem })`,
+        returnByValue: true,
+      });
+      lootWindow = JSON.parse(opened.result.result.value as string) as {
+        open: boolean;
+        item?: string;
+      };
+      if (lootWindow.open) break;
+      await Bun.sleep(25);
+    }
     requireCondition(
       lootWindow.open && lootWindow.item === expectedItem,
       `right-click did not open ${expectedItem} in the loot window`,

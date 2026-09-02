@@ -1,5 +1,4 @@
-const chromePath =
-  "/nix/store/mjf5jfq69yjprs4cq5dq5dafvf44c3nv-google-chrome-151.0.7922.173/bin/google-chrome";
+const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
 const debugPort = 9237;
 const gameUrl = "http://127.0.0.1:4173/";
 

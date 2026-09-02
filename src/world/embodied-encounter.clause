@@ -2042,6 +2042,12 @@ on clear-reset-signal ?objective
     wayfarer-bolt projectile state ?wayfarer-projectile-state
     wayfarer-bolt projectile visible ?wayfarer-projectile-visible
     ashen-key loot position Vec3 { x: ?loot-x, y: ?loot-y, z: ?loot-z }
+    ashen-key loot state ?key-state
+    ashen-key custody ?key-custodian
+    ashen-key loot source ?key-source
+    cephorium-cache loot state ?cache-state
+    cephorium-cache custody ?cache-custodian
+    cephorium-cache loot source ?cache-source
     game-objective objective state Vec3 { x: ?objective-state, y: ?branch, z: ?unused-state }
     ?reset = 1.0
     ?player-x = -2.0
@@ -2071,6 +2077,10 @@ on clear-reset-signal ?objective
     ?wayfarer-projectile-visible = false
     ?loot-x = 1.2
     ?loot-z = -1.0
+    ?key-state = hidden
+    ?key-custodian = ?key-source
+    ?cache-state = hidden
+    ?cache-custodian = ?cache-source
     ?objective-state = 0.0
   withdraw
     ?objective reset signal Vec3 { x: ?reset, y: ?phase, z: ?unused }
