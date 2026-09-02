@@ -180,6 +180,7 @@ interface EnemyProjection {
   readonly position: Vector3Projection;
   readonly vitality: number;
   readonly maximumVitality: number;
+  readonly combatBehavior: string;
   readonly pressureState: string;
   readonly pressureClock: number;
   readonly chargeStart: Vector3Projection;
@@ -492,6 +493,11 @@ function decodeGameProjection(value: ProjectedValue): GameProjection {
       ),
       vitality: projectedNumber(enemyVitals, "x", "enemy-vitals"),
       maximumVitality: projectedNumber(enemyVitals, "y", "enemy-vitals"),
+      combatBehavior: projectedString(
+        enemy,
+        "combat-behavior",
+        "cinder-wraith",
+      ),
       pressureState: projectedString(
         enemy,
         "enemy-pressure-state",
@@ -793,7 +799,7 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
             : "Read the boar telegraph · burst perpendicular · punish recovery";
   element("stage").textContent = `world · ${objectiveStatus}`;
   element("summary").textContent =
-    `wayfarer ${player.combatStatus} · boar ${enemy.combatStatus} / ` +
+    `wayfarer ${player.combatStatus} · boar ${enemy.combatStatus} / ${enemy.combatBehavior} / ` +
     `${enemy.pressureState} ${enemy.pressureClock} · recovery ${enemy.recoveryClock} · ` +
     `key ${loot.state} / ` +
     `${loot.custody} · booster ${player.boosterEnergy} / ${player.boosterCapacity} · ` +
@@ -809,6 +815,7 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     gamePlayerVitality: String(player.vitality),
     gameEnemyVitality: String(enemy.vitality),
     gameEnemyCombatStatus: enemy.combatStatus,
+    gameEnemyBehavior: enemy.combatBehavior,
     gameLootState: loot.state,
     gameCustody: loot.custody,
     gamePlayerX: String(player.position.x),
@@ -923,6 +930,7 @@ function renderGameProjection(app: PlayApp, rawProjection: ProjectedValue): void
     chargeCorridorVisible: enemy.chargeCommitted,
     playerVitality: player.vitality,
     enemyVitality: enemy.vitality,
+    enemyBehavior: enemy.combatBehavior,
     lootState: loot.state,
     custody: loot.custody,
   });

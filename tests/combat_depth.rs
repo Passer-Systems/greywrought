@@ -1,6 +1,8 @@
 use std::error::Error;
+use std::str;
+use std::time::Instant;
 
-use clause_package::{Term, decode_canonical_term_bytes};
+use clause_package::{CausalRef, Term, decode_canonical_term_bytes};
 use clause_runtime::{
     ExecutableCandidateV1, ExecutableInputSourceV1, ExecutableKeyPhaseV1,
     PersistentProcessSessionV1, decode_wasm_process_request_v1, encode_wasm_process_request_v1,
@@ -111,6 +113,10 @@ fn player<'a>(projection: &'a Term) -> &'a Term {
     projected_field(projection, b"player-1")
 }
 
+fn enemy<'a>(projection: &'a Term) -> &'a Term {
+    projected_field(projection, b"cinder-wraith")
+}
+
 fn number(projection: &Term, field: &[u8]) -> f64 {
     projected_number(projected_field(player(projection), field))
 }
@@ -122,6 +128,49 @@ fn boolean(projection: &Term, field: &[u8]) -> bool {
 fn vector(projection: &Term, field: &[u8]) -> [f64; 3] {
     let value = projected_field(player(projection), field);
     [b"x", b"y", b"z"].map(|component| projected_number(projected_field(value, component)))
+}
+
+fn enemy_vector(projection: &Term, field: &[u8]) -> [f64; 3] {
+    let value = projected_field(enemy(projection), field);
+    [b"x", b"y", b"z"].map(|component| projected_number(projected_field(value, component)))
+}
+
+fn enemy_symbol<'a>(projection: &'a Term, field: &[u8]) -> &'a [u8] {
+    projected_field(enemy(projection), field)
+        .as_atom()
+        .expect("projected behavior is an Atom")
+        .canonical_payload()
+}
+
+fn source_with_behavior(binding: &str) -> Vec<u8> {
+    let source = str::from_utf8(EMBODIED_SOURCE).expect("embedded Clause source is UTF-8");
+    let canonical = "cinder-wraith combat behavior relentless-charge";
+    assert_eq!(source.matches(canonical).count(), 1);
+    source.replacen(canonical, binding, 1).into_bytes()
+}
+
+fn patient_behavior_source() -> Vec<u8> {
+    let source = str::from_utf8(EMBODIED_SOURCE).expect("embedded Clause source is UTF-8");
+    let canonical_reconciliation = r#"on reconcile-relentless-combat-behavior ?enemy
+  when
+    ?enemy combat behavior ?prior-behavior
+    ?prior-behavior = patient-charge
+  withdraw
+    ?enemy combat behavior ?prior-behavior
+  include
+    ?enemy combat behavior relentless-charge"#;
+    let patient_reconciliation = r#"on reconcile-patient-combat-behavior ?enemy
+  when
+    ?enemy combat behavior ?prior-behavior
+    ?prior-behavior = relentless-charge
+  withdraw
+    ?enemy combat behavior ?prior-behavior
+  include
+    ?enemy combat behavior patient-charge"#;
+    assert_eq!(source.matches(canonical_reconciliation).count(), 1);
+    source
+        .replacen(canonical_reconciliation, patient_reconciliation, 1)
+        .into_bytes()
 }
 
 fn admit_workbench(
@@ -196,8 +245,8 @@ fn world_fixed_wasd_supports_diagonal_holds_and_sustain_direction_changes()
 }
 
 #[test]
-fn horizontal_burst_is_immediate_directional_and_preserves_velocity()
--> Result<(), Box<dyn Error>> {
+fn horizontal_burst_is_immediate_directional_and_preserves_velocity() -> Result<(), Box<dyn Error>>
+{
     let mut no_intent = ResidentSourceWorkbenchV1::open(EMBODIED_SOURCE)?;
     let burst = no_intent.handler_occurrence(b"horizontal-burst", &[])?;
     let unchanged = admit_workbench(&mut no_intent, &[burst])?;
@@ -350,5 +399,109 @@ fn reset_restores_spawn_and_the_complete_propulsion_resource() -> Result<(), Box
     assert_eq!(number(&restored, b"booster-energy"), 100.0);
     assert_eq!(number(&restored, b"booster-regeneration-delay"), 0.0);
     assert!(boolean(&restored, b"grounded"));
+    Ok(())
+}
+
+#[test]
+fn typed_combat_behavior_selection_swaps_rejects_and_remains_explainable()
+-> Result<(), Box<dyn Error>> {
+    let mut workbench = ResidentSourceWorkbenchV1::open(EMBODIED_SOURCE)?;
+    let baseline_approach = workbench.handler_occurrence(b"advance-boar-approach", &[])?;
+    let baseline = admit_workbench(&mut workbench, &[baseline_approach])?;
+    assert_eq!(
+        enemy_symbol(&baseline, b"combat-behavior"),
+        b"relentless-charge"
+    );
+    let baseline_x = enemy_vector(&baseline, b"enemy-position")[0];
+    let baseline_step = 12.0 - baseline_x;
+
+    let patient_source = patient_behavior_source();
+    let started = Instant::now();
+    workbench.hot_reload(&patient_source)?;
+    let reload_elapsed = started.elapsed();
+    let reconcile = workbench.handler_occurrence(b"reconcile-patient-combat-behavior", &[])?;
+    let patient_approach = workbench.handler_occurrence(b"advance-boar-approach", &[])?;
+    let patient = admit_workbench(&mut workbench, &[reconcile, patient_approach])?;
+    assert_eq!(
+        enemy_symbol(&patient, b"combat-behavior"),
+        b"patient-charge"
+    );
+    let patient_x = enemy_vector(&patient, b"enemy-position")[0];
+    let patient_step = baseline_x - patient_x;
+    assert!(
+        patient_step < baseline_step,
+        "patient behavior must approach more slowly than relentless behavior ({baseline_step} versus {patient_step})"
+    );
+
+    workbench.hot_reload(EMBODIED_SOURCE)?;
+    let reconcile = workbench.handler_occurrence(b"reconcile-relentless-combat-behavior", &[])?;
+    let relentless = admit_workbench(&mut workbench, &[reconcile])?;
+    assert_eq!(
+        enemy_symbol(&relentless, b"combat-behavior"),
+        b"relentless-charge"
+    );
+
+    workbench.hot_reload(&patient_source)?;
+    let reconcile = workbench.handler_occurrence(b"reconcile-patient-combat-behavior", &[])?;
+    let patient_again = admit_workbench(&mut workbench, &[reconcile])?;
+    assert_eq!(
+        enemy_symbol(&patient_again, b"combat-behavior"),
+        b"patient-charge"
+    );
+
+    let malformed_source = source_with_behavior("cinder-wraith combat behavior 3.0");
+    assert!(
+        ResidentSourceWorkbenchV1::open(&malformed_source).is_err(),
+        "the typed behavior relation must reject a numeric binding before execution"
+    );
+
+    let source = ResidentSourceWorkbenchV1::open(&patient_source)?;
+    let mut request = decode_wasm_process_request_v1(&source.generation().cwr1)?;
+    request.authority.budget_units = 1_000_000;
+    let mut session =
+        open_fresh_persistent_process_session_v1(&encode_wasm_process_request_v1(&request)?)?;
+    session.apply_fixed_tick_and_emit_candidate(16)?;
+    let candidate = session
+        .candidate()?
+        .ok_or("behavior tick produced no CandidateDelta")?
+        .clone();
+    let candidate_causes = session
+        .carrier()?
+        .causal_predecessors(CausalRef::CandidateDelta(candidate.id))
+        .ok_or("behavior CandidateDelta has no causal record")?;
+    assert!(
+        candidate_causes
+            .iter()
+            .any(|cause| matches!(cause, CausalRef::Step(_) | CausalRef::Observation(_))),
+        "behavior CandidateDelta must retain its producing step or formation evidence"
+    );
+    let authorization = session.issue_candidate_admission_authorization()?;
+    let (successor, projection) = session.admit_issued_candidate_with_projection(authorization)?;
+    let decision = session
+        .carrier()?
+        .decision_by_occurrence(successor.admission)
+        .ok_or("behavior Admission retained no decision")?;
+    assert_eq!(decision.delta, candidate.id);
+    let admission_causes = session
+        .carrier()?
+        .causal_predecessors(CausalRef::Admission(successor.admission))
+        .ok_or("behavior Admission has no causal record")?;
+    assert!(admission_causes.contains(&CausalRef::Judgment(decision.verdict)));
+    let judgment_causes = session
+        .carrier()?
+        .causal_predecessors(CausalRef::Judgment(decision.verdict))
+        .ok_or("behavior Judgment has no causal record")?;
+    assert!(judgment_causes.contains(&CausalRef::CandidateDelta(candidate.id)));
+    let admitted_projection = projection
+        .ok_or("behavior Admission emitted no projection")?
+        .term;
+    assert_eq!(
+        enemy_symbol(&admitted_projection, b"combat-behavior"),
+        b"patient-charge"
+    );
+    eprintln!(
+        "resident typed behavior edit: {:.3} ms",
+        reload_elapsed.as_secs_f64() * 1_000.0
+    );
     Ok(())
 }

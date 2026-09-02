@@ -12,6 +12,7 @@ referent StatusEffect
 referent LootState
 referent Objective
 referent ObjectiveState
+referent CombatBehavior
 
 referent alive
 referent dead
@@ -40,11 +41,18 @@ referent spent
 referent clear
 referent ember-mark
 referent burning
+referent relentless-charge
+referent patient-charge
 
 shape Vec3
   x: F64
   y: F64
   z: F64
+
+shape CombatBehaviorParameters
+  minimum-step: F64
+  maximum-step: F64
+  engagement-radius-squared: F64
 
 relation clamped-between
   reads {value: F64} clamped between {lower: F64} and {upper: F64} as {result: F64}
@@ -270,6 +278,16 @@ relation enemy-combat-status
   subject enemy
   mode given enemy yields value: one
 
+relation combat-behavior
+  reads {enemy: Enemy} combat behavior {behavior: CombatBehavior}
+  subject enemy
+  mode given enemy yields behavior: one
+
+relation combat-behavior-parameters
+  reads {behavior: CombatBehavior} behavior parameters {value: CombatBehaviorParameters}
+  subject behavior
+  mode given behavior yields value: one
+
 relation next-target
   reads {enemy: Enemy} next target {next: Enemy}
   subject enemy
@@ -427,6 +445,8 @@ player-1 ∈ Player
 player-1 ∈ Custodian
 cinder-wraith ∈ Enemy
 cinder-wraith ∈ Custodian
+relentless-charge ∈ CombatBehavior
+patient-charge ∈ CombatBehavior
 cinder-bolt ∈ Projectile
 ashen-key ∈ Loot
 game-objective ∈ Objective
@@ -479,6 +499,9 @@ player-1 target selection sequence 0.0
 cinder-wraith enemy position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
 cinder-wraith enemy combat status alive
+cinder-wraith combat behavior relentless-charge
+relentless-charge behavior parameters CombatBehaviorParameters { minimum-step: -0.06, maximum-step: 0.06, engagement-radius-squared: 49.0 }
+patient-charge behavior parameters CombatBehaviorParameters { minimum-step: -0.02, maximum-step: 0.02, engagement-radius-squared: 25.0 }
 cinder-wraith next target cinder-wraith
 cinder-wraith previous target cinder-wraith
 cinder-wraith enemy pressure state approach
@@ -1096,15 +1119,26 @@ on reset-status-clock ?player
   include
     ?player status clock 12.0
 
+on reconcile-relentless-combat-behavior ?enemy
+  when
+    ?enemy combat behavior ?prior-behavior
+    ?prior-behavior = patient-charge
+  withdraw
+    ?enemy combat behavior ?prior-behavior
+  include
+    ?enemy combat behavior relentless-charge
+
 on advance-boar-approach ?enemy
   when
     ?enemy enemy pressure state ?pressure
     ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy combat behavior ?behavior
+    ?behavior behavior parameters CombatBehaviorParameters { minimum-step: ?minimum-step, maximum-step: ?maximum-step, engagement-radius-squared: ?engagement-radius-squared }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
-    (?player-x - ?enemy-x) clamped between -0.06 and 0.06 as ?step-x
-    (?player-z - ?enemy-z) clamped between -0.06 and 0.06 as ?step-z
+    (?player-x - ?enemy-x) clamped between ?minimum-step and ?maximum-step as ?step-x
+    (?player-z - ?enemy-z) clamped between ?minimum-step and ?maximum-step as ?step-z
     ?pressure = approach
-    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) > 49.0
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) > ?engagement-radius-squared
   withdraw
     ?enemy enemy position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
   include
@@ -1118,10 +1152,12 @@ on begin-boar-telegraph ?enemy
     ?enemy enemy charge start ?prior-start
     ?enemy enemy charge end ?prior-end
     ?enemy enemy charge envelope ?prior-envelope
+    ?enemy combat behavior ?behavior
+    ?behavior behavior parameters CombatBehaviorParameters { minimum-step: ?minimum-step, maximum-step: ?maximum-step, engagement-radius-squared: ?engagement-radius-squared }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     ?pressure = approach
     ?player-y <= 2.0
-    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= 49.0
+    ((?player-x - ?enemy-x) * (?player-x - ?enemy-x)) + ((?player-z - ?enemy-z) * (?player-z - ?enemy-z)) <= ?engagement-radius-squared
   withdraw
     ?enemy enemy pressure state ?pressure
     ?enemy enemy pressure clock ?clock
