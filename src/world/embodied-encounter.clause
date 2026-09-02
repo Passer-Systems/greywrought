@@ -880,7 +880,7 @@ on resolve-sword-hitbox-contact ?enemy
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     ?enemy enemy combat status ?enemy-status
     jump-arena melee range ?melee-range
-    ?commitment-clock = 12.0
+    ?commitment-clock = 84.0
     ?player-status = alive
     ?enemy-status = alive
     ?vitality > 0.0
