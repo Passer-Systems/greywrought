@@ -6,6 +6,7 @@ import {
   CylinderGeometry,
   DirectionalLight,
   Group,
+  HemisphereLight,
   Material,
   Mesh,
   MeshStandardMaterial,
@@ -28,6 +29,10 @@ import {
   updateMountedArenaRig,
   type MountedArenaRig,
 } from "./rig-socket-lab.js";
+import {
+  createOpenFieldEnvironment,
+  type OpenFieldEnvironment,
+} from "./open-field-environment.js";
 
 export interface CinderwakeSubjectIds {
   readonly wayfarer: string;
@@ -107,6 +112,8 @@ export interface CinderwakePresentation {
   readonly chargeCorridorFill: Object3D;
   readonly chargeCorridorFillMaterial: MeshStandardMaterial;
   readonly resources: OwnedPresentationResources;
+  readonly environment: OpenFieldEnvironment;
+  readonly environmentReady: Promise<void>;
   readonly rigReady: Promise<void>;
   width: number;
   height: number;
@@ -560,44 +567,6 @@ function createMoonwell(
   );
 }
 
-function addArenaSilhouette(
-  scene: Scene,
-  resources: OwnedPresentationResources,
-): void {
-  const floor = mesh(
-    ownGeometry(resources, new CylinderGeometry(6.6, 7.1, 0.42, 12)),
-    standardMaterial(resources, 0x0c0c0c, 0x010203, 0.16, 0.94),
-  );
-  floor.position.y = -0.25;
-  const scar = mesh(
-    ownGeometry(resources, new CylinderGeometry(5.65, 5.65, 0.025, 12)),
-    standardMaterial(resources, 0x712009, 0x1f150c, 0.06, 0.84, true, 0.2),
-  );
-  scar.position.y = -0.025;
-  scene.add(floor, scar);
-
-  const wallGeometry = ownGeometry(resources, new BoxGeometry(1, 1, 1));
-  const wallMaterial = standardMaterial(resources, 0x19180d, 0, 0.24, 0.92);
-  const stones: ReadonlyArray<readonly [number, number, number, number, number, number, number]> = [
-    [-5.7, 0.86, -2.5, 0.9, 1.9, 1.2, -0.1],
-    [-5.1, 0.55, 2.9, 1.5, 1.15, 0.9, 0.18],
-    [-2.9, 0.72, 5.1, 1.3, 1.55, 0.8, -0.28],
-    [0.2, 0.43, 5.8, 2.1, 0.92, 0.7, 0.04],
-    [3.6, 0.92, 4.8, 0.9, 2, 1, 0.31],
-    [5.8, 0.62, 1.8, 1.1, 1.34, 1.5, -0.13],
-    [5.5, 0.78, -2.8, 1.4, 1.68, 0.9, 0.24],
-    [2.5, 0.47, -5.4, 1.8, 1.02, 0.8, -0.09],
-    [-1.7, 0.66, -5.7, 1, 1.44, 0.9, 0.16],
-  ];
-  for (const [x, y, z, scaleX, scaleY, scaleZ, rotation] of stones) {
-    const stone = mesh(wallGeometry, wallMaterial);
-    stone.position.set(x, y, z);
-    stone.scale.set(scaleX, scaleY, scaleZ);
-    stone.rotation.y = rotation;
-    scene.add(stone);
-  }
-}
-
 function subjectById(
   presentation: CinderwakePresentation,
   subjectId: string,
@@ -902,7 +871,7 @@ export function createCinderwakePresentation(
   pixelRatio: number,
 ): CinderwakePresentation {
   const scene = new Scene();
-  const camera = new PerspectiveCamera(43, 1, 0.1, 38);
+  const camera = new PerspectiveCamera(43, 1, 0.1, 90);
   // Keep the presentation path responsive on integrated/software GPUs. The
   // semantic session runs independently in the resident worker; rendering
   // must never consume the browser's frame budget with multisample overhead.
@@ -912,6 +881,28 @@ export function createCinderwakePresentation(
     powerPreference: "high-performance",
   });
   const resources: OwnedPresentationResources = { geometries: [], materials: [] };
+  document.body.dataset.environmentState = "loading";
+  document.body.dataset.environmentLoadStartedAt = String(
+    Math.round(performance.now()),
+  );
+  const environment = createOpenFieldEnvironment(scene);
+  const environmentReady = environment.ready.then(
+    () => {
+      document.body.dataset.environmentState = "ready";
+      document.body.dataset.environmentReadyAt = String(
+        Math.round(performance.now()),
+      );
+    },
+    (cause: unknown) => {
+      document.body.dataset.environmentState = "failed";
+      document.body.dataset.environmentFailedAt = String(
+        Math.round(performance.now()),
+      );
+      document.body.dataset.environmentFailureMessage =
+        cause instanceof Error ? cause.message : String(cause);
+      throw cause;
+    },
+  );
   const wayfarer = createWayfarer(ids.wayfarer, resources);
   const wraith = createWraith(ids.wraith, resources);
   const boar = createBoar(ids.boar, resources);
@@ -963,6 +954,8 @@ export function createCinderwakePresentation(
     chargeCorridorFill,
     chargeCorridorFillMaterial,
     resources,
+    environment,
+    environmentReady,
     rigReady: Promise.resolve(),
     width: 0,
     height: 0,
@@ -983,12 +976,12 @@ export function createCinderwakePresentation(
     disposed: false,
   };
 
-  scene.background = new Color(0x030506);
-  addArenaSilhouette(scene, resources);
+  scene.background = new Color(0x13221d);
   camera.position.set(0, DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_REACH);
   camera.lookAt(0, 0.45, 0);
-  const ambient = new AmbientLight(0x485250, 1.15);
-  const keyLight = new DirectionalLight(0xffceb6, 3.7);
+  const ambient = new AmbientLight(0x485250, 0.65);
+  const skyLight = new HemisphereLight(0xc2ddcd, 0x38241b, 2.15);
+  const keyLight = new DirectionalLight(0xffe1bd, 4.1);
   keyLight.position.set(-4, 8.5, 4);
   const emberLight = new PointLight(0xff7e28, 26, 8.4, 2);
   emberLight.position.set(3.8, 1.9, -1.8);
@@ -998,6 +991,7 @@ export function createCinderwakePresentation(
     ...subjects.map(({ root }) => root),
     chargeCorridor,
     ambient,
+    skyLight,
     keyLight,
     emberLight,
     wellLight,
@@ -1059,6 +1053,7 @@ export function disposeCinderwakePresentation(
   if (presentation.wayfarerRig !== null) {
     disposeMountedArenaRig(presentation.wayfarerRig);
   }
+  presentation.environment.dispose();
   for (const geometry of presentation.resources.geometries) geometry.dispose();
   for (const material of presentation.resources.materials) material.dispose();
   presentation.renderer.dispose();

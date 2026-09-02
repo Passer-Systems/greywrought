@@ -15,58 +15,6 @@
         }
       }
     </script>
-    <style>
-      :root {
-        color-scheme: dark;
-        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-        background: #05070c;
-        color: #eef3ff;
-      }
-      * { box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; }
-      body { margin: 0; overflow: hidden; }
-      main { width: 100%; height: 100dvh; }
-      #world-wrap { position: relative; width: 100%; height: 100%; min-width: 0; overflow: hidden; background: radial-gradient(circle at 55% 40%, #29283a 0, #11131d 50%, #05070c 100%); }
-      #world-canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; cursor: grab; }
-      #world-canvas:active { cursor: grabbing; }
-      #world-canvas:focus { box-shadow: inset 0 0 0 2px #e5b56b77; }
-      .realm-label { position: absolute; top: 18px; padding: 7px 11px; border-radius: 999px; border: 1px solid #ffffff25; backdrop-filter: blur(12px); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; pointer-events: none; }
-      #authoritative-label { left: 22px; color: #ffd27d; background: #3d2b1066; }
-      #branch-label { right: 22px; color: #70ddff; background: #0c405066; opacity: 0; transition: opacity .25s; }
-      #branch-label.visible { opacity: 1; }
-      #game-hud { position: absolute; left: 22px; bottom: 22px; width: min(440px, calc(100% - 44px)); display: grid; gap: 8px; pointer-events: none; }
-      .hud-panel { padding: 12px 14px; border: 1px solid #ffffff20; border-radius: 11px; background: #080b12cc; backdrop-filter: blur(12px); box-shadow: 0 16px 40px #0007; }
-      .hud-row { display: grid; grid-template-columns: 100px 1fr auto; align-items: center; gap: 10px; font-size: 12px; }
-      .hud-row + .hud-row { margin-top: 8px; }
-      .bar { height: 8px; overflow: hidden; border-radius: 999px; background: #ffffff13; }
-      .bar > span { display: block; width: 100%; height: 100%; transform-origin: left; transition: transform .16s, background .16s; }
-      #player-vitality-bar { background: #e9a860; }
-      #enemy-vitality-bar { background: #a878ef; }
-      #booster-energy-bar { background: #69d8e7; }
-      #objective { color: #f3d9a9; font-family: Georgia, serif; font-size: 17px; }
-      #combat-feedback { min-height: 18px; color: #f8ca80; font-weight: 700; letter-spacing: .04em; }
-      #control-hint { color: #b5c0d2; font-size: 11px; line-height: 1.45; }
-      #sidebar { display: none; }
-      h1 { font-family: Georgia, serif; font-weight: 500; font-size: 28px; margin: 0 0 3px; }
-      .kicker { color: #aab5c9; font-size: 11px; text-transform: uppercase; letter-spacing: .16em; margin-bottom: 18px; }
-      #stage { display: inline-flex; padding: 6px 9px; border-radius: 5px; background: #202839; color: #dbe7ff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
-      #summary { min-height: 48px; color: #bdc8d9; line-height: 1.45; font-size: 13px; }
-      button { appearance: none; border: 1px solid #ffffff24; border-radius: 8px; padding: 10px 12px; color: #f5f7ff; background: #293247; text-align: left; font: inherit; cursor: pointer; }
-      button:hover:not(:disabled) { background: #394660; }
-      button:disabled { opacity: .28; cursor: default; }
-      button.primary { background: #70461f; border-color: #d69a58aa; }
-      button.effect { background: #153d45; border-color: #5ad4dd66; }
-      #reset-encounter { width: 100%; text-align: center; margin: 8px 0 4px; }
-      section, details { margin-top: 16px; padding-top: 14px; border-top: 1px solid #ffffff12; }
-      summary { cursor: pointer; color: #c7d1e2; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
-      h2 { margin: 0 0 8px; color: #dce5f6; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
-      .controls { display: grid; gap: 7px; margin-top: 12px; }
-      #candidate { display: none; padding: 9px; border: 1px dashed #e7ab53aa; border-radius: 7px; color: #f2c77d; background: #3b290f44; font-size: 11px; overflow-wrap: anywhere; }
-      #candidate.visible { display: block; }
-      #selection, #effect, #resident-law, #game-custody, #projection, #explanation { white-space: pre-wrap; overflow-wrap: anywhere; color: #9facc0; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
-      #projection, #explanation { max-height: 160px; overflow: auto; }
-      .truth-note { color: #7f8ba0; font-size: 10px; line-height: 1.45; }
-    </style>
   </head>
   <body data-journey="loading" data-game-phase="loading">
     <main>
@@ -94,17 +42,49 @@
           </div>
         </div>
         <div id="game-hud">
-          <div class="hud-panel">
-            <div class="hud-row"><span>Wayfarer</span><div class="bar"><span id="player-vitality-bar"></span></div><strong id="player-vitality">4 / 4</strong></div>
-            <div class="hud-row"><span>Magitek boar</span><div class="bar"><span id="enemy-vitality-bar"></span></div><strong id="enemy-vitality">6 / 6</strong></div>
-            <div class="hud-row"><span>Booster</span><div class="bar"><span id="booster-energy-bar"></span></div><strong id="booster-energy">100 / 100</strong></div>
-          </div>
-          <div class="hud-panel">
-            <div id="objective">Enter the ash circle and claim the key.</div>
-            <div id="combat-state">BOOST 100 / 100 · IGNITE 25 · REGEN 0   STATUS clear · 12</div>
-            <div id="combat-feedback"></div>
-            <div id="control-hint">WASD move · hold left mouse + drag orbit · wheel zoom · Tab / Shift+Tab target · Space jump · J sword · Shift horizontal sustain · Q horizontal burst · E vertical sustain · F vertical burst · R reset</div>
-          </div>
+          <section id="player-frame" class="unit-frame player-frame" aria-label="Player status">
+            <div class="unit-portrait player-portrait" aria-hidden="true"><span>W</span></div>
+            <div class="unit-readout">
+              <div class="unit-heading"><strong>Wayfarer</strong><span id="player-vitality">4 / 4</span></div>
+              <div class="bar health-bar" aria-hidden="true"><span id="player-vitality-bar"></span></div>
+              <div class="bar resource-bar" aria-hidden="true"><span id="booster-energy-bar"></span></div>
+              <div class="unit-resource"><span>Booster</span><strong id="booster-energy">100 / 100</strong></div>
+            </div>
+          </section>
+
+          <section id="target-frame" class="unit-frame target-frame" aria-label="Current target status">
+            <div class="unit-readout">
+              <div class="unit-heading"><strong>Corrupted Magitek Boar</strong><span id="enemy-vitality">6 / 6</span></div>
+              <div class="bar health-bar" aria-hidden="true"><span id="enemy-vitality-bar"></span></div>
+              <div class="bar status-bar" aria-hidden="true"><span></span></div>
+              <div class="unit-resource"><span>Corrupted</span><strong>Target</strong></div>
+            </div>
+            <div class="unit-portrait target-portrait" aria-hidden="true"><span>B</span></div>
+          </section>
+
+          <section class="objective-tracker" aria-label="Current objective">
+            <div class="objective-kicker">Quest objective</div>
+            <div id="objective">Defeat the corrupted boar and recover its breach key.</div>
+          </section>
+
+          <section id="chat-window" class="chat-window" aria-label="Chat and combat log">
+            <input id="chat-tab-general" class="chat-tab-state" type="radio" name="chat-tab" checked />
+            <input id="chat-tab-combat" class="chat-tab-state" type="radio" name="chat-tab" />
+            <div class="chat-tabs" aria-label="Log channels">
+              <label for="chat-tab-general">1 Chat</label>
+              <label for="chat-tab-combat">2 Combat Log</label>
+            </div>
+            <div class="chat-panel chat-general" aria-live="polite">
+              <p><span>[System]</span> Resident Clause generation linked.</p>
+              <p><span>[Local]</span> The Ashen Verge stirs around the breach.</p>
+            </div>
+            <div class="chat-panel chat-combat" aria-live="polite">
+              <div id="combat-state">BOOST 100 / 100 · IGNITE 25 · REGEN 0 &nbsp; STATUS clear · 12</div>
+              <div id="combat-feedback"></div>
+            </div>
+          </section>
+
+          <div id="control-hint">WASD move · hold left mouse + drag orbit · wheel zoom · Tab / Shift+Tab target · 1 lock-on bolt · J sword · Space jump · Shift horizontal sustain · Q horizontal burst · E vertical sustain · F vertical burst · R reset</div>
         </div>
       </div>
       <aside id="sidebar">

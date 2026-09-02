@@ -141,6 +141,8 @@ const files: Readonly<Record<string, string>> = {
   "/app/greywrought-clause/resident-worker.js": "build/host/resident-worker.js",
   "/app/greywrought-clause/cinderwake-presentation.js":
     "build/host/cinderwake-presentation.js",
+  "/app/greywrought-clause/open-field-environment.js":
+    "build/host/open-field-environment.js",
   "/app/greywrought-clause/rig-socket-lab.js":
     "build/host/rig-socket-lab.js",
   "/app/rig-socket-lab-entry.js": "build/host/rig-socket-lab-entry.js",
@@ -186,6 +188,52 @@ const files: Readonly<Record<string, string>> = {
     "assets/external/quaternius/rig-socket-prototype/base/T_Superhero_Female_Roughness.png",
   "/assets/quaternius/rig/animations/UAL1_Standard.glb":
     "assets/external/quaternius/rig-socket-prototype/animations/UAL1_Standard.glb",
+  "/assets/quaternius/nature/CommonTree_2.gltf":
+    "assets/external/quaternius/stylized-nature-field/glTF/CommonTree_2.gltf",
+  "/assets/quaternius/nature/CommonTree_2.bin":
+    "assets/external/quaternius/stylized-nature-field/glTF/CommonTree_2.bin",
+  "/assets/quaternius/nature/CommonTree_5.gltf":
+    "assets/external/quaternius/stylized-nature-field/glTF/CommonTree_5.gltf",
+  "/assets/quaternius/nature/CommonTree_5.bin":
+    "assets/external/quaternius/stylized-nature-field/glTF/CommonTree_5.bin",
+  "/assets/quaternius/nature/Pine_2.gltf":
+    "assets/external/quaternius/stylized-nature-field/glTF/Pine_2.gltf",
+  "/assets/quaternius/nature/Pine_2.bin":
+    "assets/external/quaternius/stylized-nature-field/glTF/Pine_2.bin",
+  "/assets/quaternius/nature/Pine_5.gltf":
+    "assets/external/quaternius/stylized-nature-field/glTF/Pine_5.gltf",
+  "/assets/quaternius/nature/Pine_5.bin":
+    "assets/external/quaternius/stylized-nature-field/glTF/Pine_5.bin",
+  "/assets/quaternius/nature/Bush_Common.gltf":
+    "assets/external/quaternius/stylized-nature-field/glTF/Bush_Common.gltf",
+  "/assets/quaternius/nature/Bush_Common.bin":
+    "assets/external/quaternius/stylized-nature-field/glTF/Bush_Common.bin",
+  "/assets/quaternius/nature/Grass_Common_Short.gltf":
+    "assets/external/quaternius/stylized-nature-field/glTF/Grass_Common_Short.gltf",
+  "/assets/quaternius/nature/Grass_Common_Short.bin":
+    "assets/external/quaternius/stylized-nature-field/glTF/Grass_Common_Short.bin",
+  "/assets/quaternius/nature/Rock_Medium_1.gltf":
+    "assets/external/quaternius/stylized-nature-field/glTF/Rock_Medium_1.gltf",
+  "/assets/quaternius/nature/Rock_Medium_1.bin":
+    "assets/external/quaternius/stylized-nature-field/glTF/Rock_Medium_1.bin",
+  "/assets/quaternius/nature/Rock_Medium_3.gltf":
+    "assets/external/quaternius/stylized-nature-field/glTF/Rock_Medium_3.gltf",
+  "/assets/quaternius/nature/Rock_Medium_3.bin":
+    "assets/external/quaternius/stylized-nature-field/glTF/Rock_Medium_3.bin",
+  "/assets/quaternius/nature/Bark_NormalTree.png":
+    "assets/external/quaternius/stylized-nature-field/glTF/Bark_NormalTree.png",
+  "/assets/quaternius/nature/Bark_NormalTree_Normal.png":
+    "assets/external/quaternius/stylized-nature-field/glTF/Bark_NormalTree_Normal.png",
+  "/assets/quaternius/nature/Leaves_NormalTree_C.png":
+    "assets/external/quaternius/stylized-nature-field/glTF/Leaves_NormalTree_C.png",
+  "/assets/quaternius/nature/Leaf_Pine_C.png":
+    "assets/external/quaternius/stylized-nature-field/glTF/Leaf_Pine_C.png",
+  "/assets/quaternius/nature/Leaves_TwistedTree_C.png":
+    "assets/external/quaternius/stylized-nature-field/glTF/Leaves_TwistedTree_C.png",
+  "/assets/quaternius/nature/Grass.png":
+    "assets/external/quaternius/stylized-nature-field/glTF/Grass.png",
+  "/assets/quaternius/nature/Rocks_Diffuse.png":
+    "assets/external/quaternius/stylized-nature-field/glTF/Rocks_Diffuse.png",
 };
 
 const resident = spawnResidentGeneration();
