@@ -1,13 +1,34 @@
 # Quaternius rig/socket prototype assets
 
-These files are a deliberately small subset of two official Quaternius packs,
-downloaded on 2026-09-01. Both downloaded archives contain the retained CC0
-1.0 Universal notices beside the selected assets. Notice text is unchanged;
-line endings and trailing whitespace are normalized for this repository.
+These files are deliberately small subsets of official Quaternius packs. Each
+selected asset retains the exact bundled CC0 1.0 Universal notice from its
+download source.
+
+## Live Wayfarer character
+
+- Pack: Ultimate Animated Character Pack
+- Official pages:
+  - <https://quaternius.com/packs/ultimatedanimatedcharacter.html>
+  - <https://drive.google.com/drive/folders/1sNi1AfenfPRrvRt5yfaj5QMMd6KKcUJ5>
+- Retrieved: 2026-09-02
+- Google Drive file: `glTF/Knight_Golden_Female.gltf`
+- Google Drive file ID: `1etB7GTumoPrUf-wjvnkmhkp-Zs4mDPqv`
+- Selected scope: the self-contained Golden Knight Female glTF with its
+  complete clothed mesh, 23-joint skeleton, embedded geometry, and 17 native
+  animation clips
+- Selected GLTF SHA-256:
+  `dc468d46e898aa02b1ca92f19adfb1b5497721d273efb6405aa80e7155f26cc8`
+- License: CC0 1.0 Universal; exact bundled notice is
+  `wayfarer/LICENSE.txt` (SHA-256
+  `83d8959f9fc56353ed571fbe2dc52e4bcd64508e2399501cd45ac2ce3df0bf8c`)
+
+The live Wayfarer uses the asset's own `Idle`, `Run`, `Jump`, `SwordSlash`,
+`RecieveHit`, and `Death` clips. No cross-skeleton retargeting is required.
 
 ## Base character
 
 - Pack: Universal Base Characters, Standard (free)
+- Retrieved: 2026-09-01
 - Official pages:
   - <https://quaternius.com/packs/universalbasecharacters.html>
   - <https://quaternius.itch.io/universal-base-characters>
@@ -29,6 +50,7 @@ No mesh, rig, material, or texture bytes were otherwise changed.
 ## Animation library
 
 - Pack: Universal Animation Library, Standard (free)
+- Retrieved: 2026-09-01
 - Official pages:
   - <https://quaternius.com/packs/universalanimationlibrary.html>
   - <https://quaternius.itch.io/universal-animation-library>

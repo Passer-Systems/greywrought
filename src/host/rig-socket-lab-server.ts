@@ -35,6 +35,8 @@ const files: Readonly<Record<string, string>> = {
     "assets/external/quaternius/rig-socket-prototype/base/T_Superhero_Female_Roughness.png",
   "/assets/quaternius/rig/animations/UAL1_Standard.glb":
     "assets/external/quaternius/rig-socket-prototype/animations/UAL1_Standard.glb",
+  "/assets/quaternius/rig/wayfarer/Knight_Golden_Female.gltf":
+    "assets/external/quaternius/rig-socket-prototype/wayfarer/Knight_Golden_Female.gltf",
 };
 
 const server = Bun.serve({

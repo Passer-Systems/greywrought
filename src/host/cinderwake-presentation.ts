@@ -1033,6 +1033,8 @@ export function createCinderwakePresentation(
     (cause: unknown) => {
       document.body.dataset.rigState = "failed";
       document.body.dataset.rigFailedAt = String(Math.round(performance.now()));
+      document.body.dataset.rigFailureMessage =
+        cause instanceof Error ? cause.message : String(cause);
       throw cause;
     },
   );

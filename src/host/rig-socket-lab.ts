@@ -29,8 +29,7 @@ import { GLTFLoader, type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { clone } from "three/addons/utils/SkeletonUtils.js";
 
 const BASE_MODEL_URL =
-  "/assets/quaternius/rig/base/Superhero_Female_FullBody.gltf";
-const ANIMATION_URL = "/assets/quaternius/rig/animations/UAL1_Standard.glb";
+  "/assets/quaternius/rig/wayfarer/Knight_Golden_Female.gltf";
 
 interface RigSockets {
   readonly back: Group;
@@ -168,24 +167,24 @@ function createSocket(
 
 function normalizeSockets(root: Object3D): RigSockets {
   const sockets: RigSockets = {
-    back: createSocket(root, "spine_03", "greywrought.socket.upper-back"),
+    back: createSocket(root, "Torso", "greywrought.socket.upper-back"),
     leftBooster: createSocket(
       root,
-      "calf_l",
+      "LowerLegL",
       "greywrought.socket.left-lower-leg",
     ),
     rightBooster: createSocket(
       root,
-      "calf_r",
+      "LowerLegR",
       "greywrought.socket.right-lower-leg",
     ),
     leftForearm: createSocket(
       root,
-      "lowerarm_l",
+      "LowerArmL",
       "greywrought.socket.left-forearm",
     ),
-    rightHand: createSocket(root, "hand_r", "greywrought.socket.right-hand"),
-    holster: createSocket(root, "pelvis", "greywrought.socket.hip-holster"),
+    rightHand: createSocket(root, "FistR", "greywrought.socket.right-hand"),
+    holster: createSocket(root, "Hips", "greywrought.socket.hip-holster"),
   };
 
   sockets.back.position.set(0, 0.08, -0.14);
@@ -400,22 +399,26 @@ function updateEquipmentPropulsion(
   }
 }
 
-function exactClip(clips: AnimationClip[], name: string): AnimationClip {
+function exactClip(
+  clips: AnimationClip[],
+  name: string,
+  assetName: string,
+): AnimationClip {
   const clip = AnimationClip.findByName(clips, name);
   if (clip === null) {
-    throw new Error(`UAL1 Standard is missing clip ${name}`);
+    throw new Error(`${assetName} is missing clip ${name}`);
   }
   return clip;
 }
 
-function selectClips(clips: AnimationClip[]): ClipLibrary {
+function selectClips(base: GLTF): ClipLibrary {
   return {
-    idle: exactClip(clips, "Idle_Loop"),
-    locomotion: exactClip(clips, "Sprint_Loop"),
-    jump: exactClip(clips, "Jump_Loop"),
-    attack: exactClip(clips, "Sword_Attack"),
-    hit: exactClip(clips, "Hit_Chest"),
-    death: exactClip(clips, "Death01"),
+    idle: exactClip(base.animations, "Idle", "Wayfarer model"),
+    locomotion: exactClip(base.animations, "Run", "Wayfarer model"),
+    jump: exactClip(base.animations, "Jump", "Wayfarer model"),
+    attack: exactClip(base.animations, "SwordSlash", "Wayfarer model"),
+    hit: exactClip(base.animations, "RecieveHit", "Wayfarer model"),
+    death: exactClip(base.animations, "Death", "Wayfarer model"),
   };
 }
 
@@ -495,13 +498,10 @@ function disposeLoadedModels(roots: readonly Object3D[]): void {
   for (const geometry of geometries) geometry.dispose();
 }
 
-async function loadRigAssets(): Promise<readonly [GLTF, GLTF]> {
+async function loadRigAsset(): Promise<GLTF> {
   const loader = new GLTFLoader();
   try {
-    return await Promise.all([
-      loader.loadAsync(BASE_MODEL_URL),
-      loader.loadAsync(ANIMATION_URL),
-    ]);
+    return await loader.loadAsync(BASE_MODEL_URL);
   } catch (cause: unknown) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     throw new Error(`Unable to load the Quaternius rig assets: ${detail}`, {
@@ -514,9 +514,9 @@ export async function mountArenaRig(
   parent: Group,
   placeholder: Group,
 ): Promise<MountedArenaRig> {
-  const [base, animationAsset] = await loadRigAssets();
+  const base = await loadRigAsset();
   const resources: OwnedEquipmentResources = { geometries: [], materials: [] };
-  const clips = selectClips(animationAsset.animations);
+  const clips = selectClips(base);
   const instance = createRigInstance(
     base.scene,
     0,
@@ -752,9 +752,9 @@ function assertEquipment(instance: RigInstance): void {
 }
 
 export async function startRigSocketLab(): Promise<RigSocketLab> {
-  const [base, animationAsset] = await loadRigAssets();
+  const base = await loadRigAsset();
   const resources: OwnedEquipmentResources = { geometries: [], materials: [] };
-  const clips = selectClips(animationAsset.animations);
+  const clips = selectClips(base);
   const left = createRigInstance(base.scene, -1.55, resources, "greywrought.rig.left");
   const right = createRigInstance(base.scene, 1.55, resources, "greywrought.rig.right");
   assertEquipment(left);
