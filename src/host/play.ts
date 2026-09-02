@@ -1206,12 +1206,68 @@ function bindResidentWorker(app: PlayApp, listeners: Array<() => void>): void {
           ),
         );
       } else if (kind === "heartbeat") {
+        const pendingInputCount = requireNumber(
+          requireField(value, "pendingInputCount", "resident worker heartbeat"),
+          "resident worker heartbeat.pendingInputCount",
+        );
+        const pendingObservationCount = requireNumber(
+          requireField(
+            value,
+            "pendingObservationCount",
+            "resident worker heartbeat",
+          ),
+          "resident worker heartbeat.pendingObservationCount",
+        );
+        const workbenchPhase = requireString(
+          requireField(value, "workbenchPhase", "resident worker heartbeat"),
+          "resident worker heartbeat.workbenchPhase",
+        );
+        const receivedInputCount = requireNumber(
+          requireField(value, "receivedInputCount", "resident worker heartbeat"),
+          "resident worker heartbeat.receivedInputCount",
+        );
+        const acceptedInputCount = requireNumber(
+          requireField(value, "acceptedInputCount", "resident worker heartbeat"),
+          "resident worker heartbeat.acceptedInputCount",
+        );
+        const maximumInputQueueDepth = requireNumber(
+          requireField(
+            value,
+            "maximumInputQueueDepth",
+            "resident worker heartbeat",
+          ),
+          "resident worker heartbeat.maximumInputQueueDepth",
+        );
+        const inputBackpressureCount = requireNumber(
+          requireField(
+            value,
+            "inputBackpressureCount",
+            "resident worker heartbeat",
+          ),
+          "resident worker heartbeat.inputBackpressureCount",
+        );
         boundedGameEvent({
           phase: "worker-heartbeat",
           workerTimeMillis: requireNumber(
             requireField(value, "workerTimeMillis", "resident worker heartbeat"),
             "resident worker heartbeat.workerTimeMillis",
           ),
+          pendingInputCount,
+          pendingObservationCount,
+          workbenchPhase,
+          receivedInputCount,
+          acceptedInputCount,
+          maximumInputQueueDepth,
+          inputBackpressureCount,
+        });
+        Object.assign(document.body.dataset, {
+          residentPendingInputs: String(pendingInputCount),
+          residentPendingObservations: String(pendingObservationCount),
+          residentWorkbenchPhase: workbenchPhase,
+          residentReceivedInputs: String(receivedInputCount),
+          residentAcceptedInputs: String(acceptedInputCount),
+          residentMaximumInputQueueDepth: String(maximumInputQueueDepth),
+          residentInputBackpressureCount: String(inputBackpressureCount),
         });
       } else if (kind === "failure") {
         residentLawFailure(

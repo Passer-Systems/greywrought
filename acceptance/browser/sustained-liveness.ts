@@ -22,6 +22,13 @@ type Snapshot = Readonly<{
   latestAdmissionAt: number;
   latestHeartbeatAt: number;
   latestKeyboardAt: number;
+  pendingInputCount: number;
+  pendingObservationCount: number;
+  workbenchPhase: string;
+  receivedInputCount: number;
+  acceptedInputCount: number;
+  maximumInputQueueDepth: number;
+  inputBackpressureCount: number;
   eventCount: number;
   contextLosses: number;
   contextRestores: number;
@@ -179,6 +186,7 @@ try {
       expression: `JSON.stringify((() => {
         const events = window.__GREYWROUGHT_GAME_EVENTS__ ?? [];
         const latest = (phase) => events.findLast((event) => event.phase === phase)?.atMillis ?? -1;
+        const heartbeat = events.findLast((event) => event.phase === "worker-heartbeat") ?? {};
         return {
           now: performance.now(),
           phase: document.body.dataset.gamePhase,
@@ -192,6 +200,13 @@ try {
           latestAdmissionAt: latest("frame-admitted"),
           latestHeartbeatAt: latest("worker-heartbeat"),
           latestKeyboardAt: latest("keyboard-observed"),
+          pendingInputCount: Number(heartbeat.pendingInputCount),
+          pendingObservationCount: Number(heartbeat.pendingObservationCount),
+          workbenchPhase: String(heartbeat.workbenchPhase ?? "absent"),
+          receivedInputCount: Number(heartbeat.receivedInputCount),
+          acceptedInputCount: Number(heartbeat.acceptedInputCount),
+          maximumInputQueueDepth: Number(heartbeat.maximumInputQueueDepth),
+          inputBackpressureCount: Number(heartbeat.inputBackpressureCount),
           eventCount: events.length,
           contextLosses: window.__GREYWROUGHT_CONTEXT_LOSSES__ ?? 0,
           contextRestores: window.__GREYWROUGHT_CONTEXT_RESTORES__ ?? 0,
@@ -243,6 +258,7 @@ try {
   let lastJumpAt = startedAt;
   let lastTargetAt = startedAt;
   let lastCameraAt = startedAt;
+  let lastFocusCycleAt = startedAt;
   let lastResetAt = startedAt;
   let lastScreenshotAt = startedAt;
   let lastPositionChangeAt = startedAt;
@@ -254,6 +270,10 @@ try {
   let maxRenderAge = 0;
   let maxAdmissionAge = 0;
   let maxHeartbeatAge = 0;
+  let maxPendingInputCount = 0;
+  let maxPendingObservationCount = 0;
+  let maximumInputQueueDepth = 0;
+  let inputBackpressureCount = 0;
   let screenshots = 0;
   let unchangedScreenshots = 0;
   let priorScreenshot = "";
@@ -293,9 +313,33 @@ try {
     maxRenderAge = Math.max(maxRenderAge, renderAge);
     maxAdmissionAge = Math.max(maxAdmissionAge, admissionAge);
     maxHeartbeatAge = Math.max(maxHeartbeatAge, heartbeatAge);
+    maxPendingInputCount = Math.max(
+      maxPendingInputCount,
+      value.pendingInputCount,
+    );
+    maxPendingObservationCount = Math.max(
+      maxPendingObservationCount,
+      value.pendingObservationCount,
+    );
+    maximumInputQueueDepth = Math.max(
+      maximumInputQueueDepth,
+      value.maximumInputQueueDepth,
+    );
+    inputBackpressureCount = Math.max(
+      inputBackpressureCount,
+      value.inputBackpressureCount,
+    );
     requireCondition(renderAge < 1_000, `render RAF stalled for ${renderAge} ms`);
     requireCondition(admissionAge < 1_500, `admitted simulation stalled for ${admissionAge} ms`);
     requireCondition(heartbeatAge < 2_000, `resident worker stalled for ${heartbeatAge} ms`);
+    requireCondition(
+      value.acceptedInputCount <= value.receivedInputCount,
+      `worker accepted ${value.acceptedInputCount} inputs after receiving only ${value.receivedInputCount}`,
+    );
+    requireCondition(
+      value.pendingInputCount <= 16,
+      `worker input queue grew to ${value.pendingInputCount}: ${JSON.stringify(value.recentEvents)}`,
+    );
 
     if (Math.hypot(value.playerX - priorX, value.playerZ - priorZ) > 0.001) {
       lastPositionChangeAt = performance.now();
@@ -332,7 +376,10 @@ try {
       directionChangedAt = performance.now();
     }
     if (performance.now() - lastAttackAt >= 3_000) {
-      await press("KeyJ");
+      for (let pressIndex = 0; pressIndex < 8; pressIndex += 1) {
+        await press("KeyJ");
+        await Bun.sleep(20);
+      }
       lastAttackAt = performance.now();
     }
     if (performance.now() - lastBurstAt >= 4_000) {
@@ -371,6 +418,15 @@ try {
         clickCount: 1,
       });
       lastCameraAt = performance.now();
+    }
+    if (performance.now() - lastFocusCycleAt >= 15_000) {
+      await call("Runtime.evaluate", {
+        expression: "window.dispatchEvent(new Event('blur'))",
+      });
+      await dispatchKey("keyUp", held);
+      await dispatchKey("keyDown", held);
+      lastFocusCycleAt = performance.now();
+      lastPositionChangeAt = performance.now();
     }
     if (performance.now() - lastResetAt >= 20_000) {
       await press("KeyR");
@@ -427,6 +483,10 @@ try {
       maxRenderAge: Math.round(maxRenderAge),
       maxAdmissionAge: Math.round(maxAdmissionAge),
       maxHeartbeatAge: Math.round(maxHeartbeatAge),
+      maxPendingInputCount,
+      maxPendingObservationCount,
+      maximumInputQueueDepth,
+      inputBackpressureCount,
       screenshots,
       initialHeapBytes,
       maximumHeapBytes,

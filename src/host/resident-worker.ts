@@ -64,7 +64,17 @@ type ResidentEvent =
       generation: number;
       receipt: LifecycleReceipt;
     }>
-  | Readonly<{ kind: "heartbeat"; workerTimeMillis: number }>
+  | Readonly<{
+      kind: "heartbeat";
+      workerTimeMillis: number;
+      pendingInputCount: number;
+      pendingObservationCount: number;
+      workbenchPhase: string;
+      receivedInputCount: number;
+      acceptedInputCount: number;
+      maximumInputQueueDepth: number;
+      inputBackpressureCount: number;
+    }>
   | Readonly<{ kind: "failure"; message: string }>;
 
 interface ResidentWorkerScope {
@@ -107,18 +117,21 @@ const modulePromise = fetch("/wasm/clause_runtime_bg.wasm")
 let controller: CartridgeWorkbench | null = null;
 let activeExternalGeneration = -1;
 let pendingExternalGeneration: number | null = null;
-let inputInFlight = false;
-let inFlightEdgeCode: string | null = null;
+let flushingInput = false;
 let simulationStarted = false;
 let disposed = false;
 let commands = Promise.resolve();
 const inputQueue: ResidentInput[] = [];
 let heartbeatHandle: ReturnType<typeof setInterval> | null = null;
+let receivedInputCount = 0;
+let acceptedInputCount = 0;
+let maximumInputQueueDepth = 0;
+let inputBackpressureCount = 0;
 
 // These bindings represent one discrete action per physical press. Keeping
-// duplicate edges out of the transport queue prevents browser key-repeat (or
-// a click storm) from becoming a delayed chain of attacks after the semantic
-// sword commitment has elapsed.
+// browser key-repeat out of the transport queue prevents a held action key
+// from becoming a delayed chain of attacks after the semantic commitment has
+// elapsed.
 const edgeTriggeredKeyboardCodes = new Set([
   "KeyJ",
   "KeyQ",
@@ -138,18 +151,24 @@ function envelope(input: ResidentInput): WorkbenchEnvelope {
 }
 
 function flushInput(): void {
-  if (inputInFlight || controller === null) return;
-  const input = inputQueue[0];
-  if (input === undefined) return;
-  if (controller.observeInput(envelope(input))) {
-    inputQueue.shift();
-    inputInFlight = true;
-    inFlightEdgeCode =
-      input.kind === "keyboard" &&
-      input.phase === "down" &&
-      edgeTriggeredKeyboardCodes.has(input.code)
-        ? input.code
-        : null;
+  if (flushingInput || controller === null) return;
+  flushingInput = true;
+  try {
+    while (inputQueue.length > 0) {
+      const input = inputQueue.shift()!;
+      // observeInput emits configuration receipts synchronously. Remove the
+      // item before crossing that boundary so a receipt cannot recursively
+      // submit the same physical input and then shift unrelated inputs while
+      // the stack unwinds.
+      if (!controller.observeInput(envelope(input))) {
+        inputBackpressureCount += 1;
+        inputQueue.unshift(input);
+        return;
+      }
+      acceptedInputCount += 1;
+    }
+  } finally {
+    flushingInput = false;
   }
 }
 
@@ -162,10 +181,6 @@ function handleReceipt(receipt: LifecycleReceipt): void {
     receipt.event === "package-rejected" || receipt.event === "session-failed"
       ? (pendingExternalGeneration ?? activeExternalGeneration)
       : activeExternalGeneration;
-  if (receipt.event === "admission-accepted") {
-    inputInFlight = false;
-    inFlightEdgeCode = null;
-  }
   workerScope.postMessage({
     kind: "receipt",
     generation: externalGeneration,
@@ -185,8 +200,6 @@ function handleReceipt(receipt: LifecycleReceipt): void {
     }
     simulationStarted = false;
     inputQueue.length = 0;
-    inputInFlight = false;
-    inFlightEdgeCode = null;
     return;
   }
   flushInput();
@@ -247,9 +260,17 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
     );
     heartbeatHandle = setInterval(() => {
       if (!disposed) {
+        const snapshot = controller?.snapshot();
         workerScope.postMessage({
           kind: "heartbeat",
           workerTimeMillis: performance.now(),
+          pendingInputCount: inputQueue.length,
+          pendingObservationCount: snapshot?.pendingObservations ?? 0,
+          workbenchPhase: snapshot?.phase ?? "opening",
+          receivedInputCount,
+          acceptedInputCount,
+          maximumInputQueueDepth,
+          inputBackpressureCount,
         });
       }
     }, 500);
@@ -263,15 +284,16 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
 }
 
 function queueInput(input: ResidentInput): void {
+  receivedInputCount += 1;
   if (input.kind === "keyboard") simulationStarted = true;
   if (
     input.kind === "keyboard" &&
     input.phase === "down" &&
     edgeTriggeredKeyboardCodes.has(input.code)
   ) {
-    // Browser key-repeat is not a second physical action. Also collapse an
-    // edge that is already in flight or waiting behind it.
-    if (input.repeat || inFlightEdgeCode === input.code) return;
+    // Browser key-repeat is not a second physical action. Collapse a duplicate
+    // edge still waiting for the workbench's bounded observation capacity.
+    if (input.repeat) return;
     if (
       inputQueue.some(
         (entry) =>
@@ -290,6 +312,7 @@ function queueInput(input: ResidentInput): void {
     if (pending >= 0) inputQueue.splice(pending, 1);
   }
   inputQueue.push(input);
+  maximumInputQueueDepth = Math.max(maximumInputQueueDepth, inputQueue.length);
   flushInput();
 }
 
