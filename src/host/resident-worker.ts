@@ -240,11 +240,8 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
       createFixedTick(16),
       policy,
       (milliseconds, callback) => {
-        // Hold the fixed-tick clock at the authored spawn until the player
-        // supplies the first gameplay key. This prevents slow WebGL/asset
-        // startup from consuming the encounter before input can arrive.
         const handle = setInterval(() => {
-          if (simulationStarted) callback();
+          callback();
         }, milliseconds);
         return () => clearInterval(handle);
       },
@@ -261,6 +258,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
       handleReceipt,
       request,
     );
+    simulationStarted = true;
     heartbeatHandle = setInterval(() => {
       if (!disposed) {
         const snapshot = controller?.snapshot();

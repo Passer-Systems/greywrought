@@ -57,10 +57,6 @@ try {
   await call("Page.addScriptToEvaluateOnNewDocument", { source: "window.__RTS_ERRORS__=[]; addEventListener('error', e => window.__RTS_ERRORS__.push(String(e.message || e.error || e))); addEventListener('unhandledrejection', e => window.__RTS_ERRORS__.push(String(e.reason)));" });
   await call("Page.navigate", { url: gameUrl }); await Bun.sleep(2500);
   console.log("rts journey: page navigated");
-  // The resident only advances once it receives a semantic command; F1 is the
-  // public select-company command and also opens the initial Clause projection.
-  await call("Input.dispatchKeyEvent", { type: "keyDown", code: "F1", key: "F1", windowsVirtualKeyCode: 112, nativeVirtualKeyCode: 112 });
-  await call("Input.dispatchKeyEvent", { type: "keyUp", code: "F1", key: "F1", windowsVirtualKeyCode: 112, nativeVirtualKeyCode: 112 });
   for (let attempt = 0; attempt < 6; attempt += 1) {
     if (await evaluate<string>("document.body.dataset.gamePhase") === "ready") break;
     await Bun.sleep(250);
