@@ -26,6 +26,11 @@ import {
   type Material,
   type Object3D,
 } from "three";
+import {
+  createQuaterniusBattlefield,
+  loadQuaterniusUnitModel,
+  type QuaterniusUnitModel,
+} from "./rts-quaternius.js";
 
 export type UnitClass = "Warrior" | "Artificer" | "Rogue" | "Priest" | "Ranger";
 
@@ -41,8 +46,11 @@ export interface UnitView {
 
 interface UnitFigure {
   readonly root: Group;
+  readonly placeholder: Group;
   readonly selectionRing: Mesh;
   readonly target: Vector3;
+  model: QuaterniusUnitModel | null;
+  moving: boolean;
 }
 
 export interface RtsPresentation {
@@ -116,38 +124,45 @@ function createFigure(unitClass: UnitClass): UnitFigure {
   selectionRing.castShadow = false;
   selectionRing.visible = false;
 
+  const placeholder = new Group();
+  placeholder.name = `greywrought.company.${unitClass.toLowerCase()}.placeholder`;
+  // The real Quaternius model is the only visible unit representation. Until
+  // it arrives the unit remains absent rather than showing debug geometry.
+  placeholder.visible = false;
+  root.add(placeholder);
+
   const bodyScale: readonly [number, number, number] =
     unitClass === "Warrior" ? [0.76, 1.05, 0.55] : [0.58, 0.95, 0.48];
-  addMesh(root, new CylinderGeometry(0.42, 0.5, 1.15, 8), cloth, [0, 0.72, 0], bodyScale);
-  addMesh(root, new SphereGeometry(0.29, 12, 8), skin, [0, 1.48, 0]);
+  addMesh(placeholder, new CylinderGeometry(0.42, 0.5, 1.15, 8), cloth, [0, 0.72, 0], bodyScale);
+  addMesh(placeholder, new SphereGeometry(0.29, 12, 8), skin, [0, 1.48, 0]);
 
   if (unitClass === "Warrior") {
-    addMesh(root, new BoxGeometry(0.12, 1.25, 0.13), steel, [0.5, 0.9, 0]);
-    const blade = addMesh(root, new BoxGeometry(0.16, 0.72, 0.08), steel, [-0.52, 1.0, 0.04]);
+    addMesh(placeholder, new BoxGeometry(0.12, 1.25, 0.13), steel, [0.5, 0.9, 0]);
+    const blade = addMesh(placeholder, new BoxGeometry(0.16, 0.72, 0.08), steel, [-0.52, 1.0, 0.04]);
     blade.rotation.z = -0.32;
-    addMesh(root, new CylinderGeometry(0.42, 0.42, 0.09, 12), gold, [0.54, 0.92, 0], [1, 1.25, 1]);
+    addMesh(placeholder, new CylinderGeometry(0.42, 0.42, 0.09, 12), gold, [0.54, 0.92, 0], [1, 1.25, 1]);
   } else if (unitClass === "Artificer") {
-    addMesh(root, new BoxGeometry(0.74, 0.22, 0.42), gold, [0, 1.02, -0.35]);
-    addMesh(root, new ConeGeometry(0.18, 0.52, 6), material(0x48c6df, 0.22, 0.3), [0.46, 1.28, 0]);
-    addMesh(root, new CylinderGeometry(0.09, 0.09, 1.25, 8), steel, [-0.48, 0.88, 0]);
+    addMesh(placeholder, new BoxGeometry(0.74, 0.22, 0.42), gold, [0, 1.02, -0.35]);
+    addMesh(placeholder, new ConeGeometry(0.18, 0.52, 6), material(0x48c6df, 0.22, 0.3), [0.46, 1.28, 0]);
+    addMesh(placeholder, new CylinderGeometry(0.09, 0.09, 1.25, 8), steel, [-0.48, 0.88, 0]);
   } else if (unitClass === "Rogue") {
-    addMesh(root, new ConeGeometry(0.39, 0.54, 8), dark, [0, 1.64, 0]);
-    const left = addMesh(root, new BoxGeometry(0.08, 0.68, 0.06), steel, [-0.4, 0.88, 0.08]);
-    const right = addMesh(root, new BoxGeometry(0.08, 0.68, 0.06), steel, [0.4, 0.88, 0.08]);
+    addMesh(placeholder, new ConeGeometry(0.39, 0.54, 8), dark, [0, 1.64, 0]);
+    const left = addMesh(placeholder, new BoxGeometry(0.08, 0.68, 0.06), steel, [-0.4, 0.88, 0.08]);
+    const right = addMesh(placeholder, new BoxGeometry(0.08, 0.68, 0.06), steel, [0.4, 0.88, 0.08]);
     left.rotation.z = 0.38;
     right.rotation.z = -0.38;
   } else if (unitClass === "Priest") {
-    addMesh(root, new CylinderGeometry(0.055, 0.07, 1.72, 8), gold, [0.47, 0.92, 0]);
-    addMesh(root, new SphereGeometry(0.18, 10, 8), material(0x8ddaf2, 0.25, 0.2), [0.47, 1.79, 0]);
-    addMesh(root, new RingGeometry(0.3, 0.36, 20), gold, [0, 1.62, -0.08]);
+    addMesh(placeholder, new CylinderGeometry(0.055, 0.07, 1.72, 8), gold, [0.47, 0.92, 0]);
+    addMesh(placeholder, new SphereGeometry(0.18, 10, 8), material(0x8ddaf2, 0.25, 0.2), [0.47, 1.79, 0]);
+    addMesh(placeholder, new RingGeometry(0.3, 0.36, 20), gold, [0, 1.62, -0.08]);
   } else {
-    const bow = addMesh(root, new TorusGeometry(0.48, 0.04, 6, 24, Math.PI), green, [0.46, 1.0, 0]);
+    const bow = addMesh(placeholder, new TorusGeometry(0.48, 0.04, 6, 24, Math.PI), green, [0.46, 1.0, 0]);
     bow.rotation.z = Math.PI / 2;
-    addMesh(root, new ConeGeometry(0.32, 0.48, 8), green, [0, 1.66, 0]);
-    addMesh(root, new CylinderGeometry(0.08, 0.1, 0.78, 8), dark, [-0.42, 1.03, -0.08]);
+    addMesh(placeholder, new ConeGeometry(0.32, 0.48, 8), green, [0, 1.66, 0]);
+    addMesh(placeholder, new CylinderGeometry(0.08, 0.1, 0.78, 8), dark, [-0.42, 1.03, -0.08]);
   }
 
-  return { root, selectionRing, target: new Vector3() };
+  return { root, placeholder, selectionRing, target: new Vector3(), model: null, moving: false };
 }
 
 export function createRtsPresentation(host: HTMLElement): RtsPresentation {
@@ -192,28 +207,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
   scene.add(road);
   ownTree(road);
 
-  const ruinSurface = material(0x73715d, 0.92, 0.02);
-  for (const [x, z, height] of [[-8, -5, 2.8], [8, 8, 3.6], [-11, 10, 2.2], [12, -9, 2.5]] as const) {
-    const ruin = new Mesh(new CylinderGeometry(0.8, 1.05, height, 7), ruinSurface);
-    ruin.position.set(x, height / 2, z);
-    ruin.rotation.y = x * 0.17;
-    ruin.castShadow = true;
-    ruin.receiveShadow = true;
-    scene.add(ruin);
-    ownTree(ruin);
-  }
-
-  const trunkSurface = material(0x4f3420, 0.95, 0);
-  const crownSurface = material(0x244b2b, 0.9, 0);
-  for (const [x, z, scale] of [[-15, -8, 1.4], [-13, 7, 1.1], [14, 4, 1.5], [11, -13, 1.2], [-5, 15, 1.35], [17, 14, 1.1]] as const) {
-    const tree = new Group();
-    addMesh(tree, new CylinderGeometry(0.22 * scale, 0.32 * scale, 2.3 * scale, 7), trunkSurface, [0, 1.15 * scale, 0]);
-    addMesh(tree, new ConeGeometry(1.25 * scale, 3.2 * scale, 8), crownSurface, [0, 3.0 * scale, 0]);
-    tree.position.set(x, 0, z);
-    tree.rotation.y = x + z;
-    scene.add(tree);
-    ownTree(tree);
-  }
+  const battlefield = createQuaterniusBattlefield(scene);
 
   scene.add(new AmbientLight(0x789277, 1.35));
   const sun = new DirectionalLight(0xffd69a, 3.1);
@@ -276,6 +270,36 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
   let frame = 0;
   let alive = true;
   let previousTime = performance.now();
+  const loadedCompanyModels = new Map<UnitClass, string>();
+  document.body.dataset.companyAssetStatus = "loading";
+  document.body.dataset.natureAssetStatus = "loading";
+  void battlefield.ready.then(() => {
+    if (alive) document.body.dataset.natureAssetStatus = "ready";
+  }).catch((cause: unknown) => {
+    document.body.dataset.natureAssetStatus = "error";
+    console.error("Unable to load Quaternius Stylized Nature battlefield", cause);
+  });
+
+  const recordLoadedModel = (unitClass: UnitClass, sourceName: string): void => {
+    loadedCompanyModels.set(unitClass, sourceName);
+    const order: readonly UnitClass[] = [
+      "Warrior",
+      "Artificer",
+      "Rogue",
+      "Priest",
+      "Ranger",
+    ];
+    document.body.dataset.companyModels = order
+      .flatMap((candidate) => {
+        const loaded = loadedCompanyModels.get(candidate);
+        return loaded === undefined ? [] : [`${candidate}:${loaded}`];
+      })
+      .join(",");
+    if (unitClass === "Artificer") {
+      document.body.dataset.artificerSilhouette = "engineer-alchemist-kit";
+    }
+    if (loadedCompanyModels.size === order.length) document.body.dataset.companyAssetStatus = "ready";
+  };
 
   const canvasPoint = (clientX: number, clientY: number): Vector2 => {
     const rectangle = renderer.domElement.getBoundingClientRect();
@@ -298,7 +322,9 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
   };
-  const resizeObserver = new ResizeObserver(resize);
+  // Defer layout writes out of the observer callback; synchronously changing
+  // the canvas size can make Chromium report a ResizeObserver loop error.
+  const resizeObserver = new ResizeObserver(() => { requestAnimationFrame(resize); });
   resizeObserver.observe(host);
   resize();
 
@@ -314,9 +340,27 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
         pickTargets.push(figure.root);
         scene.add(figure.root);
         ownTree(figure.root);
+        const loadingFigure = figure;
+        void loadQuaterniusUnitModel(unit.unitClass).then((model) => {
+          if (!alive) {
+            model.dispose();
+            return;
+          }
+          model.root.traverse((child) => { child.userData.unitId = unit.id; });
+          loadingFigure.model = model;
+          loadingFigure.root.add(model.root);
+          loadingFigure.placeholder.visible = false;
+          model.setMoving(loadingFigure.moving);
+          recordLoadedModel(unit.unitClass, model.sourceName);
+        }).catch((cause: unknown) => {
+          document.body.dataset.companyAssetStatus = "error";
+          console.error(`Unable to load Quaternius ${unit.unitClass} model`, cause);
+        });
       }
       figure.target.set(unit.x, 0, unit.z);
       figure.selectionRing.visible = unit.selected;
+      figure.moving = unit.moving;
+      figure.model?.setMoving(unit.moving);
       figure.root.userData.moving = unit.moving;
     }
   };
@@ -346,6 +390,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       focus.z = MathUtils.clamp(focus.z + (vertical / panLength) * speed, -24, 24);
     }
     for (const figure of figures.values()) {
+      figure.model?.update(dt);
       const before = figure.root.position.clone();
       figure.root.position.lerp(figure.target, 1 - Math.exp(-dt * 13));
       const dx = figure.root.position.x - before.x;
@@ -419,6 +464,8 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       alive = false;
       cancelAnimationFrame(frame);
       resizeObserver.disconnect();
+      battlefield.dispose();
+      figures.forEach((figure) => figure.model?.dispose());
       ownedGeometries.forEach((entry) => entry.dispose());
       ownedMaterials.forEach((entry) => entry.dispose());
       renderer.dispose();

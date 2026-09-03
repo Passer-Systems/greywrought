@@ -63,8 +63,25 @@ try {
   }
   const phase = await evaluate<string>("document.body.dataset.gamePhase");
   const authority = await evaluate<string>("document.getElementById('authority-status')?.textContent || ''");
+  requireCondition(phase === "ready", `company did not become ready (phase=${phase}, status=${authority}); browser errors: ${browserErrors.join(" | ") || "none"}`);
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const assetsReady = await evaluate<boolean>(
+      "document.body.dataset.companyAssetStatus === 'ready' && document.body.dataset.natureAssetStatus === 'ready'",
+    );
+    if (assetsReady) break;
+    await Bun.sleep(50);
+  }
+  const companyAssetStatus = await evaluate<string>("document.body.dataset.companyAssetStatus || ''");
+  const natureAssetStatus = await evaluate<string>("document.body.dataset.natureAssetStatus || ''");
+  const companyModels = await evaluate<string>("document.body.dataset.companyModels || ''");
+  const artificerSilhouette = await evaluate<string>("document.body.dataset.artificerSilhouette || ''");
   const pageErrors = await evaluate<string[]>("window.__RTS_ERRORS__ || []");
-  requireCondition(phase === "ready", `company did not become ready (phase=${phase}, status=${authority}); browser errors: ${[...browserErrors, ...pageErrors].join(" | ") || "none"}`);
+  requireCondition(companyAssetStatus === "ready", `five Quaternius company models did not load (status=${companyAssetStatus}, models=${companyModels})`);
+  requireCondition(natureAssetStatus === "ready", `Quaternius Stylized Nature did not load (status=${natureAssetStatus})`);
+  requireCondition(companyModels === "Warrior:Knight_Golden_Female,Artificer:Worker_Female,Rogue:Ninja_Female,Priest:Wizard,Ranger:Elf", `unexpected Quaternius model mapping: ${companyModels}`);
+  requireCondition(new Set(companyModels.split(",").map((entry) => entry.split(":")[1])).size === 5, "company models are not distinct");
+  requireCondition(artificerSilhouette === "engineer-alchemist-kit", `Artificer silhouette is not engineer/alchemist (${artificerSilhouette})`);
+  requireCondition([...browserErrors, ...pageErrors].length === 0, `browser errors: ${[...browserErrors, ...pageErrors].join(" | ")}`);
   const bodyText = await evaluate<string>("document.body.innerText");
   requireCondition(!/Clause|authority|projection|generation|resident|Wasm|compiler|backend|runtime/i.test(bodyText), "player-facing text leaked implementation vocabulary");
   const classes = await evaluate<string[]>("(document.body.dataset.unitClasses || '').split(',').filter(Boolean)");
@@ -98,7 +115,7 @@ try {
   requireCondition(await evaluate<boolean>("document.getElementById('equipment-panel').classList.contains('open')"), "equipment panel did not open");
   requireCondition(await evaluate<number>("document.querySelectorAll('#equipment-panel .gear-slot').length") === 20, "equipment paper doll is incomplete");
   requireCondition(await evaluate<boolean>("document.querySelector('#command-move') !== null && document.querySelector('#equipment-toggle') !== null"), "RTS command controls are incomplete");
-  console.log("RTS browser journey passed: five classes, box selection, formation move, camera/paper doll UI");
+  console.log("RTS browser journey passed: five distinct Quaternius classes, Stylized Nature, box selection, formation move, camera/move marker/paper doll UI");
 } finally {
   socket?.close(); chrome.kill();
 }
