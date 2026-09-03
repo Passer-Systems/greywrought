@@ -3535,6 +3535,13 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
       applyInputPreferences(app);
       return;
     }
+    if (
+      event.target instanceof HTMLInputElement ||
+      event.target instanceof HTMLTextAreaElement ||
+      event.target instanceof HTMLSelectElement
+    ) {
+      return;
+    }
     if (event.code === "Escape") {
       event.preventDefault();
       if (event.repeat) return;
