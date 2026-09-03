@@ -98,7 +98,7 @@
               <div class="unit-resource shield-resource"><span>Shield</span><strong id="shield-energy">100 / 100</strong></div>
               <div id="player-cast" class="enemy-cast player-cast" hidden>
                 <span id="player-cast-fill" class="enemy-cast-fill"></span>
-                <strong id="player-cast-name" class="enemy-cast-name">BOLT</strong>
+                <strong id="player-cast-name" class="enemy-cast-name">CINDERBOLT</strong>
                 <span id="player-cast-time" class="player-cast-time">0.75</span>
               </div>
             </div>
@@ -128,11 +128,11 @@
               <div class="action-slot reset-slot"><kbd>Shift+R</kbd><span>↻</span><small>Reset</small></div>
             </div>
             <div class="action-bar primary-action-bar">
-              <div id="ability-slot-1" class="action-slot sword-slot"><kbd>1</kbd><span>⚔</span><small>Melee</small></div>
-              <div id="ability-slot-2" class="action-slot bolt-slot"><kbd>2</kbd><span>✦</span><small>Bolt</small></div>
-              <div id="ability-slot-3" class="action-slot spell-slot"><kbd>3</kbd><span>✹</span><small>Ability</small></div>
-              <div id="ability-slot-4" class="action-slot shield-slot"><kbd>4</kbd><span>✧</span><small>Ability</small></div>
-              <div id="ability-slot-5" class="action-slot dash-slot"><kbd>5</kbd><span>➤</span><small>Ability</small></div>
+              <div id="ability-slot-1" class="action-slot sword-slot" data-combat-slot="0" draggable="true"><kbd>1</kbd><span>⚔</span><small>Attack</small></div>
+              <div id="ability-slot-2" class="action-slot bolt-slot" data-combat-slot="1" draggable="true"><kbd>2</kbd><span>✦</span><small>Cinderbolt</small></div>
+              <div id="ability-slot-3" class="action-slot spell-slot" data-combat-slot="2" draggable="true"><kbd>3</kbd><span>✹</span><small>Ability 3</small></div>
+              <div id="ability-slot-4" class="action-slot shield-slot" data-combat-slot="3" draggable="true"><kbd>4</kbd><span>✧</span><small>Ability 4</small></div>
+              <div id="ability-slot-5" class="action-slot dash-slot" data-combat-slot="4" draggable="true"><kbd>5</kbd><span>➤</span><small>Ability 5</small></div>
               <div id="class-utility-slot" class="action-slot interrupt-slot"><kbd>R</kbd><span>!</span><small>Interrupt</small></div>
             </div>
           </section>
@@ -194,8 +194,8 @@
             <span>Move left</span><button type="button" data-input-action="left">A</button>
             <span>Move right</span><button type="button" data-input-action="right">D</button>
             <span>Cycle target</span><button type="button" data-input-action="target">Tab</button>
-            <span>Melee primary</span><button type="button" data-input-action="ability1">1</button>
-            <span>Bolt / cast</span><button type="button" data-input-action="ability2">2</button>
+            <span>Attack</span><button type="button" data-input-action="ability1">1</button>
+            <span>Cinderbolt</span><button type="button" data-input-action="ability2">2</button>
             <span>Ability 3</span><button type="button" data-input-action="ability3">3</button>
             <span>Ability 4</span><button type="button" data-input-action="ability4">4</button>
             <span>Ability 5</span><button type="button" data-input-action="ability5">5</button>

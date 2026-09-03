@@ -1084,6 +1084,24 @@ body[data-archetype="hunter"] .resource-bar { --bar-color: #8a9f45; }
   white-space: nowrap;
 }
 
+.action-slot[data-combat-slot] {
+  pointer-events: auto;
+  user-select: none;
+}
+
+.action-slot[draggable="true"] {
+  cursor: grab;
+}
+
+.action-slot.dragging {
+  opacity: .4;
+}
+
+.action-slot.drag-over {
+  border-color: #ffe083;
+  box-shadow: inset 0 0 10px #000b, 0 0 0 2px #ffe083, 0 0 14px #ffbd45;
+}
+
 .bolt-slot { background-image: url("../../assets/ui/icons/spells/ranged-projectile.png"); }
 .sword-slot { background-image: url("../../assets/ui/icons/spells/sword-strike.png"); }
 .shield-slot { background-image: url("../../assets/ui/icons/spells/defensive-shield.png"); }

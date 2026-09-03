@@ -32,8 +32,8 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   { action: "left", label: "Move left", semanticCode: "KeyA", held: true },
   { action: "right", label: "Move right", semanticCode: "KeyD", held: true },
   { action: "target", label: "Cycle target", semanticCode: "Tab", held: false },
-  { action: "ability1", label: "Melee primary", semanticCode: "Digit1", held: false },
-  { action: "ability2", label: "Bolt / cast", semanticCode: "Digit2", held: false },
+  { action: "ability1", label: "Attack", semanticCode: "Digit1", held: false },
+  { action: "ability2", label: "Cinderbolt", semanticCode: "Digit2", held: false },
   { action: "ability3", label: "Ability 3", semanticCode: "Digit3", held: false },
   { action: "ability4", label: "Ability 4", semanticCode: "Digit4", held: false },
   { action: "ability5", label: "Ability 5", semanticCode: "Digit5", held: false },
@@ -176,6 +176,46 @@ export function rebindAction(
     next[collision] = bindings[action];
   }
   next[action] = physicalCode;
+  return Object.freeze(next);
+}
+
+export function combatActionForSlot(
+  bindings: InputBindings,
+  slotIndex: number,
+): "ability1" | "ability2" | "ability3" | "ability4" | "ability5" | null {
+  if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex > 4) return null;
+  const action = actionForPhysicalCode(bindings, `Digit${slotIndex + 1}`);
+  return action === "ability1" ||
+      action === "ability2" ||
+      action === "ability3" ||
+      action === "ability4" ||
+      action === "ability5"
+    ? action
+    : null;
+}
+
+export function swapCombatSlotBindings(
+  bindings: InputBindings,
+  sourceIndex: number,
+  targetIndex: number,
+): InputBindings {
+  const sourceAction = combatActionForSlot(bindings, sourceIndex);
+  if (sourceAction === null || sourceIndex === targetIndex) return bindings;
+  const occupiedTarget = actionForPhysicalCode(bindings, `Digit${targetIndex + 1}`);
+  if (
+    occupiedTarget !== null &&
+    occupiedTarget !== "ability1" &&
+    occupiedTarget !== "ability2" &&
+    occupiedTarget !== "ability3" &&
+    occupiedTarget !== "ability4" &&
+    occupiedTarget !== "ability5"
+  ) {
+    return bindings;
+  }
+  const targetAction = combatActionForSlot(bindings, targetIndex);
+  const next = { ...bindings };
+  next[sourceAction] = `Digit${targetIndex + 1}`;
+  if (targetAction !== null) next[targetAction] = `Digit${sourceIndex + 1}`;
   return Object.freeze(next);
 }
 

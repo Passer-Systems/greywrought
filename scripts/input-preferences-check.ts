@@ -6,6 +6,7 @@ import {
   defaultInputPreferences,
   encodeInputPreferences,
   rebindAction,
+  swapCombatSlotBindings,
 } from "../src/host/input-preferences.js";
 
 function assert(condition: boolean, message: string): void {
@@ -26,6 +27,12 @@ assert(actionForPhysicalCode(defaultBindings, "Digit2") === "ability2", "2 did n
 assert(actionForPhysicalCode(defaultBindings, "KeyF") === "loot", "F did not bind interact");
 assert(actionForPhysicalCode(defaultBindings, "KeyR") === "classUtility", "R did not bind class utility");
 assert(actionForPhysicalCode(defaultBindings, "ShiftR") === "reset", "Shift+R did not bind reset");
+const swappedCombat = swapCombatSlotBindings(defaultBindings, 0, 1);
+assert(actionForPhysicalCode(swappedCombat, "Digit1") === "ability2", "combat swap did not move Cinderbolt");
+assert(actionForPhysicalCode(swappedCombat, "Digit2") === "ability1", "combat swap did not move Attack");
+const movedCombat = swapCombatSlotBindings(defaultBindings, 0, 4);
+assert(actionForPhysicalCode(movedCombat, "Digit1") === "ability5", "combat swap did not preserve the displaced action");
+assert(actionForPhysicalCode(movedCombat, "Digit5") === "ability1", "combat move did not persist destination key");
 
 const decoded = decodeInputPreferences(encodeInputPreferences({
   ...defaultInputPreferences,

@@ -96,6 +96,7 @@ import {
   actionDefinitions,
   actionForPhysicalCode,
   actionsForStandardGamepad,
+  combatActionForSlot,
   decodeInputPreferences,
   defaultInputPreferences,
   definitionForAction,
@@ -103,6 +104,7 @@ import {
   encodeInputPreferences,
   inputPreferencesStorageKey,
   rebindAction,
+  swapCombatSlotBindings,
   type GameAction,
   type InputPreferences,
 } from "./input-preferences.js";
@@ -316,25 +318,25 @@ const ARCHETYPE_HUD = {
   unselected: {
     name: "Wayfarer",
     resource: "Resource",
-    abilities: ["Melee", "Bolt", "Ability 3", "Ability 4", "Ability 5"],
+    abilities: ["Attack", "Cinderbolt", "Ability 3", "Ability 4", "Ability 5"],
     utility: "Interrupt",
   },
   warrior: {
     name: "Warrior",
     resource: "Rage",
-    abilities: ["Heroic Strike", "Heroic Throw", "Whirlwind", "Shield Block", "Battle Shout"],
+    abilities: ["Attack", "Cinderbolt", "Whirlwind", "Shield Block", "Battle Shout"],
     utility: "Pummel",
   },
   mage: {
     name: "Mage",
     resource: "Mana",
-    abilities: ["Staff Strike", "Frostbolt", "Frost Nova", "Blink", "Mana Shield"],
+    abilities: ["Attack", "Cinderbolt", "Frost Nova", "Blink", "Mana Shield"],
     utility: "Counterspell",
   },
   hunter: {
     name: "Hunter",
     resource: "Focus",
-    abilities: ["Raptor Strike", "Aimed Shot", "Concussive Shot", "Freezing Trap", "Disengage"],
+    abilities: ["Attack", "Cinderbolt", "Concussive Shot", "Freezing Trap", "Disengage"],
     utility: "Scatter Shot",
   },
 } as const;
@@ -1064,10 +1066,21 @@ function renderMinimapAndQuest(
   document.body.dataset.questProgress = `${completed}/3`;
 }
 
-function setAbilitySlot(id: string, label: string, cooldown: number): void {
-  const slot = element(id);
+function setAbilitySlot(
+  app: PlayApp,
+  action: "ability1" | "ability2" | "ability3" | "ability4" | "ability5",
+  label: string,
+  cooldown: number,
+): void {
+  const code = app.playerInput.preferences.bindings[action];
+  const match = /^Digit([1-5])$/.exec(code);
+  if (match === null) return;
+  const slot = document.querySelector<HTMLElement>(
+    `[data-combat-slot="${Number(match[1]) - 1}"]`,
+  );
+  if (slot === null) throw new Error(`combat slot for ${action} is missing`);
   const caption = slot.querySelector("small");
-  if (caption === null) throw new Error(`#${id} is missing its ability caption`);
+  if (caption === null) throw new Error(`combat slot for ${action} is missing its ability caption`);
   caption.textContent = label;
   slot.dataset.cooldown = cooldown > 0 ? String(Math.ceil(cooldown / 60)) : "";
   slot.classList.toggle("cooling", cooldown > 0);
@@ -1117,12 +1130,18 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   element("class-resource-name").textContent = archetypeHud.resource;
   element("class-resource-value").textContent =
     `${Math.round(player.classResource.x)} / ${Math.round(player.classResource.y)}`;
-  setAbilitySlot("ability-slot-1", archetypeHud.abilities[0], 0);
-  setAbilitySlot("ability-slot-2", archetypeHud.abilities[1], player.abilityCooldowns.x);
-  setAbilitySlot("ability-slot-3", archetypeHud.abilities[2], player.abilityCooldowns.y);
-  setAbilitySlot("ability-slot-4", archetypeHud.abilities[3], player.abilityCooldowns.z);
-  setAbilitySlot("ability-slot-5", archetypeHud.abilities[4], player.utilityCooldowns.x);
-  setAbilitySlot("class-utility-slot", archetypeHud.utility, player.utilityCooldowns.y);
+  setAbilitySlot(app, "ability1", archetypeHud.abilities[0], 0);
+  setAbilitySlot(app, "ability2", archetypeHud.abilities[1], player.abilityCooldowns.x);
+  setAbilitySlot(app, "ability3", archetypeHud.abilities[2], player.abilityCooldowns.y);
+  setAbilitySlot(app, "ability4", archetypeHud.abilities[3], player.abilityCooldowns.z);
+  setAbilitySlot(app, "ability5", archetypeHud.abilities[4], player.utilityCooldowns.x);
+  const utilitySlot = element("class-utility-slot");
+  const utilityCaption = utilitySlot.querySelector("small");
+  if (utilityCaption === null) throw new Error("class utility slot is missing its ability caption");
+  utilityCaption.textContent = archetypeHud.utility;
+  utilitySlot.dataset.cooldown =
+    player.utilityCooldowns.y > 0 ? String(Math.ceil(player.utilityCooldowns.y / 60)) : "";
+  utilitySlot.classList.toggle("cooling", player.utilityCooldowns.y > 0);
   const priorEnemy = prior?.enemies.find(({ id }) => id === enemy.id) ?? null;
   const enemyPresentationSubject = presentationSubjectForEnemy(enemy.id);
   const enemyTitle =
@@ -2198,7 +2217,7 @@ function bindFantasyCursor(app: PlayApp, listeners: Array<() => void>): void {
     pendingPoint = null;
     if (point === null) return;
     const target = point.target instanceof Element ? point.target : null;
-    let glow = target?.closest("button, input, label, summary, [role='button']") !== null;
+    let glow = target?.closest("button, input, label, summary, [role='button'], [draggable='true']") !== null;
     if (target === app.scene.canvas) {
       glow = app.scene.cursorSubjects.some((subject) =>
         pickPresentationSubject(
@@ -2821,8 +2840,39 @@ function persistInputPreferences(app: PlayApp): void {
   }
 }
 
+function renderCombatActionSlots(preferences: InputPreferences): void {
+  const labels = {
+    ability1: "Attack",
+    ability2: "Cinderbolt",
+    ability3: "Ability 3",
+    ability4: "Ability 4",
+    ability5: "Ability 5",
+  } as const;
+  for (const slot of document.querySelectorAll<HTMLElement>("[data-combat-slot]")) {
+    const slotIndex = Number.parseInt(slot.dataset.combatSlot ?? "", 10);
+    const action = combatActionForSlot(preferences.bindings, slotIndex);
+    slot.classList.toggle("sword-slot", action === "ability1");
+    slot.classList.toggle("bolt-slot", action === "ability2");
+    slot.classList.toggle("empty-slot", action === null);
+    slot.draggable = action !== null;
+    const key = slot.querySelector("kbd");
+    const label = slot.querySelector("small");
+    const display = action === null ? "Class" : labels[action];
+    if (key !== null) key.textContent = String(slotIndex + 1);
+    if (label !== null) label.textContent = display;
+    slot.setAttribute(
+      "aria-label",
+      action === null
+        ? `Combat slot ${slotIndex + 1}, available for a class action`
+        : `Combat slot ${slotIndex + 1}, ${display}. Drag to reorder.`,
+    );
+    slot.title = action === null ? `Combat slot ${slotIndex + 1}` : `Drag ${display} to reorder`;
+  }
+}
+
 function applyInputPreferences(app: PlayApp): void {
   const { preferences } = app.playerInput;
+  renderCombatActionSlots(preferences);
   document.body.dataset.reducedMotion = String(preferences.reducedMotion);
   document.body.dataset.highContrast = String(preferences.highContrast);
   document.body.dataset.largeText = String(preferences.largeText);
@@ -2845,6 +2895,72 @@ function applyInputPreferences(app: PlayApp): void {
       "aria-label",
       `${definitionForAction(action).label}: ${control.textContent}. Activate to rebind.`,
     );
+  }
+}
+
+function bindCombatSlotDrag(app: PlayApp, listeners: Array<() => void>): void {
+  let sourceIndex: number | null = null;
+  for (const slot of document.querySelectorAll<HTMLElement>("[data-combat-slot]")) {
+    const dragStart = (event: DragEvent): void => {
+      const index = Number.parseInt(slot.dataset.combatSlot ?? "", 10);
+      if (combatActionForSlot(app.playerInput.preferences.bindings, index) === null) {
+        event.preventDefault();
+        return;
+      }
+      sourceIndex = index;
+      slot.classList.add("dragging");
+      event.dataTransfer?.setData("text/plain", String(index));
+      if (event.dataTransfer !== null) event.dataTransfer.effectAllowed = "move";
+    };
+    const dragOver = (event: DragEvent): void => {
+      if (sourceIndex === null) return;
+      event.preventDefault();
+      slot.classList.add("drag-over");
+      if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "move";
+    };
+    const dragLeave = (): void => slot.classList.remove("drag-over");
+    const drop = (event: DragEvent): void => {
+      event.preventDefault();
+      const targetIndex = Number.parseInt(slot.dataset.combatSlot ?? "", 10);
+      if (sourceIndex === null || !Number.isInteger(targetIndex)) return;
+      const sourceAction = combatActionForSlot(
+        app.playerInput.preferences.bindings,
+        sourceIndex,
+      );
+      app.playerInput.preferences = {
+        ...app.playerInput.preferences,
+        bindings: swapCombatSlotBindings(
+          app.playerInput.preferences.bindings,
+          sourceIndex,
+          targetIndex,
+        ),
+      };
+      persistInputPreferences(app);
+      applyInputPreferences(app);
+      element("input-preference-status").textContent =
+        sourceAction === null
+          ? "Combat bar unchanged."
+          : `${definitionForAction(sourceAction).label} moved to ${targetIndex + 1}.`;
+      sourceIndex = null;
+    };
+    const dragEnd = (): void => {
+      sourceIndex = null;
+      for (const candidate of document.querySelectorAll<HTMLElement>("[data-combat-slot]")) {
+        candidate.classList.remove("dragging", "drag-over");
+      }
+    };
+    slot.addEventListener("dragstart", dragStart);
+    slot.addEventListener("dragover", dragOver);
+    slot.addEventListener("dragleave", dragLeave);
+    slot.addEventListener("drop", drop);
+    slot.addEventListener("dragend", dragEnd);
+    listeners.push(() => {
+      slot.removeEventListener("dragstart", dragStart);
+      slot.removeEventListener("dragover", dragOver);
+      slot.removeEventListener("dragleave", dragLeave);
+      slot.removeEventListener("drop", drop);
+      slot.removeEventListener("dragend", dragEnd);
+    });
   }
 }
 
@@ -3214,6 +3330,7 @@ function startApp(
   };
   bindResidentWorker(app, listeners);
   bindGameInput(app, listeners);
+  bindCombatSlotDrag(app, listeners);
   bindFantasyCursor(app, listeners);
   bindHudClock(listeners);
   bindClick(listeners, "loot-close", closeLootWindow);
