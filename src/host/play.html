@@ -29,15 +29,89 @@
     <main>
       <div id="world-wrap">
         <section id="character-select" class="character-select" aria-labelledby="character-select-title">
-          <div class="character-select-card">
-            <div class="kicker">Choose your Greywrought archetype</div>
-            <h2 id="character-select-title">Who enters the Boar Breach?</h2>
-            <div class="character-choices">
-              <button type="button" data-character-code="F1" data-archetype="warrior"><strong>Warrior</strong><span>Rage · charge · whirlwind · block</span><kbd>F1</kbd></button>
-              <button type="button" data-character-code="F2" data-archetype="mage"><strong>Mage</strong><span>Mana · Frostbolt · nova · blink</span><kbd>F2</kbd></button>
-              <button type="button" data-character-code="F3" data-archetype="hunter"><strong>Hunter</strong><span>Focus · aimed shot · trap · disengage</span><kbd>F3</kbd></button>
+          <div class="entry-landscape" aria-hidden="true"><span></span><span></span><span></span></div>
+
+          <section id="entry-account" class="entry-account" data-entry-view="account" aria-labelledby="character-select-title">
+            <img class="entry-logo entry-account-logo" src="./assets/ui/brand/greywrought-logo.webp" alt="Greywrought" />
+            <form id="entry-account-form" class="entry-account-card">
+              <p class="entry-kicker">Local conference profile</p>
+              <h2 id="character-select-title">Create your account</h2>
+              <p>Your adventurers are saved only in this browser. No email or password required.</p>
+              <label for="entry-display-name">Display name</label>
+              <input id="entry-display-name" name="displayName" type="text" minlength="2" maxlength="24" autocomplete="nickname" placeholder="Wayfarer" required />
+              <button class="entry-primary-button" type="submit">Create Account</button>
+              <output id="entry-account-feedback" class="entry-feedback" aria-live="polite"></output>
+            </form>
+          </section>
+
+          <section id="entry-creator" class="entry-creator" data-entry-view="creator" aria-labelledby="entry-creator-title" hidden>
+            <header class="entry-screen-header">
+              <img class="entry-logo" src="./assets/ui/brand/greywrought-logo.webp" alt="Greywrought" />
+              <div><p class="entry-kicker">Character creation</p><h2 id="entry-creator-title">Choose your path</h2></div>
+              <span id="entry-creator-profile" class="entry-profile-name"></span>
+            </header>
+            <div class="entry-creator-layout">
+              <aside class="entry-class-panel" aria-label="Classes">
+                <p class="entry-kicker">Class</p>
+                <button type="button" data-entry-archetype="warrior"><strong>Warrior</strong><span>Rage · charge · whirlwind · block</span></button>
+                <button type="button" data-entry-archetype="mage"><strong>Mage</strong><span>Mana · Frostbolt · nova · blink</span></button>
+                <button type="button" data-entry-archetype="hunter"><strong>Hunter</strong><span>Focus · aimed shot · trap · disengage</span></button>
+              </aside>
+              <div class="entry-character-stage" aria-label="Selected character preview">
+                <div class="entry-stage-light" aria-hidden="true"></div>
+                <div id="entry-creator-avatar" class="entry-avatar" data-avatar-archetype="warrior" aria-hidden="true">
+                  <img id="entry-creator-portrait" class="entry-avatar-portrait" src="./assets/ui/characters/warrior.webp" alt="" />
+                  <span class="entry-avatar-rune"></span><span class="entry-avatar-head"></span><span class="entry-avatar-body"></span><span class="entry-avatar-weapon"></span>
+                </div>
+                <div class="entry-character-title"><p id="entry-creator-class">Warrior</p><strong id="entry-creator-preview-name">Unnamed Adventurer</strong></div>
+              </div>
+              <aside class="entry-lore-panel">
+                <p class="entry-kicker">Greywrought archetype</p>
+                <h3 id="entry-lore-title">Warrior</h3>
+                <p id="entry-lore-copy">Break the breach at close range, turning every impact into the rage for your next charge.</p>
+                <div id="entry-lore-kit" class="entry-lore-kit">Attack · Charge · Whirlwind · Block</div>
+              </aside>
             </div>
-          </div>
+            <form id="entry-character-form" class="entry-creator-actions">
+              <button id="entry-creator-back" class="entry-secondary-button" type="button">Back</button>
+              <label for="entry-character-name">Character name</label>
+              <input id="entry-character-name" name="characterName" type="text" minlength="2" maxlength="18" autocomplete="off" placeholder="Name your adventurer" required />
+              <button class="entry-primary-button" type="submit">Accept</button>
+              <output id="entry-character-feedback" class="entry-feedback" aria-live="polite"></output>
+            </form>
+          </section>
+
+          <section id="entry-roster" class="entry-roster" data-entry-view="roster" aria-labelledby="entry-roster-title" hidden>
+            <header class="entry-screen-header entry-roster-header">
+              <img class="entry-logo" src="./assets/ui/brand/greywrought-logo.webp" alt="Greywrought" />
+              <div><p class="entry-kicker">Ashen Verge</p><h2 id="entry-roster-title">Choose a character</h2></div>
+              <span id="entry-roster-profile" class="entry-profile-name"></span>
+            </header>
+            <div class="entry-roster-layout">
+              <aside class="entry-realm-panel">
+                <p class="entry-kicker">Realm</p>
+                <h3>Boar Breach</h3>
+                <p>A local conference expedition. Each browser keeps its own adventurer roster.</p>
+              </aside>
+              <div class="entry-character-stage entry-roster-stage">
+                <div class="entry-stage-light" aria-hidden="true"></div>
+                <div id="entry-roster-avatar" class="entry-avatar" data-avatar-archetype="warrior" aria-hidden="true">
+                  <img id="entry-roster-portrait" class="entry-avatar-portrait" src="./assets/ui/characters/warrior.webp" alt="" />
+                  <span class="entry-avatar-rune"></span><span class="entry-avatar-head"></span><span class="entry-avatar-body"></span><span class="entry-avatar-weapon"></span>
+                </div>
+                <div class="entry-character-title"><p id="entry-roster-class">Warrior</p><strong id="entry-roster-name">Wayfarer</strong><span id="entry-roster-summary"></span></div>
+              </div>
+              <aside class="entry-roster-panel">
+                <div class="entry-roster-heading"><div><p class="entry-kicker">Character roster</p><h3>Your Characters</h3></div><span id="entry-roster-count">0 / 8</span></div>
+                <ol id="entry-roster-list" class="entry-roster-list"></ol>
+              </aside>
+            </div>
+            <div class="entry-roster-actions">
+              <button id="entry-change-character" class="entry-secondary-button" type="button">Change Character</button>
+              <button id="entry-enter-world" class="entry-primary-button" type="button">Enter World</button>
+              <output id="entry-roster-feedback" class="entry-feedback" aria-live="polite"></output>
+            </div>
+          </section>
         </section>
         <div id="branch-label" class="realm-label">Disconnected branch · retained</div>
         <div id="enemy-damage-number" class="enemy-damage-number">0</div>

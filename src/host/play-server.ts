@@ -256,8 +256,10 @@ const server = Bun.serve({
     }
     const uiAssetPath =
       (url.pathname.startsWith("/assets/ui/icons/") ||
-        url.pathname.startsWith("/assets/ui/cursors/")) &&
-        /^\/assets\/ui\/(?:icons|cursors)\/[a-z0-9_./-]+$/.test(url.pathname)
+        url.pathname.startsWith("/assets/ui/cursors/") ||
+        url.pathname.startsWith("/assets/ui/brand/") ||
+        url.pathname.startsWith("/assets/ui/characters/")) &&
+        /^\/assets\/ui\/(?:icons|cursors|brand|characters)\/[a-z0-9_./-]+$/.test(url.pathname)
       ? url.pathname.slice(1)
       : undefined;
     const path = files[url.pathname] ?? uiAssetPath;

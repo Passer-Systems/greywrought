@@ -93,6 +93,16 @@ import {
   type CampaignRead,
 } from "./campaign-persistence.js";
 import {
+  characterProfileStorageKey,
+  decodeCharacterProfile,
+  encodeCharacterProfile,
+  normalizedCharacterName,
+  normalizedDisplayName,
+  type CharacterArchetype,
+  type LocalCharacter,
+  type LocalProfile,
+} from "./character-profile.js";
+import {
   actionDefinitions,
   actionForPhysicalCode,
   actionsForStandardGamepad,
@@ -1169,7 +1179,8 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   const characterSelect = element("character-select");
   characterSelect.hidden = player.archetype !== "unselected";
   document.body.dataset.archetype = player.archetype;
-  element("player-frame-name").textContent = archetypeHud.name;
+  element("player-frame-name").textContent =
+    document.body.dataset.characterName ?? archetypeHud.name;
   element("class-resource-name").textContent = archetypeHud.resource;
   element("class-resource-value").textContent =
     `${Math.round(player.classResource.x)} / ${Math.round(player.classResource.y)}`;
@@ -3183,6 +3194,312 @@ function pollGamepads(app: PlayApp): void {
   app.playerInput.gamepadFrame = requestAnimationFrame(() => pollGamepads(app));
 }
 
+type EntryRoute = "account" | "creator" | "roster";
+
+const ENTRY_ARCHETYPES: Readonly<Record<CharacterArchetype, Readonly<{
+  label: string;
+  code: "F1" | "F2" | "F3";
+  copy: string;
+  kit: string;
+  portrait: string;
+}>>> = {
+  warrior: {
+    label: "Warrior",
+    code: "F1",
+    copy: "Break the breach at close range, turning every impact into the rage for your next charge.",
+    kit: "Attack · Charge · Whirlwind · Block",
+    portrait: publicUrl("assets/ui/characters/warrior.webp"),
+  },
+  mage: {
+    label: "Mage",
+    code: "F2",
+    copy: "Shape frost and cinder through deliberate casts, then blink clear before the enemy closes.",
+    kit: "Cinderbolt · Frost Nova · Blink · Mana Shield",
+    portrait: publicUrl("assets/ui/characters/mage.webp"),
+  },
+  hunter: {
+    label: "Hunter",
+    code: "F3",
+    copy: "Control the hunt from range with careful shots, slowing traps, and sudden evasive movement.",
+    kit: "Ranged Attack · Aimed Shot · Trap · Disengage",
+    portrait: publicUrl("assets/ui/characters/hunter.webp"),
+  },
+};
+
+function entryForm(id: string): HTMLFormElement {
+  const value = element(id);
+  if (!(value instanceof HTMLFormElement)) {
+    throw new Error(`browser element #${id} is not a form`);
+  }
+  return value;
+}
+
+function entryImage(id: string): HTMLImageElement {
+  const value = element(id);
+  if (!(value instanceof HTMLImageElement)) {
+    throw new Error(`browser element #${id} is not an image`);
+  }
+  return value;
+}
+
+function bindEntryFlow(app: PlayApp, listeners: Array<() => void>): void {
+  const profileRead = (() => {
+    try {
+      return decodeCharacterProfile(localStorage.getItem(characterProfileStorageKey));
+    } catch {
+      return { kind: "empty" } as const;
+    }
+  })();
+  let profile: LocalProfile | null = profileRead.kind === "ready" ? profileRead.profile : null;
+  let route: EntryRoute = profile === null
+    ? "account"
+    : profile.characters.length === 0
+      ? "creator"
+      : "roster";
+  let draftArchetype: CharacterArchetype = "warrior";
+
+  const account = element("entry-account");
+  const creator = element("entry-creator");
+  const roster = element("entry-roster");
+  const accountForm = entryForm("entry-account-form");
+  const characterForm = entryForm("entry-character-form");
+  const displayNameInput = inputElement("entry-display-name");
+  const characterNameInput = inputElement("entry-character-name");
+  const rosterList = element("entry-roster-list");
+
+  const persist = (): void => {
+    if (profile === null) return;
+    try {
+      localStorage.setItem(characterProfileStorageKey, encodeCharacterProfile(profile));
+      document.body.dataset.characterProfile = "saved";
+    } catch {
+      document.body.dataset.characterProfile = "session-only";
+    }
+  };
+
+  const selectedCharacter = (): LocalCharacter | null => {
+    if (profile === null) return null;
+    return profile.characters.find(({ id }) => id === profile?.selectedCharacterId)
+      ?? profile.characters[0]
+      ?? null;
+  };
+
+  const renderAvatar = (
+    avatarId: string,
+    portraitId: string,
+    archetype: CharacterArchetype,
+  ): void => {
+    element(avatarId).dataset.avatarArchetype = archetype;
+    entryImage(portraitId).src = ENTRY_ARCHETYPES[archetype].portrait;
+  };
+
+  const renderRoster = (): void => {
+    const selected = selectedCharacter();
+    rosterList.replaceChildren();
+    const characters = profile?.characters ?? [];
+    for (const character of characters) {
+      const item = document.createElement("li");
+      item.className = "entry-roster-item";
+      const select = document.createElement("button");
+      select.type = "button";
+      select.dataset.characterId = character.id;
+      select.setAttribute("aria-pressed", String(character.id === selected?.id));
+      const emblem = document.createElement("span");
+      emblem.className = "entry-roster-emblem";
+      emblem.textContent = ENTRY_ARCHETYPES[character.archetype].label.slice(0, 1);
+      const copy = document.createElement("span");
+      copy.className = "entry-roster-copy";
+      const name = document.createElement("strong");
+      name.textContent = character.name;
+      const className = document.createElement("span");
+      className.textContent = ENTRY_ARCHETYPES[character.archetype].label;
+      copy.append(name, className);
+      select.append(emblem, copy);
+      item.append(select);
+      rosterList.append(item);
+    }
+    for (let slot = characters.length; slot < 8; slot += 1) {
+      const item = document.createElement("li");
+      item.className = "entry-roster-empty";
+      const mark = document.createElement("span");
+      mark.textContent = "+";
+      const copy = document.createElement("span");
+      copy.textContent = "Empty slot";
+      item.append(mark, copy);
+      rosterList.append(item);
+    }
+    element("entry-roster-count").textContent = `${characters.length} / 8`;
+    button("entry-enter-world").disabled = selected === null;
+    if (selected !== null) {
+      const archetype = ENTRY_ARCHETYPES[selected.archetype];
+      renderAvatar("entry-roster-avatar", "entry-roster-portrait", selected.archetype);
+      element("entry-roster-class").textContent = archetype.label;
+      element("entry-roster-name").textContent = selected.name;
+      element("entry-roster-summary").textContent = archetype.kit;
+      document.body.dataset.characterName = selected.name;
+    }
+  };
+
+  const render = (): void => {
+    account.hidden = route !== "account";
+    creator.hidden = route !== "creator";
+    roster.hidden = route !== "roster";
+    document.body.dataset.entryRoute = route;
+    const displayName = profile?.displayName ?? "";
+    element("entry-creator-profile").textContent = displayName;
+    element("entry-roster-profile").textContent = displayName;
+    for (const choice of document.querySelectorAll<HTMLButtonElement>("[data-entry-archetype]")) {
+      choice.setAttribute("aria-pressed", String(choice.dataset.entryArchetype === draftArchetype));
+    }
+    const archetype = ENTRY_ARCHETYPES[draftArchetype];
+    renderAvatar("entry-creator-avatar", "entry-creator-portrait", draftArchetype);
+    element("entry-creator-class").textContent = archetype.label;
+    element("entry-lore-title").textContent = archetype.label;
+    element("entry-lore-copy").textContent = archetype.copy;
+    element("entry-lore-kit").textContent = archetype.kit;
+    element("entry-creator-preview-name").textContent =
+      normalizedCharacterName(characterNameInput.value) ?? "Unnamed Adventurer";
+    renderRoster();
+  };
+
+  const accountSubmit = (event: SubmitEvent): void => {
+    event.preventDefault();
+    const displayName = normalizedDisplayName(displayNameInput.value);
+    if (displayName === null) {
+      element("entry-account-feedback").textContent = "Use a display name between 2 and 24 characters.";
+      displayNameInput.focus();
+      return;
+    }
+    profile = {
+      version: 1,
+      displayName,
+      characters: [],
+      selectedCharacterId: null,
+      savedAtMillis: Date.now(),
+    };
+    persist();
+    route = "creator";
+    element("entry-account-feedback").textContent = "";
+    render();
+    characterNameInput.focus();
+  };
+
+  const characterSubmit = (event: SubmitEvent): void => {
+    event.preventDefault();
+    if (profile === null) return;
+    const name = normalizedCharacterName(characterNameInput.value);
+    if (name === null) {
+      element("entry-character-feedback").textContent = "Use 2–18 letters; spaces, apostrophes, and hyphens are allowed.";
+      characterNameInput.focus();
+      return;
+    }
+    if (profile.characters.length >= 8) {
+      element("entry-character-feedback").textContent = "This local roster is full.";
+      return;
+    }
+    if (profile.characters.some((character) => character.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      element("entry-character-feedback").textContent = "Choose a different character name.";
+      return;
+    }
+    const character: LocalCharacter = {
+      id: crypto.randomUUID(),
+      name,
+      archetype: draftArchetype,
+      createdAtMillis: Date.now(),
+    };
+    profile = {
+      ...profile,
+      characters: [...profile.characters, character],
+      selectedCharacterId: character.id,
+      savedAtMillis: Date.now(),
+    };
+    persist();
+    characterNameInput.value = "";
+    element("entry-character-feedback").textContent = "";
+    route = "roster";
+    render();
+    button("entry-enter-world").focus();
+  };
+
+  const creatorNameInput = (): void => render();
+  const creatorBack = (): void => {
+    if ((profile?.characters.length ?? 0) > 0) {
+      route = "roster";
+      render();
+      return;
+    }
+    route = "account";
+    displayNameInput.value = profile?.displayName ?? "";
+    render();
+    displayNameInput.focus();
+  };
+  const changeCharacter = (): void => {
+    draftArchetype = selectedCharacter()?.archetype ?? "warrior";
+    characterNameInput.value = "";
+    route = "creator";
+    render();
+    characterNameInput.focus();
+  };
+  const chooseArchetype = (event: Event): void => {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLButtonElement)) return;
+    const choice = target.dataset.entryArchetype;
+    if (choice !== "warrior" && choice !== "mage" && choice !== "hunter") return;
+    draftArchetype = choice;
+    render();
+  };
+  const chooseRosterCharacter = (event: Event): void => {
+    const target = event.target;
+    if (!(target instanceof Element) || profile === null) return;
+    const candidate = target.closest<HTMLButtonElement>("[data-character-id]");
+    const id = candidate?.dataset.characterId;
+    if (id === undefined || !profile.characters.some((character) => character.id === id)) return;
+    profile = { ...profile, selectedCharacterId: id, savedAtMillis: Date.now() };
+    persist();
+    render();
+  };
+  const enterSelectedWorld = (): void => {
+    const selected = selectedCharacter();
+    if (selected === null) return;
+    document.body.dataset.characterName = selected.name;
+    document.body.dataset.entryPending = "true";
+    button("entry-enter-world").disabled = true;
+    button("entry-enter-world").textContent = "Entering World…";
+    resumePresentationAudio(app);
+    const code = ENTRY_ARCHETYPES[selected.archetype].code;
+    boundedGameEvent({ phase: "local-character-enter", characterId: selected.id, archetype: selected.archetype });
+    observeGameKey(app, { code, repeat: false }, "down");
+    app.scene.canvas.focus();
+  };
+
+  accountForm.addEventListener("submit", accountSubmit);
+  characterForm.addEventListener("submit", characterSubmit);
+  characterNameInput.addEventListener("input", creatorNameInput);
+  button("entry-creator-back").addEventListener("click", creatorBack);
+  button("entry-change-character").addEventListener("click", changeCharacter);
+  button("entry-enter-world").addEventListener("click", enterSelectedWorld);
+  rosterList.addEventListener("click", chooseRosterCharacter);
+  for (const choice of document.querySelectorAll<HTMLButtonElement>("[data-entry-archetype]")) {
+    choice.addEventListener("click", chooseArchetype);
+    listeners.push(() => choice.removeEventListener("click", chooseArchetype));
+  }
+  listeners.push(() => accountForm.removeEventListener("submit", accountSubmit));
+  listeners.push(() => characterForm.removeEventListener("submit", characterSubmit));
+  listeners.push(() => characterNameInput.removeEventListener("input", creatorNameInput));
+  listeners.push(() => button("entry-creator-back").removeEventListener("click", creatorBack));
+  listeners.push(() => button("entry-change-character").removeEventListener("click", changeCharacter));
+  listeners.push(() => button("entry-enter-world").removeEventListener("click", enterSelectedWorld));
+  listeners.push(() => rosterList.removeEventListener("click", chooseRosterCharacter));
+
+  if (profileRead.kind === "corrupt") {
+    element("entry-account-feedback").textContent = "The old local profile was damaged; create a fresh one.";
+  } else if (profileRead.kind === "future") {
+    element("entry-account-feedback").textContent = `A newer local profile v${profileRead.version} was found. Creating an account replaces it.`;
+  }
+  if (profile !== null) displayNameInput.value = profile.displayName;
+  render();
+}
+
 function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   const { canvas } = app.scene;
   const keyboardListenerOptions: AddEventListenerOptions = { capture: true };
@@ -3226,12 +3543,6 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
       return;
     }
     if (isEscapeMenuOpen()) return;
-    if (event.code === "F1" || event.code === "F2" || event.code === "F3") {
-      event.preventDefault();
-      resumePresentationAudio(app);
-      observeGameKey(app, { code: event.code, repeat: event.repeat }, "down");
-      return;
-    }
     const action = actionForPhysicalCode(
       app.playerInput.preferences.bindings,
       physicalBindingCode(event),
@@ -3293,19 +3604,6 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
     };
     control.addEventListener("click", capture);
     listeners.push(() => control.removeEventListener("click", capture));
-  }
-  for (const choice of document.querySelectorAll<HTMLButtonElement>(
-    "[data-character-code]",
-  )) {
-    const choose = (): void => {
-      const code = choice.dataset.characterCode;
-      if (code !== "F1" && code !== "F2" && code !== "F3") return;
-      resumePresentationAudio(app);
-      observeGameKey(app, { code, repeat: false }, "down");
-      canvas.focus();
-    };
-    choice.addEventListener("click", choose);
-    listeners.push(() => choice.removeEventListener("click", choose));
   }
   const resetBindings = (): void => {
     app.playerInput.preferences = {
@@ -3464,6 +3762,7 @@ function startApp(
     presentationAudio: createPresentationAudio(),
   };
   bindResidentWorker(app, listeners);
+  bindEntryFlow(app, listeners);
   bindGameInput(app, listeners);
   bindEscapeMenu(app, listeners);
   bindCombatSlotDrag(app, listeners);
