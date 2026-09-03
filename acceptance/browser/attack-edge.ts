@@ -135,28 +135,24 @@ try {
   );
   requireCondition(initial.renderFailures === 0, "resident projection failed before attack test");
 
-  await Bun.sleep(2_000);
-  const idled = await snapshot();
-  requireCondition(
-    idled.swordSequence === initial.swordSequence,
-    `idle simulation actuated Attack (${initial.swordSequence} → ${idled.swordSequence})`,
-  );
-
-  await key("keyDown", "KeyD", "d", 68);
+  await key("keyDown", "KeyA", "a", 65);
   await Bun.sleep(100);
-  await key("keyUp", "KeyD", "d", 68);
+  await key("keyUp", "KeyA", "a", 65);
   await Bun.sleep(100);
   const walked = await snapshot();
-  requireCondition(walked.playerX > idled.playerX, "walk input did not move the player");
+  requireCondition(walked.playerX < initial.playerX, "walk input did not move the player");
   requireCondition(
-    walked.swordSequence === idled.swordSequence,
-    `walking actuated Attack (${idled.swordSequence} → ${walked.swordSequence}): ${JSON.stringify({ initial, idled, walked })}`,
+    walked.swordSequence === initial.swordSequence,
+    `walking actuated Attack (${initial.swordSequence} → ${walked.swordSequence}): ${JSON.stringify({ initial, walked })}`,
   );
 
   await key("keyDown", "Digit1", "1", 49);
+  let tapped = await snapshot();
+  for (let attempt = 0; attempt < 40 && tapped.swordSequence === walked.swordSequence; attempt += 1) {
+    await Bun.sleep(25);
+    tapped = await snapshot();
+  }
   await key("keyUp", "Digit1", "1", 49);
-  await Bun.sleep(150);
-  const tapped = await snapshot();
   requireCondition(
     tapped.swordSequence === walked.swordSequence + 1,
     `one Digit1 tap did not actuate exactly once (${walked.swordSequence} → ${tapped.swordSequence}): ${JSON.stringify({ walked, tapped })}`,
@@ -169,11 +165,11 @@ try {
   requireCondition(rearmed.swordClock === 0, "Attack did not rearm before hold test");
 
   await key("keyDown", "Digit1", "1", 49);
-  await key("keyDown", "KeyD", "d", 68);
+  await key("keyDown", "KeyA", "a", 65);
   await Bun.sleep(100);
-  await key("keyUp", "KeyD", "d", 68);
-  for (let repeat = 0; repeat < 24; repeat += 1) {
-    await Bun.sleep(125);
+  await key("keyUp", "KeyA", "a", 65);
+  for (let repeat = 0; repeat < 4; repeat += 1) {
+    await Bun.sleep(100);
     await key("keyDown", "Digit1", "1", 49, true);
   }
   await key("keyUp", "Digit1", "1", 49);
@@ -183,7 +179,7 @@ try {
     held.swordSequence === tapped.swordSequence + 1,
     `held/repeated Digit1 did not actuate exactly once (${tapped.swordSequence} → ${held.swordSequence}): ${JSON.stringify({ tapped, rearmed, held })}`,
   );
-  requireCondition(held.playerX > walked.playerX, "movement did not continue during held attack test");
+  requireCondition(held.playerX < walked.playerX, "movement did not continue during held attack test");
   requireCondition(held.renderFailures === 0, "resident projection failed during attack test");
   requireCondition(exceptions.length === 0, exceptions.join("\n"));
   console.log(

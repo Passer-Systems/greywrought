@@ -431,6 +431,11 @@ relation ability-request
   subject player
   mode given player yields request: one
 
+relation attack-input-armed
+  reads {player: Player} attack input armed {value: Bool}
+  subject player
+  mode given player yields value: one
+
 relation ranged-charge-ticks
   reads {arena: Arena} ranged charge ticks {value: F64}
   subject arena
@@ -991,6 +996,7 @@ player-1 projectile damage 2.0
 player-1 class utility sequence 0.0
 player-1 selection sequence 0.0
 player-1 ability request idle-request
+player-1 attack input armed true
 player-1 combat target cinder-wraith
 player-1 target lock active false
 player-1 target selection sequence 0.0
@@ -1154,6 +1160,7 @@ bind keyboard F1 down to select-warrior
 bind keyboard F2 down to select-mage
 bind keyboard F3 down to select-hunter
 bind keyboard Digit1 down to primary-ability
+bind keyboard Digit1 up to release-primary-ability
 bind keyboard Digit2 down to secondary-ability
 bind keyboard Digit3 down to third-ability
 bind keyboard Digit4 down to fourth-ability
@@ -1246,6 +1253,15 @@ on select-hunter ?player
     ?player last ability steady-shot
     ?player selection sequence ?sequence + 1.0
 
+on release-primary-ability ?player
+  when
+    ?player attack input armed ?armed
+    ?armed = false
+  withdraw
+    ?player attack input armed ?armed
+  include
+    ?player attack input armed true
+
 on secondary-ability ?player
   when
     ?player ability request ?request
@@ -1293,6 +1309,7 @@ on class-utility ?player
 
 on primary-ability ?player
   when
+    ?player attack input armed ?armed
     ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
     ?player sword action sequence ?sword-sequence
     ?player sword commitment clock ?clock
@@ -1300,15 +1317,18 @@ on primary-ability ?player
     ?player combat status ?status
     ?player ranged action state ?ranged-state
     jump-arena sword commitment ticks ?commitment
+    ?armed = true
     ?status = alive
     ?ranged-state = ready
     ?clock = 0.0
   withdraw
+    ?player attack input armed ?armed
     ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
     ?player sword action sequence ?sword-sequence
     ?player sword commitment clock ?clock
     ?player last ability ?last
   include
+    ?player attack input armed false
     ?player ability sequences Vec3 { x: ?first + 1.0, y: ?second, z: ?third }
     ?player sword action sequence ?sword-sequence + 1.0
     ?player sword commitment clock ?commitment

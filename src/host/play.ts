@@ -2851,6 +2851,25 @@ function observeGameKey(
     phase,
     repeat: event.repeat,
   });
+  // Attack is a physical edge, not a held simulation state. Close its semantic
+  // pulse after the down edge has crossed at least one resident tick so the
+  // Clause latch rearms without depending on browser keyup timing.
+  if (phase === "down" && event.code === "Digit1" && !event.repeat) {
+    setTimeout(() => {
+      boundedGameEvent({
+        phase: "keyboard-observed",
+        code: event.code,
+        inputPhase: "up",
+        repeat: false,
+      });
+      queueGameInput(app, {
+        kind: "keyboard",
+        code: event.code,
+        phase: "up",
+        repeat: false,
+      });
+    }, 250);
+  }
 }
 
 function observeCameraBasis(app: PlayApp): void {
