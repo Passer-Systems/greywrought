@@ -3,180 +3,97 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="A Clause/Wasm action-RPG expedition where every visible world change passes separate Admission." />
-    <meta name="theme-color" content="#100a0d" />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="Greywrought Clause — Boar Breach" />
-    <meta property="og:description" content="Fight, extract, and establish a permanent foothold across three Clause-authored expeditions." />
-    <meta property="og:url" content="https://passer-systems.github.io/greywrought/" />
-    <meta name="twitter:card" content="summary" />
+    <meta name="description" content="A Clause-authored five-unit tactical RPG with Warcraft-style command controls." />
+    <meta name="theme-color" content="#17130d" />
+    <title>Greywrought — The Ashen Company</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./site.webmanifest" />
-    <title>Greywrought Clause — Magitek Boar</title>
-    <link rel="stylesheet" href="./app/greywrought-clause/cinderwake.css" />
+    <link rel="stylesheet" href="./app/greywrought-clause/rts.css" />
     <script type="importmap">
       {
         "imports": {
           "three": "./vendor/three.module.js",
-          "three/addons/": "./vendor/three-addons/",
           "#clause-runtime-wasm": "./wasm/clause_runtime.js"
         }
       }
     </script>
   </head>
-  <body data-journey="loading" data-game-phase="loading">
-    <main>
-      <div id="world-wrap">
-        <div id="authoritative-label" class="realm-label">Authoritative · real Wasm</div>
-        <div id="branch-label" class="realm-label">Disconnected branch · retained</div>
-        <div id="enemy-damage-number" class="enemy-damage-number">0</div>
-        <div id="enemy-nameplate" class="enemy-nameplate" hidden>
-          <div class="enemy-nameplate-target-marker">▼</div>
-          <div id="enemy-nameplate-name" class="enemy-nameplate-name">Corrupted Magitek Boar</div>
-          <div class="enemy-nameplate-health">
-            <span id="enemy-nameplate-health-fill"></span>
+  <body data-game-phase="loading">
+    <main id="game-shell">
+      <section id="world-wrap" aria-label="Tactical battlefield">
+        <div id="selection-rectangle" hidden></div>
+        <header id="war-table">
+          <div>
+            <span class="eyebrow">Ashen Marches</span>
+            <h1>Greywrought</h1>
           </div>
-          <div id="enemy-hit-stun" class="enemy-hit-stun" hidden>
-            <span class="enemy-hit-stun-glyph">✦</span>
-            <strong id="enemy-hit-stun-timer" class="enemy-hit-stun-timer">0.00</strong>
-          </div>
-        </div>
-        <section id="loot-window" class="loot-window" aria-label="Corpse loot" hidden>
-          <header class="loot-window-header">
-            <span class="loot-window-emblem" aria-hidden="true">☠</span>
-            <strong>Loot</strong>
-            <button id="loot-close" class="loot-close" type="button" aria-label="Close loot window">×</button>
+          <div id="authority-status" role="status">Opening Clause authority…</div>
+          <button id="select-all" type="button">Select Company <kbd>F1</kbd></button>
+        </header>
+
+        <aside id="objective-panel">
+          <span class="eyebrow">Company Orders</span>
+          <strong>Secure the ruined causeway</strong>
+          <p>Drag a rectangle to marshal units. Right-click the terrain to move them in formation.</p>
+        </aside>
+
+        <section id="equipment-panel" aria-label="Equipment paper doll">
+          <header>
+            <div><span class="eyebrow">Equipment</span><strong id="equipment-owner">No unit selected</strong></div>
+            <button id="equipment-close" type="button" aria-label="Close equipment">×</button>
           </header>
-          <button id="loot-item" class="loot-item" type="button">
-            <span id="loot-item-icon" class="loot-item-icon" aria-hidden="true">⚿</span>
-            <span class="loot-item-copy">
-              <strong id="loot-item-name">Ashen Breach Key</strong>
-              <small id="loot-item-category">Quest Item</small>
-            </span>
-          </button>
-        </section>
-        <div id="terminal-feedback" class="terminal-feedback" aria-live="assertive" hidden>
-          <div class="terminal-feedback-card">
-            <div id="terminal-feedback-kicker" class="terminal-feedback-kicker">ENCOUNTER TERMINATED</div>
-            <div id="terminal-feedback-title" class="terminal-feedback-title">WAYFARER DISABLED</div>
-            <div id="terminal-feedback-detail" class="terminal-feedback-detail">The boar reduced your vitality to zero.</div>
-            <div id="terminal-feedback-action" class="terminal-feedback-action">PRESS R TO RESTORE THE REVISION</div>
-          </div>
-        </div>
-        <div id="game-hud">
-          <section id="player-frame" class="unit-frame player-frame" aria-label="Player status">
-            <div class="unit-portrait player-portrait" aria-hidden="true"><span>W</span></div>
-            <div class="unit-readout">
-              <div class="unit-heading"><strong>Wayfarer</strong><span id="player-vitality">4 / 4</span></div>
-              <div class="bar health-bar" aria-hidden="true"><span id="player-vitality-bar"></span></div>
-              <div class="bar resource-bar" aria-hidden="true"><span id="booster-energy-bar"></span></div>
-              <div class="unit-resource"><span>Booster</span><strong id="booster-energy">100 / 100</strong></div>
+          <div class="paper-doll">
+            <div class="slot-column">
+              <div class="gear-slot"><i>H</i><span>Head</span></div>
+              <div class="gear-slot"><i>S</i><span>Shoulders</span></div>
+              <div class="gear-slot"><i>N</i><span>Neck</span></div>
+              <div class="gear-slot"><i>C</i><span>Cloak</span></div>
+              <div class="gear-slot"><i>Ch</i><span>Chest</span></div>
+              <div class="gear-slot"><i>Sh</i><span>Shirt</span></div>
+              <div class="gear-slot"><i>T</i><span>Tabard</span></div>
+              <div class="gear-slot"><i>B</i><span>Bracers</span></div>
+              <div class="gear-slot"><i>G</i><span>Gloves</span></div>
+              <div class="gear-slot"><i>Bt</i><span>Belt</span></div>
             </div>
+            <div class="doll-silhouette" aria-hidden="true"><span></span></div>
+            <div class="slot-column right">
+              <div class="gear-slot"><i>L</i><span>Legs</span></div>
+              <div class="gear-slot"><i>P</i><span>Pants</span></div>
+              <div class="gear-slot"><i>F</i><span>Shoes</span></div>
+              <div class="gear-slot"><i>R1</i><span>Ring 1</span></div>
+              <div class="gear-slot"><i>R2</i><span>Ring 2</span></div>
+              <div class="gear-slot"><i>T1</i><span>Trinket 1</span></div>
+              <div class="gear-slot"><i>T2</i><span>Trinket 2</span></div>
+              <div class="gear-slot"><i>W</i><span>Weapon</span></div>
+              <div class="gear-slot"><i>O</i><span>Offhand</span></div>
+              <div class="gear-slot"><i>Rg</i><span>Ranged / Relic</span></div>
+            </div>
+          </div>
+        </section>
+
+        <footer id="command-deck">
+          <section id="selected-unit-panel">
+            <div class="large-portrait"><span id="portrait-rune">G</span></div>
+            <div><strong id="selected-name">Loading company…</strong><span id="selected-class">Clause projection pending</span></div>
+            <button id="equipment-toggle" type="button">Equipment <kbd>E</kbd></button>
           </section>
 
-          <section id="target-frame" class="unit-frame target-frame" aria-label="Current target status">
-            <div class="unit-readout">
-              <div class="unit-heading"><strong>Corrupted Magitek Boar</strong><span id="enemy-vitality">6 / 6</span></div>
-              <div class="bar health-bar" aria-hidden="true"><span id="enemy-vitality-bar"></span></div>
-              <div class="bar status-bar" aria-hidden="true"><span></span></div>
-              <div class="unit-resource"><span>Corrupted</span><strong>Target</strong></div>
-            </div>
-            <div class="unit-portrait target-portrait" aria-hidden="true"><span>B</span></div>
+          <section id="roster" aria-label="Company roster">
+            <button id="roster-warrior-1" class="roster-card warrior" type="button" aria-pressed="false"><b>W</b><span><strong>Aldric</strong><small>Warrior</small></span></button>
+            <button id="roster-artificer-1" class="roster-card artificer" type="button" aria-pressed="false"><b>A</b><span><strong>Cora</strong><small>Artificer</small></span></button>
+            <button id="roster-rogue-1" class="roster-card rogue" type="button" aria-pressed="false"><b>R</b><span><strong>Vey</strong><small>Rogue</small></span></button>
+            <button id="roster-priest-1" class="roster-card priest" type="button" aria-pressed="false"><b>P</b><span><strong>Mara</strong><small>Priest</small></span></button>
+            <button id="roster-ranger-1" class="roster-card ranger" type="button" aria-pressed="false"><b>R</b><span><strong>Rowan</strong><small>Ranger</small></span></button>
+            <div id="selection-count">0 / 5 selected</div>
           </section>
 
-          <section class="objective-tracker" aria-label="Current objective">
-            <div class="objective-kicker">Quest objective</div>
-            <div id="objective">Defeat the corrupted boar and recover its breach key.</div>
+          <section id="command-panel">
+            <button id="command-move" type="button" disabled><span>➤</span><strong>Move</strong><small>Right-click ground</small></button>
+            <div id="command-status">Awaiting orders</div>
+            <div class="camera-hint">WASD / arrows pan · wheel zoom</div>
           </section>
-
-          <section id="chat-window" class="chat-window" aria-label="Chat and combat log">
-            <input id="chat-tab-general" class="chat-tab-state" type="radio" name="chat-tab" checked />
-            <input id="chat-tab-combat" class="chat-tab-state" type="radio" name="chat-tab" />
-            <div class="chat-tabs" aria-label="Log channels">
-              <label for="chat-tab-general">1 Chat</label>
-              <label for="chat-tab-combat">2 Combat Log</label>
-            </div>
-            <div class="chat-panel chat-general" aria-live="polite">
-              <p><span>[System]</span> Resident Clause generation linked.</p>
-              <p><span>[Local]</span> The Ashen Verge stirs around the breach.</p>
-            </div>
-            <div class="chat-panel chat-combat" aria-live="polite">
-              <div id="combat-state">BOOST 100 / 100 · IGNITE 25 · REGEN 0 &nbsp; STATUS clear · 12</div>
-              <div id="combat-feedback"></div>
-            </div>
-          </section>
-
-          <div id="control-hint">WASD move · Tab target · 1 bolt · J sword · L loot · Space jump · gamepad supported · Controls panel for all bindings</div>
-        </div>
-      </div>
-      <aside id="sidebar">
-        <h1>Boar Breach</h1>
-        <div class="kicker">One living Clause session</div>
-        <div id="stage">Opening world…</div>
-        <div id="expedition-progress" class="expedition-progress" role="progressbar" aria-label="Ashen Verge foothold" aria-valuemin="0" aria-valuenow="0" aria-valuemax="3">Expedition 1 of 3 · foothold 0 / 3</div>
-        <div id="save-status" class="save-status" aria-live="polite">Checking saved foothold…</div>
-        <p id="summary">The source-authored room is entering real Wasm.</p>
-        <button id="reset-encounter" class="primary">Reset encounter · R</button>
-        <button id="clear-progress">Clear saved campaign</button>
-        <details id="player-settings" class="player-settings">
-          <summary>Controls &amp; accessibility</summary>
-          <p id="gamepad-status" class="settings-status" aria-live="polite">Gamepad ready · connect or press any button</p>
-          <div class="accessibility-options">
-            <label><input id="reduced-motion" type="checkbox" /> Reduce motion</label>
-            <label><input id="high-contrast" type="checkbox" /> High contrast</label>
-            <label><input id="large-text" type="checkbox" /> Larger interface text</label>
-            <label class="volume-setting">Effects volume <input id="effects-volume" type="range" min="0" max="100" step="5" value="35" /><output id="effects-volume-value" for="effects-volume">35%</output></label>
-          </div>
-          <div class="binding-list" aria-label="Keyboard bindings">
-            <span>Move forward</span><button type="button" data-input-action="forward">W</button>
-            <span>Move backward</span><button type="button" data-input-action="backward">S</button>
-            <span>Move left</span><button type="button" data-input-action="left">A</button>
-            <span>Move right</span><button type="button" data-input-action="right">D</button>
-            <span>Cycle target</span><button type="button" data-input-action="target">Tab</button>
-            <span>Lock-on bolt</span><button type="button" data-input-action="bolt">1</button>
-            <span>Sword</span><button type="button" data-input-action="sword">J</button>
-            <span>Loot</span><button type="button" data-input-action="loot">L</button>
-            <span>Jump</span><button type="button" data-input-action="jump">Space</button>
-            <span>Horizontal sustain</span><button type="button" data-input-action="horizontalSustain">Left Shift</button>
-            <span>Horizontal burst</span><button type="button" data-input-action="horizontalBurst">Q</button>
-            <span>Vertical sustain</span><button type="button" data-input-action="verticalSustain">E</button>
-            <span>Vertical burst</span><button type="button" data-input-action="verticalBurst">F</button>
-            <span>Reset encounter</span><button type="button" data-input-action="reset">R</button>
-          </div>
-          <button id="reset-bindings" type="button">Restore default bindings</button>
-          <p id="input-preference-status" class="settings-status" aria-live="polite">Changes save in this browser.</p>
-          <p class="truth-note">Gamepad: left stick/D-pad move, A jump, B loot, X sword, Y target, shoulders boost/bolt, triggers vertical boost, Start reset.</p>
-        </details>
-        <section>
-          <h2>Authoritative custody</h2>
-          <div id="game-custody">No gameplay advance yet.</div>
-          <p class="truth-note">Input and ticks produce a hidden Candidate Delta. Only the following separate Admission installs a visible frame.</p>
-        </section>
-        <section>
-          <h2>Resident Clause law</h2>
-          <div id="resident-law">Opening the resident Clause generation…</div>
-        </section>
-        <section>
-          <h2>Input focus</h2>
-          <p id="selection">Click the arena to route keyboard input into the resident Clause session.</p>
-        </section>
-        <details>
-          <summary>Secondary disconnect proof</summary>
-          <p class="truth-note">The original exact fork, reconnect Candidate, Admission, explanation, and moonwell effect remain reachable here.</p>
-          <div class="controls">
-            <button id="enter-world">Enter branch proof</button>
-            <button id="disconnect">Disconnect at tick 41</button>
-            <button id="continue-branch">Advance isolated branch</button>
-            <button id="submit-candidate">Submit Candidate Delta</button>
-            <button id="admit-candidate">Invoke Admission</button>
-            <button id="pulse-moonwell" class="effect">Pulse moonwell effect</button>
-          </div>
-          <div id="candidate" aria-live="polite"></div>
-          <section><h2>Effect ledger</h2><div id="effect">No effect attempt yet.</div></section>
-          <section><h2>Admitted projection</h2><div id="projection">Hidden until Admission.</div></section>
-          <section><h2>Causal explanation</h2><div id="explanation">No successor yet.</div></section>
-        </details>
-      </aside>
+        </footer>
+      </section>
     </main>
     <script type="module" src="./app/greywrought-clause/play.js"></script>
   </body>

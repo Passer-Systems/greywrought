@@ -1,185 +1,23 @@
-import {
-  "adjudicate-branch-reconnect!" as adjudicateBranchReconnect,
-  "admit-authoritative-occurrences!" as admitAuthoritativeOccurrences,
-  "dispose-process-branch!" as disposeProcessBranch,
-  "explain-process-branch!" as explainProcessBranch,
-  "open-process-branch!" as openProcessBranch,
-  "propose-branch-reconnect!" as proposeBranchReconnect,
-} from "../../build/host/jump-arena-shell/branch-wasm-port.js";
-import {
-  "->ExactProcessRequest" as createExactProcessRequest,
-  "advance-session-occurrence!" as advanceSessionOccurrence,
-  "begin-effect-attempt!" as beginEffectAttempt,
-  "create-wasm-cartridge-port" as createWasmCartridgePort,
-  "decode-cwr1-hex" as decodeCwr1Hex,
-  "decode-projected-term-frame" as decodeProjectedTermFrame,
-  "emit-effect-intent!" as emitEffectIntent,
-  "issue-effect-authorization!" as issueEffectAuthorization,
-  "process-request-occurrences!" as processRequestOccurrences,
-  "resume-session!" as resumeSession,
-  "settle-effect-attempt!" as settleEffectAttempt,
-  "suspend-session!" as suspendSession,
-  type ExactBytes,
-  type ExactProcessRequest,
-  type ProjectedValue,
-} from "../../build/host/jump-arena-shell/wasm-cartridge-port.js";
-import {
-  "->WorkbenchPolicy" as createWorkbenchPolicy,
-  "->WorkbenchSequenceLimits" as createWorkbenchSequenceLimits,
-  type CartridgePort,
-  type PackageCheck,
-  type SessionCompletion,
-  type WorkbenchPolicy,
-} from "../../build/host/jump-arena-shell/workbench.js";
-import {
-  clause_branch_v1_command as branchCommand,
-  clause_branch_v1_event_byte as branchEventByte,
-  clause_branch_v1_event_len as branchEventLength,
-  clause_branch_v1_io_reset as resetBranchIo,
-  clause_branch_v1_open as openBranch,
-  clause_branch_v1_request_push as pushBranchRequest,
-  clause_session_v1_command_bulk as commandSession,
-  clause_session_v1_event_bulk as readSessionEvent,
-  clause_session_v1_open_bulk as openSession,
-  clause_session_v1_reclaim_retired as reclaimRetiredSession,
-  initSync,
-} from "#clause-runtime-wasm";
 import { Vector3 } from "three";
-import {
-  applyAdmittedFrame,
-  createCinderwakePresentation,
-  disposeCinderwakePresentation,
-  faceSubjectToward,
-  hideChargeCorridor,
-  orbitPresentationCamera,
-  pickPresentationSubject,
-  playBoarAttack,
-  playWayfarerSwordAction,
-  renderPresentationFrame,
-  setActivityCue,
-  setChargeCorridor,
-  setFrontierAccess,
-  setSubjectLootable,
-  signalDeath,
-  signalImpact,
-  signalPropulsion,
-  zoomPresentationCamera,
-  type CinderwakePresentation,
-  type FrontierGateAccess,
-  type ProjectedPosition,
-} from "./cinderwake-presentation.js";
-import {
-  identityString,
-  parseForeignJson,
-  requireArray,
-  requireBoolean,
-  requireField,
-  requireForeignRecord,
-  requireNumber,
-  requireString,
-} from "./foreign.js";
 import { publicUrl } from "./public-url.js";
 import {
-  campaignStorageKey,
-  decodeCampaignStorage,
-  encodeCampaignStorage,
-  legacyFootholdStorageKey,
-  type CampaignRead,
-} from "./campaign-persistence.js";
-import {
-  actionDefinitions,
-  actionForPhysicalCode,
-  actionsForStandardGamepad,
-  decodeInputPreferences,
-  defaultInputPreferences,
-  definitionForAction,
-  displayKey,
-  encodeInputPreferences,
-  inputPreferencesStorageKey,
-  rebindAction,
-  type GameAction,
-  type InputPreferences,
-} from "./input-preferences.js";
+  createRtsPresentation,
+  type RtsPresentation,
+  type UnitClass,
+  type UnitView,
+} from "./rts-presentation.js";
 
-type ProcessBranch = ReturnType<typeof openProcessBranch>;
-type AuthoritativeAdvance = ReturnType<typeof admitAuthoritativeOccurrences>;
-type ReconnectProposal = ReturnType<typeof proposeBranchReconnect>;
-type ReconnectAdmission = ReturnType<typeof adjudicateBranchReconnect>;
-type BranchExplanation = ReconnectAdmission["explanation"];
+const unitIds = ["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"] as const;
+type UnitId = (typeof unitIds)[number];
 
-type JourneyStage =
-  | Readonly<{ kind: "dormant" }>
-  | Readonly<{ kind: "ready" }>
-  | Readonly<{ kind: "disconnected"; processBranch: ProcessBranch }>
-  | Readonly<{
-      kind: "branch-advanced";
-      processBranch: ProcessBranch;
-      authoritative: AuthoritativeAdvance;
-      proposal: ReconnectProposal;
-    }>
-  | Readonly<{
-      kind: "candidate-submitted";
-      processBranch: ProcessBranch;
-      authoritative: AuthoritativeAdvance;
-      proposal: ReconnectProposal;
-    }>
-  | Readonly<{
-      kind: "successor-admitted";
-      processBranch: ProcessBranch;
-      admitted: ReconnectAdmission;
-      explanation: BranchExplanation;
-      projection: ProjectedValue;
-    }>;
-
-interface StageView {
-  readonly label: string;
-  readonly summary: string;
-  readonly canEnter: boolean;
-  readonly canDisconnect: boolean;
-  readonly canAdvance: boolean;
-  readonly canSubmit: boolean;
-  readonly canAdmit: boolean;
-  readonly branchVisible: boolean;
-  readonly candidateText: string | null;
-  readonly projectionText: string;
-  readonly explanationText: string;
-}
-
-interface SceneShell {
-  readonly presentation: CinderwakePresentation;
-  readonly canvas: HTMLCanvasElement;
-  readonly pointerHandler: (event: PointerEvent) => void;
-  readonly pointerMoveHandler: (event: PointerEvent) => void;
-  readonly pointerReleaseHandler: (event: PointerEvent) => void;
-  readonly contextMenuHandler: (event: MouseEvent) => void;
-  readonly wheelHandler: (event: WheelEvent) => void;
-  readonly enemyNameplate: HTMLElement;
-  readonly enemyNameplateFill: HTMLElement;
-  readonly enemyNameplateAnchor: Vector3;
-  enemyNameplateProjection: EnemyNameplateProjection | null;
-  lootInteractions: readonly LootInteraction[];
-  frameHandle: number;
-  lastFrameRenderedAt: number;
-  alive: boolean;
-}
-
-interface EnemyNameplateProjection {
-  readonly position: Vector3Projection;
-  readonly vitality: number;
-  readonly maximumVitality: number;
-  readonly alive: boolean;
-}
-
-interface LootInteraction {
-  readonly loot: LootProjection;
-  readonly presentationSubject: string;
-  readonly inRange: boolean;
-}
-
-interface EffectSession {
-  readonly port: CartridgePort;
-  readonly session: unknown;
-}
+const classCodes: Readonly<Record<UnitId, string>> = {
+  "warrior-1": "SelectWarrior",
+  "artificer-1": "SelectArtificer",
+  "rogue-1": "SelectRogue",
+  "priest-1": "SelectPriest",
+  "ranger-1": "SelectRanger",
+};
+const classes: readonly UnitClass[] = ["Warrior", "Artificer", "Rogue", "Priest", "Ranger"];
 
 interface GenerationPayload {
   readonly generation: number;
@@ -189,176 +27,33 @@ interface GenerationPayload {
   readonly hot: boolean;
 }
 
-interface Vector3Projection extends ProjectedPosition {}
+type ResidentInput =
+  | Readonly<{ kind: "keyboard"; code: string; phase: "down" | "up"; repeat: boolean }>
+  | Readonly<{ kind: "scalar-input"; channel: string; value: number }>;
 
-interface PlayerProjection {
-  readonly position: Vector3Projection;
-  readonly vitality: number;
-  readonly maximumVitality: number;
-  readonly grounded: boolean;
-  readonly boosterEquipment: string;
-  readonly boosterEnergy: number;
-  readonly boosterCapacity: number;
-  readonly boosterThreshold: number;
-  readonly boosterDelay: number;
-  readonly statusEffect: string;
-  readonly statusClock: number;
-  readonly swordActionSequence: number;
-  readonly swordCommitmentClock: number;
-  readonly combatTarget: string;
-  readonly targetLockActive: boolean;
-  readonly targetSelectionSequence: number;
-  readonly combatStatus: string;
-}
-
-interface EnemyProjection {
-  readonly position: Vector3Projection;
-  readonly vitality: number;
-  readonly maximumVitality: number;
-  readonly combatBehavior: string;
-  readonly pressureState: string;
-  readonly pressureClock: number;
-  readonly chargeStart: Vector3Projection;
-  readonly chargeEnd: Vector3Projection;
-  readonly chargeRadius: number;
-  readonly chargeCommitted: boolean;
-  readonly recoveryClock: number;
-  readonly randomSample: number;
-  readonly combatStatus: string;
-}
-
-interface BoltProjection {
-  readonly position: Vector3Projection;
-  readonly visible: boolean;
-}
-
-interface LootProjection {
-  readonly id: string;
-  readonly name: string;
-  readonly category: string;
-  readonly source: string;
-  readonly position: Vector3Projection;
-  readonly state: string;
-  readonly custody: string;
-}
-
-interface ObjectiveProjection {
-  readonly position: Vector3Projection;
-  readonly state: number;
-}
-
-interface FrontierProjection {
-  readonly access: FrontierGateAccess;
-  readonly progress: number;
-  readonly requirement: number;
-  readonly boundaryX: number;
-}
-
-interface GameProjection {
-  readonly player: PlayerProjection;
-  readonly enemy: EnemyProjection;
-  readonly bolt: BoltProjection;
-  readonly wayfarerBolt: BoltProjection;
-  readonly loots: readonly LootProjection[];
-  readonly objective: ObjectiveProjection;
-  readonly frontier: FrontierProjection;
-  readonly lootPickupRadius: number;
-}
-
-interface ResidentLawSession {
+interface ResidentState {
   readonly worker: Worker;
   generation: number;
   polling: boolean;
-  interval: number;
-  pendingHot: GenerationPayload | null;
-  lastProjection: GameProjection | null;
-  pendingProjection: ResidentProjection | null;
-  projectionFrameHandle: number;
-  admittedOrdinal: number;
-  candidateGeneration: number | null;
   staticGeneration: boolean;
+  interval: number;
 }
 
-interface ResidentProjection {
-  readonly generation: number;
-  readonly value: unknown;
-  readonly frameUnits: number;
-}
-
-type ResidentInput =
-  | Readonly<{
-      kind: "keyboard";
-      code: string;
-      phase: "down" | "up";
-      repeat: boolean;
-    }>
-  | Readonly<{
-      kind: "scalar-input";
-      channel: string;
-      value: number;
-    }>;
-
-interface ResidentLifecycleReceipt {
-  readonly event: string;
-  readonly activeGeneration: number;
-  readonly operationId: number;
-  readonly detail: string;
-}
-
-interface PlayApp {
-  readonly module: object;
-  readonly branchRequest: ExactProcessRequest;
-  readonly occurrences: readonly ExactBytes[];
-  readonly effect: EffectSession;
-  readonly residentLaw: ResidentLawSession;
-  readonly scene: SceneShell;
+interface GameState {
+  readonly resident: ResidentState;
+  readonly presentation: RtsPresentation;
+  readonly selectionRectangle: HTMLElement;
   readonly listeners: Array<() => void>;
-  readonly playerInput: PlayerInputState;
-  presentationAudio: AudioContext | null;
-  stage: JourneyStage;
-  effectSettled: boolean;
+  units: readonly UnitView[];
+  drag: Readonly<{ pointerId: number; x: number; y: number; moved: boolean }> | null;
+  disposed: boolean;
 }
-
-interface PhysicalKey {
-  readonly code: string;
-  readonly repeat: boolean;
-}
-
-interface PlayerInputState {
-  preferences: InputPreferences;
-  captureAction: GameAction | null;
-  gamepadFrame: number;
-  readonly gamepadHeld: Set<GameAction>;
-  readonly gamepadPressed: Set<GameAction>;
-}
-
-type BrowserCampaignRead = CampaignRead | Readonly<{ kind: "unavailable" }>;
 
 declare global {
   interface Window {
-    __GREYWROUGHT_RESIDENT_EVENTS__: Array<Record<string, unknown>>;
     __GREYWROUGHT_GAME_EVENTS__: Array<Record<string, unknown>>;
     __GREYWROUGHT_TEARDOWN__: (() => void) | undefined;
   }
-}
-
-function requireCondition(condition: boolean, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
-
-function requireValue<T>(value: T | undefined, context: string): T {
-  if (value === undefined) throw new Error(`${context} is absent`);
-  return value;
-}
-
-function isProjectedArray(value: unknown): value is readonly unknown[] {
-  return Array.isArray(value);
-}
-
-function isProjectedObject(
-  value: unknown,
-): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !isProjectedArray(value);
 }
 
 function element(id: string): HTMLElement {
@@ -367,2255 +62,341 @@ function element(id: string): HTMLElement {
   return value;
 }
 
-function button(id: string): HTMLButtonElement {
-  const value = element(id);
-  if (!(value instanceof HTMLButtonElement)) {
-    throw new Error(`browser element #${id} is not a button`);
-  }
-  return value;
-}
-
-function readPersistedFoothold(): BrowserCampaignRead {
-  try {
-    const result = decodeCampaignStorage(
-      localStorage.getItem(campaignStorageKey),
-      localStorage.getItem(legacyFootholdStorageKey),
-    );
-    if (result.kind === "migrated") {
-      localStorage.setItem(
-        campaignStorageKey,
-        encodeCampaignStorage(result.progress, Date.now()),
-      );
-      localStorage.removeItem(legacyFootholdStorageKey);
-    } else if (result.kind === "corrupt") {
-      localStorage.removeItem(campaignStorageKey);
-      localStorage.removeItem(legacyFootholdStorageKey);
-    }
-    return result;
-  } catch {
-    return { kind: "unavailable" };
-  }
-}
-
-function persistFoothold(progress: number): void {
-  try {
-    localStorage.setItem(
-      campaignStorageKey,
-      encodeCampaignStorage(progress, Date.now()),
-    );
-    localStorage.removeItem(legacyFootholdStorageKey);
-    element("save-status").textContent = `Saved foothold · ${progress} / 3`;
-    document.body.dataset.gamePersistence = "saved";
-  } catch {
-    element("save-status").textContent = "Save unavailable in this browser";
-    document.body.dataset.gamePersistence = "unavailable";
-  }
-}
-
-function clearPersistedFoothold(): void {
-  try {
-    localStorage.removeItem(campaignStorageKey);
-    localStorage.removeItem(legacyFootholdStorageKey);
-  } finally {
-    location.reload();
-  }
-}
-
-function sequenceLimits() {
-  const maximum = Number.MAX_SAFE_INTEGER;
-  return createWorkbenchSequenceLimits(
-    maximum,
-    maximum,
-    maximum,
-    maximum,
-    maximum,
-  );
-}
-
-function branchPolicy(): WorkbenchPolicy {
-  return createWorkbenchPolicy(8, 8, 32, 128, 512, sequenceLimits());
-}
-
-function initializeRuntime(bytes: ArrayBuffer): object {
-  initSync({ module: bytes });
-  return Object.freeze({
-    clause_branch_v1_io_reset: resetBranchIo,
-    clause_branch_v1_request_push: pushBranchRequest,
-    clause_branch_v1_open: openBranch,
-    clause_branch_v1_command: branchCommand,
-    clause_branch_v1_event_len: branchEventLength,
-    clause_branch_v1_event_byte: branchEventByte,
-    clause_session_v1_open_bulk: (request: readonly number[]) =>
-      openSession(new Uint8Array(request)),
-    clause_session_v1_command_bulk: (request: readonly number[]) =>
-      commandSession(new Uint8Array(request)),
-    clause_session_v1_event_bulk: readSessionEvent,
-    clause_session_v1_reclaim_retired: reclaimRetiredSession,
-  });
-}
-
-function requirePackage(result: PackageCheck | null, context: string): unknown {
-  if (result === null) throw new Error(`${context} returned no PackageCheck`);
-  if (result._tag === "PackageRejected") {
-    throw new Error(`${context} rejected its cartridge: ${result.reason}`);
-  }
-  return result.acceptedPackage;
-}
-
-function requireSession(result: SessionCompletion | null, context: string): unknown {
-  if (result === null) throw new Error(`${context} returned no SessionCompletion`);
-  if (result._tag === "SessionFailed") {
-    throw new Error(`${context} did not open: ${result.reason}`);
-  }
-  return result.session;
-}
-
-function openEffectSession(module: object, request: ExactProcessRequest): EffectSession {
-  const port = createWasmCartridgePort(module, branchPolicy());
-  const packageResult: { value: PackageCheck | null } = { value: null };
-  port.acceptPackage(request, (result) => {
-    packageResult.value = result;
-  });
-  const sessionResult: { value: SessionCompletion | null } = { value: null };
-  port.startSession(requirePackage(packageResult.value, "effect package"), 1, (result) => {
-    sessionResult.value = result;
-  });
-  return {
-    port,
-    session: requireSession(sessionResult.value, "effect session"),
-  };
-}
-
-function openResidentLawSession(): ResidentLawSession {
-  return {
-    worker: new Worker(publicUrl("app/greywrought-clause/resident-worker.js"), {
-      type: "module",
-      name: "greywrought-clause-resident",
-    }),
-    generation: -1,
-    polling: false,
-    interval: 0,
-    pendingHot: null,
-    lastProjection: null,
-    pendingProjection: null,
-    projectionFrameHandle: 0,
-    admittedOrdinal: 0,
-    candidateGeneration: null,
-    staticGeneration: false,
-  };
-}
-
-function projectedObject(
-  value: unknown,
-  context: string,
-): Readonly<Record<string, unknown>> {
-  if (!isProjectedObject(value)) {
+function record(value: unknown, context: string): Readonly<Record<string, unknown>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(`${context} is not a projected object`);
   }
-  return value;
+  return value as Readonly<Record<string, unknown>>;
 }
 
-function projectedField(
-  value: unknown,
-  field: string,
-  context: string,
-): unknown {
-  const result = projectedObject(value, context)[field];
-  if (result === undefined) throw new Error(`${context}.${field} is absent`);
+function field(value: unknown, name: string, context: string): unknown {
+  const result = record(value, context)[name];
+  if (result === undefined) throw new Error(`${context}.${name} is absent`);
   return result;
 }
 
-function projectedNumber(value: unknown, field: string, context: string): number {
-  const result = projectedField(value, field, context);
+function text(value: unknown, name: string, context: string): string {
+  const result = field(value, name, context);
+  if (typeof result !== "string") throw new Error(`${context}.${name} is not text`);
+  return result;
+}
+
+function number(value: unknown, name: string, context: string): number {
+  const result = field(value, name, context);
   if (typeof result !== "number" || !Number.isFinite(result)) {
-    throw new Error(`${context}.${field} is not a finite number`);
+    throw new Error(`${context}.${name} is not a finite number`);
   }
   return result;
 }
 
-function projectedString(value: unknown, field: string, context: string): string {
-  const result = projectedField(value, field, context);
-  if (typeof result !== "string") throw new Error(`${context}.${field} is not text`);
+function boolean(value: unknown, name: string, context: string): boolean {
+  const result = field(value, name, context);
+  if (typeof result !== "boolean") throw new Error(`${context}.${name} is not Boolean`);
   return result;
 }
 
-function projectedFrontierAccess(
-  value: unknown,
-  field: string,
-  context: string,
-): FrontierGateAccess {
-  const access = projectedString(value, field, context);
-  if (
-    access !== "sealed" &&
-    access !== "temporary-open" &&
-    access !== "permanent-open"
-  ) {
-    throw new Error(`${context}.${field} is not a frontier access mode`);
-  }
-  return access;
+function unitClass(value: string): UnitClass {
+  if (!classes.includes(value as UnitClass)) throw new Error(`unknown unit class ${value}`);
+  return value as UnitClass;
 }
 
-function projectedBoolean(value: unknown, field: string, context: string): boolean {
-  const result = projectedField(value, field, context);
-  if (typeof result !== "boolean") throw new Error(`${context}.${field} is not boolean`);
-  return result;
-}
-
-function projectedPosition(value: unknown, context: string): Vector3Projection {
-  return {
-    x: projectedNumber(value, "x", context),
-    y: projectedNumber(value, "y", context),
-    z: projectedNumber(value, "z", context),
-  };
-}
-
-function decodeLootProjection(value: unknown, id: string): LootProjection {
-  const loot = projectedField(value, id, "game projection");
-  return {
-    id,
-    name: projectedString(loot, "loot-name", id),
-    category: projectedString(loot, "loot-category", id),
-    source: projectedString(loot, "loot-source", id),
-    position: projectedPosition(
-      projectedField(loot, "loot-position", id),
-      `${id}.loot-position`,
-    ),
-    state: projectedString(loot, "loot-state", id),
-    custody: projectedString(loot, "custody", id),
-  };
-}
-
-function decodeGameProjection(value: unknown): GameProjection {
-  const player = projectedField(value, "player-1", "game projection");
-  const enemy = projectedField(value, "cinder-wraith", "game projection");
-  const bolt = projectedField(value, "cinder-bolt", "game projection");
-  const wayfarerBolt = projectedField(value, "wayfarer-bolt", "game projection");
-  const loots = [
-    decodeLootProjection(value, "ashen-key"),
-    decodeLootProjection(value, "cephorium-cache"),
-  ];
-  const objective = projectedField(value, "game-objective", "game projection");
-  const frontier = projectedField(value, "ashen-verge", "game projection");
-  const arena = projectedField(value, "jump-arena", "game projection");
-  const boosterEquipment = projectedString(
-    player,
-    "equipped-booster",
-    "player-1",
-  );
-  const booster = projectedField(value, boosterEquipment, "game projection");
-  const playerVitals = projectedField(player, "player-vitals", "player-1");
-  const enemyVitals = projectedField(enemy, "enemy-vitals", "cinder-wraith");
-  const objectiveState = projectedField(objective, "objective-state", "game-objective");
-  return {
-    player: {
-      position: projectedPosition(
-        projectedField(player, "position", "player-1"),
-        "player-1.position",
-      ),
-      vitality: projectedNumber(playerVitals, "x", "player-vitals"),
-      maximumVitality: projectedNumber(playerVitals, "y", "player-vitals"),
-      grounded: projectedBoolean(player, "grounded", "player-1"),
-      boosterEquipment,
-      boosterEnergy: projectedNumber(player, "booster-energy", "player-1"),
-      boosterCapacity: projectedNumber(
-        booster,
-        "booster-capacity",
-        boosterEquipment,
-      ),
-      boosterThreshold: projectedNumber(
-        booster,
-        "booster-ignition-threshold",
-        boosterEquipment,
-      ),
-      boosterDelay: projectedNumber(
-        player,
-        "booster-regeneration-delay",
-        "player-1",
-      ),
-      statusEffect: projectedString(player, "status-effect", "player-1"),
-      statusClock: projectedNumber(player, "status-clock", "player-1"),
-      swordActionSequence: projectedNumber(
-        player,
-        "sword-action-sequence",
-        "player-1",
-      ),
-      swordCommitmentClock: projectedNumber(
-        player,
-        "sword-commitment-clock",
-        "player-1",
-      ),
-      combatTarget: projectedString(player, "combat-target", "player-1"),
-      targetLockActive: projectedBoolean(
-        player,
-        "target-lock-active",
-        "player-1",
-      ),
-      targetSelectionSequence: projectedNumber(
-        player,
-        "target-selection-sequence",
-        "player-1",
-      ),
-      combatStatus: projectedString(player, "combat-status", "player-1"),
-    },
-    enemy: {
-      position: projectedPosition(
-        projectedField(enemy, "enemy-position", "cinder-wraith"),
-        "cinder-wraith.enemy-position",
-      ),
-      vitality: projectedNumber(enemyVitals, "x", "enemy-vitals"),
-      maximumVitality: projectedNumber(enemyVitals, "y", "enemy-vitals"),
-      combatBehavior: projectedString(
-        enemy,
-        "combat-behavior",
-        "cinder-wraith",
-      ),
-      pressureState: projectedString(
-        enemy,
-        "enemy-pressure-state",
-        "cinder-wraith",
-      ),
-      pressureClock: projectedNumber(
-        enemy,
-        "enemy-pressure-clock",
-        "cinder-wraith",
-      ),
-      chargeStart: projectedPosition(
-        projectedField(enemy, "enemy-charge-start", "cinder-wraith"),
-        "cinder-wraith.enemy-charge-start",
-      ),
-      chargeEnd: projectedPosition(
-        projectedField(enemy, "enemy-charge-end", "cinder-wraith"),
-        "cinder-wraith.enemy-charge-end",
-      ),
-      chargeRadius: projectedNumber(
-        projectedField(enemy, "enemy-charge-envelope", "cinder-wraith"),
-        "z",
-        "cinder-wraith.enemy-charge-envelope",
-      ),
-      chargeCommitted: projectedBoolean(
-        enemy,
-        "enemy-charge-committed",
-        "cinder-wraith",
-      ),
-      recoveryClock: projectedNumber(
-        enemy,
-        "enemy-recovery-clock",
-        "cinder-wraith",
-      ),
-      randomSample: projectedNumber(
-        enemy,
-        "enemy-random-sample",
-        "cinder-wraith",
-      ),
-      combatStatus: projectedString(
-        enemy,
-        "enemy-combat-status",
-        "cinder-wraith",
-      ),
-    },
-    bolt: {
-      position: projectedPosition(
-        projectedField(bolt, "projectile-position", "cinder-bolt"),
-        "cinder-bolt.projectile-position",
-      ),
-      visible: projectedBoolean(bolt, "projectile-visible", "cinder-bolt"),
-    },
-    wayfarerBolt: {
-      position: projectedPosition(
-        projectedField(wayfarerBolt, "projectile-position", "wayfarer-bolt"),
-        "wayfarer-bolt.projectile-position",
-      ),
-      visible: projectedBoolean(
-        wayfarerBolt,
-        "projectile-visible",
-        "wayfarer-bolt",
-      ),
-    },
-    loots,
-    objective: {
-      position: projectedPosition(
-        projectedField(objective, "exit-position", "game-objective"),
-        "game-objective.exit-position",
-      ),
-      state: projectedNumber(objectiveState, "x", "objective-state"),
-    },
-    frontier: {
-      access: projectedFrontierAccess(
-        frontier,
-        "frontier-access",
-        "ashen-verge",
-      ),
-      progress: projectedNumber(frontier, "foothold-progress", "ashen-verge"),
-      requirement: projectedNumber(
-        frontier,
-        "foothold-requirement",
-        "ashen-verge",
-      ),
-      boundaryX: projectedNumber(
-        frontier,
-        "frontier-boundary-x",
-        "ashen-verge",
-      ),
-    },
-    lootPickupRadius: projectedNumber(
-      arena,
-      "loot-pickup-radius",
-      "jump-arena",
-    ),
-  };
-}
-
-function objectiveLabel(state: number): "completed" | "failed" | "playing" {
-  if (state === 1) return "completed";
-  if (state === -1) return "failed";
-  return "playing";
-}
-
-function lootById(projection: GameProjection, id: string): LootProjection {
-  return requireValue(
-    projection.loots.find((loot) => loot.id === id),
-    `loot projection ${id}`,
-  );
-}
-
-function lootPresentationSubject(loot: LootProjection): string {
-  return loot.source === "cinder-wraith" ? "magitek-boar" : loot.id;
-}
-
-function setVitalityBar(
-  barId: string,
-  valueId: string,
-  vitality: number,
-  maximum: number,
-): void {
-  const ratio = Math.max(0, Math.min(1, vitality / Math.max(0.001, maximum)));
-  element(barId).style.transform = `scaleX(${ratio})`;
-  element(valueId).textContent = `${vitality} / ${maximum}`;
-}
-
-function showDamageNumber(amount: number, kind: string, critical: boolean): void {
-  const damageNumber = element("enemy-damage-number");
-  const kindClass =
-    kind === "auto-attack"
-      ? "damage-auto-attack"
-      : kind === "pet"
-        ? "damage-pet"
-        : "damage-special";
-  damageNumber.textContent = String(amount);
-  damageNumber.className = `enemy-damage-number ${kindClass}${critical ? " critical" : ""}`;
-  damageNumber.getBoundingClientRect();
-  damageNumber.classList.add("active");
-}
-
-function boundedGameEvent(event: Record<string, unknown>): void {
-  const events = window.__GREYWROUGHT_GAME_EVENTS__;
-  events.push({ atMillis: Math.round(performance.now()), ...event });
-  if (events.length > 512) events.shift();
-}
-
-function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
-  const projection = decodeGameProjection(rawProjection);
-  const resident = app.residentLaw;
-  const prior = resident.lastProjection;
-  const ordinal = resident.admittedOrdinal + 1;
-  const { player, enemy, bolt, wayfarerBolt, objective, frontier } = projection;
-  const ashenKey = lootById(projection, "ashen-key");
-  const cephorium = lootById(projection, "cephorium-cache");
-  const presentedBolt = wayfarerBolt.visible ? wayfarerBolt : bolt;
-  const objectiveStatus = objectiveLabel(objective.state);
-  if (prior !== null) {
-    if (player.swordActionSequence > prior.player.swordActionSequence) {
-      playPresentationTone(app, 260, 0.11, 0.7);
-    }
-    if (enemy.vitality < prior.enemy.vitality) {
-      playPresentationTone(app, 115, 0.16, 0.9);
-    }
-    const priorCache = lootById(prior, "cephorium-cache");
-    if (cephorium.custody !== priorCache.custody && cephorium.custody === "player-1") {
-      playPresentationTone(app, 620, 0.22, 0.7);
-    }
-    if (objective.state !== prior.objective.state && objectiveStatus === "completed") {
-      playPresentationTone(app, 820, 0.38, 0.75);
-    }
-  }
-  if (frontier.progress > 0 && (prior === null || frontier.progress > prior.frontier.progress)) {
-    persistFoothold(frontier.progress);
-  }
-  const expedition = Math.min(frontier.requirement, frontier.progress + 1);
-  element("expedition-progress").textContent =
-    frontier.access === "permanent-open"
-      ? `Foothold secured · ${frontier.progress} / ${frontier.requirement}`
-      : `Expedition ${expedition} of ${frontier.requirement} · foothold ${frontier.progress} / ${frontier.requirement}`;
-  element("expedition-progress").setAttribute("aria-valuenow", String(frontier.progress));
-  element("expedition-progress").setAttribute("aria-valuemax", String(frontier.requirement));
-  const terminalFeedback = element("terminal-feedback");
-  terminalFeedback.hidden = objectiveStatus === "playing";
-  if (objectiveStatus === "failed") {
-    element("terminal-feedback-kicker").textContent = "ENCOUNTER TERMINATED";
-    element("terminal-feedback-title").textContent = "WAYFARER DISABLED";
-    element("terminal-feedback-detail").textContent =
-      "The corrupted magitek boar reduced your vitality to zero.";
-    element("terminal-feedback-action").textContent =
-      "PRESS R TO RESTORE THE REVISION";
-  } else if (objectiveStatus === "completed") {
-    const permanent = frontier.access === "permanent-open";
-    element("terminal-feedback-kicker").textContent = permanent
-      ? "FOOTHOLD SECURED"
-      : "EXPEDITION EXTRACTED";
-    element("terminal-feedback-title").textContent = permanent
-      ? "ASHEN VERGE ACCESS IS PERMANENT"
-      : "CEPHORIUM RECOVERED";
-    element("terminal-feedback-detail").textContent = permanent
-      ? "Repeated successful expeditions established durable access to the Ashen Verge."
-      : `The temporary breach yielded durable value · foothold ${frontier.progress} / ${frontier.requirement}.`;
-    element("terminal-feedback-action").textContent =
-      "PRESS R TO RUN THE ENCOUNTER AGAIN";
-  }
-  resident.admittedOrdinal = ordinal;
-
-  app.scene.enemyNameplateProjection = {
-    position: enemy.position,
-    vitality: enemy.vitality,
-    maximumVitality: enemy.maximumVitality,
-    alive: enemy.combatStatus !== "dead",
-  };
-  app.scene.enemyNameplateFill.style.transform =
-    `scaleX(${Math.max(0, Math.min(1, enemy.vitality / Math.max(0.001, enemy.maximumVitality)))})`;
-  const hitStunVisible =
-    enemy.pressureState === "hit-recovery" ||
-    enemy.pressureState === "overrun-recovery";
-  const hitStun = element("enemy-hit-stun");
-  hitStun.hidden = !hitStunVisible;
-  if (hitStunVisible) {
-    const maximumTicks =
-      enemy.pressureState === "overrun-recovery" ? 31 : 30;
-    const remainingTicks = Math.max(
-      0,
-      Math.min(maximumTicks, enemy.recoveryClock),
-    );
-    hitStun.classList.toggle(
-      "punishable",
-      enemy.pressureState === "overrun-recovery",
-    );
-    hitStun.style.setProperty(
-      "--stun-progress",
-      String(remainingTicks / maximumTicks),
-    );
-    element("enemy-hit-stun-timer").textContent =
-      (remainingTicks * 0.016).toFixed(2);
-  }
-  app.scene.enemyNameplate.setAttribute(
-    "aria-label",
-    `Corrupted Magitek Boar, ${enemy.vitality} of ${enemy.maximumVitality} health`,
-  );
-  app.scene.enemyNameplate.classList.toggle(
-    "targeted",
-    player.targetLockActive && player.combatTarget === "cinder-wraith",
-  );
-
-  applyAdmittedFrame(app.scene.presentation, {
-    ordinal,
-    subjects: [
-      {
-        subject: "ashen-wayfarer",
-        position: player.position,
-        visible: true,
-        vitalityRatio: player.vitality / Math.max(0.001, player.maximumVitality),
-      },
-      {
-        subject: "cinder-wraith",
-        position: enemy.position,
-        visible: false,
-        vitalityRatio: enemy.vitality / Math.max(0.001, enemy.maximumVitality),
-      },
-      {
-        subject: "magitek-boar",
-        position: enemy.position,
-        visible: true,
-        vitalityRatio: enemy.vitality / Math.max(0.001, enemy.maximumVitality),
-      },
-      {
-        subject: "cinder-bolt",
-        position: presentedBolt.position,
-        visible: presentedBolt.visible,
-        vitalityRatio: 1,
-      },
-      {
-        subject: "ashen-key",
-        position: ashenKey.position,
-        visible: ashenKey.state === "available",
-        vitalityRatio: 1,
-      },
-      {
-        subject: "cephorium-cache",
-        position: cephorium.position,
-        visible: cephorium.state === "available",
-        vitalityRatio: 1,
-      },
-      {
-        subject: "moonwell",
-        position: objective.position,
-        visible: true,
-        vitalityRatio: 1,
-      },
-    ],
-    cameraTarget: player.position,
-    wayfarerMotion: {
-      moving:
-        prior !== null &&
-        (Math.abs(player.position.x - prior.player.position.x) > 0.0001 ||
-          Math.abs(player.position.z - prior.player.position.z) > 0.0001),
-      airborne: !player.grounded,
-      directionX:
-        prior === null ? 0 : player.position.x - prior.player.position.x,
-      directionZ:
-        prior === null ? 0 : player.position.z - prior.player.position.z,
-    },
-  });
-  app.scene.lootInteractions = projection.loots.flatMap((loot) =>
-    loot.state === "available"
-      ? [
-          {
-            loot,
-            presentationSubject: lootPresentationSubject(loot),
-            inRange:
-              Math.hypot(
-                player.position.x - loot.position.x,
-                player.position.z - loot.position.z,
-              ) <= projection.lootPickupRadius,
-          },
-        ]
-      : [],
-  );
-  setSubjectLootable(
-    app.scene.presentation,
-    "magitek-boar",
-    ashenKey.state === "available",
-  );
-  setSubjectLootable(
-    app.scene.presentation,
-    "cephorium-cache",
-    cephorium.state === "available",
-  );
-  setFrontierAccess(
-    app.scene.presentation,
-    frontier.boundaryX,
-    frontier.access,
-  );
-  const openLootId = document.body.dataset.lootWindowItem;
-  if (
-    openLootId !== undefined &&
-    !projection.loots.some(
-      (loot) => loot.id === openLootId && loot.state === "available",
-    )
-  ) {
-    closeLootWindow();
-  }
-  setActivityCue(
-    app.scene.presentation,
-    "magitek-boar",
-    enemy.pressureState === "telegraph" ? 1 : 0,
-    enemy.pressureState === "charging" ? 1 : 0,
-    enemy.pressureState === "hit-recovery" ||
-      enemy.pressureState === "overrun-recovery"
-      ? 1
-      : 0,
-  );
-  if (
-    enemy.pressureState === "approach" ||
-    enemy.pressureState === "telegraph" ||
-    enemy.pressureState === "charging"
-  ) {
-    faceSubjectToward(
-      app.scene.presentation,
-      "magitek-boar",
-      player.position,
-    );
-  }
-  const chargeCorridorVisible =
-    enemy.pressureState === "telegraph" || enemy.chargeCommitted;
-  if (chargeCorridorVisible) {
-    const telegraphProgress = Math.max(
-      0,
-      Math.min(1, 1 - enemy.pressureClock / 63),
-    );
-    setChargeCorridor(
-      app.scene.presentation,
-      enemy.chargeStart,
-      enemy.chargeEnd,
-      enemy.chargeRadius,
-      enemy.pressureState === "telegraph" ? telegraphProgress : 1,
-      enemy.pressureState === "charging",
-    );
-  } else {
-    hideChargeCorridor(app.scene.presentation);
-  }
-  setActivityCue(
-    app.scene.presentation,
-    "ashen-key",
-    ashenKey.state === "available" ? 1 : 0,
-    ashenKey.state === "available" ? 0.7 : 0,
-    0,
-  );
-  setActivityCue(
-    app.scene.presentation,
-    "cephorium-cache",
-    cephorium.state === "available" ? 1 : 0,
-    cephorium.state === "available" ? 0.7 : 0,
-    0,
-  );
-  setVitalityBar(
-    "player-vitality-bar",
-    "player-vitality",
-    player.vitality,
-    player.maximumVitality,
-  );
-  setVitalityBar(
-    "enemy-vitality-bar",
-    "enemy-vitality",
-    enemy.vitality,
-    enemy.maximumVitality,
-  );
-  setVitalityBar(
-    "booster-energy-bar",
-    "booster-energy",
-    player.boosterEnergy,
-    player.boosterCapacity,
-  );
-  element("objective").textContent =
-    objectiveStatus === "completed"
-      ? frontier.access === "permanent-open"
-        ? "ASHEN VERGE SECURED · permanent access established"
-        : `CEPHORIUM EXTRACTED · foothold ${frontier.progress} / ${frontier.requirement}`
-      : objectiveStatus === "failed"
-        ? "WAYFARER FALLEN · press R to restore the revision"
-        : ashenKey.state === "available"
-          ? "CORPSE CONTAINS LOOT · move close and right-click the sparkling boar"
-          : ashenKey.state === "acquired" && ashenKey.custody === "player-1"
-            ? "KEY CLAIMED · carry it west to the moonwell"
-            : cephorium.state === "available"
-              ? "ASHEN VERGE CACHE EXPOSED · cross the breach and right-click it"
-              : cephorium.state === "acquired" && cephorium.custody === "player-1"
-                ? "CEPHORIUM SECURED · extract west to the moonwell"
-            : "Read the boar telegraph · burst perpendicular · punish recovery";
-  element("stage").textContent = `world · ${objectiveStatus}`;
-  element("summary").textContent =
-    `wayfarer ${player.combatStatus} · boar ${enemy.combatStatus} / ${enemy.combatBehavior} / ` +
-    `${enemy.pressureState} ${enemy.pressureClock} · recovery ${enemy.recoveryClock} · ` +
-    `key ${ashenKey.state} / ${ashenKey.custody} · ` +
-    `cephorium ${cephorium.state} / ${cephorium.custody} · ` +
-    `booster ${player.boosterEnergy} / ${player.boosterCapacity} · ` +
-    `rig ${player.boosterEquipment} · ` +
-    `frontier ${frontier.access} ${frontier.progress}/${frontier.requirement} · ` +
-    `ignition ${player.boosterThreshold} · regeneration delay ${player.boosterDelay} · ` +
-    `status ${player.statusEffect} ${player.statusClock} · fixed sample ${enemy.randomSample}`;
-  element("combat-state").textContent =
-    `BOOST ${player.boosterEnergy} / ${player.boosterCapacity} · ` +
-    `IGNITE ${player.boosterThreshold} · REGEN ${player.boosterDelay}   ` +
-    `STATUS ${player.statusEffect} · ${player.statusClock}`;
-
-  Object.assign(document.body.dataset, {
-    gamePhase: objectiveStatus,
-    gamePlayerVitality: String(player.vitality),
-    gamePlayerGrounded: String(player.grounded),
-    gameEnemyVitality: String(enemy.vitality),
-    gameEnemyCombatStatus: enemy.combatStatus,
-    gameEnemyBehavior: enemy.combatBehavior,
-    gameLootState: ashenKey.state,
-    gameCustody: ashenKey.custody,
-    gameCephoriumState: cephorium.state,
-    gameCephoriumCustody: cephorium.custody,
-    gameCephoriumX: String(cephorium.position.x),
-    gameCephoriumZ: String(cephorium.position.z),
-    gameFrontierAccess: frontier.access,
-    gameFootholdProgress: String(frontier.progress),
-    gameFootholdRequirement: String(frontier.requirement),
-    gameFrontierBoundaryX: String(frontier.boundaryX),
-    gamePlayerX: String(player.position.x),
-    gamePlayerZ: String(player.position.z),
-    gameBoarX: String(enemy.position.x),
-    gameBoarZ: String(enemy.position.z),
-    gameBoosterEnergy: String(player.boosterEnergy),
-    gameBoosterCapacity: String(player.boosterCapacity),
-    gameBoosterEquipment: player.boosterEquipment,
-    gameBoosterIgnitionThreshold: String(player.boosterThreshold),
-    gameBoosterRegenerationDelay: String(player.boosterDelay),
-    gameStatusEffect: player.statusEffect,
-    gameStatusClock: String(player.statusClock),
-    gameSwordActionSequence: String(player.swordActionSequence),
-    gameSwordCommitmentClock: String(player.swordCommitmentClock),
-    gameCombatTarget: player.combatTarget,
-    gameTargetLockActive: String(player.targetLockActive),
-    gameTargetSelectionSequence: String(player.targetSelectionSequence),
-    gameProjectileVisible: String(bolt.visible),
-    gameWayfarerProjectileVisible: String(wayfarerBolt.visible),
-    gameEnemyPressure: enemy.pressureState,
-    gamePressureClock: String(enemy.pressureClock),
-    gameBoarRecoveryClock: String(enemy.recoveryClock),
-    gameChargeCorridorVisible: String(chargeCorridorVisible),
-    gameChargeTelegraphProgress: String(
-      enemy.pressureState === "telegraph"
-        ? Math.max(0, Math.min(1, 1 - enemy.pressureClock / 63))
-        : enemy.pressureState === "charging"
-          ? 1
-          : 0,
-    ),
-  });
-
-  if (prior !== null) {
-    element("combat-feedback").textContent = "";
-    if (player.swordActionSequence > prior.player.swordActionSequence) {
-      const targetsEnemy =
-        player.targetLockActive && player.combatTarget === "cinder-wraith";
-      playWayfarerSwordAction(
-        app.scene.presentation,
-        targetsEnemy ? enemy.position.x - player.position.x : 0,
-        targetsEnemy ? enemy.position.z - player.position.z : 0,
-      );
-      element("combat-feedback").textContent = "SWORD ACTION ADMITTED";
-    }
-    if (player.targetSelectionSequence > prior.player.targetSelectionSequence) {
-      element("combat-feedback").textContent = "TARGET ACQUIRED · CORRUPTED MAGITEK BOAR";
-    }
-    if (enemy.vitality < prior.enemy.vitality) {
-      const damage = prior.enemy.vitality - enemy.vitality;
-      element("combat-feedback").textContent = `EMBER IMPACT · -${damage}`;
-      signalImpact(
-        app.scene.presentation,
-        "magitek-boar",
-        ordinal,
-        damage / Math.max(0.001, enemy.maximumVitality),
-      );
-      showDamageNumber(damage, "auto-attack", false);
-    }
-    if (player.vitality < prior.player.vitality) {
-      const damage = prior.player.vitality - player.vitality;
-      element("combat-feedback").textContent = `WRAITH IMPACT · -${damage}`;
-      playBoarAttack(app.scene.presentation);
-      signalImpact(
-        app.scene.presentation,
-        "ashen-wayfarer",
-        ordinal,
-        damage / Math.max(0.001, player.maximumVitality),
-      );
-    }
-    if (player.boosterEnergy < prior.player.boosterEnergy) {
-      const spent = prior.player.boosterEnergy - player.boosterEnergy;
-      const magnitude = Math.max(
-        0.45,
-        Math.min(1, spent / Math.max(1, player.boosterThreshold)),
-      );
-      signalPropulsion(
-        app.scene.presentation,
-        "ashen-wayfarer",
-        ordinal,
-        magnitude,
-      );
-    }
-    if (player.combatStatus === "dead" && prior.player.combatStatus !== "dead") {
-      signalDeath(app.scene.presentation, "ashen-wayfarer", ordinal);
-    }
-    if (enemy.combatStatus === "dead" && prior.enemy.combatStatus !== "dead") {
-      signalDeath(app.scene.presentation, "magitek-boar", ordinal);
-    }
-  }
-  resident.lastProjection = projection;
-  boundedGameEvent({
-    phase: "frame-admitted",
-    generation: resident.generation,
-    objective: objectiveStatus,
-    playerX: player.position.x,
-    playerZ: player.position.z,
-    boarX: enemy.position.x,
-    boarZ: enemy.position.z,
-    boosterEnergy: player.boosterEnergy,
-    boosterCapacity: player.boosterCapacity,
-    boosterIgnitionThreshold: player.boosterThreshold,
-    boosterRegenerationDelay: player.boosterDelay,
-    statusEffect: player.statusEffect,
-    statusClock: player.statusClock,
-    swordActionSequence: player.swordActionSequence,
-    swordCommitmentClock: player.swordCommitmentClock,
-    combatTarget: player.combatTarget,
-    targetLockActive: player.targetLockActive,
-    targetSelectionSequence: player.targetSelectionSequence,
-    projectileVisible: bolt.visible,
-    wayfarerProjectileVisible: wayfarerBolt.visible,
-    enemyPressure: enemy.pressureState,
-    pressureClock: enemy.pressureClock,
-    boarRecoveryClock: enemy.recoveryClock,
-    chargeCorridorVisible: enemy.chargeCommitted,
-    playerVitality: player.vitality,
-    enemyVitality: enemy.vitality,
-    enemyBehavior: enemy.combatBehavior,
-    lootState: ashenKey.state,
-    custody: ashenKey.custody,
-    cephoriumState: cephorium.state,
-    cephoriumCustody: cephorium.custody,
+function decodeUnits(projection: unknown): readonly UnitView[] {
+  return unitIds.map((id) => {
+    const unit = field(projection, id, "game projection");
+    const position = field(unit, "unit-position", id);
+    const classId = text(unit, "unit-class", id);
+    const classProjection = field(projection, classId, "game projection");
+    return {
+      id,
+      name: text(unit, "unit-name", id),
+      unitClass: unitClass(text(classProjection, "class-name", classId)),
+      x: number(position, "x", `${id}.unit-position`),
+      z: number(position, "z", `${id}.unit-position`),
+      selected: boolean(unit, "selected", id),
+      moving: boolean(unit, "moving", id),
+    };
   });
 }
 
-function residentLawFailure(message: string): void {
-  element("resident-law").textContent = `Source generation rejected\n${message}`;
-  document.body.dataset.residentPhase = "rejected";
+function sendInput(state: GameState, input: ResidentInput): void {
+  state.resident.worker.postMessage({ kind: "input", input });
 }
 
-function handleLifecycleReceipt(
-  app: PlayApp,
-  generation: number,
-  receipt: ResidentLifecycleReceipt,
-): void {
-  const resident = app.residentLaw;
-  boundedGameEvent({
-    phase: receipt.event,
+function press(state: GameState, code: string): void {
+  sendInput(state, { kind: "keyboard", code, phase: "down", repeat: false });
+}
+
+function selectUnits(state: GameState, ids: readonly string[]): void {
+  const desired = new Set(ids);
+  press(state, "ClearSelection");
+  for (const id of unitIds) if (desired.has(id)) press(state, classCodes[id]);
+  window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "selection-requested", units: [...desired] });
+}
+
+function issueMove(state: GameState, point: Vector3): void {
+  sendInput(state, { kind: "scalar-input", channel: "PointerWorldX", value: point.x });
+  sendInput(state, { kind: "scalar-input", channel: "PointerWorldZ", value: point.z });
+  press(state, "IssueMove");
+  element("command-status").textContent = `Move formation to ${point.x.toFixed(1)}, ${point.z.toFixed(1)}`;
+  window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "move-requested", x: point.x, z: point.z });
+}
+
+function renderHud(state: GameState): void {
+  const selected = state.units.filter((unit) => unit.selected);
+  document.body.dataset.selectedCount = String(selected.length);
+  document.body.dataset.unitClasses = state.units.map((unit) => unit.unitClass).join(",");
+  for (const unit of state.units) {
+    const card = element(`roster-${unit.id}`);
+    card.classList.toggle("selected", unit.selected);
+    card.classList.toggle("moving", unit.moving);
+    card.setAttribute("aria-pressed", String(unit.selected));
+  }
+  const primary = selected[0];
+  element("selection-count").textContent = `${selected.length} / 5 selected`;
+  element("selected-name").textContent = primary?.name ?? "No unit selected";
+  element("selected-class").textContent = primary?.unitClass ?? "Drag a box or click a unit";
+  element("equipment-owner").textContent = primary === undefined
+    ? "No unit selected"
+    : `${primary.name} · ${primary.unitClass}`;
+  element("command-move").toggleAttribute("disabled", selected.length === 0);
+}
+
+function applyProjection(state: GameState, projection: unknown, generation: number): void {
+  state.units = decodeUnits(projection);
+  state.presentation.applyUnits(state.units);
+  renderHud(state);
+  document.body.dataset.gamePhase = "ready";
+  document.body.dataset.residentGeneration = String(generation);
+  element("authority-status").textContent = `Clause generation ${generation} · five-unit authority live`;
+  window.__GREYWROUGHT_GAME_EVENTS__.push({
+    phase: "projection",
     generation,
-    runtimeGeneration: receipt.activeGeneration,
-    operation: receipt.operationId,
-    detail: receipt.detail,
+    selected: state.units.filter((unit) => unit.selected).map((unit) => unit.id),
+    positions: Object.fromEntries(state.units.map((unit) => [unit.id, [unit.x, unit.z]])),
   });
-  if (receipt.event === "candidate-produced") {
-    resident.candidateGeneration = generation;
-    document.body.dataset.gameCustodyPhase = "candidate-hidden";
-    element("game-custody").textContent =
-      `CandidateDelta retained and hidden\ngeneration ${generation} · ` +
-      `operation ${receipt.operationId}`;
-    return;
-  }
-  if (receipt.event === "admission-accepted") {
-    const ordered = resident.candidateGeneration === generation;
-    const pending = resident.pendingHot;
-    document.body.dataset.gameCustodyPhase = ordered
-      ? "candidate-before-admission"
-      : "order-violation";
-    element("game-custody").textContent =
-      `CandidateDelta hidden first\nseparate Admission installed successor\n` +
-      `operation ${receipt.operationId}`;
-    if (ordered) resident.candidateGeneration = null;
-    if (pending?.hot === true && generation === pending.generation) {
-      const latency = Date.now() - pending.sourceModifiedMillis;
-      document.body.dataset.residentLatencyMillis = String(latency);
-      element("resident-law").textContent =
-        `generation ${pending.generation} · admitted live edit\n` +
-        `source-save → behavior ${latency} ms · resident compile ` +
-        `${pending.compilerMicros} µs`;
-      window.__GREYWROUGHT_RESIDENT_EVENTS__.push({
-        phase: "admitted",
-        generation: pending.generation,
-        latencyMillis: latency,
-        compilerMicros: pending.compilerMicros,
-      });
-      resident.pendingHot = null;
-    }
-    return;
-  }
-  if (receipt.event === "session-started") {
-    const pending = resident.pendingHot;
-    if (pending?.hot === true && generation === pending.generation) {
-      window.__GREYWROUGHT_RESIDENT_EVENTS__.push({
-        phase: "session-started",
-        generation: pending.generation,
-        latencyMillis: Date.now() - pending.sourceModifiedMillis,
-        compilerMicros: pending.compilerMicros,
-      });
-    }
-    document.body.dataset.residentPhase = "session-started";
-    return;
-  }
-  if (
-    receipt.event === "candidate-failed" ||
-    receipt.event === "admission-rejected" ||
-    receipt.event === "session-failed" ||
-    receipt.event === "package-rejected"
-  ) {
-    residentLawFailure(receipt.detail);
-  }
 }
 
-function parseGenerationPayload(value: unknown): GenerationPayload {
-  const record = requireForeignRecord(value, "resident generation");
-  const generation = requireNumber(
-    requireField(record, "generation", "resident generation"),
-    "resident generation.generation",
-  );
-  const compilerMicros = requireNumber(
-    requireField(record, "compilerMicros", "resident generation"),
-    "resident generation.compilerMicros",
-  );
-  const sourceModifiedMillis = requireNumber(
-    requireField(record, "sourceModifiedMillis", "resident generation"),
-    "resident generation.sourceModifiedMillis",
-  );
-  requireCondition(
-    Number.isSafeInteger(generation) &&
-      Number.isSafeInteger(compilerMicros) &&
-      Number.isSafeInteger(sourceModifiedMillis),
-    "resident generation counters must be safe integers",
-  );
-  return {
-    generation,
-    compilerMicros,
-    cwr1: requireString(
-      requireField(record, "cwr1", "resident generation"),
-      "resident generation.cwr1",
-    ),
-    sourceModifiedMillis,
-    hot: requireBoolean(
-      requireField(record, "hot", "resident generation"),
-      "resident generation.hot",
-    ),
-  };
-}
-
-function installResidentLaw(app: PlayApp, payload: GenerationPayload): void {
-  const resident = app.residentLaw;
-  resident.generation = payload.generation;
-  resident.pendingHot = payload.hot ? payload : null;
-  if (payload.hot) {
-    window.__GREYWROUGHT_RESIDENT_EVENTS__.push({
-      phase: "generation-received",
-      generation: payload.generation,
-      latencyMillis: Date.now() - payload.sourceModifiedMillis,
-      compilerMicros: payload.compilerMicros,
-    });
-  }
-  document.body.dataset.residentGeneration = String(payload.generation);
-  document.body.dataset.residentCompilerMicros = String(payload.compilerMicros);
-  element("resident-law").textContent =
-    `generation ${payload.generation} · checked\nresident compile ` +
-    `${payload.compilerMicros} µs\nawaiting first admitted frame`;
-  resident.worker.postMessage({ kind: "install-generation", payload });
-}
-
-function queueResidentProjection(
-  app: PlayApp,
-  projection: ResidentProjection,
-): void {
-  const resident = app.residentLaw;
-  resident.pendingProjection = projection;
-  if (resident.projectionFrameHandle !== 0) return;
-  // Do not couple authoritative projection ingestion to RAF. RAF may be
-  // throttled while a tab is backgrounded or a compositor is busy; a timer
-  // keeps the latest admitted state and keyboard feedback flowing even then.
-  resident.projectionFrameHandle = window.setTimeout(() => {
-    resident.projectionFrameHandle = 0;
-    const pending = resident.pendingProjection;
-    resident.pendingProjection = null;
-    if (pending === null) return;
-    if (pending.generation !== resident.generation) return;
-    const startedAt = performance.now();
-    renderGameProjection(app, pending.value);
-    const finishedAt = performance.now();
-    if (finishedAt - startedAt > 50) {
-      boundedGameEvent({
-        phase: "projection-main-thread-stall",
-        frameUnits: pending.frameUnits,
-        totalMillis: Math.round(finishedAt - startedAt),
-      });
-    }
-  }, 16);
-}
-
-function parseResidentReceipt(value: unknown): ResidentLifecycleReceipt {
-  const receipt = requireForeignRecord(value, "resident lifecycle receipt");
-  return {
-    event: requireString(
-      requireField(receipt, "event", "resident lifecycle receipt"),
-      "resident lifecycle receipt.event",
-    ),
-    activeGeneration: requireNumber(
-      requireField(receipt, "activeGeneration", "resident lifecycle receipt"),
-      "resident lifecycle receipt.activeGeneration",
-    ),
-    operationId: requireNumber(
-      requireField(receipt, "operationId", "resident lifecycle receipt"),
-      "resident lifecycle receipt.operationId",
-    ),
-    detail: requireString(
-      requireField(receipt, "detail", "resident lifecycle receipt"),
-      "resident lifecycle receipt.detail",
-    ),
-  };
-}
-
-function bindResidentWorker(app: PlayApp, listeners: Array<() => void>): void {
-  const { worker } = app.residentLaw;
+function bindResident(state: GameState): void {
   const message = (event: MessageEvent<unknown>): void => {
     try {
-      const value = requireForeignRecord(event.data, "resident worker event");
-      const kind = requireString(
-        requireField(value, "kind", "resident worker event"),
-        "resident worker event.kind",
-      );
+      const payload = record(event.data, "resident event");
+      const kind = payload.kind;
       if (kind === "projection") {
-        queueResidentProjection(app, {
-          generation: requireNumber(
-            requireField(value, "generation", "resident worker event"),
-            "resident worker event.generation",
-          ),
-          value: requireField(value, "projection", "resident worker event"),
-          frameUnits: requireNumber(
-            requireField(value, "frameUnits", "resident worker event"),
-            "resident worker event.frameUnits",
-          ),
-        });
+        const generation = payload.generation;
+        if (typeof generation !== "number" || generation < state.resident.generation) return;
+        applyProjection(state, payload.projection, generation);
       } else if (kind === "receipt") {
-        handleLifecycleReceipt(
-          app,
-          requireNumber(
-            requireField(value, "generation", "resident worker event"),
-            "resident worker event.generation",
-          ),
-          parseResidentReceipt(
-            requireField(value, "receipt", "resident worker event"),
-          ),
-        );
+        const receipt = record(payload.receipt, "resident receipt");
+        if (typeof receipt.event === "string") document.body.dataset.lastReceipt = receipt.event;
       } else if (kind === "heartbeat") {
-        const pendingInputCount = requireNumber(
-          requireField(value, "pendingInputCount", "resident worker heartbeat"),
-          "resident worker heartbeat.pendingInputCount",
-        );
-        const pendingObservationCount = requireNumber(
-          requireField(
-            value,
-            "pendingObservationCount",
-            "resident worker heartbeat",
-          ),
-          "resident worker heartbeat.pendingObservationCount",
-        );
-        const workbenchPhase = requireString(
-          requireField(value, "workbenchPhase", "resident worker heartbeat"),
-          "resident worker heartbeat.workbenchPhase",
-        );
-        const receivedInputCount = requireNumber(
-          requireField(value, "receivedInputCount", "resident worker heartbeat"),
-          "resident worker heartbeat.receivedInputCount",
-        );
-        const acceptedInputCount = requireNumber(
-          requireField(value, "acceptedInputCount", "resident worker heartbeat"),
-          "resident worker heartbeat.acceptedInputCount",
-        );
-        const maximumInputQueueDepth = requireNumber(
-          requireField(
-            value,
-            "maximumInputQueueDepth",
-            "resident worker heartbeat",
-          ),
-          "resident worker heartbeat.maximumInputQueueDepth",
-        );
-        const inputBackpressureCount = requireNumber(
-          requireField(
-            value,
-            "inputBackpressureCount",
-            "resident worker heartbeat",
-          ),
-          "resident worker heartbeat.inputBackpressureCount",
-        );
-        boundedGameEvent({
-          phase: "worker-heartbeat",
-          workerTimeMillis: requireNumber(
-            requireField(value, "workerTimeMillis", "resident worker heartbeat"),
-            "resident worker heartbeat.workerTimeMillis",
-          ),
-          pendingInputCount,
-          pendingObservationCount,
-          workbenchPhase,
-          receivedInputCount,
-          acceptedInputCount,
-          maximumInputQueueDepth,
-          inputBackpressureCount,
-        });
-        Object.assign(document.body.dataset, {
-          residentPendingInputs: String(pendingInputCount),
-          residentPendingObservations: String(pendingObservationCount),
-          residentWorkbenchPhase: workbenchPhase,
-          residentReceivedInputs: String(receivedInputCount),
-          residentAcceptedInputs: String(acceptedInputCount),
-          residentMaximumInputQueueDepth: String(maximumInputQueueDepth),
-          residentInputBackpressureCount: String(inputBackpressureCount),
-        });
+        if (typeof payload.workbenchPhase === "string") document.body.dataset.workbenchPhase = payload.workbenchPhase;
       } else if (kind === "failure") {
-        residentLawFailure(
-          requireString(
-            requireField(value, "message", "resident worker event"),
-            "resident worker event.message",
-          ),
-        );
-      } else {
-        throw new Error(`unknown resident worker event ${kind}`);
+        throw new Error(typeof payload.message === "string" ? payload.message : "resident worker failed");
       }
     } catch (cause: unknown) {
-      residentLawFailure(cause instanceof Error ? cause.message : String(cause));
+      const message = cause instanceof Error ? cause.message : String(cause);
+      document.body.dataset.gamePhase = "failed";
+      element("authority-status").textContent = `Clause authority failed: ${message}`;
     }
   };
-  const error = (event: ErrorEvent): void => residentLawFailure(event.message);
-  worker.addEventListener("message", message);
-  worker.addEventListener("error", error);
-  listeners.push(() => worker.removeEventListener("message", message));
-  listeners.push(() => worker.removeEventListener("error", error));
+  const error = (event: ErrorEvent): void => {
+    document.body.dataset.gamePhase = "failed";
+    element("authority-status").textContent = `Resident worker failed: ${event.message}`;
+  };
+  state.resident.worker.addEventListener("message", message);
+  state.resident.worker.addEventListener("error", error);
+  state.listeners.push(() => state.resident.worker.removeEventListener("message", message));
+  state.listeners.push(() => state.resident.worker.removeEventListener("error", error));
 }
 
-async function pollResidentLaw(app: PlayApp): Promise<void> {
-  const resident = app.residentLaw;
-  if (resident.polling || resident.staticGeneration) return;
-  resident.polling = true;
+function parseGeneration(value: unknown): GenerationPayload {
+  const source = record(value, "resident generation");
+  const { generation, compilerMicros, cwr1, sourceModifiedMillis, hot } = source;
+  if (
+    typeof generation !== "number" || typeof compilerMicros !== "number" ||
+    typeof cwr1 !== "string" || typeof sourceModifiedMillis !== "number" || typeof hot !== "boolean"
+  ) throw new Error("resident generation payload is malformed");
+  return { generation, compilerMicros, cwr1, sourceModifiedMillis, hot };
+}
+
+function installGeneration(state: GameState, payload: GenerationPayload): void {
+  state.resident.generation = payload.generation;
+  state.resident.worker.postMessage({ kind: "install-generation", payload });
+  element("authority-status").textContent = payload.hot
+    ? `Installing Clause generation ${payload.generation} · ${(payload.compilerMicros / 1000).toFixed(1)} ms`
+    : `Opening Clause generation ${payload.generation}`;
+}
+
+async function pollResident(state: GameState): Promise<void> {
+  if (state.disposed || state.resident.polling || state.resident.staticGeneration) return;
+  state.resident.polling = true;
   try {
-    const response = await fetch(
-      publicUrl(`resident-generation?after=${resident.generation}`),
-      { cache: "no-store" },
-    );
-    if (response.status === 404 && resident.generation < 0) {
-      resident.staticGeneration = true;
-      document.body.dataset.residentMode = "static";
-      const cwr1 = await fetchText(
-        publicUrl("assets/embodied-encounter-v1.cwr1.hex"),
-      );
-      installResidentLaw(app, {
-        generation: 0,
-        compilerMicros: 0,
-        cwr1,
-        sourceModifiedMillis: 0,
-        hot: false,
+    const response = await fetch(publicUrl(`resident-generation?after=${state.resident.generation}`), { cache: "no-store" });
+    if (response.status === 404 && state.resident.generation < 0) {
+      state.resident.staticGeneration = true;
+      const cartridge = await fetch(publicUrl("assets/embodied-encounter-v1.cwr1.hex")).then((entry) => {
+        if (!entry.ok) throw new Error(`static Clause cartridge failed: ${entry.status}`);
+        return entry.text();
       });
-      element("resident-law").textContent =
-        "release law admitted\nstatic embodied cartridge";
+      installGeneration(state, { generation: 0, compilerMicros: 0, cwr1: cartridge, sourceModifiedMillis: 0, hot: false });
       return;
     }
-    if (response.status === 204) {
-      if (response.headers.get("X-Greywrought-Source-State") === "rejected") {
-        document.body.dataset.residentSourcePhase = "rejected";
-        element("resident-law").textContent =
-          `generation ${resident.generation} retained\n` +
-          "source edit rejected · play continues";
-      } else {
-        document.body.dataset.residentSourcePhase = "active";
-      }
-      return;
-    }
-    const body: unknown = await response.json();
-    if (!response.ok) {
-      const record = requireForeignRecord(body, "resident rejection");
-      const errorHex = requireString(
-        requireField(record, "errorHex", "resident rejection"),
-        "resident rejection.errorHex",
-      );
-      throw new Error(`resident source rejected: ${errorHex}`);
-    }
-    document.body.dataset.residentSourcePhase = "active";
-    installResidentLaw(app, parseGenerationPayload(body));
+    if (response.status === 204) return;
+    const payload: unknown = await response.json();
+    if (!response.ok) throw new Error("resident source edit was rejected; prior generation retained");
+    installGeneration(state, parseGeneration(payload));
   } catch (cause: unknown) {
-    residentLawFailure(cause instanceof Error ? cause.message : String(cause));
+    const message = cause instanceof Error ? cause.message : String(cause);
+    element("authority-status").textContent = message;
   } finally {
-    resident.polling = false;
+    state.resident.polling = false;
   }
 }
 
-function focusScene(shell: SceneShell): void {
-  shell.canvas.focus({ preventScroll: true });
-  element("selection").textContent =
-    "Arena focused. Keyboard input enters the resident Clause session.";
-}
-
-function closeLootWindow(): void {
-  element("loot-window").hidden = true;
-  document.body.dataset.lootWindow = "closed";
-  delete document.body.dataset.lootWindowItem;
-}
-
-function lootCategoryLabel(category: string): string {
-  return category === "quest-item" ? "Quest Item" : "Crafting Material";
-}
-
-function openLootWindow(
-  canvas: HTMLCanvasElement,
-  clientX: number,
-  clientY: number,
-  loot: LootProjection,
-): void {
-  const lootWindow = element("loot-window");
-  element("loot-item-icon").textContent =
-    loot.category === "quest-item" ? "⚿" : "◈";
-  element("loot-item-name").textContent = loot.name;
-  element("loot-item-category").textContent = lootCategoryLabel(loot.category);
-  const canvasRectangle = canvas.getBoundingClientRect();
-  lootWindow.hidden = false;
-  const lootRectangle = lootWindow.getBoundingClientRect();
-  const left = Math.max(
-    12,
-    Math.min(
-      canvasRectangle.width - lootRectangle.width - 12,
-      clientX - canvasRectangle.left + 12,
-    ),
-  );
-  const top = Math.max(
-    12,
-    Math.min(
-      canvasRectangle.height - lootRectangle.height - 12,
-      clientY - canvasRectangle.top + 12,
-    ),
-  );
-  lootWindow.style.left = `${left}px`;
-  lootWindow.style.top = `${top}px`;
-  document.body.dataset.lootWindow = "open";
-  document.body.dataset.lootWindowItem = loot.id;
-  button("loot-item").focus({ preventScroll: true });
-}
-
-function renderLoop(shell: SceneShell): void {
-  if (!shell.alive) return;
-  const now = performance.now();
-  if (shell.lastFrameRenderedAt > 0 && now - shell.lastFrameRenderedAt > 250) {
-    boundedGameEvent({
-      phase: "frame-gap",
-      gapMillis: Math.round(now - shell.lastFrameRenderedAt),
-    });
-  }
-  shell.lastFrameRenderedAt = now;
-  const { canvas, presentation } = shell;
-  const renderStartedAt = performance.now();
-  renderPresentationFrame(
-    presentation,
-    Date.now() / 1000,
-    Math.max(1, Math.trunc(canvas.clientWidth)),
-    Math.max(1, Math.trunc(canvas.clientHeight)),
-  );
-  const renderDuration = performance.now() - renderStartedAt;
-  if (renderDuration > 100) {
-    boundedGameEvent({
-      phase: "render-stall",
-      durationMillis: Math.round(renderDuration),
-    });
-  }
-  renderEnemyNameplate(shell);
-  boundedGameEvent({ phase: "frame-rendered" });
-  Object.assign(document.body.dataset, {
-    gameCameraX: String(presentation.camera.position.x),
-    gameCameraY: String(presentation.camera.position.y),
-    gameCameraZ: String(presentation.camera.position.z),
-    gameCameraTargetX: String(presentation.cameraTargetX),
-    gameCameraTargetY: String(presentation.cameraTargetY),
-    gameCameraTargetZ: String(presentation.cameraTargetZ),
-    gameCameraLookX: String(presentation.cameraFollowX),
-    gameCameraLookY: String(presentation.cameraFollowY + 0.45),
-    gameCameraLookZ: String(presentation.cameraFollowZ),
-    gameCameraOrbitYaw: String(presentation.cameraOrbitYaw),
-    gameCameraOrbitPitch: String(presentation.cameraOrbitPitch),
-    gameCameraDistance: String(presentation.cameraDistance),
-  });
-  shell.frameHandle = requestAnimationFrame(() => renderLoop(shell));
-}
-
-function renderEnemyNameplate(shell: SceneShell): void {
-  const admitted = shell.enemyNameplateProjection;
-  if (admitted === null) {
-    shell.enemyNameplate.hidden = true;
-    return;
-  }
-  const projected = shell.enemyNameplateAnchor
-    .set(admitted.position.x, admitted.position.y + 1.62, admitted.position.z)
-    .project(shell.presentation.camera);
-  const visible =
-    projected.x >= -1 &&
-    projected.x <= 1 &&
-    projected.y >= -1 &&
-    projected.y <= 1 &&
-    projected.z >= -1 &&
-    projected.z <= 1;
-  const left = `${(projected.x * 0.5 + 0.5) * shell.canvas.clientWidth}px`;
-  const top = `${(-projected.y * 0.5 + 0.5) * shell.canvas.clientHeight}px`;
-  const damageNumber = element("enemy-damage-number");
-  damageNumber.style.left = left;
-  damageNumber.style.top = top;
-  if (!admitted.alive || admitted.vitality <= 0) {
-    shell.enemyNameplate.hidden = true;
-    return;
-  }
-  shell.enemyNameplate.hidden = !visible;
-  if (!visible) return;
-  shell.enemyNameplate.style.left = left;
-  shell.enemyNameplate.style.top = top;
-}
-
-function createScene(): SceneShell {
-  const presentation = createCinderwakePresentation(
-    {
-      wayfarer: "ashen-wayfarer",
-      wraith: "cinder-wraith",
-      boar: "magitek-boar",
-      bolt: "cinder-bolt",
-      relic: "ashen-key",
-      cache: "cephorium-cache",
-      moonwell: "moonwell",
-    },
-    Math.max(1, Math.min(2, window.devicePixelRatio)),
-  );
-  const canvas = presentation.renderer.domElement;
-  const enemyNameplate = element("enemy-nameplate");
-  const enemyNameplateFill = element("enemy-nameplate-health-fill");
-  let shell: SceneShell | null = null;
-  let cameraPointer: Readonly<{
-    pointerId: number;
-    clientX: number;
-    clientY: number;
-  }> | null = null;
-  const pointerHandler = (event: PointerEvent): void => {
-    if (shell === null) return;
-    focusScene(shell);
+function bindInteraction(state: GameState): void {
+  const canvas = state.presentation.canvas;
+  const rectanglePoint = (clientX: number, clientY: number): readonly [number, number] => {
+    const bounds = canvas.getBoundingClientRect();
+    return [clientX - bounds.left, clientY - bounds.top];
+  };
+  const showSelectionRectangle = (startX: number, startY: number, endX: number, endY: number): void => {
+    state.selectionRectangle.hidden = false;
+    state.selectionRectangle.style.left = `${Math.min(startX, endX)}px`;
+    state.selectionRectangle.style.top = `${Math.min(startY, endY)}px`;
+    state.selectionRectangle.style.width = `${Math.abs(endX - startX)}px`;
+    state.selectionRectangle.style.height = `${Math.abs(endY - startY)}px`;
+  };
+  const pointerDown = (event: PointerEvent): void => {
+    canvas.focus({ preventScroll: true });
     if (event.button !== 0) return;
     event.preventDefault();
-    cameraPointer = {
-      pointerId: event.pointerId,
-      clientX: event.clientX,
-      clientY: event.clientY,
-    };
+    const [x, y] = rectanglePoint(event.clientX, event.clientY);
+    state.drag = { pointerId: event.pointerId, x, y, moved: false };
     canvas.setPointerCapture(event.pointerId);
   };
-  const pointerMoveHandler = (event: PointerEvent): void => {
-    if (cameraPointer === null || cameraPointer.pointerId !== event.pointerId) {
-      return;
-    }
-    event.preventDefault();
-    orbitPresentationCamera(
-      presentation,
-      event.clientX - cameraPointer.clientX,
-      event.clientY - cameraPointer.clientY,
-    );
-    cameraPointer = {
-      pointerId: event.pointerId,
-      clientX: event.clientX,
-      clientY: event.clientY,
-    };
+  const pointerMove = (event: PointerEvent): void => {
+    state.presentation.setPointer(event.clientX, event.clientY, true);
+    if (state.drag === null || state.drag.pointerId !== event.pointerId) return;
+    const [x, y] = rectanglePoint(event.clientX, event.clientY);
+    const moved = state.drag.moved || Math.hypot(x - state.drag.x, y - state.drag.y) > 5;
+    state.drag = { ...state.drag, moved };
+    if (moved) showSelectionRectangle(state.drag.x, state.drag.y, x, y);
   };
-  const pointerReleaseHandler = (event: PointerEvent): void => {
-    if (cameraPointer === null || cameraPointer.pointerId !== event.pointerId) {
-      return;
-    }
-    cameraPointer = null;
-    if (canvas.hasPointerCapture(event.pointerId)) {
-      canvas.releasePointerCapture(event.pointerId);
-    }
-  };
-  const contextMenuHandler = (event: MouseEvent): void => {
-    event.preventDefault();
-    if (shell === null) return;
-    for (const interaction of shell.lootInteractions) {
-      if (
-        !pickPresentationSubject(
-          presentation,
-          interaction.presentationSubject,
-          event.clientX,
-          event.clientY,
-        )
-      ) {
-        continue;
-      }
-      if (!interaction.inRange) {
-        element("combat-feedback").textContent = "TOO FAR AWAY TO LOOT";
-        return;
-      }
-      focusScene(shell);
-      openLootWindow(canvas, event.clientX, event.clientY, interaction.loot);
-      return;
-    }
-  };
-  const wheelHandler = (event: WheelEvent): void => {
-    event.preventDefault();
-    zoomPresentationCamera(presentation, event.deltaY);
-  };
-  shell = {
-    presentation,
-    canvas,
-    pointerHandler,
-    pointerMoveHandler,
-    pointerReleaseHandler,
-    contextMenuHandler,
-    wheelHandler,
-    enemyNameplate,
-    enemyNameplateFill,
-    enemyNameplateAnchor: new Vector3(),
-    enemyNameplateProjection: null,
-    lootInteractions: [],
-    frameHandle: 0,
-    lastFrameRenderedAt: 0,
-    alive: true,
-  };
-  canvas.id = "world-canvas";
-  canvas.tabIndex = 0;
-  canvas.setAttribute("aria-label", "Greywrought semantic world");
-  element("world-wrap").prepend(canvas);
-  canvas.addEventListener("pointerdown", pointerHandler);
-  canvas.addEventListener("pointermove", pointerMoveHandler);
-  canvas.addEventListener("pointerup", pointerReleaseHandler);
-  canvas.addEventListener("pointercancel", pointerReleaseHandler);
-  canvas.addEventListener("contextmenu", contextMenuHandler);
-  canvas.addEventListener("wheel", wheelHandler, { passive: false });
-  renderLoop(shell);
-  return shell;
-}
-
-function stageView(stage: JourneyStage): StageView {
-  switch (stage.kind) {
-    case "dormant":
-      return {
-        label: "threshold",
-        summary: "Enter the pinned world. Nothing has executed yet.",
-        canEnter: true,
-        canDisconnect: false,
-        canAdvance: false,
-        canSubmit: false,
-        canAdmit: false,
-        branchVisible: false,
-        candidateText: null,
-        projectionText: "Hidden until Admission.",
-        explanationText: "No authoritative successor yet.",
-      };
-    case "ready":
-      return {
-        label: "authoritative · R0",
-        summary:
-          "The wayfarer, wraith, key, and moonwell exist under the exact Clause program.",
-        canEnter: false,
-        canDisconnect: true,
-        canAdvance: false,
-        canSubmit: false,
-        canAdmit: false,
-        branchVisible: false,
-        candidateText: null,
-        projectionText: "Hidden until Admission.",
-        explanationText: "No authoritative successor yet.",
-      };
-    case "disconnected":
-      return {
-        label: "forked · tick 41",
-        summary:
-          "The disconnected branch has exact ancestry and bounded authority. It is not world truth.",
-        canEnter: false,
-        canDisconnect: false,
-        canAdvance: true,
-        canSubmit: false,
-        canAdmit: false,
-        branchVisible: true,
-        candidateText: null,
-        projectionText: "Hidden until Admission.",
-        explanationText: "Branch ancestry retained; no successor yet.",
-      };
-    case "branch-advanced":
-      return {
-        label: "branch advanced",
-        summary:
-          "Combat ran inside the isolated branch while the authoritative world advanced independently.",
-        canEnter: false,
-        canDisconnect: false,
-        canAdvance: false,
-        canSubmit: true,
-        canAdmit: false,
-        branchVisible: true,
-        candidateText: null,
-        projectionText: "Hidden until Admission.",
-        explanationText: "A branch result exists, but has not been submitted.",
-      };
-    case "candidate-submitted":
-      return {
-        label: "candidate pending",
-        summary:
-          "The Candidate Delta is visible as a sealed proposal only. Authoritative geometry is unchanged.",
-        canEnter: false,
-        canDisconnect: false,
-        canAdvance: false,
-        canSubmit: false,
-        canAdmit: true,
-        branchVisible: true,
-        candidateText: `Pending CandidateDelta\n${identityString(stage.proposal.evidence.candidate)}`,
-        projectionText: "Hidden until Admission.",
-        explanationText: "Awaiting explicit authoritative adjudication.",
-      };
-    case "successor-admitted":
-      return {
-        label: "admitted successor",
-        summary:
-          "Admission replayed the branch against the current authority and established a new revision.",
-        canEnter: false,
-        canDisconnect: false,
-        canAdvance: false,
-        canSubmit: false,
-        canAdmit: false,
-        branchVisible: true,
-        candidateText: null,
-        projectionText: JSON.stringify(stage.projection, null, 2),
-        explanationText: JSON.stringify(stage.explanation, null, 2),
-      };
-  }
-}
-
-function renderStage(app: PlayApp): void {
-  const view = stageView(app.stage);
-  element("stage").textContent = view.label;
-  element("summary").textContent = view.summary;
-  button("enter-world").disabled = !view.canEnter;
-  button("disconnect").disabled = !view.canDisconnect;
-  button("continue-branch").disabled = !view.canAdvance;
-  button("submit-candidate").disabled = !view.canSubmit;
-  button("admit-candidate").disabled = !view.canAdmit;
-  element("branch-label").classList.toggle("visible", view.branchVisible);
-  const candidate = element("candidate");
-  candidate.classList.toggle("visible", view.candidateText !== null);
-  candidate.textContent = view.candidateText ?? "";
-  element("projection").textContent = view.projectionText;
-  element("explanation").textContent = view.explanationText;
-  document.body.dataset.journey = view.label;
-}
-
-function enterWorld(app: PlayApp): void {
-  if (app.stage.kind === "dormant") app.stage = { kind: "ready" };
-  renderStage(app);
-}
-
-function disconnect(app: PlayApp): void {
-  if (app.stage.kind === "ready") {
-    const worldShift = requireValue(app.occurrences[0], "world-shift occurrence");
-    app.stage = {
-      kind: "disconnected",
-      processBranch: openProcessBranch(
-        app.module,
-        app.branchRequest,
-        41,
-        worldShift,
-        8,
-      ),
-    };
-  }
-  renderStage(app);
-}
-
-function advanceBranch(app: PlayApp): void {
-  if (app.stage.kind === "disconnected") {
-    const processBranch = app.stage.processBranch;
-    const worldShift = requireValue(app.occurrences[0], "world-shift occurrence");
-    const combat = app.occurrences.slice(1);
-    app.stage = {
-      kind: "branch-advanced",
-      processBranch,
-      authoritative: admitAuthoritativeOccurrences(app.module, processBranch, [
-        worldShift,
-      ]),
-      proposal: proposeBranchReconnect(app.module, processBranch, combat),
-    };
-  }
-  renderStage(app);
-}
-
-function submitCandidate(app: PlayApp): void {
-  if (app.stage.kind === "branch-advanced") {
-    app.stage = { ...app.stage, kind: "candidate-submitted" };
-  }
-  renderStage(app);
-}
-
-function admitCandidate(app: PlayApp): void {
-  if (app.stage.kind === "candidate-submitted") {
-    const { processBranch, authoritative, proposal } = app.stage;
-    const admitted = adjudicateBranchReconnect(
-      app.module,
-      processBranch,
-      proposal,
-      authoritative.successor,
-      app.occurrences.slice(1),
-    );
-    requireCondition(
-      admitted.projection !== null,
-      "branch Admission produced no projection",
-    );
-    app.stage = {
-      kind: "successor-admitted",
-      processBranch,
-      admitted,
-      explanation: explainProcessBranch(app.module, processBranch).explanation,
-      projection: decodeProjectedTermFrame(admitted.projection.termBytes),
-    };
-  }
-  renderStage(app);
-}
-
-function exactReceipt(value: unknown): readonly number[] {
-  return requireArray(value, "moonwell receipt").map((byte, index) => {
-    const number = requireNumber(byte, `moonwell receipt[${index}]`);
-    requireCondition(
-      Number.isSafeInteger(number) && number >= 0 && number <= 255,
-      `moonwell receipt[${index}] is not a byte`,
-    );
-    return number;
-  });
-}
-
-function pulseMoonwell(app: PlayApp): void {
-  if (app.effectSettled) return;
-  const { session } = app.effect;
-  const { module } = app;
-  const first = advanceSessionOccurrence(module, session, 0);
-  const suspension = suspendSession(module, session);
-  const resumption = resumeSession(module, session);
-  const second = advanceSessionOccurrence(module, session, 1);
-  const intent = emitEffectIntent(module, session);
-  const issued = issueEffectAuthorization(module, session, intent.intentId);
-  const attempt = beginEffectAttempt(module, session, issued.authorizationId);
-  const key = "greywrought/moonwell-receipt-v1";
-  localStorage.setItem(key, JSON.stringify(attempt.payloadBytes));
-  const stored = localStorage.getItem(key);
-  requireCondition(stored !== null, "moonwell receipt was not retained");
-  const receipt = exactReceipt(parseForeignJson(stored, "moonwell receipt"));
-  const settled = settleEffectAttempt(
-    module,
-    session,
-    attempt.attemptId,
-    0,
-    receipt,
-  );
-  app.effectSettled = true;
-  button("pulse-moonwell").disabled = true;
-  element("effect").textContent =
-    `Activation ${identityString(intent.activation)}\n` +
-    `Intent ${identityString(intent.intentId)}\n` +
-    `Attempt ${identityString(attempt.attemptId)}\n` +
-    `Receipt ${identityString(settled.receiptId)}\n` +
-    `Observation ${identityString(settled.observationId)}\n` +
-    `Judgment ${identityString(settled.judgmentId)}\n` +
-    `State revisions before/after: ${intent.stateRevisionCount}/` +
-    `${settled.stateRevisionCount}\nContinuation retained: ` +
-    `${identityString(suspension.continuation) === identityString(resumption.continuation)}` +
-    `\nSteps observed: ${first.kind}, ${second.kind}`;
-}
-
-function bindClick(
-  listeners: Array<() => void>,
-  id: string,
-  action: () => void,
-): void {
-  const target = button(id);
-  const handler = (): void => action();
-  target.addEventListener("click", handler);
-  listeners.push(() => target.removeEventListener("click", handler));
-}
-
-function queueGameInput(app: PlayApp, input: ResidentInput): void {
-  app.residentLaw.worker.postMessage({ kind: "input", input });
-}
-
-function observeGameKey(
-  app: PlayApp,
-  event: PhysicalKey,
-  phase: "down" | "up",
-): void {
-  boundedGameEvent({
-    phase: "keyboard-observed",
-    code: event.code,
-    inputPhase: phase,
-    repeat: event.repeat,
-  });
-  queueGameInput(app, {
-    kind: "keyboard",
-    code: event.code,
-    phase,
-    repeat: event.repeat,
-  });
-}
-
-function observeCameraBasis(app: PlayApp): void {
-  const yaw = app.scene.presentation.cameraOrbitYaw;
-  queueGameInput(app, {
-    kind: "scalar-input",
-    channel: "CameraForwardX",
-    value: -Math.sin(yaw),
-  });
-  queueGameInput(app, {
-    kind: "scalar-input",
-    channel: "CameraForwardZ",
-    value: -Math.cos(yaw),
-  });
-}
-
-function inputElement(id: string): HTMLInputElement {
-  const value = element(id);
-  if (!(value instanceof HTMLInputElement)) {
-    throw new Error(`browser element #${id} is not an input`);
-  }
-  return value;
-}
-
-function persistInputPreferences(app: PlayApp): void {
-  try {
-    localStorage.setItem(
-      inputPreferencesStorageKey,
-      encodeInputPreferences(app.playerInput.preferences),
-    );
-    document.body.dataset.inputPreferences = "saved";
-  } catch {
-    document.body.dataset.inputPreferences = "unavailable";
-  }
-}
-
-function applyInputPreferences(app: PlayApp): void {
-  const { preferences } = app.playerInput;
-  document.body.dataset.reducedMotion = String(preferences.reducedMotion);
-  document.body.dataset.highContrast = String(preferences.highContrast);
-  document.body.dataset.largeText = String(preferences.largeText);
-  document.body.dataset.effectsVolume = String(preferences.effectsVolume);
-  inputElement("reduced-motion").checked = preferences.reducedMotion;
-  inputElement("high-contrast").checked = preferences.highContrast;
-  inputElement("large-text").checked = preferences.largeText;
-  inputElement("effects-volume").value = String(
-    Math.round(preferences.effectsVolume * 100),
-  );
-  element("effects-volume-value").textContent =
-    `${Math.round(preferences.effectsVolume * 100)}%`;
-  for (const control of document.querySelectorAll<HTMLButtonElement>(
-    "[data-input-action]",
-  )) {
-    const action = control.dataset.inputAction as GameAction | undefined;
-    if (action === undefined) continue;
-    control.textContent = displayKey(preferences.bindings[action]);
-    control.setAttribute(
-      "aria-label",
-      `${definitionForAction(action).label}: ${control.textContent}. Activate to rebind.`,
-    );
-  }
-  element("control-hint").textContent =
-    `${displayKey(preferences.bindings.forward)}/${displayKey(preferences.bindings.left)}/${displayKey(preferences.bindings.backward)}/${displayKey(preferences.bindings.right)} move · ` +
-    `${displayKey(preferences.bindings.target)} target · ${displayKey(preferences.bindings.bolt)} bolt · ` +
-    `${displayKey(preferences.bindings.sword)} sword · ${displayKey(preferences.bindings.loot)} loot · ` +
-    `${displayKey(preferences.bindings.jump)} jump · gamepad supported · Controls panel for all bindings`;
-}
-
-function resumePresentationAudio(app: PlayApp): void {
-  try {
-    app.presentationAudio ??= new AudioContext();
-    if (app.presentationAudio.state === "suspended") {
-      void app.presentationAudio.resume();
-    }
-  } catch {
-    app.presentationAudio = null;
-  }
-}
-
-function playPresentationTone(
-  app: PlayApp,
-  frequency: number,
-  durationSeconds: number,
-  intensity = 1,
-): void {
-  const context = app.presentationAudio;
-  const volume = app.playerInput.preferences.effectsVolume * intensity;
-  if (context === null || context.state !== "running" || volume <= 0) return;
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  const start = context.currentTime;
-  oscillator.type = "triangle";
-  oscillator.frequency.setValueAtTime(frequency, start);
-  oscillator.frequency.exponentialRampToValueAtTime(
-    Math.max(40, frequency * 0.72),
-    start + durationSeconds,
-  );
-  gain.gain.setValueAtTime(Math.min(0.12, volume * 0.12), start);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + durationSeconds);
-  oscillator.connect(gain).connect(context.destination);
-  oscillator.start(start);
-  oscillator.stop(start + durationSeconds);
-  oscillator.addEventListener("ended", () => {
-    oscillator.disconnect();
-    gain.disconnect();
-  }, { once: true });
-}
-
-function loadInputPreferences(app: PlayApp): void {
-  try {
-    const result = decodeInputPreferences(
-      localStorage.getItem(inputPreferencesStorageKey),
-    );
-    app.playerInput.preferences = result.preferences;
-    if (result.recovered) {
-      localStorage.removeItem(inputPreferencesStorageKey);
-      document.body.dataset.inputPreferences = "recovered";
-      element("input-preference-status").textContent =
-        "Damaged control preferences were reset safely.";
+  const pointerUp = (event: PointerEvent): void => {
+    if (state.drag === null || state.drag.pointerId !== event.pointerId) return;
+    const drag = state.drag;
+    state.drag = null;
+    state.selectionRectangle.hidden = true;
+    const [x, y] = rectanglePoint(event.clientX, event.clientY);
+    if (drag.moved) {
+      selectUnits(state, state.presentation.unitsInScreenRectangle(
+        Math.min(drag.x, x), Math.min(drag.y, y), Math.max(drag.x, x), Math.max(drag.y, y),
+      ));
     } else {
-      document.body.dataset.inputPreferences = "ready";
+      const picked = state.presentation.pickUnit(event.clientX, event.clientY);
+      selectUnits(state, picked === null ? [] : [picked]);
     }
-  } catch {
-    app.playerInput.preferences = defaultInputPreferences;
-    document.body.dataset.inputPreferences = "unavailable";
-  }
-  applyInputPreferences(app);
-}
-
-function updateInputPreferences(
-  app: PlayApp,
-  update: Partial<Pick<InputPreferences, "reducedMotion" | "highContrast" | "largeText" | "effectsVolume">>,
-): void {
-  app.playerInput.preferences = {
-    ...app.playerInput.preferences,
-    ...update,
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   };
-  persistInputPreferences(app);
-  applyInputPreferences(app);
-}
-
-function semanticCode(action: GameAction, reverseTarget = false): string {
-  if (action === "target" && reverseTarget) return "ShiftTab";
-  return definitionForAction(action).semanticCode;
-}
-
-function releaseGamepad(app: PlayApp): void {
-  for (const action of app.playerInput.gamepadHeld) {
-    observeGameKey(
-      app,
-      { code: semanticCode(action), repeat: false },
-      "up",
-    );
-  }
-  app.playerInput.gamepadHeld.clear();
-  app.playerInput.gamepadPressed.clear();
-}
-
-function pollGamepads(app: PlayApp): void {
-  const gamepad = Array.from(navigator.getGamepads()).find(
-    (candidate): candidate is Gamepad => candidate !== null && candidate.connected,
-  );
-  if (gamepad === undefined) {
-    if (app.playerInput.gamepadHeld.size > 0) releaseGamepad(app);
-    document.body.dataset.gamepad = "disconnected";
-    element("gamepad-status").textContent = "Gamepad ready · connect or press any button";
-  } else {
-    document.body.dataset.gamepad = "connected";
-    element("gamepad-status").textContent = `Gamepad connected · ${gamepad.id}`;
-    const current = actionsForStandardGamepad(
-      gamepad.axes,
-      gamepad.buttons.map((candidate) => candidate.pressed),
-    );
-    if (current.size > 0) resumePresentationAudio(app);
-    for (const definition of actionDefinitions) {
-      const { action } = definition;
-      if (definition.held) {
-        if (current.has(action) && !app.playerInput.gamepadHeld.has(action)) {
-          observeGameKey(app, { code: semanticCode(action), repeat: false }, "down");
-          app.playerInput.gamepadHeld.add(action);
-        } else if (!current.has(action) && app.playerInput.gamepadHeld.has(action)) {
-          observeGameKey(app, { code: semanticCode(action), repeat: false }, "up");
-          app.playerInput.gamepadHeld.delete(action);
-        }
-      } else if (current.has(action) && !app.playerInput.gamepadPressed.has(action)) {
-        observeGameKey(app, { code: semanticCode(action), repeat: false }, "down");
-      }
-    }
-    app.playerInput.gamepadPressed.clear();
-    for (const action of current) app.playerInput.gamepadPressed.add(action);
-  }
-  app.playerInput.gamepadFrame = requestAnimationFrame(() => pollGamepads(app));
-}
-
-function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
-  const { canvas } = app.scene;
-  const keyboardListenerOptions: AddEventListenerOptions = { capture: true };
-  const heldKeys = new Map<string, string>();
-  loadInputPreferences(app);
-  const down = (event: KeyboardEvent): void => {
-    if (app.playerInput.captureAction !== null) {
+  const contextMenu = (event: MouseEvent): void => {
+    event.preventDefault();
+    const point = state.presentation.groundPoint(event.clientX, event.clientY);
+    if (point !== null && state.units.some((unit) => unit.selected)) issueMove(state, point);
+  };
+  const pointerLeave = (event: PointerEvent): void => state.presentation.setPointer(event.clientX, event.clientY, false);
+  const wheel = (event: WheelEvent): void => { event.preventDefault(); state.presentation.zoom(event.deltaY); };
+  const keyDown = (event: KeyboardEvent): void => {
+    if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.code)) {
       event.preventDefault();
-      if (event.repeat) return;
-      const action = app.playerInput.captureAction;
-      app.playerInput.captureAction = null;
-      if (event.code !== "Escape") {
-        app.playerInput.preferences = {
-          ...app.playerInput.preferences,
-          bindings: rebindAction(
-            app.playerInput.preferences.bindings,
-            action,
-            event.code,
-          ),
-        };
-        persistInputPreferences(app);
-        element("input-preference-status").textContent =
-          `${definitionForAction(action).label} now uses ${displayKey(event.code)}.`;
-      } else {
-        element("input-preference-status").textContent = "Rebinding cancelled.";
-      }
-      applyInputPreferences(app);
-      return;
+      state.presentation.setPanKey(event.code, true);
     }
-    const action = actionForPhysicalCode(
-      app.playerInput.preferences.bindings,
-      event.code,
-    );
-    if (action === null || event.repeat) return;
-    event.preventDefault();
-    resumePresentationAudio(app);
-    const definition = definitionForAction(action);
-    const code = semanticCode(action, action === "target" && event.shiftKey);
-    if (definition.held) heldKeys.set(event.code, code);
-    observeGameKey(app, { code, repeat: false }, "down");
+    if (event.code === "F1") selectUnits(state, unitIds);
+    if (event.code === "KeyE") element("equipment-panel").classList.toggle("open");
+    if (event.code === "Escape") element("equipment-panel").classList.remove("open");
   };
-  const up = (event: KeyboardEvent): void => {
-    const code = heldKeys.get(event.code);
-    if (code === undefined) return;
-    event.preventDefault();
-    heldKeys.delete(event.code);
-    observeGameKey(app, { code, repeat: false }, "up");
+  const keyUp = (event: KeyboardEvent): void => {
+    state.presentation.setPanKey(event.code, false);
   };
-  const releaseHeldKeys = (): void => {
-    for (const code of heldKeys.values()) {
-      observeGameKey(app, { code, repeat: false }, "up");
-    }
-    heldKeys.clear();
-  };
-  const cameraBasis = (event: PointerEvent): void => {
-    if ((event.buttons & 1) !== 0) observeCameraBasis(app);
-  };
-  // Keyboard control follows the active game page rather than canvas focus.
-  // Camera/pointer capture remains canvas-local, but clicking another HUD
-  // surface must not make ordinary WASD movement appear to stop.
-  window.addEventListener("keydown", down, keyboardListenerOptions);
-  window.addEventListener("keyup", up, keyboardListenerOptions);
-  window.addEventListener("blur", releaseHeldKeys);
-  document.addEventListener("visibilitychange", releaseHeldKeys);
-  canvas.addEventListener("pointermove", cameraBasis);
-  for (const control of document.querySelectorAll<HTMLButtonElement>(
-    "[data-input-action]",
-  )) {
-    const capture = (): void => {
-      const action = control.dataset.inputAction as GameAction | undefined;
-      if (action === undefined) return;
-      app.playerInput.captureAction = action;
-      control.textContent = "Press key…";
-      element("input-preference-status").textContent =
-        `Press a key for ${definitionForAction(action).label}, or Escape to cancel.`;
-    };
-    control.addEventListener("click", capture);
-    listeners.push(() => control.removeEventListener("click", capture));
+  canvas.addEventListener("pointerdown", pointerDown);
+  canvas.addEventListener("pointermove", pointerMove);
+  canvas.addEventListener("pointerup", pointerUp);
+  canvas.addEventListener("pointercancel", pointerUp);
+  canvas.addEventListener("pointerleave", pointerLeave);
+  canvas.addEventListener("contextmenu", contextMenu);
+  canvas.addEventListener("wheel", wheel, { passive: false });
+  window.addEventListener("keydown", keyDown);
+  window.addEventListener("keyup", keyUp);
+  state.listeners.push(
+    () => canvas.removeEventListener("pointerdown", pointerDown),
+    () => canvas.removeEventListener("pointermove", pointerMove),
+    () => canvas.removeEventListener("pointerup", pointerUp),
+    () => canvas.removeEventListener("pointercancel", pointerUp),
+    () => canvas.removeEventListener("pointerleave", pointerLeave),
+    () => canvas.removeEventListener("contextmenu", contextMenu),
+    () => canvas.removeEventListener("wheel", wheel),
+    () => window.removeEventListener("keydown", keyDown),
+    () => window.removeEventListener("keyup", keyUp),
+  );
+}
+
+function bindHud(state: GameState): void {
+  for (const id of unitIds) {
+    const select = (): void => selectUnits(state, [id]);
+    element(`roster-${id}`).addEventListener("click", select);
+    state.listeners.push(() => element(`roster-${id}`).removeEventListener("click", select));
   }
-  const resetBindings = (): void => {
-    app.playerInput.preferences = {
-      ...app.playerInput.preferences,
-      bindings: defaultInputPreferences.bindings,
-    };
-    persistInputPreferences(app);
-    applyInputPreferences(app);
-    element("input-preference-status").textContent = "Default bindings restored.";
+  const all = (): void => selectUnits(state, unitIds);
+  const equipment = (): void => {
+    element("equipment-panel").classList.toggle("open");
   };
-  button("reset-bindings").addEventListener("click", resetBindings);
-  const reducedMotion = (): void =>
-    updateInputPreferences(app, { reducedMotion: inputElement("reduced-motion").checked });
-  const highContrast = (): void =>
-    updateInputPreferences(app, { highContrast: inputElement("high-contrast").checked });
-  const largeText = (): void =>
-    updateInputPreferences(app, { largeText: inputElement("large-text").checked });
-  const effectsVolume = (): void => {
-    const value = Number.parseInt(inputElement("effects-volume").value, 10) / 100;
-    updateInputPreferences(app, { effectsVolume: value });
-    resumePresentationAudio(app);
-    playPresentationTone(app, 520, 0.09, 0.65);
-  };
-  const resumeAudio = (): void => resumePresentationAudio(app);
-  inputElement("reduced-motion").addEventListener("change", reducedMotion);
-  inputElement("high-contrast").addEventListener("change", highContrast);
-  inputElement("large-text").addEventListener("change", largeText);
-  inputElement("effects-volume").addEventListener("input", effectsVolume);
-  window.addEventListener("pointerdown", resumeAudio, { capture: true });
-  app.playerInput.gamepadFrame = requestAnimationFrame(() => pollGamepads(app));
-  listeners.push(() =>
-    window.removeEventListener("keydown", down, keyboardListenerOptions),
+  const close = (): void => element("equipment-panel").classList.remove("open");
+  element("select-all").addEventListener("click", all);
+  element("equipment-toggle").addEventListener("click", equipment);
+  element("equipment-close").addEventListener("click", close);
+  state.listeners.push(
+    () => element("select-all").removeEventListener("click", all),
+    () => element("equipment-toggle").removeEventListener("click", equipment),
+    () => element("equipment-close").removeEventListener("click", close),
   );
-  listeners.push(() =>
-    window.removeEventListener("keyup", up, keyboardListenerOptions),
-  );
-  listeners.push(() => window.removeEventListener("blur", releaseHeldKeys));
-  listeners.push(() =>
-    document.removeEventListener("visibilitychange", releaseHeldKeys),
-  );
-  listeners.push(() => canvas.removeEventListener("pointermove", cameraBasis));
-  listeners.push(() => button("reset-bindings").removeEventListener("click", resetBindings));
-  listeners.push(() => inputElement("reduced-motion").removeEventListener("change", reducedMotion));
-  listeners.push(() => inputElement("high-contrast").removeEventListener("change", highContrast));
-  listeners.push(() => inputElement("large-text").removeEventListener("change", largeText));
-  listeners.push(() => inputElement("effects-volume").removeEventListener("input", effectsVolume));
-  listeners.push(() => window.removeEventListener("pointerdown", resumeAudio, { capture: true }));
-  listeners.push(() => {
-    cancelAnimationFrame(app.playerInput.gamepadFrame);
-    releaseGamepad(app);
-  });
 }
 
-function pressReset(app: PlayApp): void {
-  app.scene.canvas.focus({ preventScroll: true });
-  observeGameKey(app, { code: "KeyR", repeat: false }, "down");
+function teardown(state: GameState): void {
+  if (state.disposed) return;
+  state.disposed = true;
+  window.clearInterval(state.resident.interval);
+  for (const remove of state.listeners) remove();
+  state.resident.worker.postMessage({ kind: "dispose" });
+  state.resident.worker.terminate();
+  state.presentation.dispose();
 }
 
-function stageProcessBranch(stage: JourneyStage): ProcessBranch | null {
-  switch (stage.kind) {
-    case "dormant":
-    case "ready":
-      return null;
-    default:
-      return stage.processBranch;
-  }
-}
-
-function teardown(app: PlayApp): void {
-  if (!app.scene.alive) return;
-  app.scene.alive = false;
-  window.clearInterval(app.residentLaw.interval);
-  if (app.residentLaw.projectionFrameHandle !== 0) {
-    window.clearTimeout(app.residentLaw.projectionFrameHandle);
-    app.residentLaw.projectionFrameHandle = 0;
-  }
-  app.residentLaw.pendingProjection = null;
-  cancelAnimationFrame(app.scene.frameHandle);
-  app.scene.canvas.removeEventListener("pointerdown", app.scene.pointerHandler);
-  app.scene.canvas.removeEventListener(
-    "pointermove",
-    app.scene.pointerMoveHandler,
-  );
-  app.scene.canvas.removeEventListener(
-    "pointerup",
-    app.scene.pointerReleaseHandler,
-  );
-  app.scene.canvas.removeEventListener(
-    "pointercancel",
-    app.scene.pointerReleaseHandler,
-  );
-  app.scene.canvas.removeEventListener(
-    "contextmenu",
-    app.scene.contextMenuHandler,
-  );
-  app.scene.canvas.removeEventListener("wheel", app.scene.wheelHandler);
-  for (const removeListener of app.listeners) removeListener();
-  if (app.presentationAudio !== null) void app.presentationAudio.close();
-  disposeCinderwakePresentation(app.scene.presentation);
-  app.scene.canvas.remove();
-  const processBranch = stageProcessBranch(app.stage);
-  if (processBranch !== null) disposeProcessBranch(app.module, processBranch);
-  app.effect.port.disposeSession(app.effect.session);
-  app.residentLaw.worker.postMessage({ kind: "dispose" });
-  app.residentLaw.worker.terminate();
-}
-
-function runSmokeIfRequested(app: PlayApp): void {
-  if (new URLSearchParams(window.location.search).get("smoke") !== "1") return;
-  for (const id of [
-    "enter-world",
-    "disconnect",
-    "continue-branch",
-    "submit-candidate",
-    "admit-candidate",
-    "pulse-moonwell",
-  ]) {
-    button(id).click();
-  }
-  document.body.dataset.smoke =
-    document.body.dataset.journey === "admitted successor" && app.effectSettled
-      ? "passed"
-      : "failed";
-}
-
-function startApp(
-  module: object,
-  branchSource: string,
-  effectSource: string,
-): PlayApp {
-  window.__GREYWROUGHT_RESIDENT_EVENTS__ = [];
+function start(): GameState {
   window.__GREYWROUGHT_GAME_EVENTS__ = [];
-  const branchRequest = createExactProcessRequest(decodeCwr1Hex(branchSource));
-  const occurrences = processRequestOccurrences(branchRequest);
-  const effectRequest = createExactProcessRequest(decodeCwr1Hex(effectSource));
-  const listeners: Array<() => void> = [];
-  const app: PlayApp = {
-    module,
-    branchRequest,
-    occurrences,
-    effect: openEffectSession(module, effectRequest),
-    residentLaw: openResidentLawSession(),
-    stage: { kind: "dormant" },
-    effectSettled: false,
-    scene: createScene(),
-    listeners,
-    playerInput: {
-      preferences: defaultInputPreferences,
-      captureAction: null,
-      gamepadFrame: 0,
-      gamepadHeld: new Set<GameAction>(),
-      gamepadPressed: new Set<GameAction>(),
-    },
-    presentationAudio: null,
+  const resident: ResidentState = {
+    worker: new Worker(publicUrl("app/greywrought-clause/resident-worker.js"), { type: "module", name: "greywrought-rts-resident" }),
+    generation: -1,
+    polling: false,
+    staticGeneration: false,
+    interval: 0,
   };
-  bindResidentWorker(app, listeners);
-  bindGameInput(app, listeners);
-  bindClick(listeners, "loot-close", closeLootWindow);
-  bindClick(listeners, "loot-item", () => {
-    const item = document.body.dataset.lootWindowItem;
-    if (item === undefined) return;
-    observeGameKey(app, { code: "LootItem", repeat: false }, "down");
-    boundedGameEvent({ phase: "loot-take-requested", item });
-    closeLootWindow();
-  });
-  bindClick(listeners, "reset-encounter", () => pressReset(app));
-  bindClick(listeners, "clear-progress", clearPersistedFoothold);
-  bindClick(listeners, "enter-world", () => enterWorld(app));
-  bindClick(listeners, "disconnect", () => disconnect(app));
-  bindClick(listeners, "continue-branch", () => advanceBranch(app));
-  bindClick(listeners, "submit-candidate", () => submitCandidate(app));
-  bindClick(listeners, "admit-candidate", () => admitCandidate(app));
-  bindClick(listeners, "pulse-moonwell", () => pulseMoonwell(app));
-  renderStage(app);
-  const persistedFoothold = readPersistedFoothold();
-  if (persistedFoothold.kind === "ready" || persistedFoothold.kind === "migrated") {
-    element("save-status").textContent =
-      `${persistedFoothold.kind === "migrated" ? "Migrated" : "Saved"} foothold ready · ${persistedFoothold.progress} / 3`;
-    document.body.dataset.gamePersistence = "restoring";
-    queueGameInput(app, {
-      kind: "scalar-input",
-      channel: "PersistedFootholdProgress",
-      value: persistedFoothold.progress,
-    });
-    queueGameInput(app, {
-      kind: "scalar-input",
-      channel: "PersistedPermanentFootholdProgress",
-      value: persistedFoothold.progress,
-    });
-  } else if (persistedFoothold.kind === "corrupt") {
-    element("save-status").textContent = "Damaged save cleared safely · starting sealed";
-    document.body.dataset.gamePersistence = "recovered";
-  } else if (persistedFoothold.kind === "future") {
-    element("save-status").textContent =
-      `Newer save v${persistedFoothold.version} retained · starting sealed`;
-    document.body.dataset.gamePersistence = "future";
-  } else if (persistedFoothold.kind === "unavailable") {
-    element("save-status").textContent = "Save unavailable in this browser";
-    document.body.dataset.gamePersistence = "unavailable";
-  } else {
-    element("save-status").textContent = "Progress saves after each extraction";
-    document.body.dataset.gamePersistence = "empty";
-  }
-  window.addEventListener("beforeunload", () => teardown(app), { once: true });
-  window.__GREYWROUGHT_TEARDOWN__ = () => teardown(app);
-  void pollResidentLaw(app);
-  app.residentLaw.interval = window.setInterval(() => {
-    void pollResidentLaw(app);
-  }, 20);
-  runSmokeIfRequested(app);
-  return app;
+  const state: GameState = {
+    resident,
+    presentation: createRtsPresentation(element("world-wrap")),
+    selectionRectangle: element("selection-rectangle"),
+    listeners: [],
+    units: [],
+    drag: null,
+    disposed: false,
+  };
+  bindResident(state);
+  bindInteraction(state);
+  bindHud(state);
+  state.presentation.start();
+  void pollResident(state);
+  resident.interval = window.setInterval(() => void pollResident(state), 100);
+  window.addEventListener("beforeunload", () => teardown(state), { once: true });
+  window.__GREYWROUGHT_TEARDOWN__ = () => teardown(state);
+  return state;
 }
 
-async function fetchBytes(url: string): Promise<ArrayBuffer> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`failed to fetch ${url}: ${response.status}`);
-  return response.arrayBuffer();
-}
-
-async function fetchText(url: string): Promise<string> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`failed to fetch ${url}: ${response.status}`);
-  return response.text();
-}
-
-const [wasmBytes, branchSource, effectSource] = await Promise.all([
-  fetchBytes(publicUrl("wasm/clause_runtime_bg.wasm")),
-  fetchText(publicUrl("assets/conquest-v1.cwr1.hex")),
-  fetchText(publicUrl("assets/ongoing-effect-v1.cwr1.hex")),
-]);
-startApp(initializeRuntime(wasmBytes), branchSource, effectSource);
+start();

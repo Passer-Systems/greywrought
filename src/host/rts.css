@@ -1,0 +1,64 @@
+:root {
+  color-scheme: dark;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #f4e3bd;
+  background: #110d08;
+  --panel: #21170fe8;
+  --line: #9d7138;
+  --gold: #e4b765;
+  --muted: #b49a73;
+}
+* { box-sizing: border-box; }
+html, body, main { width: 100%; height: 100%; margin: 0; }
+body { overflow: hidden; background: #110d08; }
+#world-wrap { position: relative; width: 100%; height: 100%; overflow: hidden; isolation: isolate; background: #1d2918; }
+#world-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; outline: none; }
+#world-canvas:active { cursor: grabbing; }
+#world-wrap::after { content: 'THE ASHEN MARCHES'; position: absolute; right: 20px; bottom: 130px; color: #e4b76555; font: 700 10px ui-monospace, monospace; letter-spacing: .2em; pointer-events: none; }
+#war-table, #objective-panel, #command-deck, #equipment-panel { position: absolute; z-index: 4; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 4px 18px #000b, inset 0 0 22px #6c431b22; }
+#war-table { top: 14px; left: 16px; right: 16px; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; }
+#war-table h1 { margin: 2px 0 0; color: var(--gold); font-size: 25px; letter-spacing: .06em; text-transform: uppercase; text-shadow: 0 2px #000; }
+.eyebrow { display: block; color: var(--muted); font: 700 10px ui-monospace, monospace; letter-spacing: .16em; text-transform: uppercase; }
+#authority-status { color: #bbd99b; font: 12px ui-monospace, monospace; }
+button { color: inherit; font: inherit; }
+#select-all, #equipment-toggle, #equipment-close { border: 1px solid #a77b42; background: #382514; color: var(--gold); padding: 8px 11px; cursor: pointer; }
+button:hover, button:focus-visible { border-color: #f1d18b; background: #51351a; outline: none; }
+kbd { color: #d8c39d; font: 10px ui-monospace, monospace; }
+#objective-panel { top: 94px; left: 16px; width: 240px; padding: 12px 14px; }
+#objective-panel strong { display: block; margin-top: 5px; color: #ead19d; }
+#objective-panel p { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.35; }
+#command-deck { left: 16px; right: 16px; bottom: 14px; display: grid; grid-template-columns: minmax(190px, .8fr) 2fr minmax(180px, .9fr); gap: 12px; padding: 10px; align-items: stretch; }
+#selected-unit-panel { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.large-portrait { width: 54px; height: 54px; display: grid; place-items: center; border: 2px solid var(--gold); background: radial-gradient(circle, #6f4927, #1c120a); color: var(--gold); font-size: 26px; }
+#selected-name { display: block; color: #f1d49d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#selected-class { display: block; color: var(--muted); font-size: 12px; }
+#equipment-toggle { margin-left: auto; white-space: nowrap; }
+#roster { display: grid; grid-template-columns: repeat(5, minmax(72px, 1fr)); gap: 5px; align-items: stretch; }
+.roster-card { display: flex; gap: 6px; align-items: center; min-width: 0; border: 1px solid #76552e; padding: 5px; background: #1b130d; text-align: left; cursor: pointer; }
+.roster-card b { display: grid; place-items: center; width: 27px; height: 31px; color: #fff4d0; background: #55402b; }
+.roster-card span { min-width: 0; }
+.roster-card strong, .roster-card small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.roster-card small { color: var(--muted); font-size: 10px; }
+.roster-card.selected { border-color: #6dff70; box-shadow: 0 0 0 1px #6dff70aa, inset 0 0 12px #6dff7040; }
+.roster-card.moving b { animation: pulse 700ms infinite alternate; }
+.warrior b { background: #87372c; } .artificer b { background: #956c28; } .rogue b { background: #55405d; } .priest b { background: #89816e; } .ranger b { background: #456c3d; }
+#selection-count { grid-column: 1 / -1; color: var(--muted); font: 10px ui-monospace, monospace; }
+#command-panel { display: flex; flex-direction: column; gap: 5px; justify-content: center; }
+#command-move { display: flex; align-items: center; gap: 8px; border: 1px solid #9e773d; background: #352313; padding: 7px; color: var(--gold); }
+#command-move:disabled { opacity: .45; }
+#command-move span { font-size: 22px; }
+#command-move small, #command-status, .camera-hint { color: var(--muted); font-size: 11px; }
+#selection-rectangle { position: absolute; z-index: 5; border: 1px solid #96ff77; background: #8cff5526; pointer-events: none; }
+#equipment-panel { display: none; left: 50%; top: 50%; width: min(660px, calc(100% - 32px)); max-height: calc(100% - 180px); transform: translate(-50%, -50%); padding: 13px; }
+#equipment-panel.open { display: block; }
+#equipment-panel > header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #79552d; padding-bottom: 8px; }
+#equipment-owner { display: block; margin-top: 3px; color: #ecd39c; }
+#equipment-close { padding: 1px 8px; font-size: 22px; }
+.paper-doll { display: grid; grid-template-columns: 1fr minmax(110px, 180px) 1fr; gap: 12px; padding-top: 12px; }
+.slot-column { display: grid; gap: 5px; align-content: start; }
+.gear-slot { display: flex; align-items: center; gap: 7px; min-height: 31px; border: 1px solid #5f4528; background: #130e09; padding: 3px; color: var(--muted); font-size: 11px; }
+.gear-slot i { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid #977142; color: var(--gold); font: 10px ui-monospace, monospace; font-style: normal; }
+.doll-silhouette { min-height: 300px; display: grid; place-items: center; background: radial-gradient(ellipse, #6a4a2722, transparent 68%); }
+.doll-silhouette::before { content: ''; width: 72px; height: 170px; border: 2px solid #af8144; border-radius: 44% 44% 20% 20%; opacity: .6; box-shadow: 0 38px 0 -24px #af8144; }
+@keyframes pulse { to { filter: brightness(1.45); } }
+@media (max-width: 760px) { #objective-panel { display: none; } #command-deck { grid-template-columns: 1fr; } #roster { order: 2; } #command-panel { order: 3; } .paper-doll { grid-template-columns: 1fr 1fr; } .doll-silhouette { display: none; } }

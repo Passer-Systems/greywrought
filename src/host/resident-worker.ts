@@ -135,15 +135,15 @@ let inputBackpressureCount = 0;
 // from becoming a delayed chain of attacks after the semantic commitment has
 // elapsed.
 const edgeTriggeredKeyboardCodes = new Set([
-  "KeyJ",
-  "KeyQ",
-  "KeyF",
-  "Space",
-  "Tab",
-  "ShiftTab",
-  "LootItem",
-  "KeyR",
+  "ClearSelection",
+  "SelectWarrior",
+  "SelectArtificer",
+  "SelectRogue",
+  "SelectPriest",
+  "SelectRanger",
+  "IssueMove",
 ]);
+const rtsKeyboardCodes = new Set(edgeTriggeredKeyboardCodes);
 
 function envelope(input: ResidentInput): WorkbenchEnvelope {
   const observation =
@@ -288,6 +288,12 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
 
 function queueInput(input: ResidentInput): void {
   receivedInputCount += 1;
+  if (input.kind === "keyboard" && !rtsKeyboardCodes.has(input.code)) return;
+  if (
+    input.kind === "scalar-input" &&
+    input.channel !== "PointerWorldX" &&
+    input.channel !== "PointerWorldZ"
+  ) return;
   if (input.kind === "keyboard") simulationStarted = true;
   if (
     input.kind === "keyboard" &&
