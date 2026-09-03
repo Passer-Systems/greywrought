@@ -1327,6 +1327,134 @@ body[data-archetype="hunter"] .resource-bar { --bar-color: #8a9f45; }
   text-transform: uppercase;
 }
 
+.escape-menu {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: auto;
+  background: radial-gradient(circle at center, #1b1410a6 0, #030303e6 72%);
+  backdrop-filter: blur(4px);
+}
+
+.escape-menu[hidden],
+.escape-subpanel[hidden] {
+  display: none;
+}
+
+.escape-menu-card {
+  position: relative;
+  width: min(720px, calc(100vw - 48px));
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  padding: 24px;
+  border: 3px double #b5904f;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, #3d3025e8, #120e0ced 58%),
+    #15100d;
+  box-shadow: 0 0 0 2px #080604, 0 24px 80px #000e, inset 0 0 42px #d6923721;
+}
+
+.escape-menu-card::before,
+.escape-menu-card::after {
+  content: "◆";
+  position: absolute;
+  top: 18px;
+  color: #d8b665;
+  text-shadow: 0 1px #000, 0 0 8px #e8a74388;
+}
+
+.escape-menu-card::before { left: 18px; }
+.escape-menu-card::after { right: 18px; }
+
+.escape-menu-header {
+  margin-bottom: 18px;
+  text-align: center;
+}
+
+.escape-menu-header span {
+  color: #a98a60;
+  font: 700 9px/1 Georgia, serif;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+}
+
+.escape-menu-header h2 {
+  margin: 5px 0 0;
+  color: #f4d993;
+  font: 800 28px/1 Georgia, serif;
+  letter-spacing: .06em;
+  text-shadow: 0 2px #281508, 0 0 12px #d8923b55;
+}
+
+.escape-menu-body {
+  display: flex;
+  align-items: start;
+  justify-content: center;
+  gap: 16px;
+}
+
+.escape-menu-actions {
+  display: grid;
+  flex: 0 0 250px;
+  gap: 8px;
+}
+
+.escape-menu-actions button,
+.escape-subpanel > button {
+  min-height: 42px;
+  border: 2px solid #8f7246;
+  border-radius: 4px;
+  background: linear-gradient(#35281d, #160f0b);
+  color: #f2dfb2;
+  font: 700 14px/1 Georgia, serif;
+  letter-spacing: .025em;
+  box-shadow: inset 0 1px #f6d7972e, 0 2px 4px #0009;
+}
+
+.escape-menu-actions button:hover,
+.escape-menu-actions button:focus-visible,
+.escape-menu-actions button[aria-expanded="true"] {
+  border-color: #e3b85e;
+  background: linear-gradient(#604323, #24150b);
+  color: #fff0bd;
+  outline: none;
+  box-shadow: inset 0 1px #ffe8a84a, 0 0 12px #d9963e66;
+}
+
+.escape-subpanel {
+  width: min(360px, calc(100vw - 340px));
+  max-height: min(62dvh, 560px);
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid #806541;
+  border-radius: 5px;
+  background: #0b0908e8;
+  color: #d7c8bd;
+  box-shadow: inset 0 0 20px #0009;
+}
+
+.escape-subpanel h3 {
+  margin: 0 0 12px;
+  color: #edcf87;
+  font: 700 17px/1 Georgia, serif;
+}
+
+.escape-menu-hint {
+  margin: 14px 0 0;
+  color: #9c8d77;
+  font: 9px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+body[data-escape-menu="open"] #game-hud {
+  filter: brightness(.58) saturate(.7);
+}
+
 #sidebar {
   position: absolute;
   top: 12px;
@@ -1338,41 +1466,6 @@ body[data-archetype="hunter"] .resource-bar { --bar-color: #8a9f45; }
 
 #sidebar > * {
   display: none;
-}
-
-#sidebar > .player-settings {
-  display: block;
-  pointer-events: auto;
-}
-
-#sidebar > .player-settings + .player-settings {
-  margin-top: 8px;
-}
-
-.player-settings {
-  border: 1px solid #c77c516b;
-  border-radius: 4px;
-  background: #0b080bdd;
-  color: #d7c8bd;
-  box-shadow: 0 8px 28px #000a;
-  backdrop-filter: blur(8px);
-}
-
-.player-settings > summary {
-  padding: 9px 12px;
-  color: #f0e2c6;
-  font: 700 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
-  cursor: pointer;
-}
-
-.player-settings[open] {
-  max-height: min(54dvh, 520px);
-  overflow: auto;
-  padding: 0 12px 12px;
-}
-
-.accessibility-panel[open] {
-  max-height: min(32dvh, 280px);
 }
 
 .accessibility-options {
@@ -1537,6 +1630,29 @@ button.effect {
 }
 
 @media (max-width: 620px) {
+  .escape-menu {
+    padding: 10px;
+  }
+
+  .escape-menu-card {
+    width: calc(100vw - 20px);
+    max-height: calc(100dvh - 20px);
+    padding: 18px 12px;
+  }
+
+  .escape-menu-body {
+    display: grid;
+  }
+
+  .escape-menu-actions {
+    width: 100%;
+  }
+
+  .escape-subpanel {
+    width: 100%;
+    max-height: 42dvh;
+  }
+
   .realm-label {
     top: 8px;
     padding: 5px 8px;

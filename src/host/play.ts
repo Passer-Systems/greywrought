@@ -1745,7 +1745,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
         targetsEnemy ? enemy.position.x - player.position.x : 0,
         targetsEnemy ? enemy.position.z - player.position.z : 0,
       );
-      element("combat-feedback").textContent = "SWORD ACTION ADMITTED";
+      element("combat-feedback").textContent = "ATTACK ADMITTED";
     }
     if (player.targetSelectionSequence > prior.player.targetSelectionSequence) {
       element("combat-feedback").textContent = `TARGET ACQUIRED · ${enemyTitle}`;
@@ -3029,7 +3029,73 @@ function releaseGamepad(app: PlayApp): void {
   app.playerInput.gamepadPressed.clear();
 }
 
+function isEscapeMenuOpen(): boolean {
+  return document.body.dataset.escapeMenu === "open";
+}
+
+function showEscapeSubpanel(panel: "controls" | "accessibility" | null): void {
+  const controls = element("escape-controls-panel");
+  const accessibility = element("escape-accessibility-panel");
+  const showControls = panel === "controls";
+  const showAccessibility = panel === "accessibility";
+  controls.hidden = !showControls;
+  accessibility.hidden = !showAccessibility;
+  button("escape-controls").setAttribute("aria-expanded", String(showControls));
+  button("escape-accessibility").setAttribute(
+    "aria-expanded",
+    String(showAccessibility),
+  );
+}
+
+function setEscapeMenuOpen(app: PlayApp, open: boolean): void {
+  element("escape-menu").hidden = !open;
+  document.body.dataset.escapeMenu = open ? "open" : "closed";
+  showEscapeSubpanel(null);
+  if (open) {
+    closeLootWindow();
+    button("escape-return").focus({ preventScroll: true });
+  } else {
+    app.scene.canvas.focus({ preventScroll: true });
+  }
+}
+
+function requestCharacterSelection(app: PlayApp): void {
+  setEscapeMenuOpen(app, false);
+  const selector = document.querySelector<HTMLElement>(
+    "[data-character-selector], #character-selector, #character-selection, #archetype-selector",
+  );
+  if (selector !== null) selector.hidden = false;
+  window.dispatchEvent(new CustomEvent("greywrought:change-character-requested"));
+}
+
+function bindEscapeMenu(app: PlayApp, listeners: Array<() => void>): void {
+  document.body.dataset.escapeMenu = "closed";
+  bindClick(listeners, "escape-return", () => setEscapeMenuOpen(app, false));
+  bindClick(listeners, "escape-controls", () => {
+    showEscapeSubpanel(
+      button("escape-controls").getAttribute("aria-expanded") === "true"
+        ? null
+        : "controls",
+    );
+  });
+  bindClick(listeners, "escape-accessibility", () => {
+    showEscapeSubpanel(
+      button("escape-accessibility").getAttribute("aria-expanded") === "true"
+        ? null
+        : "accessibility",
+    );
+  });
+  bindClick(listeners, "escape-change-character", () => requestCharacterSelection(app));
+}
+
 function pollGamepads(app: PlayApp): void {
+  if (isEscapeMenuOpen()) {
+    if (app.playerInput.gamepadHeld.size > 0 || app.playerInput.gamepadPressed.size > 0) {
+      releaseGamepad(app);
+    }
+    app.playerInput.gamepadFrame = requestAnimationFrame(() => pollGamepads(app));
+    return;
+  }
   const gamepad = Array.from(navigator.getGamepads()).find(
     (candidate): candidate is Gamepad => candidate !== null && candidate.connected,
   );
@@ -3102,6 +3168,14 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
       applyInputPreferences(app);
       return;
     }
+    if (event.code === "Escape") {
+      event.preventDefault();
+      if (event.repeat) return;
+      releaseHeldKeys();
+      setEscapeMenuOpen(app, !isEscapeMenuOpen());
+      return;
+    }
+    if (isEscapeMenuOpen()) return;
     if (event.code === "F1" || event.code === "F2" || event.code === "F3") {
       event.preventDefault();
       resumePresentationAudio(app);
@@ -3330,6 +3404,7 @@ function startApp(
   };
   bindResidentWorker(app, listeners);
   bindGameInput(app, listeners);
+  bindEscapeMenu(app, listeners);
   bindCombatSlotDrag(app, listeners);
   bindFantasyCursor(app, listeners);
   bindHudClock(listeners);
@@ -3341,7 +3416,10 @@ function startApp(
     boundedGameEvent({ phase: "loot-take-requested", item });
     closeLootWindow();
   });
-  bindClick(listeners, "reset-encounter", () => pressReset(app));
+  bindClick(listeners, "reset-encounter", () => {
+    setEscapeMenuOpen(app, false);
+    pressReset(app);
+  });
   bindClick(listeners, "clear-progress", clearPersistedFoothold);
   bindClick(listeners, "enter-world", () => enterWorld(app));
   bindClick(listeners, "disconnect", () => disconnect(app));
