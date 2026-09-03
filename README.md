@@ -130,4 +130,4 @@ manifest, Wasm identity, admitted frames, movement, remapped input, accessibilit
 preferences, combat commitment, and corrupt-save recovery every day. Its log is
 retained as a workflow artifact whether the check passes or fails.
 
-Pinned Clause input: `7a4d7eb31cd8ef99628c4da181491afc5d844fe4`.
+Pinned Clause input: `6699a0de4a70ed1dc0318bd8ba640cc448249de9`.
