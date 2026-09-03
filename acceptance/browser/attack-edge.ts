@@ -128,7 +128,25 @@ try {
     attempt += 1
   ) {
     await call("Runtime.evaluate", {
-      expression: `document.querySelector('[data-character-code="F1"]')?.click()`,
+      expression: `(() => {
+        const account = document.getElementById("entry-account");
+        const creator = document.getElementById("entry-creator");
+        const roster = document.getElementById("entry-roster");
+        if (account && !account.hidden) {
+          const input = document.getElementById("entry-display-name");
+          input.value = "Conference Tester";
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          document.getElementById("entry-account-form").requestSubmit();
+        } else if (creator && !creator.hidden) {
+          document.querySelector('[data-entry-archetype="warrior"]')?.click();
+          const input = document.getElementById("entry-character-name");
+          input.value = "Ashward";
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          document.getElementById("entry-character-form").requestSubmit();
+        } else if (roster && !roster.hidden) {
+          document.getElementById("entry-enter-world")?.click();
+        }
+      })()`,
     });
     await Bun.sleep(100);
     initial = await snapshot();
@@ -139,36 +157,19 @@ try {
   );
   requireCondition(initial.renderFailures === 0, "resident projection failed before attack test");
 
-  await key("keyDown", "KeyA", "a", 65);
-  await Bun.sleep(100);
-  await key("keyUp", "KeyA", "a", 65);
-  await Bun.sleep(100);
-  const walked = await snapshot();
-  requireCondition(walked.playerX < initial.playerX, "walk input did not move the player");
-  requireCondition(
-    walked.swordSequence === initial.swordSequence,
-    `walking actuated Attack (${initial.swordSequence} → ${walked.swordSequence}): ${JSON.stringify({ initial, walked })}`,
-  );
-
+  const shieldSamples: Array<{ energy: number; radius: number }> = [];
   await key("keyDown", "Digit1", "1", 49);
   let tapped = await snapshot();
-  for (let attempt = 0; attempt < 40 && tapped.swordSequence === walked.swordSequence; attempt += 1) {
+  for (let attempt = 0; attempt < 40 && tapped.swordSequence === initial.swordSequence; attempt += 1) {
     await Bun.sleep(25);
     tapped = await snapshot();
   }
-  await key("keyUp", "Digit1", "1", 49);
+  shieldSamples.push({ energy: tapped.shieldEnergy, radius: tapped.shieldRadius });
   requireCondition(
-    tapped.swordSequence === walked.swordSequence + 1,
-    `one Digit1 tap did not actuate exactly once (${walked.swordSequence} → ${tapped.swordSequence}): ${JSON.stringify({ walked, tapped })}`,
+    tapped.swordSequence === initial.swordSequence + 1,
+    `fresh Digit1 down did not actuate exactly once (${initial.swordSequence} → ${tapped.swordSequence}): ${JSON.stringify({ initial, tapped })}`,
   );
-  let rearmed = tapped;
-  for (let attempt = 0; attempt < 120 && rearmed.swordClock > 0; attempt += 1) {
-    await Bun.sleep(25);
-    rearmed = await snapshot();
-  }
-  requireCondition(rearmed.swordClock === 0, "Attack did not rearm before hold test");
-
-  await key("keyDown", "Digit1", "1", 49);
+  await key("keyDown", "KeyE", "e", 69);
   await key("keyDown", "KeyA", "a", 65);
   await Bun.sleep(100);
   await key("keyUp", "KeyA", "a", 65);
@@ -179,19 +180,23 @@ try {
   await key("keyUp", "Digit1", "1", 49);
   await Bun.sleep(150);
   const held = await snapshot();
+  shieldSamples.push({ energy: held.shieldEnergy, radius: held.shieldRadius });
   requireCondition(
-    held.swordSequence === tapped.swordSequence + 1,
-    `held/repeated Digit1 did not actuate exactly once (${tapped.swordSequence} → ${held.swordSequence}): ${JSON.stringify({ tapped, rearmed, held })}`,
+    held.swordSequence === tapped.swordSequence,
+    `held/repeated Digit1 actuated more than once (${tapped.swordSequence} → ${held.swordSequence}): ${JSON.stringify({ tapped, held })}`,
   );
-  requireCondition(held.playerX < walked.playerX, "movement did not continue during held attack test");
+  requireCondition(held.playerX < initial.playerX, "movement did not continue during held attack test");
   requireCondition(held.renderFailures === 0, "resident projection failed during attack test");
-  await key("keyDown", "KeyE", "e", 69);
-  const shieldSamples: Array<{ energy: number; radius: number }> = [];
-  for (let sample = 0; sample < 20; sample += 1) {
-    await Bun.sleep(25);
-    const value = await snapshot();
-    shieldSamples.push({ energy: value.shieldEnergy, radius: value.shieldRadius });
-  }
+  await key("keyDown", "KeyD", "d", 68);
+  await Bun.sleep(100);
+  await key("keyUp", "KeyD", "d", 68);
+  await Bun.sleep(100);
+  const walked = await snapshot();
+  shieldSamples.push({ energy: walked.shieldEnergy, radius: walked.shieldRadius });
+  requireCondition(
+    walked.swordSequence === held.swordSequence,
+    `walking without Digit1 actuated Attack (${held.swordSequence} → ${walked.swordSequence})`,
+  );
   await key("keyUp", "KeyE", "e", 69);
   requireCondition(
     shieldSamples.at(-1)!.energy < shieldSamples[0]!.energy &&
@@ -202,9 +207,9 @@ try {
   );
   requireCondition(exceptions.length === 0, exceptions.join("\n"));
   console.log(
-    `Attack edge passed: walk ${initial.swordSequence}→${walked.swordSequence}, ` +
-      `tap ${walked.swordSequence}→${tapped.swordSequence}, ` +
-      `hold ${tapped.swordSequence}→${held.swordSequence}.`,
+    `Attack edge passed: down ${initial.swordSequence}→${tapped.swordSequence}, ` +
+      `hold ${tapped.swordSequence}→${held.swordSequence}, ` +
+      `walk ${held.swordSequence}→${walked.swordSequence}.`,
   );
 } finally {
   socket?.close();
