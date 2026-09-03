@@ -2980,8 +2980,6 @@ on fire-siegebore-cannon ?enemy
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 player vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
     player-1 combat status ?player-status
-    ashen-bulwark feature position Vec3 { x: ?wall-x, y: ?wall-y, z: ?wall-z }
-    ?player-x >= ?wall-x
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
     jump-arena shield protection threshold ?protection-threshold
@@ -3012,8 +3010,6 @@ on absorb-siegebore-cannon ?enemy
     ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 combat status ?player-status
-    ashen-bulwark feature position Vec3 { x: ?wall-x, y: ?wall-y, z: ?wall-z }
-    ?player-x >= ?wall-x
     player-1 shield clock ?shield-clock
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
@@ -3049,8 +3045,6 @@ on reflect-siegebore-cannon ?enemy
     ?enemy enemy vitals Vec3 { x: ?enemy-vitality, y: ?enemy-maximum, z: ?enemy-alive-flag }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
     player-1 combat status ?player-status
-    ashen-bulwark feature position Vec3 { x: ?wall-x, y: ?wall-y, z: ?wall-z }
-    ?player-x >= ?wall-x
     player-1 shield clock ?shield-clock
     player-1 shield active factor ?shield-active
     player-1 shield energy ?shield-energy
@@ -3087,8 +3081,6 @@ on evade-siegebore-cannon ?enemy
     ?enemy enemy random sample ?random
     ?enemy enemy charge end Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     player-1 position Vec3 { x: ?player-x, y: ?player-y, z: ?player-z }
-    ashen-bulwark feature position Vec3 { x: ?wall-x, y: ?wall-y, z: ?wall-z }
-    ?player-x >= ?wall-x
     ?pressure = cannon-telegraph
     ?clock = 0.0
     ((?player-x - ?target-x) * (?player-x - ?target-x)) + ((?player-z - ?target-z) * (?player-z - ?target-z)) > 2.25

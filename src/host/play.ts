@@ -170,10 +170,7 @@ interface SceneShell {
   readonly pointerReleaseHandler: (event: PointerEvent) => void;
   readonly contextMenuHandler: (event: MouseEvent) => void;
   readonly wheelHandler: (event: WheelEvent) => void;
-  readonly enemyNameplate: HTMLElement;
-  readonly enemyNameplateFill: HTMLElement;
-  readonly enemyNameplateAnchor: Vector3;
-  enemyNameplateProjection: EnemyNameplateProjection | null;
+  readonly enemyNameplates: Map<string, EnemyNameplate>;
   lootInteractions: readonly LootInteraction[];
   cursorSubjects: readonly string[];
   frameHandle: number;
@@ -186,6 +183,15 @@ interface EnemyNameplateProjection {
   readonly vitality: number;
   readonly maximumVitality: number;
   readonly alive: boolean;
+  readonly targeted: boolean;
+}
+
+interface EnemyNameplate {
+  readonly root: HTMLDivElement;
+  readonly name: HTMLDivElement;
+  readonly fill: HTMLSpanElement;
+  readonly anchor: Vector3;
+  projection: EnemyNameplateProjection | null;
 }
 
 interface LootInteraction {
@@ -352,6 +358,43 @@ function presentationSubjectForEnemy(enemyId: string): string {
     ENEMY_PRESENTATIONS.find(({ world }) => world === enemyId)?.presentation,
     `enemy presentation ${enemyId}`,
   );
+}
+
+function enemyTitle(enemyId: string): string {
+  if (enemyId === "ashen-colossus") return "ASHEN COLOSSUS // SIEGEBORE";
+  if (enemyId === "veil-tusk") return "VEIL-TUSK PROWLER";
+  return "CORRUPTED MAGITEK BOAR";
+}
+
+function createEnemyNameplates(): Map<string, EnemyNameplate> {
+  const container = element("enemy-nameplates");
+  const entries = new Map<string, EnemyNameplate>();
+  for (const { world } of ENEMY_PRESENTATIONS) {
+    const root = document.createElement("div");
+    root.className = "enemy-nameplate";
+    root.dataset.enemyId = world;
+    root.hidden = true;
+    const marker = document.createElement("div");
+    marker.className = "enemy-nameplate-target-marker";
+    marker.textContent = "▼";
+    const name = document.createElement("div");
+    name.className = "enemy-nameplate-name";
+    name.textContent = enemyTitle(world);
+    const health = document.createElement("div");
+    health.className = "enemy-nameplate-health";
+    const fill = document.createElement("span");
+    health.append(fill);
+    root.append(marker, name, health);
+    container.append(root);
+    entries.set(world, {
+      root,
+      name,
+      fill,
+      anchor: new Vector3(),
+      projection: null,
+    });
+  }
+  return entries;
 }
 
 interface ResidentLawSession {
@@ -1144,11 +1187,8 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   utilitySlot.classList.toggle("cooling", player.utilityCooldowns.y > 0);
   const priorEnemy = prior?.enemies.find(({ id }) => id === enemy.id) ?? null;
   const enemyPresentationSubject = presentationSubjectForEnemy(enemy.id);
-  const enemyTitle =
-    enemy.id === "ashen-colossus"
-      ? "ASHEN COLOSSUS // SIEGEBORE"
-      : "CORRUPTED MAGITEK BOAR";
-  element("target-frame-name").textContent = enemyTitle;
+  const enemyTitleText = enemyTitle(enemy.id);
+  element("target-frame-name").textContent = enemyTitleText;
   const boss = requireValue(
     enemies.find(({ id }) => id === "ashen-colossus"),
     "Ashen Colossus projection",
@@ -1294,14 +1334,31 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
   }
   resident.admittedOrdinal = ordinal;
 
-  app.scene.enemyNameplateProjection = {
-    position: enemy.position,
-    vitality: enemy.vitality,
-    maximumVitality: enemy.maximumVitality,
-    alive: enemy.combatStatus !== "dead",
-  };
-  app.scene.enemyNameplateFill.style.transform =
-    `scaleX(${Math.max(0, Math.min(1, enemy.vitality / Math.max(0.001, enemy.maximumVitality)))})`;
+  for (const projectedEnemy of enemies) {
+    const nameplate = requireValue(
+      app.scene.enemyNameplates.get(projectedEnemy.id),
+      `enemy nameplate ${projectedEnemy.id}`,
+    );
+    const title = enemyTitle(projectedEnemy.id);
+    nameplate.name.textContent = title;
+    nameplate.projection = {
+      position: projectedEnemy.position,
+      vitality: projectedEnemy.vitality,
+      maximumVitality: projectedEnemy.maximumVitality,
+      alive:
+        projectedEnemy.bodyVisible && projectedEnemy.combatStatus === "alive",
+      targeted:
+        player.targetLockActive && player.combatTarget === projectedEnemy.id,
+    };
+    nameplate.fill.style.transform =
+      `scaleX(${Math.max(0, Math.min(1, projectedEnemy.vitality / Math.max(0.001, projectedEnemy.maximumVitality)))})`;
+    nameplate.root.setAttribute(
+      "aria-label",
+      `${title}, ${projectedEnemy.vitality} of ${projectedEnemy.maximumVitality} health`,
+    );
+    nameplate.root.classList.toggle("targeted", nameplate.projection.targeted);
+    nameplate.root.dataset.alive = String(nameplate.projection.alive);
+  }
   const cannonCasting = enemy.pressureState === "cannon-telegraph";
   const enemyCast = element("enemy-cast");
   enemyCast.hidden = !cannonCasting;
@@ -1344,14 +1401,8 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     element("enemy-hit-stun-timer").textContent =
       (remainingTicks * 0.016).toFixed(2);
   }
-  app.scene.enemyNameplate.setAttribute(
-    "aria-label",
-    `${enemyTitle}, ${enemy.vitality} of ${enemy.maximumVitality} health`,
-  );
-  app.scene.enemyNameplate.classList.toggle(
-    "targeted",
-    player.targetLockActive && player.combatTarget === enemy.id,
-  );
+  const targetedNameplate = app.scene.enemyNameplates.get(enemy.id);
+  if (targetedNameplate !== undefined) targetedNameplate.root.append(hitStun);
 
   applyAdmittedFrame(app.scene.presentation, {
     ordinal,
@@ -1748,7 +1799,7 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
       element("combat-feedback").textContent = "ATTACK ADMITTED";
     }
     if (player.targetSelectionSequence > prior.player.targetSelectionSequence) {
-      element("combat-feedback").textContent = `TARGET ACQUIRED · ${enemyTitle}`;
+      element("combat-feedback").textContent = `TARGET ACQUIRED · ${enemyTitleText}`;
     }
     if (priorEnemy !== null && enemy.vitality < priorEnemy.vitality) {
       const damage = priorEnemy.vitality - enemy.vitality;
@@ -2364,34 +2415,34 @@ function renderLoop(shell: SceneShell): void {
 }
 
 function renderEnemyNameplate(shell: SceneShell): void {
-  const admitted = shell.enemyNameplateProjection;
-  if (admitted === null) {
-    shell.enemyNameplate.hidden = true;
-    return;
+  for (const nameplate of shell.enemyNameplates.values()) {
+    const admitted = nameplate.projection;
+    if (admitted === null || !admitted.alive || admitted.vitality <= 0) {
+      nameplate.root.hidden = true;
+      continue;
+    }
+    const projected = nameplate.anchor
+      .set(admitted.position.x, admitted.position.y + 1.62, admitted.position.z)
+      .project(shell.presentation.camera);
+    const visible =
+      projected.x >= -1 &&
+      projected.x <= 1 &&
+      projected.y >= -1 &&
+      projected.y <= 1 &&
+      projected.z >= -1 &&
+      projected.z <= 1;
+    nameplate.root.hidden = !visible;
+    if (!visible) continue;
+    const left = `${(projected.x * 0.5 + 0.5) * shell.canvas.clientWidth}px`;
+    const top = `${(-projected.y * 0.5 + 0.5) * shell.canvas.clientHeight}px`;
+    nameplate.root.style.left = left;
+    nameplate.root.style.top = top;
+    if (admitted.targeted) {
+      const damageNumber = element("enemy-damage-number");
+      damageNumber.style.left = left;
+      damageNumber.style.top = top;
+    }
   }
-  const projected = shell.enemyNameplateAnchor
-    .set(admitted.position.x, admitted.position.y + 1.62, admitted.position.z)
-    .project(shell.presentation.camera);
-  const visible =
-    projected.x >= -1 &&
-    projected.x <= 1 &&
-    projected.y >= -1 &&
-    projected.y <= 1 &&
-    projected.z >= -1 &&
-    projected.z <= 1;
-  const left = `${(projected.x * 0.5 + 0.5) * shell.canvas.clientWidth}px`;
-  const top = `${(-projected.y * 0.5 + 0.5) * shell.canvas.clientHeight}px`;
-  const damageNumber = element("enemy-damage-number");
-  damageNumber.style.left = left;
-  damageNumber.style.top = top;
-  if (!admitted.alive || admitted.vitality <= 0) {
-    shell.enemyNameplate.hidden = true;
-    return;
-  }
-  shell.enemyNameplate.hidden = !visible;
-  if (!visible) return;
-  shell.enemyNameplate.style.left = left;
-  shell.enemyNameplate.style.top = top;
 }
 
 function createScene(): SceneShell {
@@ -2411,8 +2462,7 @@ function createScene(): SceneShell {
     Math.max(1, Math.min(2, window.devicePixelRatio)),
   );
   const canvas = presentation.renderer.domElement;
-  const enemyNameplate = element("enemy-nameplate");
-  const enemyNameplateFill = element("enemy-nameplate-health-fill");
+  const enemyNameplates = createEnemyNameplates();
   let shell: SceneShell | null = null;
   let cameraPointer: Readonly<{
     pointerId: number;
@@ -2516,10 +2566,7 @@ function createScene(): SceneShell {
     pointerReleaseHandler,
     contextMenuHandler,
     wheelHandler,
-    enemyNameplate,
-    enemyNameplateFill,
-    enemyNameplateAnchor: new Vector3(),
-    enemyNameplateProjection: null,
+    enemyNameplates,
     lootInteractions: [],
     cursorSubjects: [],
     frameHandle: 0,
