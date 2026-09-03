@@ -1590,13 +1590,20 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
       projectedEnemy.pressureState === "cannon-telegraph" ||
       projectedEnemy.pressureState === "charging"
     ) {
-      faceSubjectToward(
-        app.scene.presentation,
-        presentationSubject,
-        projectedEnemy.pressureState === "charging"
-          ? projectedEnemy.chargeEnd
-          : player.position,
-      );
+      if (projectedEnemy.pressureState === "approach") {
+        faceSubjectToward(
+          app.scene.presentation,
+          presentationSubject,
+          player.position,
+        );
+      } else {
+        faceSubjectAlong(
+          app.scene.presentation,
+          presentationSubject,
+          projectedEnemy.chargeEnd.x - projectedEnemy.chargeStart.x,
+          projectedEnemy.chargeEnd.z - projectedEnemy.chargeStart.z,
+        );
+      }
     }
   }
   const chargeCorridorVisible =
