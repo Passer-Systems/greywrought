@@ -2888,9 +2888,12 @@ function applyInputPreferences(app: PlayApp): void {
   for (const control of document.querySelectorAll<HTMLButtonElement>(
     "[data-input-action]",
   )) {
-    const action = control.dataset.inputAction as GameAction | undefined;
+    const action = actionDefinitions.find(
+      ({ action: candidate }) => candidate === control.dataset.inputAction,
+    )?.action;
     if (action === undefined) continue;
-    control.textContent = displayKey(preferences.bindings[action]);
+    const binding = preferences.bindings[action] ?? defaultInputPreferences.bindings[action];
+    control.textContent = displayKey(binding);
     control.setAttribute(
       "aria-label",
       `${definitionForAction(action).label}: ${control.textContent}. Activate to rebind.`,
@@ -3223,7 +3226,9 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
     "[data-input-action]",
   )) {
     const capture = (): void => {
-      const action = control.dataset.inputAction as GameAction | undefined;
+      const action = actionDefinitions.find(
+        ({ action: candidate }) => candidate === control.dataset.inputAction,
+      )?.action;
       if (action === undefined) return;
       app.playerInput.captureAction = action;
       control.textContent = "Press key…";

@@ -1246,15 +1246,6 @@ on select-hunter ?player
     ?player last ability steady-shot
     ?player selection sequence ?sequence + 1.0
 
-on primary-ability ?player
-  when
-    ?player ability request ?request
-    ?request = idle-request
-  withdraw
-    ?player ability request ?request
-  include
-    ?player ability request primary-request
-
 on secondary-ability ?player
   when
     ?player ability request ?request
@@ -1300,49 +1291,18 @@ on class-utility ?player
   include
     ?player ability request utility-request
 
-on resolve-warrior-primary ?player
+on primary-ability ?player
   when
-    ?player ability request ?request
-    ?request = primary-request
-    ?player character archetype ?archetype
-    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
     ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
     ?player sword action sequence ?sword-sequence
     ?player sword commitment clock ?clock
     ?player last ability ?last
     ?player combat status ?status
+    ?player ranged action state ?ranged-state
     jump-arena sword commitment ticks ?commitment
-    (?resource + 20.0) clamped between 0.0 and ?maximum as ?next-resource
-    ?archetype = warrior
     ?status = alive
+    ?ranged-state = ready
     ?clock = 0.0
-  withdraw
-    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
-    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
-    ?player sword action sequence ?sword-sequence
-    ?player sword commitment clock ?clock
-    ?player last ability ?last
-  include
-    ?player class resource Vec3 { x: ?next-resource, y: ?maximum, z: ?regeneration }
-    ?player ability sequences Vec3 { x: ?first + 1.0, y: ?second, z: ?third }
-    ?player sword action sequence ?sword-sequence + 1.0
-    ?player sword commitment clock ?commitment
-    ?player last ability warrior-strike
-
-on resolve-mage-primary ?player
-  when
-    ?player ability request ?request
-    ?request = primary-request
-    ?player character archetype ?archetype
-    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
-    ?player sword action sequence ?sword-sequence
-    ?player sword commitment clock ?clock
-    ?player last ability ?last
-    ?player combat status ?status
-    jump-arena sword commitment ticks ?commitment
-    ?archetype = mage
-    ?clock = 0.0
-    ?status = alive
   withdraw
     ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
     ?player sword action sequence ?sword-sequence
@@ -1352,32 +1312,7 @@ on resolve-mage-primary ?player
     ?player ability sequences Vec3 { x: ?first + 1.0, y: ?second, z: ?third }
     ?player sword action sequence ?sword-sequence + 1.0
     ?player sword commitment clock ?commitment
-    ?player last ability staff-strike
-
-on resolve-hunter-primary ?player
-  when
-    ?player ability request ?request
-    ?request = primary-request
-    ?player character archetype ?archetype
-    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
-    ?player sword action sequence ?sword-sequence
-    ?player sword commitment clock ?clock
-    ?player last ability ?last
-    ?player combat status ?status
-    jump-arena sword commitment ticks ?commitment
-    ?archetype = hunter
-    ?clock = 0.0
-    ?status = alive
-  withdraw
-    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
-    ?player sword action sequence ?sword-sequence
-    ?player sword commitment clock ?clock
-    ?player last ability ?last
-  include
-    ?player ability sequences Vec3 { x: ?first + 1.0, y: ?second, z: ?third }
-    ?player sword action sequence ?sword-sequence + 1.0
-    ?player sword commitment clock ?commitment
-    ?player last ability raptor-strike
+    ?player last ability basic-attack
 
 on resolve-warrior-secondary ?player
   when
@@ -1867,15 +1802,6 @@ on resolve-hunter-utility ?player
 on settle-ability-request ?player
   when
     ?player ability request ?request
-    ?request = primary-request
-  withdraw
-    ?player ability request ?request
-  include
-    ?player ability request idle-request
-
-on settle-ability-request ?player
-  when
-    ?player ability request ?request
     ?request = secondary-request
   withdraw
     ?player ability request ?request
@@ -2349,23 +2275,6 @@ on regenerate-booster-energy ?player
     ?player booster energy ?energy
   include
     ?player booster energy ?energy + ?regeneration
-
-on begin-sword-action ?player
-  when
-    ?player sword action sequence ?sequence
-    ?player sword commitment clock ?clock
-    ?player ranged action state ?ranged-state
-    ?player combat status ?combat-status
-    jump-arena sword commitment ticks ?commitment-ticks
-    ?combat-status = alive
-    ?ranged-state = ready
-    ?clock = 0.0
-  withdraw
-    ?player sword action sequence ?sequence
-    ?player sword commitment clock ?clock
-  include
-    ?player sword action sequence ?sequence + 1.0
-    ?player sword commitment clock ?commitment-ticks
 
 on pulse-shield ?player
   when

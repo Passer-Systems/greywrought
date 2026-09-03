@@ -20,6 +20,7 @@
     "test:browser-playability": "bun acceptance/browser/playability.ts",
     "test:browser-camera-relative": "bun acceptance/browser/camera-relative-movement.ts",
     "test:browser-encounter": "bun acceptance/browser/encounter-journey.ts",
+    "test:browser-attack-edge": "bun acceptance/browser/attack-edge.ts",
     "test:browser-liveness": "bun acceptance/browser/sustained-liveness.ts",
     "test:browser-behavior-hot-edit": "bun acceptance/browser/behavior-hot-edit.ts",
     "test:resident-source-recovery": "bun acceptance/resident-source-recovery.ts",

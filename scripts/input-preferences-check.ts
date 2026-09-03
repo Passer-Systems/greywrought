@@ -27,6 +27,14 @@ assert(actionForPhysicalCode(defaultBindings, "Digit2") === "ability2", "2 did n
 assert(actionForPhysicalCode(defaultBindings, "KeyF") === "loot", "F did not bind interact");
 assert(actionForPhysicalCode(defaultBindings, "KeyR") === "classUtility", "R did not bind class utility");
 assert(actionForPhysicalCode(defaultBindings, "ShiftR") === "reset", "Shift+R did not bind reset");
+for (const action of [
+  "forward", "backward", "left", "right", "target", "ability1", "ability2",
+  "ability3", "ability4", "ability5", "classUtility", "loot", "jump", "shield",
+  "horizontalSustain", "horizontalBurst", "reset",
+] as const) {
+  assert(typeof defaultBindings[action] === "string" && defaultBindings[action].length > 0,
+    `default binding was not total for ${action}`);
+}
 const swappedCombat = swapCombatSlotBindings(defaultBindings, 0, 1);
 assert(actionForPhysicalCode(swappedCombat, "Digit1") === "ability2", "combat swap did not move Cinderbolt");
 assert(actionForPhysicalCode(swappedCombat, "Digit2") === "ability1", "combat swap did not move Attack");
