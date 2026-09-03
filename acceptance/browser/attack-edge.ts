@@ -78,6 +78,17 @@ try {
         residentPhase: document.body.dataset.residentPhase,
         residentLaw: document.getElementById("resident-law")?.textContent,
         playerX: Number(document.body.dataset.gamePlayerX),
+        playerZ: Number(document.body.dataset.gamePlayerZ),
+        playerVitality: Number(document.body.dataset.gamePlayerVitality),
+        enemyPressure: document.body.dataset.gameEnemyPressure,
+        boarX: Number(document.body.dataset.gameBoarX),
+        boarZ: Number(document.body.dataset.gameBoarZ),
+        chargeStartX: Number(document.body.dataset.gameBoarChargeStartX),
+        chargeStartZ: Number(document.body.dataset.gameBoarChargeStartZ),
+        chargeEndX: Number(document.body.dataset.gameBoarChargeEndX),
+        chargeEndZ: Number(document.body.dataset.gameBoarChargeEndZ),
+        boarFacingYaw: Number(document.body.dataset.gameBoarFacingYaw),
+        boarMeshYaw: Number(document.body.dataset.gameBoarMeshYaw),
         swordSequence: Number(document.body.dataset.gameSwordActionSequence),
         swordClock: Number(document.body.dataset.gameSwordCommitmentClock),
         shieldEnergy: Number(document.body.dataset.gameShieldEnergy),
@@ -100,6 +111,17 @@ try {
       residentPhase?: string;
       residentLaw?: string;
       playerX: number;
+      playerZ: number;
+      playerVitality: number;
+      enemyPressure?: string;
+      boarX: number;
+      boarZ: number;
+      chargeStartX: number;
+      chargeStartZ: number;
+      chargeEndX: number;
+      chargeEndZ: number;
+      boarFacingYaw: number;
+      boarMeshYaw: number;
       swordSequence: number;
       swordClock: number;
       shieldEnergy: number;
@@ -121,6 +143,17 @@ try {
   requireCondition(
     initial.initialized && exceptions.length === 0,
     `startApp did not initialize: ${JSON.stringify(initial)} ${exceptions.join(" | ")}`,
+  );
+  const preEntry = initial;
+  await Bun.sleep(1500);
+  const afterEntryWait = await snapshot();
+  requireCondition(
+    preEntry.archetype === undefined &&
+      afterEntryWait.archetype === undefined &&
+      afterEntryWait.phase === "loading" &&
+      !Number.isFinite(afterEntryWait.playerVitality) &&
+      afterEntryWait.keyboardEvents.length === 0,
+    `encounter advanced behind entry: ${JSON.stringify({ preEntry, afterEntryWait })}`,
   );
   for (
     let attempt = 0;
@@ -152,12 +185,49 @@ try {
     initial = await snapshot();
   }
   requireCondition(
-    initial.archetype === "warrior",
+    initial.archetype === "warrior" &&
+      initial.phase === "playing" &&
+      initial.playerVitality === 4,
     `Warrior selection did not settle: ${JSON.stringify(initial)} ${exceptions.join(" | ")}`,
   );
   requireCondition(initial.renderFailures === 0, "resident projection failed before attack test");
 
   const shieldSamples: Array<{ energy: number; radius: number }> = [];
+  await key("keyDown", "KeyE", "e", 69);
+  let chargeFacing = initial;
+  for (let attempt = 0; attempt < 240 && chargeFacing.boarX > 7.5; attempt += 1) {
+    await Bun.sleep(25);
+    chargeFacing = await snapshot();
+  }
+  await key("keyDown", "ShiftLeft", "Shift", 16);
+  await key("keyDown", "KeyW", "w", 87);
+  for (let attempt = 0; attempt < 240; attempt += 1) {
+    const directionX = chargeFacing.chargeEndX - chargeFacing.chargeStartX;
+    const directionZ = chargeFacing.chargeEndZ - chargeFacing.chargeStartZ;
+    const expectedYaw = Math.atan2(directionX, directionZ);
+    if (
+      (chargeFacing.enemyPressure === "telegraph" || chargeFacing.enemyPressure === "charging") &&
+      Math.abs(directionZ) > 0.25 &&
+      Math.abs(chargeFacing.boarFacingYaw - expectedYaw) < 0.0001 &&
+      Math.abs(chargeFacing.boarMeshYaw - expectedYaw) < 0.0001
+    ) {
+      break;
+    }
+    await Bun.sleep(25);
+    chargeFacing = await snapshot();
+  }
+  await key("keyUp", "KeyW", "w", 87);
+  await key("keyUp", "ShiftLeft", "Shift", 16);
+  const chargeDirectionX = chargeFacing.chargeEndX - chargeFacing.chargeStartX;
+  const chargeDirectionZ = chargeFacing.chargeEndZ - chargeFacing.chargeStartZ;
+  const expectedChargeYaw = Math.atan2(chargeDirectionX, chargeDirectionZ);
+  requireCondition(
+    (chargeFacing.enemyPressure === "telegraph" || chargeFacing.enemyPressure === "charging") &&
+      Math.abs(chargeDirectionZ) > 0.25 &&
+      Math.abs(chargeFacing.boarFacingYaw - expectedChargeYaw) < 0.0001 &&
+      Math.abs(chargeFacing.boarMeshYaw - expectedChargeYaw) < 0.0001,
+    `off-axis boar facing diverged from its charge vector: ${JSON.stringify({ chargeFacing, expectedChargeYaw })}`,
+  );
   await key("keyDown", "Digit1", "1", 49);
   let tapped = await snapshot();
   for (let attempt = 0; attempt < 40 && tapped.swordSequence === initial.swordSequence; attempt += 1) {
@@ -169,7 +239,6 @@ try {
     tapped.swordSequence === initial.swordSequence + 1,
     `fresh Digit1 down did not actuate exactly once (${initial.swordSequence} → ${tapped.swordSequence}): ${JSON.stringify({ initial, tapped })}`,
   );
-  await key("keyDown", "KeyE", "e", 69);
   await key("keyDown", "KeyA", "a", 65);
   await Bun.sleep(100);
   await key("keyUp", "KeyA", "a", 65);
@@ -209,7 +278,8 @@ try {
   console.log(
     `Attack edge passed: down ${initial.swordSequence}→${tapped.swordSequence}, ` +
       `hold ${tapped.swordSequence}→${held.swordSequence}, ` +
-      `walk ${held.swordSequence}→${walked.swordSequence}.`,
+      `walk ${held.swordSequence}→${walked.swordSequence}; ` +
+      `charge yaw ${chargeFacing.boarMeshYaw.toFixed(3)}.`,
   );
 } finally {
   socket?.close();

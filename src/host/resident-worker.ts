@@ -121,6 +121,7 @@ let activeExternalGeneration = -1;
 let pendingExternalGeneration: number | null = null;
 let flushingInput = false;
 let simulationStarted = false;
+let characterSelectionTickPending = false;
 let disposed = false;
 let commands = Promise.resolve();
 const inputQueue: ResidentInput[] = [];
@@ -151,6 +152,7 @@ const edgeTriggeredKeyboardCodes = new Set([
   "ShiftTab",
   "LootItem",
 ]);
+const characterSelectionKeyboardCodes = new Set(["F1", "F2", "F3"]);
 
 function envelope(input: ResidentInput): WorkbenchEnvelope {
   const observation =
@@ -209,6 +211,7 @@ function handleReceipt(receipt: LifecycleReceipt): void {
       pendingExternalGeneration = null;
     }
     simulationStarted = false;
+    characterSelectionTickPending = false;
     inputQueue.length = 0;
     return;
   }
@@ -251,7 +254,12 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
         // supplies the first gameplay key. This prevents slow WebGL/asset
         // startup from consuming the encounter before input can arrive.
         const handle = setInterval(() => {
-          if (simulationStarted) callback();
+          if (simulationStarted) {
+            callback();
+          } else if (characterSelectionTickPending) {
+            characterSelectionTickPending = false;
+            callback();
+          }
         }, milliseconds);
         return () => clearInterval(handle);
       },
@@ -295,7 +303,18 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
 
 function queueInput(input: ResidentInput): void {
   receivedInputCount += 1;
-  if (input.kind === "keyboard") simulationStarted = true;
+  if (
+    input.kind === "keyboard" &&
+    !characterSelectionKeyboardCodes.has(input.code)
+  ) {
+    simulationStarted = true;
+  } else if (
+    input.kind === "keyboard" &&
+    input.phase === "down" &&
+    characterSelectionKeyboardCodes.has(input.code)
+  ) {
+    characterSelectionTickPending = true;
+  }
   if (
     input.kind === "keyboard" &&
     input.phase === "down" &&

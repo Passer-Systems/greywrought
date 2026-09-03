@@ -1032,7 +1032,7 @@ burst-booster-rig air boost cost 26.0
 cinder-wraith enemy position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy spawn position Vec3 { x: 12.0, y: 0.0, z: 0.0 }
 cinder-wraith enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
-cinder-wraith enemy combat status alive
+cinder-wraith enemy combat status dormant
 cinder-wraith enemy body visible true
 cinder-wraith enemy corpse clock 0.0
 cinder-wraith combat behavior relentless-charge
@@ -1040,7 +1040,7 @@ relentless-charge behavior parameters CombatBehaviorParameters { minimum-step: -
 patient-charge behavior parameters CombatBehaviorParameters { minimum-step: -0.02, maximum-step: 0.02, engagement-radius-squared: 25.0 }
 cinder-wraith next target veil-tusk
 cinder-wraith previous target veil-tusk
-cinder-wraith enemy pressure state approach
+cinder-wraith enemy pressure state dormant
 cinder-wraith enemy pressure clock 0.0
 cinder-wraith enemy recovery clock 0.0
 cinder-wraith enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
@@ -1054,13 +1054,13 @@ cinder-wraith enemy stealth radius 0.0
 veil-tusk enemy position Vec3 { x: 13.5, y: 0.0, z: 5.0 }
 veil-tusk enemy spawn position Vec3 { x: 13.5, y: 0.0, z: 5.0 }
 veil-tusk enemy vitals Vec3 { x: 6.0, y: 6.0, z: 1.0 }
-veil-tusk enemy combat status alive
+veil-tusk enemy combat status dormant
 veil-tusk enemy body visible true
 veil-tusk enemy corpse clock 0.0
 veil-tusk combat behavior relentless-charge
 veil-tusk next target cinder-wraith
 veil-tusk previous target cinder-wraith
-veil-tusk enemy pressure state approach
+veil-tusk enemy pressure state dormant
 veil-tusk enemy pressure clock 0.0
 veil-tusk enemy recovery clock 0.0
 veil-tusk enemy charge start Vec3 { x: 0.0, y: 0.0, z: 0.0 }
@@ -1252,6 +1252,23 @@ on select-hunter ?player
     ?player utility cooldowns Vec3 { x: 0.0, y: 0.0, z: 0.0 }
     ?player last ability steady-shot
     ?player selection sequence ?sequence + 1.0
+
+on awaken-encounter-after-character-selection ?enemy
+  when
+    player-1 selection sequence ?selection
+    ?enemy enemy combat status ?status
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive }
+    ?selection > 0.0
+    ?maximum = 6.0
+    ?status = dormant
+    ?pressure = dormant
+  withdraw
+    ?enemy enemy combat status ?status
+    ?enemy enemy pressure state ?pressure
+  include
+    ?enemy enemy combat status alive
+    ?enemy enemy pressure state approach
 
 on release-primary-ability ?player
   when

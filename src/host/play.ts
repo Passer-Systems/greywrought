@@ -1742,6 +1742,20 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     gamePlayerZ: String(player.position.z),
     gameBoarX: String(enemy.position.x),
     gameBoarZ: String(enemy.position.z),
+    gameBoarChargeStartX: String(enemy.chargeStart.x),
+    gameBoarChargeStartZ: String(enemy.chargeStart.z),
+    gameBoarChargeEndX: String(enemy.chargeEnd.x),
+    gameBoarChargeEndZ: String(enemy.chargeEnd.z),
+    gameBoarFacingYaw: String(
+      app.scene.presentation.subjects.find(
+        ({ subject }) => subject === enemyPresentationSubject,
+      )?.facingYaw ?? 0,
+    ),
+    gameBoarMeshYaw: String(
+      app.scene.presentation.subjects.find(
+        ({ subject }) => subject === enemyPresentationSubject,
+      )?.root.rotation.y ?? 0,
+    ),
     gameBoosterEnergy: String(player.boosterEnergy),
     gameBoosterCapacity: String(player.boosterCapacity),
     gameBoosterEquipment: player.boosterEquipment,
