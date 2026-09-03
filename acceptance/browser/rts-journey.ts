@@ -87,6 +87,9 @@ try {
   requireCondition(selectedCount === "5", `drag selection did not select all five units (count=${selectedCount}, canvas=${canvas.width}x${canvas.height}, events=${JSON.stringify(selectionEvents)})`);
   const before = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
   await mouse("mousePressed", canvas.x + canvas.width * 0.72, canvas.y + canvas.height * 0.45, "right", 2); await mouse("mouseReleased", canvas.x + canvas.width * 0.72, canvas.y + canvas.height * 0.45, "right");
+  const marker = await evaluate<string>("document.body.dataset.destinationMarker || ''");
+  const markerCoords = marker.split(',').map(Number);
+  requireCondition(markerCoords.length === 2 && markerCoords.every(Number.isFinite), `destination marker missing/invalid: ${marker}`);
   await Bun.sleep(900);
   requireCondition(await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').length") > 0, "right-click did not issue a move order");
   const after = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");

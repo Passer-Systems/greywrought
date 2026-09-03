@@ -301,7 +301,10 @@ function bindInteraction(state: GameState): void {
   const contextMenu = (event: MouseEvent): void => {
     event.preventDefault();
     const point = state.presentation.groundPoint(event.clientX, event.clientY);
-    if (point !== null && state.units.some((unit) => unit.selected)) issueMove(state, point);
+    if (point !== null && state.units.some((unit) => unit.selected)) {
+      state.presentation.showMoveDestination(point);
+      issueMove(state, point);
+    }
   };
   const pointerLeave = (event: PointerEvent): void => state.presentation.setPointer(event.clientX, event.clientY, false);
   const wheel = (event: WheelEvent): void => { event.preventDefault(); state.presentation.zoom(event.deltaY); };

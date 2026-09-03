@@ -51,6 +51,7 @@ export interface RtsPresentation {
   pickUnit(clientX: number, clientY: number): string | null;
   unitsInScreenRectangle(left: number, top: number, right: number, bottom: number): string[];
   groundPoint(clientX: number, clientY: number): Vector3 | null;
+  showMoveDestination(point: Vector3): void;
   setPointer(clientX: number, clientY: number, inside: boolean): void;
   setPanKey(code: string, down: boolean): void;
   zoom(deltaY: number): void;
@@ -230,6 +231,43 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
   const raycaster = new Raycaster();
   const pointer = new Vector2();
   const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
+  // One reusable destination marker gives immediate, readable feedback for the
+  // latest right-click order without accumulating transient scene objects.
+  const marker = new Group();
+  const markerRingMaterial = new MeshStandardMaterial({
+    color: 0x8cff5a,
+    emissive: new Color(0x2c9e24),
+    emissiveIntensity: 1.8,
+    transparent: true,
+    opacity: 0.95,
+    roughness: 0.4,
+    depthWrite: false,
+  });
+  const markerArrowMaterial = new MeshStandardMaterial({
+    color: 0xffd15a,
+    emissive: new Color(0xa6601a),
+    emissiveIntensity: 1.5,
+    transparent: true,
+    opacity: 0.98,
+    roughness: 0.45,
+    depthWrite: false,
+  });
+  const markerRing = new Mesh(new TorusGeometry(0.72, 0.07, 8, 32), markerRingMaterial);
+  markerRing.rotation.x = Math.PI / 2;
+  markerRing.position.y = 0.055;
+  markerRing.castShadow = false;
+  const markerArrow = new Mesh(new ConeGeometry(0.2, 0.62, 4), markerArrowMaterial);
+  markerArrow.rotation.x = Math.PI;
+  markerArrow.position.y = 2.1;
+  markerArrow.castShadow = false;
+  marker.add(markerRing, markerArrow);
+  marker.visible = false;
+  scene.add(marker);
+  ownedGeometries.add(markerRing.geometry);
+  ownedGeometries.add(markerArrow.geometry);
+  ownedMaterials.add(markerRingMaterial);
+  ownedMaterials.add(markerArrowMaterial);
+  let markerAge = 99;
   const focus = new Vector3(0, 0, 2);
   const pointerPixels = new Vector2(-1000, -1000);
   const panKeys = new Set<string>();
@@ -314,6 +352,16 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       const dz = figure.root.position.z - before.z;
       if (Math.hypot(dx, dz) > 0.0001) figure.root.rotation.y = Math.atan2(dx, dz);
     }
+    if (marker.visible) {
+      markerAge += dt;
+      const descent = Math.min(1, markerAge / 0.34);
+      markerArrow.position.y = 2.1 - MathUtils.smoothstep(descent, 0, 1) * 1.87;
+      const fade = markerAge <= 0.82 ? 1 : MathUtils.clamp(1 - (markerAge - 0.82) / 0.68, 0, 1);
+      markerRingMaterial.opacity = 0.95 * fade;
+      markerArrowMaterial.opacity = 0.98 * fade;
+      markerRing.scale.setScalar(1 + Math.sin(Math.min(markerAge, 0.82) * 10) * 0.08);
+      if (fade <= 0) marker.visible = false;
+    }
     camera.position.set(focus.x + cameraDistance * 0.66, cameraDistance * 0.78, focus.z + cameraDistance * 0.66);
     camera.lookAt(focus.x, 0, focus.z);
     renderer.render(scene, camera);
@@ -346,6 +394,12 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
     groundPoint(clientX, clientY) {
       raycaster.setFromCamera(normalizedPoint(clientX, clientY), camera);
       return raycaster.ray.intersectPlane(groundPlane, new Vector3());
+    },
+    showMoveDestination(point) {
+      marker.position.set(point.x, 0, point.z);
+      markerAge = 0;
+      marker.visible = true;
+      document.body.dataset.destinationMarker = `${point.x.toFixed(2)},${point.z.toFixed(2)}`;
     },
     setPointer(clientX, clientY, inside) {
       pointerPixels.copy(canvasPoint(clientX, clientY));
