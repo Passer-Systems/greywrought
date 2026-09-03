@@ -25,6 +25,7 @@ assert(actionForPhysicalCode(defaultBindings, "ShiftRight") === "horizontalSusta
 assert(actionForPhysicalCode(defaultBindings, "Digit1") === "ability1", "1 did not bind melee primary");
 assert(actionForPhysicalCode(defaultBindings, "Digit2") === "ability2", "2 did not bind Bolt/cast");
 assert(actionForPhysicalCode(defaultBindings, "KeyF") === "loot", "F did not bind interact");
+assert(actionForPhysicalCode(defaultBindings, "KeyL") === null, "L retained a stale interact binding");
 assert(actionForPhysicalCode(defaultBindings, "KeyR") === "classUtility", "R did not bind class utility");
 assert(actionForPhysicalCode(defaultBindings, "ShiftR") === "reset", "Shift+R did not bind reset");
 for (const action of [

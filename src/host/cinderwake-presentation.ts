@@ -208,6 +208,8 @@ export interface CinderwakePresentation {
   shieldActive: boolean;
   shieldEnergy: number;
   shieldRadius: number;
+  shieldDisplayedRadius: number;
+  shieldActivationLevel: number;
   shieldProtective: boolean;
   shieldReflectLevel: number;
   shieldAbsorbLevel: number;
@@ -1361,6 +1363,9 @@ export function setPulseShield(
   reflected: boolean,
   absorbed: boolean,
 ): void {
+  if (active && !presentation.shieldActive) {
+    presentation.shieldActivationLevel = 1;
+  }
   presentation.shieldClock = Math.max(0, clock);
   presentation.shieldActive = active;
   presentation.shieldEnergy = Math.max(0, Math.min(100, energy));
@@ -1472,12 +1477,19 @@ export function renderPresentationFrame(
     0,
     presentation.shieldAbsorbLevel - delta * 5.5,
   );
+  presentation.shieldActivationLevel = Math.max(
+    0,
+    presentation.shieldActivationLevel - delta * 3.8,
+  );
+  const radiusBlend = delta === 0 ? 1 : 1 - Math.exp(-delta * 18);
+  presentation.shieldDisplayedRadius +=
+    (presentation.shieldRadius - presentation.shieldDisplayedRadius) * radiusBlend;
   const shieldPerfect = presentation.shieldClock > 0;
   const shieldActive = presentation.shieldActive && presentation.shieldEnergy > 0;
-  const shieldPulse = 1 + Math.sin(elapsedSeconds * 34) * 0.055;
   presentation.shieldBubble.visible = shieldActive;
   presentation.shieldBubble.scale.setScalar(
-    (presentation.shieldRadius / 1.08) * shieldPulse +
+    presentation.shieldDisplayedRadius / 1.08 +
+      presentation.shieldActivationLevel * 0.32 +
       presentation.shieldReflectLevel * 0.42 +
       presentation.shieldAbsorbLevel * 0.18,
   );
@@ -1507,11 +1519,12 @@ export function renderPresentationFrame(
       : presentation.shieldAbsorbLevel > 0
         ? 3.2
         : shieldPerfect
-          ? 3.4
+          ? 3.4 + presentation.shieldActivationLevel * 1.8
           : 1.8;
   presentation.shieldBubbleMaterial.opacity = shieldActive
     ? 0.18 +
       (shieldPerfect ? 0.23 : 0.08) +
+      presentation.shieldActivationLevel * 0.12 +
       presentation.shieldReflectLevel * 0.4 +
       presentation.shieldAbsorbLevel * 0.26
     : 0;
@@ -1752,6 +1765,8 @@ export function createCinderwakePresentation(
     shieldActive: false,
     shieldEnergy: 100,
     shieldRadius: 2.6,
+    shieldDisplayedRadius: 2.6,
+    shieldActivationLevel: 0,
     shieldProtective: true,
     shieldReflectLevel: 0,
     shieldAbsorbLevel: 0,

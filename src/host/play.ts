@@ -1227,13 +1227,13 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
     ) {
       playPresentationCue(app, "shield-absorb");
     }
-    if (
-      projection.loots.some((loot) => {
-        const previous = prior.loots.find(({ id }) => id === loot.id);
-        return previous?.custody !== loot.custody && loot.custody === "player-1";
-      })
-    ) {
+    const acquiredLoot = projection.loots.find((loot) => {
+      const previous = prior.loots.find(({ id }) => id === loot.id);
+      return previous?.custody !== loot.custody && loot.custody === "player-1";
+    });
+    if (acquiredLoot !== undefined) {
       playPresentationCue(app, "loot");
+      boundedGameEvent({ phase: "loot-acquired", item: acquiredLoot.id });
     }
     if (objective.state !== prior.objective.state && objectiveStatus === "completed") {
       playPresentationCue(app, "objective");
@@ -1672,11 +1672,11 @@ function renderGameProjection(app: PlayApp, rawProjection: unknown): void {
       : objectiveStatus === "failed"
         ? "WAYFARER FALLEN · press Shift + R to restore the revision"
         : ashenKey.state === "available"
-          ? "CORPSE CONTAINS LOOT · move close and right-click the sparkling boar"
+          ? "CORPSE CONTAINS LOOT · move close and press F"
           : boss.combatStatus === "alive"
             ? "ASHEN COLOSSUS AWAKENED · cross the breach and bring it down"
             : cephorium.state === "available"
-              ? "COLOSSUS SLAIN · right-click the exposed Cephorium cache"
+              ? "COLOSSUS SLAIN · move close and press F"
               : cephorium.state === "acquired" && cephorium.custody === "player-1"
                 ? "CEPHORIUM SECURED · extract west to the moonwell"
                 : "Read the boar telegraph · burst perpendicular · punish recovery";
@@ -2851,25 +2851,6 @@ function observeGameKey(
     phase,
     repeat: event.repeat,
   });
-  // Attack is a physical edge, not a held simulation state. Close its semantic
-  // pulse after the down edge has crossed at least one resident tick so the
-  // Clause latch rearms without depending on browser keyup timing.
-  if (phase === "down" && event.code === "Digit1" && !event.repeat) {
-    setTimeout(() => {
-      boundedGameEvent({
-        phase: "keyboard-observed",
-        code: event.code,
-        inputPhase: "up",
-        repeat: false,
-      });
-      queueGameInput(app, {
-        kind: "keyboard",
-        code: event.code,
-        phase: "up",
-        repeat: false,
-      });
-    }, 250);
-  }
 }
 
 function observeCameraBasis(app: PlayApp): void {
@@ -3266,10 +3247,19 @@ function bindGameInput(app: PlayApp, listeners: Array<() => void>): void {
   };
   const up = (event: KeyboardEvent): void => {
     const code = heldKeys.get(event.code);
-    if (code === undefined) return;
+    if (code !== undefined) {
+      event.preventDefault();
+      heldKeys.delete(event.code);
+      observeGameKey(app, { code, repeat: false }, "up");
+      return;
+    }
+    const action = actionForPhysicalCode(
+      app.playerInput.preferences.bindings,
+      physicalBindingCode(event),
+    );
+    if (action !== "ability1") return;
     event.preventDefault();
-    heldKeys.delete(event.code);
-    observeGameKey(app, { code, repeat: false }, "up");
+    observeGameKey(app, { code: semanticCode(action), repeat: false }, "up");
   };
   const releaseHeldKeys = (): void => {
     for (const code of heldKeys.values()) {

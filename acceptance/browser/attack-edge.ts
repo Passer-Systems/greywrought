@@ -80,6 +80,8 @@ try {
         playerX: Number(document.body.dataset.gamePlayerX),
         swordSequence: Number(document.body.dataset.gameSwordActionSequence),
         swordClock: Number(document.body.dataset.gameSwordCommitmentClock),
+        shieldEnergy: Number(document.body.dataset.gameShieldEnergy),
+        shieldRadius: Number(document.body.dataset.gameShieldRadius),
         initialized: Array.isArray(window.__GREYWROUGHT_GAME_EVENTS__),
         renderFailures: Array.isArray(window.__GREYWROUGHT_GAME_EVENTS__)
           ? window.__GREYWROUGHT_GAME_EVENTS__.filter((event) => event.phase === "frame-render-failed").length
@@ -100,6 +102,8 @@ try {
       playerX: number;
       swordSequence: number;
       swordClock: number;
+      shieldEnergy: number;
+      shieldRadius: number;
       initialized: boolean;
       renderFailures: number;
       keyboardEvents: Array<{ code: string; inputPhase: string; repeat: boolean }>;
@@ -181,6 +185,21 @@ try {
   );
   requireCondition(held.playerX < walked.playerX, "movement did not continue during held attack test");
   requireCondition(held.renderFailures === 0, "resident projection failed during attack test");
+  await key("keyDown", "KeyE", "e", 69);
+  const shieldSamples: Array<{ energy: number; radius: number }> = [];
+  for (let sample = 0; sample < 20; sample += 1) {
+    await Bun.sleep(25);
+    const value = await snapshot();
+    shieldSamples.push({ energy: value.shieldEnergy, radius: value.shieldRadius });
+  }
+  await key("keyUp", "KeyE", "e", 69);
+  requireCondition(
+    shieldSamples.at(-1)!.energy < shieldSamples[0]!.energy &&
+      shieldSamples.every((value, index) => index === 0 ||
+        (value.energy <= shieldSamples[index - 1]!.energy &&
+          value.radius <= shieldSamples[index - 1]!.radius)),
+    `held shield energy/radius was not monotonic: ${JSON.stringify(shieldSamples)}`,
+  );
   requireCondition(exceptions.length === 0, exceptions.join("\n"));
   console.log(
     `Attack edge passed: walk ${initial.swordSequence}→${walked.swordSequence}, ` +

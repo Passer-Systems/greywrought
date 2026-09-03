@@ -431,8 +431,8 @@ relation ability-request
   subject player
   mode given player yields request: one
 
-relation attack-input-armed
-  reads {player: Player} attack input armed {value: Bool}
+relation attack-release-sequence
+  reads {player: Player} attack release sequence {value: F64}
   subject player
   mode given player yields value: one
 
@@ -996,7 +996,7 @@ player-1 projectile damage 2.0
 player-1 class utility sequence 0.0
 player-1 selection sequence 0.0
 player-1 ability request idle-request
-player-1 attack input armed true
+player-1 attack release sequence 0.0
 player-1 combat target cinder-wraith
 player-1 target lock active false
 player-1 target selection sequence 0.0
@@ -1253,14 +1253,22 @@ on select-hunter ?player
     ?player last ability steady-shot
     ?player selection sequence ?sequence + 1.0
 
+on primary-ability ?player
+  when
+    ?player ability request ?request
+    ?request = idle-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request primary-request
+
 on release-primary-ability ?player
   when
-    ?player attack input armed ?armed
-    ?armed = false
+    ?player attack release sequence ?sequence
   withdraw
-    ?player attack input armed ?armed
+    ?player attack release sequence ?sequence
   include
-    ?player attack input armed true
+    ?player attack release sequence ?sequence + 1.0
 
 on secondary-ability ?player
   when
@@ -1307,32 +1315,84 @@ on class-utility ?player
   include
     ?player ability request utility-request
 
-on primary-ability ?player
+on resolve-warrior-primary ?player
   when
-    ?player attack input armed ?armed
+    ?player ability request ?request
+    ?request = primary-request
+    ?player character archetype ?archetype
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
     ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
     ?player sword action sequence ?sword-sequence
     ?player sword commitment clock ?clock
     ?player last ability ?last
     ?player combat status ?status
-    ?player ranged action state ?ranged-state
     jump-arena sword commitment ticks ?commitment
-    ?armed = true
+    (?resource + 20.0) clamped between 0.0 and ?maximum as ?next-resource
+    ?archetype = warrior
     ?status = alive
-    ?ranged-state = ready
     ?clock = 0.0
   withdraw
-    ?player attack input armed ?armed
+    ?player class resource Vec3 { x: ?resource, y: ?maximum, z: ?regeneration }
     ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
     ?player sword action sequence ?sword-sequence
     ?player sword commitment clock ?clock
     ?player last ability ?last
   include
-    ?player attack input armed false
+    ?player class resource Vec3 { x: ?next-resource, y: ?maximum, z: ?regeneration }
     ?player ability sequences Vec3 { x: ?first + 1.0, y: ?second, z: ?third }
     ?player sword action sequence ?sword-sequence + 1.0
     ?player sword commitment clock ?commitment
-    ?player last ability basic-attack
+    ?player last ability warrior-strike
+
+on resolve-mage-primary ?player
+  when
+    ?player ability request ?request
+    ?request = primary-request
+    ?player character archetype ?archetype
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence
+    ?player sword commitment clock ?clock
+    ?player last ability ?last
+    ?player combat status ?status
+    jump-arena sword commitment ticks ?commitment
+    ?archetype = mage
+    ?clock = 0.0
+    ?status = alive
+  withdraw
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence
+    ?player sword commitment clock ?clock
+    ?player last ability ?last
+  include
+    ?player ability sequences Vec3 { x: ?first + 1.0, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence + 1.0
+    ?player sword commitment clock ?commitment
+    ?player last ability staff-strike
+
+on resolve-hunter-primary ?player
+  when
+    ?player ability request ?request
+    ?request = primary-request
+    ?player character archetype ?archetype
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence
+    ?player sword commitment clock ?clock
+    ?player last ability ?last
+    ?player combat status ?status
+    jump-arena sword commitment ticks ?commitment
+    ?archetype = hunter
+    ?clock = 0.0
+    ?status = alive
+  withdraw
+    ?player ability sequences Vec3 { x: ?first, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence
+    ?player sword commitment clock ?clock
+    ?player last ability ?last
+  include
+    ?player ability sequences Vec3 { x: ?first + 1.0, y: ?second, z: ?third }
+    ?player sword action sequence ?sword-sequence + 1.0
+    ?player sword commitment clock ?commitment
+    ?player last ability raptor-strike
 
 on resolve-warrior-secondary ?player
   when
@@ -1818,6 +1878,15 @@ on resolve-hunter-utility ?player
     ?target enemy pressure state hit-recovery
     ?target enemy recovery clock 80.0
     ?player last ability scatter-shot
+
+on settle-ability-request ?player
+  when
+    ?player ability request ?request
+    ?request = primary-request
+  withdraw
+    ?player ability request ?request
+  include
+    ?player ability request idle-request
 
 on settle-ability-request ?player
   when
@@ -2339,7 +2408,7 @@ on drain-shield-energy ?player
   when
     ?player shield active factor ?active
     ?player shield energy ?energy
-    (?energy - 0.32) clamped between 0.0 and 100.0 as ?next-energy
+    (?energy - 0.04) clamped between 0.0 and 100.0 as ?next-energy
     ?active = 1.0
     ?energy > 0.0
   withdraw
@@ -2362,7 +2431,7 @@ on regenerate-shield-energy ?player
   when
     ?player shield active factor ?active
     ?player shield energy ?energy
-    (?energy + 0.9) clamped between 0.0 and 100.0 as ?next-energy
+    (?energy + 0.05) clamped between 0.0 and 100.0 as ?next-energy
     ?active = 0.0
     ?energy < 100.0
   withdraw
@@ -3635,12 +3704,21 @@ on resolve-enemy-death ?enemy
   when
     ?enemy enemy combat status ?status
     ?enemy enemy vitals Vec3 { x: ?vitality, y: ?maximum, z: ?alive-flag }
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?pressure-clock
+    ?enemy enemy charge committed ?committed
     ?status = alive
     ?vitality = 0.0
   withdraw
     ?enemy enemy combat status ?status
+    ?enemy enemy pressure state ?pressure
+    ?enemy enemy pressure clock ?pressure-clock
+    ?enemy enemy charge committed ?committed
   include
     ?enemy enemy combat status dead
+    ?enemy enemy pressure state dormant
+    ?enemy enemy pressure clock 0.0
+    ?enemy enemy charge committed false
 
 on resolve-player-death ?player
   when

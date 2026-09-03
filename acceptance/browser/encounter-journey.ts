@@ -12,6 +12,7 @@ type Snapshot = Readonly<{
   playerVitality: number;
   enemyVitality: number;
   enemyCombatStatus: string;
+  enemyBodyVisible: boolean;
   lootState: string;
   custody: string;
   cephoriumState: string;
@@ -150,51 +151,8 @@ try {
       held.add(code);
     }
   };
-  const lootAtCanvasCenter = async (expectedItem: string) => {
-    const canvasBounds = await call("Runtime.evaluate", {
-      expression: `JSON.stringify((() => {
-        const rectangle = document.getElementById("world-canvas").getBoundingClientRect();
-        return { x: rectangle.left + rectangle.width / 2, y: rectangle.top + rectangle.height / 2 };
-      })())`,
-      returnByValue: true,
-    });
-    const point = JSON.parse(
-      canvasBounds.result.result.value as string,
-    ) as { x: number; y: number };
-    let lootWindow: { open: boolean; item?: string } = { open: false };
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      await call("Input.dispatchMouseEvent", {
-        type: "mousePressed",
-        x: point.x,
-        y: point.y,
-        button: "right",
-        clickCount: 1,
-      });
-      await call("Input.dispatchMouseEvent", {
-        type: "mouseReleased",
-        x: point.x,
-        y: point.y,
-        button: "right",
-        clickCount: 1,
-      });
-      const opened = await call("Runtime.evaluate", {
-        expression: `JSON.stringify({ open: document.body.dataset.lootWindow === "open", item: document.body.dataset.lootWindowItem })`,
-        returnByValue: true,
-      });
-      lootWindow = JSON.parse(opened.result.result.value as string) as {
-        open: boolean;
-        item?: string;
-      };
-      if (lootWindow.open) break;
-      await Bun.sleep(25);
-    }
-    requireCondition(
-      lootWindow.open && lootWindow.item === expectedItem,
-      `right-click did not open ${expectedItem} in the loot window`,
-    );
-    await call("Runtime.evaluate", {
-      expression: `document.getElementById("loot-item").click()`,
-    });
+  const lootWithInteractKey = async () => {
+    await press("KeyF");
   };
   const snapshot = async (): Promise<Snapshot> => {
     const result = await call("Runtime.evaluate", {
@@ -223,6 +181,7 @@ try {
           playerVitality: Number(document.body.dataset.gamePlayerVitality),
           enemyVitality: Number(document.body.dataset.gameEnemyVitality),
           enemyCombatStatus: document.body.dataset.gameEnemyCombatStatus,
+          enemyBodyVisible: document.body.dataset.gameEnemyBodyVisible === "true",
           lootState: document.body.dataset.gameLootState,
           custody: document.body.dataset.gameCustody,
           cephoriumState: document.body.dataset.gameCephoriumState,
@@ -315,6 +274,7 @@ try {
     let crossedOpenFrontier = false;
     let sawUnrewardedBreach = false;
     let completed: Snapshot | null = null;
+    let corpsePosition: { x: number; z: number } | null = null;
     let expeditionStartedAt = performance.now();
     let retries = 0;
 
@@ -341,6 +301,14 @@ try {
       requireCondition(value.residentPhase !== "rejected", "resident Clause generation was rejected");
       requireCondition(value.frontierGateAccess === value.frontierAccess,
         "the rendered frontier gate diverged from Clause access");
+      if (value.enemyCombatStatus === "dead" && value.enemyBodyVisible) {
+        corpsePosition ??= { x: value.boarX, z: value.boarZ };
+        requireCondition(
+          Math.abs(value.boarX - corpsePosition.x) < 0.0001 &&
+            Math.abs(value.boarZ - corpsePosition.z) < 0.0001,
+          `dead boar moved from ${corpsePosition.x},${corpsePosition.z} to ${value.boarX},${value.boarZ}`,
+        );
+      }
 
       if (value.phase === "failed") {
         retries += 1;
@@ -356,6 +324,7 @@ try {
         cephoriumRequested = false;
         crossedOpenFrontier = false;
         sawUnrewardedBreach = false;
+        corpsePosition = null;
         expeditionStartedAt = performance.now();
         continue;
       }
@@ -380,7 +349,7 @@ try {
         } else {
           await setHeld(new Set());
           if (!keyRequested) {
-            await lootAtCanvasCenter("ashen-key");
+            await lootWithInteractKey();
             keyRequested = true;
           }
         }
@@ -400,7 +369,7 @@ try {
         } else {
           await setHeld(new Set());
           if (!cephoriumRequested) {
-            await lootAtCanvasCenter("cephorium-cache");
+            await lootWithInteractKey();
             cephoriumRequested = true;
           }
         }
