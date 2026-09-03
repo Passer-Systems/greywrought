@@ -22,6 +22,7 @@ interface AudioBuses {
   readonly music: GainNode;
   readonly rain: GainNode;
   readonly effects: GainNode;
+  readonly analyser: AnalyserNode;
 }
 
 export interface PresentationAudio {
@@ -29,6 +30,7 @@ export interface PresentationAudio {
   buses: AudioBuses | null;
   musicTimer: number | null;
   musicBeat: number;
+  meterTimer: number | null;
   started: boolean;
   volume: number;
 }
@@ -41,6 +43,7 @@ export function createPresentationAudio(): PresentationAudio {
     buses: null,
     musicTimer: null,
     musicBeat: 0,
+    meterTimer: null,
     started: false,
     volume: 1,
   };
@@ -52,20 +55,41 @@ function connectBuses(context: AudioContext): AudioBuses {
   const rain = context.createGain();
   const effects = context.createGain();
   const compressor = context.createDynamicsCompressor();
+  const analyser = context.createAnalyser();
   master.gain.value = 1;
-  music.gain.value = 0.17;
-  rain.gain.value = 0.085;
-  effects.gain.value = 0.46;
-  compressor.threshold.value = -18;
+  music.gain.value = 0.34;
+  rain.gain.value = 0.045;
+  effects.gain.value = 0.72;
+  compressor.threshold.value = -15;
   compressor.knee.value = 18;
   compressor.ratio.value = 5;
   compressor.attack.value = 0.004;
   compressor.release.value = 0.18;
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.55;
   music.connect(master);
   rain.connect(master);
   effects.connect(master);
-  master.connect(compressor).connect(context.destination);
-  return { master, music, rain, effects };
+  master.connect(compressor).connect(analyser).connect(context.destination);
+  return { master, music, rain, effects, analyser };
+}
+
+export function readPresentationAudioRms(audio: PresentationAudio): number {
+  const analyser = audio.buses?.analyser;
+  if (analyser === undefined) return 0;
+  const samples = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(samples);
+  let energy = 0;
+  for (const sample of samples) energy += sample * sample;
+  return Math.sqrt(energy / samples.length);
+}
+
+function publishOutputMeter(audio: PresentationAudio): void {
+  const rms = readPresentationAudioRms(audio);
+  const previousPeak = Number.parseFloat(document.body.dataset.audioOutputPeakRms ?? "0");
+  document.body.dataset.audioOutputRms = rms.toFixed(4);
+  document.body.dataset.audioOutputPeakRms = Math.max(rms, previousPeak).toFixed(4);
+  document.body.dataset.audioOutputActive = String(rms >= 0.003);
 }
 
 function makeNoise(context: AudioContext, seconds: number, seed: number): AudioBuffer {
@@ -162,7 +186,10 @@ function startSoundscape(audio: PresentationAudio): void {
   startRain(context, buses.rain);
   scheduleFantasyBeat(audio);
   audio.musicTimer = window.setInterval(() => scheduleFantasyBeat(audio), 430);
+  publishOutputMeter(audio);
+  audio.meterTimer = window.setInterval(() => publishOutputMeter(audio), 120);
   document.body.dataset.audioUnlocked = "true";
+  document.body.dataset.audioContextState = context.state;
   document.body.dataset.placeholderMusic = "playing";
   document.body.dataset.rainAudio = "playing";
 }
@@ -172,6 +199,8 @@ export function setPresentationAudioVolume(
   volume: number,
 ): void {
   audio.volume = Math.max(0, Math.min(1, volume));
+  document.body.dataset.audioMasterVolume = audio.volume.toFixed(2);
+  document.body.dataset.audioMuted = String(audio.volume === 0);
   const context = audio.context;
   const master = audio.buses?.master;
   if (context !== null && master !== undefined) {
@@ -249,6 +278,10 @@ export function playPresentationAudioCue(
   const context = audio.context;
   const effects = audio.buses?.effects;
   if (context === null || effects === undefined || context.state !== "running" || audio.volume <= 0) return;
+  document.body.dataset.lastAudioCue = cue;
+  document.body.dataset.audioCueCount = String(
+    Number.parseInt(document.body.dataset.audioCueCount ?? "0", 10) + 1,
+  );
   switch (cue) {
     case "shield-activate":
       pitchedSweep(context, effects, 280, 760, 0.22, 0.22, "sine");
@@ -323,7 +356,9 @@ export function playPresentationAudioCue(
 
 export function disposePresentationAudio(audio: PresentationAudio): void {
   if (audio.musicTimer !== null) window.clearInterval(audio.musicTimer);
+  if (audio.meterTimer !== null) window.clearInterval(audio.meterTimer);
   audio.musicTimer = null;
+  audio.meterTimer = null;
   if (audio.context !== null) void audio.context.close();
   audio.context = null;
   audio.buses = null;

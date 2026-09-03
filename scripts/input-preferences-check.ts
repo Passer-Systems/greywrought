@@ -55,6 +55,7 @@ assert(!decoded.recovered, "valid preferences were discarded");
 assert(decoded.preferences.bindings.ability1 === "KeyK", "valid remap did not round trip");
 assert(decoded.preferences.reducedMotion, "reduced motion did not round trip");
 assert(decoded.preferences.effectsVolume === 0.6, "effects volume did not round trip");
+assert(defaultInputPreferences.effectsVolume >= 0.65, "default master volume is not conference-audible");
 const gamepad = actionsForStandardGamepad([0.7, -0.8], [true, false, true]);
 assert(gamepad.has("forward") && gamepad.has("right"), "gamepad axes did not map movement");
 assert(gamepad.has("jump") && gamepad.has("ability1"), "gamepad buttons did not map actions");

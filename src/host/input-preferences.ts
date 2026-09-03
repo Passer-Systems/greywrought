@@ -1,4 +1,4 @@
-export const inputPreferencesStorageKey = "greywrought/input-preferences-v5";
+export const inputPreferencesStorageKey = "greywrought/input-preferences-v6";
 
 export type GameAction =
   | "forward"
@@ -83,7 +83,7 @@ export const defaultInputPreferences: InputPreferences = Object.freeze({
   reducedMotion: false,
   highContrast: false,
   largeText: false,
-  effectsVolume: 0.35,
+  effectsVolume: 0.72,
 });
 
 function record(value: unknown): Readonly<Record<string, unknown>> | null {

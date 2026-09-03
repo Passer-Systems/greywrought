@@ -2935,6 +2935,8 @@ function applyInputPreferences(app: PlayApp): void {
   document.body.dataset.highContrast = String(preferences.highContrast);
   document.body.dataset.largeText = String(preferences.largeText);
   document.body.dataset.effectsVolume = String(preferences.effectsVolume);
+  document.body.dataset.audioMasterVolume = preferences.effectsVolume.toFixed(2);
+  document.body.dataset.audioMuted = String(preferences.effectsVolume === 0);
   inputElement("reduced-motion").checked = preferences.reducedMotion;
   inputElement("high-contrast").checked = preferences.highContrast;
   inputElement("large-text").checked = preferences.largeText;
