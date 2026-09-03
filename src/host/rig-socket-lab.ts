@@ -197,6 +197,14 @@ function normalizeSockets(root: Object3D): RigSockets {
   return sockets;
 }
 
+function scaleWeaponHand(root: Object3D, socket: Group): void {
+  requireBone(root, "FistR").scale.multiplyScalar(0.5);
+  // Preserve the weapon socket's world-space size and offset while only the
+  // visible hand and its finger hierarchy become smaller.
+  socket.position.multiplyScalar(2);
+  socket.scale.multiplyScalar(2);
+}
+
 function addNozzle(
   resources: OwnedEquipmentResources,
   parent: Group,
@@ -443,6 +451,7 @@ function createRigInstance(
   const root = clone(source);
   root.name = name;
   const sockets = normalizeSockets(root);
+  scaleWeaponHand(root, sockets.rightHand);
   const equipment = buildEquipment(sockets, resources);
   normalizeRoot(root, x);
   return {
