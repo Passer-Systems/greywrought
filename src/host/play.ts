@@ -167,7 +167,7 @@ function applyProjection(state: GameState, projection: unknown, generation: numb
   renderHud(state);
   document.body.dataset.gamePhase = "ready";
   document.body.dataset.residentGeneration = String(generation);
-  element("authority-status").textContent = `Clause generation ${generation} · five-unit authority live`;
+  element("authority-status").textContent = "Company ready · orders received";
   window.__GREYWROUGHT_GAME_EVENTS__.push({
     phase: "projection",
     generation,
@@ -196,12 +196,14 @@ function bindResident(state: GameState): void {
     } catch (cause: unknown) {
       const message = cause instanceof Error ? cause.message : String(cause);
       document.body.dataset.gamePhase = "failed";
-      element("authority-status").textContent = `Clause authority failed: ${message}`;
+      console.error("Company runtime failure", message);
+      element("authority-status").textContent = "The company could not form ranks";
     }
   };
   const error = (event: ErrorEvent): void => {
     document.body.dataset.gamePhase = "failed";
-    element("authority-status").textContent = `Resident worker failed: ${event.message}`;
+    console.error("Company worker failure", event.message);
+    element("authority-status").textContent = "The company could not form ranks";
   };
   state.resident.worker.addEventListener("message", message);
   state.resident.worker.addEventListener("error", error);
@@ -222,9 +224,7 @@ function parseGeneration(value: unknown): GenerationPayload {
 function installGeneration(state: GameState, payload: GenerationPayload): void {
   state.resident.generation = payload.generation;
   state.resident.worker.postMessage({ kind: "install-generation", payload });
-  element("authority-status").textContent = payload.hot
-    ? `Installing Clause generation ${payload.generation} · ${(payload.compilerMicros / 1000).toFixed(1)} ms`
-    : `Opening Clause generation ${payload.generation}`;
+  element("authority-status").textContent = payload.hot ? "Forming ranks…" : "Rallying the company…";
 }
 
 async function pollResident(state: GameState): Promise<void> {
@@ -235,7 +235,7 @@ async function pollResident(state: GameState): Promise<void> {
     if (response.status === 404 && state.resident.generation < 0) {
       state.resident.staticGeneration = true;
       const cartridge = await fetch(publicUrl("assets/embodied-encounter-v1.cwr1.hex")).then((entry) => {
-        if (!entry.ok) throw new Error(`static Clause cartridge failed: ${entry.status}`);
+        if (!entry.ok) throw new Error(`company roster failed: ${entry.status}`);
         return entry.text();
       });
       installGeneration(state, { generation: 0, compilerMicros: 0, cwr1: cartridge, sourceModifiedMillis: 0, hot: false });
@@ -243,7 +243,7 @@ async function pollResident(state: GameState): Promise<void> {
     }
     if (response.status === 204) return;
     const payload: unknown = await response.json();
-    if (!response.ok) throw new Error("resident source edit was rejected; prior generation retained");
+    if (!response.ok) throw new Error("company update was rejected; prior orders retained");
     installGeneration(state, parseGeneration(payload));
   } catch (cause: unknown) {
     const message = cause instanceof Error ? cause.message : String(cause);

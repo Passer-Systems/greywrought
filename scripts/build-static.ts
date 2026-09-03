@@ -1,5 +1,6 @@
 import { copyFile, mkdir, rm } from "node:fs/promises";
 import { dirname } from "node:path";
+import { createHash } from "node:crypto";
 
 const files: readonly (readonly [string, string])[] = [
   ["src/host/play.html", "dist/index.html"],
@@ -27,6 +28,25 @@ for (const [source, target] of files) {
     await copyFile(source, target);
   }
 }
+const assetRoot = "dist/app/greywrought-clause";
+async function digest(path: string): Promise<string> {
+  return createHash("sha256").update(new Uint8Array(await Bun.file(path).arrayBuffer())).digest("hex").slice(0, 16);
+}
+const workerHash = await digest(`${assetRoot}/resident-worker.js`);
+const workerName = `resident-worker.${workerHash}.js`;
+await Bun.write(`${assetRoot}/${workerName}`, await Bun.file(`${assetRoot}/resident-worker.js`).arrayBuffer());
+await Bun.write(`${assetRoot}/play.js`, (await Bun.file(`${assetRoot}/play.js`).text()).replaceAll("resident-worker.js", workerName));
+const playHash = await digest(`${assetRoot}/play.js`);
+const playName = `play.${playHash}.js`;
+await Bun.write(`${assetRoot}/${playName}`, await Bun.file(`${assetRoot}/play.js`).arrayBuffer());
+const cssHash = await digest(`${assetRoot}/rts.css`);
+const cssName = `rts.${cssHash}.css`;
+await Bun.write(`${assetRoot}/${cssName}`, await Bun.file(`${assetRoot}/rts.css`).arrayBuffer());
+const html = (await Bun.file("dist/index.html").text())
+  .replace("app/greywrought-clause/play.js", `app/greywrought-clause/${playName}`)
+  .replace("app/greywrought-clause/rts.css", `app/greywrought-clause/${cssName}`);
+await Bun.write("dist/index.html", html);
+for (const stable of ["play.js", "resident-worker.js", "rts.css"]) await rm(`${assetRoot}/${stable}`);
 await Bun.write("dist/.nojekyll", "");
 
 console.log(`Static release contains ${files.length + 1} allowlisted files.`);

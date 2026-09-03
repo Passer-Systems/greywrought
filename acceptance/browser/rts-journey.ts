@@ -64,7 +64,9 @@ try {
   const phase = await evaluate<string>("document.body.dataset.gamePhase");
   const authority = await evaluate<string>("document.getElementById('authority-status')?.textContent || ''");
   const pageErrors = await evaluate<string[]>("window.__RTS_ERRORS__ || []");
-  requireCondition(phase === "ready", `Clause projection did not become ready (phase=${phase}, authority=${authority}); browser errors: ${[...browserErrors, ...pageErrors].join(" | ") || "none"}`);
+  requireCondition(phase === "ready", `company did not become ready (phase=${phase}, status=${authority}); browser errors: ${[...browserErrors, ...pageErrors].join(" | ") || "none"}`);
+  const bodyText = await evaluate<string>("document.body.innerText");
+  requireCondition(!/Clause|authority|projection|generation|resident|Wasm|compiler|backend|runtime/i.test(bodyText), "player-facing text leaked implementation vocabulary");
   const classes = await evaluate<string[]>("(document.body.dataset.unitClasses || '').split(',').filter(Boolean)");
   requireCondition(classes.join(",") === "Warrior,Artificer,Rogue,Priest,Ranger", `unexpected company classes: ${classes.join(",")}`);
   requireCondition(await evaluate<number>("document.querySelectorAll('#roster .roster-card').length") === 5, "company roster is not five units");
@@ -93,7 +95,7 @@ try {
   requireCondition(await evaluate<boolean>("document.getElementById('equipment-panel').classList.contains('open')"), "equipment panel did not open");
   requireCondition(await evaluate<number>("document.querySelectorAll('#equipment-panel .gear-slot').length") === 20, "equipment paper doll is incomplete");
   requireCondition(await evaluate<boolean>("document.querySelector('#command-move') !== null && document.querySelector('#equipment-toggle') !== null"), "RTS command controls are incomplete");
-  console.log("RTS browser journey passed: five classes, box selection, Clause formation move, camera/paper doll UI");
+  console.log("RTS browser journey passed: five classes, box selection, formation move, camera/paper doll UI");
 } finally {
   socket?.close(); chrome.kill();
 }
