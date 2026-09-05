@@ -72,7 +72,7 @@ export interface RtsPresentation {
   readonly canvas: HTMLCanvasElement;
   applyUnits(units: readonly UnitView[]): void;
   applyEncounterActors(actors: readonly EncounterActorView[]): void;
-  pickUnit(clientX: number, clientY: number): string | null;
+  pickActor(clientX: number, clientY: number): string | null;
   unitsInScreenRectangle(left: number, top: number, right: number, bottom: number): string[];
   groundPoint(clientX: number, clientY: number): Vector3 | null;
   showMoveDestination(point: Vector3): void;
@@ -352,8 +352,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       let figure = figures.get(unit.id);
       if (figure === undefined) {
         figure = createFigure(unit.unitClass);
-        figure.root.userData.unitId = unit.id;
-        figure.root.traverse((child) => { child.userData.unitId = unit.id; });
+        figure.root.traverse((child) => { child.userData.actorId = unit.id; });
         figure.root.position.set(unit.x, 0, unit.z);
         figures.set(unit.id, figure);
         pickTargets.push(figure.root);
@@ -365,7 +364,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
             model.dispose();
             return;
           }
-          model.root.traverse((child) => { child.userData.unitId = unit.id; });
+          model.root.traverse((child) => { child.userData.actorId = unit.id; });
           loadingFigure.model = model;
           loadingFigure.root.add(model.root);
           loadingFigure.placeholder.visible = false;
@@ -378,7 +377,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
         });
       }
       figure.target.set(unit.x, 0, unit.z);
-      figure.selectionRing.visible = unit.selected;
+      figure.selectionRing.visible = unit.selected || unit.targeted;
       figure.root.visible = unit.alive;
       figure.root.scale.y = Math.max(0.35, unit.healthFraction);
       const ringSurface = figure.selectionRing.material;
@@ -414,7 +413,9 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
         ring.name = "target-ring";
         ring.rotation.x = Math.PI / 2;
         ring.visible = false;
+        figure.traverse((child) => { child.userData.actorId = actor.id; });
         encounterFigures.set(actor.id, figure);
+        pickTargets.push(figure);
         scene.add(figure);
         ownTree(figure);
       }
@@ -481,16 +482,22 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
     canvas: renderer.domElement,
     applyUnits,
     applyEncounterActors,
-    pickUnit(clientX, clientY) {
+    pickActor(clientX, clientY) {
       raycaster.setFromCamera(normalizedPoint(clientX, clientY), camera);
-      const hit = raycaster.intersectObjects(pickTargets, true)[0];
-      return typeof hit?.object.userData.unitId === "string" ? hit.object.userData.unitId : null;
+      const hit = raycaster.intersectObjects(pickTargets, true).find(({ object }) => {
+        for (let owner: Object3D | null = object; owner !== null; owner = owner.parent) {
+          if (!owner.visible) return false;
+        }
+        return typeof object.userData.actorId === "string";
+      });
+      return hit?.object.userData.actorId ?? null;
     },
     unitsInScreenRectangle(left, top, right, bottom) {
       const rectangle = renderer.domElement.getBoundingClientRect();
       const result: string[] = [];
       const projected = new Vector3();
       for (const [id, figure] of figures) {
+        if (!figure.root.visible) continue;
         projected.copy(figure.root.position).setY(0.8).project(camera);
         const x = (projected.x * 0.5 + 0.5) * rectangle.width;
         const y = (-projected.y * 0.5 + 0.5) * rectangle.height;

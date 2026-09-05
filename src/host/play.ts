@@ -124,7 +124,7 @@ interface GameState {
   actors: readonly ResidentActorView[];
   createdBurns: readonly CreatedBurnView[];
   encounter: EncounterView;
-  drag: Readonly<{ pointerId: number; x: number; y: number; moved: boolean }> | null;
+  drag: Readonly<{ pointerId: number; x: number; y: number; moved: boolean; additive: boolean; targeting: boolean }> | null;
   disposed: boolean;
 }
 
@@ -416,16 +416,16 @@ function press(state: GameState, code: string, captured: CapturedFrame): void {
   });
 }
 
-function selectUnits(state: GameState, ids: readonly string[]): void {
+function selectUnits(state: GameState, ids: readonly string[], mode: "replace" | "add" | "toggle" = "replace"): void {
   const desired = new Set(ids);
   const captured = state.units.filter((unit) => desired.has(unit.id));
   const frame = capturedFrame(state);
   if (frame === null) return;
-  press(state, "ClearSelection", frame);
+  if (mode === "replace") press(state, "ClearSelection", frame);
   for (const unit of captured) {
     sendInput(state, {
       kind: "referent-input",
-      channel: "Pick",
+      channel: mode === "toggle" ? "TogglePick" : "Pick",
       capturedExternalGeneration: unit.capturedExternalGeneration,
       capturedWorkbenchGeneration: unit.capturedWorkbenchGeneration,
       value: unit.pickReferent,
@@ -433,6 +433,7 @@ function selectUnits(state: GameState, ids: readonly string[]): void {
   }
   window.__GREYWROUGHT_GAME_EVENTS__.push({
     phase: "selection-requested",
+    mode,
     units: captured.map((unit) => unit.id),
   });
 }
@@ -448,6 +449,7 @@ function chooseTarget(state: GameState, id: string): void {
     value: actor.targetReferent,
   });
   window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "target-requested", target: id });
+  element("command-status").textContent = `Targeting ${actor.name}`;
 }
 
 function issueAction(state: GameState, code: "BeginEncounter" | "Stop" | "Attack" | "Ignite" | "Heal" | "Ward"): void {
@@ -912,7 +914,7 @@ function bindInteraction(state: GameState): void {
     if (event.button !== 0) return;
     event.preventDefault();
     const [x, y] = rectanglePoint(event.clientX, event.clientY);
-    state.drag = { pointerId: event.pointerId, x, y, moved: false };
+    state.drag = { pointerId: event.pointerId, x, y, moved: false, additive: event.shiftKey, targeting: event.altKey };
     canvas.setPointerCapture(event.pointerId);
   };
   const pointerMove = (event: PointerEvent): void => {
@@ -932,11 +934,21 @@ function bindInteraction(state: GameState): void {
     if (drag.moved) {
       selectUnits(state, state.presentation.unitsInScreenRectangle(
         Math.min(drag.x, x), Math.min(drag.y, y), Math.max(drag.x, x), Math.max(drag.y, y),
-      ));
+      ), drag.additive ? "add" : "replace");
     } else {
-      const picked = state.presentation.pickUnit(event.clientX, event.clientY);
-      selectUnits(state, picked === null ? [] : [picked]);
+      const picked = state.presentation.pickActor(event.clientX, event.clientY);
+      if (picked !== null && (drag.targeting || !state.units.some((unit) => unit.id === picked))) {
+        chooseTarget(state, picked);
+      } else if (!drag.targeting) {
+        selectUnits(state, picked === null ? [] : [picked], drag.additive ? "toggle" : "replace");
+      }
     }
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  };
+  const pointerCancel = (event: PointerEvent): void => {
+    if (state.drag?.pointerId !== event.pointerId) return;
+    state.drag = null;
+    state.selectionRectangle.hidden = true;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   };
   const contextMenu = (event: MouseEvent): void => {
@@ -964,7 +976,7 @@ function bindInteraction(state: GameState): void {
   canvas.addEventListener("pointerdown", pointerDown);
   canvas.addEventListener("pointermove", pointerMove);
   canvas.addEventListener("pointerup", pointerUp);
-  canvas.addEventListener("pointercancel", pointerUp);
+  canvas.addEventListener("pointercancel", pointerCancel);
   canvas.addEventListener("pointerleave", pointerLeave);
   canvas.addEventListener("contextmenu", contextMenu);
   canvas.addEventListener("wheel", wheel, { passive: false });
@@ -974,7 +986,7 @@ function bindInteraction(state: GameState): void {
     () => canvas.removeEventListener("pointerdown", pointerDown),
     () => canvas.removeEventListener("pointermove", pointerMove),
     () => canvas.removeEventListener("pointerup", pointerUp),
-    () => canvas.removeEventListener("pointercancel", pointerUp),
+    () => canvas.removeEventListener("pointercancel", pointerCancel),
     () => canvas.removeEventListener("pointerleave", pointerLeave),
     () => canvas.removeEventListener("contextmenu", contextMenu),
     () => canvas.removeEventListener("wheel", wheel),
@@ -1109,7 +1121,10 @@ function bindHud(state: GameState): void {
     if (!(target instanceof Element)) return;
     const card = target.closest<HTMLElement>(".roster-card");
     const id = card?.dataset.unitId;
-    if (id !== undefined) selectUnits(state, [id]);
+    if (id !== undefined) {
+      if (event.altKey) chooseTarget(state, id);
+      else selectUnits(state, [id], event.shiftKey ? "toggle" : "replace");
+    }
   };
   roster.addEventListener("click", select);
   const all = (): void => selectUnits(state, state.units.map((unit) => unit.id));

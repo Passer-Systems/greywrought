@@ -1,3 +1,5 @@
+import { PerspectiveCamera, Vector3 } from "three";
+
 const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
 const debugPort = 9246;
 const gamePort = 4180;
@@ -160,7 +162,71 @@ try {
     "the passive target deck did not expose all company, enemy, and objective Actors",
   );
   const canvas = await evaluate<{ x: number; y: number; width: number; height: number }>("(() => { const r=document.getElementById('world-canvas').getBoundingClientRect(); return {x:r.left,y:r.top,width:r.width,height:r.height}; })()");
-  const mouse = async (type: string, x: number, y: number, button = "left", buttons = 0) => call("Input.dispatchMouseEvent", { type, x, y, button, buttons, clickCount: 1 });
+  const mouse = async (type: string, x: number, y: number, button = "left", buttons = 0, modifiers = 0) => call("Input.dispatchMouseEvent", { type, x, y, button, buttons, modifiers, clickCount: 1 });
+  const worldPoint = async (x: number, y: number, z: number): Promise<{ x: number; y: number }> => {
+    const view = await evaluate<{ x: number; z: number; distance: number }>(
+      "({x:Number(document.body.dataset.cameraX),z:Number(document.body.dataset.cameraZ),distance:Number(document.body.dataset.cameraDistance)})",
+    );
+    const camera = new PerspectiveCamera(38, canvas.width / canvas.height, 0.2, 120);
+    camera.position.set(view.x + view.distance * 0.66, view.distance * 0.78, view.z + view.distance * 0.66);
+    camera.lookAt(view.x, 0, view.z);
+    camera.updateMatrixWorld();
+    const point = new Vector3(x, y, z).project(camera);
+    return { x: canvas.x + (point.x * 0.5 + 0.5) * canvas.width, y: canvas.y + (-point.y * 0.5 + 0.5) * canvas.height };
+  };
+  const clickPoint = async (point: { x: number; y: number }, modifiers = 0): Promise<void> => {
+    await mouse("mousePressed", point.x, point.y, "left", 1, modifiers);
+    await mouse("mouseReleased", point.x, point.y, "left", 0, modifiers);
+  };
+  const selectedIds = (): Promise<string[]> => evaluate("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.selected || []");
+  const waitForSelection = async (expected: readonly string[]): Promise<void> => {
+    const expectedKey = [...expected].sort().join(",");
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if ((await selectedIds()).sort().join(",") === expectedKey) return;
+      await Bun.sleep(25);
+    }
+    throw new Error(`selection expected ${expectedKey}, got ${(await selectedIds()).join(",")}`);
+  };
+  const waitForTarget = async (id: string): Promise<void> => {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (await evaluate<string>("document.body.dataset.targetId") === id) return;
+      await Bun.sleep(25);
+    }
+    throw new Error(`direct target expected ${id}, got ${await evaluate<string>("document.body.dataset.targetId")}`);
+  };
+  const openingPositions = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
+  const warriorPosition = openingPositions['warrior-1']!;
+  const priestPosition = openingPositions['priest-1']!;
+  await clickPoint(await worldPoint(warriorPosition[0], 0.8, warriorPosition[1]));
+  await waitForSelection(['warrior-1']);
+  await clickPoint(await worldPoint(priestPosition[0], 0.8, priestPosition[1]), 8);
+  await waitForSelection(['warrior-1', 'priest-1']);
+  await clickPoint(await worldPoint(warriorPosition[0], 0.8, warriorPosition[1]), 8);
+  await waitForSelection(['priest-1']);
+  await evaluate("document.getElementById('roster-warrior-1').dispatchEvent(new MouseEvent('click',{bubbles:true,shiftKey:true}))");
+  await waitForSelection(['warrior-1', 'priest-1']);
+  await evaluate("(() => {const b=document.getElementById('roster-warrior-1'); for(let i=0;i<2;i++) b.dispatchEvent(new MouseEvent('click',{bubbles:true,shiftKey:true}));})()");
+  await Bun.sleep(300);
+  await waitForSelection(['warrior-1', 'priest-1']);
+  await clickPoint(await worldPoint(priestPosition[0], 0.8, priestPosition[1]), 1);
+  await waitForTarget('priest-1');
+  await waitForSelection(['warrior-1', 'priest-1']);
+  await clickPoint(await worldPoint(3, 1.0, 7));
+  await waitForTarget('cinder-2');
+  await waitForSelection(['warrior-1', 'priest-1']);
+  await clickPoint(await worldPoint(0, 0.65, 4));
+  await waitForTarget('moonwell');
+  await waitForSelection(['warrior-1', 'priest-1']);
+  await evaluate("document.getElementById('roster-warrior-1').click()");
+  await waitForSelection(['warrior-1']);
+  const priestPoint = await worldPoint(priestPosition[0], 0.8, priestPosition[1]);
+  await mouse("mousePressed", priestPoint.x - 10, priestPoint.y - 10, "left", 1, 8);
+  await mouse("mouseMoved", priestPoint.x + 10, priestPoint.y + 10, "left", 1, 8);
+  await mouse("mouseReleased", priestPoint.x + 10, priestPoint.y + 10, "left", 0, 8);
+  await waitForSelection(['warrior-1', 'priest-1']);
+  await evaluate("document.getElementById('target-cinder-1').click()");
+  await waitForTarget('cinder-1');
+  console.log("RTS targeting/selection passed: world picks, independent enemy/ally/objective target, Shift toggle including queued double toggle, additive drag and target deck");
   const waitForCooldowns = async (unitIds: readonly string[]): Promise<void> => {
     for (let attempt = 0; attempt < 120; attempt += 1) {
       const cooldowns = await evaluate<Record<string, number>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.cooldowns || {}");

@@ -1,0 +1,19 @@
+Bool
+Item
+
+relation selected
+  reads {item: Item} selected {value: Bool}
+  subject item
+  mode given item yields value: one
+
+first
+  shape: Item
+first selected false
+
+on toggle ?item
+  when
+    ?item selected ?prior
+  withdraw
+    ?item selected ?prior
+  include
+    ?item selected (?prior = false)
