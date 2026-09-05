@@ -6,11 +6,11 @@ The source-authored company contains exactly five controllable classes: Warrior,
 
 The selected-unit panel includes a WoW-style paper doll with head, shoulders, neck, cloak, chest, shirt, tabard, bracers, gloves, belt, legs, pants, shoes, two rings, two trinkets, weapon, offhand, and ranged/relic slots.
 
-Movement is issued exclusively as RTS orders to the selected company. In the
-case of a single selected living unit, its destination is exactly the right-click
-marker. Groups use separated destinations centered on that marker, retaining
-their formation spacing. This assigns destinations; obstacle avoidance is not
-yet implemented. In the
+Movement is issued exclusively as RTS orders to the selected company. A single
+selected living unit lands exactly on the right-click marker. Groups use
+separated destinations centered on that marker, retaining their formation
+spacing. This assigns destinations; obstacle avoidance is not yet implemented.
+In the
 Moonwell Vigil, choose any projected actor in the target deck and use Attack,
 Ignite, Heal, or Ward. Attack acts through every eligible selected unit. Ignite
 lets selected eligible company members create independent, source-timed burns
@@ -27,6 +27,22 @@ toolchain, `wasm-bindgen-cli 0.2.108`, and Chrome. Initialize the pinned Clause
 submodule with `git submodule update --init --recursive`, install dependencies
 with `bun install --frozen-lockfile`, then run `bun run play` and open
 <http://127.0.0.1:4173/>.
+
+On this Linux development machine, `bun run play:local` starts the already-built
+game and both interface watchers as user services, or reuses them if running.
+It does not compile Rust or rebuild Wasm. `bun run play:local --restart` restarts
+those services; refresh the browser afterward. The command recreates the
+services after reboot. Run it from the desired checkout, or invoke
+greywrought:scripts/play-local.ts by its full filesystem path with Bun.
+
+Supported checked rule edits continue in the open game. Interface edits rebuild
+automatically but need a browser refresh. Compiler changes require
+`bun run build:play`, then `bun run play:local --restart` and a refresh.
+Arbitrary structural rule edits do not guarantee state preservation.
+For ordinary interface validation, `bun run typecheck:host` uses existing staged
+compiler declarations; `bun run build:host` retains the full compiler staging
+and pin/hash checks. Native and browser builds run independently in
+`bun run build:play` with separate Cargo targets.
 
 The immutable Clause pin and fresh compiled Wasm hash are recorded by the
 repository's verification scripts. `bun run build:clause-runtime` compiles the

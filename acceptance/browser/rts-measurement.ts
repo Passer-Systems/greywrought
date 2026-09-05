@@ -1,3 +1,5 @@
+import { CLAUSE_COMMIT } from "../../scripts/clause-pin.js";
+
 const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
 const debugPort = 9252;
 const gamePort = 4186;
@@ -197,7 +199,7 @@ try {
     schema: "greywrought-m5-baseline-v2",
     recordedAt: new Date().toISOString(),
     conditions: { browser, fixedTickMillis: 16, renderAspirationMillis: 16.67, warmupMillis: 2_000, windowMillis,
-      rendererFlags: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"], clausePin: "c8a7a48fa79b2b54734a926f161bd39f3b463630" },
+      rendererFlags: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"], clausePin: CLAUSE_COMMIT },
     cgroup: { path: cgroupPath, cpuMax: await readLimit("cpu.max"), memoryHigh: await readLimit("memory.high"), memoryMax: await readLimit("memory.max"), pidsMax: await readLimit("pids.max") },
     windows: rawWindows,
     edits,
