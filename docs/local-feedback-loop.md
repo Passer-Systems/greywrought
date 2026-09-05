@@ -5,6 +5,52 @@ It does not close steady frame pacing or simulation-time versus wall-time work.
 
 ## Hardware browser timing
 
+### Travel avoidance and combat readouts
+
+The same source, 1280×900/DPR1 hardware renderer and six-CPU scope exposed a
+new movement cost after adding swept-footprint avoidance. Display stayed near
+59.5 FPS, but Clause 29604b8 advanced only .322 source seconds per wall second
+while moving. The four-case native travel fixture passed in 8.11s under sampling;
+allocation/free operations dominated the 1642 samples. Native call stacks were
+not usable, so the profile establishes allocation cost, not exact caller shares.
+
+Clause 6dad877 removes intermediate query expression copies. Clause d6d2511
+also keeps retained explanation expressions as exact coordinates in the shared,
+immutable checked program. Recorded values, reads, expression rendering and
+evaluation order are preserved; no source rule, timestep or exhaustion limit
+changed. Focused query/collection/intervention checks and the retained-expression
+sharing/lifetime check passed.
+The rebuilt native/Wasm consumer and checked host staging passed. Its full
+hardware browser journey passed selection, occupied/blocked orders, avoidance,
+Stop/replacement/arrival, command feedback, combat, victory, retry and defeat.
+
+| Clause pin | Candidate median: ready / moving / active (ms) | Source/wall: ready / moving / active |
+| --- | --- | --- |
+| 29604b8 | 4.6 / 36.4 / 8.3 | .987 / .322 / .564 |
+| 6dad877 | 3.3 / 32.3 / 6.4 | 1.005 / .369 / .684 |
+| d6d2511 | 3.4 / 10.3 / 5.9 | 1.001 / .815 / .991 |
+
+Movement's candidate median falls 71.7% across the two changes, but its clock
+still lags about 18.5%. Admission medians remain about 6.1–6.4ms and movement
+candidate p95 is 15.1ms. Ready and active clocks are nearly real-time at this
+bounded load. These are matched short windows, not arbitrary-map scaling
+evidence. Checked edits remain 3324.4/3001.1/3043.9ms on d6d2511, including
+1598.0–1662.5ms native compilation and 1224.1–1468.8ms transfer; edit latency
+has not materially improved.
+
+The active window follows a fixed 2.5-second movement window. Faster runs reach
+their destinations sooner, so active samples contain different amounts of
+remaining travel; they compare the same input recipe, not identical per-tick
+positions or an isolated combat algorithm.
+
+Raw observations: greywrought:build/measurement/travel-combat-readouts.json,
+greywrought:build/measurement/travel-borrowed-expressions.json,
+greywrought:build/measurement/travel-shared-program.json and
+greywrought:build/measurement/movement-native.perf. Use the existing hardware
+measurement command below with a fresh output filename. Browser-worker profiling
+did not establish a usable attached session; no worker profile or caller-level
+claim is supplied by that failed diagnostic attempt.
+
 ### Shared-readiness scheduling comparison
 
 Adding source-owned Attack/Heal/Ward readiness exposed broad joins being run
