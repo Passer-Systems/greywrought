@@ -5,7 +5,7 @@ import { CLAUSE_ROOT } from "./clause-pin.js";
 
 const adapterRoot =
   `${CLAUSE_ROOT}browser/jump-arena-shell/generated/jump-arena-shell`;
-const wasmRoot = `${CLAUSE_ROOT}browser/jump-arena-shell/generated/wasm`;
+const wasmRoot = "build/clause-wasm";
 
 const copies: readonly (readonly [string, string])[] = [
   ...[

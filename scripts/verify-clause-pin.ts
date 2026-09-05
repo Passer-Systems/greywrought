@@ -23,7 +23,12 @@ if (actualCommit !== CLAUSE_COMMIT) {
   );
 }
 
-const wasmPath = `${CLAUSE_ROOT}browser/jump-arena-shell/generated/wasm/clause_runtime_bg.wasm`;
+const wasmPath = "build/clause-wasm/clause_runtime_bg.wasm";
+if (!(await Bun.file(wasmPath).exists())) {
+  throw new Error(
+    `fresh Clause Wasm is absent at ${wasmPath}; run: bun run build:clause-runtime`,
+  );
+}
 const hasher = new Bun.CryptoHasher("sha256");
 hasher.update(await Bun.file(wasmPath).arrayBuffer());
 const actualWasmHash = hasher.digest("hex");

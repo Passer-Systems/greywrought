@@ -10,8 +10,16 @@ Movement is issued exclusively as RTS orders to the selected company.
 
 ## Development
 
-Prerequisites are Git, Bun, Rust, a C toolchain, and Chrome. Initialize the pinned Clause submodule with `git submodule update --init --recursive`, install dependencies with `bun install --frozen-lockfile`, then run `bun run play` and open <http://127.0.0.1:4173/>.
+Prerequisites are Git, Bun, Rust with the `wasm32-unknown-unknown` target, a C
+toolchain, `wasm-bindgen-cli 0.2.108`, and Chrome. Initialize the pinned Clause
+submodule with `git submodule update --init --recursive`, install dependencies
+with `bun install --frozen-lockfile`, then run `bun run play` and open
+<http://127.0.0.1:4173/>.
 
-The immutable Clause pin is recorded by the repository’s verification scripts. Generated Wasm and JavaScript artifacts belong under ignored `build/` and `dist/` directories.
+The immutable Clause pin and fresh compiled Wasm hash are recorded by the
+repository's verification scripts. `bun run build:clause-runtime` compiles the
+browser runtime from the pinned submodule instead of consuming its historical
+prebuilt Wasm. Generated Wasm and JavaScript artifacts belong under ignored
+`build/` and `dist/` directories.
 
 Focused browser acceptance: `bun acceptance/browser/rts-journey.ts` proves the five-class roster, box selection, Clause-backed formation movement, and equipment panel.

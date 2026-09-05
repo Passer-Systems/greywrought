@@ -21,7 +21,7 @@ try {
     await Bun.sleep(50);
   }
   requireCondition(ready, "Chrome debugging port did not open");
-  const tabResponse = await fetch(`http://127.0.0.1:${debugPort}/json/new?${gameUrl}`, { method: "PUT", signal: AbortSignal.timeout(10_000) });
+  const tabResponse = await fetch(`http://127.0.0.1:${debugPort}/json/new?about:blank`, { method: "PUT", signal: AbortSignal.timeout(10_000) });
   requireCondition(tabResponse.ok, "Chrome could not open Greywrought");
   const tab = await tabResponse.json() as { webSocketDebuggerUrl?: string };
   requireCondition(typeof tab.webSocketDebuggerUrl === "string", "Chrome tab omitted debugger URL");
@@ -43,9 +43,12 @@ try {
   console.log("rts journey: websocket open");
   const call = (method: string, params: Record<string, unknown> = {}) => {
     const id = nextId++; socket!.send(JSON.stringify({ id, method, params }));
+    const detail = method === "Runtime.evaluate" && typeof params.expression === "string"
+      ? ` for ${params.expression.slice(0, 120)}`
+      : "";
     return Promise.race([
       new Promise<any>((resolve) => pending.set(id, resolve)),
-      Bun.sleep(10_000).then(() => { pending.delete(id); throw new Error(`CDP timeout in ${method}; browser errors: ${browserErrors.join(" | ") || "none"}`); }),
+      Bun.sleep(10_000).then(() => { pending.delete(id); throw new Error(`CDP timeout in ${method}${detail}; browser errors: ${browserErrors.join(" | ") || "none"}`); }),
     ]);
   };
   const evaluate = async <T>(expression: string): Promise<T> => {
@@ -53,7 +56,7 @@ try {
     return (result.result?.result?.value ?? null) as T;
   };
   await call("Runtime.enable"); await call("Page.enable");
-  await call("Emulation.setDeviceMetricsOverride", { width: 1280, height: 12000, deviceScaleFactor: 1, mobile: false });
+  await call("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
   await call("Page.addScriptToEvaluateOnNewDocument", { source: "window.__RTS_ERRORS__=[]; addEventListener('error', e => window.__RTS_ERRORS__.push(String(e.message || e.error || e))); addEventListener('unhandledrejection', e => window.__RTS_ERRORS__.push(String(e.reason)));" });
   await call("Page.navigate", { url: gameUrl }); await Bun.sleep(2500);
   console.log("rts journey: page navigated");
@@ -89,16 +92,24 @@ try {
   requireCondition(await evaluate<number>("document.querySelectorAll('#roster .roster-card').length") === 5, "company roster is not five units");
   const canvas = await evaluate<{ x: number; y: number; width: number; height: number }>("(() => { const r=document.getElementById('world-canvas').getBoundingClientRect(); return {x:r.left,y:r.top,width:r.width,height:r.height}; })()");
   const mouse = async (type: string, x: number, y: number, button = "left", buttons = 0) => call("Input.dispatchMouseEvent", { type, x, y, button, buttons, clickCount: 1 });
-  // Drag-select the company, then verify Clause-owned selection projection.
-  // Chrome's headless canvas can report a CSS height larger than the viewport;
-  // use the visible 900px window bounds for the box gesture.
+  // Establish a one-unit precondition, then drag-select the company and verify
+  // the Clause-owned selection transition independently.
+  await evaluate("document.getElementById('roster-warrior-1').click()");
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await evaluate<string>("document.body.dataset.selectedCount") === "1") break;
+    await Bun.sleep(25);
+  }
+  requireCondition(
+    await evaluate<string>("document.body.dataset.selectedCount") === "1",
+    "single-unit selection precondition did not settle",
+  );
+  // Keep the gesture inside the visible 900px viewport.
   const visibleBottom = Math.min(canvas.y + canvas.height - 2, 880);
   await mouse("mousePressed", canvas.x + 2, canvas.y + 2, "left", 1); await mouse("mouseMoved", canvas.x + canvas.width - 2, visibleBottom, "left", 1); await mouse("mouseReleased", canvas.x + canvas.width - 2, visibleBottom);
-  await Bun.sleep(500);
-  // Keep the drag gesture in the journey, then use the public Select Company
-  // command to make the assertion deterministic across headless canvas sizes.
-  await evaluate("document.getElementById('select-all').click()");
-  await Bun.sleep(300);
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await evaluate<string>("document.body.dataset.selectedCount") === "5") break;
+    await Bun.sleep(25);
+  }
   const selectedCount = await evaluate<string>("document.body.dataset.selectedCount");
   const selectionEvents = await evaluate<unknown[]>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='selection-requested').slice(-2)");
   requireCondition(selectedCount === "5", `drag selection did not select all five units (count=${selectedCount}, canvas=${canvas.width}x${canvas.height}, events=${JSON.stringify(selectionEvents)})`);

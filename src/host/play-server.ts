@@ -137,6 +137,7 @@ const files: Readonly<Record<string, string>> = {
   "/": "src/host/play.html",
   "/index.html": "src/host/play.html",
   "/app/greywrought-clause/play.js": "build/host/play.js",
+  "/app/greywrought-clause/rts.css": "src/host/rts.css",
   "/app/greywrought-clause/resident-worker.js": "build/host/resident-worker.js",
   "/app/greywrought-clause/public-url.js": "build/host/public-url.js",
   "/app/jump-arena-shell/wasm-cartridge-port.js":
