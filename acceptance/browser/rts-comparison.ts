@@ -3,6 +3,7 @@ import {
   type PartyAttackFixture,
   type PartyAttackOutput,
 } from "../comparison/party-attack-reference.js";
+import { CLAUSE_COMMIT } from "../../scripts/clause-pin.js";
 
 const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
 const debugPort = 9253;
@@ -49,11 +50,11 @@ function values(value: unknown, context: string): readonly JsonObject[] {
   return Object.values(object(value, context)).map((entry, index) => object(entry, `${context}[${index}]`));
 }
 
-function exactPartyAttack(explanationValue: unknown): Readonly<{
+function exactPartyAttack(explanationValue: unknown, expectedTarget: string, expectedContributors: number): Readonly<{
   fixture: PartyAttackFixture;
   output: PartyAttackOutput;
   changedStateSlots: readonly number[];
-  guardStateSlots: Readonly<{ encounterState: number; chosenTarget: number }>;
+  guardReferences: Readonly<{ encounterState: unknown; chosenTarget: unknown }>;
   contributionDeltas: readonly number[];
 }> {
   const explanation = object(explanationValue, "recorded Attack explanation");
@@ -76,80 +77,99 @@ function exactPartyAttack(explanationValue: unknown): Readonly<{
     requireCondition(result !== undefined, `recorded state slot ${slot} is absent`);
     return result;
   };
-  const stateFor = (subject: string, relation: string): ExplainedState => {
-    const matching = states.filter((state) =>
-      state.source.subject === subject && state.source.relation === relation && state.source.field === undefined
-    );
-    requireCondition(matching.length === 1, `recorded ${subject} ${relation} state count was ${matching.length}`);
-    return matching[0]!;
+  const before = object(explanation["before-projection"], "recorded before view");
+  const after = object(explanation["after-projection"], "recorded after view");
+  const referentKey = (value: unknown): string => {
+    const reference = object(value, "recorded subject reference");
+    requireCondition(reference.kind === "referent", "recorded subject is not a referent");
+    return JSON.stringify(reference);
   };
-  const stateFieldFor = (subject: string, relation: string, field: string): ExplainedState => {
-    const matching = states.filter((state) =>
-      state.source.subject === subject && state.source.relation === relation && state.source.field === field
-    );
-    requireCondition(matching.length === 1,
-      `recorded ${subject} ${relation}.${field} state count was ${matching.length}`);
-    return matching[0]!;
+  const idsByReferent = new Map<string, string>();
+  for (const [id, value] of Object.entries(before)) {
+    const subject = object(value, `recorded subject ${id}`);
+    const references = subject.$referent === undefined
+      ? Object.values(object(subject.$referents ?? {}, `${id} referents`))
+      : [subject.$referent];
+    for (const reference of references) idsByReferent.set(referentKey(reference), id);
+  }
+  const subjectId = (reference: unknown): string => {
+    const id = idsByReferent.get(referentKey(reference));
+    requireCondition(id !== undefined, "recorded reference has no subject in the same Step");
+    return id;
   };
-  const beforeNumber = (subject: string, relation: string) =>
-    finite(stateFor(subject, relation).before, `${subject} ${relation} before`);
-  const beforeBoolean = (subject: string, relation: string) =>
-    boolean(stateFor(subject, relation).before, `${subject} ${relation} before`);
-  const beforePosition = (subject: string) => {
-    return {
-      x: finite(stateFieldFor(subject, "actor-position", "x").before, `${subject} position.x`),
-      z: finite(stateFieldFor(subject, "actor-position", "z").before, `${subject} position.z`),
-    };
+  const viewValue = (view: JsonObject, id: string, relation: string): unknown =>
+    object(view[id], `recorded ${id}`)[relation];
+  const beforeNumber = (id: string, relation: string) =>
+    finite(viewValue(before, id, relation), `${id} ${relation} before`);
+  const beforeBoolean = (id: string, relation: string) =>
+    boolean(viewValue(before, id, relation), `${id} ${relation} before`);
+  const beforePosition = (id: string) => {
+    const position = object(viewValue(before, id, "actor-position"), `${id} position`);
+    return { x: finite(position.x, `${id} position.x`), z: finite(position.z, `${id} position.z`) };
   };
-
-  const selectedRules = values(explanation.rules, "recorded rules").filter((rule) => {
-    if (rule.selected !== true) return false;
+  const effectRelation = (effect: JsonObject): unknown =>
+    stateAt(finite(effect.slot, "effect slot")).source.relation;
+  const allSelectedRules = values(explanation.rules, "recorded rules").filter((rule) => rule.selected === true);
+  const selectedRules = allSelectedRules.filter((rule) => {
     const source = object(rule.source, "selected rule source");
-    return source.designation === "party-attack";
+    return source.designation === "party-attack" && values(rule.effects, "selected effects").some(
+      (effect) => effect.additive === true && effectRelation(effect) === "vitality",
+    );
   });
-  requireCondition(selectedRules.length === 5, `expected five selected party-attack occurrences, received ${selectedRules.length}`);
+  requireCondition(selectedRules.length === expectedContributors,
+    `expected ${expectedContributors} damage-contributing party-attack occurrences, received ${selectedRules.length}`);
+
+  const contributionSubjects = new Set<string>();
+  const checkRecordedEffect = (effect: JsonObject): void => {
+    const relation = text(effectRelation(effect), "effect relation");
+    const id = subjectId(effect.subject);
+    const value = object(effect.evaluated, "evaluated effect").value;
+    if (effect.additive === false) {
+      requireCondition(JSON.stringify(viewValue(after, id, relation)) === JSON.stringify(value),
+        `${id} ${relation} after view differed from its recorded replacement`);
+    }
+  };
 
   const contributors = selectedRules.map((rule, index) => {
     const effects = values(rule.effects, `selected party-attack ${index} effects`);
     const cooldownEffects = effects.filter((effect) => {
       if (effect.additive !== false) return false;
-      const state = stateAt(finite(effect.slot, `selected party-attack ${index} cooldown slot`));
-      return state.source.relation === "action-cooldown";
+      return effectRelation(effect) === "action-cooldown";
     });
     const damageEffects = effects.filter((effect) => {
       if (effect.additive !== true) return false;
-      const state = stateAt(finite(effect.slot, `selected party-attack ${index} damage slot`));
-      return state.source.relation === "vitality";
+      return effectRelation(effect) === "vitality";
     });
     requireCondition(cooldownEffects.length === 1 && damageEffects.length === 1,
       `selected party-attack ${index} did not expose one cooldown replacement and one vitality contribution`);
-    const cooldownState = stateAt(finite(cooldownEffects[0]!.slot, `selected party-attack ${index} cooldown slot`));
-    const damageState = stateAt(finite(damageEffects[0]!.slot, `selected party-attack ${index} damage slot`));
     const evaluated = object(damageEffects[0]!.evaluated, `selected party-attack ${index} evaluated damage`);
+    const unitId = subjectId(cooldownEffects[0]!.subject);
+    requireCondition(!contributionSubjects.has(unitId), "recorded party Attack repeated a contributing unit");
+    contributionSubjects.add(unitId);
     return {
-      unitId: text(cooldownState.source.subject, `selected party-attack ${index} unit subject`),
-      targetId: text(damageState.source.subject, `selected party-attack ${index} target subject`),
-      cooldownSlot: cooldownState.slot,
-      targetVitalitySlot: damageState.slot,
+      unitId,
+      targetId: subjectId(damageEffects[0]!.subject),
+      targetVitalitySlot: finite(damageEffects[0]!.slot, "target vitality slot"),
       delta: finite(evaluated.value, `selected party-attack ${index} evaluated damage`),
     };
   });
-  const unitIds = contributors.map((contributor) => contributor.unitId).sort();
-  requireCondition(new Set(unitIds).size === unitIds.length, "recorded party Attack repeated a contributing unit");
-  const targetIds = new Set(contributors.map((contributor) => contributor.targetId));
-  requireCondition(targetIds.size === 1, `recorded party Attack targeted ${targetIds.size} subjects`);
-  const targetId = contributors[0]!.targetId;
-  requireCondition(targetId === "cinder-1", `bounded comparison targeted ${targetId}, not cinder-1`);
+  // Include the whole recorded company so selection/eligibility are evaluated
+  // independently by the reference, rather than pre-filtered by the trace.
+  const unitIds = Object.entries(before).filter(([, value]) =>
+    "unit-class" in object(value, "recorded company subject"),
+  ).map(([id]) => id).sort();
+  requireCondition(unitIds.length === 5, `recorded company has ${unitIds.length} units`);
+  const guardReferences = {
+    encounterState: viewValue(before, "encounter", "encounter-state"),
+    chosenTarget: viewValue(before, "player-1", "chosen-target"),
+  };
+  const targetId = subjectId(guardReferences.chosenTarget);
+  requireCondition(targetId === expectedTarget, `bounded comparison targeted ${targetId}, expected ${expectedTarget}`);
+  requireCondition(contributors.every((contributor) => contributor.targetId === targetId),
+    "recorded contributions did not all address the chosen target");
   const targetSlots = new Set(contributors.map((contributor) => contributor.targetVitalitySlot));
-  requireCondition(targetSlots.size === 1, "recorded party Attack contributions did not share one vitality slot");
-
-  // These relational values are retained verbatim in the explanation state
-  // table below. The conventional fixture receives their checked truth as a
-  // normalized guard because referent equality is compiler-owned.
-  const encounterState = stateFor("encounter", "encounter-state");
-  const chosenTarget = stateFor("player-1", "chosen-target");
-  requireCondition(encounterState.before !== undefined && chosenTarget.before !== undefined,
-    "recorded party Attack omitted its relational guard state");
+  requireCondition(targetSlots.size === (expectedContributors === 0 ? 0 : 1),
+    "recorded party Attack contributions did not share one vitality slot");
 
   const targetPosition = beforePosition(targetId);
   const units = unitIds.map((id) => {
@@ -172,34 +192,31 @@ function exactPartyAttack(explanationValue: unknown): Readonly<{
     requireCondition(Object.is(contributor.delta, 0 - unit.attackDamage),
       `${contributor.unitId} recorded delta ${contributor.delta} differed from source damage ${unit.attackDamage}`);
   }
-  const targetVitalityState = stateAt(contributors[0]!.targetVitalitySlot);
   const fixture: PartyAttackFixture = {
-    encounterActive: true,
-    chosenTargetMatches: true,
+    encounterActive: subjectId(guardReferences.encounterState) === "active",
+    chosenTargetMatches: subjectId(guardReferences.chosenTarget) === expectedTarget,
     target: {
       id: targetId,
       x: targetPosition.x,
       z: targetPosition.z,
-      vitality: finite(targetVitalityState.before, `${targetId} vitality before`),
+      vitality: beforeNumber(targetId, "vitality"),
       hostile: beforeBoolean(targetId, "hostile"),
     },
     units,
   };
   const clauseOutput: PartyAttackOutput = {
-    targetVitality: finite(targetVitalityState.after, `${targetId} vitality after`),
+    targetVitality: finite(viewValue(after, targetId, "vitality"), `${targetId} vitality after`),
     actionCooldowns: Object.fromEntries(unitIds.map((id) => [
       id,
-      finite(stateFor(id, "action-cooldown").after, `${id} action-cooldown after`),
+      finite(viewValue(after, id, "action-cooldown"), `${id} action-cooldown after`),
     ])),
-    contributors: unitIds,
+    contributors: contributors.map((contributor) => contributor.unitId).sort(),
     accumulatedDamage:
-      finite(targetVitalityState.before, `${targetId} vitality before`) -
-      finite(targetVitalityState.after, `${targetId} vitality after`),
+      fixture.target.vitality - finite(viewValue(after, targetId, "vitality"), `${targetId} vitality after`),
   };
-  const effectSlots = new Set([
-    contributors[0]!.targetVitalitySlot,
-    ...contributors.map((contributor) => contributor.cooldownSlot),
-  ]);
+  const effects = allSelectedRules.flatMap((rule) => values(rule.effects, "selected effects"));
+  effects.forEach(checkRecordedEffect);
+  const effectSlots = new Set(effects.map((effect) => finite(effect.slot, "selected effect slot")));
   const changedStateSlots = states
     .filter((state) => JSON.stringify(state.before) !== JSON.stringify(state.after))
     .map((state) => state.slot)
@@ -210,7 +227,7 @@ function exactPartyAttack(explanationValue: unknown): Readonly<{
     fixture,
     output: clauseOutput,
     changedStateSlots,
-    guardStateSlots: { encounterState: encounterState.slot, chosenTarget: chosenTarget.slot },
+    guardReferences,
     contributionDeltas: contributors.map((contributor) => contributor.delta),
   };
 }
@@ -288,89 +305,94 @@ try {
   await click("begin-encounter");
   await waitFor<string>("document.body.dataset.encounterPhase || ''", (value) => value === "Battle joined", "comparison encounter");
   await click("select-all");
-  await click("target-cinder-1");
-  const readiness = await waitFor<Record<string, any>>(
-    `(() => { const p=(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1);
-      return p?.target==='cinder-1' && p?.selected?.length===5 && Object.values(p?.cooldowns||{}).every(v=>v<=0) ? p : {}; })()`,
-    (value) => typeof value.vitality?.["cinder-1"] === "number",
-    "settled party attack precondition",
-  );
-  const readinessVitality = finite(readiness.vitality["cinder-1"], "readiness vitality");
-  const gameEventIndex = await evaluate<number>("window.__GREYWROUGHT_GAME_EVENTS__.length");
-  await evaluate("window.__GREYWROUGHT_MEASUREMENTS__.length=0");
-  const clauseStarted = performance.now();
-  await click("command-attack");
-  await waitFor<number>(
-    `(window.__GREYWROUGHT_GAME_EVENTS__||[]).slice(${gameEventIndex}).filter(e=>e.phase==='projection').at(-1)?.vitality?.['cinder-1'] ?? ${readinessVitality}`,
-    (value) => value < readinessVitality,
-    "party Attack admitted projection",
-  );
-  await click("explain-attack");
-  const diagnostic = await waitFor<Record<string, any>>(
-    `(window.__GREYWROUGHT_GAME_EVENTS__||[]).slice(${gameEventIndex}).findLast(e=>e.phase==='diagnostic'&&e.entry==='attack') || {}`,
-    (value) => typeof value.explanation?.step === "string",
-    "recorded party Attack explanation",
-  );
-  const clauseCaptureWallMillis = performance.now() - clauseStarted;
-  await Bun.write(`${outputPath}.explanation.json`, `${JSON.stringify(diagnostic.explanation, null, 2)}\n`);
-  const exact = exactPartyAttack(diagnostic.explanation);
+  for (const scenario of [
+    { name: "accepted", target: "cinder-1", contributors: 5, report: "Attack — Accepted", output: outputPath },
+    { name: "rejected-friendly-target", target: "moonwell", contributors: 0, report: "Attack — Wrong target", output: "build/comparison/party-attack-rejected.json" },
+  ]) {
+    await click(`target-${scenario.target}`);
+    const readiness = await waitFor<Record<string, any>>(
+      `(() => { const p=(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1);
+        return p?.target===${JSON.stringify(scenario.target)} && p?.selected?.length===5 && Object.values(p?.cooldowns||{}).every(v=>v<=0) ? p : {}; })()`,
+      (value) => typeof value.vitality?.[scenario.target] === "number",
+      "settled party attack precondition",
+    );
+    requireCondition(readiness.encounter === "Battle joined", "comparison encounter ended before the order");
+    const gameEventIndex = await evaluate<number>("window.__GREYWROUGHT_GAME_EVENTS__.length");
+    await evaluate("window.__GREYWROUGHT_MEASUREMENTS__.length=0");
+    const clauseStarted = performance.now();
+    await click("command-attack");
+    await waitFor<string>(
+      "document.getElementById('command-status').textContent",
+      (value) => value.includes(scenario.report),
+      "processed party Attack report",
+    );
+    await click("explain-attack");
+    const diagnostic = await waitFor<Record<string, any>>(
+      `(window.__GREYWROUGHT_GAME_EVENTS__||[]).slice(${gameEventIndex}).findLast(e=>e.phase==='diagnostic'&&e.entry==='attack') || {}`,
+      (value) => typeof value.explanation?.step === "string",
+      "recorded party Attack explanation",
+    );
+    const clauseCaptureWallMillis = performance.now() - clauseStarted;
+    await Bun.write(`${scenario.output}.explanation.json`, `${JSON.stringify(diagnostic.explanation, null, 2)}\n`);
+    const exact = exactPartyAttack(diagnostic.explanation, scenario.target, scenario.contributors);
 
-  const referenceStarted = performance.now();
-  const referenceOutput = conventionalPartyAttack(exact.fixture);
-  const referenceWallMillis = performance.now() - referenceStarted;
-  requireCondition(Object.is(referenceOutput.targetVitality, exact.output.targetVitality),
-    `reference target vitality ${referenceOutput.targetVitality} differed from Clause ${exact.output.targetVitality}`);
-  requireCondition(Object.is(referenceOutput.accumulatedDamage, exact.output.accumulatedDamage),
-    `reference accumulated damage ${referenceOutput.accumulatedDamage} differed from Clause ${exact.output.accumulatedDamage}`);
-  requireCondition(JSON.stringify(referenceOutput.actionCooldowns) === JSON.stringify(exact.output.actionCooldowns),
-    `reference cooldowns diverged: ${JSON.stringify({ clause: exact.output.actionCooldowns, reference: referenceOutput.actionCooldowns })}`);
-  requireCondition(JSON.stringify(referenceOutput.contributors) === JSON.stringify(exact.output.contributors),
-    `reference contributors diverged: ${JSON.stringify({ clause: exact.output.contributors, reference: referenceOutput.contributors })}`);
+    const referenceStarted = performance.now();
+    const referenceOutput = conventionalPartyAttack(exact.fixture);
+    const referenceWallMillis = performance.now() - referenceStarted;
+    requireCondition(Object.is(referenceOutput.targetVitality, exact.output.targetVitality),
+      `reference target vitality ${referenceOutput.targetVitality} differed from Clause ${exact.output.targetVitality}`);
+    requireCondition(Object.is(referenceOutput.accumulatedDamage, exact.output.accumulatedDamage),
+      `reference accumulated damage ${referenceOutput.accumulatedDamage} differed from Clause ${exact.output.accumulatedDamage}`);
+    requireCondition(JSON.stringify(referenceOutput.actionCooldowns) === JSON.stringify(exact.output.actionCooldowns),
+      `reference cooldowns diverged: ${JSON.stringify({ clause: exact.output.actionCooldowns, reference: referenceOutput.actionCooldowns })}`);
+    requireCondition(JSON.stringify(referenceOutput.contributors) === JSON.stringify(exact.output.contributors),
+      `reference contributors diverged: ${JSON.stringify({ clause: exact.output.contributors, reference: referenceOutput.contributors })}`);
 
-  const measurements = await evaluate<Record<string, any>[]>("window.__GREYWROUGHT_MEASUREMENTS__");
-  const requestedAttacks = await evaluate<Record<string, any>[]>(
-    "window.__GREYWROUGHT_GAME_EVENTS__.filter(e=>e.phase==='action-requested'&&e.action==='Attack')",
-  );
-  requireCondition(requestedAttacks.length === 1,
-    `expected one ordinary Attack request on this page, received ${requestedAttacks.length}`);
-  const observedAttackInputs = measurements.filter((measurement) =>
-    measurement.metric === "observed-input" && measurement.input?.kind === "keyboard" &&
-    measurement.input?.code === "Attack" && measurement.input?.phase === "down"
-  );
-  requireCondition(observedAttackInputs.length === 1, `expected one observed Attack input, received ${observedAttackInputs.length}`);
-  const observedInput = observedAttackInputs[0]!;
-  const lifecycle = measurements.filter((measurement) => measurement.metric === "lifecycle");
-  const configurationReceipt = lifecycle.find((receipt) =>
-    receipt.event === "configuration-observed" && receipt.sequence === observedInput.receiptSequence
-  );
-  requireCondition(configurationReceipt !== undefined, "Attack input omitted its exact configuration-observed receipt");
-  requireCondition(configurationReceipt.configurationRevision === observedInput.configurationRevision,
-    "Attack input/configuration receipt revision diverged");
-  requireCondition(configurationReceipt.activeGeneration === observedInput.activeGeneration,
-    "Attack input/configuration receipt generation diverged");
-  const candidateReceipt = lifecycle.find((receipt) =>
-    receipt.event === "candidate-requested" && receipt.sequence > configurationReceipt.sequence &&
-    receipt.activeGeneration === observedInput.activeGeneration &&
-    receipt.configurationRevision === observedInput.configurationRevision + 1
-  );
-  requireCondition(candidateReceipt !== undefined, "Attack configuration omitted its next candidate request");
-  const operationReceipts = lifecycle.filter((receipt) =>
-    receipt.operationId === candidateReceipt.operationId && receipt.activeGeneration === candidateReceipt.activeGeneration
-  );
-  for (const required of ["candidate-requested", "candidate-produced", "admission-requested", "admission-accepted"]) {
-    requireCondition(operationReceipts.some((receipt) => receipt.event === required), `comparison operation omitted ${required}`);
+    const measurements = await evaluate<Record<string, any>[]>("window.__GREYWROUGHT_MEASUREMENTS__");
+    const requestedAttacks = await evaluate<Record<string, any>[]>(
+      `window.__GREYWROUGHT_GAME_EVENTS__.slice(${gameEventIndex}).filter(e=>e.phase==='action-requested'&&e.action==='Attack')`,
+    );
+    requireCondition(requestedAttacks.length === 1,
+      `expected one ordinary Attack request in this case, received ${requestedAttacks.length}`);
+    const observedAttackInputs = measurements.filter((measurement) =>
+      measurement.metric === "observed-input" && measurement.input?.kind === "keyboard" &&
+      measurement.input?.code === "Attack" && measurement.input?.phase === "down"
+    );
+    requireCondition(observedAttackInputs.length === 1, `expected one observed Attack input, received ${observedAttackInputs.length}`);
+    const observedInput = observedAttackInputs[0]!;
+    const lifecycle = measurements.filter((measurement) => measurement.metric === "lifecycle");
+    const configurationReceipt = lifecycle.find((receipt) =>
+      receipt.event === "configuration-observed" && receipt.sequence === observedInput.receiptSequence
+    );
+    requireCondition(configurationReceipt !== undefined, "Attack input omitted its exact configuration-observed receipt");
+    requireCondition(configurationReceipt.configurationRevision === observedInput.configurationRevision,
+      "Attack input/configuration receipt revision diverged");
+    requireCondition(configurationReceipt.activeGeneration === observedInput.activeGeneration,
+      "Attack input/configuration receipt generation diverged");
+    const candidateReceipt = lifecycle.find((receipt) =>
+      receipt.event === "candidate-requested" && receipt.sequence > configurationReceipt.sequence &&
+      receipt.activeGeneration === observedInput.activeGeneration &&
+      receipt.configurationRevision === observedInput.configurationRevision + 1
+    );
+    requireCondition(candidateReceipt !== undefined, "Attack configuration omitted its next candidate request");
+    const operationReceipts = lifecycle.filter((receipt) =>
+      receipt.operationId === candidateReceipt.operationId && receipt.activeGeneration === candidateReceipt.activeGeneration
+    );
+    for (const required of ["candidate-requested", "candidate-produced", "admission-requested", "admission-accepted"]) {
+      requireCondition(operationReceipts.some((receipt) => receipt.event === required), `comparison operation omitted ${required}`);
   }
 
   const explanation = object(diagnostic.explanation, "recorded Attack explanation");
   const artifact = {
-    schema: "greywrought-party-attack-comparison-v2",
+    schema: "greywrought-party-attack-comparison-v3",
+    scenario: scenario.name,
     recordedAt: new Date().toISOString(),
     conditions: {
       viewport: [1280, 900],
       dpr: 1,
       renderer: "SwiftShader",
       sourceSha256: new Bun.CryptoHasher("sha256").update(source).digest("hex"),
-      clausePin: "c8a7a48fa79b2b54734a926f161bd39f3b463630",
+      clausePin: CLAUSE_COMMIT,
       numericSemantics: "finite IEEE-754 binary64; Clause and reference sort numeric deltas ascending before folding; contributor IDs are sorted only for output presentation",
     },
     inputEvidence: {
@@ -385,9 +407,9 @@ try {
     normalizedFixture: exact.fixture,
     normalizationEvidence: {
       changedStateSlots: exact.changedStateSlots,
-      guardStateSlots: exact.guardStateSlots,
+      guardReferences: exact.guardReferences,
       contributionDeltas: exact.contributionDeltas,
-      note: "This is one positive five-contributor case. Referent-valued encounter/target guards and the contributor domain are normalized only after the compiler trace selected the five party-attack occurrences; their exact values remain in recordedExplanation.states.",
+      note: "Inputs include every company unit and untouched constants from the exact recorded before view; encounter/target referents resolve within that view. Output vitality/cooldowns come from the recorded after view. Damage occurrences are distinct from processed-order reports, whose recorded replacements are also checked. Both complete views and the relational trace are retained.",
     },
     clause: { output: exact.output, captureJourneyWallMillis: clauseCaptureWallMillis },
     conventionalReference: { output: referenceOutput, isolatedFunctionWallMillis: referenceWallMillis },
@@ -397,8 +419,9 @@ try {
       reference: ["trusted normalized fixture", "synchronous predicate/filter", "matching finite-binary64 delta ordering", "plain object result"],
     },
   };
-  await Bun.write(outputPath, `${JSON.stringify(artifact, null, 2)}\n`);
-  console.log(`Party Attack parity passed from recorded Step ${String(explanation.step)}: ${exact.fixture.target.vitality} -> ${exact.output.targetVitality}; ${exact.output.contributors.length} contributors; raw ${outputPath}`);
+  await Bun.write(scenario.output, `${JSON.stringify(artifact, null, 2)}\n`);
+  console.log(`Party Attack ${scenario.name} parity passed from recorded Step ${String(explanation.step)}: ${exact.fixture.target.vitality} -> ${exact.output.targetVitality}; ${exact.output.contributors.length} contributors; raw greywrought:${scenario.output}`);
+  }
 } finally {
   socket?.close();
   chrome.kill();

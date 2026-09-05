@@ -110,6 +110,35 @@ checks wall-clock expiry bounds; its default software mode retains the original
 correctness checks without claiming a hardware timing budget. Preserve distinct
 output filenames when taking another measurement.
 
+## Recorded party attack comparison
+
+The current compiler pin, `101e8e8bd6c9749b537d7d7d0f87ce9bbcb50392`, exports
+the exact before/after views of an explained action, including untouched inputs.
+`bun run compare:rts-attack` from the Greywrought checkout uses these views to
+compare accepted and rejected browser Attacks with the existing conventional reference.
+Every company unit enters the reference fixture; the reference independently
+evaluates selection, target, range, health and cooldown predicates. The trace
+identifies damage contributors separately from the processed-order reports,
+and each recorded replacement is checked against the after view.
+
+Observed September 5: all five units contributed, target vitality changed
+100 → 9, and contributor identities, accumulated damage and all five cooldowns
+matched the reference exactly. The browser used SwiftShader at 1280×900/DPR1.
+A second Attack targets the friendly Moonwell: it reports Wrong target, admits
+zero damage contributors, and leaves vitality and every cooldown unchanged in
+that exact action. The reference independently rejects it from the recorded
+hostility value. Both cases passed through the ordinary controls on one page.
+Raw input, both views, explanation, operation receipts and outputs are retained
+in greywrought:build/comparison/party-attack.json and
+greywrought:build/comparison/party-attack-rejected.json. The driver records its imported
+compiler pin instead of a historical constant.
+
+This establishes two bounded behavioral comparisons. Browser capture time includes
+input delivery, polling and explanation; the reference timer covers one trusted
+function call. Those durations are different service boundaries and provide no
+speed ratio. Scaling, other rejection conditions and broader language claims remain
+open. This check does not measure a change in frame or checked-edit latency.
+
 ## Development commands
 
 `bun run typecheck:host` checks against existing staged declarations without
