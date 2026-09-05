@@ -115,6 +115,7 @@ interface ResidentState {
 }
 
 interface GameState {
+  readonly lifetime: AbortController;
   readonly resident: ResidentState;
   readonly presentation: RtsPresentation;
   readonly selectionRectangle: HTMLElement;
@@ -385,6 +386,7 @@ function decodeCreatedBurns(index: ProjectionIndex): readonly CreatedBurnView[] 
 }
 
 function sendInput(state: GameState, input: ResidentInput): void {
+  if (state.disposed) return;
   state.resident.worker.postMessage({ kind: "input", input });
 }
 
@@ -394,6 +396,7 @@ interface CapturedFrame {
 }
 
 function capturedFrame(state: GameState): CapturedFrame | null {
+  if (state.disposed) return null;
   const unit = state.units[0];
   return unit === undefined
     ? null
@@ -519,6 +522,7 @@ function renderHud(state: GameState): void {
     : `${primary.name} · ${primary.unitClass}`;
   element("command-move").toggleAttribute("disabled", selected.length === 0);
   element("command-stop").toggleAttribute("disabled", selected.length === 0);
+  element("retry-encounter").toggleAttribute("disabled", state.units.length === 0 || state.resident.editing);
 
   document.body.dataset.encounterPhase = state.encounter.phase;
   document.body.dataset.targetId = state.encounter.targetId;
@@ -624,6 +628,7 @@ function applyProjection(
 
 function bindResident(state: GameState): void {
   const message = (event: MessageEvent<unknown>): void => {
+    if (state.disposed) return;
     try {
       const payload = record(event.data, "resident event");
       const kind = payload.kind;
@@ -786,6 +791,7 @@ function bindResident(state: GameState): void {
     }
   };
   const error = (event: ErrorEvent): void => {
+    if (state.disposed) return;
     document.body.dataset.gamePhase = "failed";
     console.error("Company worker failure", event.message);
     element("authority-status").textContent = "The company could not form ranks";
@@ -826,6 +832,7 @@ function parseGeneration(value: unknown): GenerationPayload {
 }
 
 function installGeneration(state: GameState, payload: GenerationPayload): void {
+  if (state.disposed) return;
   state.resident.generation = payload.generation;
   state.resident.scalarEffects = payload.scalarEffects;
   state.resident.entries = payload.entries;
@@ -856,10 +863,13 @@ async function pollResident(state: GameState): Promise<void> {
   state.resident.polling = true;
   const requestedAfter = state.resident.generation;
   try {
-    const response = await fetch(publicUrl(`resident-generation?after=${requestedAfter}`), { cache: "no-store" });
+    const response = await fetch(publicUrl(`resident-generation?after=${requestedAfter}`), {
+      cache: "no-store", signal: state.lifetime.signal,
+    });
+    if (state.disposed) return;
     if (response.status === 404 && state.resident.generation < 0) {
       state.resident.staticGeneration = true;
-      const cartridge = await fetch(publicUrl("assets/embodied-encounter-v1.cwr1.hex")).then((entry) => {
+      const cartridge = await fetch(publicUrl("assets/embodied-encounter-v1.cwr1.hex"), { signal: state.lifetime.signal }).then((entry) => {
         if (!entry.ok) throw new Error(`company roster failed: ${entry.status}`);
         return entry.text();
       });
@@ -871,10 +881,12 @@ async function pollResident(state: GameState): Promise<void> {
     }
     if (response.status === 204) return;
     const payload: unknown = await response.json();
+    if (state.disposed) return;
     if (!response.ok) throw new Error("company update was rejected; prior orders retained");
     const parsed = parseGeneration(payload);
     if (parsed.generation > state.resident.generation) installGeneration(state, parsed);
   } catch (cause: unknown) {
+    if (state.disposed) return;
     const message = cause instanceof Error ? cause.message : String(cause);
     element("authority-status").textContent = message;
   } finally {
@@ -986,13 +998,14 @@ function reportLiveFailure(cause: unknown): void {
 async function requestLiveEdit(
   state: GameState,
 ): Promise<void> {
-  if (state.resident.editing) return;
+  if (state.disposed || state.resident.editing) return;
   const effect = selectedScalarEffect(state);
   if (effect === undefined) throw new Error("Choose an exact offered scalar effect");
   const capturedExternalGeneration = state.resident.generation;
   const capturedWorkbenchGeneration = state.resident.workbenchGeneration;
   const expression = (element("scalar-effect-expression") as HTMLInputElement).value;
   state.resident.editing = true;
+  element("retry-encounter").toggleAttribute("disabled", true);
   state.resident.editStartedMillis = performance.now();
   document.body.dataset.liveEditState = "checking";
   element("live-edit-status").textContent = "Checking the offered battle-law expression…";
@@ -1013,8 +1026,10 @@ async function requestLiveEdit(
       capturedWorkbenchGeneration,
     });
     await fenced;
+    if (state.disposed) return;
     const response = await fetch(publicUrl("resident-edit"), {
       method: "POST",
+      signal: state.lifetime.signal,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         capturedGeneration: capturedExternalGeneration,
@@ -1023,6 +1038,7 @@ async function requestLiveEdit(
       }),
     });
     const body: unknown = await response.json();
+    if (state.disposed) return;
     if (!response.ok) {
       const rejected = record(body, "source edit rejection");
       if (
@@ -1066,6 +1082,7 @@ async function requestLiveEdit(
     renderScalarEffectCatalog(state);
     state.resident.worker.postMessage({ kind: "install-edit", payload });
   } catch (cause: unknown) {
+    if (state.disposed) return;
     throw cause;
   }
 }
@@ -1107,6 +1124,11 @@ function bindHud(state: GameState): void {
     if (id !== undefined) chooseTarget(state, id);
   };
   const begin = (): void => issueAction(state, "BeginEncounter");
+  const retry = (): void => {
+    if (state.disposed || state.resident.editing || state.units.length === 0) return;
+    teardown(state);
+    start();
+  };
   const stop = (): void => issueAction(state, "Stop");
   const attack = (): void => issueAction(state, "Attack");
   const ignite = (): void => issueAction(state, "Ignite");
@@ -1125,6 +1147,7 @@ function bindHud(state: GameState): void {
   element("equipment-close").addEventListener("click", close);
   element("encounter-targets").addEventListener("click", target);
   element("begin-encounter").addEventListener("click", begin);
+  element("retry-encounter").addEventListener("click", retry);
   element("command-stop").addEventListener("click", stop);
   element("command-attack").addEventListener("click", attack);
   element("command-ignite").addEventListener("click", ignite);
@@ -1142,6 +1165,7 @@ function bindHud(state: GameState): void {
     () => element("equipment-close").removeEventListener("click", close),
     () => element("encounter-targets").removeEventListener("click", target),
     () => element("begin-encounter").removeEventListener("click", begin),
+    () => element("retry-encounter").removeEventListener("click", retry),
     () => element("command-stop").removeEventListener("click", stop),
     () => element("command-attack").removeEventListener("click", attack),
     () => element("command-ignite").removeEventListener("click", ignite),
@@ -1158,6 +1182,9 @@ function bindHud(state: GameState): void {
 function teardown(state: GameState): void {
   if (state.disposed) return;
   state.disposed = true;
+  state.lifetime.abort();
+  state.resident.editFenceResolver?.();
+  state.resident.editFenceResolver = null;
   window.clearInterval(state.resident.interval);
   for (const remove of state.listeners) remove();
   state.resident.worker.postMessage({ kind: "dispose" });
@@ -1166,6 +1193,19 @@ function teardown(state: GameState): void {
 }
 
 function start(): GameState {
+  document.body.dataset.gamePhase = "loading";
+  delete document.body.dataset.runtimeFailure;
+  delete document.body.dataset.destinationMarker;
+  delete document.body.dataset.liveEditMillis;
+  document.body.dataset.liveEditState = "idle";
+  element("retry-encounter").toggleAttribute("disabled", true);
+  element("authority-status").textContent = "Rallying the company…";
+  element("command-status").textContent = "Awaiting orders";
+  element("live-edit-status").textContent = "No battle-law change offered";
+  element("explanation-status").textContent = "No strike inspected";
+  element("intervention-status").textContent = "No alternatives explored";
+  element("equipment-panel").classList.remove("open");
+  element("selection-rectangle").hidden = true;
   window.__GREYWROUGHT_GAME_EVENTS__ = [];
   window.__GREYWROUGHT_MEASUREMENTS__ = [];
   let priorAnimationFrame: number | null = null;
@@ -1193,6 +1233,7 @@ function start(): GameState {
     editFenceResolver: null,
   };
   const state: GameState = {
+    lifetime: new AbortController(),
     resident,
     presentation: createRtsPresentation(element("world-wrap")),
     selectionRectangle: element("selection-rectangle"),
@@ -1211,7 +1252,9 @@ function start(): GameState {
   state.presentation.start();
   void pollResident(state);
   resident.interval = window.setInterval(() => void pollResident(state), 100);
-  window.addEventListener("beforeunload", () => teardown(state), { once: true });
+  const unload = (): void => teardown(state);
+  window.addEventListener("beforeunload", unload, { once: true });
+  state.listeners.push(() => window.removeEventListener("beforeunload", unload));
   window.__GREYWROUGHT_TEARDOWN__ = () => teardown(state);
   return state;
 }

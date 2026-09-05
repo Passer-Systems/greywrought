@@ -293,6 +293,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
   void battlefield.ready.then(() => {
     if (alive) document.body.dataset.natureAssetStatus = "ready";
   }).catch((cause: unknown) => {
+    if (!alive) return;
     document.body.dataset.natureAssetStatus = "error";
     console.error("Unable to load Quaternius Stylized Nature battlefield", cause);
   });
@@ -333,6 +334,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
   };
 
   const resize = (): void => {
+    if (!alive) return;
     const width = Math.max(1, host.clientWidth);
     const height = Math.max(1, host.clientHeight);
     renderer.setSize(width, height, false);
@@ -370,6 +372,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
           model.setMoving(loadingFigure.moving);
           recordLoadedModel(unit.unitClass, model.sourceName);
         }).catch((cause: unknown) => {
+          if (!alive) return;
           document.body.dataset.companyAssetStatus = "error";
           console.error(`Unable to load Quaternius ${unit.unitClass} model`, cause);
         });

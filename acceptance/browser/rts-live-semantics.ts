@@ -3,6 +3,13 @@ const debugPort = 9250;
 const gamePort = 4184;
 const gameUrl = `http://127.0.0.1:${gamePort}/`;
 const fixture = "build/acceptance/m4-live-source.clause";
+const rendererMode = Bun.env.GREYWROUGHT_BROWSER_RENDERER ?? "swiftshader";
+if (rendererMode !== "swiftshader" && rendererMode !== "hardware") {
+  throw new Error("GREYWROUGHT_BROWSER_RENDERER must be swiftshader or hardware");
+}
+const rendererFlags = rendererMode === "hardware"
+  ? ["--enable-gpu"]
+  : ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"];
 
 function requireCondition(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -28,8 +35,7 @@ const chrome = Bun.spawn({
     `--remote-debugging-port=${debugPort}`,
     `--user-data-dir=/tmp/greywrought-cdp-live-${process.pid}`,
     "--window-size=1280,900",
-    "--enable-unsafe-swiftshader",
-    "--use-angle=swiftshader",
+    ...rendererFlags,
     "about:blank",
   ],
   stdout: "ignore",
@@ -143,6 +149,17 @@ try {
   });
   await call("Page.navigate", { url: gameUrl });
   await waitFor<string>("document.body?.dataset.gamePhase || ''", (value) => value === "ready", "initial company");
+  const initialProjection = await latestProjection();
+  if (rendererMode === "hardware") {
+    const renderer = await evaluate<string>(`(() => {
+      const gl=document.createElement('canvas').getContext('webgl');
+      const ext=gl?.getExtension('WEBGL_debug_renderer_info');
+      return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unavailable';
+    })()`);
+    requireCondition(!/unavailable|swiftshader|llvmpipe|software/i.test(renderer),
+      "hardware live-edit/retry journey has no hardware renderer: " + renderer);
+    console.log("Live-edit/retry renderer: " + renderer);
+  }
   const initialRuntimeIdentity = await (await fetch(`${gameUrl}runtime-identity`)).json() as {
     serverPid: number;
     residentPid: number;
@@ -317,8 +334,68 @@ try {
   requireCondition(persistedSource.includes("0.0 - (?damage * 2.0)"), "compiler-produced edited Clause source was not persisted");
   requireCondition(browserErrors.length === 0, `live-semantics browser errors: ${browserErrors.join(" | ")}`);
   console.log(`RTS live semantics passed: server ${initialRuntimeIdentity.serverPid}/resident ${initialRuntimeIdentity.residentPid} unchanged; no-op/rejected preserved; checked edit visible in ${visibleEditMillis.toFixed(2)} ms (runtime transfer ${Number(liveEvent.runtimeMillis).toFixed(2)} ms); 9→-173; explanations and minimum-five intervention rendered`);
+
+  await evaluate("document.getElementById('live-semantics-panel').open=false");
+  await click("target-cinder-2");
+  await waitFor<boolean>(
+    "(() => { const p=(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1); return p?.target==='cinder-2' && Object.values(p.cooldowns).every(v=>v<=0); })()",
+    Boolean, "retry effect precondition",
+  );
+  await click("command-ignite");
+  await waitFor<number>(
+    "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.createdBurns.length || 0",
+    (count) => count === 2, "active effects before retry",
+  );
+  const orderPoint = await evaluate<{ x: number; y: number }>(
+    "(() => { const r=document.getElementById('world-canvas').getBoundingClientRect(); return {x:r.left+r.width*0.55,y:r.top+r.height*0.6}; })()",
+  );
+  await call("Input.dispatchMouseEvent", { type: "mousePressed", ...orderPoint, button: "right", buttons: 2, clickCount: 1 });
+  await call("Input.dispatchMouseEvent", { type: "mouseReleased", ...orderPoint, button: "right", buttons: 0, clickCount: 1 });
+  await waitFor<number>("document.querySelectorAll('#roster .moving').length", (count) => count > 0, "pending movement before retry");
+  const beforeRetry = await latestProjection();
+  requireCondition(beforeRetry.createdBurns.length === 2 && beforeRetry.vitality['cinder-1'] <= 0,
+    "retry must begin with live effects, a defeated enemy and movement");
+  const retryControl = await evaluate<{ top: number; bottom: number; width: number; disabled: boolean }>(
+    "(() => { const b=document.getElementById('retry-encounter'); const r=b.getBoundingClientRect(); return {top:r.top,bottom:r.bottom,width:r.width,disabled:b.disabled}; })()",
+  );
+  requireCondition(!retryControl.disabled && retryControl.top >= 0 && retryControl.bottom <= 900 && retryControl.width > 0,
+    "Retry is not reachable: " + JSON.stringify(retryControl));
+  const retryStarted = performance.now();
+  await click("retry-encounter");
+  await waitFor<string>("document.body.dataset.gamePhase || ''", (value) => value === "ready", "fresh encounter after retry");
+  const retryMillis = performance.now() - retryStarted;
+  const fresh = await latestProjection();
+  for (const field of ["positions", "selected", "target", "vitality", "wards", "burns", "cooldowns", "createdBurns", "encounter"]) {
+    requireCondition(JSON.stringify(fresh[field]) === JSON.stringify(initialProjection[field]),
+      `retry did not restore authored ${field}: ${JSON.stringify(fresh[field])}`);
+  }
+  requireCondition(fresh.generation === beforeRetry.generation, "retry rebuilt or reverted the checked source");
+  requireCondition(await evaluate<number>("performance.timeOrigin") === pageTimeOrigin &&
+    await evaluate<number>("performance.getEntriesByType('navigation').length") === navigationCount,
+    "retry reloaded or navigated the document");
+  requireCondition(await evaluate<number>("document.querySelectorAll('#world-canvas').length") === 1, "retry retained an old canvas");
+  const retryIdentity = await (await fetch(`${gameUrl}runtime-identity`)).json();
+  requireCondition(JSON.stringify(retryIdentity) === JSON.stringify(initialRuntimeIdentity), "retry restarted the server/compiler");
+  requireCondition(await Bun.file(fixture).text() === persistedSource, "retry reverted the authored edit");
+  await Bun.sleep(250);
+  requireCondition(JSON.stringify((await latestProjection()).positions) === JSON.stringify(initialProjection.positions),
+    "old orders resumed in the new encounter");
+  await click("begin-encounter");
+  await waitFor<string>("document.body.dataset.encounterPhase || ''", (value) => value === "Battle joined", "replayed encounter");
+  await click("command-attack");
+  await waitFor<number>(
+    "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.vitality?.['cinder-1'] ?? 100",
+    (value) => value === -82, "retained double-damage rule after retry",
+  );
+  await click("retry-encounter");
+  await waitFor<string>("document.body.dataset.gamePhase || ''", (value) => value === "ready", "second in-page retry");
+  requireCondition((await latestProjection()).vitality['cinder-1'] === initialProjection.vitality['cinder-1'],
+    "the second retry did not reset the defeated enemy");
+  requireCondition(browserErrors.length === 0, `retry browser errors: ${browserErrors.join(" | ")}`);
+  console.log(`RTS retry passed: fresh encounter in ${retryMillis.toFixed(2)} ms, old orders/effects cleared, same page/server/compiler, edited damage retained, second retry ready`);
 } finally {
   socket?.close();
   chrome.kill();
   server.kill();
+  await Promise.all([chrome.exited, server.exited]);
 }

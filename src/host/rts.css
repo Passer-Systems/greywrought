@@ -22,7 +22,8 @@ body { overflow: hidden; background: #110d08; }
 .eyebrow { display: block; color: var(--muted); font: 700 10px ui-monospace, monospace; letter-spacing: .16em; text-transform: uppercase; }
 #authority-status { color: #bbd99b; font: 12px ui-monospace, monospace; }
 button { color: inherit; font: inherit; }
-#select-all, #equipment-toggle, #equipment-close { border: 1px solid #a77b42; background: #382514; color: var(--gold); padding: 8px 11px; cursor: pointer; }
+#select-all, #retry-encounter, #equipment-toggle, #equipment-close { border: 1px solid #a77b42; background: #382514; color: var(--gold); padding: 8px 11px; cursor: pointer; }
+#retry-encounter:disabled { opacity: .45; cursor: default; }
 button:hover, button:focus-visible { border-color: #f1d18b; background: #51351a; outline: none; }
 kbd { color: #d8c39d; font: 10px ui-monospace, monospace; }
 #objective-panel { top: 94px; left: 16px; width: 270px; max-height: calc(100% - 250px); padding: 12px 14px; overflow-y: auto; }
