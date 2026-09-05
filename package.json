@@ -18,6 +18,7 @@
     "test:rts-journey": "bun acceptance/browser/rts-journey.ts",
     "test:rts-idle-loss": "bun acceptance/browser/rts-idle-loss.ts",
     "test:rts-live-semantics": "bun acceptance/browser/rts-live-semantics.ts",
+    "measure:rts": "bun acceptance/browser/rts-measurement.ts",
     "build:play": "bun run build:resident && bun run build:host",
     "build:static": "bun run build:play && cargo run --bin materialize --locked && bun scripts/build-static.ts && bun scripts/release-budget.ts",
     "check:release": "bun run verify:clause && bun run build:static",

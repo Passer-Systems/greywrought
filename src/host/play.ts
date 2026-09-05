@@ -10,6 +10,8 @@ import {
 } from "./rts-presentation.js";
 
 const classes: readonly UnitClass[] = ["Warrior", "Artificer", "Rogue", "Priest", "Ranger"];
+const measurementEnabled = new URLSearchParams(window.location.search).get("measure") === "1";
+const maximumMeasurementEvents = 4096;
 
 interface GenerationPayload {
   readonly generation: number;
@@ -98,6 +100,7 @@ interface ResidentState {
   pendingVisibleEdit: Readonly<{
     startedMillis: number;
     runtimeMillis: number;
+    compilerMillis: number;
     continuity: unknown;
   }> | null;
   editFenceResolver: (() => void) | null;
@@ -118,7 +121,17 @@ interface GameState {
 declare global {
   interface Window {
     __GREYWROUGHT_GAME_EVENTS__: Array<Record<string, unknown>>;
+    __GREYWROUGHT_MEASUREMENTS__: Array<Record<string, unknown>>;
     __GREYWROUGHT_TEARDOWN__: (() => void) | undefined;
+  }
+}
+
+function measure(event: Readonly<Record<string, unknown>>): void {
+  if (!measurementEnabled) return;
+  const measurements = window.__GREYWROUGHT_MEASUREMENTS__;
+  measurements.push({ ...event, epochMillis: performance.timeOrigin + performance.now() });
+  if (measurements.length > maximumMeasurementEvents) {
+    measurements.splice(0, measurements.length - maximumMeasurementEvents);
   }
 }
 
@@ -496,6 +509,7 @@ function applyProjection(
   generation: number,
   workbenchGeneration: number,
 ): void {
+  const started = performance.now();
   const index = projectionIndex(projection);
   state.encounter = decodeEncounter(index);
   state.units = decodeUnits(index, generation, workbenchGeneration);
@@ -505,6 +519,12 @@ function applyProjection(
     state.actors.filter((actor) => actor.kind === "Cinder" || actor.kind === "Moonwell"),
   );
   renderHud(state);
+  measure({
+    metric: "projection-to-hud",
+    durationMillis: performance.now() - started,
+    generation,
+    workbenchGeneration,
+  });
   document.body.dataset.gamePhase = "ready";
   document.body.dataset.residentGeneration = String(generation);
   element("authority-status").textContent = "Company ready · orders received";
@@ -535,6 +555,7 @@ function applyProjection(
       workbenchGeneration,
       elapsedMillis: visibleMillis,
       runtimeMillis: pending.runtimeMillis,
+      compilerMillis: pending.compilerMillis,
       continuity: pending.continuity,
     });
   }
@@ -554,10 +575,28 @@ function bindResident(state: GameState): void {
           generation < state.resident.generation
         ) return;
         state.resident.workbenchGeneration = workbenchGeneration;
+        if (typeof payload.workerSentEpochMillis === "number") {
+          measure({
+            metric: "worker-to-main",
+            durationMillis: performance.timeOrigin + performance.now() - payload.workerSentEpochMillis,
+            generation,
+            workbenchGeneration,
+          });
+        }
         applyProjection(state, payload.projection, generation, workbenchGeneration);
       } else if (kind === "receipt") {
         const receipt = record(payload.receipt, "resident receipt");
         if (typeof receipt.event === "string") document.body.dataset.lastReceipt = receipt.event;
+        if (typeof payload.workerSentEpochMillis === "number") {
+          measure({
+            metric: "lifecycle",
+            event: receipt.event,
+            operationId: receipt.operationId,
+            configurationRevision: receipt.configurationRevision,
+            workerEpochMillis: payload.workerSentEpochMillis,
+            mainTransportMillis: performance.timeOrigin + performance.now() - payload.workerSentEpochMillis,
+          });
+        }
       } else if (kind === "heartbeat") {
         if (typeof payload.workbenchPhase === "string") document.body.dataset.workbenchPhase = payload.workbenchPhase;
       } else if (kind === "edit-fenced") {
@@ -572,12 +611,14 @@ function bindResident(state: GameState): void {
         if (
           payload.generation !== state.resident.generation ||
           typeof payload.workbenchGeneration !== "number" ||
-          typeof payload.elapsedMillis !== "number"
+          typeof payload.elapsedMillis !== "number" ||
+          typeof payload.compilerMillis !== "number"
         ) return;
         state.resident.workbenchGeneration = payload.workbenchGeneration;
         state.resident.pendingVisibleEdit = {
           startedMillis: state.resident.editStartedMillis,
           runtimeMillis: payload.elapsedMillis,
+          compilerMillis: payload.compilerMillis,
           continuity: payload.continuity,
         };
         element("live-edit-status").textContent = "Checked change accepted; awaiting carried battle frame…";
@@ -586,6 +627,7 @@ function bindResident(state: GameState): void {
           generation: payload.generation,
           workbenchGeneration: payload.workbenchGeneration,
           elapsedMillis: payload.elapsedMillis,
+          compilerMillis: payload.compilerMillis,
           continuity: payload.continuity,
         });
       } else if (kind === "diagnostic") {
@@ -1042,8 +1084,19 @@ function teardown(state: GameState): void {
 
 function start(): GameState {
   window.__GREYWROUGHT_GAME_EVENTS__ = [];
+  window.__GREYWROUGHT_MEASUREMENTS__ = [];
+  let priorAnimationFrame: number | null = null;
+  let animationFrameHandle = 0;
+  if (measurementEnabled) {
+    const sampleAnimationFrame = (now: number): void => {
+      if (priorAnimationFrame !== null) measure({ metric: "raf-interval", durationMillis: now - priorAnimationFrame });
+      priorAnimationFrame = now;
+      animationFrameHandle = window.requestAnimationFrame(sampleAnimationFrame);
+    };
+    animationFrameHandle = window.requestAnimationFrame(sampleAnimationFrame);
+  }
   const resident: ResidentState = {
-    worker: new Worker(publicUrl("app/greywrought-clause/resident-worker.js"), { type: "module", name: "greywrought-rts-resident" }),
+    worker: new Worker(`${publicUrl("app/greywrought-clause/resident-worker.js")}${measurementEnabled ? "?measure=1" : ""}`, { type: "module", name: "greywrought-rts-resident" }),
     generation: -1,
     polling: false,
     staticGeneration: false,
@@ -1070,6 +1123,7 @@ function start(): GameState {
   bindResident(state);
   bindInteraction(state);
   bindHud(state);
+  if (measurementEnabled) state.listeners.push(() => window.cancelAnimationFrame(animationFrameHandle));
   state.presentation.start();
   void pollResident(state);
   resident.interval = window.setInterval(() => void pollResident(state), 100);

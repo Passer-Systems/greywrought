@@ -106,12 +106,14 @@ type ResidentEvent =
       workbenchGeneration: number;
       projection: ProjectedValue;
       frameUnits: number;
+      workerSentEpochMillis?: number;
     }>
   | Readonly<{
       kind: "live-edit";
       generation: number;
       workbenchGeneration: number;
       elapsedMillis: number;
+      compilerMillis: number;
       continuity: ProjectedValue;
     }>
   | Readonly<{
@@ -129,6 +131,7 @@ type ResidentEvent =
       kind: "receipt";
       generation: number;
       receipt: LifecycleReceipt;
+      workerSentEpochMillis?: number;
     }>
   | Readonly<{
       kind: "heartbeat";
@@ -152,6 +155,8 @@ interface ResidentWorkerScope {
 }
 
 const workerScope = self as unknown as ResidentWorkerScope;
+const measurementEnabled = new URL(self.location.href).searchParams.get("measure") === "1";
+const workerEpochMillis = (): number => performance.timeOrigin + performance.now();
 const maximum = Number.MAX_SAFE_INTEGER;
 const policy = createWorkbenchPolicy(
   8,
@@ -266,6 +271,7 @@ function handleReceipt(receipt: LifecycleReceipt): void {
         generation: activeExternalGeneration,
         workbenchGeneration: activeWorkbenchGeneration,
         elapsedMillis: performance.now() - pendingEditStarted,
+        compilerMillis: payload.compilerMicros / 1_000,
         continuity: sourceContinuity(clauseRuntime, liveSession),
       });
       currentEntries = payload.entries;
@@ -280,6 +286,7 @@ function handleReceipt(receipt: LifecycleReceipt): void {
     kind: "receipt",
     generation: externalGeneration,
     receipt,
+    ...(measurementEnabled ? { workerSentEpochMillis: workerEpochMillis() } : {}),
   });
   if (
     receipt.event === "candidate-failed" ||
@@ -384,6 +391,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
             workbenchGeneration,
             projection: decodeProjectedTermFrame(exact),
             frameUnits: exact.length,
+            ...(measurementEnabled ? { workerSentEpochMillis: workerEpochMillis() } : {}),
           });
         } catch (cause: unknown) {
           workerScope.postMessage({
