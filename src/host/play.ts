@@ -60,6 +60,8 @@ type ResidentInput =
     }>;
 
 interface ResidentUnitView extends UnitView {
+  readonly readiness: Readonly<Record<"attack" | "heal" | "ward", string>>;
+  readonly cooldown: number;
   readonly pickReferent: unknown;
   readonly targetReferent: unknown;
   readonly vitality: number;
@@ -291,6 +293,12 @@ function decodeUnits(
       maximumVitality,
       wardRemaining: number(unit, "ward-remaining", id),
       burnRemaining: number(unit, "burn-remaining", id),
+      cooldown: number(unit, "action-cooldown", id),
+      readiness: {
+        attack: text(unit, "attack-readiness", id),
+        heal: text(unit, "heal-readiness", id),
+        ward: text(unit, "ward-readiness", id),
+      },
       pickReferent: channelReferent(index, unit, "Pick", id),
       targetReferent: channelReferent(index, unit, "Target", id),
       capturedExternalGeneration,
@@ -456,6 +464,10 @@ function issueAction(state: GameState, code: "BeginEncounter" | "Stop" | "Attack
   const frame = capturedFrame(state);
   if (frame === null) return;
   press(state, code, frame);
+  if (code === "Attack" || code === "Heal" || code === "Ward") {
+    const action = code.toLowerCase() as "attack" | "heal" | "ward";
+    element("command-status").textContent = `${code}: ${readinessSummary(state, action)}`;
+  }
   if (code === "Ignite") {
     element("command-status").textContent = "Eligible selected units kindle the exact hostile target";
   }
@@ -470,6 +482,12 @@ function issueMove(state: GameState, point: Vector3): void {
   press(state, "IssueMove", captured);
   element("command-status").textContent = `Move formation to ${point.x.toFixed(1)}, ${point.z.toFixed(1)}`;
   window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "move-requested", x: point.x, z: point.z });
+}
+
+function readinessSummary(state: GameState, action: "attack" | "heal" | "ward"): string {
+  const selected = state.units.filter((unit) => unit.selected);
+  if (selected.length === 0) return "Select a living unit";
+  return selected.map((unit) => `${unit.name}: ${unit.readiness[action]}`).join(" · ");
 }
 
 function renderHud(state: GameState): void {
@@ -512,7 +530,7 @@ function renderHud(state: GameState): void {
     const name = card.querySelector("strong")!;
     name.textContent = unit.name;
     const className = card.querySelector("small")!;
-    className.textContent = `${unit.unitClass} · ${Math.max(0, unit.vitality).toFixed(0)}/${unit.maximumVitality.toFixed(0)}${unit.wardRemaining > 0 ? " · Ward" : ""}${unit.burnRemaining > 0 ? " · Burn" : ""}${createdBurnLabel(unit.id)}${unit.alive ? "" : " · Fallen"}`;
+    className.textContent = `${unit.unitClass} · ${Math.max(0, unit.vitality).toFixed(0)}/${unit.maximumVitality.toFixed(0)}${unit.wardRemaining > 0 ? " · Ward" : ""}${unit.burnRemaining > 0 ? " · Burn" : ""}${createdBurnLabel(unit.id)}${unit.cooldown > 0 ? ` · ${unit.cooldown.toFixed(1)}s` : ""}${unit.alive ? "" : " · Fallen"}`;
   }
   const selectionCount = element("selection-count");
   const primary = selected[0];
@@ -563,8 +581,16 @@ function renderHud(state: GameState): void {
   }
   const active = state.encounter.phase === "Battle joined";
   element("begin-encounter").toggleAttribute("disabled", state.encounter.phase !== "Ready");
-  for (const id of ["command-attack", "command-ignite", "command-heal", "command-ward"]) {
-    element(id).toggleAttribute("disabled", !active || selected.length === 0);
+  element("command-ignite").toggleAttribute("disabled", !active || selected.length === 0);
+  for (const action of ["attack", "heal", "ward"] as const) {
+    const button = element(`command-${action}`);
+    const ready = selected.filter((unit) => unit.readiness[action] === "Ready").length;
+    const summary = readinessSummary(state, action);
+    button.toggleAttribute("disabled", state.resident.editing || state.units.length === 0);
+    button.dataset.readyCount = String(ready);
+    button.title = summary;
+    button.setAttribute("aria-describedby", `readiness-${action}`);
+    element(`readiness-${action}`).textContent = `${action[0]!.toUpperCase()}${action.slice(1)} · ${ready}/${selected.length} ready — ${summary}`;
   }
 }
 

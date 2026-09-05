@@ -68,6 +68,9 @@ fn source_with_second_warrior() -> Vec<u8> {
                 "warrior-2 healing power 0.0\n",
                 "warrior-2 ward duration 0.0\n",
                 "warrior-2 action cooldown 0.0\n",
+                "warrior-2 attack readiness \"No battle in progress\"\n",
+                "warrior-2 heal readiness \"No battle in progress\"\n",
+                "warrior-2 ward readiness \"No battle in progress\"\n",
                 "warrior-2 action period 0.8\n\n",
                 "cinder-1 actor name",
             ),
@@ -497,6 +500,7 @@ fn connected_target_attack_respects_range_cooldown_and_party_contributions() {
     key(&mut s, b"Attack");
     let attacked = admit_tick(&mut s);
     assert_eq!(actor_number(&attacked, b"cinder-1", b"vitality"), 9.0);
+    assert_eq!(actor_message(&attacked, b"warrior-1", b"attack-readiness"), "Cooling down");
     assert!(actor_number(&attacked, b"warrior-1", b"action-cooldown") > 0.0);
 
     key(&mut s, b"Attack");
@@ -520,6 +524,41 @@ fn connected_target_attack_respects_range_cooldown_and_party_contributions() {
     key(&mut distant, b"Attack");
     let unchanged = admit_tick(&mut distant);
     assert_eq!(actor_number(&unchanged, b"cinder-1", b"vitality"), 100.0);
+    assert_eq!(actor_message(&unchanged, b"warrior-1", b"attack-readiness"), "Out of range");
+}
+
+fn actor_message<'a>(frame: &'a clause_package::Term, actor: &[u8], relation: &[u8]) -> &'a str {
+    std::str::from_utf8(projected_field(projected_field(frame, actor), relation)
+        .as_atom().unwrap().canonical_payload()).unwrap()
+}
+
+#[test]
+fn shared_readiness_reports_selection_ability_and_target_rejections() {
+    let mut s = session();
+    let first = admit_tick(&mut s);
+    assert_eq!(actor_message(&first, b"warrior-1", b"attack-readiness"), "No battle in progress");
+    key(&mut s, b"BeginEncounter");
+    key(&mut s, b"ClearSelection");
+    let empty = admit_tick(&mut s);
+    assert_eq!(actor_message(&empty, b"warrior-1", b"attack-readiness"), "Not selected");
+    pick(&mut s, &empty, b"warrior-1");
+    target(&mut s, &empty, b"moonwell");
+    let wrong = admit_tick(&mut s);
+    assert_eq!(actor_message(&wrong, b"warrior-1", b"attack-readiness"), "Wrong target");
+    assert_eq!(actor_message(&wrong, b"warrior-1", b"heal-readiness"), "Ability unavailable");
+    assert_eq!(actor_message(&wrong, b"warrior-1", b"ward-readiness"), "Ability unavailable");
+    let health = actor_number(&wrong, b"moonwell", b"vitality");
+    key(&mut s, b"Attack");
+    key(&mut s, b"Heal");
+    key(&mut s, b"Ward");
+    let rejected = admit_tick(&mut s);
+    assert!(actor_number(&rejected, b"moonwell", b"vitality") <= health);
+    assert_eq!(actor_number(&rejected, b"warrior-1", b"action-cooldown"), 0.0);
+    key(&mut s, b"ClearSelection");
+    pick(&mut s, &rejected, b"priest-1");
+    let priest = admit_tick(&mut s);
+    assert_eq!(actor_message(&priest, b"priest-1", b"heal-readiness"), "Ready");
+    assert_eq!(actor_message(&priest, b"priest-1", b"ward-readiness"), "Ready");
 }
 
 #[test]

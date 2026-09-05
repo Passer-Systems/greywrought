@@ -175,6 +175,11 @@ try {
     return { x: canvas.x + (point.x * 0.5 + 0.5) * canvas.width, y: canvas.y + (-point.y * 0.5 + 0.5) * canvas.height };
   };
   const clickPoint = async (point: { x: number; y: number }, modifiers = 0): Promise<void> => {
+    const hit = await evaluate<string>(`document.elementFromPoint(${point.x}, ${point.y})?.id ?? 'none'`);
+    if (hit !== "world-canvas") {
+      await screenshot("build/acceptance/rts-obstructed-world.png");
+      throw new Error(`world click at ${point.x},${point.y} is obstructed by ${hit}`);
+    }
     await mouse("mousePressed", point.x, point.y, "left", 1, modifiers);
     await mouse("mouseReleased", point.x, point.y, "left", 0, modifiers);
   };
@@ -384,6 +389,29 @@ try {
   const openingMoonwell = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.vitality?.moonwell ?? -1");
   requireCondition(openingMoonwell < 110, `the autonomous cinder opening did not damage the Moonwell (${openingMoonwell})`);
 
+  const waitForReadiness = async (action: string, reason: string): Promise<void> => {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (await evaluate<boolean>(`document.getElementById(${JSON.stringify(`readiness-${action}`)})?.textContent?.includes(${JSON.stringify(reason)}) ?? false`)) return;
+      await Bun.sleep(25);
+    }
+    throw new Error(`${action} did not display ${reason}`);
+  };
+  await evaluate("document.querySelector('#command-readiness summary').click()");
+  requireCondition(await evaluate<boolean>("document.getElementById('readiness-attack').getBoundingClientRect().height > 0"), "command readiness details did not open visibly");
+  await evaluate("document.getElementById('roster-warrior-1').click()");
+  await waitForSelection(["warrior-1"]);
+  await evaluate("document.getElementById('roster-warrior-1').dispatchEvent(new MouseEvent('click', {bubbles:true, shiftKey:true}))");
+  await waitForSelection([]);
+  await waitForReadiness("attack", "Select a living unit");
+  await evaluate("document.getElementById('command-attack').click()");
+  requireCondition(await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Select a living unit')"), "empty-selection order did not explain the missing selection");
+  await evaluate("document.getElementById('roster-warrior-1').click()");
+  await evaluate("document.getElementById('target-moonwell').click()");
+  await waitForReadiness("attack", "Aldric: Wrong target");
+  await waitForReadiness("heal", "Aldric: Ability unavailable");
+  await evaluate("document.getElementById('command-attack').click()");
+  requireCondition(await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Wrong target')"), "rejected attack did not display its source-owned reason");
+
   await evaluate("document.getElementById('target-moonwell').click()");
   await evaluate("document.getElementById('roster-priest-1').click()");
   for (let attempt = 0; attempt < 80; attempt += 1) {
@@ -394,6 +422,7 @@ try {
     await Bun.sleep(25);
   }
   requireCondition(await evaluate<string>("document.body.dataset.targetId || ''") === "moonwell", "Moonwell target choice did not settle");
+  await waitForReadiness("ward", "Mara: Ready");
   await evaluate("document.getElementById('command-ward').click()");
   for (let attempt = 0; attempt < 80; attempt += 1) {
     if (await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.wards?.moonwell ?? 0") > 0) break;
@@ -401,6 +430,8 @@ try {
   }
   const wardRemaining = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.wards?.moonwell ?? 0");
   requireCondition(wardRemaining > 0, "Mara's ward did not become active on the exact Moonwell target");
+  await waitForReadiness("ward", "Mara: Cooling down");
+  requireCondition(await evaluate<boolean>("/\\d\\.\\ds/.test(document.getElementById('roster-priest-1').textContent)"), "action cooldown was not visible on Mara's roster card");
   await waitForCooldowns(["priest-1"]);
   const beforeHeal = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.vitality?.moonwell ?? -1");
   await evaluate("document.getElementById('command-heal').click()");
@@ -411,6 +442,8 @@ try {
     await Bun.sleep(25);
   }
   requireCondition(afterHeal > beforeHeal + 20, `Mara's source-owned healing did not restore the Moonwell (${beforeHeal} -> ${afterHeal})`);
+  console.log("RTS command feedback passed: selection, wrong target, unavailable ability, readiness and visible cooldown");
+  await evaluate("document.querySelector('#command-readiness summary').click()");
   await screenshot("build/acceptance/m3-live-battle.png");
 
   await evaluate("document.getElementById('select-all').click()");

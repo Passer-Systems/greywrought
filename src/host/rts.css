@@ -60,11 +60,16 @@ kbd { color: #d8c39d; font: 10px ui-monospace, monospace; }
 .roster-card.moving b { animation: pulse 700ms infinite alternate; }
 .warrior b { background: #87372c; } .artificer b { background: #956c28; } .rogue b { background: #55405d; } .priest b { background: #89816e; } .ranger b { background: #456c3d; }
 #selection-count { grid-column: 1 / -1; color: var(--muted); font: 10px ui-monospace, monospace; }
-#command-panel { display: flex; flex-direction: column; gap: 5px; justify-content: center; }
+#command-panel { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 5px; justify-content: center; }
 #command-move { display: flex; align-items: center; gap: 8px; border: 1px solid #9e773d; background: #352313; padding: 7px; color: var(--gold); }
 #command-move:disabled { opacity: .45; }
 #command-move span { font-size: 22px; }
 #command-move small, #command-status, .camera-hint { color: var(--muted); font-size: 11px; }
+#command-status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#command-readiness { color: var(--muted); font-size: 11px; line-height: 1.4; }
+#command-readiness summary { cursor: pointer; color: var(--gold); }
+#readiness-details { position: absolute; bottom: calc(100% + 12px); right: 0; width: min(360px, 85vw); max-height: 210px; overflow: auto; padding: 10px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 4px 18px #000b; }
+#readiness-details > div + div { margin-top: 7px; }
 .combat-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .combat-actions button { border: 1px solid #9e773d; background: #352313; color: var(--gold); padding: 5px; cursor: pointer; }
 .combat-actions button:disabled { opacity: .45; cursor: default; }

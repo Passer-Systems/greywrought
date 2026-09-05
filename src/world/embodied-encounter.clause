@@ -23,6 +23,21 @@ relation clamped-between
 relation damage-after-ward
   reads {incoming: F64} damage after ward {remaining: F64} as {result: F64}
   mode given incoming remaining yields result: maybe
+relation order-readiness
+  reads order active {active: Bool} selected {selected: Bool} alive {alive: Bool} health {health: F64} capable {capable: Bool} kind {kind: Bool} targetAlive {targetAlive: Bool} needed {needed: Bool} inRange {inRange: Bool} cooldown {cooldown: F64} reports {message: Text}
+  mode given active selected alive health capable kind targetAlive needed inRange cooldown yields message: maybe
+relation attack-readiness
+  reads {unit: Unit} attack readiness {value: Text}
+  subject unit
+  mode given unit yields value: one
+relation heal-readiness
+  reads {unit: Unit} heal readiness {value: Text}
+  subject unit
+  mode given unit yields value: one
+relation ward-readiness
+  reads {unit: Unit} ward readiness {value: Text}
+  subject unit
+  mode given unit yields value: one
 relation order-target
   reads {controller: Controller} order target {value: Vec3}
   subject controller
@@ -213,6 +228,69 @@ derive clamp-interior
 derive clamp-upper
 derive full-damage
 derive warded-damage
+
+law order-no-battle
+  then
+    order active false selected ?selected alive ?alive health ?health capable ?capable kind ?kind targetAlive ?targetAlive needed ?needed inRange ?inRange cooldown ?cooldown reports "No battle in progress"
+law order-unselected
+  then
+    order active true selected false alive ?alive health ?health capable ?capable kind ?kind targetAlive ?targetAlive needed ?needed inRange ?inRange cooldown ?cooldown reports "Not selected"
+law order-fallen
+  then
+    order active true selected true alive false health ?health capable ?capable kind ?kind targetAlive ?targetAlive needed ?needed inRange ?inRange cooldown ?cooldown reports "Unit has fallen"
+law order-no-health
+  if
+    ?health <= 0.0
+  then
+    order active true selected true alive true health ?health capable ?capable kind ?kind targetAlive ?targetAlive needed ?needed inRange ?inRange cooldown ?cooldown reports "Unit has fallen"
+law order-unavailable
+  if
+    ?health > 0.0
+  then
+    order active true selected true alive true health ?health capable false kind ?kind targetAlive ?targetAlive needed ?needed inRange ?inRange cooldown ?cooldown reports "Ability unavailable"
+law order-wrong-target
+  if
+    ?health > 0.0
+  then
+    order active true selected true alive true health ?health capable true kind false targetAlive ?targetAlive needed ?needed inRange ?inRange cooldown ?cooldown reports "Wrong target"
+law order-target-fallen
+  if
+    ?health > 0.0
+  then
+    order active true selected true alive true health ?health capable true kind true targetAlive false needed ?needed inRange ?inRange cooldown ?cooldown reports "Target has fallen"
+law order-unneeded
+  if
+    ?health > 0.0
+  then
+    order active true selected true alive true health ?health capable true kind true targetAlive true needed false inRange ?inRange cooldown ?cooldown reports "Target already at full health"
+law order-distant
+  if
+    ?health > 0.0
+  then
+    order active true selected true alive true health ?health capable true kind true targetAlive true needed true inRange false cooldown ?cooldown reports "Out of range"
+law order-cooling
+  if
+    ?health > 0.0
+    ?cooldown > 0.0
+  then
+    order active true selected true alive true health ?health capable true kind true targetAlive true needed true inRange true cooldown ?cooldown reports "Cooling down"
+law order-ready
+  if
+    ?health > 0.0
+    ?cooldown <= 0.0
+  then
+    order active true selected true alive true health ?health capable true kind true targetAlive true needed true inRange true cooldown ?cooldown reports "Ready"
+derive order-no-battle
+derive order-unselected
+derive order-fallen
+derive order-no-health
+derive order-unavailable
+derive order-wrong-target
+derive order-target-fallen
+derive order-unneeded
+derive order-distant
+derive order-cooling
+derive order-ready
 
 player-1
   shape: Controller
@@ -439,6 +517,22 @@ moonwell alive true
 moonwell ward remaining 0.0
 moonwell burn remaining 0.0
 
+warrior-1 attack readiness "No battle in progress"
+warrior-1 heal readiness "No battle in progress"
+warrior-1 ward readiness "No battle in progress"
+artificer-1 attack readiness "No battle in progress"
+artificer-1 heal readiness "No battle in progress"
+artificer-1 ward readiness "No battle in progress"
+rogue-1 attack readiness "No battle in progress"
+rogue-1 heal readiness "No battle in progress"
+rogue-1 ward readiness "No battle in progress"
+priest-1 attack readiness "No battle in progress"
+priest-1 heal readiness "No battle in progress"
+priest-1 ward readiness "No battle in progress"
+ranger-1 attack readiness "No battle in progress"
+ranger-1 heal readiness "No battle in progress"
+ranger-1 ward readiness "No battle in progress"
+
 bind scalar-input PointerWorldX to observe-order-x
 bind scalar-input PointerWorldZ to observe-order-z
 bind keyboard ClearSelection down to clear-selection
@@ -554,10 +648,10 @@ on stop-unit ?unit
 
 on party-attack ?unit
   when
-    encounter encounter state active
-    ?unit selected true
+    encounter encounter state ?state
+    ?unit selected ?is-selected
     ?unit vitality ?unit-health
-    ?unit alive true
+    ?unit alive ?is-alive
     ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
     ?unit attack damage ?damage
     ?unit attack range ?range
@@ -566,11 +660,9 @@ on party-attack ?unit
     player-1 chosen target ?target
     ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?target vitality ?health
-    ?target hostile true
-    ?health > 0.0
-    ?unit-health > 0.0
-    ?cooldown <= 0.0
-    (?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range
+    ?target hostile ?target-hostile
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?readiness = "Ready"
   withdraw
     ?unit action cooldown ?cooldown
   include
@@ -579,10 +671,10 @@ on party-attack ?unit
     ?target vitality 0.0 - ?damage
 on party-heal ?unit
   when
-    encounter encounter state active
-    ?unit selected true
+    encounter encounter state ?state
+    ?unit selected ?is-selected
     ?unit vitality ?unit-health
-    ?unit alive true
+    ?unit alive ?is-alive
     ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
     ?unit healing power ?healing
     ?unit attack range ?range
@@ -592,14 +684,11 @@ on party-heal ?unit
     ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?target vitality ?health
     ?target maximum vitality ?maximum
-    ?target hostile false
-    ?target alive true
-    ?healing > 0.0
-    ?unit-health > 0.0
-    ?health < ?maximum
-    ?cooldown <= 0.0
-    (?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range
+    ?target hostile ?target-hostile
+    ?target alive ?target-alive
     ?health + ?healing clamped between 0.0 and ?maximum as ?next-health
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?healing > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed (?health < ?maximum) inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?readiness = "Ready"
   withdraw
     ?unit action cooldown ?cooldown
   include
@@ -608,10 +697,10 @@ on party-heal ?unit
     ?target vitality ?next-health - ?health
 on raise-ward ?unit
   when
-    encounter encounter state active
-    ?unit selected true
+    encounter encounter state ?state
+    ?unit selected ?is-selected
     ?unit vitality ?unit-health
-    ?unit alive true
+    ?unit alive ?is-alive
     ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
     ?unit ward duration ?duration
     ?unit attack range ?range
@@ -620,12 +709,10 @@ on raise-ward ?unit
     player-1 chosen target ?target
     ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?target ward remaining ?prior
-    ?target hostile false
-    ?target alive true
-    ?duration > 0.0
-    ?unit-health > 0.0
-    ?cooldown <= 0.0
-    (?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range
+    ?target hostile ?target-hostile
+    ?target alive ?target-alive
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?duration > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?readiness = "Ready"
   withdraw
     ?unit action cooldown ?cooldown
     ?target ward remaining ?prior
@@ -676,6 +763,75 @@ on cancel-burn ?effect ?picked
     ?effect burn target ?target
     ?effect effect remaining ?remaining
     ?effect effect damage ?damage
+
+on tick ?unit ?dt
+  when
+    encounter encounter state ?state
+    ?unit selected ?is-selected
+    ?unit vitality ?unit-health
+    ?unit alive ?is-alive
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit attack damage ?damage
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    ?unit action period ?period
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?health
+    ?target hostile ?target-hostile
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?unit attack readiness ?prior-readiness
+  withdraw
+    ?unit attack readiness ?prior-readiness
+  include
+    ?unit attack readiness ?readiness
+
+on tick ?unit ?dt
+  when
+    encounter encounter state ?state
+    ?unit selected ?is-selected
+    ?unit vitality ?unit-health
+    ?unit alive ?is-alive
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit healing power ?healing
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    ?unit action period ?period
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?health
+    ?target maximum vitality ?maximum
+    ?target hostile ?target-hostile
+    ?target alive ?target-alive
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?healing > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed (?health < ?maximum) inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?unit heal readiness ?prior-readiness
+  withdraw
+    ?unit heal readiness ?prior-readiness
+  include
+    ?unit heal readiness ?readiness
+
+on tick ?unit ?dt
+  when
+    encounter encounter state ?state
+    ?unit selected ?is-selected
+    ?unit vitality ?unit-health
+    ?unit alive ?is-alive
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit ward duration ?duration
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    ?unit action period ?period
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target ward remaining ?prior
+    ?target hostile ?target-hostile
+    ?target alive ?target-alive
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?duration > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?unit ward readiness ?prior-readiness
+  withdraw
+    ?unit ward readiness ?prior-readiness
+  include
+    ?unit ward readiness ?readiness
 
 on tick ?unit ?dt
   when
