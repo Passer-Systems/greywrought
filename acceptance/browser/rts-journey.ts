@@ -57,6 +57,25 @@ try {
     const result = await call("Runtime.evaluate", { expression, returnByValue: true });
     return (result.result?.result?.value ?? null) as T;
   };
+  const screenshot = async (path: string): Promise<void> => {
+    // Freeze animation only in the CDP driver while capturing. SwiftShader's
+    // continuously composited WebGL surface otherwise starves the screenshot
+    // command even though gameplay evaluations remain responsive.
+    await call("Page.setWebLifecycleState", { state: "frozen" });
+    try {
+      const result = await call("Page.captureScreenshot", {
+        format: "png",
+        fromSurface: true,
+        captureBeyondViewport: false,
+        optimizeForSpeed: true,
+      });
+      const data = result.result?.data;
+      requireCondition(typeof data === "string", `Chrome omitted screenshot data for ${path}`);
+      await Bun.write(path, Buffer.from(data, "base64"));
+    } finally {
+      await call("Page.setWebLifecycleState", { state: "active" });
+    }
+  };
   await call("Runtime.enable"); await call("Page.enable");
   await call("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
   await call("Page.addScriptToEvaluateOnNewDocument", { source: "window.__RTS_ERRORS__=[]; addEventListener('error', e => window.__RTS_ERRORS__.push(String(e.message || e.error || e))); addEventListener('unhandledrejection', e => window.__RTS_ERRORS__.push(String(e.reason)));" });
@@ -101,8 +120,32 @@ try {
     await evaluate<number>("document.querySelectorAll('#roster .roster-card').length") === expectedUnitCount,
     `company roster does not contain ${expectedUnitCount} projected units`,
   );
+  requireCondition(
+    await evaluate<number>("document.querySelectorAll('#encounter-targets .target-card').length") === expectedUnitCount + 3,
+    "the passive target deck did not expose all company, enemy, and objective Actors",
+  );
   const canvas = await evaluate<{ x: number; y: number; width: number; height: number }>("(() => { const r=document.getElementById('world-canvas').getBoundingClientRect(); return {x:r.left,y:r.top,width:r.width,height:r.height}; })()");
   const mouse = async (type: string, x: number, y: number, button = "left", buttons = 0) => call("Input.dispatchMouseEvent", { type, x, y, button, buttons, clickCount: 1 });
+  const waitForCooldowns = async (unitIds: readonly string[]): Promise<void> => {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const cooldowns = await evaluate<Record<string, number>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.cooldowns || {}");
+      if (unitIds.every((id) => (cooldowns[id] ?? 1) <= 0)) return;
+      await Bun.sleep(25);
+    }
+    const cooldowns = await evaluate<Record<string, number>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.cooldowns || {}");
+    throw new Error(`source cooldowns did not expire: ${JSON.stringify(cooldowns)}`);
+  };
+  const waitForActionCycle = async (unitIds: readonly string[]): Promise<void> => {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const cooldowns = await evaluate<Record<string, number>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.cooldowns || {}");
+      if (unitIds.some((id) => (cooldowns[id] ?? 0) > 0)) {
+        await waitForCooldowns(unitIds);
+        return;
+      }
+      await Bun.sleep(25);
+    }
+    throw new Error(`attack input did not produce a positive source cooldown for ${unitIds.join(",")}`);
+  };
   // Establish a one-unit precondition, then drag-select the company and verify
   // the Clause-owned selection transition independently.
   await evaluate("document.getElementById('roster-warrior-1').click()");
@@ -157,11 +200,97 @@ try {
   requireCondition(await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').length") > 0, "right-click did not issue a move order");
   const after = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
   requireCondition(Object.keys(after).length === expectedUnitCount && Object.keys(before).every((id) => JSON.stringify(before[id]) !== JSON.stringify(after[id])), "every selected formation occurrence did not advance");
+
+  // Join the source-owned encounter through its real controls. Targeting uses
+  // projected referents from the admitted frame; the browser never names a
+  // compiler domain or translates an actor into a gameplay code.
+  await evaluate("document.getElementById('begin-encounter').click()");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<string>("document.body.dataset.encounterPhase || ''") === "Battle joined") break;
+    await Bun.sleep(25);
+  }
+  requireCondition(
+    await evaluate<string>("document.body.dataset.encounterPhase || ''") === "Battle joined",
+    "the Begin defence control did not enter the Clause-owned battle phase",
+  );
+  const openingMoonwell = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.vitality?.moonwell ?? -1");
+  requireCondition(openingMoonwell < 110, `the autonomous cinder opening did not damage the Moonwell (${openingMoonwell})`);
+
+  await evaluate("document.getElementById('target-moonwell').click()");
+  await evaluate("document.getElementById('roster-priest-1').click()");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (
+      await evaluate<string>("document.body.dataset.targetId || ''") === "moonwell" &&
+      await evaluate<string>("document.body.dataset.selectedCount || ''") === "1"
+    ) break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<string>("document.body.dataset.targetId || ''") === "moonwell", "Moonwell target choice did not settle");
+  await evaluate("document.getElementById('command-ward').click()");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.wards?.moonwell ?? 0") > 0) break;
+    await Bun.sleep(25);
+  }
+  const wardRemaining = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.wards?.moonwell ?? 0");
+  requireCondition(wardRemaining > 0, "Mara's ward did not become active on the exact Moonwell target");
+  await waitForCooldowns(["priest-1"]);
+  const beforeHeal = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.vitality?.moonwell ?? -1");
+  await evaluate("document.getElementById('command-heal').click()");
+  let afterHeal = beforeHeal;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    afterHeal = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.vitality?.moonwell ?? -1");
+    if (afterHeal > beforeHeal + 20) break;
+    await Bun.sleep(25);
+  }
+  requireCondition(afterHeal > beforeHeal + 20, `Mara's source-owned healing did not restore the Moonwell (${beforeHeal} -> ${afterHeal})`);
+  await screenshot("build/acceptance/m3-live-battle.png");
+
+  await evaluate("document.getElementById('select-all').click()");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<string>("document.body.dataset.selectedCount || ''") === String(expectedUnitCount)) break;
+    await Bun.sleep(25);
+  }
+  await waitForCooldowns(["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"]);
+  const strike = async (targetId: string): Promise<void> => {
+    await evaluate(`document.getElementById(${JSON.stringify(`target-${targetId}`)}).click()`);
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (await evaluate<string>("document.body.dataset.targetId || ''") === targetId) break;
+      await Bun.sleep(25);
+    }
+    await evaluate("document.getElementById('command-attack').click()");
+  };
+  await strike("cinder-1");
+  await waitForActionCycle(["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"]);
+  await evaluate("document.getElementById('command-attack').click()");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const health = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.vitality?.['cinder-1'] ?? 100");
+    if (health <= 0) break;
+    await Bun.sleep(25);
+  }
+  const firstCinderHealth = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.vitality?.['cinder-1'] ?? 100");
+  const combatTrace = await evaluate<unknown[]>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='action-requested'||e.phase==='target-requested'||e.phase==='projection').slice(-20)");
+  requireCondition(
+    firstCinderHealth <= 0,
+    `the selected party did not defeat the first exact cinder target (health=${firstCinderHealth}, trace=${JSON.stringify(combatTrace)})`,
+  );
+  await waitForCooldowns(["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"]);
+  await strike("cinder-2");
+  await waitForActionCycle(["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"]);
+  await evaluate("document.getElementById('command-attack').click()");
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    if (await evaluate<string>("document.body.dataset.encounterPhase || ''") === "Moonwell restored") break;
+    await Bun.sleep(25);
+  }
+  requireCondition(
+    await evaluate<string>("document.body.dataset.encounterPhase || ''") === "Moonwell restored",
+    "meaningful target/ward/heal/attack play did not reach the visible victory state",
+  );
+  await screenshot("build/acceptance/m3-victory.png");
   await evaluate("document.getElementById('equipment-toggle').click()");
   requireCondition(await evaluate<boolean>("document.getElementById('equipment-panel').classList.contains('open')"), "equipment panel did not open");
   requireCondition(await evaluate<number>("document.querySelectorAll('#equipment-panel .gear-slot').length") === 20, "equipment paper doll is incomplete");
   requireCondition(await evaluate<boolean>("document.querySelector('#command-move') !== null && document.querySelector('#equipment-toggle') !== null"), "RTS command controls are incomplete");
-  console.log(`RTS browser journey passed: ${expectedUnitCount} projected units, five distinct Quaternius classes, Stylized Nature, exact/box selection, formation move, camera/move marker/paper doll UI`);
+  console.log(`RTS browser journey passed: ${expectedUnitCount} projected units, exact/box selection and formation, autonomous Moonwell pressure, exact targets, ward/heal/attack interaction, and visible victory`);
 } finally {
   socket?.close(); chrome.kill();
 }

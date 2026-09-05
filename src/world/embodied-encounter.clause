@@ -4,6 +4,12 @@ Text
 Controller
 Unit
 UnitClass
+Actor
+Enemy
+Objective
+Encounter
+EncounterState
+CombatRules
 
 shape Vec3
   x: F64
@@ -13,66 +19,145 @@ shape Vec3
 relation clamped-between
   reads {value: F64} clamped between {lower: F64} and {upper: F64} as {result: F64}
   mode given value lower upper yields result: maybe
-
+relation damage-after-ward
+  reads {incoming: F64} damage after ward {remaining: F64} as {result: F64}
+  mode given incoming remaining yields result: maybe
 relation order-target
   reads {controller: Controller} order target {value: Vec3}
   subject controller
   mode given controller yields value: one
-
-relation unit-name
-  reads {unit: Unit} unit name {value: Text}
-  subject unit
-  mode given unit yields value: one
-
+relation chosen-target
+  reads {controller: Controller} chosen target {value: Actor}
+  subject controller
+  mode given controller yields value: one
 relation unit-class
   reads {unit: Unit} unit class {value: UnitClass}
   subject unit
   mode given unit yields value: one
-
 relation class-name
   reads {class: UnitClass} class name {value: Text}
   subject class
   mode given class yields value: one
-
 relation class-role
   reads {class: UnitClass} class role {value: Text}
   subject class
   mode given class yields value: one
-
-relation unit-position
-  reads {unit: Unit} unit position {value: Vec3}
-  subject unit
-  mode given unit yields value: one
-
+relation actor-name
+  reads {actor: Actor} actor name {value: Text}
+  subject actor
+  mode given actor yields value: one
+relation presentation-kind
+  reads {actor: Actor} presentation kind {value: Text}
+  subject actor
+  mode given actor yields value: one
+relation actor-position
+  reads {actor: Actor} actor position {value: Vec3}
+  subject actor
+  mode given actor yields value: one
 relation unit-destination
   reads {unit: Unit} unit destination {value: Vec3}
   subject unit
   mode given unit yields value: one
-
 relation formation-offset
   reads {unit: Unit} formation offset {value: Vec3}
   subject unit
   mode given unit yields value: one
-
 relation movement-speed
   reads {unit: Unit} movement speed {value: F64}
   subject unit
   mode given unit yields value: one
-
 relation selected
   reads {unit: Unit} selected {value: Bool}
   subject unit
   mode given unit yields value: one
-
 relation moving
   reads {unit: Unit} moving {value: Bool}
   subject unit
   mode given unit yields value: one
-
+relation hostile
+  reads {actor: Actor} hostile {value: Bool}
+  subject actor
+  mode given actor yields value: one
 relation vitality
-  reads {unit: Unit} vitality {value: Vec3}
+  reads {actor: Actor} vitality {value: F64}
+  subject actor
+  mode given actor yields value: one
+relation alive
+  reads {actor: Actor} alive {value: Bool}
+  subject actor
+  mode given actor yields value: one
+relation maximum-vitality
+  reads {actor: Actor} maximum vitality {value: F64}
+  subject actor
+  mode given actor yields value: one
+relation ward-remaining
+  reads {actor: Actor} ward remaining {value: F64}
+  subject actor
+  mode given actor yields value: one
+relation burn-remaining
+  reads {actor: Actor} burn remaining {value: F64}
+  subject actor
+  mode given actor yields value: one
+relation attack-damage
+  reads {unit: Unit} attack damage {value: F64}
   subject unit
   mode given unit yields value: one
+relation attack-range
+  reads {unit: Unit} attack range {value: F64}
+  subject unit
+  mode given unit yields value: one
+relation healing-power
+  reads {unit: Unit} healing power {value: F64}
+  subject unit
+  mode given unit yields value: one
+relation ward-duration
+  reads {unit: Unit} ward duration {value: F64}
+  subject unit
+  mode given unit yields value: one
+relation action-cooldown
+  reads {unit: Unit} action cooldown {value: F64}
+  subject unit
+  mode given unit yields value: one
+relation action-period
+  reads {unit: Unit} action period {value: F64}
+  subject unit
+  mode given unit yields value: one
+relation enemy-target
+  reads {enemy: Enemy} enemy target {value: Actor}
+  subject enemy
+  mode given enemy yields value: one
+relation enemy-damage
+  reads {enemy: Enemy} enemy damage {value: F64}
+  subject enemy
+  mode given enemy yields value: one
+relation enemy-range
+  reads {enemy: Enemy} enemy range {value: F64}
+  subject enemy
+  mode given enemy yields value: one
+relation enemy-cooldown
+  reads {enemy: Enemy} enemy cooldown {value: F64}
+  subject enemy
+  mode given enemy yields value: one
+relation enemy-period
+  reads {enemy: Enemy} enemy period {value: F64}
+  subject enemy
+  mode given enemy yields value: one
+relation enemy-burn-duration
+  reads {enemy: Enemy} enemy burn duration {value: F64}
+  subject enemy
+  mode given enemy yields value: one
+relation encounter-state
+  reads {encounter: Encounter} encounter state {value: EncounterState}
+  subject encounter
+  mode given encounter yields value: one
+relation state-name
+  reads {state: EncounterState} state name {value: Text}
+  subject state
+  mode given state yields value: one
+relation burn-damage
+  reads {rules: CombatRules} burn damage {value: F64}
+  subject rules
+  mode given rules yields value: one
 
 law clamp-lower
   if
@@ -80,37 +165,64 @@ law clamp-lower
     ?value < ?lower
   then
     ?value clamped between ?lower and ?upper as ?lower
-
 law clamp-interior
   if
     ?lower <= ?value
     ?value <= ?upper
   then
     ?value clamped between ?lower and ?upper as ?value
-
 law clamp-upper
   if
     ?lower <= ?upper
     ?value > ?upper
   then
     ?value clamped between ?lower and ?upper as ?upper
-
+law full-damage
+  if
+    ?remaining <= 0.0
+  then
+    ?incoming damage after ward ?remaining as ?incoming
+law warded-damage
+  if
+    ?remaining > 0.0
+  then
+    ?incoming damage after ward ?remaining as ?incoming * 0.5
 derive clamp-lower
 derive clamp-interior
 derive clamp-upper
+derive full-damage
+derive warded-damage
 
 player-1
   shape: Controller
 warrior-1
   shape: Unit
+  shape: Actor
 artificer-1
   shape: Unit
+  shape: Actor
 rogue-1
   shape: Unit
+  shape: Actor
 priest-1
   shape: Unit
+  shape: Actor
 ranger-1
   shape: Unit
+  shape: Actor
+cinder-1
+  shape: Enemy
+  shape: Actor
+cinder-2
+  shape: Enemy
+  shape: Actor
+moonwell
+  shape: Objective
+  shape: Actor
+encounter
+  shape: Encounter
+combat-rules
+  shape: CombatRules
 warrior-class
   shape: UnitClass
 artificer-class
@@ -121,8 +233,23 @@ priest-class
   shape: UnitClass
 ranger-class
   shape: UnitClass
+ready
+  shape: EncounterState
+active
+  shape: EncounterState
+victory
+  shape: EncounterState
+defeat
+  shape: EncounterState
 
 player-1 order target Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+player-1 chosen target cinder-1
+encounter encounter state ready
+ready state name "Ready"
+active state name "Battle joined"
+victory state name "Moonwell restored"
+defeat state name "Moonwell lost"
+combat-rules burn damage 4.0
 
 warrior-class class name "Warrior"
 warrior-class class role "Front-line defender"
@@ -135,62 +262,169 @@ priest-class class role "Restoration and wards"
 ranger-class class name "Ranger"
 ranger-class class role "Ranged pressure"
 
-warrior-1 unit name "Aldric"
+warrior-1 actor name "Aldric"
+warrior-1 presentation kind "Warrior"
 warrior-1 unit class warrior-class
-warrior-1 unit position Vec3 { x: -2.0, y: 0.0, z: 1.0 }
+warrior-1 actor position Vec3 { x: -2.0, y: 0.0, z: 1.0 }
 warrior-1 unit destination Vec3 { x: -2.0, y: 0.0, z: 1.0 }
 warrior-1 formation offset Vec3 { x: -2.0, y: 0.0, z: -1.0 }
 warrior-1 movement speed 5.0
 warrior-1 selected true
 warrior-1 moving false
-warrior-1 vitality Vec3 { x: 160.0, y: 160.0, z: 0.0 }
+warrior-1 hostile false
+warrior-1 vitality 160.0
+warrior-1 maximum vitality 160.0
+warrior-1 alive true
+warrior-1 ward remaining 0.0
+warrior-1 burn remaining 0.0
+warrior-1 attack damage 22.0
+warrior-1 attack range 18.0
+warrior-1 healing power 0.0
+warrior-1 ward duration 0.0
+warrior-1 action cooldown 0.0
+warrior-1 action period 0.8
 
-artificer-1 unit name "Cora"
+artificer-1 actor name "Cora"
+artificer-1 presentation kind "Artificer"
 artificer-1 unit class artificer-class
-artificer-1 unit position Vec3 { x: 0.0, y: 0.0, z: 1.0 }
+artificer-1 actor position Vec3 { x: 0.0, y: 0.0, z: 1.0 }
 artificer-1 unit destination Vec3 { x: 0.0, y: 0.0, z: 1.0 }
 artificer-1 formation offset Vec3 { x: 0.0, y: 0.0, z: -1.0 }
 artificer-1 movement speed 4.3
 artificer-1 selected true
 artificer-1 moving false
-artificer-1 vitality Vec3 { x: 105.0, y: 105.0, z: 0.0 }
+artificer-1 hostile false
+artificer-1 vitality 105.0
+artificer-1 maximum vitality 105.0
+artificer-1 alive true
+artificer-1 ward remaining 0.0
+artificer-1 burn remaining 0.0
+artificer-1 attack damage 18.0
+artificer-1 attack range 18.0
+artificer-1 healing power 0.0
+artificer-1 ward duration 0.0
+artificer-1 action cooldown 0.0
+artificer-1 action period 0.8
 
-rogue-1 unit name "Vey"
+rogue-1 actor name "Vey"
+rogue-1 presentation kind "Rogue"
 rogue-1 unit class rogue-class
-rogue-1 unit position Vec3 { x: 2.0, y: 0.0, z: 1.0 }
+rogue-1 actor position Vec3 { x: 2.0, y: 0.0, z: 1.0 }
 rogue-1 unit destination Vec3 { x: 2.0, y: 0.0, z: 1.0 }
 rogue-1 formation offset Vec3 { x: 2.0, y: 0.0, z: -1.0 }
 rogue-1 movement speed 5.7
 rogue-1 selected true
 rogue-1 moving false
-rogue-1 vitality Vec3 { x: 95.0, y: 95.0, z: 0.0 }
+rogue-1 hostile false
+rogue-1 vitality 95.0
+rogue-1 maximum vitality 95.0
+rogue-1 alive true
+rogue-1 ward remaining 0.0
+rogue-1 burn remaining 0.0
+rogue-1 attack damage 24.0
+rogue-1 attack range 18.0
+rogue-1 healing power 0.0
+rogue-1 ward duration 0.0
+rogue-1 action cooldown 0.0
+rogue-1 action period 0.8
 
-priest-1 unit name "Mara"
+priest-1 actor name "Mara"
+priest-1 presentation kind "Priest"
 priest-1 unit class priest-class
-priest-1 unit position Vec3 { x: -1.0, y: 0.0, z: 3.0 }
+priest-1 actor position Vec3 { x: -1.0, y: 0.0, z: 3.0 }
 priest-1 unit destination Vec3 { x: -1.0, y: 0.0, z: 3.0 }
 priest-1 formation offset Vec3 { x: -1.0, y: 0.0, z: 1.0 }
 priest-1 movement speed 4.2
 priest-1 selected true
 priest-1 moving false
-priest-1 vitality Vec3 { x: 90.0, y: 90.0, z: 0.0 }
+priest-1 hostile false
+priest-1 vitality 90.0
+priest-1 maximum vitality 90.0
+priest-1 alive true
+priest-1 ward remaining 0.0
+priest-1 burn remaining 0.0
+priest-1 attack damage 7.0
+priest-1 attack range 18.0
+priest-1 healing power 28.0
+priest-1 ward duration 4.0
+priest-1 action cooldown 0.0
+priest-1 action period 0.8
 
-ranger-1 unit name "Rowan"
+ranger-1 actor name "Rowan"
+ranger-1 presentation kind "Ranger"
 ranger-1 unit class ranger-class
-ranger-1 unit position Vec3 { x: 1.0, y: 0.0, z: 3.0 }
+ranger-1 actor position Vec3 { x: 1.0, y: 0.0, z: 3.0 }
 ranger-1 unit destination Vec3 { x: 1.0, y: 0.0, z: 3.0 }
 ranger-1 formation offset Vec3 { x: 1.0, y: 0.0, z: 1.0 }
 ranger-1 movement speed 4.8
 ranger-1 selected true
 ranger-1 moving false
-ranger-1 vitality Vec3 { x: 100.0, y: 100.0, z: 0.0 }
+ranger-1 hostile false
+ranger-1 vitality 100.0
+ranger-1 maximum vitality 100.0
+ranger-1 alive true
+ranger-1 ward remaining 0.0
+ranger-1 burn remaining 0.0
+ranger-1 attack damage 20.0
+ranger-1 attack range 18.0
+ranger-1 healing power 0.0
+ranger-1 ward duration 0.0
+ranger-1 action cooldown 0.0
+ranger-1 action period 0.8
+
+cinder-1 actor name "Cinder Wraith"
+cinder-1 presentation kind "Cinder"
+cinder-1 actor position Vec3 { x: 0.0, y: 0.0, z: 6.0 }
+cinder-1 hostile true
+cinder-1 vitality 100.0
+cinder-1 maximum vitality 100.0
+cinder-1 alive true
+cinder-1 ward remaining 0.0
+cinder-1 burn remaining 0.0
+cinder-1 enemy target moonwell
+cinder-1 enemy damage 18.0
+cinder-1 enemy range 8.0
+cinder-1 enemy cooldown 0.0
+cinder-1 enemy period 1.0
+cinder-1 enemy burn duration 2.5
+
+cinder-2 actor name "Ash Stalker"
+cinder-2 presentation kind "Cinder"
+cinder-2 actor position Vec3 { x: 3.0, y: 0.0, z: 7.0 }
+cinder-2 hostile true
+cinder-2 vitality 100.0
+cinder-2 maximum vitality 100.0
+cinder-2 alive true
+cinder-2 ward remaining 0.0
+cinder-2 burn remaining 0.0
+cinder-2 enemy target warrior-1
+cinder-2 enemy damage 13.0
+cinder-2 enemy range 8.0
+cinder-2 enemy cooldown 0.0
+cinder-2 enemy period 1.25
+cinder-2 enemy burn duration 2.0
+
+moonwell actor name "Moonwell"
+moonwell presentation kind "Moonwell"
+moonwell actor position Vec3 { x: 0.0, y: 0.0, z: 4.0 }
+moonwell hostile false
+moonwell vitality 110.0
+moonwell maximum vitality 150.0
+moonwell alive true
+moonwell ward remaining 0.0
+moonwell burn remaining 0.0
 
 bind scalar-input PointerWorldX to observe-order-x
 bind scalar-input PointerWorldZ to observe-order-z
 bind keyboard ClearSelection down to clear-selection
 bind keyboard SelectAll down to select-all
 bind referent-input Pick as Unit to select-unit
+bind referent-input Target as Actor to choose-target
 bind keyboard IssueMove down to issue-move
+bind keyboard BeginEncounter down to begin-encounter
+bind keyboard Attack down to party-attack
+bind keyboard Heal down to party-heal
+bind keyboard Ward down to raise-ward
 
 on observe-order-x ?controller ?x
   when
@@ -199,7 +433,6 @@ on observe-order-x ?controller ?x
     ?controller order target Vec3 { x: ?prior-x, y: ?y, z: ?z }
   include
     ?controller order target Vec3 { x: ?x, y: ?y, z: ?z }
-
 on observe-order-z ?controller ?z
   when
     ?controller order target Vec3 { x: ?x, y: ?y, z: ?prior-z }
@@ -207,7 +440,6 @@ on observe-order-z ?controller ?z
     ?controller order target Vec3 { x: ?x, y: ?y, z: ?prior-z }
   include
     ?controller order target Vec3 { x: ?x, y: ?y, z: ?z }
-
 on clear-selection ?unit
   when
     ?unit selected ?was-selected
@@ -215,7 +447,6 @@ on clear-selection ?unit
     ?unit selected ?was-selected
   include
     ?unit selected false
-
 on select-all ?unit
   when
     ?unit selected ?was-selected
@@ -223,7 +454,6 @@ on select-all ?unit
     ?unit selected ?was-selected
   include
     ?unit selected true
-
 on select-unit ?unit ?target
   when
     ?unit selected ?was-selected
@@ -232,15 +462,32 @@ on select-unit ?unit ?target
     ?unit selected ?was-selected
   include
     ?unit selected true
-
+on choose-target ?controller ?picked
+  when
+    ?controller chosen target ?prior
+    ?picked vitality ?health
+  withdraw
+    ?controller chosen target ?prior
+  include
+    ?controller chosen target ?picked
+on begin-encounter ?encounter
+  when
+    ?encounter encounter state ?state
+    ?state = ready
+  withdraw
+    ?encounter encounter state ?state
+  include
+    ?encounter encounter state active
 on issue-move ?unit
   when
     player-1 order target Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?unit selected ?is-selected
+    ?unit selected true
+    ?unit vitality ?health
+    ?unit alive true
+    ?health > 0.0
     ?unit formation offset Vec3 { x: ?offset-x, y: ?offset-y, z: ?offset-z }
     ?unit unit destination ?prior-destination
     ?unit moving ?was-moving
-    ?is-selected = true
   withdraw
     ?unit unit destination ?prior-destination
     ?unit moving ?was-moving
@@ -248,30 +495,231 @@ on issue-move ?unit
     ?unit unit destination Vec3 { x: ?target-x + ?offset-x, y: 0.0, z: ?target-z + ?offset-z }
     ?unit moving true
 
-on tick ?unit ?dt
+on party-attack ?unit
   when
-    ?dt > 0.0
-    ?unit unit position Vec3 { x: ?x, y: ?y, z: ?z }
-    ?unit unit destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
-    ?unit movement speed ?speed
-    ?unit moving ?is-moving
-    (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > 0.0001
-    (?destination-x - ?x) clamped between 0.0 - (?speed * ?dt) and ?speed * ?dt as ?step-x
-    (?destination-z - ?z) clamped between 0.0 - (?speed * ?dt) and ?speed * ?dt as ?step-z
-    ?is-moving = true
+    encounter encounter state active
+    ?unit selected true
+    ?unit vitality ?unit-health
+    ?unit alive true
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit attack damage ?damage
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    ?unit action period ?period
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?health
+    ?target hostile true
+    ?health > 0.0
+    ?unit-health > 0.0
+    ?cooldown <= 0.0
+    (?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range
   withdraw
-    ?unit unit position Vec3 { x: ?x, y: ?y, z: ?z }
+    ?unit action cooldown ?cooldown
   include
-    ?unit unit position Vec3 { x: ?x + ?step-x, y: 0.0, z: ?z + ?step-z }
+    ?unit action cooldown ?period
+  accumulate
+    ?target vitality 0.0 - ?damage
+on party-heal ?unit
+  when
+    encounter encounter state active
+    ?unit selected true
+    ?unit vitality ?unit-health
+    ?unit alive true
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit healing power ?healing
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    ?unit action period ?period
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?health
+    ?target maximum vitality ?maximum
+    ?target hostile false
+    ?target alive true
+    ?healing > 0.0
+    ?unit-health > 0.0
+    ?health < ?maximum
+    ?cooldown <= 0.0
+    (?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range
+    ?health + ?healing clamped between 0.0 and ?maximum as ?next-health
+  withdraw
+    ?unit action cooldown ?cooldown
+  include
+    ?unit action cooldown ?period
+  accumulate
+    ?target vitality ?next-health - ?health
+on raise-ward ?unit
+  when
+    encounter encounter state active
+    ?unit selected true
+    ?unit vitality ?unit-health
+    ?unit alive true
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit ward duration ?duration
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    ?unit action period ?period
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target ward remaining ?prior
+    ?target hostile false
+    ?target alive true
+    ?duration > 0.0
+    ?unit-health > 0.0
+    ?cooldown <= 0.0
+    (?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range
+  withdraw
+    ?unit action cooldown ?cooldown
+    ?target ward remaining ?prior
+  include
+    ?unit action cooldown ?period
+    ?target ward remaining ?duration
 
 on tick ?unit ?dt
   when
-    ?unit unit position Vec3 { x: ?x, y: ?y, z: ?z }
+    ?dt > 0.0
+    ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
+    ?unit unit destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
+    ?unit movement speed ?speed
+    ?unit alive true
+    ?unit moving ?is-moving
+    ?is-moving = true
+    (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > 0.0001
+    (?destination-x - ?x) clamped between 0.0 - (?speed * ?dt) and ?speed * ?dt as ?step-x
+    (?destination-z - ?z) clamped between 0.0 - (?speed * ?dt) and ?speed * ?dt as ?step-z
+  withdraw
+    ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
+  include
+    ?unit actor position Vec3 { x: ?x + ?step-x, y: 0.0, z: ?z + ?step-z }
+on tick ?unit ?dt
+  when
+    ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
     ?unit unit destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
     ?unit moving ?is-moving
-    (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) <= 0.0001
     ?is-moving = true
+    (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) <= 0.0001
   withdraw
     ?unit moving ?is-moving
   include
     ?unit moving false
+on tick ?unit ?dt
+  when
+    ?unit action cooldown ?cooldown
+    ?cooldown > 0.0
+  withdraw
+    ?unit action cooldown ?cooldown
+  include
+    ?unit action cooldown ?cooldown - ?dt
+on tick ?enemy ?dt
+  when
+    ?enemy enemy cooldown ?cooldown
+    ?cooldown > 0.0
+  withdraw
+    ?enemy enemy cooldown ?cooldown
+  include
+    ?enemy enemy cooldown ?cooldown - ?dt
+on tick ?actor ?dt
+  when
+    ?actor ward remaining ?remaining
+    ?remaining > 0.0
+  withdraw
+    ?actor ward remaining ?remaining
+  include
+    ?actor ward remaining ?remaining - ?dt
+on tick ?actor ?dt
+  when
+    ?actor ward remaining ?remaining
+    ?remaining < 0.0
+  withdraw
+    ?actor ward remaining ?remaining
+  include
+    ?actor ward remaining 0.0
+on tick ?actor ?dt
+  when
+    encounter encounter state active
+    ?actor burn remaining ?remaining
+    ?actor ward remaining ?ward
+    ?actor vitality ?health
+    combat-rules burn damage ?burn
+    ?burn * ?dt damage after ward ?ward as ?damage
+    ?remaining > 0.0
+    ?health > 0.0
+  withdraw
+    ?actor burn remaining ?remaining
+  include
+    ?actor burn remaining ?remaining - ?dt
+  accumulate
+    ?actor vitality 0.0 - ?damage
+on tick ?actor ?dt
+  when
+    ?actor burn remaining ?remaining
+    ?remaining < 0.0
+  withdraw
+    ?actor burn remaining ?remaining
+  include
+    ?actor burn remaining 0.0
+on tick ?enemy ?dt
+  when
+    encounter encounter state active
+    ?enemy actor position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
+    ?enemy enemy target ?target
+    ?enemy enemy damage ?incoming
+    ?enemy enemy range ?range
+    ?enemy enemy cooldown ?cooldown
+    ?enemy enemy period ?period
+    ?enemy enemy burn duration ?burn-duration
+    ?enemy vitality ?enemy-health
+    ?enemy alive true
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?target-health
+    ?target alive true
+    ?target ward remaining ?ward
+    ?target burn remaining ?prior-burn
+    ?incoming damage after ward ?ward as ?damage
+    ?cooldown <= 0.0
+    ?enemy-health > 0.0
+    ?target-health > 0.0
+    (?target-x - ?enemy-x) * (?target-x - ?enemy-x) + (?target-z - ?enemy-z) * (?target-z - ?enemy-z) <= ?range * ?range
+  withdraw
+    ?enemy enemy cooldown ?cooldown
+    ?target burn remaining ?prior-burn
+  include
+    ?enemy enemy cooldown ?period
+    ?target burn remaining ?burn-duration
+  accumulate
+    ?target vitality 0.0 - ?damage
+on tick ?actor ?dt
+  when
+    ?actor vitality ?health
+    ?actor alive ?was-alive
+    ?health <= 0.0
+    ?was-alive = true
+  withdraw
+    ?actor alive ?was-alive
+  include
+    ?actor alive false
+on tick ?encounter ?dt
+  when
+    ?encounter encounter state ?state
+    cinder-1 vitality ?first-health
+    cinder-2 vitality ?second-health
+    moonwell vitality ?moonwell-health
+    ?first-health <= 0.0
+    ?second-health <= 0.0
+    ?moonwell-health > 0.0
+    ?state = active
+  withdraw
+    ?encounter encounter state ?state
+  include
+    ?encounter encounter state victory
+on tick ?encounter ?dt
+  when
+    ?encounter encounter state ?state
+    moonwell vitality ?moonwell-health
+    ?moonwell-health <= 0.0
+    ?state = active
+  withdraw
+    ?encounter encounter state ?state
+  include
+    ?encounter encounter state defeat

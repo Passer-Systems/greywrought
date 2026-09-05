@@ -150,6 +150,10 @@ let inputBackpressureCount = 0;
 const edgeTriggeredKeyboardCodes = new Set([
   "ClearSelection",
   "IssueMove",
+  "BeginEncounter",
+  "Attack",
+  "Heal",
+  "Ward",
 ]);
 const rtsKeyboardCodes = new Set(edgeTriggeredKeyboardCodes);
 
@@ -337,7 +341,11 @@ function queueInput(input: ResidentInput): void {
     input.capturedExternalGeneration !== activeExternalGeneration ||
     input.capturedWorkbenchGeneration !== activeWorkbenchGeneration
   ) return;
-  if (input.kind === "referent-input" && input.channel !== "Pick") return;
+  if (
+    input.kind === "referent-input" &&
+    input.channel !== "Pick" &&
+    input.channel !== "Target"
+  ) return;
   if (input.kind === "keyboard") simulationStarted = true;
   if (
     input.kind === "keyboard" &&

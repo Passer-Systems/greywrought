@@ -14,24 +14,36 @@ function replaceOnce(value: string, search: string, replacement: string): string
 
 const declared = replaceOnce(
   source,
-  "warrior-class\n  shape: UnitClass",
-  "warrior-2\n  shape: Unit\nwarrior-class\n  shape: UnitClass",
+  "cinder-1\n  shape: Enemy",
+  "warrior-2\n  shape: Unit\n  shape: Actor\ncinder-1\n  shape: Enemy",
 );
 const fixture = replaceOnce(
   declared,
-  "artificer-1 unit name",
+  "cinder-1 actor name",
   [
-    'warrior-2 unit name "Bran"',
+    'warrior-2 actor name "Bran"',
+    'warrior-2 presentation kind "Warrior"',
     "warrior-2 unit class warrior-class",
-    "warrior-2 unit position Vec3 { x: 3.0, y: 0.0, z: 1.0 }",
+    "warrior-2 actor position Vec3 { x: 3.0, y: 0.0, z: 1.0 }",
     "warrior-2 unit destination Vec3 { x: 3.0, y: 0.0, z: 1.0 }",
     "warrior-2 formation offset Vec3 { x: 3.0, y: 0.0, z: -1.0 }",
     "warrior-2 movement speed 5.0",
     "warrior-2 selected true",
     "warrior-2 moving false",
-    "warrior-2 vitality Vec3 { x: 155.0, y: 155.0, z: 0.0 }",
+    "warrior-2 hostile false",
+    "warrior-2 vitality 155.0",
+    "warrior-2 maximum vitality 155.0",
+    "warrior-2 alive true",
+    "warrior-2 ward remaining 0.0",
+    "warrior-2 burn remaining 0.0",
+    "warrior-2 attack damage 22.0",
+    "warrior-2 attack range 18.0",
+    "warrior-2 healing power 0.0",
+    "warrior-2 ward duration 0.0",
+    "warrior-2 action cooldown 0.0",
+    "warrior-2 action period 0.8",
     "",
-    "artificer-1 unit name",
+    "cinder-1 actor name",
   ].join("\n"),
 );
 

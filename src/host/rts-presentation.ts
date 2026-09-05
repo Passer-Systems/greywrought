@@ -42,6 +42,21 @@ export interface UnitView {
   readonly z: number;
   readonly selected: boolean;
   readonly moving: boolean;
+  readonly alive: boolean;
+  readonly targeted: boolean;
+  readonly healthFraction: number;
+}
+
+export type EncounterKind = UnitClass | "Cinder" | "Moonwell";
+
+export interface EncounterActorView {
+  readonly id: string;
+  readonly kind: EncounterKind;
+  readonly x: number;
+  readonly z: number;
+  readonly alive: boolean;
+  readonly targeted: boolean;
+  readonly healthFraction: number;
 }
 
 interface UnitFigure {
@@ -56,6 +71,7 @@ interface UnitFigure {
 export interface RtsPresentation {
   readonly canvas: HTMLCanvasElement;
   applyUnits(units: readonly UnitView[]): void;
+  applyEncounterActors(actors: readonly EncounterActorView[]): void;
   pickUnit(clientX: number, clientY: number): string | null;
   unitsInScreenRectangle(left: number, top: number, right: number, bottom: number): string[];
   groundPoint(clientX: number, clientY: number): Vector3 | null;
@@ -221,6 +237,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
   scene.add(sun);
 
   const figures = new Map<string, UnitFigure>();
+  const encounterFigures = new Map<string, Group>();
   const pickTargets: Object3D[] = [];
   const raycaster = new Raycaster();
   const pointer = new Vector2();
@@ -359,9 +376,50 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       }
       figure.target.set(unit.x, 0, unit.z);
       figure.selectionRing.visible = unit.selected;
+      figure.root.visible = unit.alive;
+      figure.root.scale.y = Math.max(0.35, unit.healthFraction);
+      const ringSurface = figure.selectionRing.material;
+      if (ringSurface instanceof MeshStandardMaterial) {
+        ringSurface.color.setHex(unit.targeted ? 0xffd15a : 0x4dff49);
+      }
       figure.moving = unit.moving;
       figure.model?.setMoving(unit.moving);
       figure.root.userData.moving = unit.moving;
+    }
+  };
+
+  const applyEncounterActors = (actors: readonly EncounterActorView[]): void => {
+    for (const actor of actors) {
+      let figure = encounterFigures.get(actor.id);
+      if (figure === undefined) {
+        figure = new Group();
+        figure.name = `greywrought.encounter.${actor.kind.toLowerCase()}.${actor.id}`;
+        if (actor.kind === "Cinder") {
+          addMesh(figure, new ConeGeometry(0.75, 1.8, 7), material(0x5e1711, 0.62, 0.12), [0, 0.9, 0]);
+          addMesh(figure, new SphereGeometry(0.36, 12, 8), material(0xff6a24, 0.28, 0.18), [0, 1.72, 0]);
+        } else {
+          addMesh(figure, new CylinderGeometry(0.78, 1.05, 0.65, 16), material(0x4c675d, 0.74, 0.18), [0, 0.34, 0]);
+          addMesh(
+            figure,
+            new CylinderGeometry(0.7, 0.7, 0.09, 20),
+            new MeshStandardMaterial({ color: 0x62d8d2, emissive: 0x1c7775, emissiveIntensity: 1.5 }),
+            [0, 0.68, 0],
+          );
+          addMesh(figure, new TorusGeometry(1.0, 0.08, 8, 28), material(0xa4f7df, 0.35, 0.15), [0, 0.76, 0]).rotation.x = Math.PI / 2;
+        }
+        const ring = addMesh(figure, new TorusGeometry(0.98, 0.07, 7, 30), material(0xffd15a, 0.4, 0.25), [0, 0.06, 0]);
+        ring.name = "target-ring";
+        ring.rotation.x = Math.PI / 2;
+        ring.visible = false;
+        encounterFigures.set(actor.id, figure);
+        scene.add(figure);
+        ownTree(figure);
+      }
+      figure.position.set(actor.x, 0, actor.z);
+      figure.visible = actor.alive || actor.kind === "Moonwell";
+      figure.scale.y = actor.kind === "Cinder" ? Math.max(0.35, actor.healthFraction) : 1;
+      const ring = figure.getObjectByName("target-ring");
+      if (ring !== undefined) ring.visible = actor.targeted;
     }
   };
 
@@ -419,6 +477,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
   return {
     canvas: renderer.domElement,
     applyUnits,
+    applyEncounterActors,
     pickUnit(clientX, clientY) {
       raycaster.setFromCamera(normalizedPoint(clientX, clientY), camera);
       const hit = raycaster.intersectObjects(pickTargets, true)[0];

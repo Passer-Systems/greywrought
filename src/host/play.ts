@@ -2,6 +2,8 @@ import { Vector3 } from "three";
 import { publicUrl } from "./public-url.js";
 import {
   createRtsPresentation,
+  type EncounterActorView,
+  type EncounterKind,
   type RtsPresentation,
   type UnitClass,
   type UnitView,
@@ -42,9 +44,31 @@ type ResidentInput =
     }>;
 
 interface ResidentUnitView extends UnitView {
-  readonly referent: unknown;
+  readonly pickReferent: unknown;
+  readonly targetReferent: unknown;
+  readonly vitality: number;
+  readonly maximumVitality: number;
+  readonly wardRemaining: number;
+  readonly burnRemaining: number;
   readonly capturedExternalGeneration: number;
   readonly capturedWorkbenchGeneration: number;
+}
+
+interface ResidentActorView extends EncounterActorView {
+  readonly name: string;
+  readonly hostile: boolean;
+  readonly vitality: number;
+  readonly maximumVitality: number;
+  readonly wardRemaining: number;
+  readonly burnRemaining: number;
+  readonly targetReferent: unknown;
+  readonly capturedExternalGeneration: number;
+  readonly capturedWorkbenchGeneration: number;
+}
+
+interface EncounterView {
+  readonly phase: string;
+  readonly targetId: string;
 }
 
 interface ResidentState {
@@ -61,6 +85,8 @@ interface GameState {
   readonly selectionRectangle: HTMLElement;
   readonly listeners: Array<() => void>;
   units: readonly ResidentUnitView[];
+  actors: readonly ResidentActorView[];
+  encounter: EncounterView;
   drag: Readonly<{ pointerId: number; x: number; y: number; moved: boolean }> | null;
   disposed: boolean;
 }
@@ -116,32 +142,150 @@ function unitClass(value: string): UnitClass {
   return value as UnitClass;
 }
 
+function referentKey(value: unknown, context: string): string {
+  const reference = record(value, context);
+  if (reference.kind !== "referent") throw new Error(`${context} is not a projected referent`);
+  return JSON.stringify(reference);
+}
+
+interface ProjectionIndex {
+  readonly game: Readonly<Record<string, unknown>>;
+  readonly domains: Readonly<Record<string, number>>;
+  readonly subjectsByReferent: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
+  readonly idsByReferent: ReadonlyMap<string, string>;
+}
+
+function projectionIndex(projection: unknown): ProjectionIndex {
+  const game = record(projection, "game projection");
+  const inputDomains = record(field(game, "$referent-inputs", "game projection"), "$referent-inputs");
+  const domains = Object.fromEntries(Object.entries(inputDomains).map(([channel, domain]) => {
+    if (typeof domain !== "number" || !Number.isSafeInteger(domain)) {
+      throw new Error(`$referent-inputs.${channel} is not a checked domain`);
+    }
+    return [channel, domain];
+  }));
+  const subjectsByReferent = new Map<string, Readonly<Record<string, unknown>>>();
+  const idsByReferent = new Map<string, string>();
+  for (const [id, candidate] of Object.entries(game)) {
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) continue;
+    const subject = record(candidate, id);
+    const references = [
+      ...(subject.$referent === undefined ? [] : [subject.$referent]),
+      ...(subject.$referents === undefined ? [] : Object.values(record(subject.$referents, `${id}.$referents`))),
+    ];
+    for (const reference of references) {
+      const key = referentKey(reference, `${id} reference`);
+      subjectsByReferent.set(key, subject);
+      idsByReferent.set(key, id);
+    }
+  }
+  return { game, domains, subjectsByReferent, idsByReferent };
+}
+
+function subjectFor(index: ProjectionIndex, reference: unknown, context: string): Readonly<Record<string, unknown>> {
+  const subject = index.subjectsByReferent.get(referentKey(reference, context));
+  if (subject === undefined) throw new Error(`${context} does not resolve in the admitted projection`);
+  return subject;
+}
+
+function idFor(index: ProjectionIndex, reference: unknown, context: string): string {
+  const id = index.idsByReferent.get(referentKey(reference, context));
+  if (id === undefined) throw new Error(`${context} does not resolve in the admitted projection`);
+  return id;
+}
+
+function channelReferent(index: ProjectionIndex, subject: Readonly<Record<string, unknown>>, channel: string, context: string): unknown {
+  const domain = index.domains[channel];
+  if (domain === undefined) throw new Error(`admitted projection omitted ${channel} input metadata`);
+  if (subject.$referent !== undefined) {
+    const direct = record(subject.$referent, `${context}.$referent`);
+    if (direct.domain === domain) return subject.$referent;
+  }
+  const facets = record(subject.$referents, `${context}.$referents`);
+  return field(facets, String(domain), `${context}.$referents`);
+}
+
 function decodeUnits(
-  projection: unknown,
+  index: ProjectionIndex,
   capturedExternalGeneration: number,
   capturedWorkbenchGeneration: number,
 ): readonly ResidentUnitView[] {
-  const game = record(projection, "game projection");
-  return Object.entries(game).flatMap(([id, candidate]) => {
+  return Object.entries(index.game).flatMap(([id, candidate]) => {
     if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
     const unit = record(candidate, id);
-    if (!("$referent" in unit) || !("unit-position" in unit) || !("unit-class" in unit)) return [];
-    const position = field(unit, "unit-position", id);
-    const classId = text(unit, "unit-class", id);
-    const classProjection = field(game, classId, "game projection");
+    if (!("selected" in unit) || !("actor-position" in unit) || !("unit-class" in unit)) return [];
+    const position = field(unit, "actor-position", id);
+    const classProjection = subjectFor(index, field(unit, "unit-class", id), `${id}.unit-class`);
+    const vitality = number(unit, "vitality", id);
+    const maximumVitality = number(unit, "maximum-vitality", id);
     return [{
       id,
-      name: text(unit, "unit-name", id),
-      unitClass: unitClass(text(classProjection, "class-name", classId)),
+      name: text(unit, "actor-name", id),
+      unitClass: unitClass(text(classProjection, "class-name", `${id}.unit-class`)),
       x: number(position, "x", `${id}.unit-position`),
       z: number(position, "z", `${id}.unit-position`),
       selected: boolean(unit, "selected", id),
       moving: boolean(unit, "moving", id),
-      referent: field(unit, "$referent", id),
+      alive: boolean(unit, "alive", id),
+      targeted: id === idFor(index, field(record(field(index.game, "player-1", "game projection"), "player-1"), "chosen-target", "player-1"), "player-1.chosen-target"),
+      healthFraction: Math.max(0, Math.min(1, vitality / maximumVitality)),
+      vitality,
+      maximumVitality,
+      wardRemaining: number(unit, "ward-remaining", id),
+      burnRemaining: number(unit, "burn-remaining", id),
+      pickReferent: channelReferent(index, unit, "Pick", id),
+      targetReferent: channelReferent(index, unit, "Target", id),
       capturedExternalGeneration,
       capturedWorkbenchGeneration,
     }];
   });
+}
+
+function decodeEncounterActors(
+  index: ProjectionIndex,
+  targetId: string,
+  capturedExternalGeneration: number,
+  capturedWorkbenchGeneration: number,
+): readonly ResidentActorView[] {
+  return Object.entries(index.game).flatMap(([id, candidate]) => {
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
+    const actor = record(candidate, id);
+    if (!("actor-position" in actor) || !("vitality" in actor)) return [];
+    const kindValue = text(actor, "presentation-kind", id);
+    if (!["Warrior", "Artificer", "Rogue", "Priest", "Ranger", "Cinder", "Moonwell"].includes(kindValue)) return [];
+    const kind = kindValue as EncounterKind;
+    const position = field(actor, "actor-position", id);
+    const vitality = number(actor, "vitality", id);
+    const maximumVitality = number(actor, "maximum-vitality", id);
+    return [{
+      id,
+      kind,
+      name: text(actor, "actor-name", id),
+      x: number(position, "x", `${id}.actor-position`),
+      z: number(position, "z", `${id}.actor-position`),
+      hostile: boolean(actor, "hostile", id),
+      vitality,
+      maximumVitality,
+      alive: boolean(actor, "alive", id),
+      wardRemaining: number(actor, "ward-remaining", id),
+      burnRemaining: number(actor, "burn-remaining", id),
+      targeted: id === targetId,
+      healthFraction: Math.max(0, Math.min(1, vitality / maximumVitality)),
+      targetReferent: channelReferent(index, actor, "Target", id),
+      capturedExternalGeneration,
+      capturedWorkbenchGeneration,
+    }];
+  });
+}
+
+function decodeEncounter(index: ProjectionIndex): EncounterView {
+  const controller = record(field(index.game, "player-1", "game projection"), "player-1");
+  const encounter = record(field(index.game, "encounter", "game projection"), "encounter");
+  const state = subjectFor(index, field(encounter, "encounter-state", "encounter"), "encounter.encounter-state");
+  return {
+    phase: text(state, "state-name", "encounter state"),
+    targetId: idFor(index, field(controller, "chosen-target", "player-1"), "player-1.chosen-target"),
+  };
 }
 
 function sendInput(state: GameState, input: ResidentInput): void {
@@ -185,13 +329,33 @@ function selectUnits(state: GameState, ids: readonly string[]): void {
       channel: "Pick",
       capturedExternalGeneration: unit.capturedExternalGeneration,
       capturedWorkbenchGeneration: unit.capturedWorkbenchGeneration,
-      value: unit.referent,
+      value: unit.pickReferent,
     });
   }
   window.__GREYWROUGHT_GAME_EVENTS__.push({
     phase: "selection-requested",
     units: captured.map((unit) => unit.id),
   });
+}
+
+function chooseTarget(state: GameState, id: string): void {
+  const actor = state.actors.find((candidate) => candidate.id === id);
+  if (actor === undefined) return;
+  sendInput(state, {
+    kind: "referent-input",
+    channel: "Target",
+    capturedExternalGeneration: actor.capturedExternalGeneration,
+    capturedWorkbenchGeneration: actor.capturedWorkbenchGeneration,
+    value: actor.targetReferent,
+  });
+  window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "target-requested", target: id });
+}
+
+function issueAction(state: GameState, code: "BeginEncounter" | "Attack" | "Heal" | "Ward"): void {
+  const frame = capturedFrame(state);
+  if (frame === null) return;
+  press(state, code, frame);
+  window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "action-requested", action: code });
 }
 
 function issueMove(state: GameState, point: Vector3): void {
@@ -238,7 +402,7 @@ function renderHud(state: GameState): void {
     const name = card.querySelector("strong")!;
     name.textContent = unit.name;
     const className = card.querySelector("small")!;
-    className.textContent = unit.unitClass;
+    className.textContent = `${unit.unitClass} · ${Math.max(0, unit.vitality).toFixed(0)}/${unit.maximumVitality.toFixed(0)}${unit.wardRemaining > 0 ? " · Ward" : ""}${unit.burnRemaining > 0 ? " · Burn" : ""}${unit.alive ? "" : " · Fallen"}`;
   }
   const selectionCount = element("selection-count");
   const primary = selected[0];
@@ -249,6 +413,47 @@ function renderHud(state: GameState): void {
     ? "No unit selected"
     : `${primary.name} · ${primary.unitClass}`;
   element("command-move").toggleAttribute("disabled", selected.length === 0);
+
+  document.body.dataset.encounterPhase = state.encounter.phase;
+  document.body.dataset.targetId = state.encounter.targetId;
+  const moonwell = state.actors.find((actor) => actor.kind === "Moonwell");
+  const target = state.actors.find((actor) => actor.id === state.encounter.targetId) ??
+    state.units.find((unit) => unit.id === state.encounter.targetId);
+  element("encounter-state").textContent = state.encounter.phase;
+  element("moonwell-status").textContent = moonwell === undefined
+    ? "Moonwell unseen"
+    : `${Math.max(0, moonwell.vitality).toFixed(0)} / ${moonwell.maximumVitality.toFixed(0)}${moonwell.wardRemaining > 0 ? " · warded" : ""}${moonwell.burnRemaining > 0 ? " · burning" : ""}`;
+  element("target-status").textContent = target === undefined
+    ? "No target"
+    : `Target: ${target.name}`;
+  const targets = element("encounter-targets");
+  const priorTargets = [...targets.querySelectorAll<HTMLElement>(".target-card")];
+  const targetIds = state.actors.map((actor) => actor.id);
+  const targetsChanged = priorTargets.length !== targetIds.length ||
+    priorTargets.some((card, index) => card.dataset.targetId !== targetIds[index]);
+  if (targetsChanged) priorTargets.forEach((card) => card.remove());
+  for (const actor of state.actors) {
+    const card = targetsChanged
+      ? document.createElement("button")
+      : priorTargets.find((candidate) => candidate.dataset.targetId === actor.id)!;
+    if (targetsChanged) {
+      card.setAttribute("type", "button");
+      card.className = "target-card";
+      card.dataset.targetId = actor.id;
+      card.append(document.createElement("strong"), document.createElement("span"));
+      targets.append(card);
+    }
+    card.id = `target-${actor.id}`;
+    card.classList.toggle("targeted", actor.targeted);
+    card.classList.toggle("dead", !actor.alive);
+    card.querySelector("strong")!.textContent = actor.name;
+    card.querySelector("span")!.textContent = `${Math.max(0, actor.vitality).toFixed(0)} / ${actor.maximumVitality.toFixed(0)}${actor.wardRemaining > 0 ? " · Ward" : ""}${actor.burnRemaining > 0 ? " · Burn" : ""}`;
+  }
+  const active = state.encounter.phase === "Battle joined";
+  element("begin-encounter").toggleAttribute("disabled", state.encounter.phase !== "Ready");
+  for (const id of ["command-attack", "command-heal", "command-ward"]) {
+    element(id).toggleAttribute("disabled", !active || selected.length === 0);
+  }
 }
 
 function applyProjection(
@@ -257,8 +462,14 @@ function applyProjection(
   generation: number,
   workbenchGeneration: number,
 ): void {
-  state.units = decodeUnits(projection, generation, workbenchGeneration);
+  const index = projectionIndex(projection);
+  state.encounter = decodeEncounter(index);
+  state.units = decodeUnits(index, generation, workbenchGeneration);
+  state.actors = decodeEncounterActors(index, state.encounter.targetId, generation, workbenchGeneration);
   state.presentation.applyUnits(state.units);
+  state.presentation.applyEncounterActors(
+    state.actors.filter((actor) => actor.kind === "Cinder" || actor.kind === "Moonwell"),
+  );
   renderHud(state);
   document.body.dataset.gamePhase = "ready";
   document.body.dataset.residentGeneration = String(generation);
@@ -268,6 +479,12 @@ function applyProjection(
     generation,
     selected: state.units.filter((unit) => unit.selected).map((unit) => unit.id),
     positions: Object.fromEntries(state.units.map((unit) => [unit.id, [unit.x, unit.z]])),
+    encounter: state.encounter.phase,
+    target: state.encounter.targetId,
+    vitality: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.vitality])),
+    wards: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.wardRemaining])),
+    burns: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.burnRemaining])),
+    cooldowns: Object.fromEntries(state.units.map((unit) => [unit.id, number(record(index.game[unit.id], unit.id), "action-cooldown", unit.id)])),
   });
 }
 
@@ -458,14 +675,34 @@ function bindHud(state: GameState): void {
     element("equipment-panel").classList.toggle("open");
   };
   const close = (): void => element("equipment-panel").classList.remove("open");
+  const target = (event: MouseEvent): void => {
+    const source = event.target;
+    if (!(source instanceof Element)) return;
+    const id = source.closest<HTMLElement>(".target-card")?.dataset.targetId;
+    if (id !== undefined) chooseTarget(state, id);
+  };
+  const begin = (): void => issueAction(state, "BeginEncounter");
+  const attack = (): void => issueAction(state, "Attack");
+  const heal = (): void => issueAction(state, "Heal");
+  const ward = (): void => issueAction(state, "Ward");
   element("select-all").addEventListener("click", all);
   element("equipment-toggle").addEventListener("click", equipment);
   element("equipment-close").addEventListener("click", close);
+  element("encounter-targets").addEventListener("click", target);
+  element("begin-encounter").addEventListener("click", begin);
+  element("command-attack").addEventListener("click", attack);
+  element("command-heal").addEventListener("click", heal);
+  element("command-ward").addEventListener("click", ward);
   state.listeners.push(
     () => roster.removeEventListener("click", select),
     () => element("select-all").removeEventListener("click", all),
     () => element("equipment-toggle").removeEventListener("click", equipment),
     () => element("equipment-close").removeEventListener("click", close),
+    () => element("encounter-targets").removeEventListener("click", target),
+    () => element("begin-encounter").removeEventListener("click", begin),
+    () => element("command-attack").removeEventListener("click", attack),
+    () => element("command-heal").removeEventListener("click", heal),
+    () => element("command-ward").removeEventListener("click", ward),
   );
 }
 
@@ -494,6 +731,8 @@ function start(): GameState {
     selectionRectangle: element("selection-rectangle"),
     listeners: [],
     units: [],
+    actors: [],
+    encounter: { phase: "Ready", targetId: "" },
     drag: null,
     disposed: false,
   };

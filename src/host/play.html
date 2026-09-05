@@ -33,9 +33,12 @@
         </header>
 
         <aside id="objective-panel">
-          <span class="eyebrow">Company Orders</span>
-          <strong>Secure the ruined causeway</strong>
-          <p>Drag a rectangle to marshal units. Right-click the terrain to move them in formation.</p>
+          <span class="eyebrow">Moonwell Vigil</span>
+          <strong>Protect and restore the Moonwell</strong>
+          <p>Marshal the company, choose a target, and balance pressure with Mara's healing ward.</p>
+          <div class="encounter-readout"><span id="encounter-state">Ready</span><span id="moonwell-status">Moonwell unseen</span></div>
+          <button id="begin-encounter" type="button">Begin defence</button>
+          <div id="encounter-targets" aria-label="Encounter targets"></div>
         </aside>
 
         <section id="equipment-panel" aria-label="Equipment paper doll">
@@ -85,6 +88,12 @@
 
           <section id="command-panel">
             <button id="command-move" type="button" disabled><span>➤</span><strong>Move</strong><small>Right-click ground</small></button>
+            <div class="combat-actions">
+              <button id="command-attack" type="button" disabled>Attack</button>
+              <button id="command-heal" type="button" disabled>Heal</button>
+              <button id="command-ward" type="button" disabled>Ward</button>
+            </div>
+            <div id="target-status">No target</div>
             <div id="command-status">Awaiting orders</div>
             <div class="camera-hint">WASD / arrows pan · wheel zoom</div>
           </section>

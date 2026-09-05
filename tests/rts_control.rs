@@ -40,23 +40,35 @@ fn source_with_second_warrior() -> Vec<u8> {
     let source = std::str::from_utf8(EMBODIED_SOURCE).unwrap();
     source
         .replacen(
-            "warrior-class\n  shape: UnitClass",
-            "warrior-2\n  shape: Unit\nwarrior-class\n  shape: UnitClass",
+            "cinder-1\n  shape: Enemy",
+            "warrior-2\n  shape: Unit\n  shape: Actor\ncinder-1\n  shape: Enemy",
             1,
         )
         .replacen(
-            "artificer-1 unit name",
+            "cinder-1 actor name",
             concat!(
-                "warrior-2 unit name \"Bran\"\n",
+                "warrior-2 actor name \"Bran\"\n",
+                "warrior-2 presentation kind \"Warrior\"\n",
                 "warrior-2 unit class warrior-class\n",
-                "warrior-2 unit position Vec3 { x: 3.0, y: 0.0, z: 1.0 }\n",
+                "warrior-2 actor position Vec3 { x: 3.0, y: 0.0, z: 1.0 }\n",
                 "warrior-2 unit destination Vec3 { x: 3.0, y: 0.0, z: 1.0 }\n",
                 "warrior-2 formation offset Vec3 { x: 3.0, y: 0.0, z: -1.0 }\n",
                 "warrior-2 movement speed 5.0\n",
                 "warrior-2 selected true\n",
                 "warrior-2 moving false\n",
-                "warrior-2 vitality Vec3 { x: 155.0, y: 155.0, z: 0.0 }\n\n",
-                "artificer-1 unit name",
+                "warrior-2 hostile false\n",
+                "warrior-2 vitality 155.0\n",
+                "warrior-2 maximum vitality 155.0\n",
+                "warrior-2 alive true\n",
+                "warrior-2 ward remaining 0.0\n",
+                "warrior-2 burn remaining 0.0\n",
+                "warrior-2 attack damage 22.0\n",
+                "warrior-2 attack range 18.0\n",
+                "warrior-2 healing power 0.0\n",
+                "warrior-2 ward duration 0.0\n",
+                "warrior-2 action cooldown 0.0\n",
+                "warrior-2 action period 0.8\n\n",
+                "cinder-1 actor name",
             ),
             1,
         )
@@ -91,9 +103,8 @@ fn pick(
     projection: &clause_package::Term,
     id: &[u8],
 ) {
-    let reference = projected_referent_value_v1(projected_field(
-        projected_field(projection, id),
-        b"$referent",
+    let reference = projected_referent_value_v1(projected_referent_for_channel(
+        projection, id, b"Pick",
     ))
     .unwrap()
     .expect("projected Unit must carry its exact referent");
@@ -103,6 +114,24 @@ fn pick(
             captured_session,
             &ExecutableInputSourceV1::Referent {
                 channel: b"Pick".to_vec(),
+            },
+            Some(ExecutableValueV1::Referent(reference)),
+        )
+        .unwrap();
+}
+
+fn target(session: &mut PersistentProcessSessionV1, projection: &clause_package::Term, id: &[u8]) {
+    let reference = projected_referent_value_v1(projected_referent_for_channel(
+        projection, id, b"Target",
+    ))
+    .unwrap()
+    .expect("projected Actor must carry its exact Target-channel referent");
+    let captured_session = session.runtime_session();
+    session
+        .apply_typed_physical_input(
+            captured_session,
+            &ExecutableInputSourceV1::Referent {
+                channel: b"Target".to_vec(),
             },
             Some(ExecutableValueV1::Referent(reference)),
         )
@@ -120,18 +149,62 @@ fn admit_tick(session: &mut PersistentProcessSessionV1) -> clause_package::Term 
     term
 }
 
+fn advance(session: &mut PersistentProcessSessionV1, ticks: usize) -> clause_package::Term {
+    let mut projection = admit_tick(session);
+    for _ in 1..ticks {
+        projection = admit_tick(session);
+    }
+    projection
+}
+
 fn projected_field<'a>(
     term: &'a clause_package::Term,
     expected: &[u8],
 ) -> &'a clause_package::Term {
     let mut current = term;
     loop {
-        let [field, value, rest] = current.as_triple().unwrap().slots();
+        let [field, value, rest] = current
+            .as_triple()
+            .unwrap_or_else(|| panic!("projected object lacks field {:?}", String::from_utf8_lossy(expected)))
+            .slots();
         if field.as_atom().unwrap().canonical_payload() == expected {
             return value;
         }
         current = rest;
     }
+}
+
+fn projected_referent_for_channel<'a>(
+    projection: &'a clause_package::Term,
+    id: &[u8],
+    channel: &[u8],
+) -> &'a clause_package::Term {
+    let domain = projected_number(projected_field(
+        projected_field(projection, b"$referent-inputs"),
+        channel,
+    )) as u32;
+    let subject = projected_field(projection, id);
+    if projected_has_field(subject, b"$referents") {
+        let facets = projected_field(subject, b"$referents");
+        projected_field(facets, domain.to_string().as_bytes())
+    } else {
+        projected_field(subject, b"$referent")
+    }
+}
+
+fn projected_has_field(term: &clause_package::Term, expected: &[u8]) -> bool {
+    let mut current = term;
+    while let Some(triple) = current.as_triple() {
+        let [field, _, rest] = triple.slots();
+        if field
+            .as_atom()
+            .is_some_and(|field| field.canonical_payload() == expected)
+        {
+            return true;
+        }
+        current = rest;
+    }
+    false
 }
 
 fn projected_number(term: &clause_package::Term) -> f64 {
@@ -152,9 +225,26 @@ fn projected_boolean(term: &clause_package::Term) -> bool {
     }
 }
 
+fn actor_number(projection: &clause_package::Term, id: &[u8], name: &[u8]) -> f64 {
+    projected_number(projected_field(projected_field(projection, id), name))
+}
+
+fn encounter_is(projection: &clause_package::Term, expected: &[u8]) -> bool {
+    projected_referent_value_v1(projected_field(
+        projected_field(projection, b"encounter"),
+        b"encounter-state",
+    ))
+    .unwrap()
+        == projected_referent_value_v1(projected_field(
+            projected_field(projection, expected),
+            b"$referent",
+        ))
+        .unwrap()
+}
+
 fn unit_position(projection: &clause_package::Term, id: &[u8]) -> [f64; 3] {
     let unit = projected_field(projection, id);
-    let pos = projected_field(unit, b"unit-position");
+    let pos = projected_field(unit, b"actor-position");
     [b"x", b"y", b"z"].map(|axis| projected_number(projected_field(pos, axis)))
 }
 
@@ -238,4 +328,112 @@ fn selecting_one_of_two_same_class_units_preserves_occurrence_identity() {
         unit_position(&duplicate_advanced, b"warrior-2"),
         "the source-added occurrence should move through the same generic rule",
     );
+}
+
+#[test]
+fn connected_target_attack_respects_range_cooldown_and_party_contributions() {
+    let mut s = session();
+    let initial = admit_tick(&mut s);
+    key(&mut s, b"BeginEncounter");
+    target(&mut s, &initial, b"cinder-1");
+    key(&mut s, b"Attack");
+    let attacked = admit_tick(&mut s);
+    assert_eq!(actor_number(&attacked, b"cinder-1", b"vitality"), 9.0);
+    assert!(actor_number(&attacked, b"warrior-1", b"action-cooldown") > 0.0);
+
+    key(&mut s, b"Attack");
+    let cooling_down = admit_tick(&mut s);
+    assert_eq!(
+        actor_number(&cooling_down, b"cinder-1", b"vitality"),
+        9.0,
+        "a second physical action inside the source cooldown must be a no-op",
+    );
+
+    let ranged_out = std::str::from_utf8(EMBODIED_SOURCE)
+        .unwrap()
+        .replace(
+            "cinder-1 actor position Vec3 { x: 0.0, y: 0.0, z: 6.0 }",
+            "cinder-1 actor position Vec3 { x: 0.0, y: 0.0, z: 30.0 }",
+        );
+    let mut distant = session_for(ranged_out.as_bytes());
+    let frame = admit_tick(&mut distant);
+    key(&mut distant, b"BeginEncounter");
+    target(&mut distant, &frame, b"cinder-1");
+    key(&mut distant, b"Attack");
+    let unchanged = admit_tick(&mut distant);
+    assert_eq!(actor_number(&unchanged, b"cinder-1", b"vitality"), 100.0);
+}
+
+#[test]
+fn ward_healing_enemy_policy_and_actual_outcomes_are_source_owned() {
+    let mut defended = session();
+    admit_tick(&mut defended);
+    key(&mut defended, b"BeginEncounter");
+    let joined = admit_tick(&mut defended);
+    assert!(
+        (actor_number(&joined, b"moonwell", b"vitality") - 91.936).abs() < 0.000_001,
+        "the autonomous first strike and its first burn pulse must both be source-owned",
+    );
+
+    key(&mut defended, b"ClearSelection");
+    pick(&mut defended, &joined, b"priest-1");
+    target(&mut defended, &joined, b"moonwell");
+    key(&mut defended, b"Ward");
+    let warded = admit_tick(&mut defended);
+    assert!(actor_number(&warded, b"moonwell", b"ward-remaining") > 3.9);
+    let warded_start_health = actor_number(&warded, b"moonwell", b"vitality");
+    let mut before_heal = warded;
+    for _ in 0..52 {
+        before_heal = admit_tick(&mut defended);
+    }
+    key(&mut defended, b"Heal");
+    let healed = admit_tick(&mut defended);
+    assert!(
+        actor_number(&healed, b"moonwell", b"vitality")
+            > actor_number(&before_heal, b"moonwell", b"vitality") + 27.0,
+        "the selected Priest must restore the exact friendly target",
+    );
+    assert!(
+        warded_start_health - actor_number(&before_heal, b"moonwell", b"vitality") < 3.0,
+        "the active ward must mitigate the ongoing source-owned burn",
+    );
+    let mut expired = healed;
+    for _ in 0..260 {
+        expired = admit_tick(&mut defended);
+    }
+    assert_eq!(actor_number(&expired, b"moonwell", b"ward-remaining"), 0.0);
+
+    let mut won = session();
+    let first = admit_tick(&mut won);
+    key(&mut won, b"BeginEncounter");
+    target(&mut won, &first, b"cinder-1");
+    key(&mut won, b"Attack");
+    admit_tick(&mut won);
+    advance(&mut won, 52);
+    key(&mut won, b"Attack");
+    let frame = admit_tick(&mut won);
+    target(&mut won, &frame, b"cinder-2");
+    advance(&mut won, 52);
+    key(&mut won, b"Attack");
+    admit_tick(&mut won);
+    advance(&mut won, 52);
+    key(&mut won, b"Attack");
+    let frame = admit_tick(&mut won);
+    assert!(encounter_is(&frame, b"victory"));
+
+    let mut lost = session();
+    admit_tick(&mut lost);
+    key(&mut lost, b"BeginEncounter");
+    let mut idle = admit_tick(&mut lost);
+    for _ in 0..500 {
+        if encounter_is(&idle, b"defeat") {
+            break;
+        }
+        idle = admit_tick(&mut lost);
+    }
+    assert!(encounter_is(&idle, b"defeat"));
+    assert!(!projected_boolean(projected_field(
+        projected_field(&idle, b"moonwell"),
+        b"alive",
+    )));
 }

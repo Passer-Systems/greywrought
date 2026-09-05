@@ -1,0 +1,35 @@
+Bool
+Controller
+Target
+
+relation chosen-target
+  reads {controller: Controller} chosen target {value: Target}
+  subject controller
+  mode given controller yields value: one
+
+relation hostile
+  reads {target: Target} hostile {value: Bool}
+  subject target
+  mode given target yields value: one
+
+player
+  shape: Controller
+first
+  shape: Target
+second
+  shape: Target
+
+player chosen target first
+first hostile false
+second hostile true
+
+bind referent-input Target as Target to choose-target
+
+on choose-target ?controller ?picked
+  when
+    ?controller chosen target ?prior
+    ?picked hostile ?is-hostile
+  withdraw
+    ?controller chosen target ?prior
+  include
+    ?controller chosen target ?picked

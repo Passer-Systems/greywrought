@@ -1,0 +1,129 @@
+F64
+Bool
+Controller
+Unit
+Target
+Encounter
+EncounterState
+
+shape Vec3
+  x: F64
+  y: F64
+  z: F64
+
+relation selected
+  reads {unit: Unit} selected {value: Bool}
+  subject unit
+  mode given unit yields value: one
+
+relation combat-position
+  reads {target: Target} combat position {value: Vec3}
+  subject target
+  mode given target yields value: one
+
+relation vitality
+  reads {target: Target} vitality {value: F64}
+  subject target
+  mode given target yields value: one
+
+relation hostile
+  reads {target: Target} hostile {value: Bool}
+  subject target
+  mode given target yields value: one
+
+relation chosen-target
+  reads {controller: Controller} chosen target {value: Target}
+  subject controller
+  mode given controller yields value: one
+
+relation attack-damage
+  reads {unit: Unit} attack damage {value: F64}
+  subject unit
+  mode given unit yields value: one
+
+relation attack-range
+  reads {unit: Unit} attack range {value: F64}
+  subject unit
+  mode given unit yields value: one
+
+relation action-cooldown
+  reads {unit: Unit} action cooldown {value: F64}
+  subject unit
+  mode given unit yields value: one
+
+relation encounter-state
+  reads {encounter: Encounter} encounter state {value: EncounterState}
+  subject encounter
+  mode given encounter yields value: one
+
+player
+  shape: Controller
+first
+  shape: Unit
+  shape: Target
+second
+  shape: Unit
+  shape: Target
+cinder
+  shape: Target
+encounter
+  shape: Encounter
+
+active
+  shape: EncounterState
+
+player chosen target first
+encounter encounter state active
+
+first selected true
+first combat position Vec3 { x: -1.0, y: 0.0, z: 0.0 }
+first vitality 100.0
+first hostile false
+first attack damage 10.0
+first attack range 5.0
+first action cooldown 0.0
+
+second selected true
+second combat position Vec3 { x: 1.0, y: 0.0, z: 0.0 }
+second vitality 100.0
+second hostile false
+second attack damage 10.0
+second attack range 5.0
+second action cooldown 0.0
+
+cinder combat position Vec3 { x: 0.0, y: 0.0, z: 2.0 }
+cinder vitality 100.0
+cinder hostile true
+
+bind referent-input Target as Target to choose-target
+bind keyboard Attack down to attack
+
+on choose-target ?controller ?picked
+  when
+    ?controller chosen target ?prior
+    ?picked hostile ?hostile
+  withdraw
+    ?controller chosen target ?prior
+  include
+    ?controller chosen target ?picked
+
+on attack ?unit
+  when
+    encounter encounter state active
+    ?unit selected true
+    ?unit combat position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit attack damage ?damage
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    player chosen target ?target
+    ?target combat position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?health
+    ?target hostile true
+    ?cooldown <= 0.0
+    (?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range
+  withdraw
+    ?unit action cooldown ?cooldown
+    ?target vitality ?health
+  include
+    ?unit action cooldown 1.0
+    ?target vitality ?health - ?damage
