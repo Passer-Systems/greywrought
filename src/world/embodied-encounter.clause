@@ -657,28 +657,29 @@ on tick ?unit ?dt
     ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
     ?unit unit destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
     ?unit movement speed ?speed
+    ?speed >= 0.0
     ?unit alive true
     ?unit moving ?is-moving
     ?is-moving = true
-    (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > 0.0001
-    (?destination-x - ?x) clamped between 0.0 - (?speed * ?dt) and ?speed * ?dt as ?step-x
-    (?destination-z - ?z) clamped between 0.0 - (?speed * ?dt) and ?speed * ?dt as ?step-z
+    (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > 0.0
+    (?speed * ?dt / sqrt((?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z))) clamped between 0.0 and 1.0 as ?fraction
   withdraw
     ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
+    ?unit moving ?is-moving
   include
-    ?unit actor position Vec3 { x: ?x + ?step-x, y: 0.0, z: ?z + ?step-z }
+    ?unit actor position Vec3 { x: (1.0 - ?fraction) * ?x + ?fraction * ?destination-x, y: 0.0, z: (1.0 - ?fraction) * ?z + ?fraction * ?destination-z }
+    ?unit moving ((?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > (?speed * ?dt) * (?speed * ?dt))
 on tick ?unit ?dt
   when
     ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
     ?unit unit destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
     ?unit moving ?is-moving
     ?is-moving = true
-    (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) <= 0.0001
+    ?x = ?destination-x
+    ?z = ?destination-z
   withdraw
-    ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
     ?unit moving ?is-moving
   include
-    ?unit actor position Vec3 { x: ?destination-x, y: 0.0, z: ?destination-z }
     ?unit moving false
 on tick ?unit ?dt
   when

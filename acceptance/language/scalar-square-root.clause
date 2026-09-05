@@ -1,0 +1,19 @@
+F64
+Meter
+
+relation reading
+  reads {meter: Meter} reading {value: F64}
+  subject meter
+  mode given meter yields value: one
+
+meter
+  shape: Meter
+meter reading 25.0
+
+on measure ?meter
+  when
+    ?meter reading ?value
+  withdraw
+    ?meter reading ?value
+  include
+    ?meter reading sqrt(?value)

@@ -1,21 +1,46 @@
 const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
 const debugPort = 9246;
-const gameUrl = Bun.env.GREYWROUGHT_GAME_URL ?? "http://127.0.0.1:4173/";
+const gamePort = 4180;
+const gameUrl = Bun.env.GREYWROUGHT_GAME_URL ?? `http://127.0.0.1:${gamePort}/`;
 const expectedUnitCount = Number(Bun.env.GREYWROUGHT_EXPECTED_UNIT_COUNT ?? "5");
 const duplicateUnitId = Bun.env.GREYWROUGHT_DUPLICATE_UNIT_ID;
+const rendererMode = Bun.env.GREYWROUGHT_BROWSER_RENDERER ?? "swiftshader";
+if (rendererMode !== "swiftshader" && rendererMode !== "hardware") {
+  throw new Error("GREYWROUGHT_BROWSER_RENDERER must be swiftshader or hardware");
+}
+const rendererFlags = rendererMode === "hardware"
+  ? ["--enable-gpu"]
+  : ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"];
 
 function requireCondition(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+const sourceFixture = "build/acceptance/rts-journey.clause";
+if (Bun.env.GREYWROUGHT_GAME_URL === undefined) {
+  await Bun.write(sourceFixture, await Bun.file("src/world/embodied-encounter.clause").arrayBuffer());
+}
+const server = Bun.env.GREYWROUGHT_GAME_URL === undefined ? Bun.spawn({
+  cmd: [process.execPath, "build/host/play-server.js"],
+  env: { ...process.env, GREYWROUGHT_PORT: String(gamePort), GREYWROUGHT_RESIDENT_SOURCE: sourceFixture },
+  stdout: "ignore", stderr: "inherit",
+}) : null;
 const chrome = Bun.spawn({
   cmd: [chromePath, "--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
     `--remote-debugging-port=${debugPort}`, `--user-data-dir=/tmp/greywrought-cdp-rts-${process.pid}`,
-    "--window-size=1280,900", "--enable-unsafe-swiftshader", "--use-angle=swiftshader", "about:blank"],
+    "--window-size=1280,900", ...rendererFlags, "about:blank"],
   stdout: "ignore", stderr: "ignore",
 });
 let socket: WebSocket | null = null;
 try {
+  if (server !== null) {
+    let ready = false;
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      try { if ((await fetch(gameUrl, { signal: AbortSignal.timeout(1000) })).ok) { ready = true; break; } } catch {}
+      await Bun.sleep(25);
+    }
+    requireCondition(ready, "isolated RTS server did not open");
+  }
   console.log("rts journey: launching Chrome");
   let ready = false;
   for (let attempt = 0; attempt < 120; attempt += 1) {
@@ -91,6 +116,16 @@ try {
   const workbenchPhase = await evaluate<string>("document.body.dataset.workbenchPhase || ''");
   const runtimeFailure = await evaluate<string>("document.body.dataset.runtimeFailure || ''");
   requireCondition(phase === "ready", `company did not become ready (phase=${phase}, status=${authority}, receipt=${lastReceipt}, workbench=${workbenchPhase}, failure=${runtimeFailure}); browser errors: ${browserErrors.join(" | ") || "none"}`);
+  if (rendererMode === "hardware") {
+    const renderer = await evaluate<string>(`(() => {
+      const gl=document.createElement('canvas').getContext('webgl');
+      const ext=gl?.getExtension('WEBGL_debug_renderer_info');
+      return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unavailable';
+    })()`);
+    requireCondition(!/unavailable|swiftshader|llvmpipe|software/i.test(renderer),
+      "hardware movement journey has no hardware renderer: " + renderer);
+    console.log("RTS renderer: " + renderer);
+  }
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const assetsReady = await evaluate<boolean>(
       "document.body.dataset.companyAssetStatus === 'ready' && document.body.dataset.natureAssetStatus === 'ready'",
@@ -332,4 +367,6 @@ try {
   console.log(`RTS browser journey passed: ${expectedUnitCount} projected units, exact/box selection and formation, autonomous Moonwell pressure, exact targets, ward/heal/attack interaction, and visible victory`);
 } finally {
   socket?.close(); chrome.kill();
+  server?.kill();
+  await Promise.all([chrome.exited, server?.exited]);
 }

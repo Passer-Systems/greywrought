@@ -302,6 +302,37 @@ fn single_unit_move_arrives_at_the_clicked_point() {
 }
 
 #[test]
+fn movement_has_constant_speed_and_straight_direction_then_exact_arrival() {
+    for [dx, dz] in [[5.0, 0.0], [3.0, 4.0], [-3.0, -4.0]] {
+        let mut s = session();
+        let initial = admit_tick(&mut s);
+        let start = unit_position(&initial, b"warrior-1");
+        let speed = actor_number(&initial, b"warrior-1", b"movement-speed");
+        key(&mut s, b"ClearSelection");
+        pick(&mut s, &initial, b"warrior-1");
+        scalar(&mut s, b"PointerWorldX", start[0] + dx);
+        scalar(&mut s, b"PointerWorldZ", start[2] + dz);
+        key(&mut s, b"IssueMove");
+        let ordered = admit_tick(&mut s);
+        let first_step = unit_position(&ordered, b"warrior-1");
+        assert!((first_step[0] - start[0] - dx * speed * 0.016 / 5.0).abs() < 1e-10);
+        assert!((first_step[2] - start[2] - dz * speed * 0.016 / 5.0).abs() < 1e-10);
+        let halfway = advance(&mut s, 24);
+        let position = unit_position(&halfway, b"warrior-1");
+        let distance = speed * 0.016 * 25.0;
+        assert!(((position[0] - start[0]).hypot(position[2] - start[2]) - distance).abs() < 1e-10);
+        assert!((position[0] - start[0] - dx * distance / 5.0).abs() < 1e-10);
+        assert!((position[2] - start[2] - dz * distance / 5.0).abs() < 1e-10);
+        let total_ticks = (5.0 / (speed * 0.016)).ceil() as usize;
+        let before_arrival = advance(&mut s, total_ticks - 25 - 1);
+        assert_ne!(unit_position(&before_arrival, b"warrior-1"), [start[0] + dx, 0.0, start[2] + dz]);
+        let arrived = admit_tick(&mut s);
+        assert_eq!(unit_position(&arrived, b"warrior-1"), [start[0] + dx, 0.0, start[2] + dz]);
+        assert!(!projected_boolean(projected_field(projected_field(&arrived, b"warrior-1"), b"moving")));
+    }
+}
+
+#[test]
 fn partial_group_arrives_centered_on_click_without_overlapping() {
     let mut s = session();
     let initial = admit_tick(&mut s);
