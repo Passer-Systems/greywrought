@@ -134,6 +134,14 @@ type ResidentEvent =
       workerSentEpochMillis?: number;
     }>
   | Readonly<{
+      kind: "measurement-input";
+      input: ResidentInput;
+      configurationRevision: number;
+      receiptSequence: number;
+      activeGeneration: number;
+      workerSentEpochMillis: number;
+    }>
+  | Readonly<{
       kind: "heartbeat";
       workerTimeMillis: number;
       pendingInputCount: number;
@@ -189,6 +197,7 @@ let pendingEdit: GenerationPayload | null = null;
 let pendingEditStarted = 0;
 let currentEntries: Readonly<{ attack: number; heal: number }> | null = null;
 let sourceEditFence = false;
+let observingInput: ResidentInput | null = null;
 let flushingInput = false;
 let simulationStarted = false;
 let disposed = false;
@@ -246,7 +255,14 @@ function flushInput(): void {
       // the stack unwinds.
       const captured = envelope(input);
       if (captured === null) continue;
-      if (!controller.observeInput(captured)) {
+      let observed = false;
+      observingInput = input;
+      try {
+        observed = controller.observeInput(captured);
+      } finally {
+        observingInput = null;
+      }
+      if (!observed) {
         inputBackpressureCount += 1;
         inputQueue.unshift(input);
         return;
@@ -259,6 +275,16 @@ function flushInput(): void {
 }
 
 function handleReceipt(receipt: LifecycleReceipt): void {
+  if (measurementEnabled && receipt.event === "configuration-observed" && observingInput !== null) {
+    workerScope.postMessage({
+      kind: "measurement-input",
+      input: observingInput,
+      configurationRevision: receipt.configurationRevision,
+      receiptSequence: receipt.sequence,
+      activeGeneration: receipt.activeGeneration,
+      workerSentEpochMillis: workerEpochMillis(),
+    });
+  }
   if (receipt.event === "session-started" && pendingExternalGeneration !== null) {
     activeExternalGeneration = pendingExternalGeneration;
     activeWorkbenchGeneration = receipt.activeGeneration;

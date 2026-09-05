@@ -10,7 +10,8 @@ import {
 } from "./rts-presentation.js";
 
 const classes: readonly UnitClass[] = ["Warrior", "Artificer", "Rogue", "Priest", "Ranger"];
-const measurementEnabled = new URLSearchParams(window.location.search).get("measure") === "1";
+const searchParameters = new URLSearchParams(window.location.search);
+const measurementEnabled = searchParameters.get("measure") === "1";
 const maximumMeasurementEvents = 4096;
 
 interface GenerationPayload {
@@ -591,10 +592,28 @@ function bindResident(state: GameState): void {
           measure({
             metric: "lifecycle",
             event: receipt.event,
+            sequence: receipt.sequence,
+            activeGeneration: receipt.activeGeneration,
+            operationGeneration: receipt.operationGeneration,
             operationId: receipt.operationId,
             configurationRevision: receipt.configurationRevision,
+            detail: receipt.detail,
             workerEpochMillis: payload.workerSentEpochMillis,
             mainTransportMillis: performance.timeOrigin + performance.now() - payload.workerSentEpochMillis,
+          });
+        }
+      } else if (kind === "measurement-input") {
+        if (
+          typeof payload.configurationRevision === "number" &&
+          typeof payload.workerSentEpochMillis === "number"
+        ) {
+          measure({
+            metric: "observed-input",
+            input: payload.input,
+            configurationRevision: payload.configurationRevision,
+            receiptSequence: payload.receiptSequence,
+            activeGeneration: payload.activeGeneration,
+            workerEpochMillis: payload.workerSentEpochMillis,
           });
         }
       } else if (kind === "heartbeat") {
