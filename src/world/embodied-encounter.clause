@@ -26,6 +26,13 @@ relation damage-after-ward
 relation order-readiness
   reads order active {active: Bool} selected {selected: Bool} alive {alive: Bool} health {health: F64} capable {capable: Bool} kind {kind: Bool} targetAlive {targetAlive: Bool} needed {needed: Bool} inRange {inRange: Bool} cooldown {cooldown: F64} reports {message: Text}
   mode given active selected alive health capable kind targetAlive needed inRange cooldown yields message: maybe
+relation destination-readiness
+  reads destination with {blockers: F64} blockers reports {message: Text}
+  mode given blockers yields message: maybe
+relation footprint-radius
+  reads {unit: Unit} footprint radius {value: F64}
+  subject unit
+  mode given unit yields value: one
 relation attack-readiness
   reads {unit: Unit} attack readiness {value: Text}
   subject unit
@@ -537,6 +544,25 @@ moonwell alive true
 moonwell ward remaining 0.0
 moonwell burn remaining 0.0
 
+warrior-1 footprint radius 0.6
+artificer-1 footprint radius 0.6
+rogue-1 footprint radius 0.6
+priest-1 footprint radius 0.6
+ranger-1 footprint radius 0.6
+
+law destination-open
+  if
+    ?blockers <= 0.0
+  then
+    destination with ?blockers blockers reports "Ready"
+law destination-occupied
+  if
+    ?blockers > 0.0
+  then
+    destination with ?blockers blockers reports "Space occupied"
+derive destination-open
+derive destination-occupied
+
 warrior-1 attack readiness "No battle in progress"
 warrior-1 heal readiness "No battle in progress"
 warrior-1 ward readiness "No battle in progress"
@@ -666,6 +692,10 @@ on issue-move ?unit
     sum ?x where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-x
     sum ?z where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-z
     ?group-size > 0.0
+    ?unit footprint radius ?radius
+    sum 1.0 given ?target-x ?target-z ?offset-x ?offset-z ?offset-sum-x ?offset-sum-z ?group-size ?radius where { ?other selected false; ?other alive true; ?other footprint radius ?other-radius; ?other actor position Vec3 { x: ?x, y: ?y, z: ?z }; (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) * (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) + (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) * (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) < (?radius + ?other-radius) * (?radius + ?other-radius) } as ?blockers
+    destination with ?blockers blockers reports ?readiness
+    ?readiness = "Ready"
     ?unit unit destination ?prior-destination
     ?unit moving ?was-moving
   withdraw
@@ -674,6 +704,36 @@ on issue-move ?unit
   include
     ?unit unit destination Vec3 { x: ?target-x + (?offset-x - ?offset-sum-x / ?group-size), y: 0.0, z: ?target-z + (?offset-z - ?offset-sum-z / ?group-size) }
     ?unit moving true
+
+on issue-move ?unit
+  when
+    player-1 order target Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?unit selected true
+    ?unit vitality ?health
+    ?unit alive true
+    ?health > 0.0
+    ?unit formation offset Vec3 { x: ?offset-x, y: ?offset-y, z: ?offset-z }
+    sum 1.0 where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?group-size
+    sum ?x where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-x
+    sum ?z where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-z
+    ?group-size > 0.0
+    ?unit footprint radius ?radius
+    sum 1.0 given ?target-x ?target-z ?offset-x ?offset-z ?offset-sum-x ?offset-sum-z ?group-size ?radius where { ?other selected false; ?other alive true; ?other footprint radius ?other-radius; ?other actor position Vec3 { x: ?x, y: ?y, z: ?z }; (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) * (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) + (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) * (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) < (?radius + ?other-radius) * (?radius + ?other-radius) } as ?blockers
+    destination with ?blockers blockers reports ?readiness
+    ?unit order report ?prior-report
+    ?unit order name ?prior-name
+    ?unit order number ?prior-number
+    ?unit order accepted ?prior-accepted
+  withdraw
+    ?unit order report ?prior-report
+    ?unit order name ?prior-name
+    ?unit order number ?prior-number
+    ?unit order accepted ?prior-accepted
+  include
+    ?unit order report ?readiness
+    ?unit order name "Move"
+    ?unit order number ?prior-number + 1.0
+    ?unit order accepted (?readiness = "Ready")
 
 on stop-unit ?unit
   when

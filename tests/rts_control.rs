@@ -55,6 +55,7 @@ fn source_with_second_warrior() -> Vec<u8> {
                 "warrior-2 unit destination Vec3 { x: 3.0, y: 0.0, z: 1.0 }\n",
                 "warrior-2 formation offset Vec3 { x: 3.0, y: 0.0, z: -1.0 }\n",
                 "warrior-2 movement speed 5.0\n",
+                "warrior-2 footprint radius 0.6\n",
                 "warrior-2 selected true\n",
                 "warrior-2 moving false\n",
                 "warrior-2 hostile false\n",
@@ -392,16 +393,46 @@ fn partial_group_arrives_centered_on_click_without_overlapping() {
     key(&mut s, b"ClearSelection");
     pick(&mut s, &initial, b"warrior-1");
     pick(&mut s, &initial, b"priest-1");
+    scalar(&mut s, b"PointerWorldX", 5.5);
+    scalar(&mut s, b"PointerWorldZ", 2.0);
+    key(&mut s, b"IssueMove");
+    let arrived = advance(&mut s, 120);
+    let warrior = unit_position(&arrived, b"warrior-1");
+    let priest = unit_position(&arrived, b"priest-1");
+    assert!((warrior[0] - 5.0).abs() < 0.01 && (warrior[2] - 1.0).abs() < 0.01);
+    assert!((priest[0] - 6.0).abs() < 0.01 && (priest[2] - 3.0).abs() < 0.01);
+    assert_eq!([(warrior[0] + priest[0]) / 2.0, (warrior[2] + priest[2]) / 2.0], [5.5, 2.0]);
+    assert_eq!(unit_position(&arrived, b"artificer-1"), unit_position(&initial, b"artificer-1"));
+}
+
+#[test]
+fn occupied_group_destinations_are_rejected_without_moving_unselected_units() {
+    let mut s = session();
+    let initial = admit_tick(&mut s);
+    key(&mut s, b"ClearSelection");
+    pick(&mut s, &initial, b"warrior-1");
+    pick(&mut s, &initial, b"priest-1");
     scalar(&mut s, b"PointerWorldX", 0.5);
     scalar(&mut s, b"PointerWorldZ", 2.0);
     key(&mut s, b"IssueMove");
-    let arrived = advance(&mut s, 80);
-    let warrior = unit_position(&arrived, b"warrior-1");
-    let priest = unit_position(&arrived, b"priest-1");
-    assert!((warrior[0] - 0.0).abs() < 0.01 && (warrior[2] - 1.0).abs() < 0.01);
-    assert!((priest[0] - 1.0).abs() < 0.01 && (priest[2] - 3.0).abs() < 0.01);
-    assert_eq!([(warrior[0] + priest[0]) / 2.0, (warrior[2] + priest[2]) / 2.0], [0.5, 2.0]);
-    assert_eq!(unit_position(&arrived, b"artificer-1"), unit_position(&initial, b"artificer-1"));
+    let rejected = advance(&mut s, 3);
+    for id in [b"warrior-1".as_slice(), b"priest-1"] {
+        assert_eq!(unit_position(&rejected, id), unit_position(&initial, id));
+        assert_eq!(actor_message(&rejected, id, b"order-report"), "Space occupied");
+        assert!(!projected_boolean(projected_field(projected_field(&rejected, id), b"order-accepted")));
+    }
+    for id in [b"artificer-1".as_slice(), b"rogue-1", b"ranger-1"] {
+        assert_eq!(unit_position(&rejected, id), unit_position(&initial, id));
+    }
+    key(&mut s, b"ClearSelection");
+    pick(&mut s, &rejected, b"warrior-1");
+    let other = unit_position(&rejected, b"artificer-1");
+    scalar(&mut s, b"PointerWorldX", other[0] - 0.5);
+    scalar(&mut s, b"PointerWorldZ", other[2]);
+    key(&mut s, b"IssueMove");
+    let near = admit_tick(&mut s);
+    assert_eq!(actor_message(&near, b"warrior-1", b"order-report"), "Space occupied",
+        "unit footprints must reject overlap, not only equal centers");
 }
 
 #[test]

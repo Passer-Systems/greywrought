@@ -174,14 +174,14 @@ try {
     const point = new Vector3(x, y, z).project(camera);
     return { x: canvas.x + (point.x * 0.5 + 0.5) * canvas.width, y: canvas.y + (-point.y * 0.5 + 0.5) * canvas.height };
   };
-  const clickPoint = async (point: { x: number; y: number }, modifiers = 0): Promise<void> => {
+  const clickPoint = async (point: { x: number; y: number }, modifiers = 0, button = "left"): Promise<void> => {
     const hit = await evaluate<string>(`document.elementFromPoint(${point.x}, ${point.y})?.id ?? 'none'`);
     if (hit !== "world-canvas") {
       await screenshot("build/acceptance/rts-obstructed-world.png");
       throw new Error(`world click at ${point.x},${point.y} is obstructed by ${hit}`);
     }
-    await mouse("mousePressed", point.x, point.y, "left", 1, modifiers);
-    await mouse("mouseReleased", point.x, point.y, "left", 0, modifiers);
+    await mouse("mousePressed", point.x, point.y, button, button === "right" ? 2 : 1, modifiers);
+    await mouse("mouseReleased", point.x, point.y, button, 0, modifiers);
   };
   const selectedIds = (): Promise<string[]> => evaluate("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.selected || []");
   const waitForSelection = async (expected: readonly string[]): Promise<void> => {
@@ -232,6 +232,18 @@ try {
   await evaluate("document.getElementById('target-cinder-1').click()");
   await waitForTarget('cinder-1');
   console.log("RTS targeting/selection passed: world picks, independent enemy/ally/objective target, Shift toggle including queued double toggle, additive drag and target deck");
+  await clickPoint(await worldPoint(0.5, 0, 2), 0, "right");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Mara: Move — Space occupied')")) break;
+    await Bun.sleep(25);
+  }
+  const blockedReport = await evaluate<string>("document.getElementById('command-status').textContent");
+  requireCondition(blockedReport.includes("Aldric: Move — Space occupied") && blockedReport.includes("Mara: Move — Space occupied"),
+    `occupied formation destinations did not report both rejected orders: ${blockedReport}`);
+  const blockedPositions = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
+  requireCondition(Object.keys(openingPositions).every((id) => JSON.stringify(openingPositions[id]) === JSON.stringify(blockedPositions[id])),
+    "an occupied-destination rejection moved the selected or unselected company");
+  console.log("RTS destination separation passed: occupied unselected footprints reject with visible per-unit reasons");
   const waitForCooldowns = async (unitIds: readonly string[]): Promise<void> => {
     for (let attempt = 0; attempt < 120; attempt += 1) {
       const cooldowns = await evaluate<Record<string, number>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.cooldowns || {}");
@@ -291,8 +303,7 @@ try {
     await Bun.sleep(25);
   }
   requireCondition(await evaluate<boolean>(soloMoving), "a fresh order did not resume the stopped unit");
-  await mouse("mousePressed", canvas.x + canvas.width * 0.55, canvas.y + canvas.height * 0.45, "right", 2);
-  await mouse("mouseReleased", canvas.x + canvas.width * 0.55, canvas.y + canvas.height * 0.45, "right");
+  await clickPoint(await worldPoint(-3, 0, -1), 0, "right");
   const soloOrder = await evaluate<{ x: number; z: number }>(
     "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').at(-1)",
   );
