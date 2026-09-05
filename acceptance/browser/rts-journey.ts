@@ -192,6 +192,34 @@ try {
     await evaluate<string>("document.body.dataset.selectedCount") === "1",
     "single-unit selection precondition did not settle",
   );
+  const farX = canvas.x + canvas.width * 0.8;
+  const farY = canvas.y + canvas.height * 0.45;
+  const soloMoving = "document.getElementById('roster-warrior-1').classList.contains('moving')";
+  const soloCoordinates = "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions?.['warrior-1']";
+  await mouse("mousePressed", farX, farY, "right", 2);
+  await mouse("mouseReleased", farX, farY, "right");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<boolean>(soloMoving)) break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<boolean>(soloMoving), "Stop precondition: the selected unit did not start moving");
+  await evaluate("document.getElementById('command-stop').click()");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (!(await evaluate<boolean>(soloMoving))) break;
+    await Bun.sleep(25);
+  }
+  requireCondition(!(await evaluate<boolean>(soloMoving)), "Stop did not cancel the selected unit's movement");
+  const stoppedPosition = await evaluate<[number, number]>(soloCoordinates);
+  await Bun.sleep(200);
+  requireCondition(JSON.stringify(await evaluate(soloCoordinates)) === JSON.stringify(stoppedPosition),
+    "the stopped unit resumed its superseded route");
+  await mouse("mousePressed", farX, farY, "right", 2);
+  await mouse("mouseReleased", farX, farY, "right");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<boolean>(soloMoving)) break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<boolean>(soloMoving), "a fresh order did not resume the stopped unit");
   await mouse("mousePressed", canvas.x + canvas.width * 0.55, canvas.y + canvas.height * 0.45, "right", 2);
   await mouse("mouseReleased", canvas.x + canvas.width * 0.55, canvas.y + canvas.height * 0.45, "right");
   const soloOrder = await evaluate<{ x: number; z: number }>(
@@ -273,7 +301,7 @@ try {
       requireCondition(Math.hypot(point[0] - other[0], point[1] - other[1]) >= 0.9, "selected group destinations overlap");
     }
   }
-  console.log("RTS movement passed: solo arrival at the marker and separated group destinations centered on the click");
+  console.log("RTS movement passed: Stop, replacement order, solo arrival at the marker and separated group destinations centered on the click");
 
   // Join the source-owned encounter through its real controls. Targeting uses
   // projected referents from the admitted frame; the browser never names a

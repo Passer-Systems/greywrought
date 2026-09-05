@@ -446,6 +446,7 @@ bind keyboard SelectAll down to select-all
 bind referent-input Pick as Unit to select-unit
 bind referent-input Target as Actor to choose-target
 bind keyboard IssueMove down to issue-move
+bind keyboard Stop down to stop-unit
 bind keyboard BeginEncounter down to begin-encounter
 bind keyboard Attack down to party-attack
 bind keyboard Heal down to party-heal
@@ -525,6 +526,22 @@ on issue-move ?unit
   include
     ?unit unit destination Vec3 { x: ?target-x + (?offset-x - ?offset-sum-x / ?group-size), y: 0.0, z: ?target-z + (?offset-z - ?offset-sum-z / ?group-size) }
     ?unit moving true
+
+on stop-unit ?unit
+  when
+    ?unit selected true
+    ?unit alive true
+    ?unit vitality ?health
+    ?health > 0.0
+    ?unit actor position ?position
+    ?unit unit destination ?destination
+    ?unit moving ?was-moving
+  withdraw
+    ?unit unit destination ?destination
+    ?unit moving ?was-moving
+  include
+    ?unit unit destination ?position
+    ?unit moving false
 
 on party-attack ?unit
   when

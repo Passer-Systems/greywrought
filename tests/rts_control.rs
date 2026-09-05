@@ -333,6 +333,51 @@ fn movement_has_constant_speed_and_straight_direction_then_exact_arrival() {
 }
 
 #[test]
+fn stop_only_cancels_selected_living_units_and_new_orders_replace_old_routes() {
+    let source = std::str::from_utf8(EMBODIED_SOURCE).unwrap()
+        .replacen("ranger-1 alive true", "ranger-1 alive false", 1)
+        .replacen("ranger-1 moving false", "ranger-1 moving true", 1)
+        .replacen("ranger-1 unit destination Vec3 { x: 1.0, y: 0.0, z: 3.0 }",
+            "ranger-1 unit destination Vec3 { x: 10.0, y: 0.0, z: 12.0 }", 1);
+    let mut s = session_for(source.as_bytes());
+    let initial = admit_tick(&mut s);
+    scalar(&mut s, b"PointerWorldX", 30.0);
+    scalar(&mut s, b"PointerWorldZ", 20.0);
+    key(&mut s, b"IssueMove");
+    let traveling = advance(&mut s, 5);
+    let warrior_position = unit_position(&traveling, b"warrior-1");
+    let artificer_position = unit_position(&traveling, b"artificer-1");
+    assert_ne!(warrior_position, unit_position(&initial, b"warrior-1"));
+    assert!(projected_boolean(projected_field(projected_field(&traveling, b"ranger-1"), b"moving")),
+        "fallen-unit fixture must still have an unfinished order before Stop");
+
+    key(&mut s, b"ClearSelection");
+    pick(&mut s, &traveling, b"warrior-1");
+    pick(&mut s, &traveling, b"ranger-1");
+    key(&mut s, b"Stop");
+    let stopped = advance(&mut s, 5);
+    assert_eq!(unit_position(&stopped, b"warrior-1"), warrior_position);
+    assert_ne!(unit_position(&stopped, b"artificer-1"), artificer_position);
+    assert!(!projected_boolean(projected_field(projected_field(&stopped, b"warrior-1"), b"moving")));
+    assert!(projected_boolean(projected_field(projected_field(&stopped, b"ranger-1"), b"moving")),
+        "Stop must not change a fallen unit's orders");
+
+    scalar(&mut s, b"PointerWorldX", 30.0);
+    scalar(&mut s, b"PointerWorldZ", 20.0);
+    key(&mut s, b"IssueMove");
+    let resumed = advance(&mut s, 5);
+    assert_ne!(unit_position(&resumed, b"warrior-1"), warrior_position);
+    let replacement = [warrior_position[0] - 1.0, 0.0, warrior_position[2] + 2.0];
+    scalar(&mut s, b"PointerWorldX", replacement[0]);
+    scalar(&mut s, b"PointerWorldZ", replacement[2]);
+    key(&mut s, b"IssueMove");
+    let arrived = advance(&mut s, 100);
+    assert_eq!(unit_position(&arrived, b"warrior-1"), replacement);
+    assert_eq!(unit_position(&advance(&mut s, 25), b"warrior-1"), replacement,
+        "neither Stop nor a replacement may leave an older route queued");
+}
+
+#[test]
 fn partial_group_arrives_centered_on_click_without_overlapping() {
     let mut s = session();
     let initial = admit_tick(&mut s);

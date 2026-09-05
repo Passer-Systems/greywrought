@@ -447,7 +447,7 @@ function chooseTarget(state: GameState, id: string): void {
   window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "target-requested", target: id });
 }
 
-function issueAction(state: GameState, code: "BeginEncounter" | "Attack" | "Ignite" | "Heal" | "Ward"): void {
+function issueAction(state: GameState, code: "BeginEncounter" | "Stop" | "Attack" | "Ignite" | "Heal" | "Ward"): void {
   const frame = capturedFrame(state);
   if (frame === null) return;
   press(state, code, frame);
@@ -518,6 +518,7 @@ function renderHud(state: GameState): void {
     ? "No unit selected"
     : `${primary.name} · ${primary.unitClass}`;
   element("command-move").toggleAttribute("disabled", selected.length === 0);
+  element("command-stop").toggleAttribute("disabled", selected.length === 0);
 
   document.body.dataset.encounterPhase = state.encounter.phase;
   document.body.dataset.targetId = state.encounter.targetId;
@@ -1106,6 +1107,7 @@ function bindHud(state: GameState): void {
     if (id !== undefined) chooseTarget(state, id);
   };
   const begin = (): void => issueAction(state, "BeginEncounter");
+  const stop = (): void => issueAction(state, "Stop");
   const attack = (): void => issueAction(state, "Attack");
   const ignite = (): void => issueAction(state, "Ignite");
   const heal = (): void => issueAction(state, "Heal");
@@ -1123,6 +1125,7 @@ function bindHud(state: GameState): void {
   element("equipment-close").addEventListener("click", close);
   element("encounter-targets").addEventListener("click", target);
   element("begin-encounter").addEventListener("click", begin);
+  element("command-stop").addEventListener("click", stop);
   element("command-attack").addEventListener("click", attack);
   element("command-ignite").addEventListener("click", ignite);
   element("command-heal").addEventListener("click", heal);
@@ -1139,6 +1142,7 @@ function bindHud(state: GameState): void {
     () => element("equipment-close").removeEventListener("click", close),
     () => element("encounter-targets").removeEventListener("click", target),
     () => element("begin-encounter").removeEventListener("click", begin),
+    () => element("command-stop").removeEventListener("click", stop),
     () => element("command-attack").removeEventListener("click", attack),
     () => element("command-ignite").removeEventListener("click", ignite),
     () => element("command-heal").removeEventListener("click", heal),

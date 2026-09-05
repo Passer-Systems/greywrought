@@ -1,0 +1,38 @@
+F64
+Bool
+Item
+
+shape Point
+  x: F64
+  y: F64
+
+relation position
+  reads {item: Item} position {value: Point}
+  subject item
+  mode given item yields value: one
+relation destination
+  reads {item: Item} destination {value: Point}
+  subject item
+  mode given item yields value: one
+relation moving
+  reads {item: Item} moving {value: Bool}
+  subject item
+  mode given item yields value: one
+
+item
+  shape: Item
+item position Point { x: 2.0, y: 3.0 }
+item destination Point { x: 8.0, y: 9.0 }
+item moving true
+
+on stop ?item
+  when
+    ?item position ?position
+    ?item destination ?destination
+    ?item moving ?prior
+  withdraw
+    ?item destination ?destination
+    ?item moving ?prior
+  include
+    ?item destination ?position
+    ?item moving false

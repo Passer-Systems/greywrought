@@ -222,6 +222,7 @@ let inputBackpressureCount = 0;
 const edgeTriggeredKeyboardCodes = new Set([
   "ClearSelection",
   "IssueMove",
+  "Stop",
   "BeginEncounter",
   "Attack",
   "Ignite",
