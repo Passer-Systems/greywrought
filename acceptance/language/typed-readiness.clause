@@ -1,0 +1,69 @@
+F64
+Bool
+Text
+Device
+
+relation readiness
+  reads {enabled: Bool} enabled with charge {charge: F64} reports {message: Text}
+  mode given enabled charge yields message: maybe
+relation enabled
+  reads {device: Device} enabled {value: Bool}
+  subject device
+  mode given device yields value: one
+relation charge
+  reads {device: Device} charge {value: F64}
+  subject device
+  mode given device yields value: one
+relation message
+  reads {device: Device} message {value: Text}
+  subject device
+  mode given device yields value: one
+
+law disabled
+  if
+    ?enabled = false
+  then
+    ?enabled enabled with charge ?charge reports "Disabled"
+law empty
+  if
+    ?enabled = true
+    ?charge <= 0.0
+  then
+    ?enabled enabled with charge ?charge reports "Empty"
+law ready
+  if
+    ?enabled = true
+    ?charge > 0.0
+  then
+    ?enabled enabled with charge ?charge reports "Ready"
+derive disabled
+derive empty
+derive ready
+
+device
+  shape: Device
+device enabled true
+device charge 1.0
+device message "Unchecked"
+
+on inspect ?device
+  when
+    ?device enabled ?enabled
+    ?device charge ?charge
+    ?device message ?prior
+    ?enabled enabled with charge ?charge reports ?message
+  withdraw
+    ?device message ?prior
+  include
+    ?device message ?message
+
+on use ?device
+  when
+    ?device enabled ?enabled
+    ?device charge ?charge
+    ?enabled enabled with charge ?charge reports ?message
+    ?message = "Ready"
+  withdraw
+    ?device charge ?charge
+  include
+    ?device charge ?charge - 1.0
