@@ -38,6 +38,26 @@ relation ward-readiness
   reads {unit: Unit} ward readiness {value: Text}
   subject unit
   mode given unit yields value: one
+relation ignite-readiness
+  reads {unit: Unit} ignite readiness {value: Text}
+  subject unit
+  mode given unit yields value: one
+relation order-report
+  reads {unit: Unit} order report {value: Text}
+  subject unit
+  mode given unit yields value: one
+relation order-name
+  reads {unit: Unit} order name {value: Text}
+  subject unit
+  mode given unit yields value: one
+relation order-number
+  reads {unit: Unit} order number {value: F64}
+  subject unit
+  mode given unit yields value: one
+relation order-accepted
+  reads {unit: Unit} order accepted {value: Bool}
+  subject unit
+  mode given unit yields value: one
 relation order-target
   reads {controller: Controller} order target {value: Vec3}
   subject controller
@@ -520,18 +540,43 @@ moonwell burn remaining 0.0
 warrior-1 attack readiness "No battle in progress"
 warrior-1 heal readiness "No battle in progress"
 warrior-1 ward readiness "No battle in progress"
+warrior-1 ignite readiness "No battle in progress"
+warrior-1 order report ""
+warrior-1 order name ""
+warrior-1 order number 0.0
+warrior-1 order accepted false
 artificer-1 attack readiness "No battle in progress"
 artificer-1 heal readiness "No battle in progress"
 artificer-1 ward readiness "No battle in progress"
+artificer-1 ignite readiness "No battle in progress"
+artificer-1 order report ""
+artificer-1 order name ""
+artificer-1 order number 0.0
+artificer-1 order accepted false
 rogue-1 attack readiness "No battle in progress"
 rogue-1 heal readiness "No battle in progress"
 rogue-1 ward readiness "No battle in progress"
+rogue-1 ignite readiness "No battle in progress"
+rogue-1 order report ""
+rogue-1 order name ""
+rogue-1 order number 0.0
+rogue-1 order accepted false
 priest-1 attack readiness "No battle in progress"
 priest-1 heal readiness "No battle in progress"
 priest-1 ward readiness "No battle in progress"
+priest-1 ignite readiness "No battle in progress"
+priest-1 order report ""
+priest-1 order name ""
+priest-1 order number 0.0
+priest-1 order accepted false
 ranger-1 attack readiness "No battle in progress"
 ranger-1 heal readiness "No battle in progress"
 ranger-1 ward readiness "No battle in progress"
+ranger-1 ignite readiness "No battle in progress"
+ranger-1 order report ""
+ranger-1 order name ""
+ranger-1 order number 0.0
+ranger-1 order accepted false
 
 bind scalar-input PointerWorldX to observe-order-x
 bind scalar-input PointerWorldZ to observe-order-z
@@ -722,10 +767,10 @@ on raise-ward ?unit
 
 on ignite-target ?unit
   when
-    encounter encounter state active
-    ?unit selected true
+    encounter encounter state ?state
+    ?unit selected ?is-selected
     ?unit vitality ?unit-health
-    ?unit alive true
+    ?unit alive ?is-alive
     ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
     ?unit ignite duration ?duration
     ?unit ignite damage ?damage
@@ -735,13 +780,10 @@ on ignite-target ?unit
     player-1 chosen target ?target
     ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?target vitality ?health
-    ?target hostile true
-    ?duration > 0.0
-    ?damage > 0.0
-    ?unit-health > 0.0
-    ?health > 0.0
-    ?cooldown <= 0.0
-    (?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range
+    ?target hostile ?target-hostile
+    sum 1.0 given ?unit where { ?unit ignite duration ?duration; ?unit ignite damage ?damage; ?duration > 0.0; ?damage > 0.0 } as ?ignite-count
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?readiness = "Ready"
   create
     ?effect
       shape: BurnEffect
@@ -753,6 +795,136 @@ on ignite-target ?unit
     ?effect effect remaining ?duration
     ?effect effect damage ?damage
 
+on party-attack ?unit
+  when
+    encounter encounter state ?state
+    ?unit selected ?is-selected
+    ?unit vitality ?unit-health
+    ?unit alive ?is-alive
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit attack damage ?damage
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    ?unit action period ?period
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?health
+    ?target hostile ?target-hostile
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?is-selected = true
+    ?unit order report ?prior-report
+    ?unit order name ?prior-name
+    ?unit order number ?prior-number
+    ?unit order accepted ?prior-accepted
+  withdraw
+    ?unit order report ?prior-report
+    ?unit order name ?prior-name
+    ?unit order number ?prior-number
+    ?unit order accepted ?prior-accepted
+  include
+    ?unit order report ?readiness
+    ?unit order name "Attack"
+    ?unit order number ?prior-number + 1.0
+    ?unit order accepted (?readiness = "Ready")
+
+on party-heal ?unit
+  when
+    encounter encounter state ?state
+    ?unit selected ?is-selected
+    ?unit vitality ?unit-health
+    ?unit alive ?is-alive
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit healing power ?healing
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    ?unit action period ?period
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?health
+    ?target maximum vitality ?maximum
+    ?target hostile ?target-hostile
+    ?target alive ?target-alive
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?healing > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed (?health < ?maximum) inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?is-selected = true
+    ?unit order report ?prior-report
+    ?unit order name ?prior-name
+    ?unit order number ?prior-number
+    ?unit order accepted ?prior-accepted
+  withdraw
+    ?unit order report ?prior-report
+    ?unit order name ?prior-name
+    ?unit order number ?prior-number
+    ?unit order accepted ?prior-accepted
+  include
+    ?unit order report ?readiness
+    ?unit order name "Heal"
+    ?unit order number ?prior-number + 1.0
+    ?unit order accepted (?readiness = "Ready")
+
+on raise-ward ?unit
+  when
+    encounter encounter state ?state
+    ?unit selected ?is-selected
+    ?unit vitality ?unit-health
+    ?unit alive ?is-alive
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit ward duration ?duration
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    ?unit action period ?period
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target ward remaining ?prior
+    ?target hostile ?target-hostile
+    ?target alive ?target-alive
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?duration > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?is-selected = true
+    ?unit order report ?prior-report
+    ?unit order name ?prior-name
+    ?unit order number ?prior-number
+    ?unit order accepted ?prior-accepted
+  withdraw
+    ?unit order report ?prior-report
+    ?unit order name ?prior-name
+    ?unit order number ?prior-number
+    ?unit order accepted ?prior-accepted
+  include
+    ?unit order report ?readiness
+    ?unit order name "Ward"
+    ?unit order number ?prior-number + 1.0
+    ?unit order accepted (?readiness = "Ready")
+
+on ignite-target ?unit
+  when
+    encounter encounter state ?state
+    ?unit selected ?is-selected
+    ?unit vitality ?unit-health
+    ?unit alive ?is-alive
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    sum 1.0 given ?unit where { ?unit ignite duration ?duration; ?unit ignite damage ?damage; ?duration > 0.0; ?damage > 0.0 } as ?ignite-count
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?health
+    ?target hostile ?target-hostile
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?is-selected = true
+    ?unit order report ?prior-report
+    ?unit order name ?prior-name
+    ?unit order number ?prior-number
+    ?unit order accepted ?prior-accepted
+  withdraw
+    ?unit order report ?prior-report
+    ?unit order name ?prior-name
+    ?unit order number ?prior-number
+    ?unit order accepted ?prior-accepted
+  include
+    ?unit order report ?readiness
+    ?unit order name "Ignite"
+    ?unit order number ?prior-number + 1.0
+    ?unit order accepted (?readiness = "Ready")
+
 on cancel-burn ?effect ?picked
   when
     ?effect burn target ?target
@@ -763,6 +935,27 @@ on cancel-burn ?effect ?picked
     ?effect burn target ?target
     ?effect effect remaining ?remaining
     ?effect effect damage ?damage
+
+on tick ?unit ?dt
+  when
+    encounter encounter state ?state
+    ?unit selected ?is-selected
+    ?unit vitality ?unit-health
+    ?unit alive ?is-alive
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    sum 1.0 given ?unit where { ?unit ignite duration ?duration; ?unit ignite damage ?damage; ?duration > 0.0; ?damage > 0.0 } as ?ignite-count
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?health
+    ?target hostile ?target-hostile
+    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    ?unit ignite readiness ?prior-readiness
+  withdraw
+    ?unit ignite readiness ?prior-readiness
+  include
+    ?unit ignite readiness ?readiness
 
 on tick ?unit ?dt
   when

@@ -71,6 +71,11 @@ fn source_with_second_warrior() -> Vec<u8> {
                 "warrior-2 attack readiness \"No battle in progress\"\n",
                 "warrior-2 heal readiness \"No battle in progress\"\n",
                 "warrior-2 ward readiness \"No battle in progress\"\n",
+                "warrior-2 ignite readiness \"No battle in progress\"\n",
+                "warrior-2 order report \"\"\n",
+                "warrior-2 order name \"\"\n",
+                "warrior-2 order number 0.0\n",
+                "warrior-2 order accepted false\n",
                 "warrior-2 action period 0.8\n\n",
                 "cinder-1 actor name",
             ),
@@ -547,13 +552,19 @@ fn shared_readiness_reports_selection_ability_and_target_rejections() {
     assert_eq!(actor_message(&wrong, b"warrior-1", b"attack-readiness"), "Wrong target");
     assert_eq!(actor_message(&wrong, b"warrior-1", b"heal-readiness"), "Ability unavailable");
     assert_eq!(actor_message(&wrong, b"warrior-1", b"ward-readiness"), "Ability unavailable");
+    assert_eq!(actor_message(&wrong, b"warrior-1", b"ignite-readiness"), "Ability unavailable");
     let health = actor_number(&wrong, b"moonwell", b"vitality");
     key(&mut s, b"Attack");
+    let attacked = admit_tick(&mut s);
+    assert_eq!(actor_message(&attacked, b"warrior-1", b"order-report"), "Wrong target");
+    assert_eq!(actor_number(&attacked, b"warrior-1", b"order-number"), 1.0);
     key(&mut s, b"Heal");
     key(&mut s, b"Ward");
     let rejected = admit_tick(&mut s);
     assert!(actor_number(&rejected, b"moonwell", b"vitality") <= health);
     assert_eq!(actor_number(&rejected, b"warrior-1", b"action-cooldown"), 0.0);
+    assert_eq!(actor_message(&rejected, b"warrior-1", b"order-report"), "Ability unavailable");
+    assert_eq!(actor_number(&rejected, b"warrior-1", b"order-number"), 3.0);
     key(&mut s, b"ClearSelection");
     pick(&mut s, &rejected, b"priest-1");
     let priest = admit_tick(&mut s);
@@ -570,6 +581,7 @@ fn ordinary_ignite_creates_distinct_burns_with_exact_expiry_and_cancellation() {
     key(&mut s, b"ClearSelection");
     pick(&mut s, &initial, b"artificer-1");
     pick(&mut s, &initial, b"ranger-1");
+    pick(&mut s, &initial, b"warrior-1");
     key(&mut s, b"Ignite");
     let ignited = admit_tick(&mut s);
 
@@ -594,6 +606,9 @@ fn ordinary_ignite_creates_distinct_burns_with_exact_expiry_and_cancellation() {
     assert_eq!(relation_table(&ignited, b"burn-target").rows().len(), 2);
     assert!(actor_number(&ignited, b"artificer-1", b"action-cooldown") > 0.0);
     assert!(actor_number(&ignited, b"ranger-1", b"action-cooldown") > 0.0);
+    assert_eq!(actor_message(&ignited, b"warrior-1", b"order-report"), "Ability unavailable");
+    assert_eq!(actor_message(&ignited, b"artificer-1", b"order-report"), "Ready");
+    assert_eq!(actor_message(&ignited, b"ranger-1", b"ignite-readiness"), "Cooling down");
 
     assert!(
         (actor_number(&ignited, b"cinder-1", b"vitality") - 99.776).abs() < 0.000_001,

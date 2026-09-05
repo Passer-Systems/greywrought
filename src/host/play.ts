@@ -60,7 +60,11 @@ type ResidentInput =
     }>;
 
 interface ResidentUnitView extends UnitView {
-  readonly readiness: Readonly<Record<"attack" | "heal" | "ward", string>>;
+  readonly readiness: Readonly<Record<"attack" | "heal" | "ward" | "ignite", string>>;
+  readonly orderNumber: number;
+  readonly orderName: string;
+  readonly orderReport: string;
+  readonly orderAccepted: boolean;
   readonly cooldown: number;
   readonly pickReferent: unknown;
   readonly targetReferent: unknown;
@@ -298,7 +302,12 @@ function decodeUnits(
         attack: text(unit, "attack-readiness", id),
         heal: text(unit, "heal-readiness", id),
         ward: text(unit, "ward-readiness", id),
+        ignite: text(unit, "ignite-readiness", id),
       },
+      orderNumber: number(unit, "order-number", id),
+      orderName: text(unit, "order-name", id),
+      orderReport: text(unit, "order-report", id),
+      orderAccepted: boolean(unit, "order-accepted", id),
       pickReferent: channelReferent(index, unit, "Pick", id),
       targetReferent: channelReferent(index, unit, "Target", id),
       capturedExternalGeneration,
@@ -464,12 +473,10 @@ function issueAction(state: GameState, code: "BeginEncounter" | "Stop" | "Attack
   const frame = capturedFrame(state);
   if (frame === null) return;
   press(state, code, frame);
-  if (code === "Attack" || code === "Heal" || code === "Ward") {
-    const action = code.toLowerCase() as "attack" | "heal" | "ward";
-    element("command-status").textContent = `${code}: ${readinessSummary(state, action)}`;
-  }
-  if (code === "Ignite") {
-    element("command-status").textContent = "Eligible selected units kindle the exact hostile target";
+  if (code === "Attack" || code === "Heal" || code === "Ward" || code === "Ignite") {
+    element("command-status").textContent = state.units.some((unit) => unit.selected)
+      ? `${code}: awaiting the company's response`
+      : "Select a living unit";
   }
   window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "action-requested", action: code });
 }
@@ -484,7 +491,7 @@ function issueMove(state: GameState, point: Vector3): void {
   window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "move-requested", x: point.x, z: point.z });
 }
 
-function readinessSummary(state: GameState, action: "attack" | "heal" | "ward"): string {
+function readinessSummary(state: GameState, action: "attack" | "heal" | "ward" | "ignite"): string {
   const selected = state.units.filter((unit) => unit.selected);
   if (selected.length === 0) return "Select a living unit";
   return selected.map((unit) => `${unit.name}: ${unit.readiness[action]}`).join(" · ");
@@ -579,10 +586,8 @@ function renderHud(state: GameState): void {
     card.querySelector("strong")!.textContent = actor.name;
     card.querySelector("span")!.textContent = `${Math.max(0, actor.vitality).toFixed(0)} / ${actor.maximumVitality.toFixed(0)}${actor.wardRemaining > 0 ? " · Ward" : ""}${actor.burnRemaining > 0 ? " · Burn" : ""}${createdBurnLabel(actor.id)}`;
   }
-  const active = state.encounter.phase === "Battle joined";
   element("begin-encounter").toggleAttribute("disabled", state.encounter.phase !== "Ready");
-  element("command-ignite").toggleAttribute("disabled", !active || selected.length === 0);
-  for (const action of ["attack", "heal", "ward"] as const) {
+  for (const action of ["attack", "heal", "ward", "ignite"] as const) {
     const button = element(`command-${action}`);
     const ready = selected.filter((unit) => unit.readiness[action] === "Ready").length;
     const summary = readinessSummary(state, action);
@@ -602,8 +607,17 @@ function applyProjection(
 ): void {
   const started = performance.now();
   const index = projectionIndex(projection);
+  const previousOrders = new Map(state.units.map((unit) => [unit.id, unit.orderNumber]));
   state.encounter = decodeEncounter(index);
   state.units = decodeUnits(index, generation, workbenchGeneration);
+  const receivedOrders = state.units.filter((unit) =>
+    previousOrders.has(unit.id) && unit.orderNumber > previousOrders.get(unit.id)!);
+  if (receivedOrders.length > 0) {
+    const report = receivedOrders.map((unit) =>
+      `${unit.name}: ${unit.orderName} — ${unit.orderAccepted ? "Accepted" : unit.orderReport}`).join(" · ");
+    element("command-status").textContent = report;
+    element("command-status").title = report;
+  }
   state.actors = decodeEncounterActors(index, state.encounter.targetId, generation, workbenchGeneration);
   state.createdBurns = decodeCreatedBurns(index);
   state.presentation.applyUnits(state.units);

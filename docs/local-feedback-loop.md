@@ -5,6 +5,33 @@ It does not close steady frame pacing or simulation-time versus wall-time work.
 
 ## Hardware browser timing
 
+### Shared-readiness scheduling comparison
+
+Adding source-owned Attack/Heal/Ward readiness exposed broad joins being run
+before keyed matches and cheap guards. With the same feedback source, hardware
+renderer, viewport and six-CPU scope, Clause 4634bec produced candidate medians
+of 64.0/67.2/63.0ms in ready/moving/active windows, advancing only
+0.216/0.205/0.221 source seconds per wall second. Clause 29803f2 schedules keyed
+matches and available total guards first; the matched medians became
+3.8/5.3/7.0ms and clock ratios 0.999/1.001/1.001. Rendering stayed near 59 FPS.
+No timestep, exhaustion bound or readiness rule changed for this comparison.
+
+Raw observations: greywrought:build/measurement/readiness-before-specialization.json
+and greywrought:build/measurement/readiness-after-scheduling.json. Checked-edit
+samples were 1346.4/1199.2/1155.4ms before and 1281.8/1104.2/1062.7ms after;
+these remain small sequential samples, not a scaling or universal speed claim.
+The matched browser journey then passed targeting, movement, readiness,
+cooldowns and combat through victory. Later Ignite and processed-order feedback
+add a different workload and are not part of this paired result.
+
+With complete Ignite readiness and processed-order reports on Clause 4ddbf0e,
+the same hardware driver measured 59.5/59.2/59.3 FPS, candidate medians of
+4.6/5.6/8.4ms, and clock ratios 0.981/1.001/0.906. The active window retains
+about 9% clock lag; the functional cooldown/combat journey passed, but larger
+load is not established. Checked edits took 1762.2/1610.5/1565.0ms. This larger
+source's compile/transfer cost remains open optimization work. Raw:
+greywrought:build/measurement/complete-command-feedback.json.
+
 The later hardware-GPU run establishes a materially different baseline from
 forced software rendering. On the same six-CPU scope and compiler pin, Chrome
 used the AMD Radeon 890M through ANGLE/radeonsi. The ready/movement/active windows

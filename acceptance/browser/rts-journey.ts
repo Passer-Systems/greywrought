@@ -396,6 +396,13 @@ try {
     }
     throw new Error(`${action} did not display ${reason}`);
   };
+  const waitForOrderReport = async (report: string): Promise<void> => {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (await evaluate<boolean>(`document.getElementById('command-status').textContent.includes(${JSON.stringify(report)})`)) return;
+      await Bun.sleep(25);
+    }
+    throw new Error(`processed order did not report ${report}`);
+  };
   await evaluate("document.querySelector('#command-readiness summary').click()");
   requireCondition(await evaluate<boolean>("document.getElementById('readiness-attack').getBoundingClientRect().height > 0"), "command readiness details did not open visibly");
   await evaluate("document.getElementById('roster-warrior-1').click()");
@@ -410,7 +417,10 @@ try {
   await waitForReadiness("attack", "Aldric: Wrong target");
   await waitForReadiness("heal", "Aldric: Ability unavailable");
   await evaluate("document.getElementById('command-attack').click()");
-  requireCondition(await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Wrong target')"), "rejected attack did not display its source-owned reason");
+  await waitForOrderReport("Attack — Wrong target");
+  await waitForReadiness("ignite", "Aldric: Ability unavailable");
+  await evaluate("document.getElementById('command-ignite').click()");
+  await waitForOrderReport("Ignite — Ability unavailable");
 
   await evaluate("document.getElementById('target-moonwell').click()");
   await evaluate("document.getElementById('roster-priest-1').click()");
@@ -430,6 +440,9 @@ try {
   }
   const wardRemaining = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.wards?.moonwell ?? 0");
   requireCondition(wardRemaining > 0, "Mara's ward did not become active on the exact Moonwell target");
+  await waitForOrderReport("Ward — Accepted");
+  await evaluate("document.getElementById('command-ward').click()");
+  await waitForOrderReport("Ward — Cooling down");
   await waitForReadiness("ward", "Mara: Cooling down");
   requireCondition(await evaluate<boolean>("/\\d\\.\\ds/.test(document.getElementById('roster-priest-1').textContent)"), "action cooldown was not visible on Mara's roster card");
   await waitForCooldowns(["priest-1"]);
@@ -442,7 +455,7 @@ try {
     await Bun.sleep(25);
   }
   requireCondition(afterHeal > beforeHeal + 20, `Mara's source-owned healing did not restore the Moonwell (${beforeHeal} -> ${afterHeal})`);
-  console.log("RTS command feedback passed: selection, wrong target, unavailable ability, readiness and visible cooldown");
+  console.log("RTS command feedback passed: processed acceptance/rejection, Ignite capability, selection, target, readiness and cooldown");
   await evaluate("document.querySelector('#command-readiness summary').click()");
   await screenshot("build/acceptance/m3-live-battle.png");
 
