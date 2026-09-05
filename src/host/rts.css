@@ -64,7 +64,7 @@ kbd { color: #d8c39d; font: 10px ui-monospace, monospace; }
 #command-move:disabled { opacity: .45; }
 #command-move span { font-size: 22px; }
 #command-move small, #command-status, .camera-hint { color: var(--muted); font-size: 11px; }
-.combat-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.combat-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
 .combat-actions button { border: 1px solid #9e773d; background: #352313; color: var(--gold); padding: 5px; cursor: pointer; }
 .combat-actions button:disabled { opacity: .45; cursor: default; }
 #target-status { color: #ead19d; font-size: 11px; }

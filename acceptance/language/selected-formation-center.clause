@@ -1,0 +1,40 @@
+F64
+Bool
+Unit
+Controller
+
+relation selected
+  reads {unit: Unit} selected {value: Bool}
+  subject unit
+  mode given unit yields value: one
+relation offset
+  reads {unit: Unit} offset {value: F64}
+  subject unit
+  mode given unit yields value: one
+relation center
+  reads {controller: Controller} center {value: F64}
+  subject controller
+  mode given controller yields value: one
+
+first
+  shape: Unit
+second
+  shape: Unit
+controller
+  shape: Controller
+first selected true
+second selected false
+first offset -2.0
+second offset 2.0
+controller center 0.0
+
+on measure ?controller
+  when
+    ?controller center ?prior
+    sum 1.0 where { ?unit selected true; ?unit offset ?offset } as ?count
+    sum ?offset where { ?unit selected true; ?unit offset ?offset } as ?total
+    ?count > 0.0
+  withdraw
+    ?controller center ?prior
+  include
+    ?controller center ?total / ?count

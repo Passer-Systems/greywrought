@@ -7,8 +7,15 @@ The source-authored company contains exactly five controllable classes: Warrior,
 The selected-unit panel includes a WoW-style paper doll with head, shoulders, neck, cloak, chest, shirt, tabard, bracers, gloves, belt, legs, pants, shoes, two rings, two trinkets, weapon, offhand, and ranged/relic slots.
 
 Movement is issued exclusively as RTS orders to the selected company. In the
+case of a single selected living unit, its destination is exactly the right-click
+marker. Groups use separated destinations centered on that marker, retaining
+their formation spacing. This assigns destinations; obstacle avoidance is not
+yet implemented. In the
 Moonwell Vigil, choose any projected actor in the target deck and use Attack,
-Heal, or Ward. Attack acts through every eligible selected unit. Mara the
+Ignite, Heal, or Ward. Attack acts through every eligible selected unit. Ignite
+lets selected eligible company members create independent, source-timed burns
+on the exact hostile target; their remaining lifetimes are projected in the
+target deck. Mara the
 Priest can restore and ward friendly targets; a ward halves direct cinder
 damage and ongoing burn while its source-owned duration remains. Defeat both
 cinders before their autonomous assault destroys the Moonwell.
@@ -34,3 +41,6 @@ victory. `bun acceptance/browser/rts-idle-loss.ts` opens a fresh page and proves
 idle play reaches defeat through actual Moonwell damage. The duplicate-source
 writer creates an ignored six-unit fixture used by the main journey to retain
 the same-class identity regression without a new host branch or roster row.
+`bun acceptance/browser/rts-created-burn.ts` proves the visible Ignite control
+creates two distinct equal-damage occurrences with unequal lifetimes, applies
+their source-owned timed contributions and expires each exact occurrence.

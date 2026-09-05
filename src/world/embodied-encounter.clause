@@ -10,6 +10,7 @@ Objective
 Encounter
 EncounterState
 CombatRules
+BurnEffect
 
 shape Vec3
   x: F64
@@ -158,6 +159,26 @@ relation burn-damage
   reads {rules: CombatRules} burn damage {value: F64}
   subject rules
   mode given rules yields value: one
+relation ignite-duration
+  reads {unit: Unit} ignite duration {value: F64}
+  subject unit
+  mode given unit yields value: maybe
+relation ignite-damage
+  reads {unit: Unit} ignite damage {value: F64}
+  subject unit
+  mode given unit yields value: maybe
+relation burn-target
+  reads {effect: BurnEffect} burn target {value: Actor}
+  subject effect
+  mode given effect yields value: one
+relation effect-remaining
+  reads {effect: BurnEffect} effect remaining {value: F64}
+  subject effect
+  mode given effect yields value: one
+relation effect-damage
+  reads {effect: BurnEffect} effect damage {value: F64}
+  subject effect
+  mode given effect yields value: one
 
 law clamp-lower
   if
@@ -305,6 +326,8 @@ artificer-1 healing power 0.0
 artificer-1 ward duration 0.0
 artificer-1 action cooldown 0.0
 artificer-1 action period 0.8
+artificer-1 ignite duration 3.0
+artificer-1 ignite damage 7.0
 
 rogue-1 actor name "Vey"
 rogue-1 presentation kind "Rogue"
@@ -371,6 +394,8 @@ ranger-1 healing power 0.0
 ranger-1 ward duration 0.0
 ranger-1 action cooldown 0.0
 ranger-1 action period 0.8
+ranger-1 ignite duration 1.5
+ranger-1 ignite damage 7.0
 
 cinder-1 actor name "Cinder Wraith"
 cinder-1 presentation kind "Cinder"
@@ -425,6 +450,8 @@ bind keyboard BeginEncounter down to begin-encounter
 bind keyboard Attack down to party-attack
 bind keyboard Heal down to party-heal
 bind keyboard Ward down to raise-ward
+bind keyboard Ignite down to ignite-target
+bind referent-input CancelBurn as BurnEffect to cancel-burn
 
 on observe-order-x ?controller ?x
   when
@@ -486,13 +513,17 @@ on issue-move ?unit
     ?unit alive true
     ?health > 0.0
     ?unit formation offset Vec3 { x: ?offset-x, y: ?offset-y, z: ?offset-z }
+    sum 1.0 where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?group-size
+    sum ?x where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-x
+    sum ?z where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-z
+    ?group-size > 0.0
     ?unit unit destination ?prior-destination
     ?unit moving ?was-moving
   withdraw
     ?unit unit destination ?prior-destination
     ?unit moving ?was-moving
   include
-    ?unit unit destination Vec3 { x: ?target-x + ?offset-x, y: 0.0, z: ?target-z + ?offset-z }
+    ?unit unit destination Vec3 { x: ?target-x + (?offset-x - ?offset-sum-x / ?group-size), y: 0.0, z: ?target-z + (?offset-z - ?offset-sum-z / ?group-size) }
     ?unit moving true
 
 on party-attack ?unit
@@ -576,6 +607,50 @@ on raise-ward ?unit
     ?unit action cooldown ?period
     ?target ward remaining ?duration
 
+on ignite-target ?unit
+  when
+    encounter encounter state active
+    ?unit selected true
+    ?unit vitality ?unit-health
+    ?unit alive true
+    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit ignite duration ?duration
+    ?unit ignite damage ?damage
+    ?unit attack range ?range
+    ?unit action cooldown ?cooldown
+    ?unit action period ?period
+    player-1 chosen target ?target
+    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
+    ?target vitality ?health
+    ?target hostile true
+    ?duration > 0.0
+    ?damage > 0.0
+    ?unit-health > 0.0
+    ?health > 0.0
+    ?cooldown <= 0.0
+    (?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range
+  create
+    ?effect
+      shape: BurnEffect
+  withdraw
+    ?unit action cooldown ?cooldown
+  include
+    ?unit action cooldown ?period
+    ?effect burn target ?target
+    ?effect effect remaining ?duration
+    ?effect effect damage ?damage
+
+on cancel-burn ?effect ?picked
+  when
+    ?effect burn target ?target
+    ?effect effect remaining ?remaining
+    ?effect effect damage ?damage
+    ?effect = ?picked
+  withdraw
+    ?effect burn target ?target
+    ?effect effect remaining ?remaining
+    ?effect effect damage ?damage
+
 on tick ?unit ?dt
   when
     ?dt > 0.0
@@ -600,8 +675,10 @@ on tick ?unit ?dt
     ?is-moving = true
     (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) <= 0.0001
   withdraw
+    ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
     ?unit moving ?is-moving
   include
+    ?unit actor position Vec3 { x: ?destination-x, y: 0.0, z: ?destination-z }
     ?unit moving false
 on tick ?unit ?dt
   when
@@ -651,6 +728,44 @@ on tick ?actor ?dt
     ?actor burn remaining ?remaining - ?dt
   accumulate
     ?actor vitality 0.0 - ?damage
+on tick ?effect ?dt
+  when
+    encounter encounter state active
+    ?effect burn target ?target
+    ?effect effect remaining ?remaining
+    ?effect effect damage ?damage
+    ?target vitality ?health
+    ?remaining > 0.0
+    ?health > 0.0
+    ?dt clamped between 0.0 and ?remaining as ?elapsed
+  withdraw
+    ?effect effect remaining ?remaining
+  include
+    ?effect effect remaining ?remaining - ?elapsed
+  accumulate
+    ?target vitality 0.0 - ?damage * ?elapsed
+on tick ?effect ?dt
+  when
+    ?effect burn target ?target
+    ?effect effect remaining ?remaining
+    ?effect effect damage ?damage
+    ?remaining <= 0.0
+  withdraw
+    ?effect burn target ?target
+    ?effect effect remaining ?remaining
+    ?effect effect damage ?damage
+on tick ?effect ?dt
+  when
+    ?effect burn target ?target
+    ?effect effect remaining ?remaining
+    ?effect effect damage ?damage
+    ?target vitality ?health
+    ?remaining > 0.0
+    ?health <= 0.0
+  withdraw
+    ?effect burn target ?target
+    ?effect effect remaining ?remaining
+    ?effect effect damage ?damage
 on tick ?actor ?dt
   when
     ?actor burn remaining ?remaining

@@ -157,6 +157,22 @@ try {
     await evaluate<string>("document.body.dataset.selectedCount") === "1",
     "single-unit selection precondition did not settle",
   );
+  await mouse("mousePressed", canvas.x + canvas.width * 0.55, canvas.y + canvas.height * 0.45, "right", 2);
+  await mouse("mouseReleased", canvas.x + canvas.width * 0.55, canvas.y + canvas.height * 0.45, "right");
+  const soloOrder = await evaluate<{ x: number; z: number }>(
+    "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').at(-1)",
+  );
+  requireCondition(soloOrder !== null, "single-unit click did not issue an order");
+  let soloPosition: [number, number] | null = null;
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    soloPosition = await evaluate<[number, number]>(
+      "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions?.['warrior-1']",
+    );
+    if (soloPosition && Math.hypot(soloPosition[0] - soloOrder.x, soloPosition[1] - soloOrder.z) < 0.01) break;
+    await Bun.sleep(50);
+  }
+  requireCondition(soloPosition !== null && Math.hypot(soloPosition[0] - soloOrder.x, soloPosition[1] - soloOrder.z) < 0.01,
+    `single unit missed the clicked marker: order=${JSON.stringify(soloOrder)}, position=${JSON.stringify(soloPosition)}`);
   if (duplicateUnitId !== undefined) {
     const firstSelection = await evaluate<string[]>(
       "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.selected || []",
@@ -200,6 +216,29 @@ try {
   requireCondition(await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').length") > 0, "right-click did not issue a move order");
   const after = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
   requireCondition(Object.keys(after).length === expectedUnitCount && Object.keys(before).every((id) => JSON.stringify(before[id]) !== JSON.stringify(after[id])), "every selected formation occurrence did not advance");
+  const groupOrder = await evaluate<{ x: number; z: number }>(
+    "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').at(-1)",
+  );
+  let groupPositions: [number, number][] = [];
+  const groupCentered = (): boolean => groupPositions.length === expectedUnitCount && Math.hypot(
+    groupPositions.reduce((sum, p) => sum + p[0], 0) / expectedUnitCount - groupOrder.x,
+    groupPositions.reduce((sum, p) => sum + p[1], 0) / expectedUnitCount - groupOrder.z,
+  ) < 0.01;
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    groupPositions = Object.values(await evaluate<Record<string, [number, number]>>(
+      "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}",
+    ));
+    if (groupCentered()) break;
+    await Bun.sleep(50);
+  }
+  requireCondition(groupCentered(), `group missed the marker center: ${JSON.stringify({ groupOrder, groupPositions })}`);
+  for (let index = 0; index < groupPositions.length; index += 1) {
+    for (const other of groupPositions.slice(index + 1)) {
+      const point = groupPositions[index]!;
+      requireCondition(Math.hypot(point[0] - other[0], point[1] - other[1]) >= 0.9, "selected group destinations overlap");
+    }
+  }
+  console.log("RTS movement passed: solo arrival at the marker and separated group destinations centered on the click");
 
   // Join the source-owned encounter through its real controls. Targeting uses
   // projected referents from the admitted frame; the browser never names a

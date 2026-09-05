@@ -18,6 +18,7 @@
     "test:rts-journey": "bun acceptance/browser/rts-journey.ts",
     "test:rts-idle-loss": "bun acceptance/browser/rts-idle-loss.ts",
     "test:rts-live-semantics": "bun acceptance/browser/rts-live-semantics.ts",
+    "test:rts-created-burn": "bun acceptance/browser/rts-created-burn.ts",
     "measure:rts": "bun acceptance/browser/rts-measurement.ts",
     "compare:rts-attack": "bun acceptance/browser/rts-comparison.ts",
     "build:play": "bun run build:resident && bun run build:host",

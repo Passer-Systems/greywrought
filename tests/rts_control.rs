@@ -1,7 +1,8 @@
 use clause_runtime::{
     decode_wasm_process_request_v1, encode_wasm_process_request_v1,
     open_fresh_persistent_process_session_v1, projected_referent_value_v1,
-    ExecutableInputSourceV1, ExecutableValueV1, PersistentProcessSessionV1,
+    projected_relation_table_v1, ExecutableInputSourceV1, ExecutableReferentV1,
+    ExecutableRelationTableV1, ExecutableValueV1, PersistentProcessSessionV1,
 };
 use clause_workbench::ResidentSourceWorkbenchV1;
 use greywrought_clause::EMBODIED_SOURCE;
@@ -229,6 +230,28 @@ fn actor_number(projection: &clause_package::Term, id: &[u8], name: &[u8]) -> f6
     projected_number(projected_field(projected_field(projection, id), name))
 }
 
+fn relation_table(projection: &clause_package::Term, name: &[u8]) -> ExecutableRelationTableV1 {
+    projected_relation_table_v1(projected_field(
+        projected_field(projection, b"relations"),
+        name,
+    ))
+    .unwrap()
+    .unwrap_or_else(|| panic!("{name:?} did not project as a relation table"))
+}
+
+fn cancel_burn(session: &mut PersistentProcessSessionV1, effect: ExecutableReferentV1) {
+    let captured_session = session.runtime_session();
+    session
+        .apply_typed_physical_input(
+            captured_session,
+            &ExecutableInputSourceV1::Referent {
+                channel: b"CancelBurn".to_vec(),
+            },
+            Some(ExecutableValueV1::Referent(effect)),
+        )
+        .unwrap();
+}
+
 fn encounter_is(projection: &clause_package::Term, expected: &[u8]) -> bool {
     projected_referent_value_v1(projected_field(
         projected_field(projection, b"encounter"),
@@ -246,6 +269,55 @@ fn unit_position(projection: &clause_package::Term, id: &[u8]) -> [f64; 3] {
     let unit = projected_field(projection, id);
     let pos = projected_field(unit, b"actor-position");
     [b"x", b"y", b"z"].map(|axis| projected_number(projected_field(pos, axis)))
+}
+
+#[test]
+fn single_unit_move_arrives_at_the_clicked_point() {
+    let mut s = session();
+    let initial = admit_tick(&mut s);
+    key(&mut s, b"ClearSelection");
+    pick(&mut s, &initial, b"warrior-1");
+    scalar(&mut s, b"PointerWorldX", -1.5);
+    scalar(&mut s, b"PointerWorldZ", 1.25);
+    key(&mut s, b"IssueMove");
+    let arrived = advance(&mut s, 60);
+    let position = unit_position(&arrived, b"warrior-1");
+    assert_eq!(
+        position, [-1.5, 0.0, 1.25],
+        "one selected unit must arrive at the click, not its full-company formation offset: {position:?}",
+    );
+    for id in [b"artificer-1".as_slice(), b"rogue-1", b"priest-1", b"ranger-1"] {
+        assert_eq!(
+            unit_position(&arrived, id),
+            unit_position(&initial, id),
+            "unselected units must stay in place",
+        );
+    }
+    scalar(&mut s, b"PointerWorldX", -1.496);
+    scalar(&mut s, b"PointerWorldZ", 1.251);
+    key(&mut s, b"IssueMove");
+    let nearby = advance(&mut s, 3);
+    assert_eq!(unit_position(&nearby, b"warrior-1"), [-1.496, 0.0, 1.251],
+        "even a click inside the arrival threshold must land exactly on the marker");
+}
+
+#[test]
+fn partial_group_arrives_centered_on_click_without_overlapping() {
+    let mut s = session();
+    let initial = admit_tick(&mut s);
+    key(&mut s, b"ClearSelection");
+    pick(&mut s, &initial, b"warrior-1");
+    pick(&mut s, &initial, b"priest-1");
+    scalar(&mut s, b"PointerWorldX", 0.5);
+    scalar(&mut s, b"PointerWorldZ", 2.0);
+    key(&mut s, b"IssueMove");
+    let arrived = advance(&mut s, 80);
+    let warrior = unit_position(&arrived, b"warrior-1");
+    let priest = unit_position(&arrived, b"priest-1");
+    assert!((warrior[0] - 0.0).abs() < 0.01 && (warrior[2] - 1.0).abs() < 0.01);
+    assert!((priest[0] - 1.0).abs() < 0.01 && (priest[2] - 3.0).abs() < 0.01);
+    assert_eq!([(warrior[0] + priest[0]) / 2.0, (warrior[2] + priest[2]) / 2.0], [0.5, 2.0]);
+    assert_eq!(unit_position(&arrived, b"artificer-1"), unit_position(&initial, b"artificer-1"));
 }
 
 #[test]
@@ -270,6 +342,16 @@ fn five_unit_selection_formation_order_and_tick_progress() {
             unit_position(&after, id),
             "unit should advance"
         );
+    }
+    let arrived = advance(&mut s, 220);
+    let positions = [b"warrior-1".as_slice(), b"artificer-1", b"rogue-1", b"priest-1", b"ranger-1"]
+        .map(|id| unit_position(&arrived, id));
+    assert!((positions.iter().map(|p| p[0]).sum::<f64>() / 5.0 - 10.0).abs() < 0.01);
+    assert!((positions.iter().map(|p| p[2]).sum::<f64>() / 5.0 - 12.0).abs() < 0.01);
+    for (index, a) in positions.iter().enumerate() {
+        for b in &positions[index + 1..] {
+            assert!((a[0] - b[0]).hypot(a[2] - b[2]) >= 1.9, "formation slots must remain separated");
+        }
     }
 }
 
@@ -362,6 +444,62 @@ fn connected_target_attack_respects_range_cooldown_and_party_contributions() {
     key(&mut distant, b"Attack");
     let unchanged = admit_tick(&mut distant);
     assert_eq!(actor_number(&unchanged, b"cinder-1", b"vitality"), 100.0);
+}
+
+#[test]
+fn ordinary_ignite_creates_distinct_burns_with_exact_expiry_and_cancellation() {
+    let mut s = session();
+    let initial = admit_tick(&mut s);
+    key(&mut s, b"BeginEncounter");
+    target(&mut s, &initial, b"cinder-1");
+    key(&mut s, b"ClearSelection");
+    pick(&mut s, &initial, b"artificer-1");
+    pick(&mut s, &initial, b"ranger-1");
+    key(&mut s, b"Ignite");
+    let ignited = admit_tick(&mut s);
+
+    let remaining = relation_table(&ignited, b"effect-remaining");
+    assert_eq!(remaining.rows().len(), 2);
+    let mut effects = remaining
+        .rows()
+        .iter()
+        .map(|(effect, values)| {
+            (
+                effect.clone(),
+                values.first().unwrap().as_number().unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+    effects.sort_by(|left, right| left.1.total_cmp(&right.1));
+    assert_eq!(
+        effects.iter().map(|effect| effect.1).collect::<Vec<_>>(),
+        vec![1.484, 2.984],
+        "the input Step creates both effects before the candidate's first 16 ms tick",
+    );
+    assert_eq!(relation_table(&ignited, b"burn-target").rows().len(), 2);
+    assert!(actor_number(&ignited, b"artificer-1", b"action-cooldown") > 0.0);
+    assert!(actor_number(&ignited, b"ranger-1", b"action-cooldown") > 0.0);
+
+    assert!(
+        (actor_number(&ignited, b"cinder-1", b"vitality") - 99.776).abs() < 0.000_001,
+        "both created occurrences must contribute during the candidate's first tick",
+    );
+    let burned = admit_tick(&mut s);
+    assert!(
+        (actor_number(&burned, b"cinder-1", b"vitality") - 99.552).abs() < 0.000_001,
+        "two equal seven-per-second occurrences must each contribute on the next tick",
+    );
+
+    cancel_burn(&mut s, effects[0].0.clone());
+    let cancelled = admit_tick(&mut s);
+    let surviving = relation_table(&cancelled, b"effect-remaining");
+    assert_eq!(surviving.rows().len(), 1);
+    assert!(surviving.rows().contains_key(&effects[1].0));
+    assert!(!surviving.rows().contains_key(&effects[0].0));
+
+    let expired = advance(&mut s, 190);
+    assert!(relation_table(&expired, b"effect-remaining").rows().is_empty());
+    assert!(relation_table(&expired, b"burn-target").rows().is_empty());
 }
 
 #[test]

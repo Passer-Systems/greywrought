@@ -7,9 +7,14 @@ import {
   "decode-projected-term-frame" as decodeProjectedTermFrame,
   editSourceSession,
   explainSession,
+  explanationRelationRows,
+  checkedProjectedReferent,
   finiteScalarInterventionQuery,
   interveneSession,
+  projectedRelationRowValue,
   sourceContinuity,
+  type ExplainedRelationRow,
+  type FiniteScalarChange,
   type ProjectedValue,
 } from "../../build/host/jump-arena-shell/wasm-cartridge-port.js";
 import {
@@ -90,7 +95,7 @@ type ResidentCommand =
       capturedExternalGeneration: number;
       capturedWorkbenchGeneration: number;
       entry: "attack" | "heal";
-      interventionTarget?: string;
+      interventionTarget?: unknown;
     }>
   | Readonly<{ kind: "dispose" }>;
 
@@ -122,10 +127,11 @@ type ResidentEvent =
       workbenchGeneration: number;
       entry: "attack" | "heal";
       explanation: ProjectedValue;
+      explanationRows: readonly ExplainedRelationRow[];
       intervention: ProjectedValue | null;
       boundedIntervention: ProjectedValue | null;
       interventionChoiceCount: number;
-      interventionVitalitySlot: number;
+      interventionTargetValue: ProjectedValue | null;
     }>
   | Readonly<{
       kind: "receipt";
@@ -218,6 +224,7 @@ const edgeTriggeredKeyboardCodes = new Set([
   "IssueMove",
   "BeginEncounter",
   "Attack",
+  "Ignite",
   "Heal",
   "Ward",
 ]);
@@ -521,38 +528,40 @@ function diagnose(command: Extract<ResidentCommand, { kind: "diagnose" }>): void
   }
   const entry = currentEntries[command.entry];
   const explanation = explainSession(clauseRuntime, liveSession, entry);
+  const explanationRows = explanationRelationRows(explanation);
   let intervention: ProjectedValue | null = null;
   let boundedIntervention: ProjectedValue | null = null;
   let interventionChoiceCount = 0;
-  let interventionVitalitySlot = -1;
+  let interventionTargetValue: ProjectedValue | null = null;
   if (command.interventionTarget !== undefined) {
     const detail = object(explanation, "explanation");
-    const states = object(detail.states, "explanation states");
-    const allowed: Array<{ slot: number; value: boolean }> = [];
+    const allowed: FiniteScalarChange[] = [];
     let vitality = -1;
-    for (const [coordinate, candidate] of Object.entries(states)) {
-      const state = object(candidate, `state ${coordinate}`);
-      const source = object(state.source, `state ${coordinate} source`);
-      if (source.relation === "selected") allowed.push({ slot: Number(coordinate), value: false });
-      if (source.subject === command.interventionTarget && source.relation === "vitality") {
-        vitality = Number(coordinate);
-      }
+    const target = checkedProjectedReferent(command.interventionTarget);
+    for (const row of explanationRows) {
+      if (row.source.relation === "selected" && row.before === true) allowed.push({ slot: row.slot, subject: row.subject, value: false });
+      if (row.source.relation === "vitality") vitality = row.slot;
     }
     if (allowed.length === 0 || vitality < 0 || typeof detail.step !== "string") {
       throw new Error("recorded attack lacks bounded intervention coordinates");
     }
     interventionChoiceCount = allowed.length;
-    interventionVitalitySlot = vitality;
     intervention = interveneSession(
       clauseRuntime,
       liveSession,
-      finiteScalarInterventionQuery(detail.step, allowed, 32, { slot: vitality, greaterThan: 0 }),
+      finiteScalarInterventionQuery(detail.step, allowed, 32, { slot: vitality, subject: target, greaterThan: 0 }),
     );
     boundedIntervention = interveneSession(
       clauseRuntime,
       liveSession,
-      finiteScalarInterventionQuery(detail.step, allowed, 1, { slot: vitality, greaterThan: 0 }),
+      finiteScalarInterventionQuery(detail.step, allowed, 1, { slot: vitality, subject: target, greaterThan: 0 }),
     );
+    const answer = object(intervention, "intervention answer");
+    if (answer.predicted !== undefined) {
+      const pages = object(answer.predicted, "intervention prediction");
+      const page = object(pages[String(Math.floor(vitality / 64))], "prediction page");
+      interventionTargetValue = projectedRelationRowValue(page[String(vitality % 64)] as ProjectedValue, target) ?? null;
+    }
   }
   workerScope.postMessage({
     kind: "diagnostic",
@@ -560,10 +569,11 @@ function diagnose(command: Extract<ResidentCommand, { kind: "diagnose" }>): void
     workbenchGeneration: activeWorkbenchGeneration,
     entry: command.entry,
     explanation,
+    explanationRows,
     intervention,
     boundedIntervention,
     interventionChoiceCount,
-    interventionVitalitySlot,
+    interventionTargetValue,
   });
 }
 

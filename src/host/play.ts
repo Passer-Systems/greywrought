@@ -87,6 +87,13 @@ interface EncounterView {
   readonly targetId: string;
 }
 
+interface CreatedBurnView {
+  readonly occurrence: string;
+  readonly targetId: string;
+  readonly remaining: number;
+  readonly damage: number;
+}
+
 interface ResidentState {
   readonly worker: Worker;
   generation: number;
@@ -114,6 +121,7 @@ interface GameState {
   readonly listeners: Array<() => void>;
   units: readonly ResidentUnitView[];
   actors: readonly ResidentActorView[];
+  createdBurns: readonly CreatedBurnView[];
   encounter: EncounterView;
   drag: Readonly<{ pointerId: number; x: number; y: number; moved: boolean }> | null;
   disposed: boolean;
@@ -149,16 +157,6 @@ function record(value: unknown, context: string): Readonly<Record<string, unknow
   return value as Readonly<Record<string, unknown>>;
 }
 
-function pagedDiagnosticValue(
-  value: unknown,
-  coordinate: number,
-  context: string,
-): unknown {
-  const pages = record(value, context);
-  const page = record(pages[String(Math.floor(coordinate / 64))], `${context} page`);
-  return page[String(coordinate % 64)];
-}
-
 function field(value: unknown, name: string, context: string): unknown {
   const result = record(value, context)[name];
   if (result === undefined) throw new Error(`${context}.${name} is absent`);
@@ -177,6 +175,13 @@ function number(value: unknown, name: string, context: string): number {
     throw new Error(`${context}.${name} is not a finite number`);
   }
   return result;
+}
+
+function finiteNumber(value: unknown, context: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${context} is not a finite number`);
+  }
+  return value;
 }
 
 function boolean(value: unknown, name: string, context: string): boolean {
@@ -203,6 +208,14 @@ interface ProjectionIndex {
   readonly idsByReferent: ReadonlyMap<string, string>;
 }
 
+function projectedSubjects(game: Readonly<Record<string, unknown>>): readonly (readonly [string, Readonly<Record<string, unknown>>])[] {
+  return Object.entries(game).flatMap(([id, candidate]) => {
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
+    const subject = record(candidate, id);
+    return "$referent" in subject || "$referents" in subject ? [[id, subject] as const] : [];
+  });
+}
+
 function projectionIndex(projection: unknown): ProjectionIndex {
   const game = record(projection, "game projection");
   const inputDomains = record(field(game, "$referent-inputs", "game projection"), "$referent-inputs");
@@ -214,9 +227,7 @@ function projectionIndex(projection: unknown): ProjectionIndex {
   }));
   const subjectsByReferent = new Map<string, Readonly<Record<string, unknown>>>();
   const idsByReferent = new Map<string, string>();
-  for (const [id, candidate] of Object.entries(game)) {
-    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) continue;
-    const subject = record(candidate, id);
+  for (const [id, subject] of projectedSubjects(game)) {
     const references = [
       ...(subject.$referent === undefined ? [] : [subject.$referent]),
       ...(subject.$referents === undefined ? [] : Object.values(record(subject.$referents, `${id}.$referents`))),
@@ -258,9 +269,7 @@ function decodeUnits(
   capturedExternalGeneration: number,
   capturedWorkbenchGeneration: number,
 ): readonly ResidentUnitView[] {
-  return Object.entries(index.game).flatMap(([id, candidate]) => {
-    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
-    const unit = record(candidate, id);
+  return projectedSubjects(index.game).flatMap(([id, unit]) => {
     if (!("selected" in unit) || !("actor-position" in unit) || !("unit-class" in unit)) return [];
     const position = field(unit, "actor-position", id);
     const classProjection = subjectFor(index, field(unit, "unit-class", id), `${id}.unit-class`);
@@ -295,9 +304,7 @@ function decodeEncounterActors(
   capturedExternalGeneration: number,
   capturedWorkbenchGeneration: number,
 ): readonly ResidentActorView[] {
-  return Object.entries(index.game).flatMap(([id, candidate]) => {
-    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) return [];
-    const actor = record(candidate, id);
+  return projectedSubjects(index.game).flatMap(([id, actor]) => {
     if (!("actor-position" in actor) || !("vitality" in actor)) return [];
     const kindValue = text(actor, "presentation-kind", id);
     if (!["Warrior", "Artificer", "Rogue", "Priest", "Ranger", "Cinder", "Moonwell"].includes(kindValue)) return [];
@@ -334,6 +341,47 @@ function decodeEncounter(index: ProjectionIndex): EncounterView {
     phase: text(state, "state-name", "encounter state"),
     targetId: idFor(index, field(controller, "chosen-target", "player-1"), "player-1.chosen-target"),
   };
+}
+
+function relationRows(index: ProjectionIndex, name: string): readonly Readonly<{
+  subject: unknown;
+  values: readonly unknown[];
+}>[] {
+  const relations = record(field(index.game, "relations", "game projection"), "projected relations");
+  const table = record(field(relations, name, "projected relations"), `relation ${name}`);
+  if (table.kind !== "relation-table" || !Array.isArray(table.rows)) {
+    throw new Error(`relation ${name} is not a projected relation table`);
+  }
+  return table.rows.map((candidate, row) => {
+    const value = record(candidate, `${name} row ${row}`);
+    if (!Array.isArray(value.values)) throw new Error(`${name} row ${row}.values is not ordered`);
+    return { subject: field(value, "subject", `${name} row ${row}`), values: value.values };
+  });
+}
+
+function decodeCreatedBurns(index: ProjectionIndex): readonly CreatedBurnView[] {
+  const targets = new Map(relationRows(index, "burn-target").map((row) => [
+    referentKey(row.subject, "burn-target subject"),
+    row.values,
+  ]));
+  const damages = new Map(relationRows(index, "effect-damage").map((row) => [
+    referentKey(row.subject, "effect-damage subject"),
+    row.values,
+  ]));
+  return relationRows(index, "effect-remaining").map((row) => {
+    const occurrence = referentKey(row.subject, "effect-remaining subject");
+    const target = targets.get(occurrence);
+    const damage = damages.get(occurrence);
+    if (row.values.length !== 1 || target?.length !== 1 || damage?.length !== 1) {
+      throw new Error("created burn projection has incomplete exact rows");
+    }
+    return {
+      occurrence,
+      targetId: idFor(index, target[0], "created burn target"),
+      remaining: finiteNumber(row.values[0], "created burn remaining"),
+      damage: finiteNumber(damage[0], "created burn damage"),
+    };
+  });
 }
 
 function sendInput(state: GameState, input: ResidentInput): void {
@@ -399,10 +447,13 @@ function chooseTarget(state: GameState, id: string): void {
   window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "target-requested", target: id });
 }
 
-function issueAction(state: GameState, code: "BeginEncounter" | "Attack" | "Heal" | "Ward"): void {
+function issueAction(state: GameState, code: "BeginEncounter" | "Attack" | "Ignite" | "Heal" | "Ward"): void {
   const frame = capturedFrame(state);
   if (frame === null) return;
   press(state, code, frame);
+  if (code === "Ignite") {
+    element("command-status").textContent = "Eligible selected units kindle the exact hostile target";
+  }
   window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "action-requested", action: code });
 }
 
@@ -418,6 +469,12 @@ function issueMove(state: GameState, point: Vector3): void {
 
 function renderHud(state: GameState): void {
   const selected = state.units.filter((unit) => unit.selected);
+  const createdBurnLabel = (id: string): string => {
+    const burns = state.createdBurns.filter((burn) => burn.targetId === id && burn.remaining > 0);
+    if (burns.length === 0) return "";
+    const longest = Math.max(...burns.map((burn) => burn.remaining));
+    return ` · ${burns.length} ignition${burns.length === 1 ? "" : "s"} (${longest.toFixed(1)}s)`;
+  };
   document.body.dataset.selectedCount = String(selected.length);
   document.body.dataset.unitClasses = state.units.map((unit) => unit.unitClass).join(",");
   const roster = element("roster");
@@ -450,7 +507,7 @@ function renderHud(state: GameState): void {
     const name = card.querySelector("strong")!;
     name.textContent = unit.name;
     const className = card.querySelector("small")!;
-    className.textContent = `${unit.unitClass} · ${Math.max(0, unit.vitality).toFixed(0)}/${unit.maximumVitality.toFixed(0)}${unit.wardRemaining > 0 ? " · Ward" : ""}${unit.burnRemaining > 0 ? " · Burn" : ""}${unit.alive ? "" : " · Fallen"}`;
+    className.textContent = `${unit.unitClass} · ${Math.max(0, unit.vitality).toFixed(0)}/${unit.maximumVitality.toFixed(0)}${unit.wardRemaining > 0 ? " · Ward" : ""}${unit.burnRemaining > 0 ? " · Burn" : ""}${createdBurnLabel(unit.id)}${unit.alive ? "" : " · Fallen"}`;
   }
   const selectionCount = element("selection-count");
   const primary = selected[0];
@@ -495,11 +552,11 @@ function renderHud(state: GameState): void {
     card.classList.toggle("targeted", actor.targeted);
     card.classList.toggle("dead", !actor.alive);
     card.querySelector("strong")!.textContent = actor.name;
-    card.querySelector("span")!.textContent = `${Math.max(0, actor.vitality).toFixed(0)} / ${actor.maximumVitality.toFixed(0)}${actor.wardRemaining > 0 ? " · Ward" : ""}${actor.burnRemaining > 0 ? " · Burn" : ""}`;
+    card.querySelector("span")!.textContent = `${Math.max(0, actor.vitality).toFixed(0)} / ${actor.maximumVitality.toFixed(0)}${actor.wardRemaining > 0 ? " · Ward" : ""}${actor.burnRemaining > 0 ? " · Burn" : ""}${createdBurnLabel(actor.id)}`;
   }
   const active = state.encounter.phase === "Battle joined";
   element("begin-encounter").toggleAttribute("disabled", state.encounter.phase !== "Ready");
-  for (const id of ["command-attack", "command-heal", "command-ward"]) {
+  for (const id of ["command-attack", "command-ignite", "command-heal", "command-ward"]) {
     element(id).toggleAttribute("disabled", !active || selected.length === 0);
   }
 }
@@ -515,6 +572,7 @@ function applyProjection(
   state.encounter = decodeEncounter(index);
   state.units = decodeUnits(index, generation, workbenchGeneration);
   state.actors = decodeEncounterActors(index, state.encounter.targetId, generation, workbenchGeneration);
+  state.createdBurns = decodeCreatedBurns(index);
   state.presentation.applyUnits(state.units);
   state.presentation.applyEncounterActors(
     state.actors.filter((actor) => actor.kind === "Cinder" || actor.kind === "Moonwell"),
@@ -540,6 +598,7 @@ function applyProjection(
     vitality: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.vitality])),
     wards: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.wardRemaining])),
     burns: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.burnRemaining])),
+    createdBurns: state.createdBurns,
     cooldowns: Object.fromEntries(state.units.map((unit) => [unit.id, number(record(index.game[unit.id], unit.id), "action-cooldown", unit.id)])),
   });
   if (state.resident.pendingVisibleEdit !== null) {
@@ -658,13 +717,16 @@ function bindResident(state: GameState): void {
         const rules = Object.values(record(explanation.rules, "explanation rules"))
           .map((rule, index) => record(rule, `explanation rule ${index}`));
         const selected = rules.filter((rule) => rule.selected === true);
-        const changedStates = Object.values(record(explanation.states, "explanation states"))
+        if (!Array.isArray(payload.explanationRows)) throw new Error("diagnostic omitted relation rows");
+        const changedStates = payload.explanationRows
           .map((value, index) => record(value, `explained state ${index}`))
           .filter((value) => JSON.stringify(value.before) !== JSON.stringify(value.after))
           .slice(0, 8)
           .map((value) => {
             const source = record(value.source, "state source");
-            return `${String(source.subject)} ${String(source.relation)}: ${String(value.before)} → ${String(value.after)}`;
+            const actor = [...state.actors, ...state.units].find(actor =>
+              referentKey(actor.targetReferent, "actor reference") === referentKey(value.subject, "explained subject"));
+            return `${actor?.name ?? referentKey(value.subject, "explained subject")} ${String(source.relation)}: ${String(value.before ?? "absent")} → ${String(value.after ?? "absent")}`;
           });
         const origins = selected.slice(0, 8).map((rule) => {
           const source = record(rule.source, "selected rule source");
@@ -695,13 +757,7 @@ function bindResident(state: GameState): void {
           const answer = record(payload.intervention, "intervention answer");
           const bounded = record(payload.boundedIntervention, "bounded intervention answer");
           const solution = answer.solution === undefined ? {} : record(answer.solution, "intervention solution");
-          const predictedVitality = answer.predicted === undefined
-            ? undefined
-            : pagedDiagnosticValue(
-                answer.predicted,
-                Number(payload.interventionVitalitySlot),
-                "intervention prediction",
-              );
+          const predictedVitality = payload.interventionTargetValue;
           element("intervention-status").textContent = [
             `Finite domain: ${String(payload.interventionChoiceCount)} Boolean deselections; bound 32`,
             `Order: ${String(answer["cost-order"])}; evaluations ${String(answer.evaluations)}`,
@@ -1023,7 +1079,8 @@ function requestDiagnostic(
     capturedExternalGeneration: state.resident.generation,
     capturedWorkbenchGeneration: state.resident.workbenchGeneration,
     entry,
-    interventionTarget,
+    interventionTarget: interventionTarget === undefined ? undefined :
+      [...state.actors, ...state.units].find(actor => actor.id === interventionTarget)?.targetReferent,
   });
 }
 
@@ -1050,6 +1107,7 @@ function bindHud(state: GameState): void {
   };
   const begin = (): void => issueAction(state, "BeginEncounter");
   const attack = (): void => issueAction(state, "Attack");
+  const ignite = (): void => issueAction(state, "Ignite");
   const heal = (): void => issueAction(state, "Heal");
   const ward = (): void => issueAction(state, "Ward");
   const chooseEffect = (): void => {
@@ -1066,6 +1124,7 @@ function bindHud(state: GameState): void {
   element("encounter-targets").addEventListener("click", target);
   element("begin-encounter").addEventListener("click", begin);
   element("command-attack").addEventListener("click", attack);
+  element("command-ignite").addEventListener("click", ignite);
   element("command-heal").addEventListener("click", heal);
   element("command-ward").addEventListener("click", ward);
   element("edit-double-damage").addEventListener("click", changedEdit);
@@ -1081,6 +1140,7 @@ function bindHud(state: GameState): void {
     () => element("encounter-targets").removeEventListener("click", target),
     () => element("begin-encounter").removeEventListener("click", begin),
     () => element("command-attack").removeEventListener("click", attack),
+    () => element("command-ignite").removeEventListener("click", ignite),
     () => element("command-heal").removeEventListener("click", heal),
     () => element("command-ward").removeEventListener("click", ward),
     () => element("edit-double-damage").removeEventListener("click", changedEdit),
@@ -1135,6 +1195,7 @@ function start(): GameState {
     listeners: [],
     units: [],
     actors: [],
+    createdBurns: [],
     encounter: { phase: "Ready", targetId: "" },
     drag: null,
     disposed: false,
