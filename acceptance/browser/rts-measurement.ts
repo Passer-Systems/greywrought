@@ -125,7 +125,9 @@ try {
     const transport = events.filter((event) => event.metric === "worker-to-main").map((event) => event.durationMillis);
     const candidates = lifecycleDurations(events, "candidate-requested", "candidate-produced");
     const admissions = lifecycleDurations(events, "admission-requested", "admission-accepted");
-    const steps = events.filter((event) => event.metric === "lifecycle" && event.event === "candidate-requested").length;
+    const receivedCandidateRequests = events.filter(
+      (event) => event.metric === "lifecycle" && event.event === "candidate-requested",
+    ).length;
     rawWindows.push({ label, durationMillis, events, summary: {
       rafIntervalsMillis: distribution(raf),
       observedFps: raf.length / (durationMillis / 1_000),
@@ -133,8 +135,8 @@ try {
       workerToMainMillis: distribution(transport),
       candidateRuntimeMillis: distribution(candidates),
       admissionMillis: distribution(admissions),
-      simulatedSteps: steps,
-      simulatedStepsPerWallSecond: steps / (durationMillis / 1_000),
+      receivedCandidateRequests,
+      receivedCandidateRequestsPerWallSecond: receivedCandidateRequests / (durationMillis / 1_000),
     }});
   };
 
@@ -192,14 +194,14 @@ try {
   const readLimit = async (name: string) => (await Bun.file(`${cgroupRoot}/${name}`).exists())
     ? (await Bun.file(`${cgroupRoot}/${name}`).text()).trim() : "unavailable";
   const artifact = {
-    schema: "greywrought-m5-baseline-v1",
+    schema: "greywrought-m5-baseline-v2",
     recordedAt: new Date().toISOString(),
     conditions: { browser, fixedTickMillis: 16, renderAspirationMillis: 16.67, warmupMillis: 2_000, windowMillis,
       rendererFlags: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"], clausePin: "c8a7a48fa79b2b54734a926f161bd39f3b463630" },
     cgroup: { path: cgroupPath, cpuMax: await readLimit("cpu.max"), memoryHigh: await readLimit("memory.high"), memoryMax: await readLimit("memory.max"), pidsMax: await readLimit("pids.max") },
     windows: rawWindows,
     edits,
-    replaySlice: { inputs: ["Select Company", "right-click ground", "Begin defence", "Moonwell target", "Priest", "Ward"],
+    replayActionRecipe: { inputs: ["Select Company", "right-click ground", "Begin defence", "Moonwell target", "Priest", "Ward"],
       editExpressions: ["0.0 - (?damage * 2.0)", "0.0 - ?damage", "0.0 - (?damage * 2.0)"] },
   };
   await Bun.write(output, `${JSON.stringify(artifact, null, 2)}\n`);
