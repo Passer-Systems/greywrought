@@ -3,6 +3,40 @@
 This checkpoint speeds up warm host validation and checked source transfer.
 It does not close steady frame pacing or simulation-time versus wall-time work.
 
+## Hardware browser timing
+
+The later hardware-GPU run establishes a materially different baseline from
+forced software rendering. On the same six-CPU scope and compiler pin, Chrome
+used the AMD Radeon 890M through ANGLE/radeonsi. The ready/movement/active windows
+rendered 59.01/59.24/59.08 FPS. Contiguous admitted fixed ticks advanced
+1.0012/0.9895/0.9944 source seconds per worker wall second. This calculation
+uses the worker's timestamps, not the number of delayed messages received
+during a main-thread observation window.
+
+Three checked edits took 730.30/608.80/527.10ms. These are a different renderer
+condition, not an additional measured product optimization. Raw observations:
+greywrought:build/measurement/m5-hardware-before.json.
+
+The real Ignite journey also passed on that hardware renderer: nominal
+1.5/3s effects expired after 1547/3050ms wall time, with distinct occurrences,
+independent expiry and the same 100→68.5 target-health result. No simulation
+timestep or rule was changed. The severe earlier slowdown is reproduced under
+the forced software-rendering test conditions, not established on this hardware
+path. Performance under heavier effects or prolonged load remains unmeasured.
+
+From the game checkout in the existing Bun environment, inside an admitted
+browser capacity scope:
+
+```sh
+GREYWROUGHT_MEASUREMENT_RENDERER=hardware GREYWROUGHT_MEASUREMENT_OUTPUT=build/measurement/m5-hardware-before.json bun run measure:rts
+GREYWROUGHT_BROWSER_RENDERER=hardware bun run test:rts-created-burn
+```
+
+Both reject software fallback in hardware mode. The burn journey additionally
+checks wall-clock expiry bounds; its default software mode retains the original
+correctness checks without claiming a hardware timing budget. Preserve distinct
+output filenames when taking another measurement.
+
 ## Development commands
 
 `bun run typecheck:host` checks against existing staged declarations without

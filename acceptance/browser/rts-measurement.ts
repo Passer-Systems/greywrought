@@ -7,6 +7,13 @@ const gameUrl = `http://127.0.0.1:${gamePort}/?measure=1`;
 const fixture = "build/measurement/m5-baseline-source.clause";
 const output = Bun.env.GREYWROUGHT_MEASUREMENT_OUTPUT ?? "build/measurement/m5-baseline.json";
 const windowMillis = 2_500;
+const rendererMode = Bun.env.GREYWROUGHT_MEASUREMENT_RENDERER ?? "swiftshader";
+if (rendererMode !== "swiftshader" && rendererMode !== "hardware") {
+  throw new Error("GREYWROUGHT_MEASUREMENT_RENDERER must be swiftshader or hardware");
+}
+const rendererFlags = rendererMode === "hardware"
+  ? ["--enable-gpu"]
+  : ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"];
 
 function requireCondition(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -42,7 +49,7 @@ const chrome = Bun.spawn({
   cmd: [
     chromePath, "--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
     `--remote-debugging-port=${debugPort}`, `--user-data-dir=/tmp/greywrought-cdp-measure-${process.pid}`,
-    "--window-size=1280,900", "--enable-unsafe-swiftshader", "--use-angle=swiftshader", "about:blank",
+    "--window-size=1280,900", ...rendererFlags, "about:blank",
   ],
   stdout: "ignore",
   stderr: "ignore",
@@ -112,6 +119,11 @@ try {
       renderer:ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unavailable',
       viewport:[innerWidth,innerHeight], dpr:devicePixelRatio };
   })()`);
+  if (rendererMode === "hardware") {
+    requireCondition(typeof browser.renderer === "string" &&
+      !/unavailable|swiftshader|llvmpipe|software/i.test(browser.renderer),
+      "hardware measurement has no hardware renderer: " + JSON.stringify(browser));
+  }
   const rawWindows: Array<Record<string, unknown>> = [];
   const observe = async (label: string): Promise<void> => {
     // The browser uses a bounded ring for long-lived opt-in sessions. Reset at
@@ -126,19 +138,35 @@ try {
     const projection = events.filter((event) => event.metric === "projection-to-hud").map((event) => event.durationMillis);
     const transport = events.filter((event) => event.metric === "worker-to-main").map((event) => event.durationMillis);
     const candidates = lifecycleDurations(events, "candidate-requested", "candidate-produced");
-    const admissions = lifecycleDurations(events, "admission-requested", "admission-accepted");
+    const admissionDurations = lifecycleDurations(events, "admission-requested", "admission-accepted");
     const receivedCandidateRequests = events.filter(
       (event) => event.metric === "lifecycle" && event.event === "candidate-requested",
     ).length;
+    const admissions = events.filter(
+      (event) => event.metric === "lifecycle" && event.event === "admission-accepted",
+    );
+    const firstAdmission = admissions[0];
+    const lastAdmission = admissions.at(-1);
+    const contiguous = firstAdmission !== undefined && admissions.length > 1 && admissions.every((event, index) =>
+      event.activeGeneration === firstAdmission.activeGeneration &&
+      event.operationId === firstAdmission.operationId + index);
+    const admittedClock = contiguous && firstAdmission !== undefined && lastAdmission !== undefined ? {
+      intervals: admissions.length - 1,
+      fixedTickAdvanceMillis: (admissions.length - 1) * 16,
+      workerWallMillis: lastAdmission.workerEpochMillis - firstAdmission.workerEpochMillis,
+      sourceSecondsPerWallSecond: (admissions.length - 1) * 16 /
+        (lastAdmission.workerEpochMillis - firstAdmission.workerEpochMillis),
+    } : null;
     rawWindows.push({ label, durationMillis, events, summary: {
       rafIntervalsMillis: distribution(raf),
       observedFps: raf.length / (durationMillis / 1_000),
       projectionToHudMillis: distribution(projection),
       workerToMainMillis: distribution(transport),
       candidateRuntimeMillis: distribution(candidates),
-      admissionMillis: distribution(admissions),
+      admissionMillis: distribution(admissionDurations),
       receivedCandidateRequests,
       receivedCandidateRequestsPerWallSecond: receivedCandidateRequests / (durationMillis / 1_000),
+      admittedClock,
     }});
   };
 
@@ -199,7 +227,7 @@ try {
     schema: "greywrought-m5-baseline-v2",
     recordedAt: new Date().toISOString(),
     conditions: { browser, fixedTickMillis: 16, renderAspirationMillis: 16.67, warmupMillis: 2_000, windowMillis,
-      rendererFlags: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"], clausePin: CLAUSE_COMMIT },
+      rendererMode, rendererFlags, clausePin: CLAUSE_COMMIT },
     cgroup: { path: cgroupPath, cpuMax: await readLimit("cpu.max"), memoryHigh: await readLimit("memory.high"), memoryMax: await readLimit("memory.max"), pidsMax: await readLimit("pids.max") },
     windows: rawWindows,
     edits,

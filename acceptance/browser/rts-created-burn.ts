@@ -3,6 +3,13 @@ const debugPort = 9254;
 const gamePort = 4188;
 const gameUrl = "http://127.0.0.1:" + gamePort + "/";
 const sourceFixture = "build/acceptance/m5-created-burn.clause";
+const rendererMode = Bun.env.GREYWROUGHT_BROWSER_RENDERER ?? "swiftshader";
+if (rendererMode !== "swiftshader" && rendererMode !== "hardware") {
+  throw new Error("GREYWROUGHT_BROWSER_RENDERER must be swiftshader or hardware");
+}
+const rendererFlags = rendererMode === "hardware"
+  ? ["--enable-gpu"]
+  : ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"];
 
 function requireCondition(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -24,8 +31,7 @@ const chrome = Bun.spawn({
     "--remote-debugging-port=" + debugPort,
     "--user-data-dir=/tmp/greywrought-cdp-created-burn-" + process.pid,
     "--window-size=1280,900",
-    "--enable-unsafe-swiftshader",
-    "--use-angle=swiftshader",
+    ...rendererFlags,
     "about:blank",
   ],
   stdout: "ignore",
@@ -105,6 +111,16 @@ try {
     (value) => value.phase === "ready" || value.phase === "failed",
     "created-burn world lifecycle",
   ).then((value) => requireCondition(value.phase === "ready", "created-burn world failed: " + value.failure));
+  const renderer = await evaluate<string>(`(() => {
+    const gl=document.createElement('canvas').getContext('webgl');
+    const ext=gl?.getExtension('WEBGL_debug_renderer_info');
+    return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unavailable';
+  })()`);
+  if (rendererMode === "hardware") {
+    requireCondition(!/unavailable|swiftshader|llvmpipe|software/i.test(renderer),
+      "hardware burn journey has no hardware renderer: " + renderer);
+  }
+  console.log("Created-burn renderer: " + renderer);
   await click("begin-encounter");
   await waitFor<string>("document.body.dataset.encounterPhase || ''", (value) => value === "Battle joined", "created-burn encounter");
   await click("select-all");
@@ -188,6 +204,11 @@ try {
     900,
   );
   const fullExpiryWallMillis = performance.now() - igniteStarted;
+  if (rendererMode === "hardware") {
+    requireCondition(shortExpiryWallMillis >= 1_450 && shortExpiryWallMillis <= 1_900 &&
+      fullExpiryWallMillis >= 2_950 && fullExpiryWallMillis <= 3_500,
+      "created-burn clock diverged from real time: " + shortExpiryWallMillis + "/" + fullExpiryWallMillis);
+  }
   requireCondition(afterAll.vitality["cinder-2"] < priorHealth - 30,
     "created burns did not apply source-owned timed damage: " + priorHealth + " -> " + afterAll.vitality["cinder-2"]);
   requireCondition(
