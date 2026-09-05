@@ -189,11 +189,7 @@ bind scalar-input PointerWorldX to observe-order-x
 bind scalar-input PointerWorldZ to observe-order-z
 bind keyboard ClearSelection down to clear-selection
 bind keyboard SelectAll down to select-all
-bind keyboard SelectWarrior down to select-warrior
-bind keyboard SelectArtificer down to select-artificer
-bind keyboard SelectRogue down to select-rogue
-bind keyboard SelectPriest down to select-priest
-bind keyboard SelectRanger down to select-ranger
+bind referent-input Pick as Unit to select-unit
 bind keyboard IssueMove down to issue-move
 
 on observe-order-x ?controller ?x
@@ -228,46 +224,10 @@ on select-all ?unit
   include
     ?unit selected true
 
-on select-warrior ?unit
+on select-unit ?unit ?target
   when
-    ?unit unit class warrior-class
     ?unit selected ?was-selected
-  withdraw
-    ?unit selected ?was-selected
-  include
-    ?unit selected true
-
-on select-artificer ?unit
-  when
-    ?unit unit class artificer-class
-    ?unit selected ?was-selected
-  withdraw
-    ?unit selected ?was-selected
-  include
-    ?unit selected true
-
-on select-rogue ?unit
-  when
-    ?unit unit class rogue-class
-    ?unit selected ?was-selected
-  withdraw
-    ?unit selected ?was-selected
-  include
-    ?unit selected true
-
-on select-priest ?unit
-  when
-    ?unit unit class priest-class
-    ?unit selected ?was-selected
-  withdraw
-    ?unit selected ?was-selected
-  include
-    ?unit selected true
-
-on select-ranger ?unit
-  when
-    ?unit unit class ranger-class
-    ?unit selected ?was-selected
+    ?unit = ?target
   withdraw
     ?unit selected ?was-selected
   include

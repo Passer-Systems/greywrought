@@ -40,11 +40,22 @@ type ResidentInput =
       code: string;
       phase: "down" | "up";
       repeat: boolean;
+      capturedExternalGeneration: number;
+      capturedWorkbenchGeneration: number;
     }>
   | Readonly<{
       kind: "scalar-input";
       channel: string;
       value: number;
+      capturedExternalGeneration: number;
+      capturedWorkbenchGeneration: number;
+    }>
+  | Readonly<{
+      kind: "referent-input";
+      channel: string;
+      capturedExternalGeneration: number;
+      capturedWorkbenchGeneration: number;
+      value: ProjectedValue;
     }>;
 
 type ResidentCommand =
@@ -56,6 +67,7 @@ type ResidentEvent =
   | Readonly<{
       kind: "projection";
       generation: number;
+      workbenchGeneration: number;
       projection: ProjectedValue;
       frameUnits: number;
     }>
@@ -118,6 +130,7 @@ const modulePromise = fetch(
 
 let controller: CartridgeWorkbench | null = null;
 let activeExternalGeneration = -1;
+let activeWorkbenchGeneration = -1;
 let pendingExternalGeneration: number | null = null;
 let flushingInput = false;
 let simulationStarted = false;
@@ -136,20 +149,27 @@ let inputBackpressureCount = 0;
 // elapsed.
 const edgeTriggeredKeyboardCodes = new Set([
   "ClearSelection",
-  "SelectWarrior",
-  "SelectArtificer",
-  "SelectRogue",
-  "SelectPriest",
-  "SelectRanger",
   "IssueMove",
 ]);
 const rtsKeyboardCodes = new Set(edgeTriggeredKeyboardCodes);
 
-function envelope(input: ResidentInput): WorkbenchEnvelope {
-  const observation =
-    input.kind === "keyboard"
-      ? { kind: input.kind, code: input.code, phase: input.phase, repeat: input.repeat }
-      : { kind: input.kind, channel: input.channel, value: input.value };
+function envelope(input: ResidentInput): WorkbenchEnvelope | null {
+  if (
+    (input.capturedExternalGeneration !== activeExternalGeneration ||
+      input.capturedWorkbenchGeneration !== activeWorkbenchGeneration)
+  ) {
+    return null;
+  }
+  const observation = input.kind === "keyboard"
+    ? { kind: input.kind, code: input.code, phase: input.phase, repeat: input.repeat }
+    : input.kind === "scalar-input"
+      ? { kind: input.kind, channel: input.channel, value: input.value }
+      : {
+          kind: input.kind,
+          channel: input.channel,
+          generation: input.capturedWorkbenchGeneration,
+          value: input.value,
+        };
   return createWorkbenchEnvelope(policy, JSON.stringify([JSON.stringify(observation)]));
 }
 
@@ -163,7 +183,9 @@ function flushInput(): void {
       // item before crossing that boundary so a receipt cannot recursively
       // submit the same physical input and then shift unrelated inputs while
       // the stack unwinds.
-      if (!controller.observeInput(envelope(input))) {
+      const captured = envelope(input);
+      if (captured === null) continue;
+      if (!controller.observeInput(captured)) {
         inputBackpressureCount += 1;
         inputQueue.unshift(input);
         return;
@@ -178,6 +200,7 @@ function flushInput(): void {
 function handleReceipt(receipt: LifecycleReceipt): void {
   if (receipt.event === "session-started" && pendingExternalGeneration !== null) {
     activeExternalGeneration = pendingExternalGeneration;
+    activeWorkbenchGeneration = receipt.activeGeneration;
     pendingExternalGeneration = null;
   }
   const externalGeneration =
@@ -247,13 +270,31 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
       },
       (frame) => {
         if (frame.length === 0) return;
-        const exact = exactFrame(frame);
-        workerScope.postMessage({
-          kind: "projection",
-          generation: activeExternalGeneration,
-          projection: decodeProjectedTermFrame(exact),
-          frameUnits: exact.length,
-        });
+        try {
+          const exact = exactFrame(frame);
+          // The first admitted frame may publish synchronously while the
+          // workbench constructor is still returning. Its session-started
+          // receipt carries the same active generation; later frames read the
+          // canonical snapshot directly.
+          const workbenchGeneration = controller?.snapshot().generation ?? activeWorkbenchGeneration;
+          if (workbenchGeneration < 0) {
+            throw new Error("resident projection omitted its workbench generation");
+          }
+          activeWorkbenchGeneration = workbenchGeneration;
+          workerScope.postMessage({
+            kind: "projection",
+            generation: activeExternalGeneration,
+            workbenchGeneration,
+            projection: decodeProjectedTermFrame(exact),
+            frameUnits: exact.length,
+          });
+        } catch (cause: unknown) {
+          workerScope.postMessage({
+            kind: "failure",
+            message: cause instanceof Error ? cause.message : String(cause),
+          });
+          throw cause;
+        }
       },
       handleReceipt,
       request,
@@ -292,6 +333,11 @@ function queueInput(input: ResidentInput): void {
     input.channel !== "PointerWorldX" &&
     input.channel !== "PointerWorldZ"
   ) return;
+  if (
+    input.capturedExternalGeneration !== activeExternalGeneration ||
+    input.capturedWorkbenchGeneration !== activeWorkbenchGeneration
+  ) return;
+  if (input.kind === "referent-input" && input.channel !== "Pick") return;
   if (input.kind === "keyboard") simulationStarted = true;
   if (
     input.kind === "keyboard" &&

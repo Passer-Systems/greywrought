@@ -2,7 +2,7 @@
 
 Greywrought is a Clause-authored Warcraft III-style tactical command game. Clause owns the world model, unit selection, orders, formation destinations, and movement; the TypeScript/Three.js shell only transports input and renders admitted projections.
 
-The company contains exactly five controllable classes: Warrior, Artificer, Rogue, Priest, and Ranger. Click a unit or drag a selection rectangle to select units (F1 selects the company). Right-click the ground to issue a formation move. Selected units display green rings. The camera is independent of unit facing: pan with WASD/arrow keys and zoom with the wheel.
+The source-authored company contains exactly five controllable classes: Warrior, Artificer, Rogue, Priest, and Ranger. The roster is projected from Clause unit occurrences, and click/drag selection transports each occurrence's typed identity rather than dispatching by class or display name. Right-click the ground to issue a formation move. Selected units display green rings. The camera is independent of unit facing: pan with WASD/arrow keys and zoom with the wheel.
 
 The selected-unit panel includes a WoW-style paper doll with head, shoulders, neck, cloak, chest, shirt, tabard, bracers, gloves, belt, legs, pants, shoes, two rings, two trinkets, weapon, offhand, and ranged/relic slots.
 
@@ -22,4 +22,4 @@ browser runtime from the pinned submodule instead of consuming its historical
 prebuilt Wasm. Generated Wasm and JavaScript artifacts belong under ignored
 `build/` and `dist/` directories.
 
-Focused browser acceptance: `bun acceptance/browser/rts-journey.ts` proves the five-class roster, box selection, Clause-backed formation movement, and equipment panel.
+Focused browser acceptance: `bun acceptance/browser/rts-journey.ts` proves the five-class roster, exact occurrence and box selection, Clause-backed formation movement, and equipment panel. `bun acceptance/browser/rts-duplicate-source.ts` writes an ignored six-unit source fixture used by the same journey to prove two same-class occurrences remain independent without a new host branch or roster row.

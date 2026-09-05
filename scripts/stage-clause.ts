@@ -1,23 +1,15 @@
 import { copyFile, mkdir } from "node:fs/promises";
 import { basename, dirname } from "node:path";
 
-import { CLAUSE_ROOT } from "./clause-pin.js";
-
-const adapterRoot =
-  `${CLAUSE_ROOT}browser/jump-arena-shell/generated/jump-arena-shell`;
+const adapterRoot = "build/clause-adapter";
 const wasmRoot = "build/clause-wasm";
 
 const copies: readonly (readonly [string, string])[] = [
-  ...[
-    "workbench.js",
-    "workbench.d.ts",
-    "wasm-cartridge-port.js",
-    "wasm-cartridge-port.d.ts",
-    "branch-wasm-port.js",
-    "branch-wasm-port.d.ts",
-  ].map(
-    (name) =>
-      [`${adapterRoot}/${name}`, `build/host/jump-arena-shell/${name}`] as const,
+  ...["workbench", "wasm-cartridge-port", "branch-wasm-port"].flatMap(
+    (name) => [
+      [`${adapterRoot}/${name}.js`, `build/host/jump-arena-shell/${name}.js`] as const,
+      [`${adapterRoot}/${name}.d.ts`, `build/host/jump-arena-shell/${name}.d.ts`] as const,
+    ],
   ),
   ...[
     "clause_runtime.js",

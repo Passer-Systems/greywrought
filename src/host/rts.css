@@ -34,7 +34,7 @@ kbd { color: #d8c39d; font: 10px ui-monospace, monospace; }
 #selected-name { display: block; color: #f1d49d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #selected-class { display: block; color: var(--muted); font-size: 12px; }
 #equipment-toggle { margin-left: auto; white-space: nowrap; }
-#roster { display: grid; grid-template-columns: repeat(5, minmax(72px, 1fr)); gap: 5px; align-items: stretch; }
+#roster { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 5px; align-items: stretch; }
 .roster-card { display: flex; gap: 6px; align-items: center; min-width: 0; border: 1px solid #76552e; padding: 5px; background: #1b130d; text-align: left; cursor: pointer; }
 .roster-card b { display: grid; place-items: center; width: 27px; height: 31px; color: #fff4d0; background: #55402b; }
 .roster-card span { min-width: 0; }
