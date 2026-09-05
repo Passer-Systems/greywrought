@@ -226,6 +226,14 @@ relation state-name
   reads {state: EncounterState} state name {value: Text}
   subject state
   mode given state yields value: one
+relation state-ended
+  reads {state: EncounterState} state ended {value: Bool}
+  subject state
+  mode given state yields value: one
+relation state-message
+  reads {state: EncounterState} state message {value: Text}
+  subject state
+  mode given state yields value: one
 relation burn-damage
   reads {rules: CombatRules} burn damage {value: F64}
   subject rules
@@ -404,6 +412,14 @@ ready state name "Ready"
 active state name "Battle joined"
 victory state name "Moonwell restored"
 defeat state name "Moonwell lost"
+ready state ended false
+active state ended false
+victory state ended true
+defeat state ended true
+ready state message ""
+active state message ""
+victory state message "The wraiths are defeated. The Moonwell still stands."
+defeat state message "The Moonwell has fallen. Rally the company and try again."
 combat-rules burn damage 4.0
 
 warrior-class class name "Warrior"

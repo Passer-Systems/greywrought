@@ -15,6 +15,25 @@ body { overflow: hidden; background: #110d08; }
 #world-wrap { position: relative; width: 100%; height: 100%; overflow: hidden; isolation: isolate; background: #1d2918; }
 #world-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; outline: none; }
 #world-canvas:active { cursor: grabbing; }
+.battle-readouts { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.battle-readout { position: absolute; top: 0; left: 0; min-width: 84px; padding: 3px 5px; border-radius: 4px; background: #12170fc9; text-align: center; font: 11px Georgia, serif; text-shadow: 0 1px 2px #000; }
+.battle-readout strong { display: block; color: #f4e3bd; }
+.battle-tether { position: absolute; left: 50%; top: 100%; border-left: 1px solid #e4b76580; transform-origin: top; }
+.battle-health { font: 10px ui-monospace, monospace; }
+.battle-health-track { height: 4px; margin: 2px 0; background: #411b16; }
+.battle-health-fill { height: 100%; background: #8fcb70; }
+.battle-effects { display: block; max-width: 180px; color: #f5d088; font-size: 10px; }
+.battle-readout.warded { box-shadow: 0 0 9px #76dae5b0; }
+.battle-readout.burning { border-bottom: 2px solid #f59139; }
+.battle-readout.fallen { opacity: .65; }
+.battle-impact { position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%); font: bold 22px Georgia, serif; text-shadow: 0 2px 3px #000, 1px 0 2px #000; }
+.battle-impact.damage { color: #ff9a77; }
+.battle-impact.healing { color: #a8f596; }
+#outcome-panel { position: absolute; z-index: 5; top: 22%; left: 50%; transform: translateX(-50%); width: min(390px, 70vw); padding: 24px; text-align: center; border: 1px solid var(--gold); background: #21170ff5; box-shadow: 0 6px 40px #000b; }
+#outcome-panel[hidden] { display: none; }
+#outcome-panel h2 { color: var(--gold); margin: 8px 0; }
+#outcome-panel p { line-height: 1.4; }
+#outcome-retry { padding: 9px 16px; border: 1px solid var(--gold); background: #553616; cursor: pointer; }
 #world-wrap::after { content: 'THE ASHEN MARCHES'; position: absolute; right: 20px; bottom: 130px; color: #e4b76555; font: 700 10px ui-monospace, monospace; letter-spacing: .2em; pointer-events: none; }
 #war-table, #objective-panel, #command-deck, #equipment-panel { position: absolute; z-index: 4; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 4px 18px #000b, inset 0 0 22px #6c431b22; }
 #war-table { top: 14px; left: 16px; right: 16px; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; }

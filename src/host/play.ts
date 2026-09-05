@@ -90,6 +90,8 @@ interface ResidentActorView extends EncounterActorView {
 
 interface EncounterView {
   readonly phase: string;
+  readonly ended: boolean;
+  readonly message: string;
   readonly targetId: string;
 }
 
@@ -357,6 +359,8 @@ function decodeEncounter(index: ProjectionIndex): EncounterView {
   const state = subjectFor(index, field(encounter, "encounter-state", "encounter"), "encounter.encounter-state");
   return {
     phase: text(state, "state-name", "encounter state"),
+    ended: boolean(state, "state-ended", "encounter state"),
+    message: text(state, "state-message", "encounter state"),
     targetId: idFor(index, field(controller, "chosen-target", "player-1"), "player-1.chosen-target"),
   };
 }
@@ -550,6 +554,10 @@ function renderHud(state: GameState): void {
   element("command-move").toggleAttribute("disabled", selected.length === 0);
   element("command-stop").toggleAttribute("disabled", selected.length === 0);
   element("retry-encounter").toggleAttribute("disabled", state.units.length === 0 || state.resident.editing);
+  element("outcome-retry").toggleAttribute("disabled", state.units.length === 0 || state.resident.editing);
+  element("outcome-panel").hidden = !state.encounter.ended;
+  element("outcome-title").textContent = state.encounter.phase;
+  element("outcome-message").textContent = state.encounter.message;
 
   document.body.dataset.encounterPhase = state.encounter.phase;
   document.body.dataset.targetId = state.encounter.targetId;
@@ -630,6 +638,10 @@ function applyProjection(
     return [{ id, x: number(position, "x", id), z: number(position, "z", id),
       radius: number(obstacle, "obstacle-radius", id) }];
   }));
+  state.presentation.applyCombat(state.actors.map((actor) => ({ ...actor,
+    burns: state.createdBurns.filter((burn) => burn.targetId === actor.id && burn.remaining > 0).map((burn) => burn.remaining),
+    cooldown: state.units.find((unit) => unit.id === actor.id)?.cooldown ?? 0,
+  })));
   renderHud(state);
   measure({
     metric: "projection-to-hud",
@@ -1209,6 +1221,7 @@ function bindHud(state: GameState): void {
   element("encounter-targets").addEventListener("click", target);
   element("begin-encounter").addEventListener("click", begin);
   element("retry-encounter").addEventListener("click", retry);
+  element("outcome-retry").addEventListener("click", retry);
   element("command-stop").addEventListener("click", stop);
   element("command-attack").addEventListener("click", attack);
   element("command-ignite").addEventListener("click", ignite);
@@ -1227,6 +1240,7 @@ function bindHud(state: GameState): void {
     () => element("encounter-targets").removeEventListener("click", target),
     () => element("begin-encounter").removeEventListener("click", begin),
     () => element("retry-encounter").removeEventListener("click", retry),
+    () => element("outcome-retry").removeEventListener("click", retry),
     () => element("command-stop").removeEventListener("click", stop),
     () => element("command-attack").removeEventListener("click", attack),
     () => element("command-ignite").removeEventListener("click", ignite),
@@ -1302,7 +1316,7 @@ function start(): GameState {
     units: [],
     actors: [],
     createdBurns: [],
-    encounter: { phase: "Ready", targetId: "" },
+    encounter: { phase: "Ready", ended: false, message: "", targetId: "" },
     drag: null,
     disposed: false,
   };

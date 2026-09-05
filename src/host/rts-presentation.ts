@@ -66,6 +66,16 @@ export interface ObstacleView {
   readonly radius: number;
 }
 
+export interface CombatView extends EncounterActorView {
+  readonly name: string;
+  readonly vitality: number;
+  readonly maximumVitality: number;
+  readonly wardRemaining: number;
+  readonly burnRemaining: number;
+  readonly burns: readonly number[];
+  readonly cooldown: number;
+}
+
 interface UnitFigure {
   readonly root: Group;
   readonly placeholder: Group;
@@ -80,6 +90,7 @@ export interface RtsPresentation {
   applyUnits(units: readonly UnitView[]): void;
   applyEncounterActors(actors: readonly EncounterActorView[]): void;
   applyObstacles(obstacles: readonly ObstacleView[]): void;
+  applyCombat(actors: readonly CombatView[]): void;
   pickActor(clientX: number, clientY: number): string | null;
   unitsInScreenRectangle(left: number, top: number, right: number, bottom: number): string[];
   groundPoint(clientX: number, clientY: number): Vector3 | null;
@@ -201,6 +212,15 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
   renderer.domElement.tabIndex = 0;
   renderer.domElement.setAttribute("aria-label", "Greywrought tactical battlefield");
   host.prepend(renderer.domElement);
+  const readouts = document.createElement("div");
+  readouts.className = "battle-readouts";
+  readouts.setAttribute("aria-label", "Battlefield health and effects");
+  host.append(readouts);
+  const combatReadouts = new Map<string, {
+    element: HTMLElement; health: HTMLElement; fill: HTMLElement; effects: HTMLElement; tether: HTMLElement;
+    point: Vector3; vitality: number; pending: number; changedAt: number;
+    damage: HTMLElement; damageUntil: number;
+  }>();
 
   const ownedGeometries = new Set<BufferGeometry>();
   const ownedMaterials = new Set<Material>();
@@ -388,7 +408,6 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       figure.target.set(unit.x, 0, unit.z);
       figure.selectionRing.visible = unit.selected || unit.targeted;
       figure.root.visible = unit.alive;
-      figure.root.scale.y = Math.max(0.35, unit.healthFraction);
       const ringSurface = figure.selectionRing.material;
       if (ringSurface instanceof MeshStandardMaterial) {
         ringSurface.color.setHex(unit.targeted ? 0xffd15a : 0x4dff49);
@@ -430,7 +449,6 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       }
       figure.position.set(actor.x, 0, actor.z);
       figure.visible = actor.alive || actor.kind === "Moonwell";
-      figure.scale.y = actor.kind === "Cinder" ? Math.max(0.35, actor.healthFraction) : 1;
       const ring = figure.getObjectByName("target-ring");
       if (ring !== undefined) ring.visible = actor.targeted;
     }
@@ -454,6 +472,67 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       figure.scale.set(obstacle.radius, obstacle.radius * 2, obstacle.radius);
     }
     document.body.dataset.obstacles = JSON.stringify(obstacles);
+  };
+
+  const applyCombat = (actors: readonly CombatView[]): void => {
+    const present = new Set(actors.map((actor) => actor.id));
+    for (const [id, readout] of combatReadouts) {
+      if (!present.has(id)) {
+        readout.element.remove();
+        combatReadouts.delete(id);
+      }
+    }
+    const now = performance.now();
+    for (const actor of actors) {
+      let readout = combatReadouts.get(actor.id);
+      if (readout === undefined) {
+        const element = document.createElement("div");
+        element.className = "battle-readout";
+        element.dataset.actorId = actor.id;
+        const name = document.createElement("strong");
+        name.textContent = actor.name;
+        const health = document.createElement("span");
+        health.className = "battle-health";
+        const track = document.createElement("div");
+        track.className = "battle-health-track";
+        const fill = document.createElement("div");
+        fill.className = "battle-health-fill";
+        track.append(fill);
+        const effects = document.createElement("span");
+        effects.className = "battle-effects";
+        const damage = document.createElement("span");
+        damage.className = "battle-impact";
+        damage.hidden = true;
+        const tether = document.createElement("span");
+        tether.className = "battle-tether";
+        element.append(name, health, track, effects, damage, tether);
+        readouts.append(element);
+        readout = { element, health, fill, effects, damage, tether, point: new Vector3(),
+          vitality: actor.vitality, pending: 0, changedAt: 0, damageUntil: 0 };
+        combatReadouts.set(actor.id, readout);
+      }
+      // Coalesce displayed health changes, never orders or world-state updates.
+      const change = actor.vitality - readout.vitality;
+      if (change !== 0) {
+        if (readout.pending === 0) readout.changedAt = now;
+        readout.pending += change;
+        readout.vitality = actor.vitality;
+      }
+      readout.point.set(actor.x, actor.kind === "Moonwell" ? 1.8 : 2.9, actor.z);
+      readout.element.classList.toggle("fallen", !actor.alive);
+      readout.health.textContent = `${Math.max(0, actor.vitality).toFixed(0)} / ${actor.maximumVitality.toFixed(0)}`;
+      readout.fill.style.width = `${MathUtils.clamp(actor.healthFraction, 0, 1) * 100}%`;
+      const burnCount = actor.burns.length + Number(actor.burnRemaining > 0);
+      const burnTime = Math.max(actor.burnRemaining, ...actor.burns);
+      readout.effects.textContent = [
+        actor.wardRemaining > 0 ? `Ward ${actor.wardRemaining.toFixed(1)}s` : "",
+        burnCount > 0 ? `Burn${burnCount > 1 ? ` ×${burnCount}` : ""} ${burnTime.toFixed(1)}s` : "",
+        actor.cooldown > 0 ? `${actor.cooldown.toFixed(1)}s to act` : "",
+        actor.alive ? "" : "Fallen",
+      ].filter(Boolean).join(" · ");
+      readout.element.classList.toggle("warded", actor.wardRemaining > 0);
+      readout.element.classList.toggle("burning", burnCount > 0);
+    }
   };
 
   const frameLoop = (time: number): void => {
@@ -500,6 +579,58 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
     }
     camera.position.set(focus.x + cameraDistance * 0.66, cameraDistance * 0.78, focus.z + cameraDistance * 0.66);
     camera.lookAt(focus.x, 0, focus.z);
+    camera.updateMatrixWorld();
+    const labels = [...combatReadouts.values()].map((readout) => {
+      const point = readout.point.clone().project(camera);
+      return { readout, point, x: (point.x * 0.5 + 0.5) * rectangle.width,
+        y: (-point.y * 0.5 + 0.5) * rectangle.height,
+        width: readout.element.offsetWidth, height: readout.element.offsetHeight };
+    }).sort((left, right) => right.y - left.y);
+    const placed = [...host.querySelectorAll<HTMLElement>("#war-table, #objective-panel, #command-deck")]
+      .map((panel) => {
+        const box = panel.getBoundingClientRect();
+        return { left: box.left - rectangle.left, right: box.right - rectangle.left,
+          top: box.top - rectangle.top, bottom: box.bottom - rectangle.top };
+      });
+    for (const readout of combatReadouts.values()) {
+      if (readout.pending !== 0 && time - readout.changedAt >= 120) {
+        const change = readout.pending;
+        readout.damage.textContent = `${change > 0 ? "+" : "−"}${Math.abs(change).toFixed(Math.abs(change) < 1 ? 2 : 0)}`;
+        readout.damage.classList.toggle("healing", change > 0);
+        readout.damage.classList.toggle("damage", change < 0);
+        readout.damageUntil = time + 1100;
+        readout.pending = 0;
+      }
+      readout.damage.hidden = time > readout.damageUntil;
+    }
+    for (const { readout, point, x, y, width, height } of labels) {
+      readout.element.hidden = point.z < -1 || point.z > 1 || x < 0 || x > rectangle.width || y < 0 || y > rectangle.height;
+      if (readout.element.hidden) continue;
+      let center = x;
+      let bottom = y;
+      // Reserve the impact-number space even between hits so labels stay put.
+      let distance = Infinity;
+      for (let column = -labels.length; column <= labels.length; column += 1) {
+        for (let row = -labels.length; row <= labels.length; row += 1) {
+          const dx = column * (width + 8);
+          const dy = row * (height + 36);
+          if (dx * dx + dy * dy >= distance) continue;
+          const left = x + dx - width / 2;
+          const right = x + dx + width / 2;
+          const top = y + dy - height - 28;
+          if (left < 6 || right > rectangle.width - 6 || top < 6 || y + dy > rectangle.height - 6) continue;
+          if (placed.some((box) => left < box.right + 6 && right > box.left - 6 &&
+            y + dy > box.top - 6 && top < box.bottom + 6)) continue;
+          center = x + dx;
+          bottom = y + dy;
+          distance = dx * dx + dy * dy;
+        }
+      }
+      placed.push({ left: center - width / 2, right: center + width / 2, top: bottom - height - 28, bottom });
+      readout.element.style.transform = `translate(${center}px, ${bottom}px) translate(-50%, -100%)`;
+      readout.tether.style.height = `${Math.hypot(x - center, y - bottom)}px`;
+      readout.tether.style.transform = `rotate(${-Math.atan2(x - center, y - bottom)}rad)`;
+    }
     renderer.render(scene, camera);
     document.body.dataset.cameraX = focus.x.toFixed(2);
     document.body.dataset.cameraZ = focus.z.toFixed(2);
@@ -512,6 +643,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
     applyUnits,
     applyEncounterActors,
     applyObstacles,
+    applyCombat,
     pickActor(clientX, clientY) {
       raycaster.setFromCamera(normalizedPoint(clientX, clientY), camera);
       const hit = raycaster.intersectObjects(pickTargets, true).find(({ object }) => {
@@ -569,6 +701,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       ownedMaterials.forEach((entry) => entry.dispose());
       renderer.dispose();
       renderer.domElement.remove();
+      readouts.remove();
     },
   };
 }

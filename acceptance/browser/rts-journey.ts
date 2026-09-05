@@ -6,6 +6,7 @@ const gamePort = 4180;
 const gameUrl = Bun.env.GREYWROUGHT_GAME_URL ?? `http://127.0.0.1:${gamePort}/`;
 const expectedUnitCount = Number(Bun.env.GREYWROUGHT_EXPECTED_UNIT_COUNT ?? "5");
 const duplicateUnitId = Bun.env.GREYWROUGHT_DUPLICATE_UNIT_ID;
+const combatOnly = Bun.argv.includes("--combat-only");
 const rendererMode = Bun.env.GREYWROUGHT_BROWSER_RENDERER ?? "swiftshader";
 if (rendererMode !== "swiftshader" && rendererMode !== "hardware") {
   throw new Error("GREYWROUGHT_BROWSER_RENDERER must be swiftshader or hardware");
@@ -88,7 +89,7 @@ try {
     // Freeze animation only in the CDP driver while capturing. SwiftShader's
     // continuously composited WebGL surface otherwise starves the screenshot
     // command even though gameplay evaluations remain responsive.
-    await call("Page.setWebLifecycleState", { state: "frozen" });
+    if (rendererMode === "swiftshader") await call("Page.setWebLifecycleState", { state: "frozen" });
     try {
       const result = await call("Page.captureScreenshot", {
         format: "png",
@@ -100,7 +101,8 @@ try {
       requireCondition(typeof data === "string", `Chrome omitted screenshot data for ${path}`);
       await Bun.write(path, Buffer.from(data, "base64"));
     } finally {
-      await call("Page.setWebLifecycleState", { state: "active" });
+      if (rendererMode === "swiftshader") await call("Page.setWebLifecycleState", { state: "active" });
+      await call("Page.bringToFront");
     }
   };
   await call("Runtime.enable"); await call("Page.enable");
@@ -199,51 +201,53 @@ try {
     }
     throw new Error(`direct target expected ${id}, got ${await evaluate<string>("document.body.dataset.targetId")}`);
   };
-  const openingPositions = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
-  const warriorPosition = openingPositions['warrior-1']!;
-  const priestPosition = openingPositions['priest-1']!;
-  await clickPoint(await worldPoint(warriorPosition[0], 0.8, warriorPosition[1]));
-  await waitForSelection(['warrior-1']);
-  await clickPoint(await worldPoint(priestPosition[0], 0.8, priestPosition[1]), 8);
-  await waitForSelection(['warrior-1', 'priest-1']);
-  await clickPoint(await worldPoint(warriorPosition[0], 0.8, warriorPosition[1]), 8);
-  await waitForSelection(['priest-1']);
-  await evaluate("document.getElementById('roster-warrior-1').dispatchEvent(new MouseEvent('click',{bubbles:true,shiftKey:true}))");
-  await waitForSelection(['warrior-1', 'priest-1']);
-  await evaluate("(() => {const b=document.getElementById('roster-warrior-1'); for(let i=0;i<2;i++) b.dispatchEvent(new MouseEvent('click',{bubbles:true,shiftKey:true}));})()");
-  await Bun.sleep(300);
-  await waitForSelection(['warrior-1', 'priest-1']);
-  await clickPoint(await worldPoint(priestPosition[0], 0.8, priestPosition[1]), 1);
-  await waitForTarget('priest-1');
-  await waitForSelection(['warrior-1', 'priest-1']);
-  await clickPoint(await worldPoint(3, 1.0, 7));
-  await waitForTarget('cinder-2');
-  await waitForSelection(['warrior-1', 'priest-1']);
-  await clickPoint(await worldPoint(0, 0.65, 4));
-  await waitForTarget('moonwell');
-  await waitForSelection(['warrior-1', 'priest-1']);
-  await evaluate("document.getElementById('roster-warrior-1').click()");
-  await waitForSelection(['warrior-1']);
-  const priestPoint = await worldPoint(priestPosition[0], 0.8, priestPosition[1]);
-  await mouse("mousePressed", priestPoint.x - 10, priestPoint.y - 10, "left", 1, 8);
-  await mouse("mouseMoved", priestPoint.x + 10, priestPoint.y + 10, "left", 1, 8);
-  await mouse("mouseReleased", priestPoint.x + 10, priestPoint.y + 10, "left", 0, 8);
-  await waitForSelection(['warrior-1', 'priest-1']);
-  await evaluate("document.getElementById('target-cinder-1').click()");
-  await waitForTarget('cinder-1');
-  console.log("RTS targeting/selection passed: world picks, independent enemy/ally/objective target, Shift toggle including queued double toggle, additive drag and target deck");
-  await clickPoint(await worldPoint(0.5, 0, 2), 0, "right");
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    if (await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Mara: Move — Space occupied')")) break;
-    await Bun.sleep(25);
+  if (!combatOnly) {
+    const openingPositions = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
+    const warriorPosition = openingPositions['warrior-1']!;
+    const priestPosition = openingPositions['priest-1']!;
+    await clickPoint(await worldPoint(warriorPosition[0], 0.8, warriorPosition[1]));
+    await waitForSelection(['warrior-1']);
+    await clickPoint(await worldPoint(priestPosition[0], 0.8, priestPosition[1]), 8);
+    await waitForSelection(['warrior-1', 'priest-1']);
+    await clickPoint(await worldPoint(warriorPosition[0], 0.8, warriorPosition[1]), 8);
+    await waitForSelection(['priest-1']);
+    await evaluate("document.getElementById('roster-warrior-1').dispatchEvent(new MouseEvent('click',{bubbles:true,shiftKey:true}))");
+    await waitForSelection(['warrior-1', 'priest-1']);
+    await evaluate("(() => {const b=document.getElementById('roster-warrior-1'); for(let i=0;i<2;i++) b.dispatchEvent(new MouseEvent('click',{bubbles:true,shiftKey:true}));})()");
+    await Bun.sleep(300);
+    await waitForSelection(['warrior-1', 'priest-1']);
+    await clickPoint(await worldPoint(priestPosition[0], 0.8, priestPosition[1]), 1);
+    await waitForTarget('priest-1');
+    await waitForSelection(['warrior-1', 'priest-1']);
+    await clickPoint(await worldPoint(3, 1.0, 7));
+    await waitForTarget('cinder-2');
+    await waitForSelection(['warrior-1', 'priest-1']);
+    await clickPoint(await worldPoint(0, 0.65, 4));
+    await waitForTarget('moonwell');
+    await waitForSelection(['warrior-1', 'priest-1']);
+    await evaluate("document.getElementById('roster-warrior-1').click()");
+    await waitForSelection(['warrior-1']);
+    const priestPoint = await worldPoint(priestPosition[0], 0.8, priestPosition[1]);
+    await mouse("mousePressed", priestPoint.x - 10, priestPoint.y - 10, "left", 1, 8);
+    await mouse("mouseMoved", priestPoint.x + 10, priestPoint.y + 10, "left", 1, 8);
+    await mouse("mouseReleased", priestPoint.x + 10, priestPoint.y + 10, "left", 0, 8);
+    await waitForSelection(['warrior-1', 'priest-1']);
+    await evaluate("document.getElementById('target-cinder-1').click()");
+    await waitForTarget('cinder-1');
+    console.log("RTS targeting/selection passed: world picks, independent enemy/ally/objective target, Shift toggle including queued double toggle, additive drag and target deck");
+    await clickPoint(await worldPoint(0.5, 0, 2), 0, "right");
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Mara: Move — Space occupied')")) break;
+      await Bun.sleep(25);
+    }
+    const blockedReport = await evaluate<string>("document.getElementById('command-status').textContent");
+    requireCondition(blockedReport.includes("Aldric: Move — Space occupied") && blockedReport.includes("Mara: Move — Space occupied"),
+      `occupied formation destinations did not report both rejected orders: ${blockedReport}`);
+    const blockedPositions = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
+    requireCondition(Object.keys(openingPositions).every((id) => JSON.stringify(openingPositions[id]) === JSON.stringify(blockedPositions[id])),
+      "an occupied-destination rejection moved the selected or unselected company");
+    console.log("RTS destination separation passed: occupied unselected footprints reject with visible per-unit reasons");
   }
-  const blockedReport = await evaluate<string>("document.getElementById('command-status').textContent");
-  requireCondition(blockedReport.includes("Aldric: Move — Space occupied") && blockedReport.includes("Mara: Move — Space occupied"),
-    `occupied formation destinations did not report both rejected orders: ${blockedReport}`);
-  const blockedPositions = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
-  requireCondition(Object.keys(openingPositions).every((id) => JSON.stringify(openingPositions[id]) === JSON.stringify(blockedPositions[id])),
-    "an occupied-destination rejection moved the selected or unselected company");
-  console.log("RTS destination separation passed: occupied unselected footprints reject with visible per-unit reasons");
   const waitForCooldowns = async (unitIds: readonly string[]): Promise<void> => {
     for (let attempt = 0; attempt < 120; attempt += 1) {
       const cooldowns = await evaluate<Record<string, number>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.cooldowns || {}");
@@ -264,164 +268,194 @@ try {
     }
     throw new Error(`attack input did not produce a positive source cooldown for ${unitIds.join(",")}`);
   };
-  // Establish a one-unit precondition, then drag-select the company and verify
-  // the Clause-owned selection transition independently.
-  await evaluate("document.getElementById('roster-warrior-1').click()");
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (await evaluate<string>("document.body.dataset.selectedCount") === "1") break;
-    await Bun.sleep(25);
-  }
-  requireCondition(
-    await evaluate<string>("document.body.dataset.selectedCount") === "1",
-    "single-unit selection precondition did not settle",
-  );
-  const farX = canvas.x + canvas.width * 0.8;
-  const farY = canvas.y + canvas.height * 0.45;
-  const soloMoving = "document.getElementById('roster-warrior-1').classList.contains('moving')";
-  const soloCoordinates = "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions?.['warrior-1']";
-  await mouse("mousePressed", farX, farY, "right", 2);
-  await mouse("mouseReleased", farX, farY, "right");
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    if (await evaluate<boolean>(soloMoving)) break;
-    await Bun.sleep(25);
-  }
-  requireCondition(await evaluate<boolean>(soloMoving), "Stop precondition: the selected unit did not start moving");
-  await evaluate("document.getElementById('command-stop').click()");
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    if (!(await evaluate<boolean>(soloMoving))) break;
-    await Bun.sleep(25);
-  }
-  requireCondition(!(await evaluate<boolean>(soloMoving)), "Stop did not cancel the selected unit's movement");
-  const stoppedPosition = await evaluate<[number, number]>(soloCoordinates);
-  await Bun.sleep(200);
-  requireCondition(JSON.stringify(await evaluate(soloCoordinates)) === JSON.stringify(stoppedPosition),
-    "the stopped unit resumed its superseded route");
-  await mouse("mousePressed", farX, farY, "right", 2);
-  await mouse("mouseReleased", farX, farY, "right");
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    if (await evaluate<boolean>(soloMoving)) break;
-    await Bun.sleep(25);
-  }
-  requireCondition(await evaluate<boolean>(soloMoving), "a fresh order did not resume the stopped unit");
-  await clickPoint(await worldPoint(-3, 0, -1), 0, "right");
-  const soloOrder = await evaluate<{ x: number; z: number }>(
-    "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').at(-1)",
-  );
-  requireCondition(soloOrder !== null, "single-unit click did not issue an order");
-  let soloPosition: [number, number] | null = null;
-  for (let attempt = 0; attempt < 300; attempt += 1) {
-    soloPosition = await evaluate<[number, number]>(
-      "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions?.['warrior-1']",
-    );
-    if (soloPosition && Math.hypot(soloPosition[0] - soloOrder.x, soloPosition[1] - soloOrder.z) < 0.01) break;
-    await Bun.sleep(50);
-  }
-  requireCondition(soloPosition !== null && Math.hypot(soloPosition[0] - soloOrder.x, soloPosition[1] - soloOrder.z) < 0.01,
-    `single unit missed the clicked marker: order=${JSON.stringify(soloOrder)}, position=${JSON.stringify(soloPosition)}`);
-  const obstacles = await evaluate<{ id: string; x: number; z: number; radius: number }[]>("JSON.parse(document.body.dataset.obstacles || '[]')");
-  const stone = obstacles.find((obstacle) => obstacle.id === "standing-stone");
-  requireCondition(stone !== undefined && stone.x === -6 && stone.z === 4 && stone.radius === 1.2,
-    `the stone did not render its source position and radius: ${JSON.stringify(obstacles)}`);
-  await clickPoint(await worldPoint(stone!.x, 0, stone!.z), 0, "right");
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    if (await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Move — Path blocked')")) break;
-    await Bun.sleep(25);
-  }
-  requireCondition(await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Move — Path blocked')"),
-    "a destination inside the stone was not visibly rejected");
-  const rejectedStonePosition = await evaluate<[number, number]>(soloCoordinates);
-  requireCondition(Math.hypot(rejectedStonePosition[0] - soloOrder.x, rejectedStonePosition[1] - soloOrder.z) < 0.01,
-    "a blocked stone destination displaced the unit");
-  for (let step = 0; step < 5; step += 1) {
-    await call("Input.dispatchMouseEvent", { type: "mouseWheel", x: canvas.x + canvas.width / 2,
-      y: canvas.y + canvas.height * 0.4, deltaX: 0, deltaY: 100 });
-    await Bun.sleep(40);
-  }
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (await evaluate<number>("Number(document.body.dataset.cameraDistance)") > 30) break;
-    await Bun.sleep(25);
-  }
-  requireCondition(await evaluate<number>("Number(document.body.dataset.cameraDistance)") > 30,
-    "camera zoom did not expose the destination beyond the stone");
-  await clickPoint(await worldPoint(-9, 0, 7), 0, "right");
-  const aroundStoneOrder = await evaluate<{ x: number; z: number }>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').at(-1)");
-  let aroundStonePosition = rejectedStonePosition;
-  for (let attempt = 0; attempt < 300; attempt += 1) {
-    aroundStonePosition = await evaluate<[number, number]>(soloCoordinates);
-    requireCondition(Math.hypot(aroundStonePosition[0] - stone!.x, aroundStonePosition[1] - stone!.z) >= stone!.radius + 0.6 - 1e-8,
-      `the warrior entered the stone: ${JSON.stringify(aroundStonePosition)}`);
-    if (Math.hypot(aroundStonePosition[0] - aroundStoneOrder.x, aroundStonePosition[1] - aroundStoneOrder.z) < 0.01) break;
-    await Bun.sleep(50);
-  }
-  requireCondition(Math.hypot(aroundStonePosition[0] - aroundStoneOrder.x, aroundStonePosition[1] - aroundStoneOrder.z) < 0.01,
-    `the warrior did not arrive around the stone: ${JSON.stringify({ aroundStonePosition, aroundStoneOrder })}`);
-  console.log("RTS obstacle passed: visible stone, rejected blocked destination, separated travel and arrival around it");
-  if (duplicateUnitId !== undefined) {
-    const firstSelection = await evaluate<string[]>(
-      "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.selected || []",
-    );
-    requireCondition(
-      firstSelection.join(",") === "warrior-1",
-      `first same-class occurrence was not independently selected: ${firstSelection.join(",")}`,
-    );
-    await evaluate(`document.getElementById(${JSON.stringify(`roster-${duplicateUnitId}`)}).click()`);
+  if (!combatOnly) {
+    // Establish a one-unit precondition, then drag-select the company and verify
+    // the Clause-owned selection transition independently.
+    await evaluate("document.getElementById('roster-warrior-1').click()");
     for (let attempt = 0; attempt < 40; attempt += 1) {
-      const selected = await evaluate<string[]>(
-        "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.selected || []",
-      );
-      if (selected.join(",") === duplicateUnitId) break;
+      if (await evaluate<string>("document.body.dataset.selectedCount") === "1") break;
       await Bun.sleep(25);
     }
-    const duplicateSelection = await evaluate<string[]>(
-      "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.selected || []",
-    );
     requireCondition(
-      duplicateSelection.join(",") === duplicateUnitId,
-      `second same-class occurrence was not independently selected: ${duplicateSelection.join(",")}`,
+      await evaluate<string>("document.body.dataset.selectedCount") === "1",
+      "single-unit selection precondition did not settle",
     );
-  }
-  // Keep the gesture inside the visible 900px viewport.
-  const visibleBottom = Math.min(canvas.y + canvas.height - 2, 880);
-  await mouse("mousePressed", canvas.x + 2, canvas.y + 2, "left", 1); await mouse("mouseMoved", canvas.x + canvas.width - 2, visibleBottom, "left", 1); await mouse("mouseReleased", canvas.x + canvas.width - 2, visibleBottom);
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (await evaluate<string>("document.body.dataset.selectedCount") === String(expectedUnitCount)) break;
-    await Bun.sleep(25);
-  }
-  const selectedCount = await evaluate<string>("document.body.dataset.selectedCount");
-  const selectionEvents = await evaluate<unknown[]>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='selection-requested').slice(-2)");
-  requireCondition(selectedCount === String(expectedUnitCount), `drag selection did not select all ${expectedUnitCount} units (count=${selectedCount}, canvas=${canvas.width}x${canvas.height}, events=${JSON.stringify(selectionEvents)})`);
-  const before = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
-  await mouse("mousePressed", canvas.x + canvas.width * 0.72, canvas.y + canvas.height * 0.45, "right", 2); await mouse("mouseReleased", canvas.x + canvas.width * 0.72, canvas.y + canvas.height * 0.45, "right");
-  const marker = await evaluate<string>("document.body.dataset.destinationMarker || ''");
-  const markerCoords = marker.split(',').map(Number);
-  requireCondition(markerCoords.length === 2 && markerCoords.every(Number.isFinite), `destination marker missing/invalid: ${marker}`);
-  await Bun.sleep(900);
-  requireCondition(await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').length") > 0, "right-click did not issue a move order");
-  const after = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
-  requireCondition(Object.keys(after).length === expectedUnitCount && Object.keys(before).every((id) => JSON.stringify(before[id]) !== JSON.stringify(after[id])), "every selected formation occurrence did not advance");
-  const groupOrder = await evaluate<{ x: number; z: number }>(
-    "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').at(-1)",
-  );
-  let groupPositions: [number, number][] = [];
-  const groupCentered = (): boolean => groupPositions.length === expectedUnitCount && Math.hypot(
-    groupPositions.reduce((sum, p) => sum + p[0], 0) / expectedUnitCount - groupOrder.x,
-    groupPositions.reduce((sum, p) => sum + p[1], 0) / expectedUnitCount - groupOrder.z,
-  ) < 0.01;
-  for (let attempt = 0; attempt < 300; attempt += 1) {
-    groupPositions = Object.values(await evaluate<Record<string, [number, number]>>(
-      "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}",
-    ));
-    if (groupCentered()) break;
-    await Bun.sleep(50);
-  }
-  requireCondition(groupCentered(), `group missed the marker center: ${JSON.stringify({ groupOrder, groupPositions })}`);
-  for (let index = 0; index < groupPositions.length; index += 1) {
-    for (const other of groupPositions.slice(index + 1)) {
-      const point = groupPositions[index]!;
-      requireCondition(Math.hypot(point[0] - other[0], point[1] - other[1]) >= 0.9, "selected group destinations overlap");
+    const farX = canvas.x + canvas.width * 0.8;
+    const farY = canvas.y + canvas.height * 0.45;
+    const soloMoving = "document.getElementById('roster-warrior-1').classList.contains('moving')";
+    const soloCoordinates = "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions?.['warrior-1']";
+    await mouse("mousePressed", farX, farY, "right", 2);
+    await mouse("mouseReleased", farX, farY, "right");
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (await evaluate<boolean>(soloMoving)) break;
+      await Bun.sleep(25);
     }
+    requireCondition(await evaluate<boolean>(soloMoving), "Stop precondition: the selected unit did not start moving");
+    await evaluate("document.getElementById('command-stop').click()");
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (!(await evaluate<boolean>(soloMoving))) break;
+      await Bun.sleep(25);
+    }
+    requireCondition(!(await evaluate<boolean>(soloMoving)), "Stop did not cancel the selected unit's movement");
+    const stoppedPosition = await evaluate<[number, number]>(soloCoordinates);
+    await Bun.sleep(200);
+    requireCondition(JSON.stringify(await evaluate(soloCoordinates)) === JSON.stringify(stoppedPosition),
+      "the stopped unit resumed its superseded route");
+    await mouse("mousePressed", farX, farY, "right", 2);
+    await mouse("mouseReleased", farX, farY, "right");
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (await evaluate<boolean>(soloMoving)) break;
+      await Bun.sleep(25);
+    }
+    requireCondition(await evaluate<boolean>(soloMoving), "a fresh order did not resume the stopped unit");
+    await clickPoint(await worldPoint(-3, 0, -1), 0, "right");
+    const soloOrder = await evaluate<{ x: number; z: number }>(
+      "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').at(-1)",
+    );
+    requireCondition(soloOrder !== null, "single-unit click did not issue an order");
+    let soloPosition: [number, number] | null = null;
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      soloPosition = await evaluate<[number, number]>(
+        "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions?.['warrior-1']",
+      );
+      if (soloPosition && Math.hypot(soloPosition[0] - soloOrder.x, soloPosition[1] - soloOrder.z) < 0.01) break;
+      await Bun.sleep(50);
+    }
+    requireCondition(soloPosition !== null && Math.hypot(soloPosition[0] - soloOrder.x, soloPosition[1] - soloOrder.z) < 0.01,
+      `single unit missed the clicked marker: order=${JSON.stringify(soloOrder)}, position=${JSON.stringify(soloPosition)}`);
+    const obstacles = await evaluate<{ id: string; x: number; z: number; radius: number }[]>("JSON.parse(document.body.dataset.obstacles || '[]')");
+    const stone = obstacles.find((obstacle) => obstacle.id === "standing-stone");
+    requireCondition(stone !== undefined && stone.x === -6 && stone.z === 4 && stone.radius === 1.2,
+      `the stone did not render its source position and radius: ${JSON.stringify(obstacles)}`);
+    await clickPoint(await worldPoint(stone!.x, 0, stone!.z), 0, "right");
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Move — Path blocked')")) break;
+      await Bun.sleep(25);
+    }
+    requireCondition(await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Move — Path blocked')"),
+      "a destination inside the stone was not visibly rejected");
+    const rejectedStonePosition = await evaluate<[number, number]>(soloCoordinates);
+    requireCondition(Math.hypot(rejectedStonePosition[0] - soloOrder.x, rejectedStonePosition[1] - soloOrder.z) < 0.01,
+      "a blocked stone destination displaced the unit");
+    for (let step = 0; step < 5; step += 1) {
+      await call("Input.dispatchMouseEvent", { type: "mouseWheel", x: canvas.x + canvas.width / 2,
+        y: canvas.y + canvas.height * 0.4, deltaX: 0, deltaY: 100 });
+      await Bun.sleep(40);
+    }
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      if (await evaluate<number>("Number(document.body.dataset.cameraDistance)") > 30) break;
+      await Bun.sleep(25);
+    }
+    requireCondition(await evaluate<number>("Number(document.body.dataset.cameraDistance)") > 30,
+      "camera zoom did not expose the destination beyond the stone");
+    await clickPoint(await worldPoint(-9, 0, 7), 0, "right");
+    const aroundStoneOrder = await evaluate<{ x: number; z: number }>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').at(-1)");
+    let aroundStonePosition = rejectedStonePosition;
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      aroundStonePosition = await evaluate<[number, number]>(soloCoordinates);
+      requireCondition(Math.hypot(aroundStonePosition[0] - stone!.x, aroundStonePosition[1] - stone!.z) >= stone!.radius + 0.6 - 1e-8,
+        `the warrior entered the stone: ${JSON.stringify(aroundStonePosition)}`);
+      if (Math.hypot(aroundStonePosition[0] - aroundStoneOrder.x, aroundStonePosition[1] - aroundStoneOrder.z) < 0.01) break;
+      await Bun.sleep(50);
+    }
+    requireCondition(Math.hypot(aroundStonePosition[0] - aroundStoneOrder.x, aroundStonePosition[1] - aroundStoneOrder.z) < 0.01,
+      `the warrior did not arrive around the stone: ${JSON.stringify({ aroundStonePosition, aroundStoneOrder })}`);
+    console.log("RTS obstacle passed: visible stone, rejected blocked destination, separated travel and arrival around it");
+    if (duplicateUnitId !== undefined) {
+      const firstSelection = await evaluate<string[]>(
+        "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.selected || []",
+      );
+      requireCondition(
+        firstSelection.join(",") === "warrior-1",
+        `first same-class occurrence was not independently selected: ${firstSelection.join(",")}`,
+      );
+      await evaluate(`document.getElementById(${JSON.stringify(`roster-${duplicateUnitId}`)}).click()`);
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const selected = await evaluate<string[]>(
+          "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.selected || []",
+        );
+        if (selected.join(",") === duplicateUnitId) break;
+        await Bun.sleep(25);
+      }
+      const duplicateSelection = await evaluate<string[]>(
+        "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.selected || []",
+      );
+      requireCondition(
+        duplicateSelection.join(",") === duplicateUnitId,
+        `second same-class occurrence was not independently selected: ${duplicateSelection.join(",")}`,
+      );
+    }
+    // Keep the gesture inside the visible 900px viewport.
+    const visibleBottom = Math.min(canvas.y + canvas.height - 2, 880);
+    await mouse("mousePressed", canvas.x + 2, canvas.y + 2, "left", 1); await mouse("mouseMoved", canvas.x + canvas.width - 2, visibleBottom, "left", 1); await mouse("mouseReleased", canvas.x + canvas.width - 2, visibleBottom);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      if (await evaluate<string>("document.body.dataset.selectedCount") === String(expectedUnitCount)) break;
+      await Bun.sleep(25);
+    }
+    const selectedCount = await evaluate<string>("document.body.dataset.selectedCount");
+    const selectionEvents = await evaluate<unknown[]>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='selection-requested').slice(-2)");
+    requireCondition(selectedCount === String(expectedUnitCount), `drag selection did not select all ${expectedUnitCount} units (count=${selectedCount}, canvas=${canvas.width}x${canvas.height}, events=${JSON.stringify(selectionEvents)})`);
+    const before = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
+    await mouse("mousePressed", canvas.x + canvas.width * 0.72, canvas.y + canvas.height * 0.45, "right", 2); await mouse("mouseReleased", canvas.x + canvas.width * 0.72, canvas.y + canvas.height * 0.45, "right");
+    const marker = await evaluate<string>("document.body.dataset.destinationMarker || ''");
+    const markerCoords = marker.split(',').map(Number);
+    requireCondition(markerCoords.length === 2 && markerCoords.every(Number.isFinite), `destination marker missing/invalid: ${marker}`);
+    await Bun.sleep(900);
+    requireCondition(await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').length") > 0, "right-click did not issue a move order");
+    const after = await evaluate<Record<string, [number, number]>>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}");
+    requireCondition(Object.keys(after).length === expectedUnitCount && Object.keys(before).every((id) => JSON.stringify(before[id]) !== JSON.stringify(after[id])), "every selected formation occurrence did not advance");
+    const groupOrder = await evaluate<{ x: number; z: number }>(
+      "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').at(-1)",
+    );
+    let groupPositions: [number, number][] = [];
+    const groupCentered = (): boolean => groupPositions.length === expectedUnitCount && Math.hypot(
+      groupPositions.reduce((sum, p) => sum + p[0], 0) / expectedUnitCount - groupOrder.x,
+      groupPositions.reduce((sum, p) => sum + p[1], 0) / expectedUnitCount - groupOrder.z,
+    ) < 0.01;
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      groupPositions = Object.values(await evaluate<Record<string, [number, number]>>(
+        "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.positions || {}",
+      ));
+      if (groupCentered()) break;
+      await Bun.sleep(50);
+    }
+    requireCondition(groupCentered(), `group missed the marker center: ${JSON.stringify({ groupOrder, groupPositions })}`);
+    for (let index = 0; index < groupPositions.length; index += 1) {
+      for (const other of groupPositions.slice(index + 1)) {
+        const point = groupPositions[index]!;
+        requireCondition(Math.hypot(point[0] - other[0], point[1] - other[1]) >= 0.9, "selected group destinations overlap");
+      }
+    }
+    console.log("RTS movement passed: Stop, replacement order, solo arrival at the marker and separated group destinations centered on the click");
+
+    // Restore a battle view after the edge-panning drag and distant movement.
+    await mouse("mouseMoved", canvas.x + canvas.width / 2, canvas.y + canvas.height * 0.4);
+    for (let step = 0; step < 5; step += 1) {
+      await call("Input.dispatchMouseEvent", { type: "mouseWheel", x: canvas.x + canvas.width / 2,
+        y: canvas.y + canvas.height * 0.4, deltaX: 0, deltaY: -100 });
+      await Bun.sleep(40);
+    }
+    const held = new Set<string>();
+    for (let attempt = 0; attempt < 160; attempt += 1) {
+      const view = await evaluate<{ x: number; z: number }>("({x:Number(document.body.dataset.cameraX),z:Number(document.body.dataset.cameraZ)})");
+      const wanted = new Set<string>();
+      if (Math.abs(view.x) > 0.3) wanted.add(view.x > 0 ? "KeyA" : "KeyD");
+      if (Math.abs(view.z - 2) > 0.3) wanted.add(view.z > 2 ? "KeyW" : "KeyS");
+      for (const code of held) if (!wanted.has(code)) {
+        await call("Input.dispatchKeyEvent", { type: "keyUp", code, key: code.slice(-1).toLowerCase() });
+        held.delete(code);
+      }
+      for (const code of wanted) if (!held.has(code)) {
+        await call("Input.dispatchKeyEvent", { type: "keyDown", code, key: code.slice(-1).toLowerCase() });
+        held.add(code);
+      }
+      if (wanted.size === 0) break;
+      await Bun.sleep(25);
+    }
+    for (const code of held) await call("Input.dispatchKeyEvent", { type: "keyUp", code, key: code.slice(-1).toLowerCase() });
+    requireCondition(await evaluate<boolean>("Math.abs(Number(document.body.dataset.cameraX)) <= 0.3 && Math.abs(Number(document.body.dataset.cameraZ)-2) <= 0.3"),
+      "the camera did not return to the battle");
   }
-  console.log("RTS movement passed: Stop, replacement order, solo arrival at the marker and separated group destinations centered on the click");
 
   // Join the source-owned encounter through its real controls. Targeting uses
   // projected referents from the admitted frame; the browser never names a
@@ -489,6 +523,8 @@ try {
   }
   const wardRemaining = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.wards?.moonwell ?? 0");
   requireCondition(wardRemaining > 0, "Mara's ward did not become active on the exact Moonwell target");
+  requireCondition(await evaluate<boolean>("document.querySelector('.battle-readout[data-actor-id=\"moonwell\"] .battle-effects').textContent.includes('Ward')"),
+    "Ward was not displayed beside its target");
   await waitForOrderReport("Ward — Accepted");
   await evaluate("document.getElementById('command-ward').click()");
   await waitForOrderReport("Ward — Cooling down");
@@ -504,6 +540,12 @@ try {
     await Bun.sleep(25);
   }
   requireCondition(afterHeal > beforeHeal + 20, `Mara's source-owned healing did not restore the Moonwell (${beforeHeal} -> ${afterHeal})`);
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await evaluate<boolean>("!!document.querySelector('.battle-readout[data-actor-id=\"moonwell\"] .battle-impact.healing:not([hidden])')")) break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<boolean>("!!document.querySelector('.battle-readout[data-actor-id=\"moonwell\"] .battle-impact.healing:not([hidden])')"),
+    "the actual health gain was not shown beside the healed target");
   console.log("RTS command feedback passed: processed acceptance/rejection, Ignite capability, selection, target, readiness and cooldown");
   await evaluate("document.querySelector('#command-readiness summary').click()");
   await screenshot("build/acceptance/m3-live-battle.png");
@@ -523,7 +565,22 @@ try {
     await evaluate("document.getElementById('command-attack').click()");
   };
   await strike("cinder-1");
-  await waitForActionCycle(["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"]);
+  await Promise.all([
+    waitForActionCycle(["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"]),
+    (async () => {
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        if (await evaluate<boolean>("!!document.querySelector('.battle-readout[data-actor-id=\"cinder-1\"] .battle-impact.damage:not([hidden])')")) return;
+        await Bun.sleep(25);
+      }
+      const diagnostic = await evaluate(`({
+        readout:document.querySelector('.battle-readout[data-actor-id="cinder-1"]')?.outerHTML,
+        projection:(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1),
+        report:document.getElementById('command-status').textContent,
+        errors:window.__RTS_ERRORS__, visibility:document.visibilityState
+      })`);
+      throw new Error(`the actual strike damage was not shown beside its target: ${JSON.stringify(diagnostic)}`);
+    })(),
+  ]);
   await evaluate("document.getElementById('command-attack').click()");
   for (let attempt = 0; attempt < 80; attempt += 1) {
     const health = await evaluate<number>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.vitality?.['cinder-1'] ?? 100");
@@ -549,11 +606,33 @@ try {
     "meaningful target/ward/heal/attack play did not reach the visible victory state",
   );
   await screenshot("build/acceptance/m3-victory.png");
+  requireCondition(await evaluate<boolean>("!document.getElementById('outcome-panel').hidden && document.getElementById('outcome-title').textContent === 'Moonwell restored' && !document.getElementById('outcome-retry').disabled"),
+    "victory did not expose its result and retry action");
   await evaluate("document.getElementById('equipment-toggle').click()");
   requireCondition(await evaluate<boolean>("document.getElementById('equipment-panel').classList.contains('open')"), "equipment panel did not open");
   requireCondition(await evaluate<number>("document.querySelectorAll('#equipment-panel .gear-slot').length") === 20, "equipment paper doll is incomplete");
   requireCondition(await evaluate<boolean>("document.querySelector('#command-move') !== null && document.querySelector('#equipment-toggle') !== null"), "RTS command controls are incomplete");
-  console.log(`RTS browser journey passed: ${expectedUnitCount} projected units, exact/box selection and formation, autonomous Moonwell pressure, exact targets, ward/heal/attack interaction, and visible victory`);
+  await evaluate("document.getElementById('equipment-close').click(); document.getElementById('outcome-retry').click()");
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (await evaluate<boolean>("document.body.dataset.gamePhase === 'ready' && document.body.dataset.encounterPhase === 'Ready' && document.getElementById('outcome-panel').hidden")) break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<boolean>("document.body.dataset.encounterPhase === 'Ready' && document.getElementById('outcome-panel').hidden"),
+    "result-panel retry did not restore the ready encounter");
+  await evaluate("document.getElementById('begin-encounter').click()");
+  let observedBurn = false;
+  let observedDamage = false;
+  for (let attempt = 0; attempt < 800; attempt += 1) {
+    observedBurn ||= await evaluate<boolean>("document.querySelector('.battle-readout[data-actor-id=\"moonwell\"] .battle-effects')?.textContent.includes('Burn') ?? false");
+    observedDamage ||= await evaluate<boolean>("!!document.querySelector('.battle-readout[data-actor-id=\"moonwell\"] .battle-impact.damage:not([hidden])')");
+    if (await evaluate<string>("document.body.dataset.encounterPhase") === "Moonwell lost") break;
+    await Bun.sleep(25);
+  }
+  requireCondition(observedBurn && observedDamage, "burn and ongoing damage were not visible beside the Moonwell");
+  requireCondition(await evaluate<boolean>("!document.getElementById('outcome-panel').hidden && document.getElementById('outcome-title').textContent === 'Moonwell lost' && !document.getElementById('outcome-retry').disabled"),
+    "defeat did not expose its result and retry action");
+  await screenshot("build/acceptance/m3-defeat.png");
+  console.log(`RTS ${combatOnly ? "combat" : "full"} browser journey passed: ${expectedUnitCount} projected units, autonomous Moonwell pressure, exact targets, ward/heal/attack feedback, victory, retry and defeat`);
 } finally {
   socket?.close(); chrome.kill();
   server?.kill();
