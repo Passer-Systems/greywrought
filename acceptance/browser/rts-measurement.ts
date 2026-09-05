@@ -5,7 +5,7 @@ const debugPort = 9252;
 const gamePort = 4186;
 const gameUrl = `http://127.0.0.1:${gamePort}/?measure=1`;
 const fixture = "build/measurement/m5-baseline-source.clause";
-const output = "build/measurement/m5-baseline.json";
+const output = Bun.env.GREYWROUGHT_MEASUREMENT_OUTPUT ?? "build/measurement/m5-baseline.json";
 const windowMillis = 2_500;
 
 function requireCondition(condition: boolean, message: string): asserts condition {

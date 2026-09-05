@@ -5,7 +5,7 @@ const adapterRoot = "build/clause-adapter";
 const wasmRoot = "build/clause-wasm";
 
 const copies: readonly (readonly [string, string])[] = [
-  ...["workbench", "wasm-cartridge-port", "branch-wasm-port"].flatMap(
+  ...["workbench", "wasm-cartridge-port", "branch-wasm-port", "source-transfer-observation"].flatMap(
     (name) => [
       [`${adapterRoot}/${name}.js`, `build/host/jump-arena-shell/${name}.js`] as const,
       [`${adapterRoot}/${name}.d.ts`, `build/host/jump-arena-shell/${name}.d.ts`] as const,
