@@ -624,6 +624,12 @@ function applyProjection(
   state.presentation.applyEncounterActors(
     state.actors.filter((actor) => actor.kind === "Cinder" || actor.kind === "Moonwell"),
   );
+  state.presentation.applyObstacles(projectedSubjects(index.game).flatMap(([id, obstacle]) => {
+    if (!("obstacle-position" in obstacle) || !("obstacle-radius" in obstacle)) return [];
+    const position = field(obstacle, "obstacle-position", id);
+    return [{ id, x: number(position, "x", id), z: number(position, "z", id),
+      radius: number(obstacle, "obstacle-radius", id) }];
+  }));
   renderHud(state);
   measure({
     metric: "projection-to-hud",

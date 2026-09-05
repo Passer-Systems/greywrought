@@ -11,6 +11,8 @@ Encounter
 EncounterState
 CombatRules
 BurnEffect
+Battlefield
+Obstacle
 
 shape Vec3
   x: F64
@@ -27,8 +29,35 @@ relation order-readiness
   reads order active {active: Bool} selected {selected: Bool} alive {alive: Bool} health {health: F64} capable {capable: Bool} kind {kind: Bool} targetAlive {targetAlive: Bool} needed {needed: Bool} inRange {inRange: Bool} cooldown {cooldown: F64} reports {message: Text}
   mode given active selected alive health capable kind targetAlive needed inRange cooldown yields message: maybe
 relation destination-readiness
-  reads destination with {blockers: F64} blockers reports {message: Text}
-  mode given blockers yields message: maybe
+  reads destination with {blockers: F64} blockers terrain {terrain: Bool} obstacles {obstacles: F64} reports {message: Text}
+  mode given blockers terrain obstacles yields message: maybe
+relation battlefield-size
+  reads {field: Battlefield} half width {value: F64}
+  subject field
+  mode given field yields value: one
+relation obstacle-position
+  reads {obstacle: Obstacle} obstacle position {value: Vec3}
+  subject obstacle
+  mode given obstacle yields value: one
+relation obstacle-radius
+  reads {obstacle: Obstacle} obstacle radius {value: F64}
+  subject obstacle
+  mode given obstacle yields value: one
+relation open-terrain
+  reads point {x: F64} {z: F64} radius {radius: F64} inside {size: F64} as {open: Bool}
+  mode given x z radius size yields open: maybe
+relation step-component
+  reads from {position: F64} toward {destination: F64} fraction {fraction: F64} advances {step: F64}
+  mode given position destination fraction yields step: maybe
+relation segment-projection
+  reads step {dx: F64} {dz: F64} toward relative point {px: F64} {pz: F64} projects {along: F64}
+  mode given dx dz px pz yields along: maybe
+relation swept-footprint
+  reads step {dx: F64} {dz: F64} past relative point {px: F64} {pz: F64} radius {radius: F64} along {along: F64} blocked {blocked: Bool}
+  mode given dx dz px pz radius along yields blocked: maybe
+relation travel-direction
+  reads paths forward {forward: F64} right {right: F64} left {left: F64} choose {direction: F64}
+  mode given forward right left yields direction: maybe
 relation footprint-radius
   reads {unit: Unit} footprint radius {value: F64}
   subject unit
@@ -550,18 +579,38 @@ rogue-1 footprint radius 0.6
 priest-1 footprint radius 0.6
 ranger-1 footprint radius 0.6
 
-law destination-open
-  if
-    ?blockers <= 0.0
+field
+  shape: Battlefield
+standing-stone
+  shape: Obstacle
+field half width 40.0
+standing-stone obstacle position Vec3 { x: -6.0, y: 0.0, z: 4.0 }
+standing-stone obstacle radius 1.2
+
+law destination-status
   then
-    destination with ?blockers blockers reports "Ready"
-law destination-occupied
-  if
-    ?blockers > 0.0
+    destination with ?blockers blockers terrain ?terrain obstacles ?obstacles reports if(?terrain, if(?obstacles > 0.0, "Path blocked", if(?blockers > 0.0, "Space occupied", "Ready")), "Beyond the battlefield")
+law terrain-bounds
   then
-    destination with ?blockers blockers reports "Space occupied"
-derive destination-open
-derive destination-occupied
+    point ?x ?z radius ?radius inside ?size as if(?x < 0.0 - ?size + ?radius, false, if(?x > ?size - ?radius, false, if(?z < 0.0 - ?size + ?radius, false, ?z <= ?size - ?radius)))
+law travel-component
+  then
+    from ?position toward ?destination fraction ?fraction advances (?destination - ?position) * ?fraction
+law closest-projection
+  then
+    step ?dx ?dz toward relative point ?px ?pz projects if(?dx * ?dx + ?dz * ?dz > 0.0, (?px * ?dx + ?pz * ?dz) / (?dx * ?dx + ?dz * ?dz), 0.0)
+law swept-distance
+  then
+    step ?dx ?dz past relative point ?px ?pz radius ?radius along ?along blocked ((?along * ?dx - ?px) * (?along * ?dx - ?px) + (?along * ?dz - ?pz) * (?along * ?dz - ?pz) < ?radius * ?radius)
+law choose-travel
+  then
+    paths forward ?forward right ?right left ?left choose if(?forward <= 0.0, 0.0, if(?right <= 0.0, 1.0, if(?left <= 0.0, -1.0, 2.0)))
+derive destination-status
+derive terrain-bounds
+derive travel-component
+derive closest-projection
+derive swept-distance
+derive choose-travel
 
 warrior-1 attack readiness "No battle in progress"
 warrior-1 heal readiness "No battle in progress"
@@ -694,7 +743,10 @@ on issue-move ?unit
     ?group-size > 0.0
     ?unit footprint radius ?radius
     sum 1.0 given ?target-x ?target-z ?offset-x ?offset-z ?offset-sum-x ?offset-sum-z ?group-size ?radius where { ?other selected false; ?other alive true; ?other footprint radius ?other-radius; ?other actor position Vec3 { x: ?x, y: ?y, z: ?z }; (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) * (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) + (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) * (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) < (?radius + ?other-radius) * (?radius + ?other-radius) } as ?blockers
-    destination with ?blockers blockers reports ?readiness
+    field half width ?field-size
+    point (?target-x + ?offset-x - ?offset-sum-x / ?group-size) (?target-z + ?offset-z - ?offset-sum-z / ?group-size) radius ?radius inside ?field-size as ?terrain
+    sum 1.0 given ?target-x ?target-z ?offset-x ?offset-z ?offset-sum-x ?offset-sum-z ?group-size ?radius where { ?obstacle obstacle position Vec3 { x: ?x, y: ?y, z: ?z }; ?obstacle obstacle radius ?obstacle-radius; (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) * (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) + (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) * (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) < (?radius + ?obstacle-radius) * (?radius + ?obstacle-radius) } as ?obstacles
+    destination with ?blockers blockers terrain ?terrain obstacles ?obstacles reports ?readiness
     ?readiness = "Ready"
     ?unit unit destination ?prior-destination
     ?unit moving ?was-moving
@@ -719,7 +771,10 @@ on issue-move ?unit
     ?group-size > 0.0
     ?unit footprint radius ?radius
     sum 1.0 given ?target-x ?target-z ?offset-x ?offset-z ?offset-sum-x ?offset-sum-z ?group-size ?radius where { ?other selected false; ?other alive true; ?other footprint radius ?other-radius; ?other actor position Vec3 { x: ?x, y: ?y, z: ?z }; (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) * (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) + (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) * (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) < (?radius + ?other-radius) * (?radius + ?other-radius) } as ?blockers
-    destination with ?blockers blockers reports ?readiness
+    field half width ?field-size
+    point (?target-x + ?offset-x - ?offset-sum-x / ?group-size) (?target-z + ?offset-z - ?offset-sum-z / ?group-size) radius ?radius inside ?field-size as ?terrain
+    sum 1.0 given ?target-x ?target-z ?offset-x ?offset-z ?offset-sum-x ?offset-sum-z ?group-size ?radius where { ?obstacle obstacle position Vec3 { x: ?x, y: ?y, z: ?z }; ?obstacle obstacle radius ?obstacle-radius; (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) * (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) + (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) * (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) < (?radius + ?obstacle-radius) * (?radius + ?obstacle-radius) } as ?obstacles
+    destination with ?blockers blockers terrain ?terrain obstacles ?obstacles reports ?readiness
     ?unit order report ?prior-report
     ?unit order name ?prior-name
     ?unit order number ?prior-number
@@ -1098,12 +1153,27 @@ on tick ?unit ?dt
     ?is-moving = true
     (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > 0.0
     (?speed * ?dt / sqrt((?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z))) clamped between 0.0 and 1.0 as ?fraction
+    from ?x toward ?destination-x fraction ?fraction advances ?step-x
+    from ?z toward ?destination-z fraction ?fraction advances ?step-z
+    ?unit footprint radius ?radius
+    ?unit formation offset Vec3 { x: ?priority, y: ?offset-y, z: ?offset-z }
+    field half width ?field-size
+    point (?x + ?step-x) (?z + ?step-z) radius ?radius inside ?field-size as ?forward-terrain
+    sum 1.0 given ?unit ?x ?z ?step-x ?step-z ?priority ?radius ?dt where { ?other alive true; ?other actor position Vec3 { x: ?other-x, y: ?other-y, z: ?other-z }; ?other footprint radius ?other-radius; ?other movement speed ?other-speed; ?other moving ?other-moving; ?other formation offset Vec3 { x: ?other-priority, y: ?other-offset-y, z: ?other-offset-z }; (?other = ?unit) = false; step ?step-x ?step-z toward relative point (?other-x - ?x) (?other-z - ?z) projects ?projection; ?projection clamped between 0.0 and 1.0 as ?along; step ?step-x ?step-z past relative point (?other-x - ?x) (?other-z - ?z) radius (?radius + ?other-radius + if(?priority >= ?other-priority, if(?other-moving, ?other-speed * ?dt, 0.0), 0.0)) along ?along blocked ?collision; ?collision = true } as ?forward-units
+    sum 1.0 given ?x ?z ?step-x ?step-z ?radius where { ?obstacle obstacle position Vec3 { x: ?obstacle-x, y: ?obstacle-y, z: ?obstacle-z }; ?obstacle obstacle radius ?obstacle-radius; step ?step-x ?step-z toward relative point (?obstacle-x - ?x) (?obstacle-z - ?z) projects ?projection; ?projection clamped between 0.0 and 1.0 as ?along; step ?step-x ?step-z past relative point (?obstacle-x - ?x) (?obstacle-z - ?z) radius (?radius + ?obstacle-radius) along ?along blocked ?collision; ?collision = true } as ?forward-obstacles
+    point (?x + (0.0 - ?step-z)) (?z + ?step-x) radius ?radius inside ?field-size as ?right-terrain
+    sum 1.0 given ?unit ?x ?z ?step-x ?step-z ?priority ?radius ?dt where { ?other alive true; ?other actor position Vec3 { x: ?other-x, y: ?other-y, z: ?other-z }; ?other footprint radius ?other-radius; ?other movement speed ?other-speed; ?other moving ?other-moving; ?other formation offset Vec3 { x: ?other-priority, y: ?other-offset-y, z: ?other-offset-z }; (?other = ?unit) = false; step (0.0 - ?step-z) ?step-x toward relative point (?other-x - ?x) (?other-z - ?z) projects ?projection; ?projection clamped between 0.0 and 1.0 as ?along; step (0.0 - ?step-z) ?step-x past relative point (?other-x - ?x) (?other-z - ?z) radius (?radius + ?other-radius + if(?priority >= ?other-priority, if(?other-moving, ?other-speed * ?dt, 0.0), 0.0)) along ?along blocked ?collision; ?collision = true } as ?right-units
+    sum 1.0 given ?x ?z ?step-x ?step-z ?radius where { ?obstacle obstacle position Vec3 { x: ?obstacle-x, y: ?obstacle-y, z: ?obstacle-z }; ?obstacle obstacle radius ?obstacle-radius; step (0.0 - ?step-z) ?step-x toward relative point (?obstacle-x - ?x) (?obstacle-z - ?z) projects ?projection; ?projection clamped between 0.0 and 1.0 as ?along; step (0.0 - ?step-z) ?step-x past relative point (?obstacle-x - ?x) (?obstacle-z - ?z) radius (?radius + ?obstacle-radius) along ?along blocked ?collision; ?collision = true } as ?right-obstacles
+    point (?x + ?step-z) (?z + (0.0 - ?step-x)) radius ?radius inside ?field-size as ?left-terrain
+    sum 1.0 given ?unit ?x ?z ?step-x ?step-z ?priority ?radius ?dt where { ?other alive true; ?other actor position Vec3 { x: ?other-x, y: ?other-y, z: ?other-z }; ?other footprint radius ?other-radius; ?other movement speed ?other-speed; ?other moving ?other-moving; ?other formation offset Vec3 { x: ?other-priority, y: ?other-offset-y, z: ?other-offset-z }; (?other = ?unit) = false; step ?step-z (0.0 - ?step-x) toward relative point (?other-x - ?x) (?other-z - ?z) projects ?projection; ?projection clamped between 0.0 and 1.0 as ?along; step ?step-z (0.0 - ?step-x) past relative point (?other-x - ?x) (?other-z - ?z) radius (?radius + ?other-radius + if(?priority >= ?other-priority, if(?other-moving, ?other-speed * ?dt, 0.0), 0.0)) along ?along blocked ?collision; ?collision = true } as ?left-units
+    sum 1.0 given ?x ?z ?step-x ?step-z ?radius where { ?obstacle obstacle position Vec3 { x: ?obstacle-x, y: ?obstacle-y, z: ?obstacle-z }; ?obstacle obstacle radius ?obstacle-radius; step ?step-z (0.0 - ?step-x) toward relative point (?obstacle-x - ?x) (?obstacle-z - ?z) projects ?projection; ?projection clamped between 0.0 and 1.0 as ?along; step ?step-z (0.0 - ?step-x) past relative point (?obstacle-x - ?x) (?obstacle-z - ?z) radius (?radius + ?obstacle-radius) along ?along blocked ?collision; ?collision = true } as ?left-obstacles
+    paths forward (?forward-units + ?forward-obstacles + if(?forward-terrain, 0.0, 1.0)) right (?right-units + ?right-obstacles + if(?right-terrain, 0.0, 1.0)) left (?left-units + ?left-obstacles + if(?left-terrain, 0.0, 1.0)) choose ?direction
   withdraw
     ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
     ?unit moving ?is-moving
   include
-    ?unit actor position Vec3 { x: (1.0 - ?fraction) * ?x + ?fraction * ?destination-x, y: 0.0, z: (1.0 - ?fraction) * ?z + ?fraction * ?destination-z }
-    ?unit moving ((?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > (?speed * ?dt) * (?speed * ?dt))
+    ?unit actor position Vec3 { x: if(?direction = 0.0, (1.0 - ?fraction) * ?x + ?fraction * ?destination-x, ?x + if(?direction = 1.0, 0.0 - ?step-z, if(?direction = -1.0, ?step-z, 0.0))), y: 0.0, z: if(?direction = 0.0, (1.0 - ?fraction) * ?z + ?fraction * ?destination-z, ?z + if(?direction = 1.0, ?step-x, if(?direction = -1.0, 0.0 - ?step-x, 0.0))) }
+    ?unit moving if(?direction = 0.0, (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > (?speed * ?dt) * (?speed * ?dt), true)
 on tick ?unit ?dt
   when
     ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }

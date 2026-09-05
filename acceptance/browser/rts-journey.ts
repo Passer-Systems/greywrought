@@ -318,6 +318,44 @@ try {
   }
   requireCondition(soloPosition !== null && Math.hypot(soloPosition[0] - soloOrder.x, soloPosition[1] - soloOrder.z) < 0.01,
     `single unit missed the clicked marker: order=${JSON.stringify(soloOrder)}, position=${JSON.stringify(soloPosition)}`);
+  const obstacles = await evaluate<{ id: string; x: number; z: number; radius: number }[]>("JSON.parse(document.body.dataset.obstacles || '[]')");
+  const stone = obstacles.find((obstacle) => obstacle.id === "standing-stone");
+  requireCondition(stone !== undefined && stone.x === -6 && stone.z === 4 && stone.radius === 1.2,
+    `the stone did not render its source position and radius: ${JSON.stringify(obstacles)}`);
+  await clickPoint(await worldPoint(stone!.x, 0, stone!.z), 0, "right");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Move — Path blocked')")) break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<boolean>("document.getElementById('command-status').textContent.includes('Move — Path blocked')"),
+    "a destination inside the stone was not visibly rejected");
+  const rejectedStonePosition = await evaluate<[number, number]>(soloCoordinates);
+  requireCondition(Math.hypot(rejectedStonePosition[0] - soloOrder.x, rejectedStonePosition[1] - soloOrder.z) < 0.01,
+    "a blocked stone destination displaced the unit");
+  for (let step = 0; step < 5; step += 1) {
+    await call("Input.dispatchMouseEvent", { type: "mouseWheel", x: canvas.x + canvas.width / 2,
+      y: canvas.y + canvas.height * 0.4, deltaX: 0, deltaY: 100 });
+    await Bun.sleep(40);
+  }
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (await evaluate<number>("Number(document.body.dataset.cameraDistance)") > 30) break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<number>("Number(document.body.dataset.cameraDistance)") > 30,
+    "camera zoom did not expose the destination beyond the stone");
+  await clickPoint(await worldPoint(-9, 0, 7), 0, "right");
+  const aroundStoneOrder = await evaluate<{ x: number; z: number }>("(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='move-requested').at(-1)");
+  let aroundStonePosition = rejectedStonePosition;
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    aroundStonePosition = await evaluate<[number, number]>(soloCoordinates);
+    requireCondition(Math.hypot(aroundStonePosition[0] - stone!.x, aroundStonePosition[1] - stone!.z) >= stone!.radius + 0.6 - 1e-8,
+      `the warrior entered the stone: ${JSON.stringify(aroundStonePosition)}`);
+    if (Math.hypot(aroundStonePosition[0] - aroundStoneOrder.x, aroundStonePosition[1] - aroundStoneOrder.z) < 0.01) break;
+    await Bun.sleep(50);
+  }
+  requireCondition(Math.hypot(aroundStonePosition[0] - aroundStoneOrder.x, aroundStonePosition[1] - aroundStoneOrder.z) < 0.01,
+    `the warrior did not arrive around the stone: ${JSON.stringify({ aroundStonePosition, aroundStoneOrder })}`);
+  console.log("RTS obstacle passed: visible stone, rejected blocked destination, separated travel and arrival around it");
   if (duplicateUnitId !== undefined) {
     const firstSelection = await evaluate<string[]>(
       "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)?.selected || []",

@@ -19,8 +19,8 @@ const declared = replaceOnce(
 );
 const overrides = new Map([
   ["actor name", '"Bran"'],
-  ["actor position", "Vec3 { x: 3.0, y: 0.0, z: 1.0 }"],
-  ["unit destination", "Vec3 { x: 3.0, y: 0.0, z: 1.0 }"],
+  ["actor position", "Vec3 { x: 4.0, y: 0.0, z: 1.0 }"],
+  ["unit destination", "Vec3 { x: 4.0, y: 0.0, z: 1.0 }"],
   ["formation offset", "Vec3 { x: 3.0, y: 0.0, z: -1.0 }"],
 ]);
 const unitRows = source.split("\n").filter((line) => line.startsWith("warrior-1 ")).map((line) => {

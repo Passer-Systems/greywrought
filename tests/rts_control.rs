@@ -51,8 +51,8 @@ fn source_with_second_warrior() -> Vec<u8> {
                 "warrior-2 actor name \"Bran\"\n",
                 "warrior-2 presentation kind \"Warrior\"\n",
                 "warrior-2 unit class warrior-class\n",
-                "warrior-2 actor position Vec3 { x: 3.0, y: 0.0, z: 1.0 }\n",
-                "warrior-2 unit destination Vec3 { x: 3.0, y: 0.0, z: 1.0 }\n",
+                "warrior-2 actor position Vec3 { x: 4.0, y: 0.0, z: 1.0 }\n",
+                "warrior-2 unit destination Vec3 { x: 4.0, y: 0.0, z: 1.0 }\n",
                 "warrior-2 formation offset Vec3 { x: 3.0, y: 0.0, z: -1.0 }\n",
                 "warrior-2 movement speed 5.0\n",
                 "warrior-2 footprint radius 0.6\n",
@@ -280,6 +280,85 @@ fn unit_position(projection: &clause_package::Term, id: &[u8]) -> [f64; 3] {
     [b"x", b"y", b"z"].map(|axis| projected_number(projected_field(pos, axis)))
 }
 
+fn travel_fixture(units: &[(&str, [f64; 2], [f64; 2])]) -> Vec<u8> {
+    let mut source = std::str::from_utf8(EMBODIED_SOURCE).unwrap().to_owned();
+    for (id, start, destination) in units {
+        source = source.lines().map(|line| {
+            if line.starts_with(&format!("{id} actor position ")) {
+                format!("{id} actor position Vec3 {{ x: {:?}, y: 0.0, z: {:?} }}", start[0], start[1])
+            } else if line.starts_with(&format!("{id} unit destination ")) {
+                format!("{id} unit destination Vec3 {{ x: {:?}, y: 0.0, z: {:?} }}", destination[0], destination[1])
+            } else if line.starts_with(&format!("{id} moving ")) {
+                format!("{id} moving {}", start != destination)
+            } else { line.to_owned() }
+        }).collect::<Vec<_>>().join("\n");
+        source.push('\n');
+    }
+    source.into_bytes()
+}
+
+#[test]
+fn travel_avoids_stationary_units_head_on_crossings_and_the_stone() {
+    for (name, units) in [
+        ("stationary", vec![("warrior-1", [-4.0, -4.0], [2.0, -4.0]), ("artificer-1", [-1.0, -4.0], [-1.0, -4.0])]),
+        ("head-on", vec![("warrior-1", [-4.0, -4.0], [2.0, -4.0]), ("artificer-1", [2.0, -4.0], [-4.0, -4.0])]),
+        ("crossing", vec![("warrior-1", [-4.0, -4.0], [2.0, -4.0]), ("artificer-1", [-1.0, -7.0], [-1.0, -1.0])]),
+        ("stone", vec![("warrior-1", [-9.0, 4.0], [-3.0, 4.0])]),
+    ] {
+        let mut s = session_for(&travel_fixture(&units));
+        let mut previous = units.iter().map(|(_, start, _)| *start).collect::<Vec<_>>();
+        let mut arrived = false;
+        for tick in 0..200 {
+            let frame = admit_tick(&mut s);
+            let positions = units.iter().map(|(id, _, _)| {
+                let p = unit_position(&frame, id.as_bytes());
+                [p[0], p[2]]
+            }).collect::<Vec<_>>();
+            for (index, (id, _, _)) in units.iter().enumerate() {
+                let p = positions[index];
+                let speed = actor_number(&frame, id.as_bytes(), b"movement-speed");
+                assert!((p[0] - previous[index][0]).hypot(p[1] - previous[index][1]) <= speed * 0.016 + 1e-10,
+                    "{name} tick {tick} exceeded its travel allowance");
+                assert!((p[0] + 6.0).hypot(p[1] - 4.0) >= 1.8 - 1e-10,
+                    "{name} tick {tick} entered the stone: {positions:?}");
+                for peer in (index + 1)..units.len() {
+                    // Relative swept motion tests the space between admitted endpoints too.
+                    let relative = [previous[index][0] - previous[peer][0], previous[index][1] - previous[peer][1]];
+                    let delta = [p[0] - positions[peer][0] - relative[0], p[1] - positions[peer][1] - relative[1]];
+                    let norm = delta[0] * delta[0] + delta[1] * delta[1];
+                    let along = if norm == 0.0 { 0.0 } else { (-(relative[0] * delta[0] + relative[1] * delta[1]) / norm).clamp(0.0, 1.0) };
+                    assert!((relative[0] + along * delta[0]).hypot(relative[1] + along * delta[1]) >= 1.2 - 1e-10,
+                        "{name} tick {tick} overlapped footprints: {positions:?}");
+                }
+            }
+            previous = positions;
+            if units.iter().enumerate().all(|(index, (id, _, target))| previous[index] == *target
+                && !projected_boolean(projected_field(projected_field(&frame, id.as_bytes()), b"moving"))) {
+                arrived = true;
+                break;
+            }
+        }
+        assert!(arrived, "{name} did not arrive: {previous:?}");
+    }
+}
+
+#[test]
+fn movement_rejects_destinations_inside_stone_or_outside_battlefield() {
+    let mut s = session();
+    let initial = admit_tick(&mut s);
+    key(&mut s, b"ClearSelection");
+    pick(&mut s, &initial, b"warrior-1");
+    for (x, z, report) in [(-6.0, 4.0, b"Path blocked".as_slice()), (41.0, 0.0, b"Beyond the battlefield")] {
+        scalar(&mut s, b"PointerWorldX", x);
+        scalar(&mut s, b"PointerWorldZ", z);
+        key(&mut s, b"IssueMove");
+        let frame = admit_tick(&mut s);
+        assert_eq!(unit_position(&frame, b"warrior-1"), unit_position(&initial, b"warrior-1"));
+        assert_eq!(projected_field(projected_field(&frame, b"warrior-1"), b"order-report").as_atom().unwrap().canonical_payload(), report);
+        assert!(!projected_boolean(projected_field(projected_field(&frame, b"warrior-1"), b"order-accepted")));
+    }
+}
+
 #[test]
 fn single_unit_move_arrives_at_the_clicked_point() {
     let mut s = session();
@@ -313,7 +392,7 @@ fn single_unit_move_arrives_at_the_clicked_point() {
 #[test]
 fn movement_has_constant_speed_and_straight_direction_then_exact_arrival() {
     for [dx, dz] in [[5.0, 0.0], [3.0, 4.0], [-3.0, -4.0]] {
-        let mut s = session();
+        let mut s = session_for(&travel_fixture(&[("warrior-1", [-12.0, -12.0], [-12.0, -12.0])]));
         let initial = admit_tick(&mut s);
         let start = unit_position(&initial, b"warrior-1");
         let speed = actor_number(&initial, b"warrior-1", b"movement-speed");

@@ -59,6 +59,13 @@ export interface EncounterActorView {
   readonly healthFraction: number;
 }
 
+export interface ObstacleView {
+  readonly id: string;
+  readonly x: number;
+  readonly z: number;
+  readonly radius: number;
+}
+
 interface UnitFigure {
   readonly root: Group;
   readonly placeholder: Group;
@@ -72,6 +79,7 @@ export interface RtsPresentation {
   readonly canvas: HTMLCanvasElement;
   applyUnits(units: readonly UnitView[]): void;
   applyEncounterActors(actors: readonly EncounterActorView[]): void;
+  applyObstacles(obstacles: readonly ObstacleView[]): void;
   pickActor(clientX: number, clientY: number): string | null;
   unitsInScreenRectangle(left: number, top: number, right: number, bottom: number): string[];
   groundPoint(clientX: number, clientY: number): Vector3 | null;
@@ -238,6 +246,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
 
   const figures = new Map<string, UnitFigure>();
   const encounterFigures = new Map<string, Group>();
+  const obstacleFigures = new Map<string, Mesh>();
   const pickTargets: Object3D[] = [];
   const raycaster = new Raycaster();
   const pointer = new Vector2();
@@ -427,6 +436,26 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
     }
   };
 
+  const applyObstacles = (obstacles: readonly ObstacleView[]): void => {
+    const present = new Set(obstacles.map((obstacle) => obstacle.id));
+    for (const [id, figure] of obstacleFigures) figure.visible = present.has(id);
+    for (const obstacle of obstacles) {
+      let figure = obstacleFigures.get(obstacle.id);
+      if (figure === undefined) {
+        figure = new Mesh(new CylinderGeometry(0.7, 1, 1, 12), material(0x717068, 0.95, 0));
+        figure.castShadow = true;
+        figure.receiveShadow = true;
+        obstacleFigures.set(obstacle.id, figure);
+        scene.add(figure);
+        ownTree(figure);
+      }
+      figure.visible = true;
+      figure.position.set(obstacle.x, obstacle.radius, obstacle.z);
+      figure.scale.set(obstacle.radius, obstacle.radius * 2, obstacle.radius);
+    }
+    document.body.dataset.obstacles = JSON.stringify(obstacles);
+  };
+
   const frameLoop = (time: number): void => {
     if (!alive) return;
     const dt = Math.min(0.05, Math.max(0, (time - previousTime) / 1000));
@@ -482,6 +511,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
     canvas: renderer.domElement,
     applyUnits,
     applyEncounterActors,
+    applyObstacles,
     pickActor(clientX, clientY) {
       raycaster.setFromCamera(normalizedPoint(clientX, clientY), camera);
       const hit = raycaster.intersectObjects(pickTargets, true).find(({ object }) => {
