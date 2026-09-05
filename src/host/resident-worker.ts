@@ -5,10 +5,16 @@ import {
   "cse1-projected-term-max-properties" as projectedTermPropertyLimit,
   "decode-cwr1-hex" as decodeCwr1Hex,
   "decode-projected-term-frame" as decodeProjectedTermFrame,
+  editSourceSession,
+  explainSession,
+  finiteScalarInterventionQuery,
+  interveneSession,
+  sourceContinuity,
   type ProjectedValue,
 } from "../../build/host/jump-arena-shell/wasm-cartridge-port.js";
 import {
   "->FixedTick" as createFixedTick,
+  "->CartridgePort" as createCartridgePort,
   "->WorkbenchPolicy" as createWorkbenchPolicy,
   "->WorkbenchSequenceLimits" as createWorkbenchSequenceLimits,
   "create-cartridge-workbench!" as createCartridgeWorkbench,
@@ -18,13 +24,7 @@ import {
   type LifecycleReceipt,
   type WorkbenchEnvelope,
 } from "../../build/host/jump-arena-shell/workbench.js";
-import {
-  clause_session_v1_command_bulk as commandSession,
-  clause_session_v1_event_bulk as readSessionEvent,
-  clause_session_v1_open_bulk as openSession,
-  clause_session_v1_reclaim_retired as reclaimRetiredSession,
-  initSync,
-} from "#clause-runtime-wasm";
+import * as clauseRuntime from "#clause-runtime-wasm";
 
 interface GenerationPayload {
   readonly generation: number;
@@ -32,6 +32,19 @@ interface GenerationPayload {
   readonly cwr1: string;
   readonly sourceModifiedMillis: number;
   readonly hot: boolean;
+  readonly cet1: string | null;
+  readonly scalarEffects: readonly ScalarEffectPayload[];
+  readonly entries: Readonly<{ attack: number; heal: number }>;
+}
+
+interface ScalarEffectPayload {
+  readonly index: number;
+  readonly handler: number;
+  readonly effect: number;
+  readonly start: number;
+  readonly end: number;
+  readonly artifact: string;
+  readonly expression: string;
 }
 
 type ResidentInput =
@@ -60,16 +73,57 @@ type ResidentInput =
 
 type ResidentCommand =
   | Readonly<{ kind: "install-generation"; payload: GenerationPayload }>
+  | Readonly<{ kind: "install-edit"; payload: GenerationPayload }>
+  | Readonly<{
+      kind: "fence-edit";
+      capturedExternalGeneration: number;
+      capturedWorkbenchGeneration: number;
+    }>
+  | Readonly<{
+      kind: "release-edit";
+      capturedExternalGeneration: number;
+      capturedWorkbenchGeneration: number;
+    }>
   | Readonly<{ kind: "input"; input: ResidentInput }>
+  | Readonly<{
+      kind: "diagnose";
+      capturedExternalGeneration: number;
+      capturedWorkbenchGeneration: number;
+      entry: "attack" | "heal";
+      interventionTarget?: string;
+    }>
   | Readonly<{ kind: "dispose" }>;
 
 type ResidentEvent =
+  | Readonly<{
+      kind: "edit-fenced";
+      generation: number;
+      workbenchGeneration: number;
+    }>
   | Readonly<{
       kind: "projection";
       generation: number;
       workbenchGeneration: number;
       projection: ProjectedValue;
       frameUnits: number;
+    }>
+  | Readonly<{
+      kind: "live-edit";
+      generation: number;
+      workbenchGeneration: number;
+      elapsedMillis: number;
+      continuity: ProjectedValue;
+    }>
+  | Readonly<{
+      kind: "diagnostic";
+      generation: number;
+      workbenchGeneration: number;
+      entry: "attack" | "heal";
+      explanation: ProjectedValue;
+      intervention: ProjectedValue | null;
+      boundedIntervention: ProjectedValue | null;
+      interventionChoiceCount: number;
+      interventionVitalitySlot: number;
     }>
   | Readonly<{
       kind: "receipt";
@@ -117,21 +171,19 @@ const modulePromise = fetch(
     return response.arrayBuffer();
   })
   .then((bytes) => {
-    initSync({ module: bytes });
-    return Object.freeze({
-      clause_session_v1_open_bulk: (request: readonly number[]) =>
-        openSession(new Uint8Array(request)),
-      clause_session_v1_command_bulk: (request: readonly number[]) =>
-        commandSession(new Uint8Array(request)),
-      clause_session_v1_event_bulk: readSessionEvent,
-      clause_session_v1_reclaim_retired: reclaimRetiredSession,
-    });
+    clauseRuntime.initSync({ module: bytes });
+    return clauseRuntime;
   });
 
 let controller: CartridgeWorkbench | null = null;
 let activeExternalGeneration = -1;
 let activeWorkbenchGeneration = -1;
 let pendingExternalGeneration: number | null = null;
+let liveSession: unknown = null;
+let pendingEdit: GenerationPayload | null = null;
+let pendingEditStarted = 0;
+let currentEntries: Readonly<{ attack: number; heal: number }> | null = null;
+let sourceEditFence = false;
 let flushingInput = false;
 let simulationStarted = false;
 let disposed = false;
@@ -206,6 +258,19 @@ function handleReceipt(receipt: LifecycleReceipt): void {
     activeExternalGeneration = pendingExternalGeneration;
     activeWorkbenchGeneration = receipt.activeGeneration;
     pendingExternalGeneration = null;
+    if (pendingEdit !== null && liveSession !== null) {
+      const payload = pendingEdit;
+      pendingEdit = null;
+      workerScope.postMessage({
+        kind: "live-edit",
+        generation: activeExternalGeneration,
+        workbenchGeneration: activeWorkbenchGeneration,
+        elapsedMillis: performance.now() - pendingEditStarted,
+        continuity: sourceContinuity(clauseRuntime, liveSession),
+      });
+      currentEntries = payload.entries;
+      sourceEditFence = false;
+    }
   }
   const externalGeneration =
     receipt.event === "package-rejected" || receipt.event === "session-failed"
@@ -261,14 +326,42 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
   const request = createExactProcessRequest(decodeCwr1Hex(payload.cwr1));
   pendingExternalGeneration = payload.generation;
   if (controller === null) {
-    const port = createWasmCartridgePort(module, policy);
+    const basePort = createWasmCartridgePort(module, policy);
+      const port = createCartridgePort(
+      basePort.acceptPackage,
+      (acceptedPackage, generation, complete) => {
+        if (pendingEdit !== null) {
+          const edit = pendingEdit;
+          if (liveSession === null || edit.cet1 === null) {
+            throw new Error("live source edit omitted captured session or CET1");
+          }
+          const result = editSourceSession(
+            module,
+            liveSession,
+            generation,
+            createExactProcessRequest(decodeCwr1Hex(edit.cwr1)),
+            decodeCwr1Hex(edit.cet1),
+            policy,
+          );
+          if (result._tag === "SessionStarted") liveSession = result.session;
+          return complete(result);
+        }
+        return basePort.startSession(acceptedPackage, generation, (result) => {
+          if (result._tag === "SessionStarted") liveSession = result.session;
+          return complete(result);
+        });
+      },
+      basePort.runCandidate,
+      basePort.requestAdmission,
+      basePort.disposeSession,
+    );
     controller = createCartridgeWorkbench(
       port,
       createFixedTick(16),
       policy,
       (milliseconds, callback) => {
         const handle = setInterval(() => {
-          callback();
+          if (!sourceEditFence) callback();
         }, milliseconds);
         return () => clearInterval(handle);
       },
@@ -304,6 +397,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
       request,
     );
     simulationStarted = true;
+    currentEntries = payload.entries;
     heartbeatHandle = setInterval(() => {
       if (!disposed) {
         const snapshot = controller?.snapshot();
@@ -329,8 +423,119 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
   }
 }
 
+async function installEdit(payload: GenerationPayload): Promise<void> {
+  if (
+    controller === null || liveSession === null || payload.cet1 === null ||
+    !sourceEditFence ||
+    payload.generation <= activeExternalGeneration ||
+    controller.snapshot().pendingObservations !== 0 || inputQueue.length !== 0
+  ) {
+    throw new Error("live source edit is stale or the runtime boundary is not settled");
+  }
+  pendingEdit = payload;
+  pendingEditStarted = performance.now();
+  try {
+    await installGeneration(payload);
+  } catch (cause) {
+    pendingEdit = null;
+    throw cause;
+  }
+}
+
+function fenceEdit(
+  command: Extract<ResidentCommand, { kind: "fence-edit" }>,
+): void {
+  if (
+    sourceEditFence || controller === null || liveSession === null ||
+    command.capturedExternalGeneration !== activeExternalGeneration ||
+    command.capturedWorkbenchGeneration !== activeWorkbenchGeneration ||
+    controller.snapshot().pendingObservations !== 0 || inputQueue.length !== 0 || flushingInput
+  ) throw new Error("live source edit boundary is not settled");
+  sourceEditFence = true;
+  workerScope.postMessage({
+    kind: "edit-fenced",
+    generation: activeExternalGeneration,
+    workbenchGeneration: activeWorkbenchGeneration,
+  });
+}
+
+function releaseEdit(
+  command: Extract<ResidentCommand, { kind: "release-edit" }>,
+): void {
+  if (
+    !sourceEditFence || pendingEdit !== null ||
+    command.capturedExternalGeneration !== activeExternalGeneration ||
+    command.capturedWorkbenchGeneration !== activeWorkbenchGeneration
+  ) throw new Error("live source edit release is stale");
+  sourceEditFence = false;
+}
+
+function object(value: unknown, context: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${context} is not an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function diagnose(command: Extract<ResidentCommand, { kind: "diagnose" }>): void {
+  if (
+    liveSession === null || currentEntries === null ||
+    command.capturedExternalGeneration !== activeExternalGeneration ||
+    command.capturedWorkbenchGeneration !== activeWorkbenchGeneration
+  ) {
+    throw new Error("diagnostic request is stale");
+  }
+  const entry = currentEntries[command.entry];
+  const explanation = explainSession(clauseRuntime, liveSession, entry);
+  let intervention: ProjectedValue | null = null;
+  let boundedIntervention: ProjectedValue | null = null;
+  let interventionChoiceCount = 0;
+  let interventionVitalitySlot = -1;
+  if (command.interventionTarget !== undefined) {
+    const detail = object(explanation, "explanation");
+    const states = object(detail.states, "explanation states");
+    const allowed: Array<{ slot: number; value: boolean }> = [];
+    let vitality = -1;
+    for (const [coordinate, candidate] of Object.entries(states)) {
+      const state = object(candidate, `state ${coordinate}`);
+      const source = object(state.source, `state ${coordinate} source`);
+      if (source.relation === "selected") allowed.push({ slot: Number(coordinate), value: false });
+      if (source.subject === command.interventionTarget && source.relation === "vitality") {
+        vitality = Number(coordinate);
+      }
+    }
+    if (allowed.length === 0 || vitality < 0 || typeof detail.step !== "string") {
+      throw new Error("recorded attack lacks bounded intervention coordinates");
+    }
+    interventionChoiceCount = allowed.length;
+    interventionVitalitySlot = vitality;
+    intervention = interveneSession(
+      clauseRuntime,
+      liveSession,
+      finiteScalarInterventionQuery(detail.step, allowed, 32, { slot: vitality, greaterThan: 0 }),
+    );
+    boundedIntervention = interveneSession(
+      clauseRuntime,
+      liveSession,
+      finiteScalarInterventionQuery(detail.step, allowed, 1, { slot: vitality, greaterThan: 0 }),
+    );
+  }
+  workerScope.postMessage({
+    kind: "diagnostic",
+    generation: activeExternalGeneration,
+    workbenchGeneration: activeWorkbenchGeneration,
+    entry: command.entry,
+    explanation,
+    intervention,
+    boundedIntervention,
+    interventionChoiceCount,
+    interventionVitalitySlot,
+  });
+}
+
 function queueInput(input: ResidentInput): void {
   receivedInputCount += 1;
+  if (sourceEditFence) return;
   if (input.kind === "keyboard" && !rtsKeyboardCodes.has(input.code)) return;
   if (
     input.kind === "scalar-input" &&
@@ -380,8 +585,16 @@ function queueInput(input: ResidentInput): void {
 async function handleCommand(command: ResidentCommand): Promise<void> {
   if (command.kind === "install-generation") {
     await installGeneration(command.payload);
+  } else if (command.kind === "install-edit") {
+    await installEdit(command.payload);
+  } else if (command.kind === "fence-edit") {
+    fenceEdit(command);
+  } else if (command.kind === "release-edit") {
+    releaseEdit(command);
   } else if (command.kind === "input") {
     queueInput(command.input);
+  } else if (command.kind === "diagnose") {
+    diagnose(command);
   } else {
     disposed = true;
     if (heartbeatHandle !== null) clearInterval(heartbeatHandle);

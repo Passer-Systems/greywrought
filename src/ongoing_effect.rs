@@ -389,6 +389,7 @@ fn effect_physical_plan(
             rules: vec![],
             projection: None,
         },
+        source_metadata: None,
     })
 }
 

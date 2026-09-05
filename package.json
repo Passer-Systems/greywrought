@@ -17,6 +17,7 @@
     "build:host": "bun run typecheck:host && bun build src/host/public-url.ts --no-bundle --outfile=build/host/public-url.js && bun build src/host/play.ts --outfile=build/host/play.js --external=three --external='#clause-runtime-wasm' && bun build src/host/resident-worker.ts --outfile=build/host/resident-worker.js && bun build src/host/play-server.ts --no-bundle --outfile=build/host/play-server.js",
     "test:rts-journey": "bun acceptance/browser/rts-journey.ts",
     "test:rts-idle-loss": "bun acceptance/browser/rts-idle-loss.ts",
+    "test:rts-live-semantics": "bun acceptance/browser/rts-live-semantics.ts",
     "build:play": "bun run build:resident && bun run build:host",
     "build:static": "bun run build:play && cargo run --bin materialize --locked && bun scripts/build-static.ts && bun scripts/release-budget.ts",
     "check:release": "bun run verify:clause && bun run build:static",

@@ -17,6 +17,19 @@ interface GenerationPayload {
   readonly cwr1: string;
   readonly sourceModifiedMillis: number;
   readonly hot: boolean;
+  readonly cet1: string | null;
+  readonly scalarEffects: readonly ScalarEffectPayload[];
+  readonly entries: Readonly<{ attack: number; heal: number }>;
+}
+
+interface ScalarEffectPayload {
+  readonly index: number;
+  readonly handler: number;
+  readonly effect: number;
+  readonly start: number;
+  readonly end: number;
+  readonly artifact: string;
+  readonly expression: string;
 }
 
 type ResidentInput =
@@ -77,6 +90,17 @@ interface ResidentState {
   polling: boolean;
   staticGeneration: boolean;
   interval: number;
+  workbenchGeneration: number;
+  editing: boolean;
+  scalarEffects: readonly ScalarEffectPayload[];
+  entries: Readonly<{ attack: number; heal: number }>;
+  editStartedMillis: number;
+  pendingVisibleEdit: Readonly<{
+    startedMillis: number;
+    runtimeMillis: number;
+    continuity: unknown;
+  }> | null;
+  editFenceResolver: (() => void) | null;
 }
 
 interface GameState {
@@ -109,6 +133,16 @@ function record(value: unknown, context: string): Readonly<Record<string, unknow
     throw new Error(`${context} is not a projected object`);
   }
   return value as Readonly<Record<string, unknown>>;
+}
+
+function pagedDiagnosticValue(
+  value: unknown,
+  coordinate: number,
+  context: string,
+): unknown {
+  const pages = record(value, context);
+  const page = record(pages[String(Math.floor(coordinate / 64))], `${context} page`);
+  return page[String(coordinate % 64)];
 }
 
 function field(value: unknown, name: string, context: string): unknown {
@@ -477,6 +511,7 @@ function applyProjection(
   window.__GREYWROUGHT_GAME_EVENTS__.push({
     phase: "projection",
     generation,
+    workbenchGeneration,
     selected: state.units.filter((unit) => unit.selected).map((unit) => unit.id),
     positions: Object.fromEntries(state.units.map((unit) => [unit.id, [unit.x, unit.z]])),
     encounter: state.encounter.phase,
@@ -486,6 +521,23 @@ function applyProjection(
     burns: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.burnRemaining])),
     cooldowns: Object.fromEntries(state.units.map((unit) => [unit.id, number(record(index.game[unit.id], unit.id), "action-cooldown", unit.id)])),
   });
+  if (state.resident.pendingVisibleEdit !== null) {
+    const pending = state.resident.pendingVisibleEdit;
+    const visibleMillis = performance.now() - pending.startedMillis;
+    state.resident.pendingVisibleEdit = null;
+    state.resident.editing = false;
+    document.body.dataset.liveEditState = "continued";
+    document.body.dataset.liveEditMillis = String(visibleMillis);
+    element("live-edit-status").textContent = `Battle continued visibly after ${Math.round(visibleMillis)} ms (${Math.round(pending.runtimeMillis)} ms Wasm transfer)`;
+    window.__GREYWROUGHT_GAME_EVENTS__.push({
+      phase: "live-edit-visible",
+      generation,
+      workbenchGeneration,
+      elapsedMillis: visibleMillis,
+      runtimeMillis: pending.runtimeMillis,
+      continuity: pending.continuity,
+    });
+  }
 }
 
 function bindResident(state: GameState): void {
@@ -501,12 +553,109 @@ function bindResident(state: GameState): void {
           typeof workbenchGeneration !== "number" ||
           generation < state.resident.generation
         ) return;
+        state.resident.workbenchGeneration = workbenchGeneration;
         applyProjection(state, payload.projection, generation, workbenchGeneration);
       } else if (kind === "receipt") {
         const receipt = record(payload.receipt, "resident receipt");
         if (typeof receipt.event === "string") document.body.dataset.lastReceipt = receipt.event;
       } else if (kind === "heartbeat") {
         if (typeof payload.workbenchPhase === "string") document.body.dataset.workbenchPhase = payload.workbenchPhase;
+      } else if (kind === "edit-fenced") {
+        if (
+          payload.generation !== state.resident.generation ||
+          payload.workbenchGeneration !== state.resident.workbenchGeneration
+        ) return;
+        document.body.dataset.liveEditState = "fenced";
+        state.resident.editFenceResolver?.();
+        state.resident.editFenceResolver = null;
+      } else if (kind === "live-edit") {
+        if (
+          payload.generation !== state.resident.generation ||
+          typeof payload.workbenchGeneration !== "number" ||
+          typeof payload.elapsedMillis !== "number"
+        ) return;
+        state.resident.workbenchGeneration = payload.workbenchGeneration;
+        state.resident.pendingVisibleEdit = {
+          startedMillis: state.resident.editStartedMillis,
+          runtimeMillis: payload.elapsedMillis,
+          continuity: payload.continuity,
+        };
+        element("live-edit-status").textContent = "Checked change accepted; awaiting carried battle frame…";
+        window.__GREYWROUGHT_GAME_EVENTS__.push({
+          phase: "live-edit-runtime",
+          generation: payload.generation,
+          workbenchGeneration: payload.workbenchGeneration,
+          elapsedMillis: payload.elapsedMillis,
+          continuity: payload.continuity,
+        });
+      } else if (kind === "diagnostic") {
+        if (
+          payload.generation !== state.resident.generation ||
+          payload.workbenchGeneration !== state.resident.workbenchGeneration
+        ) return;
+        const explanation = record(payload.explanation, "execution explanation");
+        const rules = Object.values(record(explanation.rules, "explanation rules"))
+          .map((rule, index) => record(rule, `explanation rule ${index}`));
+        const selected = rules.filter((rule) => rule.selected === true);
+        const changedStates = Object.values(record(explanation.states, "explanation states"))
+          .map((value, index) => record(value, `explained state ${index}`))
+          .filter((value) => JSON.stringify(value.before) !== JSON.stringify(value.after))
+          .slice(0, 8)
+          .map((value) => {
+            const source = record(value.source, "state source");
+            return `${String(source.subject)} ${String(source.relation)}: ${String(value.before)} → ${String(value.after)}`;
+          });
+        const origins = selected.slice(0, 8).map((rule) => {
+          const source = record(rule.source, "selected rule source");
+          const origin = record(source.origin, "handler origin");
+          const laws = Object.values(record(source.laws, "law origins"))
+            .map((law) => record(law, "law origin"))
+            .map((law) => `${String(law.start)}–${String(law.end)}`)
+            .join(", ");
+          return `${String(source.designation)} @ ${String(origin.start)}–${String(origin.end)}${laws ? `; laws ${laws}` : ""}`;
+        });
+        const premises = selected.slice(0, 1).flatMap((rule) =>
+          Object.entries(record(rule.premises, "selected rule premises")).slice(0, 5).map(([index, premise]) => {
+            const evaluated = record(premise, `premise ${index}`);
+            const reads = Object.values(record(evaluated.reads, `premise ${index} reads`))
+              .map((read) => record(read, `premise ${index} read`))
+              .map((read) => `${String(read.kind)}[${String(read.coordinate)}]=${String(read.value)}`)
+              .join(", ");
+            return `premise ${index}: ${String(evaluated.value)} (${reads})`;
+          })
+        );
+        element("explanation-status").textContent = [
+          `Recorded Step ${String(explanation.step)} · ${selected.length} selected rule occurrence(s)`,
+          ...changedStates,
+          ...premises,
+          ...origins,
+        ].join("\n");
+        if (payload.intervention !== null) {
+          const answer = record(payload.intervention, "intervention answer");
+          const bounded = record(payload.boundedIntervention, "bounded intervention answer");
+          const solution = answer.solution === undefined ? {} : record(answer.solution, "intervention solution");
+          const predictedVitality = answer.predicted === undefined
+            ? undefined
+            : pagedDiagnosticValue(
+                answer.predicted,
+                Number(payload.interventionVitalitySlot),
+                "intervention prediction",
+              );
+          element("intervention-status").textContent = [
+            `Finite domain: ${String(payload.interventionChoiceCount)} Boolean deselections; bound 32`,
+            `Order: ${String(answer["cost-order"])}; evaluations ${String(answer.evaluations)}`,
+            `Found ${String(answer.found)} · completed ${String(answer.completed)} · exhausted ${String(answer.exhausted)} · cost ${String(answer.cost ?? "none")}`,
+            `Changes ${JSON.stringify(solution)}; predicted target vitality ${String(predictedVitality ?? "absent")}`,
+            `One-evaluation prefix: completed ${String(bounded.completed)} · exhausted ${String(bounded.exhausted)} · found ${String(bounded.found)}`,
+          ].join("\n");
+        }
+        window.__GREYWROUGHT_GAME_EVENTS__.push({
+          phase: "diagnostic",
+          entry: payload.entry,
+          explanation: payload.explanation,
+          intervention: payload.intervention,
+          boundedIntervention: payload.boundedIntervention,
+        });
       } else if (kind === "failure") {
         throw new Error(typeof payload.message === "string" ? payload.message : "resident worker failed");
       }
@@ -531,38 +680,82 @@ function bindResident(state: GameState): void {
 
 function parseGeneration(value: unknown): GenerationPayload {
   const source = record(value, "resident generation");
-  const { generation, compilerMicros, cwr1, sourceModifiedMillis, hot } = source;
+  const { generation, compilerMicros, cwr1, sourceModifiedMillis, hot, cet1, scalarEffects, entries } = source;
   if (
     typeof generation !== "number" || typeof compilerMicros !== "number" ||
-    typeof cwr1 !== "string" || typeof sourceModifiedMillis !== "number" || typeof hot !== "boolean"
+    typeof cwr1 !== "string" || typeof sourceModifiedMillis !== "number" || typeof hot !== "boolean" ||
+    !(cet1 === null || typeof cet1 === "string") || !Array.isArray(scalarEffects)
   ) throw new Error("resident generation payload is malformed");
-  return { generation, compilerMicros, cwr1, sourceModifiedMillis, hot };
+  const parsedEntries = record(entries, "resident entries");
+  if (typeof parsedEntries.attack !== "number" || typeof parsedEntries.heal !== "number") {
+    throw new Error("resident diagnostic entries are malformed");
+  }
+  const parsedEffects = scalarEffects.map((candidate, index) => {
+    const effect = record(candidate, `scalar effect ${index}`);
+    if (
+      typeof effect.index !== "number" || typeof effect.handler !== "number" ||
+      typeof effect.effect !== "number" || typeof effect.start !== "number" ||
+      typeof effect.end !== "number" || typeof effect.artifact !== "string" ||
+      typeof effect.expression !== "string"
+    ) throw new Error(`scalar effect ${index} is malformed`);
+    return effect as unknown as ScalarEffectPayload;
+  });
+  return {
+    generation, compilerMicros, cwr1, sourceModifiedMillis, hot, cet1,
+    scalarEffects: parsedEffects,
+    entries: { attack: parsedEntries.attack, heal: parsedEntries.heal },
+  };
 }
 
 function installGeneration(state: GameState, payload: GenerationPayload): void {
   state.resident.generation = payload.generation;
+  state.resident.scalarEffects = payload.scalarEffects;
+  state.resident.entries = payload.entries;
+  renderScalarEffectCatalog(state);
   state.resident.worker.postMessage({ kind: "install-generation", payload });
   element("authority-status").textContent = payload.hot ? "Forming ranks…" : "Rallying the company…";
 }
 
+function renderScalarEffectCatalog(state: GameState): void {
+  const catalog = element("scalar-effect-catalog") as HTMLSelectElement;
+  const selected = catalog.value;
+  catalog.replaceChildren(...state.resident.scalarEffects.map((effect) => {
+    const option = document.createElement("option");
+    option.value = String(effect.index);
+    option.textContent = `${effect.expression} · bytes ${effect.start}–${effect.end}`;
+    option.dataset.handler = String(effect.handler);
+    option.dataset.effect = String(effect.effect);
+    option.dataset.artifact = effect.artifact;
+    return option;
+  }));
+  if ([...catalog.options].some((option) => option.value === selected)) catalog.value = selected;
+  const chosen = selectedScalarEffect(state);
+  (element("scalar-effect-expression") as HTMLInputElement).value = chosen?.expression ?? "";
+}
+
 async function pollResident(state: GameState): Promise<void> {
-  if (state.disposed || state.resident.polling || state.resident.staticGeneration) return;
+  if (state.disposed || state.resident.polling || state.resident.staticGeneration || state.resident.editing) return;
   state.resident.polling = true;
+  const requestedAfter = state.resident.generation;
   try {
-    const response = await fetch(publicUrl(`resident-generation?after=${state.resident.generation}`), { cache: "no-store" });
+    const response = await fetch(publicUrl(`resident-generation?after=${requestedAfter}`), { cache: "no-store" });
     if (response.status === 404 && state.resident.generation < 0) {
       state.resident.staticGeneration = true;
       const cartridge = await fetch(publicUrl("assets/embodied-encounter-v1.cwr1.hex")).then((entry) => {
         if (!entry.ok) throw new Error(`company roster failed: ${entry.status}`);
         return entry.text();
       });
-      installGeneration(state, { generation: 0, compilerMicros: 0, cwr1: cartridge, sourceModifiedMillis: 0, hot: false });
+      installGeneration(state, {
+        generation: 0, compilerMicros: 0, cwr1: cartridge, sourceModifiedMillis: 0,
+        hot: false, cet1: null, scalarEffects: [], entries: { attack: 0, heal: 0 },
+      });
       return;
     }
     if (response.status === 204) return;
     const payload: unknown = await response.json();
     if (!response.ok) throw new Error("company update was rejected; prior orders retained");
-    installGeneration(state, parseGeneration(payload));
+    const parsed = parseGeneration(payload);
+    if (parsed.generation > state.resident.generation) installGeneration(state, parsed);
   } catch (cause: unknown) {
     const message = cause instanceof Error ? cause.message : String(cause);
     element("authority-status").textContent = message;
@@ -660,6 +853,119 @@ function bindInteraction(state: GameState): void {
   );
 }
 
+function selectedScalarEffect(state: GameState): ScalarEffectPayload | undefined {
+  const selected = Number.parseInt((element("scalar-effect-catalog") as HTMLSelectElement).value, 10);
+  return state.resident.scalarEffects.find((effect) => effect.index === selected);
+}
+
+function reportLiveFailure(cause: unknown): void {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  document.body.dataset.liveEditState = "failed";
+  element("live-edit-status").textContent = message;
+  console.error("Battle-law operation failed", message);
+}
+
+async function requestLiveEdit(
+  state: GameState,
+): Promise<void> {
+  if (state.resident.editing) return;
+  const effect = selectedScalarEffect(state);
+  if (effect === undefined) throw new Error("Choose an exact offered scalar effect");
+  const capturedExternalGeneration = state.resident.generation;
+  const capturedWorkbenchGeneration = state.resident.workbenchGeneration;
+  const expression = (element("scalar-effect-expression") as HTMLInputElement).value;
+  state.resident.editing = true;
+  state.resident.editStartedMillis = performance.now();
+  document.body.dataset.liveEditState = "checking";
+  element("live-edit-status").textContent = "Checking the offered battle-law expression…";
+  const started = performance.now();
+  try {
+    const fenced = new Promise<void>((resolve, reject) => {
+      state.resident.editFenceResolver = resolve;
+      window.setTimeout(() => {
+        if (state.resident.editFenceResolver === resolve) {
+          state.resident.editFenceResolver = null;
+          reject(new Error("settled live-edit fence timed out"));
+        }
+      }, 2_000);
+    });
+    state.resident.worker.postMessage({
+      kind: "fence-edit",
+      capturedExternalGeneration,
+      capturedWorkbenchGeneration,
+    });
+    await fenced;
+    const response = await fetch(publicUrl("resident-edit"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        capturedGeneration: capturedExternalGeneration,
+        catalogIndex: effect.index,
+        expression,
+      }),
+    });
+    const body: unknown = await response.json();
+    if (!response.ok) {
+      const rejected = record(body, "source edit rejection");
+      if (
+        response.status !== 422 || rejected.rejected !== true ||
+        typeof rejected.errorHex !== "string" || rejected.errorHex.length === 0
+      ) throw new Error(`battle-law transport failed (${response.status})`);
+      state.resident.editing = false;
+      state.resident.worker.postMessage({
+        kind: "release-edit", capturedExternalGeneration, capturedWorkbenchGeneration,
+      });
+      document.body.dataset.liveEditState = "rejected-preserved";
+      element("live-edit-status").textContent = "Rejected expression; running battle preserved";
+      window.__GREYWROUGHT_GAME_EVENTS__.push({
+        phase: "source-edit-rejected", capturedExternalGeneration,
+        capturedWorkbenchGeneration, elapsedMillis: performance.now() - started,
+      });
+      return;
+    }
+    const payload = parseGeneration(body);
+    if (payload.generation === capturedExternalGeneration && payload.cet1 === null) {
+      state.resident.editing = false;
+      state.resident.worker.postMessage({
+        kind: "release-edit", capturedExternalGeneration, capturedWorkbenchGeneration,
+      });
+      document.body.dataset.liveEditState = "unchanged-preserved";
+      element("live-edit-status").textContent = "No change; running battle preserved";
+      window.__GREYWROUGHT_GAME_EVENTS__.push({
+        phase: "source-edit-unchanged", capturedExternalGeneration,
+        capturedWorkbenchGeneration, elapsedMillis: performance.now() - started,
+      });
+      return;
+    }
+    if (
+      payload.generation <= capturedExternalGeneration ||
+      payload.cet1 === null || state.resident.generation !== capturedExternalGeneration ||
+      state.resident.workbenchGeneration !== capturedWorkbenchGeneration
+    ) throw new Error("changed battle law lost captured generation custody");
+    state.resident.generation = payload.generation;
+    state.resident.scalarEffects = payload.scalarEffects;
+    state.resident.entries = payload.entries;
+    renderScalarEffectCatalog(state);
+    state.resident.worker.postMessage({ kind: "install-edit", payload });
+  } catch (cause: unknown) {
+    throw cause;
+  }
+}
+
+function requestDiagnostic(
+  state: GameState,
+  entry: "attack" | "heal",
+  interventionTarget?: string,
+): void {
+  state.resident.worker.postMessage({
+    kind: "diagnose",
+    capturedExternalGeneration: state.resident.generation,
+    capturedWorkbenchGeneration: state.resident.workbenchGeneration,
+    entry,
+    interventionTarget,
+  });
+}
+
 function bindHud(state: GameState): void {
   const roster = element("roster");
   const select = (event: MouseEvent): void => {
@@ -685,6 +991,14 @@ function bindHud(state: GameState): void {
   const attack = (): void => issueAction(state, "Attack");
   const heal = (): void => issueAction(state, "Heal");
   const ward = (): void => issueAction(state, "Ward");
+  const chooseEffect = (): void => {
+    const selected = selectedScalarEffect(state);
+    (element("scalar-effect-expression") as HTMLInputElement).value = selected?.expression ?? "";
+  };
+  const changedEdit = (): void => void requestLiveEdit(state).catch(reportLiveFailure);
+  const explainAttack = (): void => requestDiagnostic(state, "attack");
+  const explainHeal = (): void => requestDiagnostic(state, "heal");
+  const interveneAttack = (): void => requestDiagnostic(state, "attack", state.encounter.targetId || "cinder-1");
   element("select-all").addEventListener("click", all);
   element("equipment-toggle").addEventListener("click", equipment);
   element("equipment-close").addEventListener("click", close);
@@ -693,6 +1007,11 @@ function bindHud(state: GameState): void {
   element("command-attack").addEventListener("click", attack);
   element("command-heal").addEventListener("click", heal);
   element("command-ward").addEventListener("click", ward);
+  element("edit-double-damage").addEventListener("click", changedEdit);
+  element("scalar-effect-catalog").addEventListener("change", chooseEffect);
+  element("explain-attack").addEventListener("click", explainAttack);
+  element("explain-heal").addEventListener("click", explainHeal);
+  element("intervene-attack").addEventListener("click", interveneAttack);
   state.listeners.push(
     () => roster.removeEventListener("click", select),
     () => element("select-all").removeEventListener("click", all),
@@ -703,6 +1022,11 @@ function bindHud(state: GameState): void {
     () => element("command-attack").removeEventListener("click", attack),
     () => element("command-heal").removeEventListener("click", heal),
     () => element("command-ward").removeEventListener("click", ward),
+    () => element("edit-double-damage").removeEventListener("click", changedEdit),
+    () => element("scalar-effect-catalog").removeEventListener("change", chooseEffect),
+    () => element("explain-attack").removeEventListener("click", explainAttack),
+    () => element("explain-heal").removeEventListener("click", explainHeal),
+    () => element("intervene-attack").removeEventListener("click", interveneAttack),
   );
 }
 
@@ -724,6 +1048,13 @@ function start(): GameState {
     polling: false,
     staticGeneration: false,
     interval: 0,
+    workbenchGeneration: -1,
+    editing: false,
+    scalarEffects: [],
+    entries: { attack: 0, heal: 0 },
+    editStartedMillis: 0,
+    pendingVisibleEdit: null,
+    editFenceResolver: null,
   };
   const state: GameState = {
     resident,

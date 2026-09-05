@@ -39,6 +39,23 @@
           <div class="encounter-readout"><span id="encounter-state">Ready</span><span id="moonwell-status">Moonwell unseen</span></div>
           <button id="begin-encounter" type="button">Begin defence</button>
           <div id="encounter-targets" aria-label="Encounter targets"></div>
+          <details id="live-semantics-panel">
+            <summary>Battle workshop</summary>
+            <p>Offer one checked change while this battle keeps its history.</p>
+            <label for="scalar-effect-catalog">Checked effect</label>
+            <select id="scalar-effect-catalog"></select>
+            <label for="scalar-effect-expression">Replacement expression</label>
+            <input id="scalar-effect-expression" type="text" spellcheck="false" />
+            <div class="workshop-actions">
+              <button id="edit-double-damage" type="button">Apply checked expression</button>
+              <button id="explain-attack" type="button">Why last strike?</button>
+              <button id="explain-heal" type="button">Why last heal?</button>
+              <button id="intervene-attack" type="button">Could restraint spare target?</button>
+            </div>
+            <output id="live-edit-status">No battle-law change offered</output>
+            <output id="explanation-status">No strike inspected</output>
+            <output id="intervention-status">No finite alternatives searched</output>
+          </details>
         </aside>
 
         <section id="equipment-panel" aria-label="Equipment paper doll">
