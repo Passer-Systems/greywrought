@@ -29,18 +29,28 @@ unit references for checking each actor's continuing occurrence across edits.
 
 ## Observed boundary, 2026-09-06
 
-At Greywrought `5bdc0e83458a52764285a40a005f35b595ec3d8e` and Clause
-`0cc2d1a4a3f51e99298ebb5be846b3c96fc5f0b6`, the freshly built pinned source checker
-rejects the 100-unit source in 5,457 ms:
+The combined hardware run reached its final verdict at Greywrought base
+`5bdc0e83458a52764285a40a005f35b595ec3d8e` with Clause pin
+`e8a385f7d699226320da9369cd2761603de53641`. Chrome 152 rendered through the AMD
+Radeon 890M at 1280×900 inside the declared six-CPU, 8 GiB measurement scope.
+The freshly built pinned source checker admitted the exact 100-unit fixture in
+7,115 ms; its CPP1 was 3,801,115 bytes and its CWR1 was 3,902,561 bytes.
 
-```text
-selected package has 385 projection Roles for 435 source state cells
-```
+The 2.5-second combined window projected and advanced all 100 cooldowns, while
+98 positions moved. It recorded 11.00 FPS, a 283.3 ms p95 frame interval, a
+0.00628 median source-seconds-per-wall-second ratio, and one 2,474.3 ms candidate.
+Admission took 73.0 ms. These miss the active/moving, rendering, and real-time
+requirements rather than demonstrating a 100-actor target.
 
-The unmodified final encounter source passes that same checker in 1.573 seconds.
-The owning failure is Clause's template projection-role allocation, checked in
-`clause:crates/clause-workbench/src/source_session.rs`. Its general-purpose repair
-and a new consumer pin are required before this harness can reach the browser.
-No 100-actor simulation, rendering, or checked-edit latency verdict was observed;
-the downstream harness remains unexercised. Do not raise a magic role count,
-weaken the check, reduce the roster, or use another runtime to bypass this result.
+All three checked edits completed and preserved all 100 actor occurrences after
+flattening the continuity map's declared 64-entry pages. Their visible latencies
+were 15,819.9, 16,206.3, and 16,348.2 ms. Native compilation alone took
+5,259.2–5,278.3 ms and Wasm transfer took 5,305.0–5,675.7 ms, so the 250 ms edit
+requirement also fails independently of the corrected continuity proof.
+
+The exact raw artifact remains at `greywrought:build/measurement/100-active.json`;
+the source-check and last failure snapshot remain beside it. Build output is
+ignored, so this summary is the tracked evidence. The run required generic Clause
+repairs for projection capacity, session envelopes, CET1 transport, and the
+complete 2,335,143-byte continuity map; none of the acceptance thresholds or the
+100-member fixture was weakened.

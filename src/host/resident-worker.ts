@@ -3,6 +3,7 @@ import {
   "create-wasm-cartridge-port" as createWasmCartridgePort,
   "cse1-projected-term-json-max-source-units" as projectedTermJsonLimit,
   "cse1-projected-term-max-properties" as projectedTermPropertyLimit,
+  "decode-cet1-hex" as decodeCet1Hex,
   "decode-cwr1-hex" as decodeCwr1Hex,
   "decode-projected-term-frame" as decodeProjectedTermFrame,
   editSourceSession,
@@ -381,7 +382,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
             liveSession,
             generation,
             createExactProcessRequest(decodeCwr1Hex(edit.cwr1)),
-            decodeCwr1Hex(edit.cet1),
+            decodeCet1Hex(edit.cet1),
             policy,
           );
           if (result._tag === "SessionStarted") liveSession = result.session;

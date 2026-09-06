@@ -165,7 +165,7 @@ try {
       sourceAdvanceSeconds: before.cooldowns[id] - after.cooldowns[id],
       distance: Math.hypot(after.positions[id][0] - before.positions[id][0], after.positions[id][1] - before.positions[id][1]) }));
     const raf = events.filter((event) => event.metric === "raf-interval").map((event) => event.durationMillis);
-    const projection = events.filter((event) => event.metric === "projection-to-hud").map((event) => event.durationMillis);
+    const projectionDurations = events.filter((event) => event.metric === "projection-to-hud").map((event) => event.durationMillis);
     const transport = events.filter((event) => event.metric === "worker-to-main").map((event) => event.durationMillis);
     const candidates = lifecycleDurations(events, "candidate-requested", "candidate-produced");
     const admissionDurations = lifecycleDurations(events, "admission-requested", "admission-accepted");
@@ -194,7 +194,7 @@ try {
       measuredSourceSecondsPerWallSecond: distribution(actorProof.map(actor => actor.sourceAdvanceSeconds / (durationMillis / 1000))),
       rafIntervalsMillis: distribution(raf),
       observedFps: raf.length / (durationMillis / 1_000),
-      projectionToHudMillis: distribution(projection),
+      projectionToHudMillis: distribution(projectionDurations),
       workerToMainMillis: distribution(transport),
       candidateRuntimeMillis: distribution(candidates),
       admissionMillis: distribution(admissionDurations),
@@ -230,7 +230,8 @@ try {
       800,
     );
     const afterProjection = await projection();
-    const formations = Object.values(visible.continuity?.formations ?? {}) as Array<Record<string, any>>;
+    const formations = Object.values(visible.continuity?.formations ?? {})
+      .flatMap(page => Object.values(page as Record<string, Record<string, any>>));
     const identityProof = Object.entries(beforeProjection.unitReferents).map(([id, raw]) => {
       const prior = raw as Record<string, any>;
       const next = afterProjection.unitReferents[id];
