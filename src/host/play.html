@@ -34,18 +34,19 @@
         </header>
 
         <section id="outcome-panel" aria-labelledby="outcome-title" role="status" hidden>
-          <span class="eyebrow">Moonwell Vigil</span>
+          <span class="eyebrow" id="outcome-encounter-name">Encounter</span>
           <h2 id="outcome-title"></h2>
           <p id="outcome-message"></p>
           <button id="outcome-retry" type="button">Rally and retry</button>
         </section>
 
         <aside id="objective-panel">
-          <span class="eyebrow">Moonwell Vigil</span>
-          <strong>Protect and restore the Moonwell</strong>
-          <p>Marshal the company, choose a target, and balance pressure with Mara's healing ward.</p>
-          <div class="encounter-readout"><span id="encounter-state">Ready</span><span id="moonwell-status">Moonwell unseen</span></div>
-          <button id="begin-encounter" type="button">Begin defence</button>
+          <span class="eyebrow" id="encounter-name">Choosing encounter</span>
+          <div id="encounter-selection" aria-label="Choose encounter"></div>
+          <strong id="encounter-objective">Rally the company</strong>
+          <p id="encounter-brief">Choose where the company will stand.</p>
+          <div class="encounter-readout"><span id="encounter-state">Ready</span><span id="objective-status">Objective unseen</span></div>
+          <button id="begin-encounter" type="button">Begin encounter</button>
           <div id="encounter-targets" aria-label="Encounter targets"></div>
           <details id="live-semantics-panel">
             <summary>Battle workshop</summary>

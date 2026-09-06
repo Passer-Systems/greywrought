@@ -9,6 +9,7 @@ Enemy
 Objective
 Encounter
 EncounterState
+Scenario
 CombatRules
 BurnEffect
 Battlefield
@@ -222,6 +223,54 @@ relation encounter-state
   reads {encounter: Encounter} encounter state {value: EncounterState}
   subject encounter
   mode given encounter yields value: one
+relation encounter-scenario
+  reads {encounter: Encounter} encounter scenario {value: Scenario}
+  subject encounter
+  mode given encounter yields value: one
+relation encounter-elapsed
+  reads {encounter: Encounter} encounter elapsed {value: F64}
+  subject encounter
+  mode given encounter yields value: one
+relation scenario-name
+  reads {scenario: Scenario} scenario name {value: Text}
+  subject scenario
+  mode given scenario yields value: one
+relation scenario-objective
+  reads {scenario: Scenario} scenario objective {value: Text}
+  subject scenario
+  mode given scenario yields value: one
+relation scenario-brief
+  reads {scenario: Scenario} scenario brief {value: Text}
+  subject scenario
+  mode given scenario yields value: one
+relation scenario-action
+  reads {scenario: Scenario} scenario action {value: Text}
+  subject scenario
+  mode given scenario yields value: one
+relation scenario-order
+  reads {scenario: Scenario} scenario order {value: F64}
+  subject scenario
+  mode given scenario yields value: one
+relation scenario-focus
+  reads {scenario: Scenario} scenario focus {value: Actor}
+  subject scenario
+  mode given scenario yields value: one
+relation scenario-opening-target
+  reads {scenario: Scenario} scenario opening target {value: Actor}
+  subject scenario
+  mode given scenario yields value: one
+relation actor-scenario
+  reads {actor: Actor} actor scenario {value: Scenario}
+  subject actor
+  mode given actor yields value: one
+relation journey-destination
+  reads {actor: Actor} journey destination {value: Vec3}
+  subject actor
+  mode given actor yields value: maybe
+relation journey-speed
+  reads {actor: Actor} journey speed {value: F64}
+  subject actor
+  mode given actor yields value: maybe
 relation state-name
   reads {state: EncounterState} state name {value: Text}
   subject state
@@ -357,70 +406,141 @@ derive order-cooling
 derive order-ready
 
 player-1
-  shape: Controller
+  member of: Controller
 warrior-1
-  shape: Unit
-  shape: Actor
+  member of: Unit
+  member of: Actor
 artificer-1
-  shape: Unit
-  shape: Actor
+  member of: Unit
+  member of: Actor
 rogue-1
-  shape: Unit
-  shape: Actor
+  member of: Unit
+  member of: Actor
 priest-1
-  shape: Unit
-  shape: Actor
+  member of: Unit
+  member of: Actor
 ranger-1
-  shape: Unit
-  shape: Actor
+  member of: Unit
+  member of: Actor
 cinder-1
-  shape: Enemy
-  shape: Actor
+  member of: Enemy
+  member of: Actor
 cinder-2
-  shape: Enemy
-  shape: Actor
+  member of: Enemy
+  member of: Actor
 moonwell
-  shape: Objective
-  shape: Actor
+  member of: Objective
+  member of: Actor
+ashbinder
+  member of: Enemy
+  member of: Actor
+crown-sentry-1
+  member of: Enemy
+  member of: Actor
+crown-sentry-2
+  member of: Enemy
+  member of: Actor
+ilyra
+  member of: Objective
+  member of: Actor
+road-raider-1
+  member of: Enemy
+  member of: Actor
+road-raider-2
+  member of: Enemy
+  member of: Actor
+road-raider-3
+  member of: Enemy
+  member of: Actor
 encounter
-  shape: Encounter
+  member of: Encounter
 combat-rules
-  shape: CombatRules
+  member of: CombatRules
+moonwell-vigil
+  member of: Scenario
+cinder-crown
+  member of: Scenario
+dawnroad-crossing
+  member of: Scenario
 warrior-class
-  shape: UnitClass
+  member of: UnitClass
 artificer-class
-  shape: UnitClass
+  member of: UnitClass
 rogue-class
-  shape: UnitClass
+  member of: UnitClass
 priest-class
-  shape: UnitClass
+  member of: UnitClass
 ranger-class
-  shape: UnitClass
+  member of: UnitClass
 ready
-  shape: EncounterState
+  member of: EncounterState
 active
-  shape: EncounterState
+  member of: EncounterState
 victory
-  shape: EncounterState
+  member of: EncounterState
 defeat
-  shape: EncounterState
+  member of: EncounterState
+assault-victory
+  member of: EncounterState
+assault-defeat
+  member of: EncounterState
+crossing-victory
+  member of: EncounterState
+crossing-defeat
+  member of: EncounterState
 
 player-1 order target Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 player-1 chosen target cinder-1
 encounter encounter state ready
+encounter encounter scenario moonwell-vigil
+encounter encounter elapsed 0.0
 ready state name "Ready"
 active state name "Battle joined"
 victory state name "Moonwell restored"
 defeat state name "Moonwell lost"
+assault-victory state name "Cinder Crown broken"
+assault-defeat state name "Cinder Crown awakened"
+crossing-victory state name "Dawnroad crossed"
+crossing-defeat state name "Ilyra lost"
 ready state ended false
 active state ended false
 victory state ended true
 defeat state ended true
+assault-victory state ended true
+assault-defeat state ended true
+crossing-victory state ended true
+crossing-defeat state ended true
 ready state message ""
 active state message ""
 victory state message "The wraiths are defeated. The Moonwell still stands."
 defeat state message "The Moonwell has fallen. Rally the company and try again."
+assault-victory state message "The Ashbinder falls before the crown can wake."
+assault-defeat state message "The Cinder Crown awakens. Regroup and strike faster."
+crossing-victory state message "Ilyra reaches the far watchfire and the road lies open."
+crossing-defeat state message "Ilyra falls beneath the ambush. Gather the company and try again."
 combat-rules burn damage 4.0
+
+moonwell-vigil scenario name "Moonwell Vigil"
+moonwell-vigil scenario objective "Protect and restore the Moonwell"
+moonwell-vigil scenario brief "Marshal the company, choose a target, and balance pressure with Mara's healing ward."
+moonwell-vigil scenario action "Begin defence"
+moonwell-vigil scenario order 1.0
+moonwell-vigil scenario focus moonwell
+moonwell-vigil scenario opening target cinder-1
+cinder-crown scenario name "Cinder Crown"
+cinder-crown scenario objective "Break the Ashbinder before the crown awakens"
+cinder-crown scenario brief "Advance through the flanking sentries and concentrate the company on the Ashbinder before time runs out."
+cinder-crown scenario action "Begin assault"
+cinder-crown scenario order 2.0
+cinder-crown scenario focus ashbinder
+cinder-crown scenario opening target ashbinder
+dawnroad-crossing scenario name "Dawnroad Crossing"
+dawnroad-crossing scenario objective "Escort Ilyra beyond the ash line"
+dawnroad-crossing scenario brief "Move with Ilyra, shield her through each ambush, and clear the road before she reaches it."
+dawnroad-crossing scenario action "Begin crossing"
+dawnroad-crossing scenario order 3.0
+dawnroad-crossing scenario focus ilyra
+dawnroad-crossing scenario opening target road-raider-1
 
 warrior-class class name "Warrior"
 warrior-class class role "Front-line defender"
@@ -562,6 +682,7 @@ cinder-1 enemy range 8.0
 cinder-1 enemy cooldown 0.0
 cinder-1 enemy period 1.0
 cinder-1 enemy burn duration 2.5
+cinder-1 actor scenario moonwell-vigil
 
 cinder-2 actor name "Ash Stalker"
 cinder-2 presentation kind "Cinder"
@@ -578,6 +699,7 @@ cinder-2 enemy range 8.0
 cinder-2 enemy cooldown 0.0
 cinder-2 enemy period 1.25
 cinder-2 enemy burn duration 2.0
+cinder-2 actor scenario moonwell-vigil
 
 moonwell actor name "Moonwell"
 moonwell presentation kind "Moonwell"
@@ -588,6 +710,122 @@ moonwell maximum vitality 150.0
 moonwell alive true
 moonwell ward remaining 0.0
 moonwell burn remaining 0.0
+moonwell actor scenario moonwell-vigil
+
+ashbinder actor name "The Ashbinder"
+ashbinder presentation kind "Cinder"
+ashbinder actor position Vec3 { x: 0.0, y: 0.0, z: 24.0 }
+ashbinder hostile true
+ashbinder vitality 140.0
+ashbinder maximum vitality 140.0
+ashbinder alive true
+ashbinder ward remaining 0.0
+ashbinder burn remaining 0.0
+ashbinder enemy target priest-1
+ashbinder enemy damage 11.0
+ashbinder enemy range 30.0
+ashbinder enemy cooldown 0.0
+ashbinder enemy period 1.4
+ashbinder enemy burn duration 2.2
+ashbinder actor scenario cinder-crown
+
+crown-sentry-1 actor name "West Crown Sentry"
+crown-sentry-1 presentation kind "Cinder"
+crown-sentry-1 actor position Vec3 { x: -7.0, y: 0.0, z: 11.0 }
+crown-sentry-1 hostile true
+crown-sentry-1 vitality 85.0
+crown-sentry-1 maximum vitality 85.0
+crown-sentry-1 alive true
+crown-sentry-1 ward remaining 0.0
+crown-sentry-1 burn remaining 0.0
+crown-sentry-1 enemy target warrior-1
+crown-sentry-1 enemy damage 10.0
+crown-sentry-1 enemy range 13.0
+crown-sentry-1 enemy cooldown 0.0
+crown-sentry-1 enemy period 1.3
+crown-sentry-1 enemy burn duration 1.6
+crown-sentry-1 actor scenario cinder-crown
+
+crown-sentry-2 actor name "East Crown Sentry"
+crown-sentry-2 presentation kind "Cinder"
+crown-sentry-2 actor position Vec3 { x: 7.0, y: 0.0, z: 14.0 }
+crown-sentry-2 hostile true
+crown-sentry-2 vitality 85.0
+crown-sentry-2 maximum vitality 85.0
+crown-sentry-2 alive true
+crown-sentry-2 ward remaining 0.0
+crown-sentry-2 burn remaining 0.0
+crown-sentry-2 enemy target priest-1
+crown-sentry-2 enemy damage 11.0
+crown-sentry-2 enemy range 13.0
+crown-sentry-2 enemy cooldown 0.0
+crown-sentry-2 enemy period 1.3
+crown-sentry-2 enemy burn duration 1.8
+crown-sentry-2 actor scenario cinder-crown
+
+ilyra actor name "Ilyra the Wayfarer"
+ilyra presentation kind "Moonwell"
+ilyra actor position Vec3 { x: 0.0, y: 0.0, z: -5.0 }
+ilyra hostile false
+ilyra vitality 180.0
+ilyra maximum vitality 180.0
+ilyra alive true
+ilyra ward remaining 0.0
+ilyra burn remaining 0.0
+ilyra actor scenario dawnroad-crossing
+ilyra journey destination Vec3 { x: 0.0, y: 0.0, z: 27.0 }
+ilyra journey speed 1.75
+
+road-raider-1 actor name "Duskroad Ambusher"
+road-raider-1 presentation kind "Cinder"
+road-raider-1 actor position Vec3 { x: -3.0, y: 0.0, z: 4.0 }
+road-raider-1 hostile true
+road-raider-1 vitality 75.0
+road-raider-1 maximum vitality 75.0
+road-raider-1 alive true
+road-raider-1 ward remaining 0.0
+road-raider-1 burn remaining 0.0
+road-raider-1 enemy target ilyra
+road-raider-1 enemy damage 9.0
+road-raider-1 enemy range 7.0
+road-raider-1 enemy cooldown 0.0
+road-raider-1 enemy period 1.3
+road-raider-1 enemy burn duration 1.4
+road-raider-1 actor scenario dawnroad-crossing
+
+road-raider-2 actor name "Ash-Line Reaver"
+road-raider-2 presentation kind "Cinder"
+road-raider-2 actor position Vec3 { x: 3.0, y: 0.0, z: 13.0 }
+road-raider-2 hostile true
+road-raider-2 vitality 85.0
+road-raider-2 maximum vitality 85.0
+road-raider-2 alive true
+road-raider-2 ward remaining 0.0
+road-raider-2 burn remaining 0.0
+road-raider-2 enemy target ilyra
+road-raider-2 enemy damage 11.0
+road-raider-2 enemy range 7.0
+road-raider-2 enemy cooldown 0.0
+road-raider-2 enemy period 1.35
+road-raider-2 enemy burn duration 1.6
+road-raider-2 actor scenario dawnroad-crossing
+
+road-raider-3 actor name "Far Watch Ravager"
+road-raider-3 presentation kind "Cinder"
+road-raider-3 actor position Vec3 { x: -2.0, y: 0.0, z: 22.0 }
+road-raider-3 hostile true
+road-raider-3 vitality 95.0
+road-raider-3 maximum vitality 95.0
+road-raider-3 alive true
+road-raider-3 ward remaining 0.0
+road-raider-3 burn remaining 0.0
+road-raider-3 enemy target ilyra
+road-raider-3 enemy damage 13.0
+road-raider-3 enemy range 7.0
+road-raider-3 enemy cooldown 0.0
+road-raider-3 enemy period 1.4
+road-raider-3 enemy burn duration 1.8
+road-raider-3 actor scenario dawnroad-crossing
 
 warrior-1 footprint radius 0.6
 artificer-1 footprint radius 0.6
@@ -596,9 +834,9 @@ priest-1 footprint radius 0.6
 ranger-1 footprint radius 0.6
 
 field
-  shape: Battlefield
+  member of: Battlefield
 standing-stone
-  shape: Obstacle
+  member of: Obstacle
 field half width 40.0
 standing-stone obstacle position Vec3 { x: -6.0, y: 0.0, z: 4.0 }
 standing-stone obstacle radius 1.2
@@ -676,6 +914,7 @@ bind keyboard SelectAll down to select-all
 bind referent-input Pick as Unit to select-unit
 bind referent-input TogglePick as Unit to toggle-unit
 bind referent-input Target as Actor to choose-target
+bind referent-input Scenario as Scenario to choose-scenario
 bind keyboard IssueMove down to issue-move
 bind keyboard Stop down to stop-unit
 bind keyboard BeginEncounter down to begin-encounter
@@ -737,6 +976,18 @@ on choose-target ?controller ?picked
     ?controller chosen target ?prior
   include
     ?controller chosen target ?picked
+on choose-scenario ?encounter ?picked
+  when
+    ?encounter encounter state ready
+    ?encounter encounter scenario ?prior-scenario
+    ?picked scenario opening target ?opening-target
+    player-1 chosen target ?prior-target
+  withdraw
+    ?encounter encounter scenario ?prior-scenario
+    player-1 chosen target ?prior-target
+  include
+    ?encounter encounter scenario ?picked
+    player-1 chosen target ?opening-target
 on begin-encounter ?encounter
   when
     ?encounter encounter state ?state
@@ -917,7 +1168,7 @@ on ignite-target ?unit
     ?readiness = "Ready"
   create
     ?effect
-      shape: BurnEffect
+      member of: BurnEffect
   withdraw
     ?unit action cooldown ?cooldown
   include
@@ -1299,6 +1550,8 @@ on tick ?actor ?dt
 on tick ?enemy ?dt
   when
     encounter encounter state active
+    encounter encounter scenario ?scenario
+    ?enemy actor scenario ?scenario
     ?enemy actor position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
     ?enemy enemy target ?target
     ?enemy enemy damage ?incoming
@@ -1338,7 +1591,33 @@ on tick ?actor ?dt
     ?actor alive false
 on tick ?encounter ?dt
   when
+    ?encounter encounter state active
+    ?encounter encounter scenario cinder-crown
+    ?encounter encounter elapsed ?elapsed
+  withdraw
+    ?encounter encounter elapsed ?elapsed
+  include
+    ?encounter encounter elapsed ?elapsed + ?dt
+on tick ?actor ?dt
+  when
+    encounter encounter state active
+    encounter encounter scenario dawnroad-crossing
+    ?actor = ilyra
+    ?actor actor position Vec3 { x: ?x, y: ?y, z: ?z }
+    ?actor journey destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
+    ?actor journey speed ?speed
+    ?actor vitality ?health
+    ?health > 0.0
+    ?z < ?destination-z
+    ?z + ?speed * ?dt clamped between ?z and ?destination-z as ?next-z
+  withdraw
+    ?actor actor position Vec3 { x: ?x, y: ?y, z: ?z }
+  include
+    ?actor actor position Vec3 { x: ?destination-x, y: ?destination-y, z: ?next-z }
+on tick ?encounter ?dt
+  when
     ?encounter encounter state ?state
+    ?encounter encounter scenario moonwell-vigil
     cinder-1 vitality ?first-health
     cinder-2 vitality ?second-health
     moonwell vitality ?moonwell-health
@@ -1353,6 +1632,7 @@ on tick ?encounter ?dt
 on tick ?encounter ?dt
   when
     ?encounter encounter state ?state
+    ?encounter encounter scenario moonwell-vigil
     moonwell vitality ?moonwell-health
     ?moonwell-health <= 0.0
     ?state = active
@@ -1360,3 +1640,52 @@ on tick ?encounter ?dt
     ?encounter encounter state ?state
   include
     ?encounter encounter state defeat
+on tick ?encounter ?dt
+  when
+    ?encounter encounter state ?state
+    ?encounter encounter scenario cinder-crown
+    ashbinder vitality ?ashbinder-health
+    ?ashbinder-health <= 0.0
+    ?state = active
+  withdraw
+    ?encounter encounter state ?state
+  include
+    ?encounter encounter state assault-victory
+on tick ?encounter ?dt
+  when
+    ?encounter encounter state ?state
+    ?encounter encounter scenario cinder-crown
+    ?encounter encounter elapsed ?elapsed
+    ashbinder vitality ?ashbinder-health
+    ?elapsed >= 18.0
+    ?ashbinder-health > 0.0
+    ?state = active
+  withdraw
+    ?encounter encounter state ?state
+  include
+    ?encounter encounter state assault-defeat
+on tick ?encounter ?dt
+  when
+    ?encounter encounter state ?state
+    ?encounter encounter scenario dawnroad-crossing
+    ilyra actor position Vec3 { x: ?x, y: ?y, z: ?z }
+    ilyra journey destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
+    ilyra vitality ?ilyra-health
+    ?z >= ?destination-z
+    ?ilyra-health > 0.0
+    ?state = active
+  withdraw
+    ?encounter encounter state ?state
+  include
+    ?encounter encounter state crossing-victory
+on tick ?encounter ?dt
+  when
+    ?encounter encounter state ?state
+    ?encounter encounter scenario dawnroad-crossing
+    ilyra vitality ?ilyra-health
+    ?ilyra-health <= 0.0
+    ?state = active
+  withdraw
+    ?encounter encounter state ?state
+  include
+    ?encounter encounter state crossing-defeat

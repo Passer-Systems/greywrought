@@ -14,8 +14,8 @@ function replaceOnce(value: string, search: string, replacement: string): string
 
 const declared = replaceOnce(
   source,
-  "cinder-1\n  shape: Enemy",
-  "warrior-2\n  shape: Unit\n  shape: Actor\ncinder-1\n  shape: Enemy",
+  "cinder-1\n  member of: Enemy",
+  "warrior-2\n  member of: Unit\n  member of: Actor\ncinder-1\n  member of: Enemy",
 );
 const overrides = new Map([
   ["actor name", '"Bran"'],

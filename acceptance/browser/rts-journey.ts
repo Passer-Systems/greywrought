@@ -3,7 +3,7 @@ import { PerspectiveCamera, Vector3 } from "three";
 const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
 const debugPort = 9246;
 const gamePort = 4180;
-const gameUrl = Bun.env.GREYWROUGHT_GAME_URL ?? `http://127.0.0.1:${gamePort}/`;
+const gameUrl = Bun.env.GREYWROUGHT_GAME_URL ?? `http://127.0.0.1:${gamePort}/?measure=1`;
 const expectedUnitCount = Number(Bun.env.GREYWROUGHT_EXPECTED_UNIT_COUNT ?? "5");
 const duplicateUnitId = Bun.env.GREYWROUGHT_DUPLICATE_UNIT_ID;
 const combatOnly = Bun.argv.includes("--combat-only");
@@ -119,7 +119,8 @@ try {
   const lastReceipt = await evaluate<string>("document.body.dataset.lastReceipt || ''");
   const workbenchPhase = await evaluate<string>("document.body.dataset.workbenchPhase || ''");
   const runtimeFailure = await evaluate<string>("document.body.dataset.runtimeFailure || ''");
-  requireCondition(phase === "ready", `company did not become ready (phase=${phase}, status=${authority}, receipt=${lastReceipt}, workbench=${workbenchPhase}, failure=${runtimeFailure}); browser errors: ${browserErrors.join(" | ") || "none"}`);
+  const startupLifecycle = await evaluate<unknown[]>("(window.__GREYWROUGHT_MEASUREMENTS__||[]).filter(event=>event.metric==='lifecycle').slice(-5)");
+  requireCondition(phase === "ready", `company did not become ready (phase=${phase}, status=${authority}, receipt=${lastReceipt}, workbench=${workbenchPhase}, failure=${runtimeFailure}, lifecycle=${JSON.stringify(startupLifecycle)}); browser errors: ${browserErrors.join(" | ") || "none"}`);
   if (rendererMode === "hardware") {
     const renderer = await evaluate<string>(`(() => {
       const gl=document.createElement('canvas').getContext('webgl');
@@ -162,6 +163,199 @@ try {
   requireCondition(
     await evaluate<number>("document.querySelectorAll('#encounter-targets .target-card').length") === expectedUnitCount + 3,
     "the passive target deck did not expose all company, enemy, and objective Actors",
+  );
+  type TacticalProjection = Readonly<{
+    encounterId: string;
+    objective: string;
+    actorPositions: Readonly<Record<string, readonly [number, number]>>;
+    vitality: Readonly<Record<string, number>>;
+    wards: Readonly<Record<string, number>>;
+  }>;
+  const latestTacticalProjection = (): Promise<TacticalProjection> => evaluate(
+    "(window.__GREYWROUGHT_GAME_EVENTS__||[]).filter(e=>e.phase==='projection').at(-1)",
+  );
+  const waitForEncounter = async (id: string, phaseName = "Ready"): Promise<void> => {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      if (await evaluate<boolean>(
+        `document.body.dataset.gamePhase === 'ready' && document.body.dataset.encounterId === ${JSON.stringify(id)} && document.body.dataset.encounterPhase === ${JSON.stringify(phaseName)}`,
+      )) return;
+      await Bun.sleep(25);
+    }
+    const state = await evaluate("({game:document.body.dataset.gamePhase, encounter:document.body.dataset.encounterId, phase:document.body.dataset.encounterPhase, status:document.getElementById('command-status')?.textContent})");
+    throw new Error(`encounter ${id} did not reach ${phaseName}: ${JSON.stringify(state)}`);
+  };
+  const chooseEncounter = async (
+    id: string,
+    name: string,
+    objective: string,
+    action: string,
+    tacticalActors: readonly string[],
+  ): Promise<void> => {
+    await evaluate(`document.getElementById(${JSON.stringify(`encounter-${id}`)}).click()`);
+    await waitForEncounter(id);
+    const visible = await evaluate<Readonly<{
+      name: string;
+      objective: string;
+      action: string;
+      focus: string;
+      chosen: boolean;
+    }>>(`(() => {
+      const choice = document.getElementById(${JSON.stringify(`encounter-${id}`)});
+      return {
+        name: document.getElementById('encounter-name').textContent,
+        objective: document.getElementById('encounter-objective').textContent,
+        action: document.getElementById('begin-encounter').textContent,
+        focus: document.getElementById('objective-status').textContent,
+        chosen: choice?.getAttribute('aria-pressed') === 'true',
+      };
+    })()`);
+    requireCondition(
+      visible.name === name && visible.objective === objective && visible.action === action && visible.chosen,
+      `encounter choice did not project its source-authored presentation: ${JSON.stringify(visible)}`,
+    );
+    const projection = await latestTacticalProjection();
+    requireCondition(projection.encounterId === id && projection.objective === objective,
+      `encounter projection did not match ${id}: ${JSON.stringify(projection)}`);
+    const projectedTacticalActors = Object.keys(projection.actorPositions)
+      .filter((actorId) => !actorId.endsWith("-1") || !["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"].includes(actorId))
+      .sort();
+    requireCondition(
+      projectedTacticalActors.join(",") === [...tacticalActors].sort().join(","),
+      `encounter ${id} exposed the wrong tactical actors: ${projectedTacticalActors.join(",")}`,
+    );
+  };
+  const retryEncounter = async (id: string): Promise<TacticalProjection> => {
+    await evaluate("document.getElementById('retry-encounter').click()");
+    await waitForEncounter(id);
+    requireCondition(
+      await evaluate<boolean>("document.getElementById('outcome-panel').hidden"),
+      `retry left the ${id} outcome panel open`,
+    );
+    return latestTacticalProjection();
+  };
+  const encounterChoices = await evaluate<readonly Readonly<{ id: string; name: string; objective: string }>[]>(
+    "[...document.querySelectorAll('.encounter-choice')].map(choice=>({id:choice.dataset.encounterId,name:choice.querySelector('strong')?.textContent,objective:choice.querySelector('span')?.textContent}))",
+  );
+  requireCondition(JSON.stringify(encounterChoices) === JSON.stringify([
+    { id: "moonwell-vigil", name: "Moonwell Vigil", objective: "Protect and restore the Moonwell" },
+    { id: "cinder-crown", name: "Cinder Crown", objective: "Break the Ashbinder before the crown awakens" },
+    { id: "dawnroad-crossing", name: "Dawnroad Crossing", objective: "Escort Ilyra beyond the ash line" },
+  ]), `three distinct source-projected encounter choices were not visible: ${JSON.stringify(encounterChoices)}`);
+
+  await chooseEncounter(
+    "cinder-crown",
+    "Cinder Crown",
+    "Break the Ashbinder before the crown awakens",
+    "Begin assault",
+    ["ashbinder", "crown-sentry-1", "crown-sentry-2"],
+  );
+  requireCondition(await evaluate<boolean>("document.getElementById('objective-status').textContent.startsWith('The Ashbinder · 140 / 140')"),
+    "the assault did not visibly identify its priority target");
+  await evaluate("document.getElementById('begin-encounter').click()");
+  await waitForEncounter("cinder-crown", "Battle joined");
+  await evaluate("document.getElementById('select-all').click()");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<string>("document.body.dataset.selectedCount") === String(expectedUnitCount)) break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<string>("document.body.dataset.selectedCount") === String(expectedUnitCount),
+    "the assault could not select the whole company");
+  await evaluate("document.getElementById('target-crown-sentry-1').click()");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<string>("document.body.dataset.targetId") === "crown-sentry-1") break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<string>("document.body.dataset.targetId") === "crown-sentry-1",
+    "the assault could not target its flanking sentry");
+  await evaluate("document.getElementById('command-attack').click()");
+  let observedAssaultDamage = false;
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const current = await latestTacticalProjection();
+    observedAssaultDamage ||= await evaluate<boolean>("!!document.querySelector('.battle-readout[data-actor-id=\"crown-sentry-1\"] .battle-impact.damage:not([hidden])')");
+    if (observedAssaultDamage && (current.vitality["crown-sentry-1"] ?? 85) < 85 && (current.vitality["priest-1"] ?? 100) < 100) break;
+    await Bun.sleep(25);
+  }
+  const assaultConsequence = await latestTacticalProjection();
+  requireCondition((assaultConsequence.vitality["crown-sentry-1"] ?? 85) < 85,
+    `the assault command did not damage the flanking sentry: ${JSON.stringify(assaultConsequence.vitality)}`);
+  requireCondition((assaultConsequence.vitality["priest-1"] ?? 100) < 100,
+    `the distant Ashbinder did not pressure Mara: ${JSON.stringify(assaultConsequence.vitality)}`);
+  requireCondition(observedAssaultDamage,
+    "the assault's actual sentry damage was not visible");
+  const retriedAssault = await retryEncounter("cinder-crown");
+  requireCondition(retriedAssault.vitality["ashbinder"] === 140 && retriedAssault.vitality["crown-sentry-1"] === 85,
+    `assault retry did not restore its independent roster: ${JSON.stringify(retriedAssault.vitality)}`);
+
+  await chooseEncounter(
+    "dawnroad-crossing",
+    "Dawnroad Crossing",
+    "Escort Ilyra beyond the ash line",
+    "Begin crossing",
+    ["ilyra", "road-raider-1", "road-raider-2", "road-raider-3"],
+  );
+  requireCondition(await evaluate<boolean>("document.getElementById('objective-status').textContent.startsWith('Ilyra the Wayfarer · 180 / 180')"),
+    "the crossing did not visibly identify its moving ally");
+  await evaluate("document.getElementById('begin-encounter').click()");
+  await waitForEncounter("dawnroad-crossing", "Battle joined");
+  await evaluate("document.getElementById('roster-priest-1').click()");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<string>("document.body.dataset.selectedCount") === "1") break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<string>("document.body.dataset.selectedCount") === "1",
+    "the crossing could not select Mara");
+  await evaluate("document.getElementById('target-ilyra').click()");
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await evaluate<string>("document.body.dataset.targetId") === "ilyra") break;
+    await Bun.sleep(25);
+  }
+  requireCondition(await evaluate<string>("document.body.dataset.targetId") === "ilyra",
+    "the crossing could not target Ilyra");
+  await evaluate("document.getElementById('command-ward').click()");
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const current = await latestTacticalProjection();
+    if ((current.wards.ilyra ?? 0) > 0 && (current.actorPositions.ilyra?.[1] ?? -5) > -4.8 && (current.vitality.ilyra ?? 180) < 180) break;
+    await Bun.sleep(25);
+  }
+  const crossingConsequence = await latestTacticalProjection();
+  const crossingFailures = await evaluate<unknown[]>("(window.__GREYWROUGHT_MEASUREMENTS__||[]).filter(e=>e.metric==='lifecycle' && /failed|rejected/.test(e.event)).slice(-5)");
+  requireCondition((crossingConsequence.wards.ilyra ?? 0) > 0,
+    `Mara's ward did not protect Ilyra: ${JSON.stringify(crossingConsequence)}`);
+  requireCondition((crossingConsequence.actorPositions.ilyra?.[1] ?? -5) > -4.8,
+    `Ilyra did not advance along the road: ${JSON.stringify(crossingConsequence)}; failures=${JSON.stringify(crossingFailures)}`);
+  requireCondition((crossingConsequence.vitality.ilyra ?? 180) < 180,
+    `the road ambush did not pressure Ilyra: ${JSON.stringify(crossingConsequence.vitality)}`);
+  requireCondition(await evaluate<boolean>("document.querySelector('.battle-readout[data-actor-id=\"ilyra\"] .battle-effects').textContent.includes('Ward')"),
+    "Ilyra's protection was not visible beside her status");
+  const retriedCrossing = await retryEncounter("dawnroad-crossing");
+  requireCondition(
+    retriedCrossing.vitality.ilyra === 180 && retriedCrossing.actorPositions.ilyra?.[1] === -5 && retriedCrossing.wards.ilyra === 0,
+    `crossing retry did not restore Ilyra's journey: ${JSON.stringify(retriedCrossing)}`,
+  );
+
+  await chooseEncounter(
+    "moonwell-vigil",
+    "Moonwell Vigil",
+    "Protect and restore the Moonwell",
+    "Begin defence",
+    ["cinder-1", "cinder-2", "moonwell"],
+  );
+  await evaluate("document.getElementById('begin-encounter').click()");
+  await waitForEncounter("moonwell-vigil", "Battle joined");
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    if ((await latestTacticalProjection()).vitality.moonwell < 110) break;
+    await Bun.sleep(25);
+  }
+  const vigilConsequence = await latestTacticalProjection();
+  requireCondition(vigilConsequence.vitality.moonwell < 110,
+    `Moonwell Vigil lost its autonomous pressure: ${JSON.stringify(vigilConsequence.vitality)}`);
+  const retriedVigil = await retryEncounter("moonwell-vigil");
+  requireCondition(retriedVigil.vitality.moonwell === 110,
+    `Moonwell retry did not restore the defence: ${JSON.stringify(retriedVigil.vitality)}`);
+  console.log(
+    `RTS encounter selection passed: Crown sentry ${assaultConsequence.vitality["crown-sentry-1"]}/85 with Mara ${assaultConsequence.vitality["priest-1"]}/100; ` +
+    `Ilyra z=${crossingConsequence.actorPositions.ilyra?.[1]} health=${crossingConsequence.vitality.ilyra}/180 ward=${crossingConsequence.wards.ilyra}; ` +
+    `Moonwell ${vigilConsequence.vitality.moonwell}/110; every retry restored its selected encounter`,
   );
   const canvas = await evaluate<{ x: number; y: number; width: number; height: number }>("(() => { const r=document.getElementById('world-canvas').getBoundingClientRect(); return {x:r.left,y:r.top,width:r.width,height:r.height}; })()");
   const mouse = async (type: string, x: number, y: number, button = "left", buttons = 0, modifiers = 0) => call("Input.dispatchMouseEvent", { type, x, y, button, buttons, modifiers, clickCount: 1 });

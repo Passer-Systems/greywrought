@@ -419,6 +419,10 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
   };
 
   const applyEncounterActors = (actors: readonly EncounterActorView[]): void => {
+    const present = new Set(actors.map((actor) => actor.id));
+    for (const [id, figure] of encounterFigures) {
+      if (!present.has(id)) figure.visible = false;
+    }
     for (const actor of actors) {
       let figure = encounterFigures.get(actor.id);
       if (figure === undefined) {

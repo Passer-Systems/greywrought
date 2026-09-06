@@ -18,7 +18,7 @@ fn rts_world_compiles_with_five_classes() {
             1
         );
     }
-    assert_eq!(source.matches(" shape: Unit\n").count(), 5);
+    assert_eq!(source.matches(" member of: Unit\n").count(), 5);
 }
 
 fn session() -> PersistentProcessSessionV1 {
@@ -41,8 +41,8 @@ fn source_with_second_warrior() -> Vec<u8> {
     let source = std::str::from_utf8(EMBODIED_SOURCE).unwrap();
     source
         .replacen(
-            "cinder-1\n  shape: Enemy",
-            "warrior-2\n  shape: Unit\n  shape: Actor\ncinder-1\n  shape: Enemy",
+            "cinder-1\n  member of: Enemy",
+            "warrior-2\n  member of: Unit\n  member of: Actor\ncinder-1\n  member of: Enemy",
             1,
         )
         .replacen(
@@ -165,6 +165,33 @@ fn advance(session: &mut PersistentProcessSessionV1, ticks: usize) -> clause_pac
         projection = admit_tick(session);
     }
     projection
+}
+
+#[test]
+fn escort_fixed_tick_counterexample() {
+    let mut session = session_for(include_bytes!("../acceptance/language/escort-fixed-tick.clause"));
+    let projection = admit_tick(&mut session);
+    assert!(unit_position(&projection, b"ilyra")[2] > -5.0);
+}
+
+#[test]
+fn dawnroad_ally_advances_after_begin() {
+    let mut session = session();
+    let projection = admit_tick(&mut session);
+    let reference = projected_referent_value_v1(projected_referent_for_channel(
+        &projection, b"dawnroad-crossing", b"Scenario",
+    )).unwrap().unwrap();
+    let captured = session.runtime_session();
+    session.apply_typed_physical_input(
+        captured,
+        &ExecutableInputSourceV1::Referent { channel: b"Scenario".to_vec() },
+        Some(ExecutableValueV1::Referent(reference)),
+    ).unwrap();
+    admit_tick(&mut session);
+    key(&mut session, b"BeginEncounter");
+    let projection = advance(&mut session, 2);
+    assert!(unit_position(&projection, b"ilyra")[2] > -5.0,
+        "the living escort must advance once the crossing starts");
 }
 
 fn projected_field<'a>(

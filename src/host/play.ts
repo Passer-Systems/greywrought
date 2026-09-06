@@ -89,10 +89,26 @@ interface ResidentActorView extends EncounterActorView {
 }
 
 interface EncounterView {
+  readonly id: string;
+  readonly name: string;
+  readonly objective: string;
+  readonly brief: string;
+  readonly action: string;
+  readonly focusId: string;
   readonly phase: string;
   readonly ended: boolean;
   readonly message: string;
   readonly targetId: string;
+}
+
+interface ScenarioView {
+  readonly id: string;
+  readonly name: string;
+  readonly objective: string;
+  readonly order: number;
+  readonly referent: unknown;
+  readonly capturedExternalGeneration: number;
+  readonly capturedWorkbenchGeneration: number;
 }
 
 interface CreatedBurnView {
@@ -130,8 +146,11 @@ interface GameState {
   readonly listeners: Array<() => void>;
   units: readonly ResidentUnitView[];
   actors: readonly ResidentActorView[];
+  scenarios: readonly ScenarioView[];
   createdBurns: readonly CreatedBurnView[];
   encounter: EncounterView;
+  preferredScenarioId: string | null;
+  scenarioRequestPending: boolean;
   drag: Readonly<{ pointerId: number; x: number; y: number; moved: boolean; additive: boolean; targeting: boolean }> | null;
   disposed: boolean;
 }
@@ -320,12 +339,17 @@ function decodeUnits(
 
 function decodeEncounterActors(
   index: ProjectionIndex,
+  scenarioId: string,
   targetId: string,
   capturedExternalGeneration: number,
   capturedWorkbenchGeneration: number,
 ): readonly ResidentActorView[] {
   return projectedSubjects(index.game).flatMap(([id, actor]) => {
     if (!("actor-position" in actor) || !("vitality" in actor)) return [];
+    if (
+      "actor-scenario" in actor &&
+      idFor(index, actor["actor-scenario"], `${id}.actor-scenario`) !== scenarioId
+    ) return [];
     const kindValue = text(actor, "presentation-kind", id);
     if (!["Warrior", "Artificer", "Rogue", "Priest", "Ranger", "Cinder", "Moonwell"].includes(kindValue)) return [];
     const kind = kindValue as EncounterKind;
@@ -357,12 +381,39 @@ function decodeEncounter(index: ProjectionIndex): EncounterView {
   const controller = record(field(index.game, "player-1", "game projection"), "player-1");
   const encounter = record(field(index.game, "encounter", "game projection"), "encounter");
   const state = subjectFor(index, field(encounter, "encounter-state", "encounter"), "encounter.encounter-state");
+  const scenarioReference = field(encounter, "encounter-scenario", "encounter");
+  const scenario = subjectFor(index, scenarioReference, "encounter.encounter-scenario");
   return {
+    id: idFor(index, scenarioReference, "encounter.encounter-scenario"),
+    name: text(scenario, "scenario-name", "encounter scenario"),
+    objective: text(scenario, "scenario-objective", "encounter scenario"),
+    brief: text(scenario, "scenario-brief", "encounter scenario"),
+    action: text(scenario, "scenario-action", "encounter scenario"),
+    focusId: idFor(index, field(scenario, "scenario-focus", "encounter scenario"), "encounter scenario focus"),
     phase: text(state, "state-name", "encounter state"),
     ended: boolean(state, "state-ended", "encounter state"),
     message: text(state, "state-message", "encounter state"),
     targetId: idFor(index, field(controller, "chosen-target", "player-1"), "player-1.chosen-target"),
   };
+}
+
+function decodeScenarios(
+  index: ProjectionIndex,
+  capturedExternalGeneration: number,
+  capturedWorkbenchGeneration: number,
+): readonly ScenarioView[] {
+  return projectedSubjects(index.game).flatMap(([id, scenario]) => {
+    if (!("scenario-name" in scenario) || !("scenario-objective" in scenario)) return [];
+    return [{
+      id,
+      name: text(scenario, "scenario-name", id),
+      objective: text(scenario, "scenario-objective", id),
+      order: number(scenario, "scenario-order", id),
+      referent: channelReferent(index, scenario, "Scenario", id),
+      capturedExternalGeneration,
+      capturedWorkbenchGeneration,
+    }];
+  }).sort((left, right) => left.order - right.order);
 }
 
 function relationRows(index: ProjectionIndex, name: string): readonly Readonly<{
@@ -473,6 +524,23 @@ function chooseTarget(state: GameState, id: string): void {
   element("command-status").textContent = `Targeting ${actor.name}`;
 }
 
+function chooseScenario(state: GameState, id: string): void {
+  if (state.encounter.phase !== "Ready" || state.resident.editing) return;
+  const scenario = state.scenarios.find((candidate) => candidate.id === id);
+  if (scenario === undefined || scenario.id === state.encounter.id) return;
+  state.preferredScenarioId = scenario.id;
+  state.scenarioRequestPending = true;
+  sendInput(state, {
+    kind: "referent-input",
+    channel: "Scenario",
+    capturedExternalGeneration: scenario.capturedExternalGeneration,
+    capturedWorkbenchGeneration: scenario.capturedWorkbenchGeneration,
+    value: scenario.referent,
+  });
+  window.__GREYWROUGHT_GAME_EVENTS__.push({ phase: "encounter-requested", encounter: scenario.id });
+  element("command-status").textContent = `Preparing ${scenario.name}`;
+}
+
 function issueAction(state: GameState, code: "BeginEncounter" | "Stop" | "Attack" | "Ignite" | "Heal" | "Ward"): void {
   const frame = capturedFrame(state);
   if (frame === null) return;
@@ -556,18 +624,48 @@ function renderHud(state: GameState): void {
   element("retry-encounter").toggleAttribute("disabled", state.units.length === 0 || state.resident.editing);
   element("outcome-retry").toggleAttribute("disabled", state.units.length === 0 || state.resident.editing);
   element("outcome-panel").hidden = !state.encounter.ended;
+  element("outcome-encounter-name").textContent = state.encounter.name;
   element("outcome-title").textContent = state.encounter.phase;
   element("outcome-message").textContent = state.encounter.message;
 
+  document.body.dataset.encounterId = state.encounter.id;
+  document.body.dataset.encounterObjective = state.encounter.objective;
   document.body.dataset.encounterPhase = state.encounter.phase;
   document.body.dataset.targetId = state.encounter.targetId;
-  const moonwell = state.actors.find((actor) => actor.kind === "Moonwell");
+  const focus = state.actors.find((actor) => actor.id === state.encounter.focusId);
   const target = state.actors.find((actor) => actor.id === state.encounter.targetId) ??
     state.units.find((unit) => unit.id === state.encounter.targetId);
+  element("encounter-name").textContent = state.encounter.name;
+  element("encounter-objective").textContent = state.encounter.objective;
+  element("encounter-brief").textContent = state.encounter.brief;
+  element("begin-encounter").textContent = state.encounter.action;
   element("encounter-state").textContent = state.encounter.phase;
-  element("moonwell-status").textContent = moonwell === undefined
-    ? "Moonwell unseen"
-    : `${Math.max(0, moonwell.vitality).toFixed(0)} / ${moonwell.maximumVitality.toFixed(0)}${moonwell.wardRemaining > 0 ? " · warded" : ""}${moonwell.burnRemaining > 0 ? " · burning" : ""}`;
+  element("objective-status").textContent = focus === undefined
+    ? "Objective unseen"
+    : `${focus.name} · ${Math.max(0, focus.vitality).toFixed(0)} / ${focus.maximumVitality.toFixed(0)}${focus.wardRemaining > 0 ? " · warded" : ""}${focus.burnRemaining > 0 ? " · burning" : ""}`;
+  const scenarioSelection = element("encounter-selection");
+  const priorChoices = [...scenarioSelection.querySelectorAll<HTMLElement>(".encounter-choice")];
+  const choicesChanged = priorChoices.length !== state.scenarios.length ||
+    priorChoices.some((choice, index) => choice.dataset.encounterId !== state.scenarios[index]?.id);
+  if (choicesChanged) priorChoices.forEach((choice) => choice.remove());
+  for (const scenario of state.scenarios) {
+    const choice = choicesChanged
+      ? document.createElement("button")
+      : priorChoices.find((candidate) => candidate.dataset.encounterId === scenario.id)!;
+    if (choicesChanged) {
+      choice.setAttribute("type", "button");
+      choice.className = "encounter-choice";
+      choice.dataset.encounterId = scenario.id;
+      choice.append(document.createElement("strong"), document.createElement("span"));
+      scenarioSelection.append(choice);
+    }
+    choice.id = `encounter-${scenario.id}`;
+    choice.classList.toggle("chosen", scenario.id === state.encounter.id);
+    choice.setAttribute("aria-pressed", String(scenario.id === state.encounter.id));
+    choice.toggleAttribute("disabled", state.encounter.phase !== "Ready" || state.resident.editing);
+    choice.querySelector("strong")!.textContent = scenario.name;
+    choice.querySelector("span")!.textContent = scenario.objective;
+  }
   element("target-status").textContent = target === undefined
     ? "No target"
     : `Target: ${target.name}`;
@@ -617,6 +715,9 @@ function applyProjection(
   const index = projectionIndex(projection);
   const previousOrders = new Map(state.units.map((unit) => [unit.id, unit.orderNumber]));
   state.encounter = decodeEncounter(index);
+  state.scenarios = decodeScenarios(index, generation, workbenchGeneration);
+  if (state.preferredScenarioId === null) state.preferredScenarioId = state.encounter.id;
+  if (state.preferredScenarioId === state.encounter.id) state.scenarioRequestPending = false;
   state.units = decodeUnits(index, generation, workbenchGeneration);
   const receivedOrders = state.units.filter((unit) =>
     previousOrders.has(unit.id) && unit.orderNumber > previousOrders.get(unit.id)!);
@@ -626,7 +727,13 @@ function applyProjection(
     element("command-status").textContent = report;
     element("command-status").title = report;
   }
-  state.actors = decodeEncounterActors(index, state.encounter.targetId, generation, workbenchGeneration);
+  state.actors = decodeEncounterActors(
+    index,
+    state.encounter.id,
+    state.encounter.targetId,
+    generation,
+    workbenchGeneration,
+  );
   state.createdBurns = decodeCreatedBurns(index);
   state.presentation.applyUnits(state.units);
   state.presentation.applyEncounterActors(
@@ -643,6 +750,9 @@ function applyProjection(
     cooldown: state.units.find((unit) => unit.id === actor.id)?.cooldown ?? 0,
   })));
   renderHud(state);
+  if (state.preferredScenarioId !== state.encounter.id && !state.scenarioRequestPending) {
+    chooseScenario(state, state.preferredScenarioId);
+  }
   measure({
     metric: "projection-to-hud",
     durationMillis: performance.now() - started,
@@ -659,7 +769,10 @@ function applyProjection(
     selected: state.units.filter((unit) => unit.selected).map((unit) => unit.id),
     positions: Object.fromEntries(state.units.map((unit) => [unit.id, [unit.x, unit.z]])),
     encounter: state.encounter.phase,
+    encounterId: state.encounter.id,
+    objective: state.encounter.objective,
     target: state.encounter.targetId,
+    actorPositions: Object.fromEntries(state.actors.map((actor) => [actor.id, [actor.x, actor.z]])),
     vitality: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.vitality])),
     wards: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.wardRemaining])),
     burns: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.burnRemaining])),
@@ -1196,11 +1309,18 @@ function bindHud(state: GameState): void {
     const id = source.closest<HTMLElement>(".target-card")?.dataset.targetId;
     if (id !== undefined) chooseTarget(state, id);
   };
+  const selectEncounter = (event: MouseEvent): void => {
+    const source = event.target;
+    if (!(source instanceof Element)) return;
+    const id = source.closest<HTMLElement>(".encounter-choice")?.dataset.encounterId;
+    if (id !== undefined) chooseScenario(state, id);
+  };
   const begin = (): void => issueAction(state, "BeginEncounter");
   const retry = (): void => {
     if (state.disposed || state.resident.editing || state.units.length === 0) return;
+    const scenarioId = state.encounter.id;
     teardown(state);
-    start();
+    start(scenarioId);
   };
   const stop = (): void => issueAction(state, "Stop");
   const attack = (): void => issueAction(state, "Attack");
@@ -1218,6 +1338,7 @@ function bindHud(state: GameState): void {
   element("select-all").addEventListener("click", all);
   element("equipment-toggle").addEventListener("click", equipment);
   element("equipment-close").addEventListener("click", close);
+  element("encounter-selection").addEventListener("click", selectEncounter);
   element("encounter-targets").addEventListener("click", target);
   element("begin-encounter").addEventListener("click", begin);
   element("retry-encounter").addEventListener("click", retry);
@@ -1237,6 +1358,7 @@ function bindHud(state: GameState): void {
     () => element("select-all").removeEventListener("click", all),
     () => element("equipment-toggle").removeEventListener("click", equipment),
     () => element("equipment-close").removeEventListener("click", close),
+    () => element("encounter-selection").removeEventListener("click", selectEncounter),
     () => element("encounter-targets").removeEventListener("click", target),
     () => element("begin-encounter").removeEventListener("click", begin),
     () => element("retry-encounter").removeEventListener("click", retry),
@@ -1267,7 +1389,7 @@ function teardown(state: GameState): void {
   state.presentation.dispose();
 }
 
-function start(): GameState {
+function start(preferredScenarioId: string | null = null): GameState {
   document.body.dataset.gamePhase = "loading";
   delete document.body.dataset.runtimeFailure;
   delete document.body.dataset.destinationMarker;
@@ -1315,8 +1437,22 @@ function start(): GameState {
     listeners: [],
     units: [],
     actors: [],
+    scenarios: [],
     createdBurns: [],
-    encounter: { phase: "Ready", ended: false, message: "", targetId: "" },
+    encounter: {
+      id: "",
+      name: "",
+      objective: "",
+      brief: "",
+      action: "",
+      focusId: "",
+      phase: "Ready",
+      ended: false,
+      message: "",
+      targetId: "",
+    },
+    preferredScenarioId,
+    scenarioRequestPending: false,
     drag: null,
     disposed: false,
   };

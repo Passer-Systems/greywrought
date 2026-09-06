@@ -595,7 +595,8 @@ function queueInput(input: ResidentInput): void {
     input.kind === "referent-input" &&
     input.channel !== "Pick" &&
     input.channel !== "TogglePick" &&
-    input.channel !== "Target"
+    input.channel !== "Target" &&
+    input.channel !== "Scenario"
   ) return;
   if (input.kind === "keyboard") simulationStarted = true;
   if (
