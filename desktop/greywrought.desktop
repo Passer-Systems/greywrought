@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Greywrought
+Comment=Lead your company into a world that remembers
+Exec=greywrought
+Icon=greywrought
+Terminal=false
+Categories=Game;RolePlaying;
+StartupNotify=true
+StartupWMClass=Greywrought

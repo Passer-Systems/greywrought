@@ -3,27 +3,42 @@ Actor
 Encounter
 Scenario
 
-shape Vec3
+Vec3:
   x: F64
   y: F64
   z: F64
 
-relation actor-position
-  reads {actor: Actor} actor position {value: Vec3}
-  subject actor
-  mode given actor yields value: one
-relation journey-destination
-  reads {actor: Actor} journey destination {value: Vec3}
-  subject actor
-  mode given actor yields value: one
-relation journey-speed
-  reads {actor: Actor} journey speed {value: F64}
-  subject actor
-  mode given actor yields value: one
-relation encounter-scenario
-  reads {encounter: Encounter} encounter scenario {value: Scenario}
-  subject encounter
-  mode given encounter yields value: one
+actor-position:
+  ?actor shape Actor
+  ?value shape Vec3
+  ?actor:
+    actor position: ?value
+
+mode actor-position given actor yields value: one
+
+journey-destination:
+  ?actor shape Actor
+  ?value shape Vec3
+  ?actor:
+    journey destination: ?value
+
+mode journey-destination given actor yields value: one
+
+journey-speed:
+  ?actor shape Actor
+  ?value shape F64
+  ?actor:
+    journey speed: ?value
+
+mode journey-speed given actor yields value: one
+
+encounter-scenario:
+  ?encounter shape Encounter
+  ?value shape Scenario
+  ?encounter:
+    encounter scenario: ?value
+
+mode encounter-scenario given encounter yields value: one
 
 encounter
   member of: Encounter

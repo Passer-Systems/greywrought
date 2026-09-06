@@ -15,305 +15,649 @@ BurnEffect
 Battlefield
 Obstacle
 
-shape Vec3
+Vec3:
   x: F64
   y: F64
   z: F64
 
-relation clamped-between
-  reads {value: F64} clamped between {lower: F64} and {upper: F64} as {result: F64}
-  mode given value lower upper yields result: maybe
-relation damage-after-ward
-  reads {incoming: F64} damage after ward {remaining: F64} as {result: F64}
-  mode given incoming remaining yields result: maybe
-relation order-readiness
-  reads order active {active: Bool} selected {selected: Bool} alive {alive: Bool} health {health: F64} capable {capable: Bool} kind {kind: Bool} targetAlive {targetAlive: Bool} needed {needed: Bool} inRange {inRange: Bool} cooldown {cooldown: F64} reports {message: Text}
-  mode given active selected alive health capable kind targetAlive needed inRange cooldown yields message: maybe
-relation hostile-order-readiness
-  reads hostile order active {active: Bool} selected {selected: Bool} alive {alive: Bool} health {health: F64} capable {capable: Bool} hostile {hostile: Bool} targetHealth {targetHealth: F64} from {unitX: F64} {unitZ: F64} to {targetX: F64} {targetZ: F64} range {range: F64} cooldown {cooldown: F64} reports {message: Text}
-  mode given active selected alive health capable hostile targetHealth unitX unitZ targetX targetZ range cooldown yields message: maybe
-relation destination-readiness
-  reads destination with {blockers: F64} blockers terrain {terrain: Bool} obstacles {obstacles: F64} reports {message: Text}
-  mode given blockers terrain obstacles yields message: maybe
-relation battlefield-size
-  reads {field: Battlefield} half width {value: F64}
-  subject field
-  mode given field yields value: one
-relation obstacle-position
-  reads {obstacle: Obstacle} obstacle position {value: Vec3}
-  subject obstacle
-  mode given obstacle yields value: one
-relation obstacle-radius
-  reads {obstacle: Obstacle} obstacle radius {value: F64}
-  subject obstacle
-  mode given obstacle yields value: one
-relation open-terrain
-  reads point {x: F64} {z: F64} radius {radius: F64} inside {size: F64} as {open: Bool}
-  mode given x z radius size yields open: maybe
-relation step-component
-  reads from {position: F64} toward {destination: F64} fraction {fraction: F64} advances {step: F64}
-  mode given position destination fraction yields step: maybe
-relation segment-projection
-  reads step {dx: F64} {dz: F64} toward relative point {px: F64} {pz: F64} projects {along: F64}
-  mode given dx dz px pz yields along: maybe
-relation swept-footprint
-  reads step {dx: F64} {dz: F64} past relative point {px: F64} {pz: F64} radius {radius: F64} along {along: F64} blocked {blocked: Bool}
-  mode given dx dz px pz radius along yields blocked: maybe
-relation travel-direction
-  reads paths forward {forward: F64} right {right: F64} left {left: F64} choose {direction: F64}
-  mode given forward right left yields direction: maybe
-relation footprint-radius
-  reads {unit: Unit} footprint radius {value: F64}
-  subject unit
-  mode given unit yields value: one
-relation attack-readiness
-  reads {unit: Unit} attack readiness {value: Text}
-  subject unit
-  mode given unit yields value: one
-relation heal-readiness
-  reads {unit: Unit} heal readiness {value: Text}
-  subject unit
-  mode given unit yields value: one
-relation ward-readiness
-  reads {unit: Unit} ward readiness {value: Text}
-  subject unit
-  mode given unit yields value: one
-relation ignite-readiness
-  reads {unit: Unit} ignite readiness {value: Text}
-  subject unit
-  mode given unit yields value: one
-relation order-report
-  reads {unit: Unit} order report {value: Text}
-  subject unit
-  mode given unit yields value: one
-relation order-name
-  reads {unit: Unit} order name {value: Text}
-  subject unit
-  mode given unit yields value: one
-relation order-number
-  reads {unit: Unit} order number {value: F64}
-  subject unit
-  mode given unit yields value: one
-relation order-accepted
-  reads {unit: Unit} order accepted {value: Bool}
-  subject unit
-  mode given unit yields value: one
-relation order-target
-  reads {controller: Controller} order target {value: Vec3}
-  subject controller
-  mode given controller yields value: one
-relation chosen-target
-  reads {controller: Controller} chosen target {value: Actor}
-  subject controller
-  mode given controller yields value: one
-relation unit-class
-  reads {unit: Unit} unit class {value: UnitClass}
-  subject unit
-  mode given unit yields value: one
-relation class-name
-  reads {class: UnitClass} class name {value: Text}
-  subject class
-  mode given class yields value: one
-relation class-role
-  reads {class: UnitClass} class role {value: Text}
-  subject class
-  mode given class yields value: one
-relation actor-name
-  reads {actor: Actor} actor name {value: Text}
-  subject actor
-  mode given actor yields value: one
-relation presentation-kind
-  reads {actor: Actor} presentation kind {value: Text}
-  subject actor
-  mode given actor yields value: one
-relation actor-position
-  reads {actor: Actor} actor position {value: Vec3}
-  subject actor
-  mode given actor yields value: one
-relation unit-destination
-  reads {unit: Unit} unit destination {value: Vec3}
-  subject unit
-  mode given unit yields value: one
-relation formation-offset
-  reads {unit: Unit} formation offset {value: Vec3}
-  subject unit
-  mode given unit yields value: one
-relation selected-formation
-  reads {unit: Unit} selected formation {value: Vec3}
-  subject unit
-  mode given unit yields value: maybe
-relation movement-speed
-  reads {unit: Unit} movement speed {value: F64}
-  subject unit
-  mode given unit yields value: one
-relation selected
-  reads {unit: Unit} selected {value: Bool}
-  subject unit
-  mode given unit yields value: one
-relation moving
-  reads {unit: Unit} moving {value: Bool}
-  subject unit
-  mode given unit yields value: one
-relation hostile
-  reads {actor: Actor} hostile {value: Bool}
-  subject actor
-  mode given actor yields value: one
-relation vitality
-  reads {actor: Actor} vitality {value: F64}
-  subject actor
-  mode given actor yields value: one
-relation alive
-  reads {actor: Actor} alive {value: Bool}
-  subject actor
-  mode given actor yields value: one
-relation maximum-vitality
-  reads {actor: Actor} maximum vitality {value: F64}
-  subject actor
-  mode given actor yields value: one
-relation ward-remaining
-  reads {actor: Actor} ward remaining {value: F64}
-  subject actor
-  mode given actor yields value: one
-relation burn-remaining
-  reads {actor: Actor} burn remaining {value: F64}
-  subject actor
-  mode given actor yields value: one
-relation attack-damage
-  reads {unit: Unit} attack damage {value: F64}
-  subject unit
-  mode given unit yields value: one
-relation attack-range
-  reads {unit: Unit} attack range {value: F64}
-  subject unit
-  mode given unit yields value: one
-relation healing-power
-  reads {unit: Unit} healing power {value: F64}
-  subject unit
-  mode given unit yields value: one
-relation ward-duration
-  reads {unit: Unit} ward duration {value: F64}
-  subject unit
-  mode given unit yields value: one
-relation action-cooldown
-  reads {unit: Unit} action cooldown {value: F64}
-  subject unit
-  mode given unit yields value: one
-relation action-period
-  reads {unit: Unit} action period {value: F64}
-  subject unit
-  mode given unit yields value: one
-relation enemy-target
-  reads {enemy: Enemy} enemy target {value: Actor}
-  subject enemy
-  mode given enemy yields value: one
-relation enemy-damage
-  reads {enemy: Enemy} enemy damage {value: F64}
-  subject enemy
-  mode given enemy yields value: one
-relation enemy-range
-  reads {enemy: Enemy} enemy range {value: F64}
-  subject enemy
-  mode given enemy yields value: one
-relation enemy-cooldown
-  reads {enemy: Enemy} enemy cooldown {value: F64}
-  subject enemy
-  mode given enemy yields value: one
-relation enemy-period
-  reads {enemy: Enemy} enemy period {value: F64}
-  subject enemy
-  mode given enemy yields value: one
-relation enemy-burn-duration
-  reads {enemy: Enemy} enemy burn duration {value: F64}
-  subject enemy
-  mode given enemy yields value: one
-relation encounter-state
-  reads {encounter: Encounter} encounter state {value: EncounterState}
-  subject encounter
-  mode given encounter yields value: one
-relation encounter-scenario
-  reads {encounter: Encounter} encounter scenario {value: Scenario}
-  subject encounter
-  mode given encounter yields value: one
-relation encounter-elapsed
-  reads {encounter: Encounter} encounter elapsed {value: F64}
-  subject encounter
-  mode given encounter yields value: one
-relation scenario-name
-  reads {scenario: Scenario} scenario name {value: Text}
-  subject scenario
-  mode given scenario yields value: one
-relation scenario-objective
-  reads {scenario: Scenario} scenario objective {value: Text}
-  subject scenario
-  mode given scenario yields value: one
-relation scenario-brief
-  reads {scenario: Scenario} scenario brief {value: Text}
-  subject scenario
-  mode given scenario yields value: one
-relation scenario-action
-  reads {scenario: Scenario} scenario action {value: Text}
-  subject scenario
-  mode given scenario yields value: one
-relation scenario-order
-  reads {scenario: Scenario} scenario order {value: F64}
-  subject scenario
-  mode given scenario yields value: one
-relation scenario-focus
-  reads {scenario: Scenario} scenario focus {value: Actor}
-  subject scenario
-  mode given scenario yields value: one
-relation scenario-opening-target
-  reads {scenario: Scenario} scenario opening target {value: Actor}
-  subject scenario
-  mode given scenario yields value: one
-relation actor-scenario
-  reads {actor: Actor} actor scenario {value: Scenario}
-  subject actor
-  mode given actor yields value: one
-relation journey-destination
-  reads {actor: Actor} journey destination {value: Vec3}
-  subject actor
-  mode given actor yields value: maybe
-relation journey-speed
-  reads {actor: Actor} journey speed {value: F64}
-  subject actor
-  mode given actor yields value: maybe
-relation state-name
-  reads {state: EncounterState} state name {value: Text}
-  subject state
-  mode given state yields value: one
-relation state-ended
-  reads {state: EncounterState} state ended {value: Bool}
-  subject state
-  mode given state yields value: one
-relation state-message
-  reads {state: EncounterState} state message {value: Text}
-  subject state
-  mode given state yields value: one
-relation burn-damage
-  reads {rules: CombatRules} burn damage {value: F64}
-  subject rules
-  mode given rules yields value: one
-relation ignite-duration
-  reads {unit: Unit} ignite duration {value: F64}
-  subject unit
-  mode given unit yields value: maybe
-relation ignite-damage
-  reads {unit: Unit} ignite damage {value: F64}
-  subject unit
-  mode given unit yields value: maybe
-relation burn-target
-  reads {effect: BurnEffect} burn target {value: Actor}
-  subject effect
-  mode given effect yields value: one
-relation effect-remaining
-  reads {effect: BurnEffect} effect remaining {value: F64}
-  subject effect
-  mode given effect yields value: one
-relation effect-damage
-  reads {effect: BurnEffect} effect damage {value: F64}
-  subject effect
-  mode given effect yields value: one
+clamped-between:
+  ?value shape F64
+  ?lower shape F64
+  ?upper shape F64
+  ?result shape F64
+  ?value clamped between ?lower and ?upper as ?result
+
+mode clamped-between given value lower upper yields result: maybe
+
+damage-after-ward:
+  ?incoming shape F64
+  ?remaining shape F64
+  ?result shape F64
+  ?incoming damage after ward ?remaining as ?result
+
+mode damage-after-ward given incoming remaining yields result: maybe
+
+order-readiness:
+  ?active shape Bool
+  ?selected shape Bool
+  ?alive shape Bool
+  ?health shape F64
+  ?capable shape Bool
+  ?kind shape Bool
+  ?targetAlive shape Bool
+  ?needed shape Bool
+  ?inRange shape Bool
+  ?cooldown shape F64
+  ?message shape Text
+  order active ?active selected ?selected alive ?alive health ?health capable ?capable kind ?kind targetAlive ?targetAlive needed ?needed inRange ?inRange cooldown ?cooldown reports ?message
+
+mode order-readiness given active selected alive health capable kind targetAlive needed inRange cooldown yields message: maybe
+
+hostile-order-readiness:
+  ?active shape Bool
+  ?selected shape Bool
+  ?alive shape Bool
+  ?health shape F64
+  ?capable shape Bool
+  ?hostile shape Bool
+  ?targetHealth shape F64
+  ?unitX shape F64
+  ?unitZ shape F64
+  ?targetX shape F64
+  ?targetZ shape F64
+  ?range shape F64
+  ?cooldown shape F64
+  ?message shape Text
+  hostile order active ?active selected ?selected alive ?alive health ?health capable ?capable hostile ?hostile targetHealth ?targetHealth from ?unitX ?unitZ to ?targetX ?targetZ range ?range cooldown ?cooldown reports ?message
+
+mode hostile-order-readiness given active selected alive health capable hostile targetHealth unitX unitZ targetX targetZ range cooldown yields message: maybe
+
+destination-readiness:
+  ?blockers shape F64
+  ?terrain shape Bool
+  ?obstacles shape F64
+  ?message shape Text
+  destination with ?blockers blockers terrain ?terrain obstacles ?obstacles reports ?message
+
+mode destination-readiness given blockers terrain obstacles yields message: maybe
+
+battlefield-size:
+  ?field shape Battlefield
+  ?value shape F64
+  ?field:
+    half width: ?value
+
+mode battlefield-size given field yields value: one
+
+obstacle-position:
+  ?obstacle shape Obstacle
+  ?value shape Vec3
+  ?obstacle:
+    obstacle position: ?value
+
+mode obstacle-position given obstacle yields value: one
+
+obstacle-radius:
+  ?obstacle shape Obstacle
+  ?value shape F64
+  ?obstacle:
+    obstacle radius: ?value
+
+mode obstacle-radius given obstacle yields value: one
+
+open-terrain:
+  ?x shape F64
+  ?z shape F64
+  ?radius shape F64
+  ?size shape F64
+  ?open shape Bool
+  point ?x ?z radius ?radius inside ?size as ?open
+
+mode open-terrain given x z radius size yields open: maybe
+
+step-component:
+  ?position shape F64
+  ?destination shape F64
+  ?fraction shape F64
+  ?step shape F64
+  from ?position toward ?destination fraction ?fraction advances ?step
+
+mode step-component given position destination fraction yields step: maybe
+
+segment-projection:
+  ?dx shape F64
+  ?dz shape F64
+  ?px shape F64
+  ?pz shape F64
+  ?along shape F64
+  step ?dx ?dz toward relative point ?px ?pz projects ?along
+
+mode segment-projection given dx dz px pz yields along: maybe
+
+swept-footprint:
+  ?dx shape F64
+  ?dz shape F64
+  ?px shape F64
+  ?pz shape F64
+  ?radius shape F64
+  ?along shape F64
+  ?blocked shape Bool
+  step ?dx ?dz past relative point ?px ?pz radius ?radius along ?along blocked ?blocked
+
+mode swept-footprint given dx dz px pz radius along yields blocked: maybe
+
+travel-direction:
+  ?forward shape F64
+  ?right shape F64
+  ?left shape F64
+  ?direction shape F64
+  paths forward ?forward right ?right left ?left choose ?direction
+
+mode travel-direction given forward right left yields direction: maybe
+
+footprint-radius:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    footprint radius: ?value
+
+mode footprint-radius given unit yields value: one
+
+attack-readiness:
+  ?unit shape Unit
+  ?value shape Text
+  ?unit:
+    attack readiness: ?value
+
+mode attack-readiness given unit yields value: one
+
+heal-readiness:
+  ?unit shape Unit
+  ?value shape Text
+  ?unit:
+    heal readiness: ?value
+
+mode heal-readiness given unit yields value: one
+
+ward-readiness:
+  ?unit shape Unit
+  ?value shape Text
+  ?unit:
+    ward readiness: ?value
+
+mode ward-readiness given unit yields value: one
+
+ignite-readiness:
+  ?unit shape Unit
+  ?value shape Text
+  ?unit:
+    ignite readiness: ?value
+
+mode ignite-readiness given unit yields value: one
+
+order-report:
+  ?unit shape Unit
+  ?value shape Text
+  ?unit:
+    order report: ?value
+
+mode order-report given unit yields value: one
+
+order-name:
+  ?unit shape Unit
+  ?value shape Text
+  ?unit:
+    order name: ?value
+
+mode order-name given unit yields value: one
+
+order-number:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    order number: ?value
+
+mode order-number given unit yields value: one
+
+order-accepted:
+  ?unit shape Unit
+  ?value shape Bool
+  ?unit:
+    order accepted: ?value
+
+mode order-accepted given unit yields value: one
+
+order-target:
+  ?controller shape Controller
+  ?value shape Vec3
+  ?controller:
+    order target: ?value
+
+mode order-target given controller yields value: one
+
+chosen-target:
+  ?controller shape Controller
+  ?value shape Actor
+  ?controller:
+    chosen target: ?value
+
+mode chosen-target given controller yields value: one
+
+unit-class:
+  ?unit shape Unit
+  ?value shape UnitClass
+  ?unit:
+    unit class: ?value
+
+mode unit-class given unit yields value: one
+
+class-name:
+  ?class shape UnitClass
+  ?value shape Text
+  ?class:
+    class name: ?value
+
+mode class-name given class yields value: one
+
+class-role:
+  ?class shape UnitClass
+  ?value shape Text
+  ?class:
+    class role: ?value
+
+mode class-role given class yields value: one
+
+actor-name:
+  ?actor shape Actor
+  ?value shape Text
+  ?actor:
+    actor name: ?value
+
+mode actor-name given actor yields value: one
+
+presentation-kind:
+  ?actor shape Actor
+  ?value shape Text
+  ?actor:
+    presentation kind: ?value
+
+mode presentation-kind given actor yields value: one
+
+actor-position:
+  ?actor shape Actor
+  ?value shape Vec3
+  ?actor:
+    actor position: ?value
+
+mode actor-position given actor yields value: one
+
+unit-destination:
+  ?unit shape Unit
+  ?value shape Vec3
+  ?unit:
+    unit destination: ?value
+
+mode unit-destination given unit yields value: one
+
+formation-offset:
+  ?unit shape Unit
+  ?value shape Vec3
+  ?unit:
+    formation offset: ?value
+
+mode formation-offset given unit yields value: one
+
+selected-formation:
+  ?unit shape Unit
+  ?value shape Vec3
+  ?unit:
+    selected formation: ?value
+
+mode selected-formation given unit yields value: maybe
+
+movement-speed:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    movement speed: ?value
+
+mode movement-speed given unit yields value: one
+
+selected:
+  ?unit shape Unit
+  ?value shape Bool
+  ?unit:
+    selected: ?value
+
+mode selected given unit yields value: one
+
+moving:
+  ?unit shape Unit
+  ?value shape Bool
+  ?unit:
+    moving: ?value
+
+mode moving given unit yields value: one
+
+hostile:
+  ?actor shape Actor
+  ?value shape Bool
+  ?actor:
+    hostile: ?value
+
+mode hostile given actor yields value: one
+
+vitality:
+  ?actor shape Actor
+  ?value shape F64
+  ?actor:
+    vitality: ?value
+
+mode vitality given actor yields value: one
+
+alive:
+  ?actor shape Actor
+  ?value shape Bool
+  ?actor:
+    alive: ?value
+
+mode alive given actor yields value: one
+
+maximum-vitality:
+  ?actor shape Actor
+  ?value shape F64
+  ?actor:
+    maximum vitality: ?value
+
+mode maximum-vitality given actor yields value: one
+
+ward-remaining:
+  ?actor shape Actor
+  ?value shape F64
+  ?actor:
+    ward remaining: ?value
+
+mode ward-remaining given actor yields value: one
+
+burn-remaining:
+  ?actor shape Actor
+  ?value shape F64
+  ?actor:
+    burn remaining: ?value
+
+mode burn-remaining given actor yields value: one
+
+attack-damage:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    attack damage: ?value
+
+mode attack-damage given unit yields value: one
+
+attack-range:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    attack range: ?value
+
+mode attack-range given unit yields value: one
+
+healing-power:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    healing power: ?value
+
+mode healing-power given unit yields value: one
+
+ward-duration:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    ward duration: ?value
+
+mode ward-duration given unit yields value: one
+
+action-cooldown:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    action cooldown: ?value
+
+mode action-cooldown given unit yields value: one
+
+action-period:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    action period: ?value
+
+mode action-period given unit yields value: one
+
+enemy-target:
+  ?enemy shape Enemy
+  ?value shape Actor
+  ?enemy:
+    enemy target: ?value
+
+mode enemy-target given enemy yields value: one
+
+enemy-damage:
+  ?enemy shape Enemy
+  ?value shape F64
+  ?enemy:
+    enemy damage: ?value
+
+mode enemy-damage given enemy yields value: one
+
+enemy-range:
+  ?enemy shape Enemy
+  ?value shape F64
+  ?enemy:
+    enemy range: ?value
+
+mode enemy-range given enemy yields value: one
+
+enemy-cooldown:
+  ?enemy shape Enemy
+  ?value shape F64
+  ?enemy:
+    enemy cooldown: ?value
+
+mode enemy-cooldown given enemy yields value: one
+
+enemy-period:
+  ?enemy shape Enemy
+  ?value shape F64
+  ?enemy:
+    enemy period: ?value
+
+mode enemy-period given enemy yields value: one
+
+enemy-burn-duration:
+  ?enemy shape Enemy
+  ?value shape F64
+  ?enemy:
+    enemy burn duration: ?value
+
+mode enemy-burn-duration given enemy yields value: one
+
+encounter-state:
+  ?encounter shape Encounter
+  ?value shape EncounterState
+  ?encounter:
+    encounter state: ?value
+
+mode encounter-state given encounter yields value: one
+
+encounter-scenario:
+  ?encounter shape Encounter
+  ?value shape Scenario
+  ?encounter:
+    encounter scenario: ?value
+
+mode encounter-scenario given encounter yields value: one
+
+encounter-elapsed:
+  ?encounter shape Encounter
+  ?value shape F64
+  ?encounter:
+    encounter elapsed: ?value
+
+mode encounter-elapsed given encounter yields value: one
+
+scenario-name:
+  ?scenario shape Scenario
+  ?value shape Text
+  ?scenario:
+    scenario name: ?value
+
+mode scenario-name given scenario yields value: one
+
+scenario-objective:
+  ?scenario shape Scenario
+  ?value shape Text
+  ?scenario:
+    scenario objective: ?value
+
+mode scenario-objective given scenario yields value: one
+
+scenario-brief:
+  ?scenario shape Scenario
+  ?value shape Text
+  ?scenario:
+    scenario brief: ?value
+
+mode scenario-brief given scenario yields value: one
+
+scenario-action:
+  ?scenario shape Scenario
+  ?value shape Text
+  ?scenario:
+    scenario action: ?value
+
+mode scenario-action given scenario yields value: one
+
+scenario-order:
+  ?scenario shape Scenario
+  ?value shape F64
+  ?scenario:
+    scenario order: ?value
+
+mode scenario-order given scenario yields value: one
+
+scenario-focus:
+  ?scenario shape Scenario
+  ?value shape Actor
+  ?scenario:
+    scenario focus: ?value
+
+mode scenario-focus given scenario yields value: one
+
+scenario-opening-target:
+  ?scenario shape Scenario
+  ?value shape Actor
+  ?scenario:
+    scenario opening target: ?value
+
+mode scenario-opening-target given scenario yields value: one
+
+actor-scenario:
+  ?actor shape Actor
+  ?value shape Scenario
+  ?actor:
+    actor scenario: ?value
+
+mode actor-scenario given actor yields value: one
+
+journey-destination:
+  ?actor shape Actor
+  ?value shape Vec3
+  ?actor:
+    journey destination: ?value
+
+mode journey-destination given actor yields value: maybe
+
+journey-speed:
+  ?actor shape Actor
+  ?value shape F64
+  ?actor:
+    journey speed: ?value
+
+mode journey-speed given actor yields value: maybe
+
+state-name:
+  ?state shape EncounterState
+  ?value shape Text
+  ?state:
+    state name: ?value
+
+mode state-name given state yields value: one
+
+state-ended:
+  ?state shape EncounterState
+  ?value shape Bool
+  ?state:
+    state ended: ?value
+
+mode state-ended given state yields value: one
+
+state-message:
+  ?state shape EncounterState
+  ?value shape Text
+  ?state:
+    state message: ?value
+
+mode state-message given state yields value: one
+
+burn-damage:
+  ?rules shape CombatRules
+  ?value shape F64
+  ?rules:
+    burn damage: ?value
+
+mode burn-damage given rules yields value: one
+
+ignite-duration:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    ignite duration: ?value
+
+mode ignite-duration given unit yields value: maybe
+
+ignite-damage:
+  ?unit shape Unit
+  ?value shape F64
+  ?unit:
+    ignite damage: ?value
+
+mode ignite-damage given unit yields value: maybe
+
+burn-target:
+  ?effect shape BurnEffect
+  ?value shape Actor
+  ?effect:
+    burn target: ?value
+
+mode burn-target given effect yields value: one
+
+effect-remaining:
+  ?effect shape BurnEffect
+  ?value shape F64
+  ?effect:
+    effect remaining: ?value
+
+mode effect-remaining given effect yields value: one
+
+effect-damage:
+  ?effect shape BurnEffect
+  ?value shape F64
+  ?effect:
+    effect damage: ?value
+
+mode effect-damage given effect yields value: one
 
 law clamp-lower
   if

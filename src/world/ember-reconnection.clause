@@ -9,57 +9,87 @@ Custodian
 WorldObjective
 RandomSource
 
-shape Vec3
+Vec3:
   x: F64
   y: F64
   z: F64
 
-relation pressure
-  reads {objective: WorldObjective} pressure {amount: F64}
-  subject objective
-  mode given objective yields amount: one
+pressure:
+  ?objective shape WorldObjective
+  ?amount shape F64
+  ?objective:
+    pressure: ?amount
 
-relation attack-state
-  reads {attack: Attack} attack state {state: AttackState}
-  subject attack
-  mode given attack yields state: one
+mode pressure given objective yields amount: one
 
-relation attacker
-  reads {attack: Attack} attacker {wayfarer: Wayfarer}
-  subject attack
-  mode given attack yields wayfarer: one
+attack-state:
+  ?attack shape Attack
+  ?state shape AttackState
+  ?attack:
+    attack state: ?state
 
-relation target
-  reads {attack: Attack} target {enemy: Enemy}
-  subject attack
-  mode given attack yields enemy: one
+mode attack-state given attack yields state: one
 
-relation random-sample
-  reads {source: RandomSource} random sample {sample: Vec3}
-  subject source
-  mode given source yields sample: one
+attacker:
+  ?attack shape Attack
+  ?wayfarer shape Wayfarer
+  ?attack:
+    attacker: ?wayfarer
 
-relation vitality
-  reads {enemy: Enemy} vitality {amount: F64}
-  subject enemy
-  mode given enemy yields amount: one
+mode attacker given attack yields wayfarer: one
 
-relation combat-status
-  reads {enemy: Enemy} combat status {status: CombatStatus}
-  subject enemy
-  mode given enemy yields status: one
+target:
+  ?attack shape Attack
+  ?enemy shape Enemy
+  ?attack:
+    target: ?enemy
 
-relation custody
-  reads {loot: Loot} custody {custodian: Custodian}
-  subject loot
-  mode given loot yields custodian: one
+mode target given attack yields enemy: one
 
-ashen-wayfarer: Wayfarer
-cinder-wraith: Enemy
-ember-strike: Attack
-ashen-key: Loot
-moonwell-restoration: WorldObjective
-combat-random: RandomSource
+random-sample:
+  ?source shape RandomSource
+  ?sample shape Vec3
+  ?source:
+    random sample: ?sample
+
+mode random-sample given source yields sample: one
+
+vitality:
+  ?enemy shape Enemy
+  ?amount shape F64
+  ?enemy:
+    vitality: ?amount
+
+mode vitality given enemy yields amount: one
+
+combat-status:
+  ?enemy shape Enemy
+  ?status shape CombatStatus
+  ?enemy:
+    combat status: ?status
+
+mode combat-status given enemy yields status: one
+
+custody:
+  ?loot shape Loot
+  ?custodian shape Custodian
+  ?loot:
+    custody: ?custodian
+
+mode custody given loot yields custodian: one
+
+ashen-wayfarer
+  member of: Wayfarer
+cinder-wraith
+  member of: Enemy
+ember-strike
+  member of: Attack
+ashen-key
+  member of: Loot
+moonwell-restoration
+  member of: WorldObjective
+combat-random
+  member of: RandomSource
 
 moonwell-restoration pressure 0.0
 ember-strike attack state eligible

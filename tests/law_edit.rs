@@ -65,6 +65,14 @@ fn source_only_combat_law_edit_changes_the_admitted_outcome() {
         .hot_reload(RESISTED_STRIKE_SOURCE)
         .expect("source-only critical-threshold edit opens a fresh generation");
     let elapsed = started.elapsed();
+    // This fixture declares Custodian facets, so custody is an exact typed
+    // referent. A resisted attack must preserve that source-owned identity.
+    let initial_edited_world = workbench.project_current_world().unwrap();
+    let initial_edited_custody = projected_symbol(projected_field(
+        projected_field(&initial_edited_world, b"ashen-key"),
+        b"custody",
+    ))
+    .to_vec();
     let edited_occurrences = selected_combat_occurrences_v1(&workbench)
         .expect("edited source owns a fresh exact occurrence chain");
     workbench
@@ -81,7 +89,7 @@ fn source_only_combat_law_edit_changes_the_admitted_outcome() {
     );
     assert_eq!(
         combat_outcome(&edited.projection.exact_term_bytes),
-        (4.0, b"alive".to_vec(), b"cinder-wraith".to_vec())
+        (4.0, b"alive".to_vec(), initial_edited_custody)
     );
     eprintln!(
         "resident Greywrought combat-law edit: {:.3} ms",

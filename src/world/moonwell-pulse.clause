@@ -7,10 +7,16 @@ JournalResult
 
 capability world-journal-capability
 
-relation moonwell-pulse
-  reads {pulse: MoonwellPulse} records {action: JournalAction} at {resource: JournalResource} with {payload: JournalPayload} yielding {result: JournalResult}
-  subject pulse
-  mode given pulse action resource payload yields result: many
-    reactive while MoonwellPulseOpen
-    continues linearly
-    effect action resource resource payload payload requires world-journal-capability
+moonwell-pulse:
+  ?pulse shape MoonwellPulse
+  ?action shape JournalAction
+  ?resource shape JournalResource
+  ?payload shape JournalPayload
+  ?result shape JournalResult
+  ?pulse:
+    records ?action at ?resource with ?payload yielding: ?result
+
+mode moonwell-pulse given pulse action resource payload yields result: many
+  reactive while MoonwellPulseOpen
+  continues linearly
+  effect action resource resource payload payload requires world-journal-capability

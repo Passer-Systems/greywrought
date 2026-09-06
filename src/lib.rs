@@ -2,6 +2,7 @@
 
 pub mod conquest;
 pub mod ongoing_effect;
+pub mod native;
 
 use clause_workbench::{
     ResidentSourceAdmissionV1, ResidentSourceWorkbenchErrorV1, ResidentSourceWorkbenchV1,

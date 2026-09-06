@@ -505,7 +505,10 @@ fn partial_group_arrives_centered_on_click_without_overlapping() {
     let arrived = advance(&mut s, 120);
     let warrior = unit_position(&arrived, b"warrior-1");
     let priest = unit_position(&arrived, b"priest-1");
-    assert!((warrior[0] - 5.0).abs() < 0.01 && (warrior[2] - 1.0).abs() < 0.01);
+    assert!((warrior[0] - 5.0).abs() < 0.01 && (warrior[2] - 1.0).abs() < 0.01,
+        "warrior={warrior:?} priest={priest:?} warrior destination={:?} report={}",
+        [b"x", b"y", b"z"].map(|axis| projected_number(projected_field(projected_field(projected_field(&arrived,b"warrior-1"),b"unit-destination"),axis))),
+        actor_message(&arrived,b"warrior-1",b"order-report"));
     assert!((priest[0] - 6.0).abs() < 0.01 && (priest[2] - 3.0).abs() < 0.01);
     assert_eq!([(warrior[0] + priest[0]) / 2.0, (warrior[2] + priest[2]) / 2.0], [5.5, 2.0]);
     assert_eq!(unit_position(&arrived, b"artificer-1"), unit_position(&initial, b"artificer-1"));
@@ -567,7 +570,9 @@ fn five_unit_selection_formation_order_and_tick_progress() {
     let arrived = advance(&mut s, 220);
     let positions = [b"warrior-1".as_slice(), b"artificer-1", b"rogue-1", b"priest-1", b"ranger-1"]
         .map(|id| unit_position(&arrived, id));
-    assert!((positions.iter().map(|p| p[0]).sum::<f64>() / 5.0 - 10.0).abs() < 0.01);
+    assert!((positions.iter().map(|p| p[0]).sum::<f64>() / 5.0 - 10.0).abs() < 0.01,
+        "positions={positions:?} warrior destination={:?}",
+        [b"x", b"y", b"z"].map(|axis| projected_number(projected_field(projected_field(projected_field(&arrived,b"warrior-1"),b"unit-destination"),axis))));
     assert!((positions.iter().map(|p| p[2]).sum::<f64>() / 5.0 - 12.0).abs() < 0.01);
     for (index, a) in positions.iter().enumerate() {
         for b in &positions[index + 1..] {
