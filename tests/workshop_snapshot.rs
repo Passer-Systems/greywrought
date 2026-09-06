@@ -42,7 +42,7 @@ fn workshop_snapshot_reads_the_world_subject_through_launch_and_reopen() {
     assert_eq!(initial.readings["stock"], 15.0);
     assert_eq!(
         initial.report,
-        "Prepare your machine, then venture into the ashfield."
+        "Equip the wayfarer, then venture into the ashfield."
     );
     assert_projected_readings(&session, &initial);
     assert_eq!(
@@ -93,7 +93,7 @@ fn workshop_snapshot_reads_the_world_subject_through_launch_and_reopen() {
     assert!(launched.readings["position"] > 0.0);
     assert_eq!(
         launched.report,
-        "Approaching the sentinel. Mounted mass sets our pace."
+        "The wayfarer sets out toward the ashfield sentinel."
     );
     assert_projected_readings(&session, &launched);
 
