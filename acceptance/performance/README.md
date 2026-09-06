@@ -132,3 +132,53 @@ These ignored artifacts and the candidate/full command logs are retained; this
 tracked summary is not a claim that raw measurements are published with Git.
 The driver's transient browser/server exited, its capacity leases were released,
 and ports 4196/9262 were free afterward. No live play service was changed.
+
+## Sum-query reuse, 2026-09-06
+
+The next candidate-only capture uses Greywrought base
+`dde9baa994685c18330ca316a0d4843652c2584f` and exact Clause pin
+`20fc2fd3080c1e413d23323e10b5f619f71721eb`. Clause reuses only successful,
+structurally identical sum queries with equal evaluated inputs inside one
+immutable expression evaluation; it replays the ordered reads and always
+reevaluates inputs. Nothing survives a later state, expression evaluation, or
+step. The focused 100-row native regression retained equal values and ordered
+reads while reducing 672 actual queries to 84 (483.881 ms before; 94.692 ms after).
+Different inputs, changed state, and type errors remained distinct; all three
+existing source-profile tests passed.
+
+The browser command was exactly `--profile --candidate-only`; no full journey
+or checked-edit measurement was repeated. Current and preceding captures share
+source SHA-256
+`55ad8c51649933c8fbb2f3f6e133b5d470a021090bba4d44075826cf6128e949`,
+CPP1 SHA-256 `d09c526be213796c8eaddb586700c4db4fac2e22b24e586fce8fd9f5ba52e21a`,
+Chrome 152, AMD Radeon 890M hardware rendering, 1280×900, DPR 1, 16 ms fixed tick,
+and the six-CPU/8 GiB scope. The driver still reports its historical source-base
+commit `9236c1c`; the actual checkout base is the `dde9baa` commit above.
+
+| Candidate observation | Preceding capture | Sum-query reuse |
+| --- | ---: | ---: |
+| Wall time | 1872.5 ms | 1638.2 ms |
+| Prepared steps | 25 | 25 |
+| Effect-value evaluation | 1420.1 ms | 1308.5 ms |
+| Sum evaluations | 672 / 1410.1 ms | 672 / 1279.8 ms |
+| Actual sum queries | 672 (uncached implementation) | 624 / 1217.2 ms |
+| Derivation closures | 50 / 235.9 ms | 50 / 159.7 ms |
+
+This capture eliminated 48 repeated queries (7.14%). Its wall sample is 12.51%
+lower, but concurrent capacity leases were present (eight CPUs/9728 MiB already
+leased at admission), so this is not an isolated causal timing comparison.
+The remaining 624 queries account for 1217.2 ms, about 74.3% of candidate wall
+time; per-expression reuse leaves that owning cost open. The combined real-time,
+rendering, actor-progress, and checked-edit gates remain unproven here.
+
+Raw current evidence is retained at
+`~/code/greywrought/worktrees/sum-eval-20260906/build/measurement/100-active-profile.json`
+and `~/code/greywrought/worktrees/sum-eval-20260906/build/measurement/sum-candidate-profile-run.log`.
+The preceding capture is
+`~/code/greywrought/worktrees/perf-reuse-integration-20260906/build/measurement/100-active-profile.json`.
+The exact Wasm digest is
+`c604df17c72b242911a3dfbb22095b7faa21affbb57eeb5be039769b809e3f32`.
+The native checker, resident release, and Wasm release builds took 27.88 s,
+93 s, and 65 s respectively with Rust 1.96.1 and wasm-bindgen 0.2.108.
+The source check passed in 6989.0 ms; the complete candidate-only artifact took
+17,702.6 ms. Host typechecking and exact pin/digest verification passed.
