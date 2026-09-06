@@ -29,6 +29,9 @@ relation damage-after-ward
 relation order-readiness
   reads order active {active: Bool} selected {selected: Bool} alive {alive: Bool} health {health: F64} capable {capable: Bool} kind {kind: Bool} targetAlive {targetAlive: Bool} needed {needed: Bool} inRange {inRange: Bool} cooldown {cooldown: F64} reports {message: Text}
   mode given active selected alive health capable kind targetAlive needed inRange cooldown yields message: maybe
+relation hostile-order-readiness
+  reads hostile order active {active: Bool} selected {selected: Bool} alive {alive: Bool} health {health: F64} capable {capable: Bool} hostile {hostile: Bool} targetHealth {targetHealth: F64} from {unitX: F64} {unitZ: F64} to {targetX: F64} {targetZ: F64} range {range: F64} cooldown {cooldown: F64} reports {message: Text}
+  mode given active selected alive health capable hostile targetHealth unitX unitZ targetX targetZ range cooldown yields message: maybe
 relation destination-readiness
   reads destination with {blockers: F64} blockers terrain {terrain: Bool} obstacles {obstacles: F64} reports {message: Text}
   mode given blockers terrain obstacles yields message: maybe
@@ -135,6 +138,10 @@ relation formation-offset
   reads {unit: Unit} formation offset {value: Vec3}
   subject unit
   mode given unit yields value: one
+relation selected-formation
+  reads {unit: Unit} selected formation {value: Vec3}
+  subject unit
+  mode given unit yields value: maybe
 relation movement-speed
   reads {unit: Unit} movement speed {value: F64}
   subject unit
@@ -404,6 +411,24 @@ derive order-unneeded
 derive order-distant
 derive order-cooling
 derive order-ready
+
+law hostile-order-readiness
+  if
+    order active ?active selected ?selected alive ?alive health ?health capable ?capable kind ?hostile targetAlive (?targetHealth > 0.0) needed true inRange ((?targetX - ?unitX) * (?targetX - ?unitX) + (?targetZ - ?unitZ) * (?targetZ - ?unitZ) <= ?range * ?range) cooldown ?cooldown reports ?message
+  then
+    hostile order active ?active selected ?selected alive ?alive health ?health capable ?capable hostile ?hostile targetHealth ?targetHealth from ?unitX ?unitZ to ?targetX ?targetZ range ?range cooldown ?cooldown reports ?message
+derive hostile-order-readiness
+
+law selected-living-formation
+  if
+    ?unit selected true
+    ?unit alive true
+    ?unit vitality ?health
+    ?health > 0.0
+    ?unit formation offset ?offset
+  then
+    ?unit selected formation ?offset
+derive selected-living-formation
 
 player-1
   member of: Controller
@@ -999,14 +1024,10 @@ on begin-encounter ?encounter
 on issue-move ?unit
   when
     player-1 order target Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?unit selected true
-    ?unit vitality ?health
-    ?unit alive true
-    ?health > 0.0
-    ?unit formation offset Vec3 { x: ?offset-x, y: ?offset-y, z: ?offset-z }
-    sum 1.0 where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?group-size
-    sum ?x where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-x
-    sum ?z where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-z
+    ?unit selected formation Vec3 { x: ?offset-x, y: ?offset-y, z: ?offset-z }
+    sum 1.0 where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?group-size
+    sum ?x where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-x
+    sum ?z where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-z
     ?group-size > 0.0
     ?unit footprint radius ?radius
     sum 1.0 given ?target-x ?target-z ?offset-x ?offset-z ?offset-sum-x ?offset-sum-z ?group-size ?radius where { ?other selected false; ?other alive true; ?other footprint radius ?other-radius; ?other actor position Vec3 { x: ?x, y: ?y, z: ?z }; (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) * (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) + (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) * (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) < (?radius + ?other-radius) * (?radius + ?other-radius) } as ?blockers
@@ -1027,14 +1048,10 @@ on issue-move ?unit
 on issue-move ?unit
   when
     player-1 order target Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?unit selected true
-    ?unit vitality ?health
-    ?unit alive true
-    ?health > 0.0
-    ?unit formation offset Vec3 { x: ?offset-x, y: ?offset-y, z: ?offset-z }
-    sum 1.0 where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?group-size
-    sum ?x where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-x
-    sum ?z where { ?member selected true; ?member alive true; ?member vitality ?member-health; ?member-health > 0.0; ?member formation offset Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-z
+    ?unit selected formation Vec3 { x: ?offset-x, y: ?offset-y, z: ?offset-z }
+    sum 1.0 where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?group-size
+    sum ?x where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-x
+    sum ?z where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-z
     ?group-size > 0.0
     ?unit footprint radius ?radius
     sum 1.0 given ?target-x ?target-z ?offset-x ?offset-z ?offset-sum-x ?offset-sum-z ?group-size ?radius where { ?other selected false; ?other alive true; ?other footprint radius ?other-radius; ?other actor position Vec3 { x: ?x, y: ?y, z: ?z }; (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) * (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) + (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) * (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) < (?radius + ?other-radius) * (?radius + ?other-radius) } as ?blockers
@@ -1088,7 +1105,7 @@ on party-attack ?unit
     ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?target vitality ?health
     ?target hostile ?target-hostile
-    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?readiness = "Ready"
   withdraw
     ?unit action cooldown ?cooldown
@@ -1164,7 +1181,7 @@ on ignite-target ?unit
     ?target vitality ?health
     ?target hostile ?target-hostile
     sum 1.0 given ?unit where { ?unit ignite duration ?duration; ?unit ignite damage ?damage; ?duration > 0.0; ?damage > 0.0 } as ?ignite-count
-    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?readiness = "Ready"
   create
     ?effect
@@ -1192,7 +1209,7 @@ on party-attack ?unit
     ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?target vitality ?health
     ?target hostile ?target-hostile
-    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?is-selected = true
     ?unit order report ?prior-report
     ?unit order name ?prior-name
@@ -1290,7 +1307,7 @@ on ignite-target ?unit
     ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?target vitality ?health
     ?target hostile ?target-hostile
-    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?is-selected = true
     ?unit order report ?prior-report
     ?unit order name ?prior-name
@@ -1332,7 +1349,7 @@ on tick ?unit ?dt
     ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?target vitality ?health
     ?target hostile ?target-hostile
-    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?unit ignite readiness ?prior-readiness
   withdraw
     ?unit ignite readiness ?prior-readiness
@@ -1354,7 +1371,7 @@ on tick ?unit ?dt
     ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
     ?target vitality ?health
     ?target hostile ?target-hostile
-    order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true kind ?target-hostile targetAlive (?health > 0.0) needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
+    hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?unit attack readiness ?prior-readiness
   withdraw
     ?unit attack readiness ?prior-readiness
