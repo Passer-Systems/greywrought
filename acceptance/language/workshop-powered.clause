@@ -1,0 +1,45 @@
+F64
+Bool
+Component
+
+mounted
+  domain: Component
+  range: Bool
+  cardinality: one
+health
+  domain: Component
+  range: F64
+  cardinality: one
+generation
+  domain: Component
+  range: F64
+  cardinality: one
+powered
+  domain: Component
+  range: Bool
+  cardinality: maybe
+
+core
+  mounted: true
+  health: 100.0
+  generation: 12.0
+
+law live-source
+  if
+    ?component mounted true
+    ?component health ?health
+    ?health > 0.0
+    ?component generation ?generation
+    ?generation > 0.0
+  then
+    ?component powered true
+derive live-source
+
+on inspect ?component
+  when
+    ?component powered ?powered
+    ?component mounted ?mounted
+  withdraw
+    ?component mounted ?mounted
+  include
+    ?component mounted ?mounted

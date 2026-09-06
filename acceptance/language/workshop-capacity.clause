@@ -1,0 +1,39 @@
+F64
+Text
+Component
+Workshop
+Capacity:
+  mass: F64
+mass
+  domain: Component
+  range: F64
+  cardinality: one
+phase
+  domain: Workshop
+  range: Text
+  cardinality: one
+capacity
+  domain: Workshop
+  range: Capacity
+  cardinality: maybe
+core
+  mass: 8.0
+drive
+  mass: 7.0
+workshop
+  phase: "Workshop"
+law component-capacity
+  if
+    ?workshop phase ?phase
+    sum ?mass where { ?component mass ?mass } as ?total
+  then
+    ?workshop capacity Capacity { mass: ?total }
+derive component-capacity
+on inspect ?workshop
+  when
+    ?workshop phase ?phase
+    ?workshop capacity Capacity { mass: ?mass }
+  withdraw
+    ?workshop phase ?phase
+  include
+    ?workshop phase ?phase
