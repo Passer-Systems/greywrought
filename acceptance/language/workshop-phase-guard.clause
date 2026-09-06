@@ -1,0 +1,16 @@
+Text
+Workshop
+phase
+  domain: Workshop
+  range: Text
+  cardinality: one
+workshop
+  phase: "Workshop"
+on launch ?workshop
+  when
+    ?workshop phase ?phase
+    ?phase != "Expedition"
+  withdraw
+    ?workshop phase ?phase
+  include
+    ?workshop phase "Expedition"
