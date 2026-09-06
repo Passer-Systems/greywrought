@@ -96,6 +96,13 @@ fn projected_reference(subject: &Term, name: &str) -> Option<ExecutableReferentV
 fn projected_references(term: &Term, output: &mut Vec<ExecutableReferentV1>) {
     if let Some(triple) = term.as_triple() {
         let [left, value, right] = triple.slots();
+        if left
+            .as_atom()
+            .is_some_and(|atom| atom.kind() == b"clause/process-projected-set-v1")
+        {
+            projected_references(value, output);
+            return;
+        }
         projected_references(left, output);
         if let Ok(Some(reference)) = projected_referent_value_v1(value) {
             output.push(reference);

@@ -93,7 +93,7 @@ fn workshop_snapshot_reads_the_world_subject_through_launch_and_reopen() {
     assert!(launched.readings["position"] > 0.0);
     assert_eq!(
         launched.report,
-        "The wayfarer sets out toward the ashfield sentinel."
+        "Approaching the sentinel. Equipment weight and leg condition set the pace."
     );
     assert_projected_readings(&session, &launched);
 

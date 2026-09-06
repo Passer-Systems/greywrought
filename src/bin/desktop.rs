@@ -200,6 +200,7 @@ fn main() -> native::Result<()> {
                 camera,
                 controls,
                 workshop::controls,
+                workshop::layout,
                 present,
                 workshop::present,
                 workshop::scene,
@@ -695,6 +696,9 @@ fn present(
     let Some(snapshot) = &display.snapshot else {
         return;
     };
+    if snapshot.workshop.is_some() {
+        return;
+    }
     for (id, position, radius) in &snapshot.obstacles {
         let key = format!("obstacle/{id}");
         if !presented.entities.contains_key(&key) {

@@ -229,6 +229,22 @@ pub(super) fn setup(commands: &mut Commands) {
     ));
 }
 
+pub(super) fn layout(
+    mode: Res<Mode>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut scale: ResMut<UiScale>,
+) {
+    if !mode.workshop {
+        return;
+    }
+    if let Ok(window) = windows.single() {
+        // Preserve space for the creature between panels in narrow tiled windows.
+        scale.0 = (window.width() / 1100.0)
+            .min(window.height() / 940.0)
+            .min(1.0);
+    }
+}
+
 pub(super) fn controls(
     bridge: Res<Bridge>,
     display: Res<Displayed>,
@@ -348,7 +364,7 @@ pub(super) fn present(
     for (mut content, readout, detail, report) in &mut text {
         if readout.is_some() {
             **content = format!(
-                "{}  |  {}\nCondition {:.0}%   Heat {:.0}   Reserve {:.0}\nSalvage {:.0}/{:.0}   Supplies {:.0}{}",
+                "{}  |  {}\nCondition {:.0}%   Heat {:.0}   Reserve {:.0}\nSalvage {:.0}/{:.0}   Supplies {:.0}\nEquipment mass {:.0}   Available power {:.0}{}",
                 view.creature_name,
                 view.phase,
                 view.creature_condition,
@@ -357,6 +373,8 @@ pub(super) fn present(
                 r["cargo"],
                 r["objective"],
                 r["stock"],
+                r["total-mass"],
+                r["available-power"],
                 if expedition {
                     format!(
                         "\nAshfield {:.1}/{:.1}   Sentinel {:.0}/{:.0}",
@@ -373,7 +391,7 @@ pub(super) fn present(
             **content = chosen.map(|c| {
                 let attachment = view.body_parts.iter().find(|p| Some(&p.fit) == c.attached_to.as_ref()).map(|p| p.label.as_str()).unwrap_or("Not equipped");
                 let upstream = view.components.iter().find(|p| Some(&p.pick) == c.upstream.as_ref()).map(|p| p.label.as_str()).unwrap_or("None");
-                format!("{}\n{}\nGear {:.0}/{:.0}   Weight {:.0}\n{}\nPower connection: {}\n\nBody selected: {}", c.label, attachment, c.readings["health"], c.readings["max-health"], c.readings["mass"], if c.powered { "Powered" } else { "No power" }, if c.linked { upstream } else { "Disconnected" }, selection.body.and_then(|i| view.body_parts.get(i)).map(|p| p.label.as_str()).unwrap_or("Choose on the left"))
+                format!("{}\n{}\nGear {:.0}/{:.0}   Weight {:.0}\n{}\nPower connection: {}\nSupply {:.0}   Draw {:.0}\nThrust {:.0}   Firepower {:.0}\nCooling {:.0}   Protection {:.0}\n\nBody selected: {}", c.label, attachment, c.readings["health"], c.readings["max-health"], c.readings["mass"], if c.powered { "Powered" } else { "No power" }, if c.linked { upstream } else { "Disconnected" }, c.readings["generation"], c.readings["draw"], c.readings["thrust"], c.readings["firepower"], c.readings["cooling"], c.readings["protection"], selection.body.and_then(|i| view.body_parts.get(i)).map(|p| p.label.as_str()).unwrap_or("Choose on the left"))
             }).unwrap_or_default();
         } else if report.is_some() {
             **content = if expedition {
@@ -386,10 +404,28 @@ pub(super) fn present(
     for (control, children, interaction, mut background, mut node) in &mut buttons {
         node.display = match control {
             Control::Wire(_) if !selection.wiring => Display::None,
+            Control::Equip
+            | Control::Doctrine(_)
+            | Control::Key(
+                "UnequipComponent"
+                | "DisconnectComponent"
+                | "RepairComponent"
+                | "RestCreature"
+                | "LaunchExpedition",
+            ) if selection.wiring => Display::None,
             Control::Key("WithdrawExpedition") if !expedition => Display::None,
             _ => Display::Flex,
         };
         let (caption, selected) = match control {
+            Control::Wiring => (
+                if selection.wiring {
+                    "Cancel power connection"
+                } else {
+                    "Connect power..."
+                }
+                .into(),
+                selection.wiring,
+            ),
             Control::Pick(i) => view
                 .components
                 .get(*i)
