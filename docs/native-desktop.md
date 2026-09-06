@@ -105,3 +105,44 @@ feature parity, arbitrary file-save continuity, and Steam distribution are not
 claimed. Unconsumed historical language counterexamples are not migrated by
 this change; the 100-actor file is a source fragment assembled by its existing
 browser test and has no declaration spelling to migrate.
+
+## Integrated evaluator pin, September 6
+
+The native lane integrates published Greywrought `dde9baa` and the historical
+native/Wasm comparison from `c24254f`. The latter's report retains its original
+pin and measurements; it is not evidence for the new native artifact.
+Clause is pinned to `0d6f35c2f00817484bf5ab0d6e3e588dfe35b3e7`, including
+prepared-step reuse, exact-sum caching, and checked structured-field editing.
+The exact native desktop and Wasm were rebuilt; the Wasm SHA-256 is
+`05bf42481f8e707524c20552feca8fd159c6ffdb105a02d5a65f9073e8e7a7c3`.
+
+The native probe can accept an existing absolute save path. It loads that save,
+checks exact admitted projection, source and continuity through a new checkpoint,
+then continues input in a separate output save. An optional `--catalog` after
+the save path prints the current offered edit labels and expressions. To probe
+an edit, supply its replacement followed by the current offered index instead.
+Catalog positions can change with compiler capabilities; choose the expression
+by its displayed handler and value.
+
+A protected copy of the old `6f548474` scratch save passed reopening and
+continued input. The original save and its protected copy retained SHA-256
+`06bf59a31182fce85dcb35c678e087f61e37e295be1480a1da6763e99372d995`.
+The native journey passed with attack damage 100 to 9, checked edit 1984ms,
+stale-handle rejection, exact admitted projection after reopening, and continued
+input. Total time, including the old-save check, was 3709ms.
+
+In the real window, the copied old save's `clear-selection` expression was
+changed from `true` to `false` using F6, Page Down to the offered entry,
+Ctrl+A, text input and Enter. Generation 2 advanced to 3; the checked edit took
+2005ms and its accepted projection was submitted to the scene at 2997ms.
+These timings do not measure GPU presentation. An earlier probe submitted a
+Boolean to the newly offered numeric `observe-order-x` field at index zero;
+the compiler correctly rejected it. `clear-selection` is now index six for
+this source. No compiler workaround or gameplay change was made.
+
+All three game sources and both included fixtures pass this pin's source
+checker. The integrated tests remain 17/19: the same two formation assertions
+above fail with unchanged coordinates. The historical comparison binary also
+compiles against the new pin, but its benchmark was not rerun. The 250ms target
+and full gameplay completion remain open. Installation is a separate action;
+these checks do not replace the installed runtime or touch its saved world.

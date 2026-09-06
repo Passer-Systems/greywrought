@@ -28,14 +28,40 @@ fn main() -> native::Result<()> {
         assert_eq!(restored.workbench.source_continuity()?, continuity);
         if let Some(replacement) = std::env::args().nth(2) {
             let effects = restored.workbench.scalar_effects()?;
-            println!("saved-world edit: catalog 0; prior {:?}; replacement {replacement:?}", effects.first());
-            restored.edit(restored.workbench.generation().handle, 0, replacement.as_bytes())?;
+            if replacement == "--catalog" {
+                for (index, effect) in effects.iter().enumerate() {
+                    let handler = &source
+                        [effect.handler_origin.start as usize..effect.handler_origin.end as usize];
+                    println!(
+                        "{index}: {} => {}",
+                        String::from_utf8_lossy(handler)
+                            .lines()
+                            .next()
+                            .unwrap_or_default(),
+                        String::from_utf8_lossy(&effect.expression)
+                    );
+                }
+                return Ok(());
+            }
+            let index = std::env::args()
+                .nth(3)
+                .ok_or("saved-world edit requires an offered catalog index")?
+                .parse()?;
+            println!("saved-world edit: catalog {index}; replacement {replacement:?}");
+            restored.edit(
+                restored.workbench.generation().handle,
+                index,
+                replacement.as_bytes(),
+            )?;
         }
         let (input, value) = native::key("SelectAll");
         restored.input(restored.workbench.generation().handle, input, value)?;
         restored.tick()?;
         restored.save(&copy)?;
-        println!("prior saved world reopened; exact admitted projection, source and continuity retained; continued input and tick; save {}", copy.display());
+        println!(
+            "prior saved world reopened; exact admitted projection, source and continuity retained; continued input and tick; save {}",
+            copy.display()
+        );
     }
     let mut session = NativeSession::open(EMBODIED_SOURCE)?;
     let initial = session.snapshot(0, String::new())?;
