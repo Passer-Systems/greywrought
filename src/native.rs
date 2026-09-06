@@ -75,8 +75,7 @@ fn projected_reference(subject: &Term, name: &str) -> Option<ExecutableReferentV
 }
 
 fn workshop_view(projection: &Term) -> Option<WorkshopView> {
-    let (_, workshop) =
-        fields(projection).find(|(_, subject)| field(subject, "phase").is_some())?;
+    let workshop = field(projection, "workshop")?;
     let selected = projected_reference(workshop, "selected");
     let doctrine = projected_reference(workshop, "doctrine");
     let mut components = Vec::new();
