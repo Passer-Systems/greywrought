@@ -111,7 +111,7 @@ browser test and has no declaration spelling to migrate.
 The native lane integrates published Greywrought `dde9baa` and the historical
 native/Wasm comparison from `c24254f`. The latter's report retains its original
 pin and measurements; it is not evidence for the new native artifact.
-Clause is pinned to `0d6f35c2f00817484bf5ab0d6e3e588dfe35b3e7`, including
+That integration pinned Clause to `0d6f35c2f00817484bf5ab0d6e3e588dfe35b3e7`, including
 prepared-step reuse, exact-sum caching, and checked structured-field editing.
 The exact native desktop and Wasm were rebuilt; the Wasm SHA-256 is
 `05bf42481f8e707524c20552feca8fd159c6ffdb105a02d5a65f9073e8e7a7c3`.
@@ -146,3 +146,36 @@ above fail with unchanged coordinates. The historical comparison binary also
 compiles against the new pin, but its benchmark was not rerun. The 250ms target
 and full gameplay completion remain open. Installation is a separate action;
 these checks do not replace the installed runtime or touch its saved world.
+
+
+## Preparation-local reuse integrated into the current source line
+
+The forward Clause pin is now
+`6d2bec247448c17bf65670bc098a0888f8c53b55`, published under annotated tag
+`greywrought-preparation-query-reuse-forward-20260906`. Its immutable filesystem
+pin records Greywrought as its consumer. This adds only preparation-local sum
+query reuse to the preceding `0d6f35c` compiler; the native host, current migrated
+Clause sources, dependency lock and save behavior are unchanged.
+
+The exact native desktop rebuilt in 80 s using a lane-local copy of the existing
+dependency cache. The focused
+`single_unit_move_arrives_at_the_clicked_point` consumer test passed in 1.06 s
+(24.50 s incremental test build). All three current game sources and the two
+included fixtures passed reading through session opening: embodied encounter
+1552.161 ms, ember reconnection 85.668 ms, Moonwell pulse 77.970 ms, resisted strike
+85.819 ms, and escort fixed tick 78.524 ms. The checker build took 28.78 s.
+The resident release build took 96 s; the Wasm release build took 68 s, using
+Rust 1.96.1 and wasm-bindgen 0.2.108. Host bundles, typechecking, and exact
+pin/digest verification passed. Wasm SHA-256 is
+`29fdc4b6235c45567d49054e94695ae1e1deb4e036e728b6b6c2937c6c8f89bc`.
+
+These are compatibility checks of the forward integration, not a new browser,
+real-window, save/reopen, checked-edit, or performance measurement. Earlier
+formation failures remain recorded above; no full-suite success is claimed.
+Historical preparation-reuse measurements in
+`greywrought:acceptance/performance/README.md` use their explicitly recorded
+older source and pin. The current line's performance remains unmeasured.
+Raw build and source-admission output is retained at
+`~/code/greywrought/worktrees/preparation-reuse-grey-integration-20260906/build/measurement/forward-consumer-build-corrected.log`;
+host verification is in `greywrought:build/measurement/forward-host-build.log`.
+No installed runtime, live service or saved world was changed.

@@ -182,3 +182,88 @@ The native checker, resident release, and Wasm release builds took 27.88 s,
 93 s, and 65 s respectively with Rust 1.96.1 and wasm-bindgen 0.2.108.
 The source check passed in 6989.0 ms; the complete candidate-only artifact took
 17,702.6 ms. Host typechecking and exact pin/digest verification passed.
+
+## Historical preparation-local query reuse, 2026-09-06
+
+This evidence is retained from `c44663b5c537f59c6423a405491b7a40afcd5839`.
+It measures the older source/compiler pairing, not the current native-desktop
+line or its forward compiler pin. No benchmark of that newer line follows from
+these timings.
+
+
+Native grouping of the preceding exact 100-actor fixture found all 624 query
+misses inside one preparation (entry 5, step 1, configuration ordinal 1), on
+one immutable pre-state. There were 208 exact state/query/evaluated-input keys,
+each executed three times; no key repeated across separate probes. This selects
+reuse across that preparation's separately evaluated effects, without sharing
+across probes or states.
+
+Clause commit `c14ef0408ddf13385e322c4302f512ac7a79ce4d`, directly based on
+consumer pin `20fc2fd3080c1e413d23323e10b5f619f71721eb`, supplies the existing
+successful-query cache to the effect contexts of one preparation. Its post-effect
+closure retains the original uncached context. Input evaluation, effect order,
+ordered read replay, query-local visits/errors, and occurrence identity remain
+unchanged. The focused native regression checks accepted and rejected searches,
+exact read order, independent errors, and fresh cache scope for each preparation.
+It passed; the exact native consumer retained 672 sums and 25 preparations while
+executing only 208 queries. The consumer candidate took 3596.301 ms in the debug
+native build; diagnostic grouping timings are not comparable with browser timing.
+
+The single browser capture used `--profile --candidate-only`, Greywrought checkout
+base `997b013d274e256a148fa2e838ec522daf1ea6fa`, and that exact Clause commit.
+The fixture/source and CPP1 hashes, Chrome 152, Radeon 890M hardware rendering,
+1280×900/DPR 1, 16 ms tick, and six-CPU/8 GiB limits match the preceding capture.
+The driver still carries its historical `9236c1c` source-base label. The unchanged
+source SHA-256 is
+`55ad8c51649933c8fbb2f3f6e133b5d470a021090bba4d44075826cf6128e949`;
+CPP1 SHA-256 is `d09c526be213796c8eaddb586700c4db4fac2e22b24e586fce8fd9f5ba52e21a`.
+
+| Candidate observation | Expression-local reuse | Preparation-local reuse |
+| --- | ---: | ---: |
+| Wall time | 1638.2 ms | 1066.3 ms |
+| Actual sum queries | 624 | 208 |
+| Sum-query time | 1217.2 ms | 435.5 ms |
+| Sum evaluations | 672 | 672 |
+| Inclusive sum time | 1279.8 ms | 726.6 ms |
+| Other sum evaluation time | 62.6 ms | 291.1 ms |
+| Prepared steps | 25 | 25 |
+| Effect-value evaluations | 900 | 900 |
+| Occurrence identities | 600 | 600 |
+| Derivation closures | 50 / 159.7 ms | 50 / 172.5 ms |
+
+The repair eliminates 416 repeated query executions. This run had only two agent
+leases at admission (two CPUs/1536 MiB already leased); the preceding capture had
+concurrent heavy work. The lower wall sample therefore is not an isolated causal
+speed ratio. The remaining 208 queries cost 435.5 ms; another 291.1 ms remains
+inside sum evaluation outside query execution. The profile does not separate
+lookup, input evaluation, or read replay within that overhead. Full real-time,
+rendering, actor-progress and checked-edit gates were not rerun or established.
+
+Raw evidence remains at
+`~/code/clause/worktrees/sum-probe-reuse-20260906/target/sum-probe-evidence/`
+(grouping patch/source, raw rows, grouped counts, focused and consumer native logs)
+and
+`~/code/greywrought/worktrees/sum-probe-reuse-20260906/build/measurement/100-active-profile.json`
+with its corresponding `preparation-candidate-profile-run.log`.
+Native focused/consumer rebuilds took 3.63 s and 4.41 s, with tests taking less
+than 0.01 s and 10.33 s. Resident and Wasm release builds took 94 s and 65 s,
+using Rust 1.96.1 and wasm-bindgen 0.2.108. The exact native checker was copied
+from the rebuilt Clause lane. Source admission passed in 6967.5 ms; the complete
+candidate-only artifact took 17,248.6 ms. Host typechecking and pin/digest checks
+passed. Wasm SHA-256 is
+`cf4f650aea4973878d1d101a5bef40009fd7446e72fb1a5e25d10cf759286236`.
+
+
+## Forward integration into the native-desktop line
+
+The current source line based on `8e7300fd4f1b8010e9949819fc265ecf17eb3a5b`
+consumes forward Clause commit `6d2bec247448c17bf65670bc098a0888f8c53b55`,
+not the older compatible backport measured above. Native desktop and resident
+builds, all five currently consumed source checks, the focused single-unit
+movement test, host typechecking, and exact Wasm pin/digest verification passed.
+The native host, migrated source and dependency lock remain unchanged.
+The current Wasm digest is
+`29fdc4b6235c45567d49054e94695ae1e1deb4e036e728b6b6c2937c6c8f89bc`.
+Details and build timings are in `greywrought:docs/native-desktop.md`.
+No browser profiling, full 100-actor journey, or checked edits were repeated;
+the historical timings above do not establish current-line performance.
