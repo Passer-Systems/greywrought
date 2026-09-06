@@ -84,6 +84,9 @@ struct Smoke {
     start: Instant,
     seconds: Option<u64>,
     screenshot: bool,
+    observation: Option<(Instant, u64)>,
+    previous_frame: Option<Instant>,
+    frame_intervals_ms: Vec<f64>,
 }
 
 fn main() -> native::Result<()> {
@@ -164,6 +167,9 @@ fn main() -> native::Result<()> {
             start: Instant::now(),
             seconds: smoke_seconds,
             screenshot: false,
+            observation: None,
+            previous_frame: None,
+            frame_intervals_ms: Vec::new(),
         })
         .insert_resource(ClearColor(Color::srgb(0.045, 0.064, 0.055)))
         .insert_resource(GlobalAmbientLight {
@@ -196,6 +202,7 @@ fn main() -> native::Result<()> {
                 workshop::controls,
                 present,
                 workshop::present,
+                workshop::scene,
                 animate,
                 hud,
                 smoke,
@@ -956,6 +963,17 @@ fn smoke(
     let Some(seconds) = smoke.seconds else {
         return;
     };
+    if !smoke.screenshot {
+        if let Some(snapshot) = &display.snapshot {
+            let now = Instant::now();
+            smoke.observation.get_or_insert((now, snapshot.ticks));
+            if let Some(previous) = smoke.previous_frame.replace(now) {
+                smoke
+                    .frame_intervals_ms
+                    .push(now.duration_since(previous).as_secs_f64() * 1000.0);
+            }
+        }
+    }
     if smoke.start.elapsed() >= Duration::from_secs(seconds) && !smoke.screenshot {
         commands
             .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
@@ -967,6 +985,29 @@ fn smoke(
             "native window smoke: accepted projection present={}",
             display.snapshot.is_some()
         );
+        if let (Some((started, first_tick)), Some(snapshot)) =
+            (smoke.observation, display.snapshot.as_ref())
+        {
+            let elapsed = smoke
+                .previous_frame
+                .unwrap_or(started)
+                .duration_since(started)
+                .as_secs_f64();
+            smoke.frame_intervals_ms.sort_by(f64::total_cmp);
+            let frames = smoke.frame_intervals_ms.len();
+            let p95 = (frames * 95)
+                .div_ceil(100)
+                .checked_sub(1)
+                .and_then(|index| smoke.frame_intervals_ms.get(index))
+                .copied()
+                .unwrap_or(0.0);
+            eprintln!(
+                "native window smoke after first accepted projection: frame_count={}; frame_intervals={frames}; actual_seconds={elapsed:.3}; p95_frame_interval_ms={p95:.3}; observed_clause_ticks={}; simulated_seconds={:.3}",
+                frames + 1,
+                snapshot.ticks.saturating_sub(first_tick),
+                snapshot.ticks.saturating_sub(first_tick) as f64 * 0.016
+            );
+        }
     }
     if smoke.screenshot && smoke.start.elapsed() >= Duration::from_secs(seconds + 3) {
         exit.write(AppExit::Success);

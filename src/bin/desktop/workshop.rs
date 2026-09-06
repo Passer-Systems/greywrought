@@ -20,6 +20,16 @@ pub(super) struct Report;
 pub(super) struct Part(usize);
 #[derive(Component)]
 pub(super) struct Roster;
+#[derive(Component)]
+pub(super) struct WorkshopCamera;
+#[derive(Component)]
+pub(super) enum Scenery {
+    Bench,
+    Ash,
+    Chassis(Vec3),
+    Sentinel,
+    Cache,
+}
 
 fn label(text: impl Into<String>, size: f32) -> (Text, TextFont, TextColor) {
     (
@@ -35,6 +45,7 @@ fn label(text: impl Into<String>, size: f32) -> (Text, TextFont, TextColor) {
 pub(super) fn setup(commands: &mut Commands) {
     commands.spawn((
         Camera3d::default(),
+        WorkshopCamera,
         Transform::from_xyz(0.0, 17.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
     commands.spawn((
@@ -73,7 +84,7 @@ pub(super) fn setup(commands: &mut Commands) {
         ))
         .with_children(|parent| {
             parent.spawn(label("GREYWROUGHT", 27.0));
-            parent.spawn(label("THE WORKSHOP", 14.0));
+            parent.spawn(label("MACHINE ASSEMBLY", 14.0));
             parent.spawn(label(
                 "Select a part. Wire it to a power source using that source’s WIRE TO button.",
                 14.0,
@@ -255,10 +266,169 @@ fn part_position(index: usize, mounted: bool) -> Vec3 {
     Vec3::new(x + if mounted { 0.0 } else { 3.2 * x.signum() }, 0.7, z)
 }
 
+pub(super) fn scene(
+    mut commands: Commands,
+    display: Res<Displayed>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut scenery: Query<(&Scenery, &mut Transform, &mut Visibility), Without<WorkshopCamera>>,
+    mut camera: Query<&mut Transform, (With<WorkshopCamera>, Without<Scenery>)>,
+    mut initialized: Local<bool>,
+    mut gizmos: Gizmos,
+) {
+    let Some(view) = display
+        .snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.workshop.as_ref())
+    else {
+        return;
+    };
+    let expedition = view.phase == "Expedition";
+    let position = Vec3::new(0.0, 0.0, -view.readings["position"] as f32);
+    let destination = view.readings["encounter-position"] as f32;
+    if !*initialized {
+        let steel = materials.add(Color::srgb(0.12, 0.17, 0.19));
+        let ash = materials.add(Color::srgb(0.19, 0.17, 0.16));
+        let rock = materials.add(Color::srgb(0.29, 0.24, 0.21));
+        commands.spawn((
+            Scenery::Bench,
+            Mesh3d(meshes.add(Cuboid::new(12.0, 0.4, 7.0))),
+            MeshMaterial3d(steel.clone()),
+            Transform::from_xyz(0.0, -0.55, 0.0),
+        ));
+        commands.spawn((
+            Scenery::Ash,
+            Mesh3d(meshes.add(Plane3d::default().mesh().size(90.0, 90.0))),
+            MeshMaterial3d(ash),
+            Transform::from_xyz(0.0, -0.55, -10.0),
+        ));
+        for (x, z, scale) in [
+            (-7.0, 2.0, 1.5),
+            (7.0, -2.0, 1.0),
+            (-6.0, -7.0, 1.2),
+            (6.0, -12.0, 1.8),
+            (-8.0, -16.0, 2.0),
+            (7.0, -22.0, 1.0),
+        ] {
+            commands.spawn((
+                Scenery::Ash,
+                Mesh3d(meshes.add(Sphere::new(scale))),
+                MeshMaterial3d(rock.clone()),
+                Transform::from_xyz(x, -0.2, z).with_scale(Vec3::new(1.0, 0.6, 0.8)),
+            ));
+        }
+        commands.spawn((
+            Scenery::Chassis(Vec3::new(0.0, -0.1, 0.0)),
+            Mesh3d(meshes.add(Cuboid::new(5.0, 0.45, 5.5))),
+            MeshMaterial3d(steel.clone()),
+            Transform::default(),
+        ));
+        for x in [-2.5, 2.5] {
+            commands.spawn((
+                Scenery::Chassis(Vec3::new(x, -0.1, 0.0)),
+                Mesh3d(meshes.add(Cuboid::new(0.7, 0.65, 5.1))),
+                MeshMaterial3d(rock.clone()),
+                Transform::default(),
+            ));
+        }
+        commands.spawn((
+            Scenery::Sentinel,
+            Mesh3d(meshes.add(Capsule3d::new(0.9, 2.0))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.55, 0.15, 0.07),
+                emissive: LinearRgba::new(0.3, 0.03, 0.0, 1.0),
+                metallic: 0.7,
+                ..default()
+            })),
+            Transform::default(),
+        ));
+        commands.spawn((
+            Scenery::Cache,
+            Mesh3d(meshes.add(Cuboid::new(1.6, 1.2, 1.6))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.9, 0.64, 0.19),
+                emissive: LinearRgba::new(0.3, 0.15, 0.01, 1.0),
+                ..default()
+            })),
+            Transform::default(),
+        ));
+        *initialized = true;
+    }
+    for (kind, mut transform, mut visibility) in &mut scenery {
+        *visibility = match kind {
+            Scenery::Bench if expedition => Visibility::Hidden,
+            Scenery::Ash | Scenery::Sentinel | Scenery::Cache if !expedition => Visibility::Hidden,
+            _ => Visibility::Inherited,
+        };
+        match kind {
+            Scenery::Chassis(local) => {
+                transform.translation = *local + if expedition { position } else { Vec3::ZERO }
+            }
+            Scenery::Sentinel => {
+                transform.translation = Vec3::new(0.0, 1.3, -destination - 4.0);
+                transform.rotation = if view.readings["threat-health"] <= 0.0 {
+                    Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
+                } else {
+                    Quat::IDENTITY
+                };
+                if view.readings["threat-health"] <= 0.0 {
+                    transform.translation.y = 0.1;
+                }
+            }
+            Scenery::Cache => {
+                transform.translation = Vec3::new(3.0, 0.4, -destination - 4.0);
+                transform.scale = Vec3::splat(if view.readings["objective"] > 0.0 {
+                    (1.0 - view.readings["cargo"] / view.readings["objective"]).clamp(0.15, 1.0)
+                        as f32
+                } else {
+                    1.0
+                });
+            }
+            _ => {}
+        }
+    }
+    for mut transform in &mut camera {
+        let center = if expedition {
+            Vec3::new(0.0, 0.0, -destination * 0.5)
+        } else {
+            Vec3::ZERO
+        };
+        *transform = Transform::from_translation(
+            center
+                + if expedition {
+                    Vec3::new(10.0, 21.0, 22.0)
+                } else {
+                    Vec3::new(0.0, 17.0, 15.0)
+                },
+        )
+        .looking_at(center, Vec3::Y);
+    }
+    if expedition {
+        for x in [-3.6, 3.6] {
+            gizmos.line(
+                Vec3::new(x, -0.48, 4.0),
+                Vec3::new(x, -0.48, -destination - 7.0),
+                Color::srgb(0.43, 0.34, 0.22),
+            );
+        }
+        let health = view.readings["threat-health"];
+        let maximum = view.readings["threat-maximum"];
+        if maximum > 0.0 {
+            let start = Vec3::new(-1.0, 3.6, -destination - 4.0);
+            gizmos.line(start, start + Vec3::X * 2.0, Color::srgb(0.15, 0.1, 0.1));
+            gizmos.line(
+                start,
+                start + Vec3::X * (2.0 * health / maximum) as f32,
+                Color::srgb(1.0, 0.3, 0.1),
+            );
+        }
+    }
+}
+
 pub(super) fn present(
     mut commands: Commands,
     mut display: ResMut<Displayed>,
-    mut panels: Query<&mut Visibility, With<Panel>>,
+    mut panels: Query<&mut Visibility, (With<Panel>, Without<Part>)>,
     mut text: Query<(
         &mut Text,
         Option<&Readout>,
@@ -266,7 +436,15 @@ pub(super) fn present(
         Option<&Report>,
     )>,
     mut buttons: Query<(&Control, &Children, &Interaction, &mut BackgroundColor)>,
-    mut parts: Query<(&Part, &mut Transform, &MeshMaterial3d<StandardMaterial>)>,
+    mut parts: Query<
+        (
+            &Part,
+            &mut Transform,
+            &MeshMaterial3d<StandardMaterial>,
+            &mut Visibility,
+        ),
+        Without<Panel>,
+    >,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut initialized: Local<bool>,
@@ -308,7 +486,7 @@ pub(super) fn present(
         } else if detail.is_some() {
             **content = view.components.iter().find(|part| part.selected).map(|part| {
                 let p = &part.readings;
-                format!("{}\nMass {:.0} · Generation {:.0}\nThrust {:.0} · Firepower {:.0}\nCooling {:.0} · Protection {:.0}", part.label, p["mass"], p["generation"], p["thrust"], p["firepower"], p["cooling"], p["protection"])
+                format!("{}\nMass {:.0} · Generation {:.0} · Draw {:.0}\nThrust {:.0} · Firepower {:.0}\nCooling {:.0} · Protection {:.0}", part.label, p["mass"], p["generation"], p["draw"], p["thrust"], p["firepower"], p["cooling"], p["protection"])
             }).unwrap_or_default();
         } else if report.is_some() {
             **content = format!("{}\n\n{}", view.report, display.status);
@@ -415,30 +593,56 @@ pub(super) fn present(
                 }
             });
         }
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(6.0, 0.35, 5.0))),
-            MeshMaterial3d(materials.add(Color::srgb(0.12, 0.17, 0.19))),
-            Transform::from_xyz(0.0, -0.1, 0.0),
-        ));
         for (index, part) in view.components.iter().enumerate() {
+            let (mesh, rotation) = if part.readings["generation"] > 0.0 {
+                (Mesh::from(Cylinder::new(0.65, 1.5)), Quat::IDENTITY)
+            } else if part.readings["firepower"] > 0.0 {
+                (
+                    Mesh::from(Capsule3d::new(0.32, 1.6)),
+                    Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
+                )
+            } else if part.readings["thrust"] > 0.0 {
+                (
+                    Mesh::from(Cylinder::new(0.65, 1.3)),
+                    Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+                )
+            } else if part.readings["protection"] > 0.0 {
+                (Mesh::from(Cuboid::new(1.7, 0.35, 1.6)), Quat::IDENTITY)
+            } else {
+                (Mesh::from(Cuboid::new(1.25, 1.1, 1.25)), Quat::IDENTITY)
+            };
             commands.spawn((
                 Part(index),
-                Mesh3d(meshes.add(Cuboid::new(1.45, 1.25, 1.25))),
+                Mesh3d(meshes.add(mesh)),
                 MeshMaterial3d(materials.add(StandardMaterial {
                     metallic: 0.65,
                     perceptual_roughness: 0.4,
                     ..default()
                 })),
-                Transform::from_translation(part_position(index, part.mounted)),
+                Transform::from_translation(part_position(index, part.mounted))
+                    .with_rotation(rotation),
             ));
         }
         *initialized = true;
     }
-    for (part, mut transform, material) in &mut parts {
+    for (part, mut transform, material, mut visibility) in &mut parts {
         let Some(component) = view.components.get(part.0) else {
             continue;
         };
-        transform.translation = part_position(part.0, component.mounted);
+        *visibility = if view.phase == "Expedition" && !component.mounted {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        };
+        if *visibility == Visibility::Hidden {
+            continue;
+        }
+        let offset = if view.phase == "Expedition" && component.mounted {
+            Vec3::new(0.0, 0.0, -r["position"] as f32)
+        } else {
+            Vec3::ZERO
+        };
+        transform.translation = part_position(part.0, component.mounted) + offset;
         let damaged = component.readings["health"] < component.readings["max-health"];
         let color = if damaged {
             Color::srgb(0.65, 0.24, 0.12)
@@ -465,9 +669,18 @@ pub(super) fn present(
                 .enumerate()
                 .find(|(_, candidate)| Some(&candidate.pick) == component.upstream.as_ref())
             {
+                if view.phase == "Expedition" && !upstream.mounted {
+                    continue;
+                }
                 gizmos.line(
                     transform.translation + Vec3::Y,
-                    part_position(index, upstream.mounted) + Vec3::Y,
+                    part_position(index, upstream.mounted)
+                        + Vec3::Y
+                        + if view.phase == "Expedition" && upstream.mounted {
+                            Vec3::new(0.0, 0.0, -r["position"] as f32)
+                        } else {
+                            Vec3::ZERO
+                        },
                     if component.powered {
                         Color::srgb(0.5, 1.0, 0.8)
                     } else {
