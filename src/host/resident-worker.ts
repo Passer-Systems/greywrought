@@ -30,6 +30,11 @@ import {
   type LifecycleReceipt,
   type WorkbenchEnvelope,
 } from "../../build/host/jump-arena-shell/workbench.js";
+import {
+  beginSourceTransferObservation,
+  finishSourceTransferObservation,
+  type SourceTransferObservation,
+} from "../../build/host/jump-arena-shell/source-transfer-observation.js";
 import * as clauseRuntime from "#clause-runtime-wasm";
 
 interface GenerationPayload {
@@ -149,6 +154,15 @@ type ResidentEvent =
       workerSentEpochMillis: number;
     }>
   | Readonly<{
+      kind: "performance-profile";
+      boundary: "candidate" | "source-edit";
+      generation: number;
+      wallMillis: number;
+      runtime: unknown;
+      outer: SourceTransferObservation | null;
+      workerSentEpochMillis: number;
+    }>
+  | Readonly<{
       kind: "heartbeat";
       workerTimeMillis: number;
       pendingInputCount: number;
@@ -170,7 +184,9 @@ interface ResidentWorkerScope {
 }
 
 const workerScope = self as unknown as ResidentWorkerScope;
-const measurementEnabled = new URL(self.location.href).searchParams.get("measure") === "1";
+const searchParameters = new URL(self.location.href).searchParams;
+const measurementEnabled = searchParameters.get("measure") === "1";
+const performanceProfileEnabled = measurementEnabled && searchParameters.get("profile") === "1";
 const workerEpochMillis = (): number => performance.timeOrigin + performance.now();
 const maximum = Number.MAX_SAFE_INTEGER;
 const policy = createWorkbenchPolicy(
@@ -215,6 +231,33 @@ let receivedInputCount = 0;
 let acceptedInputCount = 0;
 let maximumInputQueueDepth = 0;
 let inputBackpressureCount = 0;
+
+function beginRuntimeProfile(): number | null {
+  if (!performanceProfileEnabled) return null;
+  if (!clauseRuntime.clause_source_profile_v1_begin()) {
+    throw new Error("runtime performance profile is already active");
+  }
+  return performance.now();
+}
+
+function finishRuntimeProfile(
+  boundary: "candidate" | "source-edit",
+  started: number | null,
+  outer: SourceTransferObservation | null = null,
+): void {
+  if (started === null) return;
+  const runtime: unknown = JSON.parse(clauseRuntime.clause_source_profile_v1_finish());
+  if (runtime === null) throw new Error("runtime performance profile did not finish");
+  workerScope.postMessage({
+    kind: "performance-profile",
+    boundary,
+    generation: activeExternalGeneration,
+    wallMillis: performance.now() - started,
+    runtime,
+    outer,
+    workerSentEpochMillis: workerEpochMillis(),
+  });
+}
 
 // These bindings represent one discrete action per physical press. Keeping
 // browser key-repeat out of the transport queue prevents a held action key
@@ -377,14 +420,36 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
           if (liveSession === null || edit.cet1 === null) {
             throw new Error("live source edit omitted captured session or CET1");
           }
-          const result = editSourceSession(
-            module,
-            liveSession,
-            generation,
-            createExactProcessRequest(decodeCwr1Hex(edit.cwr1)),
-            decodeCet1Hex(edit.cet1),
-            policy,
-          );
+          const profileStarted = beginRuntimeProfile();
+          if (performanceProfileEnabled && !beginSourceTransferObservation()) {
+            clauseRuntime.clause_source_profile_v1_finish();
+            throw new Error("source-transfer performance profile is already active");
+          }
+          let profileFinished = false;
+          const result = (() => {
+            try {
+              const result = editSourceSession(
+                module,
+                liveSession,
+                generation,
+                createExactProcessRequest(decodeCwr1Hex(edit.cwr1)),
+                decodeCet1Hex(edit.cet1),
+                policy,
+              );
+              const outer = performanceProfileEnabled ? finishSourceTransferObservation() : null;
+              if (performanceProfileEnabled && outer === null) {
+                throw new Error("source-transfer performance profile did not finish");
+              }
+              finishRuntimeProfile("source-edit", profileStarted, outer);
+              profileFinished = true;
+              return result;
+            } finally {
+              if (profileStarted !== null && !profileFinished) {
+                finishSourceTransferObservation();
+                clauseRuntime.clause_source_profile_v1_finish();
+              }
+            }
+          })();
           if (result._tag === "SessionStarted") liveSession = result.session;
           return complete(result);
         }
@@ -393,7 +458,21 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
           return complete(result);
         });
       },
-      basePort.runCandidate,
+      (session, tick, configuration, complete) => {
+        const profileStarted = beginRuntimeProfile();
+        let profileFinished = false;
+        try {
+          return basePort.runCandidate(session, tick, configuration, (result) => {
+            finishRuntimeProfile("candidate", profileStarted);
+            profileFinished = true;
+            return complete(result);
+          });
+        } finally {
+          if (profileStarted !== null && !profileFinished) {
+            clauseRuntime.clause_source_profile_v1_finish();
+          }
+        }
+      },
       basePort.requestAdmission,
       basePort.disposeSession,
     );
