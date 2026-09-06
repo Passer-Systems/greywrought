@@ -68,6 +68,17 @@ input/ticking. The observed edit API time was 1972ms; the complete probe took
 2915ms. This is one observation, not a visible-edit latency or speedup claim.
 The 250ms / 100-actor performance objective remains open.
 
+A subsequent real-window edit exposed a host keyboard batching defect: a
+completed Ctrl+A chord was interpreted using the final modifier state of its
+frame, submitting `falseatrue` instead of `true`. The editor now processes
+modifier transitions, text and commands in event order. Repeating F6,
+Ctrl+A, typing `true`, and Enter edited the first offered expression
+(`clear-selection`, source line 1316) successfully in the same open session,
+generation 1 to 2. The observed checked API time was 1942ms and submission of
+the accepted edited projection to the scene was 3003ms. Those are separate
+developer timestamps, not a GPU-present measurement. No compiler or game-rule
+change was needed.
+
 The real X11 window rendered the five Quaternius characters, their animations,
 the accepted world, selection/target rings, health bars and terrain on Radeon
 890M / Vulkan. It saved on normal close and reopened that same save for the

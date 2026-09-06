@@ -38,6 +38,8 @@ struct Displayed {
     edit_labels: Vec<String>,
     edit_index: usize,
     editing: bool,
+    control_left: bool,
+    control_right: bool,
     expression: String,
     edit_receipt: Option<(WasmSessionHandleV1, Instant)>,
 }
@@ -241,6 +243,9 @@ fn run_world(
                 }
                 Request::Edit(captured, index, expression) => {
                     let started = Instant::now();
+                    eprintln!(
+                        "native edit request: generation {captured:?}; catalog index {index}; replacement {expression:?}"
+                    );
                     match session.edit(captured, index, expression.as_bytes()) {
                         Ok(()) => {
                             status = "Tuning applied".into();
@@ -437,48 +442,66 @@ fn controls(
     camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     mut typing: MessageReader<bevy::input::keyboard::KeyboardInput>,
 ) {
-    if keys.just_pressed(KeyCode::F6) {
-        display.editing = !display.editing;
-        display.expression = display
-            .edit_catalog
-            .get(display.edit_index)
-            .cloned()
-            .unwrap_or_default();
-    }
-    if display.editing {
-        let control = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
-        if control && keys.just_pressed(KeyCode::KeyA) {
+    let mut editor_handled = display.editing;
+    for event in typing.read() {
+        // Modifier transitions and text can share one frame; preserve their order.
+        match event.key_code {
+            KeyCode::ControlLeft => display.control_left = event.state.is_pressed(),
+            KeyCode::ControlRight => display.control_right = event.state.is_pressed(),
+            _ => {}
+        }
+        if !event.state.is_pressed() {
+            continue;
+        }
+        if event.key_code == KeyCode::F6 && !event.repeat {
+            editor_handled = true;
+            display.editing = !display.editing;
+            display.expression = display
+                .edit_catalog
+                .get(display.edit_index)
+                .cloned()
+                .unwrap_or_default();
+            continue;
+        }
+        if !display.editing {
+            continue;
+        }
+        editor_handled = true;
+        let control = display.control_left || display.control_right;
+        if control && event.key_code == KeyCode::KeyA {
             display.expression.clear();
+            continue;
         }
-        if keys.just_pressed(KeyCode::Escape) {
+        if event.key_code == KeyCode::Escape {
             display.editing = false;
+            continue;
         }
-        if keys.just_pressed(KeyCode::PageDown) && !display.edit_catalog.is_empty() {
+        if event.key_code == KeyCode::PageDown && !display.edit_catalog.is_empty() {
             display.edit_index = (display.edit_index + 1) % display.edit_catalog.len();
             display.expression = display.edit_catalog[display.edit_index].clone();
+            continue;
         }
-        if keys.just_pressed(KeyCode::PageUp) && !display.edit_catalog.is_empty() {
+        if event.key_code == KeyCode::PageUp && !display.edit_catalog.is_empty() {
             display.edit_index = display
                 .edit_index
                 .checked_sub(1)
                 .unwrap_or(display.edit_catalog.len() - 1);
             display.expression = display.edit_catalog[display.edit_index].clone();
+            continue;
         }
-        for event in typing.read() {
-            if !event.state.is_pressed() || control {
-                continue;
-            }
-            if event.key_code == KeyCode::Backspace {
-                display.expression.pop();
-            } else if let Some(text) = &event.text {
-                for c in text.chars().filter(|c| !c.is_control()) {
-                    if display.expression.len() < 2048 {
-                        display.expression.push(c);
-                    }
+        if control {
+            continue;
+        }
+        if event.key_code == KeyCode::Backspace {
+            display.expression.pop();
+        } else if let Some(text) = &event.text {
+            for c in text.chars().filter(|c| !c.is_control()) {
+                if display.expression.len() < 2048 {
+                    display.expression.push(c);
                 }
             }
         }
-        if keys.just_pressed(KeyCode::Enter) {
+        if event.key_code == KeyCode::Enter && !event.repeat {
             if let Some(snapshot) = &display.snapshot {
                 submit(
                     &bridge,
@@ -491,9 +514,10 @@ fn controls(
             }
             display.editing = false;
         }
+    }
+    if editor_handled {
         return;
     }
-    typing.clear();
     if keys.just_pressed(KeyCode::F5) {
         submit(&bridge, Request::Save);
     }
