@@ -1,0 +1,3464 @@
+warrior-1 actor name "Company 1"
+warrior-1 presentation kind "Warrior"
+warrior-1 unit class warrior-class
+warrior-1 actor position Vec3 { x: -9.0, y: 0.0, z: -15.0 }
+warrior-1 unit destination Vec3 { x: -9.0, y: 0.0, z: 15.0 }
+warrior-1 formation offset Vec3 { x: -9.0, y: 0.0, z: -15.0 }
+warrior-1 movement speed 5.0
+warrior-1 selected true
+warrior-1 moving true
+warrior-1 hostile false
+warrior-1 vitality 160.0
+warrior-1 maximum vitality 160.0
+warrior-1 alive true
+warrior-1 ward remaining 0.0
+warrior-1 burn remaining 0.0
+warrior-1 attack damage 22.0
+warrior-1 attack range 18.0
+warrior-1 healing power 0.0
+warrior-1 ward duration 0.0
+warrior-1 action cooldown 60.0
+warrior-1 action period 0.8
+warrior-1 footprint radius 0.6
+warrior-1 attack readiness "No battle in progress"
+warrior-1 heal readiness "No battle in progress"
+warrior-1 ward readiness "No battle in progress"
+warrior-1 ignite readiness "No battle in progress"
+warrior-1 order report ""
+warrior-1 order name ""
+warrior-1 order number 0.0
+warrior-1 order accepted false
+
+artificer-1 actor name "Company 2"
+artificer-1 presentation kind "Artificer"
+artificer-1 unit class artificer-class
+artificer-1 actor position Vec3 { x: -7.0, y: 0.0, z: -15.0 }
+artificer-1 unit destination Vec3 { x: -7.0, y: 0.0, z: 15.0 }
+artificer-1 formation offset Vec3 { x: -7.0, y: 0.0, z: -15.0 }
+artificer-1 movement speed 4.3
+artificer-1 selected true
+artificer-1 moving true
+artificer-1 hostile false
+artificer-1 vitality 105.0
+artificer-1 maximum vitality 105.0
+artificer-1 alive true
+artificer-1 ward remaining 0.0
+artificer-1 burn remaining 0.0
+artificer-1 attack damage 18.0
+artificer-1 attack range 18.0
+artificer-1 healing power 0.0
+artificer-1 ward duration 0.0
+artificer-1 action cooldown 60.0
+artificer-1 action period 0.8
+artificer-1 ignite duration 3.0
+artificer-1 ignite damage 7.0
+artificer-1 footprint radius 0.6
+artificer-1 attack readiness "No battle in progress"
+artificer-1 heal readiness "No battle in progress"
+artificer-1 ward readiness "No battle in progress"
+artificer-1 ignite readiness "No battle in progress"
+artificer-1 order report ""
+artificer-1 order name ""
+artificer-1 order number 0.0
+artificer-1 order accepted false
+
+rogue-1 actor name "Company 3"
+rogue-1 presentation kind "Rogue"
+rogue-1 unit class rogue-class
+rogue-1 actor position Vec3 { x: -5.0, y: 0.0, z: -15.0 }
+rogue-1 unit destination Vec3 { x: -5.0, y: 0.0, z: 15.0 }
+rogue-1 formation offset Vec3 { x: -5.0, y: 0.0, z: -15.0 }
+rogue-1 movement speed 5.7
+rogue-1 selected true
+rogue-1 moving true
+rogue-1 hostile false
+rogue-1 vitality 95.0
+rogue-1 maximum vitality 95.0
+rogue-1 alive true
+rogue-1 ward remaining 0.0
+rogue-1 burn remaining 0.0
+rogue-1 attack damage 24.0
+rogue-1 attack range 18.0
+rogue-1 healing power 0.0
+rogue-1 ward duration 0.0
+rogue-1 action cooldown 60.0
+rogue-1 action period 0.8
+rogue-1 footprint radius 0.6
+rogue-1 attack readiness "No battle in progress"
+rogue-1 heal readiness "No battle in progress"
+rogue-1 ward readiness "No battle in progress"
+rogue-1 ignite readiness "No battle in progress"
+rogue-1 order report ""
+rogue-1 order name ""
+rogue-1 order number 0.0
+rogue-1 order accepted false
+
+priest-1 actor name "Company 4"
+priest-1 presentation kind "Priest"
+priest-1 unit class priest-class
+priest-1 actor position Vec3 { x: -3.0, y: 0.0, z: -15.0 }
+priest-1 unit destination Vec3 { x: -3.0, y: 0.0, z: 15.0 }
+priest-1 formation offset Vec3 { x: -3.0, y: 0.0, z: -15.0 }
+priest-1 movement speed 4.2
+priest-1 selected true
+priest-1 moving true
+priest-1 hostile false
+priest-1 vitality 90.0
+priest-1 maximum vitality 90.0
+priest-1 alive true
+priest-1 ward remaining 0.0
+priest-1 burn remaining 0.0
+priest-1 attack damage 7.0
+priest-1 attack range 18.0
+priest-1 healing power 28.0
+priest-1 ward duration 4.0
+priest-1 action cooldown 60.0
+priest-1 action period 0.8
+priest-1 footprint radius 0.6
+priest-1 attack readiness "No battle in progress"
+priest-1 heal readiness "No battle in progress"
+priest-1 ward readiness "No battle in progress"
+priest-1 ignite readiness "No battle in progress"
+priest-1 order report ""
+priest-1 order name ""
+priest-1 order number 0.0
+priest-1 order accepted false
+
+ranger-1 actor name "Company 5"
+ranger-1 presentation kind "Ranger"
+ranger-1 unit class ranger-class
+ranger-1 actor position Vec3 { x: -1.0, y: 0.0, z: -15.0 }
+ranger-1 unit destination Vec3 { x: -1.0, y: 0.0, z: 15.0 }
+ranger-1 formation offset Vec3 { x: -1.0, y: 0.0, z: -15.0 }
+ranger-1 movement speed 4.8
+ranger-1 selected true
+ranger-1 moving true
+ranger-1 hostile false
+ranger-1 vitality 100.0
+ranger-1 maximum vitality 100.0
+ranger-1 alive true
+ranger-1 ward remaining 0.0
+ranger-1 burn remaining 0.0
+ranger-1 attack damage 20.0
+ranger-1 attack range 18.0
+ranger-1 healing power 0.0
+ranger-1 ward duration 0.0
+ranger-1 action cooldown 60.0
+ranger-1 action period 0.8
+ranger-1 ignite duration 1.5
+ranger-1 ignite damage 7.0
+ranger-1 footprint radius 0.6
+ranger-1 attack readiness "No battle in progress"
+ranger-1 heal readiness "No battle in progress"
+ranger-1 ward readiness "No battle in progress"
+ranger-1 ignite readiness "No battle in progress"
+ranger-1 order report ""
+ranger-1 order name ""
+ranger-1 order number 0.0
+ranger-1 order accepted false
+
+company-6
+  member of: Unit
+  member of: Actor
+company-6 actor name "Company 6"
+company-6 presentation kind "Warrior"
+company-6 unit class warrior-class
+company-6 actor position Vec3 { x: 1.0, y: 0.0, z: -15.0 }
+company-6 unit destination Vec3 { x: 1.0, y: 0.0, z: 15.0 }
+company-6 formation offset Vec3 { x: 1.0, y: 0.0, z: -15.0 }
+company-6 movement speed 5.0
+company-6 selected true
+company-6 moving true
+company-6 hostile false
+company-6 vitality 160.0
+company-6 maximum vitality 160.0
+company-6 alive true
+company-6 ward remaining 0.0
+company-6 burn remaining 0.0
+company-6 attack damage 22.0
+company-6 attack range 18.0
+company-6 healing power 0.0
+company-6 ward duration 0.0
+company-6 action cooldown 60.0
+company-6 action period 0.8
+company-6 footprint radius 0.6
+company-6 attack readiness "No battle in progress"
+company-6 heal readiness "No battle in progress"
+company-6 ward readiness "No battle in progress"
+company-6 ignite readiness "No battle in progress"
+company-6 order report ""
+company-6 order name ""
+company-6 order number 0.0
+company-6 order accepted false
+
+company-7
+  member of: Unit
+  member of: Actor
+company-7 actor name "Company 7"
+company-7 presentation kind "Artificer"
+company-7 unit class artificer-class
+company-7 actor position Vec3 { x: 3.0, y: 0.0, z: -15.0 }
+company-7 unit destination Vec3 { x: 3.0, y: 0.0, z: 15.0 }
+company-7 formation offset Vec3 { x: 3.0, y: 0.0, z: -15.0 }
+company-7 movement speed 4.3
+company-7 selected true
+company-7 moving true
+company-7 hostile false
+company-7 vitality 105.0
+company-7 maximum vitality 105.0
+company-7 alive true
+company-7 ward remaining 0.0
+company-7 burn remaining 0.0
+company-7 attack damage 18.0
+company-7 attack range 18.0
+company-7 healing power 0.0
+company-7 ward duration 0.0
+company-7 action cooldown 60.0
+company-7 action period 0.8
+company-7 ignite duration 3.0
+company-7 ignite damage 7.0
+company-7 footprint radius 0.6
+company-7 attack readiness "No battle in progress"
+company-7 heal readiness "No battle in progress"
+company-7 ward readiness "No battle in progress"
+company-7 ignite readiness "No battle in progress"
+company-7 order report ""
+company-7 order name ""
+company-7 order number 0.0
+company-7 order accepted false
+
+company-8
+  member of: Unit
+  member of: Actor
+company-8 actor name "Company 8"
+company-8 presentation kind "Rogue"
+company-8 unit class rogue-class
+company-8 actor position Vec3 { x: 5.0, y: 0.0, z: -15.0 }
+company-8 unit destination Vec3 { x: 5.0, y: 0.0, z: 15.0 }
+company-8 formation offset Vec3 { x: 5.0, y: 0.0, z: -15.0 }
+company-8 movement speed 5.7
+company-8 selected true
+company-8 moving true
+company-8 hostile false
+company-8 vitality 95.0
+company-8 maximum vitality 95.0
+company-8 alive true
+company-8 ward remaining 0.0
+company-8 burn remaining 0.0
+company-8 attack damage 24.0
+company-8 attack range 18.0
+company-8 healing power 0.0
+company-8 ward duration 0.0
+company-8 action cooldown 60.0
+company-8 action period 0.8
+company-8 footprint radius 0.6
+company-8 attack readiness "No battle in progress"
+company-8 heal readiness "No battle in progress"
+company-8 ward readiness "No battle in progress"
+company-8 ignite readiness "No battle in progress"
+company-8 order report ""
+company-8 order name ""
+company-8 order number 0.0
+company-8 order accepted false
+
+company-9
+  member of: Unit
+  member of: Actor
+company-9 actor name "Company 9"
+company-9 presentation kind "Priest"
+company-9 unit class priest-class
+company-9 actor position Vec3 { x: 7.0, y: 0.0, z: -15.0 }
+company-9 unit destination Vec3 { x: 7.0, y: 0.0, z: 15.0 }
+company-9 formation offset Vec3 { x: 7.0, y: 0.0, z: -15.0 }
+company-9 movement speed 4.2
+company-9 selected true
+company-9 moving true
+company-9 hostile false
+company-9 vitality 90.0
+company-9 maximum vitality 90.0
+company-9 alive true
+company-9 ward remaining 0.0
+company-9 burn remaining 0.0
+company-9 attack damage 7.0
+company-9 attack range 18.0
+company-9 healing power 28.0
+company-9 ward duration 4.0
+company-9 action cooldown 60.0
+company-9 action period 0.8
+company-9 footprint radius 0.6
+company-9 attack readiness "No battle in progress"
+company-9 heal readiness "No battle in progress"
+company-9 ward readiness "No battle in progress"
+company-9 ignite readiness "No battle in progress"
+company-9 order report ""
+company-9 order name ""
+company-9 order number 0.0
+company-9 order accepted false
+
+company-10
+  member of: Unit
+  member of: Actor
+company-10 actor name "Company 10"
+company-10 presentation kind "Ranger"
+company-10 unit class ranger-class
+company-10 actor position Vec3 { x: 9.0, y: 0.0, z: -15.0 }
+company-10 unit destination Vec3 { x: 9.0, y: 0.0, z: 15.0 }
+company-10 formation offset Vec3 { x: 9.0, y: 0.0, z: -15.0 }
+company-10 movement speed 4.8
+company-10 selected true
+company-10 moving true
+company-10 hostile false
+company-10 vitality 100.0
+company-10 maximum vitality 100.0
+company-10 alive true
+company-10 ward remaining 0.0
+company-10 burn remaining 0.0
+company-10 attack damage 20.0
+company-10 attack range 18.0
+company-10 healing power 0.0
+company-10 ward duration 0.0
+company-10 action cooldown 60.0
+company-10 action period 0.8
+company-10 ignite duration 1.5
+company-10 ignite damage 7.0
+company-10 footprint radius 0.6
+company-10 attack readiness "No battle in progress"
+company-10 heal readiness "No battle in progress"
+company-10 ward readiness "No battle in progress"
+company-10 ignite readiness "No battle in progress"
+company-10 order report ""
+company-10 order name ""
+company-10 order number 0.0
+company-10 order accepted false
+
+company-11
+  member of: Unit
+  member of: Actor
+company-11 actor name "Company 11"
+company-11 presentation kind "Warrior"
+company-11 unit class warrior-class
+company-11 actor position Vec3 { x: -9.0, y: 0.0, z: -13.0 }
+company-11 unit destination Vec3 { x: -9.0, y: 0.0, z: 17.0 }
+company-11 formation offset Vec3 { x: -9.0, y: 0.0, z: -13.0 }
+company-11 movement speed 5.0
+company-11 selected true
+company-11 moving true
+company-11 hostile false
+company-11 vitality 160.0
+company-11 maximum vitality 160.0
+company-11 alive true
+company-11 ward remaining 0.0
+company-11 burn remaining 0.0
+company-11 attack damage 22.0
+company-11 attack range 18.0
+company-11 healing power 0.0
+company-11 ward duration 0.0
+company-11 action cooldown 60.0
+company-11 action period 0.8
+company-11 footprint radius 0.6
+company-11 attack readiness "No battle in progress"
+company-11 heal readiness "No battle in progress"
+company-11 ward readiness "No battle in progress"
+company-11 ignite readiness "No battle in progress"
+company-11 order report ""
+company-11 order name ""
+company-11 order number 0.0
+company-11 order accepted false
+
+company-12
+  member of: Unit
+  member of: Actor
+company-12 actor name "Company 12"
+company-12 presentation kind "Artificer"
+company-12 unit class artificer-class
+company-12 actor position Vec3 { x: -7.0, y: 0.0, z: -13.0 }
+company-12 unit destination Vec3 { x: -7.0, y: 0.0, z: 17.0 }
+company-12 formation offset Vec3 { x: -7.0, y: 0.0, z: -13.0 }
+company-12 movement speed 4.3
+company-12 selected true
+company-12 moving true
+company-12 hostile false
+company-12 vitality 105.0
+company-12 maximum vitality 105.0
+company-12 alive true
+company-12 ward remaining 0.0
+company-12 burn remaining 0.0
+company-12 attack damage 18.0
+company-12 attack range 18.0
+company-12 healing power 0.0
+company-12 ward duration 0.0
+company-12 action cooldown 60.0
+company-12 action period 0.8
+company-12 ignite duration 3.0
+company-12 ignite damage 7.0
+company-12 footprint radius 0.6
+company-12 attack readiness "No battle in progress"
+company-12 heal readiness "No battle in progress"
+company-12 ward readiness "No battle in progress"
+company-12 ignite readiness "No battle in progress"
+company-12 order report ""
+company-12 order name ""
+company-12 order number 0.0
+company-12 order accepted false
+
+company-13
+  member of: Unit
+  member of: Actor
+company-13 actor name "Company 13"
+company-13 presentation kind "Rogue"
+company-13 unit class rogue-class
+company-13 actor position Vec3 { x: -5.0, y: 0.0, z: -13.0 }
+company-13 unit destination Vec3 { x: -5.0, y: 0.0, z: 17.0 }
+company-13 formation offset Vec3 { x: -5.0, y: 0.0, z: -13.0 }
+company-13 movement speed 5.7
+company-13 selected true
+company-13 moving true
+company-13 hostile false
+company-13 vitality 95.0
+company-13 maximum vitality 95.0
+company-13 alive true
+company-13 ward remaining 0.0
+company-13 burn remaining 0.0
+company-13 attack damage 24.0
+company-13 attack range 18.0
+company-13 healing power 0.0
+company-13 ward duration 0.0
+company-13 action cooldown 60.0
+company-13 action period 0.8
+company-13 footprint radius 0.6
+company-13 attack readiness "No battle in progress"
+company-13 heal readiness "No battle in progress"
+company-13 ward readiness "No battle in progress"
+company-13 ignite readiness "No battle in progress"
+company-13 order report ""
+company-13 order name ""
+company-13 order number 0.0
+company-13 order accepted false
+
+company-14
+  member of: Unit
+  member of: Actor
+company-14 actor name "Company 14"
+company-14 presentation kind "Priest"
+company-14 unit class priest-class
+company-14 actor position Vec3 { x: -3.0, y: 0.0, z: -13.0 }
+company-14 unit destination Vec3 { x: -3.0, y: 0.0, z: 17.0 }
+company-14 formation offset Vec3 { x: -3.0, y: 0.0, z: -13.0 }
+company-14 movement speed 4.2
+company-14 selected true
+company-14 moving true
+company-14 hostile false
+company-14 vitality 90.0
+company-14 maximum vitality 90.0
+company-14 alive true
+company-14 ward remaining 0.0
+company-14 burn remaining 0.0
+company-14 attack damage 7.0
+company-14 attack range 18.0
+company-14 healing power 28.0
+company-14 ward duration 4.0
+company-14 action cooldown 60.0
+company-14 action period 0.8
+company-14 footprint radius 0.6
+company-14 attack readiness "No battle in progress"
+company-14 heal readiness "No battle in progress"
+company-14 ward readiness "No battle in progress"
+company-14 ignite readiness "No battle in progress"
+company-14 order report ""
+company-14 order name ""
+company-14 order number 0.0
+company-14 order accepted false
+
+company-15
+  member of: Unit
+  member of: Actor
+company-15 actor name "Company 15"
+company-15 presentation kind "Ranger"
+company-15 unit class ranger-class
+company-15 actor position Vec3 { x: -1.0, y: 0.0, z: -13.0 }
+company-15 unit destination Vec3 { x: -1.0, y: 0.0, z: 17.0 }
+company-15 formation offset Vec3 { x: -1.0, y: 0.0, z: -13.0 }
+company-15 movement speed 4.8
+company-15 selected true
+company-15 moving true
+company-15 hostile false
+company-15 vitality 100.0
+company-15 maximum vitality 100.0
+company-15 alive true
+company-15 ward remaining 0.0
+company-15 burn remaining 0.0
+company-15 attack damage 20.0
+company-15 attack range 18.0
+company-15 healing power 0.0
+company-15 ward duration 0.0
+company-15 action cooldown 60.0
+company-15 action period 0.8
+company-15 ignite duration 1.5
+company-15 ignite damage 7.0
+company-15 footprint radius 0.6
+company-15 attack readiness "No battle in progress"
+company-15 heal readiness "No battle in progress"
+company-15 ward readiness "No battle in progress"
+company-15 ignite readiness "No battle in progress"
+company-15 order report ""
+company-15 order name ""
+company-15 order number 0.0
+company-15 order accepted false
+
+company-16
+  member of: Unit
+  member of: Actor
+company-16 actor name "Company 16"
+company-16 presentation kind "Warrior"
+company-16 unit class warrior-class
+company-16 actor position Vec3 { x: 1.0, y: 0.0, z: -13.0 }
+company-16 unit destination Vec3 { x: 1.0, y: 0.0, z: 17.0 }
+company-16 formation offset Vec3 { x: 1.0, y: 0.0, z: -13.0 }
+company-16 movement speed 5.0
+company-16 selected true
+company-16 moving true
+company-16 hostile false
+company-16 vitality 160.0
+company-16 maximum vitality 160.0
+company-16 alive true
+company-16 ward remaining 0.0
+company-16 burn remaining 0.0
+company-16 attack damage 22.0
+company-16 attack range 18.0
+company-16 healing power 0.0
+company-16 ward duration 0.0
+company-16 action cooldown 60.0
+company-16 action period 0.8
+company-16 footprint radius 0.6
+company-16 attack readiness "No battle in progress"
+company-16 heal readiness "No battle in progress"
+company-16 ward readiness "No battle in progress"
+company-16 ignite readiness "No battle in progress"
+company-16 order report ""
+company-16 order name ""
+company-16 order number 0.0
+company-16 order accepted false
+
+company-17
+  member of: Unit
+  member of: Actor
+company-17 actor name "Company 17"
+company-17 presentation kind "Artificer"
+company-17 unit class artificer-class
+company-17 actor position Vec3 { x: 3.0, y: 0.0, z: -13.0 }
+company-17 unit destination Vec3 { x: 3.0, y: 0.0, z: 17.0 }
+company-17 formation offset Vec3 { x: 3.0, y: 0.0, z: -13.0 }
+company-17 movement speed 4.3
+company-17 selected true
+company-17 moving true
+company-17 hostile false
+company-17 vitality 105.0
+company-17 maximum vitality 105.0
+company-17 alive true
+company-17 ward remaining 0.0
+company-17 burn remaining 0.0
+company-17 attack damage 18.0
+company-17 attack range 18.0
+company-17 healing power 0.0
+company-17 ward duration 0.0
+company-17 action cooldown 60.0
+company-17 action period 0.8
+company-17 ignite duration 3.0
+company-17 ignite damage 7.0
+company-17 footprint radius 0.6
+company-17 attack readiness "No battle in progress"
+company-17 heal readiness "No battle in progress"
+company-17 ward readiness "No battle in progress"
+company-17 ignite readiness "No battle in progress"
+company-17 order report ""
+company-17 order name ""
+company-17 order number 0.0
+company-17 order accepted false
+
+company-18
+  member of: Unit
+  member of: Actor
+company-18 actor name "Company 18"
+company-18 presentation kind "Rogue"
+company-18 unit class rogue-class
+company-18 actor position Vec3 { x: 5.0, y: 0.0, z: -13.0 }
+company-18 unit destination Vec3 { x: 5.0, y: 0.0, z: 17.0 }
+company-18 formation offset Vec3 { x: 5.0, y: 0.0, z: -13.0 }
+company-18 movement speed 5.7
+company-18 selected true
+company-18 moving true
+company-18 hostile false
+company-18 vitality 95.0
+company-18 maximum vitality 95.0
+company-18 alive true
+company-18 ward remaining 0.0
+company-18 burn remaining 0.0
+company-18 attack damage 24.0
+company-18 attack range 18.0
+company-18 healing power 0.0
+company-18 ward duration 0.0
+company-18 action cooldown 60.0
+company-18 action period 0.8
+company-18 footprint radius 0.6
+company-18 attack readiness "No battle in progress"
+company-18 heal readiness "No battle in progress"
+company-18 ward readiness "No battle in progress"
+company-18 ignite readiness "No battle in progress"
+company-18 order report ""
+company-18 order name ""
+company-18 order number 0.0
+company-18 order accepted false
+
+company-19
+  member of: Unit
+  member of: Actor
+company-19 actor name "Company 19"
+company-19 presentation kind "Priest"
+company-19 unit class priest-class
+company-19 actor position Vec3 { x: 7.0, y: 0.0, z: -13.0 }
+company-19 unit destination Vec3 { x: 7.0, y: 0.0, z: 17.0 }
+company-19 formation offset Vec3 { x: 7.0, y: 0.0, z: -13.0 }
+company-19 movement speed 4.2
+company-19 selected true
+company-19 moving true
+company-19 hostile false
+company-19 vitality 90.0
+company-19 maximum vitality 90.0
+company-19 alive true
+company-19 ward remaining 0.0
+company-19 burn remaining 0.0
+company-19 attack damage 7.0
+company-19 attack range 18.0
+company-19 healing power 28.0
+company-19 ward duration 4.0
+company-19 action cooldown 60.0
+company-19 action period 0.8
+company-19 footprint radius 0.6
+company-19 attack readiness "No battle in progress"
+company-19 heal readiness "No battle in progress"
+company-19 ward readiness "No battle in progress"
+company-19 ignite readiness "No battle in progress"
+company-19 order report ""
+company-19 order name ""
+company-19 order number 0.0
+company-19 order accepted false
+
+company-20
+  member of: Unit
+  member of: Actor
+company-20 actor name "Company 20"
+company-20 presentation kind "Ranger"
+company-20 unit class ranger-class
+company-20 actor position Vec3 { x: 9.0, y: 0.0, z: -13.0 }
+company-20 unit destination Vec3 { x: 9.0, y: 0.0, z: 17.0 }
+company-20 formation offset Vec3 { x: 9.0, y: 0.0, z: -13.0 }
+company-20 movement speed 4.8
+company-20 selected true
+company-20 moving true
+company-20 hostile false
+company-20 vitality 100.0
+company-20 maximum vitality 100.0
+company-20 alive true
+company-20 ward remaining 0.0
+company-20 burn remaining 0.0
+company-20 attack damage 20.0
+company-20 attack range 18.0
+company-20 healing power 0.0
+company-20 ward duration 0.0
+company-20 action cooldown 60.0
+company-20 action period 0.8
+company-20 ignite duration 1.5
+company-20 ignite damage 7.0
+company-20 footprint radius 0.6
+company-20 attack readiness "No battle in progress"
+company-20 heal readiness "No battle in progress"
+company-20 ward readiness "No battle in progress"
+company-20 ignite readiness "No battle in progress"
+company-20 order report ""
+company-20 order name ""
+company-20 order number 0.0
+company-20 order accepted false
+
+company-21
+  member of: Unit
+  member of: Actor
+company-21 actor name "Company 21"
+company-21 presentation kind "Warrior"
+company-21 unit class warrior-class
+company-21 actor position Vec3 { x: -9.0, y: 0.0, z: -11.0 }
+company-21 unit destination Vec3 { x: -9.0, y: 0.0, z: 19.0 }
+company-21 formation offset Vec3 { x: -9.0, y: 0.0, z: -11.0 }
+company-21 movement speed 5.0
+company-21 selected true
+company-21 moving true
+company-21 hostile false
+company-21 vitality 160.0
+company-21 maximum vitality 160.0
+company-21 alive true
+company-21 ward remaining 0.0
+company-21 burn remaining 0.0
+company-21 attack damage 22.0
+company-21 attack range 18.0
+company-21 healing power 0.0
+company-21 ward duration 0.0
+company-21 action cooldown 60.0
+company-21 action period 0.8
+company-21 footprint radius 0.6
+company-21 attack readiness "No battle in progress"
+company-21 heal readiness "No battle in progress"
+company-21 ward readiness "No battle in progress"
+company-21 ignite readiness "No battle in progress"
+company-21 order report ""
+company-21 order name ""
+company-21 order number 0.0
+company-21 order accepted false
+
+company-22
+  member of: Unit
+  member of: Actor
+company-22 actor name "Company 22"
+company-22 presentation kind "Artificer"
+company-22 unit class artificer-class
+company-22 actor position Vec3 { x: -7.0, y: 0.0, z: -11.0 }
+company-22 unit destination Vec3 { x: -7.0, y: 0.0, z: 19.0 }
+company-22 formation offset Vec3 { x: -7.0, y: 0.0, z: -11.0 }
+company-22 movement speed 4.3
+company-22 selected true
+company-22 moving true
+company-22 hostile false
+company-22 vitality 105.0
+company-22 maximum vitality 105.0
+company-22 alive true
+company-22 ward remaining 0.0
+company-22 burn remaining 0.0
+company-22 attack damage 18.0
+company-22 attack range 18.0
+company-22 healing power 0.0
+company-22 ward duration 0.0
+company-22 action cooldown 60.0
+company-22 action period 0.8
+company-22 ignite duration 3.0
+company-22 ignite damage 7.0
+company-22 footprint radius 0.6
+company-22 attack readiness "No battle in progress"
+company-22 heal readiness "No battle in progress"
+company-22 ward readiness "No battle in progress"
+company-22 ignite readiness "No battle in progress"
+company-22 order report ""
+company-22 order name ""
+company-22 order number 0.0
+company-22 order accepted false
+
+company-23
+  member of: Unit
+  member of: Actor
+company-23 actor name "Company 23"
+company-23 presentation kind "Rogue"
+company-23 unit class rogue-class
+company-23 actor position Vec3 { x: -5.0, y: 0.0, z: -11.0 }
+company-23 unit destination Vec3 { x: -5.0, y: 0.0, z: 19.0 }
+company-23 formation offset Vec3 { x: -5.0, y: 0.0, z: -11.0 }
+company-23 movement speed 5.7
+company-23 selected true
+company-23 moving true
+company-23 hostile false
+company-23 vitality 95.0
+company-23 maximum vitality 95.0
+company-23 alive true
+company-23 ward remaining 0.0
+company-23 burn remaining 0.0
+company-23 attack damage 24.0
+company-23 attack range 18.0
+company-23 healing power 0.0
+company-23 ward duration 0.0
+company-23 action cooldown 60.0
+company-23 action period 0.8
+company-23 footprint radius 0.6
+company-23 attack readiness "No battle in progress"
+company-23 heal readiness "No battle in progress"
+company-23 ward readiness "No battle in progress"
+company-23 ignite readiness "No battle in progress"
+company-23 order report ""
+company-23 order name ""
+company-23 order number 0.0
+company-23 order accepted false
+
+company-24
+  member of: Unit
+  member of: Actor
+company-24 actor name "Company 24"
+company-24 presentation kind "Priest"
+company-24 unit class priest-class
+company-24 actor position Vec3 { x: -3.0, y: 0.0, z: -11.0 }
+company-24 unit destination Vec3 { x: -3.0, y: 0.0, z: 19.0 }
+company-24 formation offset Vec3 { x: -3.0, y: 0.0, z: -11.0 }
+company-24 movement speed 4.2
+company-24 selected true
+company-24 moving true
+company-24 hostile false
+company-24 vitality 90.0
+company-24 maximum vitality 90.0
+company-24 alive true
+company-24 ward remaining 0.0
+company-24 burn remaining 0.0
+company-24 attack damage 7.0
+company-24 attack range 18.0
+company-24 healing power 28.0
+company-24 ward duration 4.0
+company-24 action cooldown 60.0
+company-24 action period 0.8
+company-24 footprint radius 0.6
+company-24 attack readiness "No battle in progress"
+company-24 heal readiness "No battle in progress"
+company-24 ward readiness "No battle in progress"
+company-24 ignite readiness "No battle in progress"
+company-24 order report ""
+company-24 order name ""
+company-24 order number 0.0
+company-24 order accepted false
+
+company-25
+  member of: Unit
+  member of: Actor
+company-25 actor name "Company 25"
+company-25 presentation kind "Ranger"
+company-25 unit class ranger-class
+company-25 actor position Vec3 { x: -1.0, y: 0.0, z: -11.0 }
+company-25 unit destination Vec3 { x: -1.0, y: 0.0, z: 19.0 }
+company-25 formation offset Vec3 { x: -1.0, y: 0.0, z: -11.0 }
+company-25 movement speed 4.8
+company-25 selected true
+company-25 moving true
+company-25 hostile false
+company-25 vitality 100.0
+company-25 maximum vitality 100.0
+company-25 alive true
+company-25 ward remaining 0.0
+company-25 burn remaining 0.0
+company-25 attack damage 20.0
+company-25 attack range 18.0
+company-25 healing power 0.0
+company-25 ward duration 0.0
+company-25 action cooldown 60.0
+company-25 action period 0.8
+company-25 ignite duration 1.5
+company-25 ignite damage 7.0
+company-25 footprint radius 0.6
+company-25 attack readiness "No battle in progress"
+company-25 heal readiness "No battle in progress"
+company-25 ward readiness "No battle in progress"
+company-25 ignite readiness "No battle in progress"
+company-25 order report ""
+company-25 order name ""
+company-25 order number 0.0
+company-25 order accepted false
+
+company-26
+  member of: Unit
+  member of: Actor
+company-26 actor name "Company 26"
+company-26 presentation kind "Warrior"
+company-26 unit class warrior-class
+company-26 actor position Vec3 { x: 1.0, y: 0.0, z: -11.0 }
+company-26 unit destination Vec3 { x: 1.0, y: 0.0, z: 19.0 }
+company-26 formation offset Vec3 { x: 1.0, y: 0.0, z: -11.0 }
+company-26 movement speed 5.0
+company-26 selected true
+company-26 moving true
+company-26 hostile false
+company-26 vitality 160.0
+company-26 maximum vitality 160.0
+company-26 alive true
+company-26 ward remaining 0.0
+company-26 burn remaining 0.0
+company-26 attack damage 22.0
+company-26 attack range 18.0
+company-26 healing power 0.0
+company-26 ward duration 0.0
+company-26 action cooldown 60.0
+company-26 action period 0.8
+company-26 footprint radius 0.6
+company-26 attack readiness "No battle in progress"
+company-26 heal readiness "No battle in progress"
+company-26 ward readiness "No battle in progress"
+company-26 ignite readiness "No battle in progress"
+company-26 order report ""
+company-26 order name ""
+company-26 order number 0.0
+company-26 order accepted false
+
+company-27
+  member of: Unit
+  member of: Actor
+company-27 actor name "Company 27"
+company-27 presentation kind "Artificer"
+company-27 unit class artificer-class
+company-27 actor position Vec3 { x: 3.0, y: 0.0, z: -11.0 }
+company-27 unit destination Vec3 { x: 3.0, y: 0.0, z: 19.0 }
+company-27 formation offset Vec3 { x: 3.0, y: 0.0, z: -11.0 }
+company-27 movement speed 4.3
+company-27 selected true
+company-27 moving true
+company-27 hostile false
+company-27 vitality 105.0
+company-27 maximum vitality 105.0
+company-27 alive true
+company-27 ward remaining 0.0
+company-27 burn remaining 0.0
+company-27 attack damage 18.0
+company-27 attack range 18.0
+company-27 healing power 0.0
+company-27 ward duration 0.0
+company-27 action cooldown 60.0
+company-27 action period 0.8
+company-27 ignite duration 3.0
+company-27 ignite damage 7.0
+company-27 footprint radius 0.6
+company-27 attack readiness "No battle in progress"
+company-27 heal readiness "No battle in progress"
+company-27 ward readiness "No battle in progress"
+company-27 ignite readiness "No battle in progress"
+company-27 order report ""
+company-27 order name ""
+company-27 order number 0.0
+company-27 order accepted false
+
+company-28
+  member of: Unit
+  member of: Actor
+company-28 actor name "Company 28"
+company-28 presentation kind "Rogue"
+company-28 unit class rogue-class
+company-28 actor position Vec3 { x: 5.0, y: 0.0, z: -11.0 }
+company-28 unit destination Vec3 { x: 5.0, y: 0.0, z: 19.0 }
+company-28 formation offset Vec3 { x: 5.0, y: 0.0, z: -11.0 }
+company-28 movement speed 5.7
+company-28 selected true
+company-28 moving true
+company-28 hostile false
+company-28 vitality 95.0
+company-28 maximum vitality 95.0
+company-28 alive true
+company-28 ward remaining 0.0
+company-28 burn remaining 0.0
+company-28 attack damage 24.0
+company-28 attack range 18.0
+company-28 healing power 0.0
+company-28 ward duration 0.0
+company-28 action cooldown 60.0
+company-28 action period 0.8
+company-28 footprint radius 0.6
+company-28 attack readiness "No battle in progress"
+company-28 heal readiness "No battle in progress"
+company-28 ward readiness "No battle in progress"
+company-28 ignite readiness "No battle in progress"
+company-28 order report ""
+company-28 order name ""
+company-28 order number 0.0
+company-28 order accepted false
+
+company-29
+  member of: Unit
+  member of: Actor
+company-29 actor name "Company 29"
+company-29 presentation kind "Priest"
+company-29 unit class priest-class
+company-29 actor position Vec3 { x: 7.0, y: 0.0, z: -11.0 }
+company-29 unit destination Vec3 { x: 7.0, y: 0.0, z: 19.0 }
+company-29 formation offset Vec3 { x: 7.0, y: 0.0, z: -11.0 }
+company-29 movement speed 4.2
+company-29 selected true
+company-29 moving true
+company-29 hostile false
+company-29 vitality 90.0
+company-29 maximum vitality 90.0
+company-29 alive true
+company-29 ward remaining 0.0
+company-29 burn remaining 0.0
+company-29 attack damage 7.0
+company-29 attack range 18.0
+company-29 healing power 28.0
+company-29 ward duration 4.0
+company-29 action cooldown 60.0
+company-29 action period 0.8
+company-29 footprint radius 0.6
+company-29 attack readiness "No battle in progress"
+company-29 heal readiness "No battle in progress"
+company-29 ward readiness "No battle in progress"
+company-29 ignite readiness "No battle in progress"
+company-29 order report ""
+company-29 order name ""
+company-29 order number 0.0
+company-29 order accepted false
+
+company-30
+  member of: Unit
+  member of: Actor
+company-30 actor name "Company 30"
+company-30 presentation kind "Ranger"
+company-30 unit class ranger-class
+company-30 actor position Vec3 { x: 9.0, y: 0.0, z: -11.0 }
+company-30 unit destination Vec3 { x: 9.0, y: 0.0, z: 19.0 }
+company-30 formation offset Vec3 { x: 9.0, y: 0.0, z: -11.0 }
+company-30 movement speed 4.8
+company-30 selected true
+company-30 moving true
+company-30 hostile false
+company-30 vitality 100.0
+company-30 maximum vitality 100.0
+company-30 alive true
+company-30 ward remaining 0.0
+company-30 burn remaining 0.0
+company-30 attack damage 20.0
+company-30 attack range 18.0
+company-30 healing power 0.0
+company-30 ward duration 0.0
+company-30 action cooldown 60.0
+company-30 action period 0.8
+company-30 ignite duration 1.5
+company-30 ignite damage 7.0
+company-30 footprint radius 0.6
+company-30 attack readiness "No battle in progress"
+company-30 heal readiness "No battle in progress"
+company-30 ward readiness "No battle in progress"
+company-30 ignite readiness "No battle in progress"
+company-30 order report ""
+company-30 order name ""
+company-30 order number 0.0
+company-30 order accepted false
+
+company-31
+  member of: Unit
+  member of: Actor
+company-31 actor name "Company 31"
+company-31 presentation kind "Warrior"
+company-31 unit class warrior-class
+company-31 actor position Vec3 { x: -9.0, y: 0.0, z: -9.0 }
+company-31 unit destination Vec3 { x: -9.0, y: 0.0, z: 21.0 }
+company-31 formation offset Vec3 { x: -9.0, y: 0.0, z: -9.0 }
+company-31 movement speed 5.0
+company-31 selected true
+company-31 moving true
+company-31 hostile false
+company-31 vitality 160.0
+company-31 maximum vitality 160.0
+company-31 alive true
+company-31 ward remaining 0.0
+company-31 burn remaining 0.0
+company-31 attack damage 22.0
+company-31 attack range 18.0
+company-31 healing power 0.0
+company-31 ward duration 0.0
+company-31 action cooldown 60.0
+company-31 action period 0.8
+company-31 footprint radius 0.6
+company-31 attack readiness "No battle in progress"
+company-31 heal readiness "No battle in progress"
+company-31 ward readiness "No battle in progress"
+company-31 ignite readiness "No battle in progress"
+company-31 order report ""
+company-31 order name ""
+company-31 order number 0.0
+company-31 order accepted false
+
+company-32
+  member of: Unit
+  member of: Actor
+company-32 actor name "Company 32"
+company-32 presentation kind "Artificer"
+company-32 unit class artificer-class
+company-32 actor position Vec3 { x: -7.0, y: 0.0, z: -9.0 }
+company-32 unit destination Vec3 { x: -7.0, y: 0.0, z: 21.0 }
+company-32 formation offset Vec3 { x: -7.0, y: 0.0, z: -9.0 }
+company-32 movement speed 4.3
+company-32 selected true
+company-32 moving true
+company-32 hostile false
+company-32 vitality 105.0
+company-32 maximum vitality 105.0
+company-32 alive true
+company-32 ward remaining 0.0
+company-32 burn remaining 0.0
+company-32 attack damage 18.0
+company-32 attack range 18.0
+company-32 healing power 0.0
+company-32 ward duration 0.0
+company-32 action cooldown 60.0
+company-32 action period 0.8
+company-32 ignite duration 3.0
+company-32 ignite damage 7.0
+company-32 footprint radius 0.6
+company-32 attack readiness "No battle in progress"
+company-32 heal readiness "No battle in progress"
+company-32 ward readiness "No battle in progress"
+company-32 ignite readiness "No battle in progress"
+company-32 order report ""
+company-32 order name ""
+company-32 order number 0.0
+company-32 order accepted false
+
+company-33
+  member of: Unit
+  member of: Actor
+company-33 actor name "Company 33"
+company-33 presentation kind "Rogue"
+company-33 unit class rogue-class
+company-33 actor position Vec3 { x: -5.0, y: 0.0, z: -9.0 }
+company-33 unit destination Vec3 { x: -5.0, y: 0.0, z: 21.0 }
+company-33 formation offset Vec3 { x: -5.0, y: 0.0, z: -9.0 }
+company-33 movement speed 5.7
+company-33 selected true
+company-33 moving true
+company-33 hostile false
+company-33 vitality 95.0
+company-33 maximum vitality 95.0
+company-33 alive true
+company-33 ward remaining 0.0
+company-33 burn remaining 0.0
+company-33 attack damage 24.0
+company-33 attack range 18.0
+company-33 healing power 0.0
+company-33 ward duration 0.0
+company-33 action cooldown 60.0
+company-33 action period 0.8
+company-33 footprint radius 0.6
+company-33 attack readiness "No battle in progress"
+company-33 heal readiness "No battle in progress"
+company-33 ward readiness "No battle in progress"
+company-33 ignite readiness "No battle in progress"
+company-33 order report ""
+company-33 order name ""
+company-33 order number 0.0
+company-33 order accepted false
+
+company-34
+  member of: Unit
+  member of: Actor
+company-34 actor name "Company 34"
+company-34 presentation kind "Priest"
+company-34 unit class priest-class
+company-34 actor position Vec3 { x: -3.0, y: 0.0, z: -9.0 }
+company-34 unit destination Vec3 { x: -3.0, y: 0.0, z: 21.0 }
+company-34 formation offset Vec3 { x: -3.0, y: 0.0, z: -9.0 }
+company-34 movement speed 4.2
+company-34 selected true
+company-34 moving true
+company-34 hostile false
+company-34 vitality 90.0
+company-34 maximum vitality 90.0
+company-34 alive true
+company-34 ward remaining 0.0
+company-34 burn remaining 0.0
+company-34 attack damage 7.0
+company-34 attack range 18.0
+company-34 healing power 28.0
+company-34 ward duration 4.0
+company-34 action cooldown 60.0
+company-34 action period 0.8
+company-34 footprint radius 0.6
+company-34 attack readiness "No battle in progress"
+company-34 heal readiness "No battle in progress"
+company-34 ward readiness "No battle in progress"
+company-34 ignite readiness "No battle in progress"
+company-34 order report ""
+company-34 order name ""
+company-34 order number 0.0
+company-34 order accepted false
+
+company-35
+  member of: Unit
+  member of: Actor
+company-35 actor name "Company 35"
+company-35 presentation kind "Ranger"
+company-35 unit class ranger-class
+company-35 actor position Vec3 { x: -1.0, y: 0.0, z: -9.0 }
+company-35 unit destination Vec3 { x: -1.0, y: 0.0, z: 21.0 }
+company-35 formation offset Vec3 { x: -1.0, y: 0.0, z: -9.0 }
+company-35 movement speed 4.8
+company-35 selected true
+company-35 moving true
+company-35 hostile false
+company-35 vitality 100.0
+company-35 maximum vitality 100.0
+company-35 alive true
+company-35 ward remaining 0.0
+company-35 burn remaining 0.0
+company-35 attack damage 20.0
+company-35 attack range 18.0
+company-35 healing power 0.0
+company-35 ward duration 0.0
+company-35 action cooldown 60.0
+company-35 action period 0.8
+company-35 ignite duration 1.5
+company-35 ignite damage 7.0
+company-35 footprint radius 0.6
+company-35 attack readiness "No battle in progress"
+company-35 heal readiness "No battle in progress"
+company-35 ward readiness "No battle in progress"
+company-35 ignite readiness "No battle in progress"
+company-35 order report ""
+company-35 order name ""
+company-35 order number 0.0
+company-35 order accepted false
+
+company-36
+  member of: Unit
+  member of: Actor
+company-36 actor name "Company 36"
+company-36 presentation kind "Warrior"
+company-36 unit class warrior-class
+company-36 actor position Vec3 { x: 1.0, y: 0.0, z: -9.0 }
+company-36 unit destination Vec3 { x: 1.0, y: 0.0, z: 21.0 }
+company-36 formation offset Vec3 { x: 1.0, y: 0.0, z: -9.0 }
+company-36 movement speed 5.0
+company-36 selected true
+company-36 moving true
+company-36 hostile false
+company-36 vitality 160.0
+company-36 maximum vitality 160.0
+company-36 alive true
+company-36 ward remaining 0.0
+company-36 burn remaining 0.0
+company-36 attack damage 22.0
+company-36 attack range 18.0
+company-36 healing power 0.0
+company-36 ward duration 0.0
+company-36 action cooldown 60.0
+company-36 action period 0.8
+company-36 footprint radius 0.6
+company-36 attack readiness "No battle in progress"
+company-36 heal readiness "No battle in progress"
+company-36 ward readiness "No battle in progress"
+company-36 ignite readiness "No battle in progress"
+company-36 order report ""
+company-36 order name ""
+company-36 order number 0.0
+company-36 order accepted false
+
+company-37
+  member of: Unit
+  member of: Actor
+company-37 actor name "Company 37"
+company-37 presentation kind "Artificer"
+company-37 unit class artificer-class
+company-37 actor position Vec3 { x: 3.0, y: 0.0, z: -9.0 }
+company-37 unit destination Vec3 { x: 3.0, y: 0.0, z: 21.0 }
+company-37 formation offset Vec3 { x: 3.0, y: 0.0, z: -9.0 }
+company-37 movement speed 4.3
+company-37 selected true
+company-37 moving true
+company-37 hostile false
+company-37 vitality 105.0
+company-37 maximum vitality 105.0
+company-37 alive true
+company-37 ward remaining 0.0
+company-37 burn remaining 0.0
+company-37 attack damage 18.0
+company-37 attack range 18.0
+company-37 healing power 0.0
+company-37 ward duration 0.0
+company-37 action cooldown 60.0
+company-37 action period 0.8
+company-37 ignite duration 3.0
+company-37 ignite damage 7.0
+company-37 footprint radius 0.6
+company-37 attack readiness "No battle in progress"
+company-37 heal readiness "No battle in progress"
+company-37 ward readiness "No battle in progress"
+company-37 ignite readiness "No battle in progress"
+company-37 order report ""
+company-37 order name ""
+company-37 order number 0.0
+company-37 order accepted false
+
+company-38
+  member of: Unit
+  member of: Actor
+company-38 actor name "Company 38"
+company-38 presentation kind "Rogue"
+company-38 unit class rogue-class
+company-38 actor position Vec3 { x: 5.0, y: 0.0, z: -9.0 }
+company-38 unit destination Vec3 { x: 5.0, y: 0.0, z: 21.0 }
+company-38 formation offset Vec3 { x: 5.0, y: 0.0, z: -9.0 }
+company-38 movement speed 5.7
+company-38 selected true
+company-38 moving true
+company-38 hostile false
+company-38 vitality 95.0
+company-38 maximum vitality 95.0
+company-38 alive true
+company-38 ward remaining 0.0
+company-38 burn remaining 0.0
+company-38 attack damage 24.0
+company-38 attack range 18.0
+company-38 healing power 0.0
+company-38 ward duration 0.0
+company-38 action cooldown 60.0
+company-38 action period 0.8
+company-38 footprint radius 0.6
+company-38 attack readiness "No battle in progress"
+company-38 heal readiness "No battle in progress"
+company-38 ward readiness "No battle in progress"
+company-38 ignite readiness "No battle in progress"
+company-38 order report ""
+company-38 order name ""
+company-38 order number 0.0
+company-38 order accepted false
+
+company-39
+  member of: Unit
+  member of: Actor
+company-39 actor name "Company 39"
+company-39 presentation kind "Priest"
+company-39 unit class priest-class
+company-39 actor position Vec3 { x: 7.0, y: 0.0, z: -9.0 }
+company-39 unit destination Vec3 { x: 7.0, y: 0.0, z: 21.0 }
+company-39 formation offset Vec3 { x: 7.0, y: 0.0, z: -9.0 }
+company-39 movement speed 4.2
+company-39 selected true
+company-39 moving true
+company-39 hostile false
+company-39 vitality 90.0
+company-39 maximum vitality 90.0
+company-39 alive true
+company-39 ward remaining 0.0
+company-39 burn remaining 0.0
+company-39 attack damage 7.0
+company-39 attack range 18.0
+company-39 healing power 28.0
+company-39 ward duration 4.0
+company-39 action cooldown 60.0
+company-39 action period 0.8
+company-39 footprint radius 0.6
+company-39 attack readiness "No battle in progress"
+company-39 heal readiness "No battle in progress"
+company-39 ward readiness "No battle in progress"
+company-39 ignite readiness "No battle in progress"
+company-39 order report ""
+company-39 order name ""
+company-39 order number 0.0
+company-39 order accepted false
+
+company-40
+  member of: Unit
+  member of: Actor
+company-40 actor name "Company 40"
+company-40 presentation kind "Ranger"
+company-40 unit class ranger-class
+company-40 actor position Vec3 { x: 9.0, y: 0.0, z: -9.0 }
+company-40 unit destination Vec3 { x: 9.0, y: 0.0, z: 21.0 }
+company-40 formation offset Vec3 { x: 9.0, y: 0.0, z: -9.0 }
+company-40 movement speed 4.8
+company-40 selected true
+company-40 moving true
+company-40 hostile false
+company-40 vitality 100.0
+company-40 maximum vitality 100.0
+company-40 alive true
+company-40 ward remaining 0.0
+company-40 burn remaining 0.0
+company-40 attack damage 20.0
+company-40 attack range 18.0
+company-40 healing power 0.0
+company-40 ward duration 0.0
+company-40 action cooldown 60.0
+company-40 action period 0.8
+company-40 ignite duration 1.5
+company-40 ignite damage 7.0
+company-40 footprint radius 0.6
+company-40 attack readiness "No battle in progress"
+company-40 heal readiness "No battle in progress"
+company-40 ward readiness "No battle in progress"
+company-40 ignite readiness "No battle in progress"
+company-40 order report ""
+company-40 order name ""
+company-40 order number 0.0
+company-40 order accepted false
+
+company-41
+  member of: Unit
+  member of: Actor
+company-41 actor name "Company 41"
+company-41 presentation kind "Warrior"
+company-41 unit class warrior-class
+company-41 actor position Vec3 { x: -9.0, y: 0.0, z: -7.0 }
+company-41 unit destination Vec3 { x: -9.0, y: 0.0, z: 23.0 }
+company-41 formation offset Vec3 { x: -9.0, y: 0.0, z: -7.0 }
+company-41 movement speed 5.0
+company-41 selected true
+company-41 moving true
+company-41 hostile false
+company-41 vitality 160.0
+company-41 maximum vitality 160.0
+company-41 alive true
+company-41 ward remaining 0.0
+company-41 burn remaining 0.0
+company-41 attack damage 22.0
+company-41 attack range 18.0
+company-41 healing power 0.0
+company-41 ward duration 0.0
+company-41 action cooldown 60.0
+company-41 action period 0.8
+company-41 footprint radius 0.6
+company-41 attack readiness "No battle in progress"
+company-41 heal readiness "No battle in progress"
+company-41 ward readiness "No battle in progress"
+company-41 ignite readiness "No battle in progress"
+company-41 order report ""
+company-41 order name ""
+company-41 order number 0.0
+company-41 order accepted false
+
+company-42
+  member of: Unit
+  member of: Actor
+company-42 actor name "Company 42"
+company-42 presentation kind "Artificer"
+company-42 unit class artificer-class
+company-42 actor position Vec3 { x: -7.0, y: 0.0, z: -7.0 }
+company-42 unit destination Vec3 { x: -7.0, y: 0.0, z: 23.0 }
+company-42 formation offset Vec3 { x: -7.0, y: 0.0, z: -7.0 }
+company-42 movement speed 4.3
+company-42 selected true
+company-42 moving true
+company-42 hostile false
+company-42 vitality 105.0
+company-42 maximum vitality 105.0
+company-42 alive true
+company-42 ward remaining 0.0
+company-42 burn remaining 0.0
+company-42 attack damage 18.0
+company-42 attack range 18.0
+company-42 healing power 0.0
+company-42 ward duration 0.0
+company-42 action cooldown 60.0
+company-42 action period 0.8
+company-42 ignite duration 3.0
+company-42 ignite damage 7.0
+company-42 footprint radius 0.6
+company-42 attack readiness "No battle in progress"
+company-42 heal readiness "No battle in progress"
+company-42 ward readiness "No battle in progress"
+company-42 ignite readiness "No battle in progress"
+company-42 order report ""
+company-42 order name ""
+company-42 order number 0.0
+company-42 order accepted false
+
+company-43
+  member of: Unit
+  member of: Actor
+company-43 actor name "Company 43"
+company-43 presentation kind "Rogue"
+company-43 unit class rogue-class
+company-43 actor position Vec3 { x: -5.0, y: 0.0, z: -7.0 }
+company-43 unit destination Vec3 { x: -5.0, y: 0.0, z: 23.0 }
+company-43 formation offset Vec3 { x: -5.0, y: 0.0, z: -7.0 }
+company-43 movement speed 5.7
+company-43 selected true
+company-43 moving true
+company-43 hostile false
+company-43 vitality 95.0
+company-43 maximum vitality 95.0
+company-43 alive true
+company-43 ward remaining 0.0
+company-43 burn remaining 0.0
+company-43 attack damage 24.0
+company-43 attack range 18.0
+company-43 healing power 0.0
+company-43 ward duration 0.0
+company-43 action cooldown 60.0
+company-43 action period 0.8
+company-43 footprint radius 0.6
+company-43 attack readiness "No battle in progress"
+company-43 heal readiness "No battle in progress"
+company-43 ward readiness "No battle in progress"
+company-43 ignite readiness "No battle in progress"
+company-43 order report ""
+company-43 order name ""
+company-43 order number 0.0
+company-43 order accepted false
+
+company-44
+  member of: Unit
+  member of: Actor
+company-44 actor name "Company 44"
+company-44 presentation kind "Priest"
+company-44 unit class priest-class
+company-44 actor position Vec3 { x: -3.0, y: 0.0, z: -7.0 }
+company-44 unit destination Vec3 { x: -3.0, y: 0.0, z: 23.0 }
+company-44 formation offset Vec3 { x: -3.0, y: 0.0, z: -7.0 }
+company-44 movement speed 4.2
+company-44 selected true
+company-44 moving true
+company-44 hostile false
+company-44 vitality 90.0
+company-44 maximum vitality 90.0
+company-44 alive true
+company-44 ward remaining 0.0
+company-44 burn remaining 0.0
+company-44 attack damage 7.0
+company-44 attack range 18.0
+company-44 healing power 28.0
+company-44 ward duration 4.0
+company-44 action cooldown 60.0
+company-44 action period 0.8
+company-44 footprint radius 0.6
+company-44 attack readiness "No battle in progress"
+company-44 heal readiness "No battle in progress"
+company-44 ward readiness "No battle in progress"
+company-44 ignite readiness "No battle in progress"
+company-44 order report ""
+company-44 order name ""
+company-44 order number 0.0
+company-44 order accepted false
+
+company-45
+  member of: Unit
+  member of: Actor
+company-45 actor name "Company 45"
+company-45 presentation kind "Ranger"
+company-45 unit class ranger-class
+company-45 actor position Vec3 { x: -1.0, y: 0.0, z: -7.0 }
+company-45 unit destination Vec3 { x: -1.0, y: 0.0, z: 23.0 }
+company-45 formation offset Vec3 { x: -1.0, y: 0.0, z: -7.0 }
+company-45 movement speed 4.8
+company-45 selected true
+company-45 moving true
+company-45 hostile false
+company-45 vitality 100.0
+company-45 maximum vitality 100.0
+company-45 alive true
+company-45 ward remaining 0.0
+company-45 burn remaining 0.0
+company-45 attack damage 20.0
+company-45 attack range 18.0
+company-45 healing power 0.0
+company-45 ward duration 0.0
+company-45 action cooldown 60.0
+company-45 action period 0.8
+company-45 ignite duration 1.5
+company-45 ignite damage 7.0
+company-45 footprint radius 0.6
+company-45 attack readiness "No battle in progress"
+company-45 heal readiness "No battle in progress"
+company-45 ward readiness "No battle in progress"
+company-45 ignite readiness "No battle in progress"
+company-45 order report ""
+company-45 order name ""
+company-45 order number 0.0
+company-45 order accepted false
+
+company-46
+  member of: Unit
+  member of: Actor
+company-46 actor name "Company 46"
+company-46 presentation kind "Warrior"
+company-46 unit class warrior-class
+company-46 actor position Vec3 { x: 1.0, y: 0.0, z: -7.0 }
+company-46 unit destination Vec3 { x: 1.0, y: 0.0, z: 23.0 }
+company-46 formation offset Vec3 { x: 1.0, y: 0.0, z: -7.0 }
+company-46 movement speed 5.0
+company-46 selected true
+company-46 moving true
+company-46 hostile false
+company-46 vitality 160.0
+company-46 maximum vitality 160.0
+company-46 alive true
+company-46 ward remaining 0.0
+company-46 burn remaining 0.0
+company-46 attack damage 22.0
+company-46 attack range 18.0
+company-46 healing power 0.0
+company-46 ward duration 0.0
+company-46 action cooldown 60.0
+company-46 action period 0.8
+company-46 footprint radius 0.6
+company-46 attack readiness "No battle in progress"
+company-46 heal readiness "No battle in progress"
+company-46 ward readiness "No battle in progress"
+company-46 ignite readiness "No battle in progress"
+company-46 order report ""
+company-46 order name ""
+company-46 order number 0.0
+company-46 order accepted false
+
+company-47
+  member of: Unit
+  member of: Actor
+company-47 actor name "Company 47"
+company-47 presentation kind "Artificer"
+company-47 unit class artificer-class
+company-47 actor position Vec3 { x: 3.0, y: 0.0, z: -7.0 }
+company-47 unit destination Vec3 { x: 3.0, y: 0.0, z: 23.0 }
+company-47 formation offset Vec3 { x: 3.0, y: 0.0, z: -7.0 }
+company-47 movement speed 4.3
+company-47 selected true
+company-47 moving true
+company-47 hostile false
+company-47 vitality 105.0
+company-47 maximum vitality 105.0
+company-47 alive true
+company-47 ward remaining 0.0
+company-47 burn remaining 0.0
+company-47 attack damage 18.0
+company-47 attack range 18.0
+company-47 healing power 0.0
+company-47 ward duration 0.0
+company-47 action cooldown 60.0
+company-47 action period 0.8
+company-47 ignite duration 3.0
+company-47 ignite damage 7.0
+company-47 footprint radius 0.6
+company-47 attack readiness "No battle in progress"
+company-47 heal readiness "No battle in progress"
+company-47 ward readiness "No battle in progress"
+company-47 ignite readiness "No battle in progress"
+company-47 order report ""
+company-47 order name ""
+company-47 order number 0.0
+company-47 order accepted false
+
+company-48
+  member of: Unit
+  member of: Actor
+company-48 actor name "Company 48"
+company-48 presentation kind "Rogue"
+company-48 unit class rogue-class
+company-48 actor position Vec3 { x: 5.0, y: 0.0, z: -7.0 }
+company-48 unit destination Vec3 { x: 5.0, y: 0.0, z: 23.0 }
+company-48 formation offset Vec3 { x: 5.0, y: 0.0, z: -7.0 }
+company-48 movement speed 5.7
+company-48 selected true
+company-48 moving true
+company-48 hostile false
+company-48 vitality 95.0
+company-48 maximum vitality 95.0
+company-48 alive true
+company-48 ward remaining 0.0
+company-48 burn remaining 0.0
+company-48 attack damage 24.0
+company-48 attack range 18.0
+company-48 healing power 0.0
+company-48 ward duration 0.0
+company-48 action cooldown 60.0
+company-48 action period 0.8
+company-48 footprint radius 0.6
+company-48 attack readiness "No battle in progress"
+company-48 heal readiness "No battle in progress"
+company-48 ward readiness "No battle in progress"
+company-48 ignite readiness "No battle in progress"
+company-48 order report ""
+company-48 order name ""
+company-48 order number 0.0
+company-48 order accepted false
+
+company-49
+  member of: Unit
+  member of: Actor
+company-49 actor name "Company 49"
+company-49 presentation kind "Priest"
+company-49 unit class priest-class
+company-49 actor position Vec3 { x: 7.0, y: 0.0, z: -7.0 }
+company-49 unit destination Vec3 { x: 7.0, y: 0.0, z: 23.0 }
+company-49 formation offset Vec3 { x: 7.0, y: 0.0, z: -7.0 }
+company-49 movement speed 4.2
+company-49 selected true
+company-49 moving true
+company-49 hostile false
+company-49 vitality 90.0
+company-49 maximum vitality 90.0
+company-49 alive true
+company-49 ward remaining 0.0
+company-49 burn remaining 0.0
+company-49 attack damage 7.0
+company-49 attack range 18.0
+company-49 healing power 28.0
+company-49 ward duration 4.0
+company-49 action cooldown 60.0
+company-49 action period 0.8
+company-49 footprint radius 0.6
+company-49 attack readiness "No battle in progress"
+company-49 heal readiness "No battle in progress"
+company-49 ward readiness "No battle in progress"
+company-49 ignite readiness "No battle in progress"
+company-49 order report ""
+company-49 order name ""
+company-49 order number 0.0
+company-49 order accepted false
+
+company-50
+  member of: Unit
+  member of: Actor
+company-50 actor name "Company 50"
+company-50 presentation kind "Ranger"
+company-50 unit class ranger-class
+company-50 actor position Vec3 { x: 9.0, y: 0.0, z: -7.0 }
+company-50 unit destination Vec3 { x: 9.0, y: 0.0, z: 23.0 }
+company-50 formation offset Vec3 { x: 9.0, y: 0.0, z: -7.0 }
+company-50 movement speed 4.8
+company-50 selected true
+company-50 moving true
+company-50 hostile false
+company-50 vitality 100.0
+company-50 maximum vitality 100.0
+company-50 alive true
+company-50 ward remaining 0.0
+company-50 burn remaining 0.0
+company-50 attack damage 20.0
+company-50 attack range 18.0
+company-50 healing power 0.0
+company-50 ward duration 0.0
+company-50 action cooldown 60.0
+company-50 action period 0.8
+company-50 ignite duration 1.5
+company-50 ignite damage 7.0
+company-50 footprint radius 0.6
+company-50 attack readiness "No battle in progress"
+company-50 heal readiness "No battle in progress"
+company-50 ward readiness "No battle in progress"
+company-50 ignite readiness "No battle in progress"
+company-50 order report ""
+company-50 order name ""
+company-50 order number 0.0
+company-50 order accepted false
+
+company-51
+  member of: Unit
+  member of: Actor
+company-51 actor name "Company 51"
+company-51 presentation kind "Warrior"
+company-51 unit class warrior-class
+company-51 actor position Vec3 { x: -9.0, y: 0.0, z: -5.0 }
+company-51 unit destination Vec3 { x: -9.0, y: 0.0, z: 25.0 }
+company-51 formation offset Vec3 { x: -9.0, y: 0.0, z: -5.0 }
+company-51 movement speed 5.0
+company-51 selected true
+company-51 moving true
+company-51 hostile false
+company-51 vitality 160.0
+company-51 maximum vitality 160.0
+company-51 alive true
+company-51 ward remaining 0.0
+company-51 burn remaining 0.0
+company-51 attack damage 22.0
+company-51 attack range 18.0
+company-51 healing power 0.0
+company-51 ward duration 0.0
+company-51 action cooldown 60.0
+company-51 action period 0.8
+company-51 footprint radius 0.6
+company-51 attack readiness "No battle in progress"
+company-51 heal readiness "No battle in progress"
+company-51 ward readiness "No battle in progress"
+company-51 ignite readiness "No battle in progress"
+company-51 order report ""
+company-51 order name ""
+company-51 order number 0.0
+company-51 order accepted false
+
+company-52
+  member of: Unit
+  member of: Actor
+company-52 actor name "Company 52"
+company-52 presentation kind "Artificer"
+company-52 unit class artificer-class
+company-52 actor position Vec3 { x: -7.0, y: 0.0, z: -5.0 }
+company-52 unit destination Vec3 { x: -7.0, y: 0.0, z: 25.0 }
+company-52 formation offset Vec3 { x: -7.0, y: 0.0, z: -5.0 }
+company-52 movement speed 4.3
+company-52 selected true
+company-52 moving true
+company-52 hostile false
+company-52 vitality 105.0
+company-52 maximum vitality 105.0
+company-52 alive true
+company-52 ward remaining 0.0
+company-52 burn remaining 0.0
+company-52 attack damage 18.0
+company-52 attack range 18.0
+company-52 healing power 0.0
+company-52 ward duration 0.0
+company-52 action cooldown 60.0
+company-52 action period 0.8
+company-52 ignite duration 3.0
+company-52 ignite damage 7.0
+company-52 footprint radius 0.6
+company-52 attack readiness "No battle in progress"
+company-52 heal readiness "No battle in progress"
+company-52 ward readiness "No battle in progress"
+company-52 ignite readiness "No battle in progress"
+company-52 order report ""
+company-52 order name ""
+company-52 order number 0.0
+company-52 order accepted false
+
+company-53
+  member of: Unit
+  member of: Actor
+company-53 actor name "Company 53"
+company-53 presentation kind "Rogue"
+company-53 unit class rogue-class
+company-53 actor position Vec3 { x: -5.0, y: 0.0, z: -5.0 }
+company-53 unit destination Vec3 { x: -5.0, y: 0.0, z: 25.0 }
+company-53 formation offset Vec3 { x: -5.0, y: 0.0, z: -5.0 }
+company-53 movement speed 5.7
+company-53 selected true
+company-53 moving true
+company-53 hostile false
+company-53 vitality 95.0
+company-53 maximum vitality 95.0
+company-53 alive true
+company-53 ward remaining 0.0
+company-53 burn remaining 0.0
+company-53 attack damage 24.0
+company-53 attack range 18.0
+company-53 healing power 0.0
+company-53 ward duration 0.0
+company-53 action cooldown 60.0
+company-53 action period 0.8
+company-53 footprint radius 0.6
+company-53 attack readiness "No battle in progress"
+company-53 heal readiness "No battle in progress"
+company-53 ward readiness "No battle in progress"
+company-53 ignite readiness "No battle in progress"
+company-53 order report ""
+company-53 order name ""
+company-53 order number 0.0
+company-53 order accepted false
+
+company-54
+  member of: Unit
+  member of: Actor
+company-54 actor name "Company 54"
+company-54 presentation kind "Priest"
+company-54 unit class priest-class
+company-54 actor position Vec3 { x: -3.0, y: 0.0, z: -5.0 }
+company-54 unit destination Vec3 { x: -3.0, y: 0.0, z: 25.0 }
+company-54 formation offset Vec3 { x: -3.0, y: 0.0, z: -5.0 }
+company-54 movement speed 4.2
+company-54 selected true
+company-54 moving true
+company-54 hostile false
+company-54 vitality 90.0
+company-54 maximum vitality 90.0
+company-54 alive true
+company-54 ward remaining 0.0
+company-54 burn remaining 0.0
+company-54 attack damage 7.0
+company-54 attack range 18.0
+company-54 healing power 28.0
+company-54 ward duration 4.0
+company-54 action cooldown 60.0
+company-54 action period 0.8
+company-54 footprint radius 0.6
+company-54 attack readiness "No battle in progress"
+company-54 heal readiness "No battle in progress"
+company-54 ward readiness "No battle in progress"
+company-54 ignite readiness "No battle in progress"
+company-54 order report ""
+company-54 order name ""
+company-54 order number 0.0
+company-54 order accepted false
+
+company-55
+  member of: Unit
+  member of: Actor
+company-55 actor name "Company 55"
+company-55 presentation kind "Ranger"
+company-55 unit class ranger-class
+company-55 actor position Vec3 { x: -1.0, y: 0.0, z: -5.0 }
+company-55 unit destination Vec3 { x: -1.0, y: 0.0, z: 25.0 }
+company-55 formation offset Vec3 { x: -1.0, y: 0.0, z: -5.0 }
+company-55 movement speed 4.8
+company-55 selected true
+company-55 moving true
+company-55 hostile false
+company-55 vitality 100.0
+company-55 maximum vitality 100.0
+company-55 alive true
+company-55 ward remaining 0.0
+company-55 burn remaining 0.0
+company-55 attack damage 20.0
+company-55 attack range 18.0
+company-55 healing power 0.0
+company-55 ward duration 0.0
+company-55 action cooldown 60.0
+company-55 action period 0.8
+company-55 ignite duration 1.5
+company-55 ignite damage 7.0
+company-55 footprint radius 0.6
+company-55 attack readiness "No battle in progress"
+company-55 heal readiness "No battle in progress"
+company-55 ward readiness "No battle in progress"
+company-55 ignite readiness "No battle in progress"
+company-55 order report ""
+company-55 order name ""
+company-55 order number 0.0
+company-55 order accepted false
+
+company-56
+  member of: Unit
+  member of: Actor
+company-56 actor name "Company 56"
+company-56 presentation kind "Warrior"
+company-56 unit class warrior-class
+company-56 actor position Vec3 { x: 1.0, y: 0.0, z: -5.0 }
+company-56 unit destination Vec3 { x: 1.0, y: 0.0, z: 25.0 }
+company-56 formation offset Vec3 { x: 1.0, y: 0.0, z: -5.0 }
+company-56 movement speed 5.0
+company-56 selected true
+company-56 moving true
+company-56 hostile false
+company-56 vitality 160.0
+company-56 maximum vitality 160.0
+company-56 alive true
+company-56 ward remaining 0.0
+company-56 burn remaining 0.0
+company-56 attack damage 22.0
+company-56 attack range 18.0
+company-56 healing power 0.0
+company-56 ward duration 0.0
+company-56 action cooldown 60.0
+company-56 action period 0.8
+company-56 footprint radius 0.6
+company-56 attack readiness "No battle in progress"
+company-56 heal readiness "No battle in progress"
+company-56 ward readiness "No battle in progress"
+company-56 ignite readiness "No battle in progress"
+company-56 order report ""
+company-56 order name ""
+company-56 order number 0.0
+company-56 order accepted false
+
+company-57
+  member of: Unit
+  member of: Actor
+company-57 actor name "Company 57"
+company-57 presentation kind "Artificer"
+company-57 unit class artificer-class
+company-57 actor position Vec3 { x: 3.0, y: 0.0, z: -5.0 }
+company-57 unit destination Vec3 { x: 3.0, y: 0.0, z: 25.0 }
+company-57 formation offset Vec3 { x: 3.0, y: 0.0, z: -5.0 }
+company-57 movement speed 4.3
+company-57 selected true
+company-57 moving true
+company-57 hostile false
+company-57 vitality 105.0
+company-57 maximum vitality 105.0
+company-57 alive true
+company-57 ward remaining 0.0
+company-57 burn remaining 0.0
+company-57 attack damage 18.0
+company-57 attack range 18.0
+company-57 healing power 0.0
+company-57 ward duration 0.0
+company-57 action cooldown 60.0
+company-57 action period 0.8
+company-57 ignite duration 3.0
+company-57 ignite damage 7.0
+company-57 footprint radius 0.6
+company-57 attack readiness "No battle in progress"
+company-57 heal readiness "No battle in progress"
+company-57 ward readiness "No battle in progress"
+company-57 ignite readiness "No battle in progress"
+company-57 order report ""
+company-57 order name ""
+company-57 order number 0.0
+company-57 order accepted false
+
+company-58
+  member of: Unit
+  member of: Actor
+company-58 actor name "Company 58"
+company-58 presentation kind "Rogue"
+company-58 unit class rogue-class
+company-58 actor position Vec3 { x: 5.0, y: 0.0, z: -5.0 }
+company-58 unit destination Vec3 { x: 5.0, y: 0.0, z: 25.0 }
+company-58 formation offset Vec3 { x: 5.0, y: 0.0, z: -5.0 }
+company-58 movement speed 5.7
+company-58 selected true
+company-58 moving true
+company-58 hostile false
+company-58 vitality 95.0
+company-58 maximum vitality 95.0
+company-58 alive true
+company-58 ward remaining 0.0
+company-58 burn remaining 0.0
+company-58 attack damage 24.0
+company-58 attack range 18.0
+company-58 healing power 0.0
+company-58 ward duration 0.0
+company-58 action cooldown 60.0
+company-58 action period 0.8
+company-58 footprint radius 0.6
+company-58 attack readiness "No battle in progress"
+company-58 heal readiness "No battle in progress"
+company-58 ward readiness "No battle in progress"
+company-58 ignite readiness "No battle in progress"
+company-58 order report ""
+company-58 order name ""
+company-58 order number 0.0
+company-58 order accepted false
+
+company-59
+  member of: Unit
+  member of: Actor
+company-59 actor name "Company 59"
+company-59 presentation kind "Priest"
+company-59 unit class priest-class
+company-59 actor position Vec3 { x: 7.0, y: 0.0, z: -5.0 }
+company-59 unit destination Vec3 { x: 7.0, y: 0.0, z: 25.0 }
+company-59 formation offset Vec3 { x: 7.0, y: 0.0, z: -5.0 }
+company-59 movement speed 4.2
+company-59 selected true
+company-59 moving true
+company-59 hostile false
+company-59 vitality 90.0
+company-59 maximum vitality 90.0
+company-59 alive true
+company-59 ward remaining 0.0
+company-59 burn remaining 0.0
+company-59 attack damage 7.0
+company-59 attack range 18.0
+company-59 healing power 28.0
+company-59 ward duration 4.0
+company-59 action cooldown 60.0
+company-59 action period 0.8
+company-59 footprint radius 0.6
+company-59 attack readiness "No battle in progress"
+company-59 heal readiness "No battle in progress"
+company-59 ward readiness "No battle in progress"
+company-59 ignite readiness "No battle in progress"
+company-59 order report ""
+company-59 order name ""
+company-59 order number 0.0
+company-59 order accepted false
+
+company-60
+  member of: Unit
+  member of: Actor
+company-60 actor name "Company 60"
+company-60 presentation kind "Ranger"
+company-60 unit class ranger-class
+company-60 actor position Vec3 { x: 9.0, y: 0.0, z: -5.0 }
+company-60 unit destination Vec3 { x: 9.0, y: 0.0, z: 25.0 }
+company-60 formation offset Vec3 { x: 9.0, y: 0.0, z: -5.0 }
+company-60 movement speed 4.8
+company-60 selected true
+company-60 moving true
+company-60 hostile false
+company-60 vitality 100.0
+company-60 maximum vitality 100.0
+company-60 alive true
+company-60 ward remaining 0.0
+company-60 burn remaining 0.0
+company-60 attack damage 20.0
+company-60 attack range 18.0
+company-60 healing power 0.0
+company-60 ward duration 0.0
+company-60 action cooldown 60.0
+company-60 action period 0.8
+company-60 ignite duration 1.5
+company-60 ignite damage 7.0
+company-60 footprint radius 0.6
+company-60 attack readiness "No battle in progress"
+company-60 heal readiness "No battle in progress"
+company-60 ward readiness "No battle in progress"
+company-60 ignite readiness "No battle in progress"
+company-60 order report ""
+company-60 order name ""
+company-60 order number 0.0
+company-60 order accepted false
+
+company-61
+  member of: Unit
+  member of: Actor
+company-61 actor name "Company 61"
+company-61 presentation kind "Warrior"
+company-61 unit class warrior-class
+company-61 actor position Vec3 { x: -9.0, y: 0.0, z: -3.0 }
+company-61 unit destination Vec3 { x: -9.0, y: 0.0, z: 27.0 }
+company-61 formation offset Vec3 { x: -9.0, y: 0.0, z: -3.0 }
+company-61 movement speed 5.0
+company-61 selected true
+company-61 moving true
+company-61 hostile false
+company-61 vitality 160.0
+company-61 maximum vitality 160.0
+company-61 alive true
+company-61 ward remaining 0.0
+company-61 burn remaining 0.0
+company-61 attack damage 22.0
+company-61 attack range 18.0
+company-61 healing power 0.0
+company-61 ward duration 0.0
+company-61 action cooldown 60.0
+company-61 action period 0.8
+company-61 footprint radius 0.6
+company-61 attack readiness "No battle in progress"
+company-61 heal readiness "No battle in progress"
+company-61 ward readiness "No battle in progress"
+company-61 ignite readiness "No battle in progress"
+company-61 order report ""
+company-61 order name ""
+company-61 order number 0.0
+company-61 order accepted false
+
+company-62
+  member of: Unit
+  member of: Actor
+company-62 actor name "Company 62"
+company-62 presentation kind "Artificer"
+company-62 unit class artificer-class
+company-62 actor position Vec3 { x: -7.0, y: 0.0, z: -3.0 }
+company-62 unit destination Vec3 { x: -7.0, y: 0.0, z: 27.0 }
+company-62 formation offset Vec3 { x: -7.0, y: 0.0, z: -3.0 }
+company-62 movement speed 4.3
+company-62 selected true
+company-62 moving true
+company-62 hostile false
+company-62 vitality 105.0
+company-62 maximum vitality 105.0
+company-62 alive true
+company-62 ward remaining 0.0
+company-62 burn remaining 0.0
+company-62 attack damage 18.0
+company-62 attack range 18.0
+company-62 healing power 0.0
+company-62 ward duration 0.0
+company-62 action cooldown 60.0
+company-62 action period 0.8
+company-62 ignite duration 3.0
+company-62 ignite damage 7.0
+company-62 footprint radius 0.6
+company-62 attack readiness "No battle in progress"
+company-62 heal readiness "No battle in progress"
+company-62 ward readiness "No battle in progress"
+company-62 ignite readiness "No battle in progress"
+company-62 order report ""
+company-62 order name ""
+company-62 order number 0.0
+company-62 order accepted false
+
+company-63
+  member of: Unit
+  member of: Actor
+company-63 actor name "Company 63"
+company-63 presentation kind "Rogue"
+company-63 unit class rogue-class
+company-63 actor position Vec3 { x: -5.0, y: 0.0, z: -3.0 }
+company-63 unit destination Vec3 { x: -5.0, y: 0.0, z: 27.0 }
+company-63 formation offset Vec3 { x: -5.0, y: 0.0, z: -3.0 }
+company-63 movement speed 5.7
+company-63 selected true
+company-63 moving true
+company-63 hostile false
+company-63 vitality 95.0
+company-63 maximum vitality 95.0
+company-63 alive true
+company-63 ward remaining 0.0
+company-63 burn remaining 0.0
+company-63 attack damage 24.0
+company-63 attack range 18.0
+company-63 healing power 0.0
+company-63 ward duration 0.0
+company-63 action cooldown 60.0
+company-63 action period 0.8
+company-63 footprint radius 0.6
+company-63 attack readiness "No battle in progress"
+company-63 heal readiness "No battle in progress"
+company-63 ward readiness "No battle in progress"
+company-63 ignite readiness "No battle in progress"
+company-63 order report ""
+company-63 order name ""
+company-63 order number 0.0
+company-63 order accepted false
+
+company-64
+  member of: Unit
+  member of: Actor
+company-64 actor name "Company 64"
+company-64 presentation kind "Priest"
+company-64 unit class priest-class
+company-64 actor position Vec3 { x: -3.0, y: 0.0, z: -3.0 }
+company-64 unit destination Vec3 { x: -3.0, y: 0.0, z: 27.0 }
+company-64 formation offset Vec3 { x: -3.0, y: 0.0, z: -3.0 }
+company-64 movement speed 4.2
+company-64 selected true
+company-64 moving true
+company-64 hostile false
+company-64 vitality 90.0
+company-64 maximum vitality 90.0
+company-64 alive true
+company-64 ward remaining 0.0
+company-64 burn remaining 0.0
+company-64 attack damage 7.0
+company-64 attack range 18.0
+company-64 healing power 28.0
+company-64 ward duration 4.0
+company-64 action cooldown 60.0
+company-64 action period 0.8
+company-64 footprint radius 0.6
+company-64 attack readiness "No battle in progress"
+company-64 heal readiness "No battle in progress"
+company-64 ward readiness "No battle in progress"
+company-64 ignite readiness "No battle in progress"
+company-64 order report ""
+company-64 order name ""
+company-64 order number 0.0
+company-64 order accepted false
+
+company-65
+  member of: Unit
+  member of: Actor
+company-65 actor name "Company 65"
+company-65 presentation kind "Ranger"
+company-65 unit class ranger-class
+company-65 actor position Vec3 { x: -1.0, y: 0.0, z: -3.0 }
+company-65 unit destination Vec3 { x: -1.0, y: 0.0, z: 27.0 }
+company-65 formation offset Vec3 { x: -1.0, y: 0.0, z: -3.0 }
+company-65 movement speed 4.8
+company-65 selected true
+company-65 moving true
+company-65 hostile false
+company-65 vitality 100.0
+company-65 maximum vitality 100.0
+company-65 alive true
+company-65 ward remaining 0.0
+company-65 burn remaining 0.0
+company-65 attack damage 20.0
+company-65 attack range 18.0
+company-65 healing power 0.0
+company-65 ward duration 0.0
+company-65 action cooldown 60.0
+company-65 action period 0.8
+company-65 ignite duration 1.5
+company-65 ignite damage 7.0
+company-65 footprint radius 0.6
+company-65 attack readiness "No battle in progress"
+company-65 heal readiness "No battle in progress"
+company-65 ward readiness "No battle in progress"
+company-65 ignite readiness "No battle in progress"
+company-65 order report ""
+company-65 order name ""
+company-65 order number 0.0
+company-65 order accepted false
+
+company-66
+  member of: Unit
+  member of: Actor
+company-66 actor name "Company 66"
+company-66 presentation kind "Warrior"
+company-66 unit class warrior-class
+company-66 actor position Vec3 { x: 1.0, y: 0.0, z: -3.0 }
+company-66 unit destination Vec3 { x: 1.0, y: 0.0, z: 27.0 }
+company-66 formation offset Vec3 { x: 1.0, y: 0.0, z: -3.0 }
+company-66 movement speed 5.0
+company-66 selected true
+company-66 moving true
+company-66 hostile false
+company-66 vitality 160.0
+company-66 maximum vitality 160.0
+company-66 alive true
+company-66 ward remaining 0.0
+company-66 burn remaining 0.0
+company-66 attack damage 22.0
+company-66 attack range 18.0
+company-66 healing power 0.0
+company-66 ward duration 0.0
+company-66 action cooldown 60.0
+company-66 action period 0.8
+company-66 footprint radius 0.6
+company-66 attack readiness "No battle in progress"
+company-66 heal readiness "No battle in progress"
+company-66 ward readiness "No battle in progress"
+company-66 ignite readiness "No battle in progress"
+company-66 order report ""
+company-66 order name ""
+company-66 order number 0.0
+company-66 order accepted false
+
+company-67
+  member of: Unit
+  member of: Actor
+company-67 actor name "Company 67"
+company-67 presentation kind "Artificer"
+company-67 unit class artificer-class
+company-67 actor position Vec3 { x: 3.0, y: 0.0, z: -3.0 }
+company-67 unit destination Vec3 { x: 3.0, y: 0.0, z: 27.0 }
+company-67 formation offset Vec3 { x: 3.0, y: 0.0, z: -3.0 }
+company-67 movement speed 4.3
+company-67 selected true
+company-67 moving true
+company-67 hostile false
+company-67 vitality 105.0
+company-67 maximum vitality 105.0
+company-67 alive true
+company-67 ward remaining 0.0
+company-67 burn remaining 0.0
+company-67 attack damage 18.0
+company-67 attack range 18.0
+company-67 healing power 0.0
+company-67 ward duration 0.0
+company-67 action cooldown 60.0
+company-67 action period 0.8
+company-67 ignite duration 3.0
+company-67 ignite damage 7.0
+company-67 footprint radius 0.6
+company-67 attack readiness "No battle in progress"
+company-67 heal readiness "No battle in progress"
+company-67 ward readiness "No battle in progress"
+company-67 ignite readiness "No battle in progress"
+company-67 order report ""
+company-67 order name ""
+company-67 order number 0.0
+company-67 order accepted false
+
+company-68
+  member of: Unit
+  member of: Actor
+company-68 actor name "Company 68"
+company-68 presentation kind "Rogue"
+company-68 unit class rogue-class
+company-68 actor position Vec3 { x: 5.0, y: 0.0, z: -3.0 }
+company-68 unit destination Vec3 { x: 5.0, y: 0.0, z: 27.0 }
+company-68 formation offset Vec3 { x: 5.0, y: 0.0, z: -3.0 }
+company-68 movement speed 5.7
+company-68 selected true
+company-68 moving true
+company-68 hostile false
+company-68 vitality 95.0
+company-68 maximum vitality 95.0
+company-68 alive true
+company-68 ward remaining 0.0
+company-68 burn remaining 0.0
+company-68 attack damage 24.0
+company-68 attack range 18.0
+company-68 healing power 0.0
+company-68 ward duration 0.0
+company-68 action cooldown 60.0
+company-68 action period 0.8
+company-68 footprint radius 0.6
+company-68 attack readiness "No battle in progress"
+company-68 heal readiness "No battle in progress"
+company-68 ward readiness "No battle in progress"
+company-68 ignite readiness "No battle in progress"
+company-68 order report ""
+company-68 order name ""
+company-68 order number 0.0
+company-68 order accepted false
+
+company-69
+  member of: Unit
+  member of: Actor
+company-69 actor name "Company 69"
+company-69 presentation kind "Priest"
+company-69 unit class priest-class
+company-69 actor position Vec3 { x: 7.0, y: 0.0, z: -3.0 }
+company-69 unit destination Vec3 { x: 7.0, y: 0.0, z: 27.0 }
+company-69 formation offset Vec3 { x: 7.0, y: 0.0, z: -3.0 }
+company-69 movement speed 4.2
+company-69 selected true
+company-69 moving true
+company-69 hostile false
+company-69 vitality 90.0
+company-69 maximum vitality 90.0
+company-69 alive true
+company-69 ward remaining 0.0
+company-69 burn remaining 0.0
+company-69 attack damage 7.0
+company-69 attack range 18.0
+company-69 healing power 28.0
+company-69 ward duration 4.0
+company-69 action cooldown 60.0
+company-69 action period 0.8
+company-69 footprint radius 0.6
+company-69 attack readiness "No battle in progress"
+company-69 heal readiness "No battle in progress"
+company-69 ward readiness "No battle in progress"
+company-69 ignite readiness "No battle in progress"
+company-69 order report ""
+company-69 order name ""
+company-69 order number 0.0
+company-69 order accepted false
+
+company-70
+  member of: Unit
+  member of: Actor
+company-70 actor name "Company 70"
+company-70 presentation kind "Ranger"
+company-70 unit class ranger-class
+company-70 actor position Vec3 { x: 9.0, y: 0.0, z: -3.0 }
+company-70 unit destination Vec3 { x: 9.0, y: 0.0, z: 27.0 }
+company-70 formation offset Vec3 { x: 9.0, y: 0.0, z: -3.0 }
+company-70 movement speed 4.8
+company-70 selected true
+company-70 moving true
+company-70 hostile false
+company-70 vitality 100.0
+company-70 maximum vitality 100.0
+company-70 alive true
+company-70 ward remaining 0.0
+company-70 burn remaining 0.0
+company-70 attack damage 20.0
+company-70 attack range 18.0
+company-70 healing power 0.0
+company-70 ward duration 0.0
+company-70 action cooldown 60.0
+company-70 action period 0.8
+company-70 ignite duration 1.5
+company-70 ignite damage 7.0
+company-70 footprint radius 0.6
+company-70 attack readiness "No battle in progress"
+company-70 heal readiness "No battle in progress"
+company-70 ward readiness "No battle in progress"
+company-70 ignite readiness "No battle in progress"
+company-70 order report ""
+company-70 order name ""
+company-70 order number 0.0
+company-70 order accepted false
+
+company-71
+  member of: Unit
+  member of: Actor
+company-71 actor name "Company 71"
+company-71 presentation kind "Warrior"
+company-71 unit class warrior-class
+company-71 actor position Vec3 { x: -9.0, y: 0.0, z: -1.0 }
+company-71 unit destination Vec3 { x: -9.0, y: 0.0, z: 29.0 }
+company-71 formation offset Vec3 { x: -9.0, y: 0.0, z: -1.0 }
+company-71 movement speed 5.0
+company-71 selected true
+company-71 moving true
+company-71 hostile false
+company-71 vitality 160.0
+company-71 maximum vitality 160.0
+company-71 alive true
+company-71 ward remaining 0.0
+company-71 burn remaining 0.0
+company-71 attack damage 22.0
+company-71 attack range 18.0
+company-71 healing power 0.0
+company-71 ward duration 0.0
+company-71 action cooldown 60.0
+company-71 action period 0.8
+company-71 footprint radius 0.6
+company-71 attack readiness "No battle in progress"
+company-71 heal readiness "No battle in progress"
+company-71 ward readiness "No battle in progress"
+company-71 ignite readiness "No battle in progress"
+company-71 order report ""
+company-71 order name ""
+company-71 order number 0.0
+company-71 order accepted false
+
+company-72
+  member of: Unit
+  member of: Actor
+company-72 actor name "Company 72"
+company-72 presentation kind "Artificer"
+company-72 unit class artificer-class
+company-72 actor position Vec3 { x: -7.0, y: 0.0, z: -1.0 }
+company-72 unit destination Vec3 { x: -7.0, y: 0.0, z: 29.0 }
+company-72 formation offset Vec3 { x: -7.0, y: 0.0, z: -1.0 }
+company-72 movement speed 4.3
+company-72 selected true
+company-72 moving true
+company-72 hostile false
+company-72 vitality 105.0
+company-72 maximum vitality 105.0
+company-72 alive true
+company-72 ward remaining 0.0
+company-72 burn remaining 0.0
+company-72 attack damage 18.0
+company-72 attack range 18.0
+company-72 healing power 0.0
+company-72 ward duration 0.0
+company-72 action cooldown 60.0
+company-72 action period 0.8
+company-72 ignite duration 3.0
+company-72 ignite damage 7.0
+company-72 footprint radius 0.6
+company-72 attack readiness "No battle in progress"
+company-72 heal readiness "No battle in progress"
+company-72 ward readiness "No battle in progress"
+company-72 ignite readiness "No battle in progress"
+company-72 order report ""
+company-72 order name ""
+company-72 order number 0.0
+company-72 order accepted false
+
+company-73
+  member of: Unit
+  member of: Actor
+company-73 actor name "Company 73"
+company-73 presentation kind "Rogue"
+company-73 unit class rogue-class
+company-73 actor position Vec3 { x: -5.0, y: 0.0, z: -1.0 }
+company-73 unit destination Vec3 { x: -5.0, y: 0.0, z: 29.0 }
+company-73 formation offset Vec3 { x: -5.0, y: 0.0, z: -1.0 }
+company-73 movement speed 5.7
+company-73 selected true
+company-73 moving true
+company-73 hostile false
+company-73 vitality 95.0
+company-73 maximum vitality 95.0
+company-73 alive true
+company-73 ward remaining 0.0
+company-73 burn remaining 0.0
+company-73 attack damage 24.0
+company-73 attack range 18.0
+company-73 healing power 0.0
+company-73 ward duration 0.0
+company-73 action cooldown 60.0
+company-73 action period 0.8
+company-73 footprint radius 0.6
+company-73 attack readiness "No battle in progress"
+company-73 heal readiness "No battle in progress"
+company-73 ward readiness "No battle in progress"
+company-73 ignite readiness "No battle in progress"
+company-73 order report ""
+company-73 order name ""
+company-73 order number 0.0
+company-73 order accepted false
+
+company-74
+  member of: Unit
+  member of: Actor
+company-74 actor name "Company 74"
+company-74 presentation kind "Priest"
+company-74 unit class priest-class
+company-74 actor position Vec3 { x: -3.0, y: 0.0, z: -1.0 }
+company-74 unit destination Vec3 { x: -3.0, y: 0.0, z: 29.0 }
+company-74 formation offset Vec3 { x: -3.0, y: 0.0, z: -1.0 }
+company-74 movement speed 4.2
+company-74 selected true
+company-74 moving true
+company-74 hostile false
+company-74 vitality 90.0
+company-74 maximum vitality 90.0
+company-74 alive true
+company-74 ward remaining 0.0
+company-74 burn remaining 0.0
+company-74 attack damage 7.0
+company-74 attack range 18.0
+company-74 healing power 28.0
+company-74 ward duration 4.0
+company-74 action cooldown 60.0
+company-74 action period 0.8
+company-74 footprint radius 0.6
+company-74 attack readiness "No battle in progress"
+company-74 heal readiness "No battle in progress"
+company-74 ward readiness "No battle in progress"
+company-74 ignite readiness "No battle in progress"
+company-74 order report ""
+company-74 order name ""
+company-74 order number 0.0
+company-74 order accepted false
+
+company-75
+  member of: Unit
+  member of: Actor
+company-75 actor name "Company 75"
+company-75 presentation kind "Ranger"
+company-75 unit class ranger-class
+company-75 actor position Vec3 { x: -1.0, y: 0.0, z: -1.0 }
+company-75 unit destination Vec3 { x: -1.0, y: 0.0, z: 29.0 }
+company-75 formation offset Vec3 { x: -1.0, y: 0.0, z: -1.0 }
+company-75 movement speed 4.8
+company-75 selected true
+company-75 moving true
+company-75 hostile false
+company-75 vitality 100.0
+company-75 maximum vitality 100.0
+company-75 alive true
+company-75 ward remaining 0.0
+company-75 burn remaining 0.0
+company-75 attack damage 20.0
+company-75 attack range 18.0
+company-75 healing power 0.0
+company-75 ward duration 0.0
+company-75 action cooldown 60.0
+company-75 action period 0.8
+company-75 ignite duration 1.5
+company-75 ignite damage 7.0
+company-75 footprint radius 0.6
+company-75 attack readiness "No battle in progress"
+company-75 heal readiness "No battle in progress"
+company-75 ward readiness "No battle in progress"
+company-75 ignite readiness "No battle in progress"
+company-75 order report ""
+company-75 order name ""
+company-75 order number 0.0
+company-75 order accepted false
+
+company-76
+  member of: Unit
+  member of: Actor
+company-76 actor name "Company 76"
+company-76 presentation kind "Warrior"
+company-76 unit class warrior-class
+company-76 actor position Vec3 { x: 1.0, y: 0.0, z: -1.0 }
+company-76 unit destination Vec3 { x: 1.0, y: 0.0, z: 29.0 }
+company-76 formation offset Vec3 { x: 1.0, y: 0.0, z: -1.0 }
+company-76 movement speed 5.0
+company-76 selected true
+company-76 moving true
+company-76 hostile false
+company-76 vitality 160.0
+company-76 maximum vitality 160.0
+company-76 alive true
+company-76 ward remaining 0.0
+company-76 burn remaining 0.0
+company-76 attack damage 22.0
+company-76 attack range 18.0
+company-76 healing power 0.0
+company-76 ward duration 0.0
+company-76 action cooldown 60.0
+company-76 action period 0.8
+company-76 footprint radius 0.6
+company-76 attack readiness "No battle in progress"
+company-76 heal readiness "No battle in progress"
+company-76 ward readiness "No battle in progress"
+company-76 ignite readiness "No battle in progress"
+company-76 order report ""
+company-76 order name ""
+company-76 order number 0.0
+company-76 order accepted false
+
+company-77
+  member of: Unit
+  member of: Actor
+company-77 actor name "Company 77"
+company-77 presentation kind "Artificer"
+company-77 unit class artificer-class
+company-77 actor position Vec3 { x: 3.0, y: 0.0, z: -1.0 }
+company-77 unit destination Vec3 { x: 3.0, y: 0.0, z: 29.0 }
+company-77 formation offset Vec3 { x: 3.0, y: 0.0, z: -1.0 }
+company-77 movement speed 4.3
+company-77 selected true
+company-77 moving true
+company-77 hostile false
+company-77 vitality 105.0
+company-77 maximum vitality 105.0
+company-77 alive true
+company-77 ward remaining 0.0
+company-77 burn remaining 0.0
+company-77 attack damage 18.0
+company-77 attack range 18.0
+company-77 healing power 0.0
+company-77 ward duration 0.0
+company-77 action cooldown 60.0
+company-77 action period 0.8
+company-77 ignite duration 3.0
+company-77 ignite damage 7.0
+company-77 footprint radius 0.6
+company-77 attack readiness "No battle in progress"
+company-77 heal readiness "No battle in progress"
+company-77 ward readiness "No battle in progress"
+company-77 ignite readiness "No battle in progress"
+company-77 order report ""
+company-77 order name ""
+company-77 order number 0.0
+company-77 order accepted false
+
+company-78
+  member of: Unit
+  member of: Actor
+company-78 actor name "Company 78"
+company-78 presentation kind "Rogue"
+company-78 unit class rogue-class
+company-78 actor position Vec3 { x: 5.0, y: 0.0, z: -1.0 }
+company-78 unit destination Vec3 { x: 5.0, y: 0.0, z: 29.0 }
+company-78 formation offset Vec3 { x: 5.0, y: 0.0, z: -1.0 }
+company-78 movement speed 5.7
+company-78 selected true
+company-78 moving true
+company-78 hostile false
+company-78 vitality 95.0
+company-78 maximum vitality 95.0
+company-78 alive true
+company-78 ward remaining 0.0
+company-78 burn remaining 0.0
+company-78 attack damage 24.0
+company-78 attack range 18.0
+company-78 healing power 0.0
+company-78 ward duration 0.0
+company-78 action cooldown 60.0
+company-78 action period 0.8
+company-78 footprint radius 0.6
+company-78 attack readiness "No battle in progress"
+company-78 heal readiness "No battle in progress"
+company-78 ward readiness "No battle in progress"
+company-78 ignite readiness "No battle in progress"
+company-78 order report ""
+company-78 order name ""
+company-78 order number 0.0
+company-78 order accepted false
+
+company-79
+  member of: Unit
+  member of: Actor
+company-79 actor name "Company 79"
+company-79 presentation kind "Priest"
+company-79 unit class priest-class
+company-79 actor position Vec3 { x: 7.0, y: 0.0, z: -1.0 }
+company-79 unit destination Vec3 { x: 7.0, y: 0.0, z: 29.0 }
+company-79 formation offset Vec3 { x: 7.0, y: 0.0, z: -1.0 }
+company-79 movement speed 4.2
+company-79 selected true
+company-79 moving true
+company-79 hostile false
+company-79 vitality 90.0
+company-79 maximum vitality 90.0
+company-79 alive true
+company-79 ward remaining 0.0
+company-79 burn remaining 0.0
+company-79 attack damage 7.0
+company-79 attack range 18.0
+company-79 healing power 28.0
+company-79 ward duration 4.0
+company-79 action cooldown 60.0
+company-79 action period 0.8
+company-79 footprint radius 0.6
+company-79 attack readiness "No battle in progress"
+company-79 heal readiness "No battle in progress"
+company-79 ward readiness "No battle in progress"
+company-79 ignite readiness "No battle in progress"
+company-79 order report ""
+company-79 order name ""
+company-79 order number 0.0
+company-79 order accepted false
+
+company-80
+  member of: Unit
+  member of: Actor
+company-80 actor name "Company 80"
+company-80 presentation kind "Ranger"
+company-80 unit class ranger-class
+company-80 actor position Vec3 { x: 9.0, y: 0.0, z: -1.0 }
+company-80 unit destination Vec3 { x: 9.0, y: 0.0, z: 29.0 }
+company-80 formation offset Vec3 { x: 9.0, y: 0.0, z: -1.0 }
+company-80 movement speed 4.8
+company-80 selected true
+company-80 moving true
+company-80 hostile false
+company-80 vitality 100.0
+company-80 maximum vitality 100.0
+company-80 alive true
+company-80 ward remaining 0.0
+company-80 burn remaining 0.0
+company-80 attack damage 20.0
+company-80 attack range 18.0
+company-80 healing power 0.0
+company-80 ward duration 0.0
+company-80 action cooldown 60.0
+company-80 action period 0.8
+company-80 ignite duration 1.5
+company-80 ignite damage 7.0
+company-80 footprint radius 0.6
+company-80 attack readiness "No battle in progress"
+company-80 heal readiness "No battle in progress"
+company-80 ward readiness "No battle in progress"
+company-80 ignite readiness "No battle in progress"
+company-80 order report ""
+company-80 order name ""
+company-80 order number 0.0
+company-80 order accepted false
+
+company-81
+  member of: Unit
+  member of: Actor
+company-81 actor name "Company 81"
+company-81 presentation kind "Warrior"
+company-81 unit class warrior-class
+company-81 actor position Vec3 { x: -9.0, y: 0.0, z: 1.0 }
+company-81 unit destination Vec3 { x: -9.0, y: 0.0, z: 31.0 }
+company-81 formation offset Vec3 { x: -9.0, y: 0.0, z: 1.0 }
+company-81 movement speed 5.0
+company-81 selected true
+company-81 moving true
+company-81 hostile false
+company-81 vitality 160.0
+company-81 maximum vitality 160.0
+company-81 alive true
+company-81 ward remaining 0.0
+company-81 burn remaining 0.0
+company-81 attack damage 22.0
+company-81 attack range 18.0
+company-81 healing power 0.0
+company-81 ward duration 0.0
+company-81 action cooldown 60.0
+company-81 action period 0.8
+company-81 footprint radius 0.6
+company-81 attack readiness "No battle in progress"
+company-81 heal readiness "No battle in progress"
+company-81 ward readiness "No battle in progress"
+company-81 ignite readiness "No battle in progress"
+company-81 order report ""
+company-81 order name ""
+company-81 order number 0.0
+company-81 order accepted false
+
+company-82
+  member of: Unit
+  member of: Actor
+company-82 actor name "Company 82"
+company-82 presentation kind "Artificer"
+company-82 unit class artificer-class
+company-82 actor position Vec3 { x: -7.0, y: 0.0, z: 1.0 }
+company-82 unit destination Vec3 { x: -7.0, y: 0.0, z: 31.0 }
+company-82 formation offset Vec3 { x: -7.0, y: 0.0, z: 1.0 }
+company-82 movement speed 4.3
+company-82 selected true
+company-82 moving true
+company-82 hostile false
+company-82 vitality 105.0
+company-82 maximum vitality 105.0
+company-82 alive true
+company-82 ward remaining 0.0
+company-82 burn remaining 0.0
+company-82 attack damage 18.0
+company-82 attack range 18.0
+company-82 healing power 0.0
+company-82 ward duration 0.0
+company-82 action cooldown 60.0
+company-82 action period 0.8
+company-82 ignite duration 3.0
+company-82 ignite damage 7.0
+company-82 footprint radius 0.6
+company-82 attack readiness "No battle in progress"
+company-82 heal readiness "No battle in progress"
+company-82 ward readiness "No battle in progress"
+company-82 ignite readiness "No battle in progress"
+company-82 order report ""
+company-82 order name ""
+company-82 order number 0.0
+company-82 order accepted false
+
+company-83
+  member of: Unit
+  member of: Actor
+company-83 actor name "Company 83"
+company-83 presentation kind "Rogue"
+company-83 unit class rogue-class
+company-83 actor position Vec3 { x: -5.0, y: 0.0, z: 1.0 }
+company-83 unit destination Vec3 { x: -5.0, y: 0.0, z: 31.0 }
+company-83 formation offset Vec3 { x: -5.0, y: 0.0, z: 1.0 }
+company-83 movement speed 5.7
+company-83 selected true
+company-83 moving true
+company-83 hostile false
+company-83 vitality 95.0
+company-83 maximum vitality 95.0
+company-83 alive true
+company-83 ward remaining 0.0
+company-83 burn remaining 0.0
+company-83 attack damage 24.0
+company-83 attack range 18.0
+company-83 healing power 0.0
+company-83 ward duration 0.0
+company-83 action cooldown 60.0
+company-83 action period 0.8
+company-83 footprint radius 0.6
+company-83 attack readiness "No battle in progress"
+company-83 heal readiness "No battle in progress"
+company-83 ward readiness "No battle in progress"
+company-83 ignite readiness "No battle in progress"
+company-83 order report ""
+company-83 order name ""
+company-83 order number 0.0
+company-83 order accepted false
+
+company-84
+  member of: Unit
+  member of: Actor
+company-84 actor name "Company 84"
+company-84 presentation kind "Priest"
+company-84 unit class priest-class
+company-84 actor position Vec3 { x: -3.0, y: 0.0, z: 1.0 }
+company-84 unit destination Vec3 { x: -3.0, y: 0.0, z: 31.0 }
+company-84 formation offset Vec3 { x: -3.0, y: 0.0, z: 1.0 }
+company-84 movement speed 4.2
+company-84 selected true
+company-84 moving true
+company-84 hostile false
+company-84 vitality 90.0
+company-84 maximum vitality 90.0
+company-84 alive true
+company-84 ward remaining 0.0
+company-84 burn remaining 0.0
+company-84 attack damage 7.0
+company-84 attack range 18.0
+company-84 healing power 28.0
+company-84 ward duration 4.0
+company-84 action cooldown 60.0
+company-84 action period 0.8
+company-84 footprint radius 0.6
+company-84 attack readiness "No battle in progress"
+company-84 heal readiness "No battle in progress"
+company-84 ward readiness "No battle in progress"
+company-84 ignite readiness "No battle in progress"
+company-84 order report ""
+company-84 order name ""
+company-84 order number 0.0
+company-84 order accepted false
+
+company-85
+  member of: Unit
+  member of: Actor
+company-85 actor name "Company 85"
+company-85 presentation kind "Ranger"
+company-85 unit class ranger-class
+company-85 actor position Vec3 { x: -1.0, y: 0.0, z: 1.0 }
+company-85 unit destination Vec3 { x: -1.0, y: 0.0, z: 31.0 }
+company-85 formation offset Vec3 { x: -1.0, y: 0.0, z: 1.0 }
+company-85 movement speed 4.8
+company-85 selected true
+company-85 moving true
+company-85 hostile false
+company-85 vitality 100.0
+company-85 maximum vitality 100.0
+company-85 alive true
+company-85 ward remaining 0.0
+company-85 burn remaining 0.0
+company-85 attack damage 20.0
+company-85 attack range 18.0
+company-85 healing power 0.0
+company-85 ward duration 0.0
+company-85 action cooldown 60.0
+company-85 action period 0.8
+company-85 ignite duration 1.5
+company-85 ignite damage 7.0
+company-85 footprint radius 0.6
+company-85 attack readiness "No battle in progress"
+company-85 heal readiness "No battle in progress"
+company-85 ward readiness "No battle in progress"
+company-85 ignite readiness "No battle in progress"
+company-85 order report ""
+company-85 order name ""
+company-85 order number 0.0
+company-85 order accepted false
+
+company-86
+  member of: Unit
+  member of: Actor
+company-86 actor name "Company 86"
+company-86 presentation kind "Warrior"
+company-86 unit class warrior-class
+company-86 actor position Vec3 { x: 1.0, y: 0.0, z: 1.0 }
+company-86 unit destination Vec3 { x: 1.0, y: 0.0, z: 31.0 }
+company-86 formation offset Vec3 { x: 1.0, y: 0.0, z: 1.0 }
+company-86 movement speed 5.0
+company-86 selected true
+company-86 moving true
+company-86 hostile false
+company-86 vitality 160.0
+company-86 maximum vitality 160.0
+company-86 alive true
+company-86 ward remaining 0.0
+company-86 burn remaining 0.0
+company-86 attack damage 22.0
+company-86 attack range 18.0
+company-86 healing power 0.0
+company-86 ward duration 0.0
+company-86 action cooldown 60.0
+company-86 action period 0.8
+company-86 footprint radius 0.6
+company-86 attack readiness "No battle in progress"
+company-86 heal readiness "No battle in progress"
+company-86 ward readiness "No battle in progress"
+company-86 ignite readiness "No battle in progress"
+company-86 order report ""
+company-86 order name ""
+company-86 order number 0.0
+company-86 order accepted false
+
+company-87
+  member of: Unit
+  member of: Actor
+company-87 actor name "Company 87"
+company-87 presentation kind "Artificer"
+company-87 unit class artificer-class
+company-87 actor position Vec3 { x: 3.0, y: 0.0, z: 1.0 }
+company-87 unit destination Vec3 { x: 3.0, y: 0.0, z: 31.0 }
+company-87 formation offset Vec3 { x: 3.0, y: 0.0, z: 1.0 }
+company-87 movement speed 4.3
+company-87 selected true
+company-87 moving true
+company-87 hostile false
+company-87 vitality 105.0
+company-87 maximum vitality 105.0
+company-87 alive true
+company-87 ward remaining 0.0
+company-87 burn remaining 0.0
+company-87 attack damage 18.0
+company-87 attack range 18.0
+company-87 healing power 0.0
+company-87 ward duration 0.0
+company-87 action cooldown 60.0
+company-87 action period 0.8
+company-87 ignite duration 3.0
+company-87 ignite damage 7.0
+company-87 footprint radius 0.6
+company-87 attack readiness "No battle in progress"
+company-87 heal readiness "No battle in progress"
+company-87 ward readiness "No battle in progress"
+company-87 ignite readiness "No battle in progress"
+company-87 order report ""
+company-87 order name ""
+company-87 order number 0.0
+company-87 order accepted false
+
+company-88
+  member of: Unit
+  member of: Actor
+company-88 actor name "Company 88"
+company-88 presentation kind "Rogue"
+company-88 unit class rogue-class
+company-88 actor position Vec3 { x: 5.0, y: 0.0, z: 1.0 }
+company-88 unit destination Vec3 { x: 5.0, y: 0.0, z: 31.0 }
+company-88 formation offset Vec3 { x: 5.0, y: 0.0, z: 1.0 }
+company-88 movement speed 5.7
+company-88 selected true
+company-88 moving true
+company-88 hostile false
+company-88 vitality 95.0
+company-88 maximum vitality 95.0
+company-88 alive true
+company-88 ward remaining 0.0
+company-88 burn remaining 0.0
+company-88 attack damage 24.0
+company-88 attack range 18.0
+company-88 healing power 0.0
+company-88 ward duration 0.0
+company-88 action cooldown 60.0
+company-88 action period 0.8
+company-88 footprint radius 0.6
+company-88 attack readiness "No battle in progress"
+company-88 heal readiness "No battle in progress"
+company-88 ward readiness "No battle in progress"
+company-88 ignite readiness "No battle in progress"
+company-88 order report ""
+company-88 order name ""
+company-88 order number 0.0
+company-88 order accepted false
+
+company-89
+  member of: Unit
+  member of: Actor
+company-89 actor name "Company 89"
+company-89 presentation kind "Priest"
+company-89 unit class priest-class
+company-89 actor position Vec3 { x: 7.0, y: 0.0, z: 1.0 }
+company-89 unit destination Vec3 { x: 7.0, y: 0.0, z: 31.0 }
+company-89 formation offset Vec3 { x: 7.0, y: 0.0, z: 1.0 }
+company-89 movement speed 4.2
+company-89 selected true
+company-89 moving true
+company-89 hostile false
+company-89 vitality 90.0
+company-89 maximum vitality 90.0
+company-89 alive true
+company-89 ward remaining 0.0
+company-89 burn remaining 0.0
+company-89 attack damage 7.0
+company-89 attack range 18.0
+company-89 healing power 28.0
+company-89 ward duration 4.0
+company-89 action cooldown 60.0
+company-89 action period 0.8
+company-89 footprint radius 0.6
+company-89 attack readiness "No battle in progress"
+company-89 heal readiness "No battle in progress"
+company-89 ward readiness "No battle in progress"
+company-89 ignite readiness "No battle in progress"
+company-89 order report ""
+company-89 order name ""
+company-89 order number 0.0
+company-89 order accepted false
+
+company-90
+  member of: Unit
+  member of: Actor
+company-90 actor name "Company 90"
+company-90 presentation kind "Ranger"
+company-90 unit class ranger-class
+company-90 actor position Vec3 { x: 9.0, y: 0.0, z: 1.0 }
+company-90 unit destination Vec3 { x: 9.0, y: 0.0, z: 31.0 }
+company-90 formation offset Vec3 { x: 9.0, y: 0.0, z: 1.0 }
+company-90 movement speed 4.8
+company-90 selected true
+company-90 moving true
+company-90 hostile false
+company-90 vitality 100.0
+company-90 maximum vitality 100.0
+company-90 alive true
+company-90 ward remaining 0.0
+company-90 burn remaining 0.0
+company-90 attack damage 20.0
+company-90 attack range 18.0
+company-90 healing power 0.0
+company-90 ward duration 0.0
+company-90 action cooldown 60.0
+company-90 action period 0.8
+company-90 ignite duration 1.5
+company-90 ignite damage 7.0
+company-90 footprint radius 0.6
+company-90 attack readiness "No battle in progress"
+company-90 heal readiness "No battle in progress"
+company-90 ward readiness "No battle in progress"
+company-90 ignite readiness "No battle in progress"
+company-90 order report ""
+company-90 order name ""
+company-90 order number 0.0
+company-90 order accepted false
+
+company-91
+  member of: Unit
+  member of: Actor
+company-91 actor name "Company 91"
+company-91 presentation kind "Warrior"
+company-91 unit class warrior-class
+company-91 actor position Vec3 { x: -9.0, y: 0.0, z: 3.0 }
+company-91 unit destination Vec3 { x: -9.0, y: 0.0, z: 33.0 }
+company-91 formation offset Vec3 { x: -9.0, y: 0.0, z: 3.0 }
+company-91 movement speed 5.0
+company-91 selected true
+company-91 moving true
+company-91 hostile false
+company-91 vitality 160.0
+company-91 maximum vitality 160.0
+company-91 alive true
+company-91 ward remaining 0.0
+company-91 burn remaining 0.0
+company-91 attack damage 22.0
+company-91 attack range 18.0
+company-91 healing power 0.0
+company-91 ward duration 0.0
+company-91 action cooldown 60.0
+company-91 action period 0.8
+company-91 footprint radius 0.6
+company-91 attack readiness "No battle in progress"
+company-91 heal readiness "No battle in progress"
+company-91 ward readiness "No battle in progress"
+company-91 ignite readiness "No battle in progress"
+company-91 order report ""
+company-91 order name ""
+company-91 order number 0.0
+company-91 order accepted false
+
+company-92
+  member of: Unit
+  member of: Actor
+company-92 actor name "Company 92"
+company-92 presentation kind "Artificer"
+company-92 unit class artificer-class
+company-92 actor position Vec3 { x: -7.0, y: 0.0, z: 3.0 }
+company-92 unit destination Vec3 { x: -7.0, y: 0.0, z: 33.0 }
+company-92 formation offset Vec3 { x: -7.0, y: 0.0, z: 3.0 }
+company-92 movement speed 4.3
+company-92 selected true
+company-92 moving true
+company-92 hostile false
+company-92 vitality 105.0
+company-92 maximum vitality 105.0
+company-92 alive true
+company-92 ward remaining 0.0
+company-92 burn remaining 0.0
+company-92 attack damage 18.0
+company-92 attack range 18.0
+company-92 healing power 0.0
+company-92 ward duration 0.0
+company-92 action cooldown 60.0
+company-92 action period 0.8
+company-92 ignite duration 3.0
+company-92 ignite damage 7.0
+company-92 footprint radius 0.6
+company-92 attack readiness "No battle in progress"
+company-92 heal readiness "No battle in progress"
+company-92 ward readiness "No battle in progress"
+company-92 ignite readiness "No battle in progress"
+company-92 order report ""
+company-92 order name ""
+company-92 order number 0.0
+company-92 order accepted false
+
+company-93
+  member of: Unit
+  member of: Actor
+company-93 actor name "Company 93"
+company-93 presentation kind "Rogue"
+company-93 unit class rogue-class
+company-93 actor position Vec3 { x: -5.0, y: 0.0, z: 3.0 }
+company-93 unit destination Vec3 { x: -5.0, y: 0.0, z: 33.0 }
+company-93 formation offset Vec3 { x: -5.0, y: 0.0, z: 3.0 }
+company-93 movement speed 5.7
+company-93 selected true
+company-93 moving true
+company-93 hostile false
+company-93 vitality 95.0
+company-93 maximum vitality 95.0
+company-93 alive true
+company-93 ward remaining 0.0
+company-93 burn remaining 0.0
+company-93 attack damage 24.0
+company-93 attack range 18.0
+company-93 healing power 0.0
+company-93 ward duration 0.0
+company-93 action cooldown 60.0
+company-93 action period 0.8
+company-93 footprint radius 0.6
+company-93 attack readiness "No battle in progress"
+company-93 heal readiness "No battle in progress"
+company-93 ward readiness "No battle in progress"
+company-93 ignite readiness "No battle in progress"
+company-93 order report ""
+company-93 order name ""
+company-93 order number 0.0
+company-93 order accepted false
+
+company-94
+  member of: Unit
+  member of: Actor
+company-94 actor name "Company 94"
+company-94 presentation kind "Priest"
+company-94 unit class priest-class
+company-94 actor position Vec3 { x: -3.0, y: 0.0, z: 3.0 }
+company-94 unit destination Vec3 { x: -3.0, y: 0.0, z: 33.0 }
+company-94 formation offset Vec3 { x: -3.0, y: 0.0, z: 3.0 }
+company-94 movement speed 4.2
+company-94 selected true
+company-94 moving true
+company-94 hostile false
+company-94 vitality 90.0
+company-94 maximum vitality 90.0
+company-94 alive true
+company-94 ward remaining 0.0
+company-94 burn remaining 0.0
+company-94 attack damage 7.0
+company-94 attack range 18.0
+company-94 healing power 28.0
+company-94 ward duration 4.0
+company-94 action cooldown 60.0
+company-94 action period 0.8
+company-94 footprint radius 0.6
+company-94 attack readiness "No battle in progress"
+company-94 heal readiness "No battle in progress"
+company-94 ward readiness "No battle in progress"
+company-94 ignite readiness "No battle in progress"
+company-94 order report ""
+company-94 order name ""
+company-94 order number 0.0
+company-94 order accepted false
+
+company-95
+  member of: Unit
+  member of: Actor
+company-95 actor name "Company 95"
+company-95 presentation kind "Ranger"
+company-95 unit class ranger-class
+company-95 actor position Vec3 { x: -1.0, y: 0.0, z: 3.0 }
+company-95 unit destination Vec3 { x: -1.0, y: 0.0, z: 33.0 }
+company-95 formation offset Vec3 { x: -1.0, y: 0.0, z: 3.0 }
+company-95 movement speed 4.8
+company-95 selected true
+company-95 moving true
+company-95 hostile false
+company-95 vitality 100.0
+company-95 maximum vitality 100.0
+company-95 alive true
+company-95 ward remaining 0.0
+company-95 burn remaining 0.0
+company-95 attack damage 20.0
+company-95 attack range 18.0
+company-95 healing power 0.0
+company-95 ward duration 0.0
+company-95 action cooldown 60.0
+company-95 action period 0.8
+company-95 ignite duration 1.5
+company-95 ignite damage 7.0
+company-95 footprint radius 0.6
+company-95 attack readiness "No battle in progress"
+company-95 heal readiness "No battle in progress"
+company-95 ward readiness "No battle in progress"
+company-95 ignite readiness "No battle in progress"
+company-95 order report ""
+company-95 order name ""
+company-95 order number 0.0
+company-95 order accepted false
+
+company-96
+  member of: Unit
+  member of: Actor
+company-96 actor name "Company 96"
+company-96 presentation kind "Warrior"
+company-96 unit class warrior-class
+company-96 actor position Vec3 { x: 1.0, y: 0.0, z: 3.0 }
+company-96 unit destination Vec3 { x: 1.0, y: 0.0, z: 33.0 }
+company-96 formation offset Vec3 { x: 1.0, y: 0.0, z: 3.0 }
+company-96 movement speed 5.0
+company-96 selected true
+company-96 moving true
+company-96 hostile false
+company-96 vitality 160.0
+company-96 maximum vitality 160.0
+company-96 alive true
+company-96 ward remaining 0.0
+company-96 burn remaining 0.0
+company-96 attack damage 22.0
+company-96 attack range 18.0
+company-96 healing power 0.0
+company-96 ward duration 0.0
+company-96 action cooldown 60.0
+company-96 action period 0.8
+company-96 footprint radius 0.6
+company-96 attack readiness "No battle in progress"
+company-96 heal readiness "No battle in progress"
+company-96 ward readiness "No battle in progress"
+company-96 ignite readiness "No battle in progress"
+company-96 order report ""
+company-96 order name ""
+company-96 order number 0.0
+company-96 order accepted false
+
+company-97
+  member of: Unit
+  member of: Actor
+company-97 actor name "Company 97"
+company-97 presentation kind "Artificer"
+company-97 unit class artificer-class
+company-97 actor position Vec3 { x: 3.0, y: 0.0, z: 3.0 }
+company-97 unit destination Vec3 { x: 3.0, y: 0.0, z: 33.0 }
+company-97 formation offset Vec3 { x: 3.0, y: 0.0, z: 3.0 }
+company-97 movement speed 4.3
+company-97 selected true
+company-97 moving true
+company-97 hostile false
+company-97 vitality 105.0
+company-97 maximum vitality 105.0
+company-97 alive true
+company-97 ward remaining 0.0
+company-97 burn remaining 0.0
+company-97 attack damage 18.0
+company-97 attack range 18.0
+company-97 healing power 0.0
+company-97 ward duration 0.0
+company-97 action cooldown 60.0
+company-97 action period 0.8
+company-97 ignite duration 3.0
+company-97 ignite damage 7.0
+company-97 footprint radius 0.6
+company-97 attack readiness "No battle in progress"
+company-97 heal readiness "No battle in progress"
+company-97 ward readiness "No battle in progress"
+company-97 ignite readiness "No battle in progress"
+company-97 order report ""
+company-97 order name ""
+company-97 order number 0.0
+company-97 order accepted false
+
+company-98
+  member of: Unit
+  member of: Actor
+company-98 actor name "Company 98"
+company-98 presentation kind "Rogue"
+company-98 unit class rogue-class
+company-98 actor position Vec3 { x: 5.0, y: 0.0, z: 3.0 }
+company-98 unit destination Vec3 { x: 5.0, y: 0.0, z: 33.0 }
+company-98 formation offset Vec3 { x: 5.0, y: 0.0, z: 3.0 }
+company-98 movement speed 5.7
+company-98 selected true
+company-98 moving true
+company-98 hostile false
+company-98 vitality 95.0
+company-98 maximum vitality 95.0
+company-98 alive true
+company-98 ward remaining 0.0
+company-98 burn remaining 0.0
+company-98 attack damage 24.0
+company-98 attack range 18.0
+company-98 healing power 0.0
+company-98 ward duration 0.0
+company-98 action cooldown 60.0
+company-98 action period 0.8
+company-98 footprint radius 0.6
+company-98 attack readiness "No battle in progress"
+company-98 heal readiness "No battle in progress"
+company-98 ward readiness "No battle in progress"
+company-98 ignite readiness "No battle in progress"
+company-98 order report ""
+company-98 order name ""
+company-98 order number 0.0
+company-98 order accepted false
+
+company-99
+  member of: Unit
+  member of: Actor
+company-99 actor name "Company 99"
+company-99 presentation kind "Priest"
+company-99 unit class priest-class
+company-99 actor position Vec3 { x: 7.0, y: 0.0, z: 3.0 }
+company-99 unit destination Vec3 { x: 7.0, y: 0.0, z: 33.0 }
+company-99 formation offset Vec3 { x: 7.0, y: 0.0, z: 3.0 }
+company-99 movement speed 4.2
+company-99 selected true
+company-99 moving true
+company-99 hostile false
+company-99 vitality 90.0
+company-99 maximum vitality 90.0
+company-99 alive true
+company-99 ward remaining 0.0
+company-99 burn remaining 0.0
+company-99 attack damage 7.0
+company-99 attack range 18.0
+company-99 healing power 28.0
+company-99 ward duration 4.0
+company-99 action cooldown 60.0
+company-99 action period 0.8
+company-99 footprint radius 0.6
+company-99 attack readiness "No battle in progress"
+company-99 heal readiness "No battle in progress"
+company-99 ward readiness "No battle in progress"
+company-99 ignite readiness "No battle in progress"
+company-99 order report ""
+company-99 order name ""
+company-99 order number 0.0
+company-99 order accepted false
+
+company-100
+  member of: Unit
+  member of: Actor
+company-100 actor name "Company 100"
+company-100 presentation kind "Ranger"
+company-100 unit class ranger-class
+company-100 actor position Vec3 { x: 9.0, y: 0.0, z: 3.0 }
+company-100 unit destination Vec3 { x: 9.0, y: 0.0, z: 33.0 }
+company-100 formation offset Vec3 { x: 9.0, y: 0.0, z: 3.0 }
+company-100 movement speed 4.8
+company-100 selected true
+company-100 moving true
+company-100 hostile false
+company-100 vitality 100.0
+company-100 maximum vitality 100.0
+company-100 alive true
+company-100 ward remaining 0.0
+company-100 burn remaining 0.0
+company-100 attack damage 20.0
+company-100 attack range 18.0
+company-100 healing power 0.0
+company-100 ward duration 0.0
+company-100 action cooldown 60.0
+company-100 action period 0.8
+company-100 ignite duration 1.5
+company-100 ignite damage 7.0
+company-100 footprint radius 0.6
+company-100 attack readiness "No battle in progress"
+company-100 heal readiness "No battle in progress"
+company-100 ward readiness "No battle in progress"
+company-100 ignite readiness "No battle in progress"
+company-100 order report ""
+company-100 order name ""
+company-100 order number 0.0
+company-100 order accepted false

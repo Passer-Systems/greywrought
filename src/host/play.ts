@@ -778,6 +778,10 @@ function applyProjection(
     burns: Object.fromEntries(state.actors.map((actor) => [actor.id, actor.burnRemaining])),
     createdBurns: state.createdBurns,
     cooldowns: Object.fromEntries(state.units.map((unit) => [unit.id, number(record(index.game[unit.id], unit.id), "action-cooldown", unit.id)])),
+    ...(measurementEnabled ? {
+      projectedEpochMillis: performance.timeOrigin + performance.now(),
+      unitReferents: Object.fromEntries(state.units.map(unit => [unit.id, unit.pickReferent])),
+    } : {}),
   });
   if (state.resident.pendingVisibleEdit !== null) {
     const pending = state.resident.pendingVisibleEdit;
