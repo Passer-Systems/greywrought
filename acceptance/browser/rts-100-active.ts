@@ -271,7 +271,7 @@ try {
     ? (await Bun.file(`${cgroupRoot}/${name}`).text()).trim() : "unavailable";
   const conditions = { browser, fixedTickMillis: 16, renderAspirationMillis: 16.67, warmupMillis: 1_000, windowMillis,
     rendererMode, rendererFlags, clausePin: CLAUSE_COMMIT,
-    baseCommit: profileOnly ? "a27abec0cc313bd57064e4ebef14c4f3c0336e41" : "5bdc0e83458a52764285a40a005f35b595ec3d8e",
+    baseCommit: profileOnly ? "9236c1c797820c46ebab2e60cb96a4255fab73c5" : "5bdc0e83458a52764285a40a005f35b595ec3d8e",
     fixture, sourceSha256: new Bun.CryptoHasher("sha256").update(source).digest("hex"), sourceCheckResult };
   const cgroup = { path: cgroupPath, cpuMax: await readLimit("cpu.max"), memoryHigh: await readLimit("memory.high"),
     memoryMax: await readLimit("memory.max"), pidsMax: await readLimit("pids.max") };
