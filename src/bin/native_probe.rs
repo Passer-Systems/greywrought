@@ -18,14 +18,16 @@ fn main() -> native::Result<()> {
         let mut restored = NativeSession::load(&saved_path, EMBODIED_SOURCE)?;
         let projection = restored.workbench.project_current_world()?;
         let source = restored.workbench.exact_source().to_vec();
-        let continuity = restored.workbench.source_continuity()?;
+        let continuity = restored.workbench.last_source_edit()
+            .map(|_| restored.workbench.source_continuity()).transpose()?;
         let copy = proof.join(format!("restored-{}.save", std::process::id()));
         restored.save(&copy)?;
         drop(restored);
         restored = NativeSession::load(&copy, EMBODIED_SOURCE)?;
         assert_eq!(restored.workbench.project_current_world()?, projection);
         assert_eq!(restored.workbench.exact_source(), source);
-        assert_eq!(restored.workbench.source_continuity()?, continuity);
+        assert_eq!(restored.workbench.last_source_edit()
+            .map(|_| restored.workbench.source_continuity()).transpose()?, continuity);
         if let Some(replacement) = std::env::args().nth(2) {
             let effects = restored.workbench.scalar_effects()?;
             if replacement == "--catalog" {
