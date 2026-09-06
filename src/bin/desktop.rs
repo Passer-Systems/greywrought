@@ -9,6 +9,12 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+#[path = "desktop/workshop.rs"]
+mod workshop;
+#[derive(Resource, Clone, Copy)]
+struct Mode {
+    workshop: bool,
+}
 
 type PhysicalInput = (ExecutableInputSourceV1, Option<ExecutableValueV1>);
 enum Request {
@@ -38,6 +44,7 @@ struct Displayed {
     edit_labels: Vec<String>,
     edit_index: usize,
     editing: bool,
+    editor_handled_frame: bool,
     control_left: bool,
     control_right: bool,
     expression: String,
@@ -88,11 +95,17 @@ fn main() -> native::Result<()> {
         });
     let mut save = data.join("greywrought/world.save");
     let mut smoke_seconds = None;
+    let mut workshop = false;
+    let mut explicit_save = false;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--root" => root = args.next().ok_or("--root needs a path")?.into(),
-            "--save" => save = args.next().ok_or("--save needs a path")?.into(),
+            "--save" => {
+                save = args.next().ok_or("--save needs a path")?.into();
+                explicit_save = true;
+            }
+            "--workshop" => workshop = true,
             "--smoke-seconds" => {
                 smoke_seconds = Some(
                     args.next()
@@ -103,9 +116,17 @@ fn main() -> native::Result<()> {
             _ => return Err(format!("unknown argument: {arg}").into()),
         }
     }
+    if workshop && !explicit_save {
+        save = data.join("greywrought/workshop.save");
+    }
     let (sender, receiver) = mpsc::sync_channel(32);
     let mailbox = Arc::new(Mutex::new(Mailbox {
-        status: "Gathering the company...".into(),
+        status: if workshop {
+            "Opening the workshop..."
+        } else {
+            "Gathering the company..."
+        }
+        .into(),
         ..default()
     }));
     let worker_mailbox = mailbox.clone();
@@ -113,7 +134,13 @@ fn main() -> native::Result<()> {
     let worker = thread::Builder::new()
         .name("greywrought-world".into())
         .spawn(move || {
-            let result = run_world(worker_root, save, receiver, worker_mailbox.clone());
+            let result = run_world(
+                worker_root,
+                save,
+                receiver,
+                worker_mailbox.clone(),
+                workshop,
+            );
             if let Err(error) = &result {
                 eprintln!("native session failed: {error}");
                 worker_mailbox.lock().unwrap().status =
@@ -122,6 +149,7 @@ fn main() -> native::Result<()> {
             result.map_err(|error| error.to_string())
         })?;
     App::new()
+        .insert_resource(Mode { workshop })
         .insert_resource(Bridge {
             sender: sender.clone(),
             mailbox,
@@ -161,7 +189,18 @@ fn main() -> native::Result<()> {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (receive, camera, controls, present, animate, hud, smoke).chain(),
+            (
+                receive,
+                camera,
+                controls,
+                workshop::controls,
+                present,
+                workshop::present,
+                animate,
+                hud,
+                smoke,
+            )
+                .chain(),
         )
         .run();
     let _ = sender.send(Request::Quit);
@@ -176,6 +215,7 @@ fn run_world(
     save: PathBuf,
     receiver: mpsc::Receiver<Request>,
     mailbox: Arc<Mutex<Mailbox>>,
+    workshop: bool,
 ) -> native::Result<()> {
     std::fs::create_dir_all(save.parent().ok_or("save needs parent directory")?)?;
     let lease = std::fs::OpenOptions::new()
@@ -187,9 +227,24 @@ fn run_world(
     lease
         .try_lock()
         .map_err(|_| "this saved company is already open in another window")?;
-    let source = std::fs::read(root.join("src/world/embodied-encounter.clause"))?;
+    let source = std::fs::read(root.join(if workshop {
+        "src/world/workshop-expedition.clause"
+    } else {
+        "src/world/embodied-encounter.clause"
+    }))?;
     let mut session = NativeSession::load(&save, &source)?;
-    let mut status = "Company ready".to_string();
+    if session.snapshot(0, String::new())?.workshop.is_some() != workshop {
+        return Err(
+            "save belongs to a different game mode; choose its mode or a different --save path"
+                .into(),
+        );
+    }
+    let mut status = if workshop {
+        "Workshop ready"
+    } else {
+        "Company ready"
+    }
+    .to_string();
     refresh_edit_catalog(&session, &mailbox)?;
     let publish = |session: &NativeSession, elapsed, status: &str| -> native::Result<()> {
         let snapshot = session.snapshot(elapsed, status.to_string())?;
@@ -312,7 +367,12 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     assets: Res<AssetServer>,
+    mode: Res<Mode>,
 ) {
+    if mode.workshop {
+        workshop::setup(&mut commands);
+        return;
+    }
     commands.spawn((
         Camera3d::default(),
         MainCamera,
@@ -515,6 +575,7 @@ fn controls(
             display.editing = false;
         }
     }
+    display.editor_handled_frame = editor_handled;
     if editor_handled {
         return;
     }
@@ -525,6 +586,9 @@ fn controls(
         return;
     };
     let generation = snapshot.generation;
+    if snapshot.workshop.is_some() {
+        return;
+    }
     let mut inputs = Vec::new();
     for (physical, binding) in [
         (KeyCode::Enter, "BeginEncounter"),
@@ -851,6 +915,10 @@ fn hud(display: Res<Displayed>, mut text: Query<&mut Text, With<Hud>>) {
         **text = display.status.clone();
         return;
     };
+    if snapshot.workshop.is_some() {
+        **text = String::new();
+        return;
+    }
     let company = snapshot
         .actors
         .iter()

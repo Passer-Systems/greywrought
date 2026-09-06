@@ -26,6 +26,7 @@ pub struct ActorView {
 
 #[derive(Clone, Debug)]
 pub struct Snapshot {
+    pub workshop: Option<WorkshopView>,
     pub generation: WasmSessionHandleV1,
     pub actors: Vec<ActorView>,
     pub scenarios: Vec<(String, String, ExecutableReferentV1)>,
@@ -35,6 +36,111 @@ pub struct Snapshot {
     pub ticks: u64,
     pub tick_millis: u128,
     pub status: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct ComponentView {
+    pub id: String,
+    pub label: String,
+    pub mounted: bool,
+    pub powered: bool,
+    pub linked: bool,
+    pub selected: bool,
+    pub upstream: Option<ExecutableReferentV1>,
+    pub pick: ExecutableReferentV1,
+    pub wire: Option<ExecutableReferentV1>,
+    pub readings: BTreeMap<String, f64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DoctrineView {
+    pub label: String,
+    pub reference: ExecutableReferentV1,
+    pub selected: bool,
+    pub heat_limit: f64,
+    pub reserve_floor: f64,
+}
+
+#[derive(Clone, Debug)]
+pub struct WorkshopView {
+    pub phase: String,
+    pub report: String,
+    pub readings: BTreeMap<String, f64>,
+    pub components: Vec<ComponentView>,
+    pub doctrines: Vec<DoctrineView>,
+}
+
+fn projected_reference(subject: &Term, name: &str) -> Option<ExecutableReferentV1> {
+    field(subject, name).and_then(|term| projected_referent_value_v1(term).ok().flatten())
+}
+
+fn workshop_view(projection: &Term) -> Option<WorkshopView> {
+    let (_, workshop) =
+        fields(projection).find(|(_, subject)| field(subject, "phase").is_some())?;
+    let selected = projected_reference(workshop, "selected");
+    let doctrine = projected_reference(workshop, "doctrine");
+    let mut components = Vec::new();
+    let mut doctrines = Vec::new();
+    for (id, subject) in fields(projection) {
+        if let Some(pick) = referent(projection, subject, "PickComponent") {
+            components.push(ComponentView {
+                id,
+                label: text_field(subject, "label"),
+                mounted: bool_field(subject, "mounted"),
+                powered: bool_field(subject, "powered"),
+                linked: bool_field(subject, "linked"),
+                selected: selected.as_ref() == Some(&pick),
+                upstream: projected_reference(subject, "upstream"),
+                wire: referent(projection, subject, "WireComponent"),
+                pick,
+                readings: [
+                    "health",
+                    "max-health",
+                    "mass",
+                    "generation",
+                    "thrust",
+                    "firepower",
+                    "cooling",
+                    "protection",
+                ]
+                .into_iter()
+                .map(|key| (key.into(), number_field(subject, key)))
+                .collect(),
+            });
+        }
+        if let Some(reference) = referent(projection, subject, "ChooseDoctrine") {
+            doctrines.push(DoctrineView {
+                label: text_field(subject, "doctrine-label"),
+                selected: doctrine.as_ref() == Some(&reference),
+                reference,
+                heat_limit: number_field(subject, "heat-limit"),
+                reserve_floor: number_field(subject, "reserve-floor"),
+            });
+        }
+    }
+    Some(WorkshopView {
+        phase: text_field(workshop, "phase"),
+        report: text_field(workshop, "report"),
+        readings: [
+            "position",
+            "heat",
+            "reserve",
+            "stock",
+            "cargo",
+            "threat-health",
+            "objective",
+            "total-mass",
+            "available-power",
+            "drive-power",
+            "weapon-power",
+            "cooling-power",
+        ]
+        .into_iter()
+        .map(|key| (key.into(), number_field(workshop, key)))
+        .collect(),
+        components,
+        doctrines,
+    })
 }
 
 pub struct NativeSession {
@@ -219,6 +325,7 @@ impl NativeSession {
             })
             .unwrap_or_default();
         Ok(Snapshot {
+            workshop: workshop_view(&projection),
             generation: self.workbench.generation().handle,
             actors,
             scenarios,
