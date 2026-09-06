@@ -1,5 +1,9 @@
 # Native desktop host
 
+The current outfitting/expedition experience and its measured limits are in
+`greywrought:docs/creature-experience.md`. The installed launcher opens that
+mode; the company controls and earlier measurements below remain historical.
+
 Build from the immutable Clause submodule:
 
 ```sh
