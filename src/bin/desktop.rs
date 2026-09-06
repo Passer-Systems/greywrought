@@ -203,6 +203,7 @@ fn main() -> native::Result<()> {
                 present,
                 workshop::present,
                 workshop::scene,
+                workshop::equipment,
                 animate,
                 hud,
                 smoke,
@@ -866,16 +867,20 @@ fn animate(
             }
             continue;
         }
-        let Some(view) = snapshot.actors.iter().find(|view| view.id == actor.id) else {
-            continue;
-        };
-        let model = match view.kind.as_str() {
-            "Warrior" => "Knight_Golden_Female",
-            "Artificer" => "Worker_Female",
-            "Rogue" => "Ninja_Female",
-            "Priest" => "Wizard",
-            "Ranger" => "Elf",
-            _ => continue,
+        let model = if snapshot.workshop.is_some() && actor.id == "wayfarer" {
+            "Worker_Female"
+        } else {
+            let Some(view) = snapshot.actors.iter().find(|view| view.id == actor.id) else {
+                continue;
+            };
+            match view.kind.as_str() {
+                "Warrior" => "Knight_Golden_Female",
+                "Artificer" => "Worker_Female",
+                "Rogue" => "Ninja_Female",
+                "Priest" => "Wizard",
+                "Ranger" => "Elf",
+                _ => continue,
+            }
         };
         let handle = retained.entry(model.to_string()).or_insert_with(|| {
             assets.load(format!("external/quaternius/rts-company/{model}.gltf"))

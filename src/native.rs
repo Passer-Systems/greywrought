@@ -47,9 +47,24 @@ pub struct ComponentView {
     pub linked: bool,
     pub selected: bool,
     pub upstream: Option<ExecutableReferentV1>,
+    pub attached_to: Option<ExecutableReferentV1>,
+    pub accepted_kind: Option<ExecutableReferentV1>,
+    pub available_fit: Vec<ExecutableReferentV1>,
     pub pick: ExecutableReferentV1,
     pub wire: Option<ExecutableReferentV1>,
     pub readings: BTreeMap<String, f64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct BodyPartView {
+    pub id: String,
+    pub label: String,
+    pub owner: Option<ExecutableReferentV1>,
+    pub kind: Option<ExecutableReferentV1>,
+    pub health: f64,
+    pub maximum_health: f64,
+    pub capacity: f64,
+    pub fit: ExecutableReferentV1,
 }
 
 #[derive(Clone, Debug)]
@@ -65,6 +80,10 @@ pub struct DoctrineView {
 pub struct WorkshopView {
     pub phase: String,
     pub report: String,
+    pub fit_report: String,
+    pub creature_name: String,
+    pub creature_condition: f64,
+    pub body_parts: Vec<BodyPartView>,
     pub readings: BTreeMap<String, f64>,
     pub components: Vec<ComponentView>,
     pub doctrines: Vec<DoctrineView>,
@@ -74,14 +93,43 @@ fn projected_reference(subject: &Term, name: &str) -> Option<ExecutableReferentV
     field(subject, name).and_then(|term| projected_referent_value_v1(term).ok().flatten())
 }
 
+fn projected_references(term: &Term, output: &mut Vec<ExecutableReferentV1>) {
+    if let Some(triple) = term.as_triple() {
+        let [left, value, right] = triple.slots();
+        projected_references(left, output);
+        if let Ok(Some(reference)) = projected_referent_value_v1(value) {
+            output.push(reference);
+        }
+        projected_references(right, output);
+    }
+}
+
 fn workshop_view(projection: &Term) -> Option<WorkshopView> {
     let workshop = field(projection, "workshop")?;
     let selected = projected_reference(workshop, "selected");
     let doctrine = projected_reference(workshop, "doctrine");
     let mut components = Vec::new();
     let mut doctrines = Vec::new();
+    let mut body_parts = Vec::new();
+    let creature = field(projection, "wayfarer");
     for (id, subject) in fields(projection) {
+        if let Some(fit) = referent(projection, subject, "FitComponent") {
+            body_parts.push(BodyPartView {
+                id: id.clone(),
+                label: text_field(subject, "part-label"),
+                owner: projected_reference(subject, "part-owner"),
+                kind: projected_reference(subject, "part-kind"),
+                health: number_field(subject, "part-health"),
+                maximum_health: number_field(subject, "max-part-health"),
+                capacity: number_field(subject, "slot-capacity"),
+                fit,
+            });
+        }
         if let Some(pick) = referent(projection, subject, "PickComponent") {
+            let mut available_fit = Vec::new();
+            if let Some(term) = field(subject, "available-fit") {
+                projected_references(term, &mut available_fit);
+            }
             components.push(ComponentView {
                 id,
                 label: text_field(subject, "label"),
@@ -90,6 +138,9 @@ fn workshop_view(projection: &Term) -> Option<WorkshopView> {
                 linked: bool_field(subject, "linked"),
                 selected: selected.as_ref() == Some(&pick),
                 upstream: projected_reference(subject, "upstream"),
+                attached_to: projected_reference(subject, "attached-to"),
+                accepted_kind: projected_reference(subject, "accepted-kind"),
+                available_fit,
                 wire: referent(projection, subject, "WireComponent"),
                 pick,
                 readings: [
@@ -121,8 +172,17 @@ fn workshop_view(projection: &Term) -> Option<WorkshopView> {
     Some(WorkshopView {
         phase: text_field(workshop, "phase"),
         report: text_field(workshop, "report"),
+        fit_report: text_field(workshop, "fit-report"),
+        creature_name: creature
+            .map(|subject| text_field(subject, "creature-name"))
+            .unwrap_or_default(),
+        creature_condition: creature
+            .map(|subject| number_field(subject, "creature-condition"))
+            .unwrap_or_default(),
+        body_parts,
         readings: [
             "position",
+            "action",
             "encounter-position",
             "heat",
             "reserve",
