@@ -83,6 +83,136 @@ fn choose(session: &mut NativeSession, channel: &str, id: &str) {
     session.tick().unwrap();
 }
 
+fn equip(session: &mut NativeSession, component: &str, part: &str) {
+    choose(session, "PickComponent", component);
+    choose(session, "FitComponent", part);
+}
+
+fn attachment(world: &Term, component: &str) -> Option<clause_runtime::ExecutableReferentV1> {
+    field(subject(world, component), "attached-to")
+        .and_then(|value| projected_referent_value_v1(value).unwrap())
+}
+
+#[test]
+fn anatomical_fit_coverage_and_living_movement_are_authoritative() {
+    let source = std::str::from_utf8(SOURCE).unwrap();
+    let template = source
+        .split("\nhelmet\n")
+        .nth(1)
+        .unwrap()
+        .split("\nworkshop\n")
+        .next()
+        .unwrap();
+    let fixture = format!("{source}\nspare-helmet\n{template}\n");
+    let mut session = NativeSession::open(fixture.as_bytes()).unwrap();
+    choose(&mut session, "PickComponent", "helmet");
+    choose(&mut session, "FitComponent", "legs");
+    assert!(attachment(&projection(&session), "helmet").is_none());
+    assert_eq!(
+        text(&projection(&session), "workshop", "fit-report"),
+        "That equipment does not fit this body part."
+    );
+    choose(&mut session, "FitComponent", "head");
+    let fitted = projection(&session);
+    assert_eq!(
+        attachment(&fitted, "helmet"),
+        projected_referent_value_v1(field(subject(&fitted, "head"), "$referent").unwrap()).unwrap()
+    );
+    assert_eq!(number(&fitted, "workshop", "total-mass"), 27.0);
+    assert!(field(subject(&fitted, "helmet"), "mounted").is_some());
+    equip(&mut session, "spare-helmet", "head");
+    assert!(attachment(&projection(&session), "spare-helmet").is_none());
+    assert_eq!(
+        text(&projection(&session), "workshop", "fit-report"),
+        "That body part has no free attachment slot."
+    );
+    key(&mut session, "LaunchExpedition");
+    for _ in 0..1000 {
+        if number(&projection(&session), "legs", "part-health") < 100.0 {
+            break;
+        }
+        session.tick().unwrap();
+    }
+    let injured = projection(&session);
+    assert!(number(&injured, "legs", "part-health") < 100.0);
+    assert!(
+        number(&injured, "head", "part-health") > number(&injured, "legs", "part-health"),
+        "the helmet protects the head, not uncovered legs"
+    );
+    assert!(number(&injured, "wayfarer", "creature-condition") < 100.0);
+    let checkpoint = session.workbench.checkpoint_admitted().unwrap();
+    let reopened = clause_workbench::ResidentSourceWorkbenchV1::reopen(
+        session.workbench.exact_source(),
+        &checkpoint,
+    )
+    .unwrap();
+    let saved = reopened.project_current_world().unwrap();
+    assert_eq!(attachment(&saved, "helmet"), attachment(&injured, "helmet"));
+    assert_eq!(
+        number(&saved, "legs", "part-health"),
+        number(&injured, "legs", "part-health")
+    );
+    key(&mut session, "WithdrawExpedition");
+    for _ in 0..1000 {
+        if text(&projection(&session), "workshop", "phase") == "Returned" {
+            break;
+        }
+        session.tick().unwrap();
+    }
+    assert_eq!(text(&projection(&session), "workshop", "phase"), "Returned");
+    let worn = projection(&session);
+    key(&mut session, "RestCreature");
+    assert_eq!(
+        number(&projection(&session), "wayfarer", "creature-condition"),
+        100.0
+    );
+    assert_eq!(
+        number(&projection(&session), "helmet", "health"),
+        number(&worn, "helmet", "health")
+    );
+    assert_eq!(
+        number(&projection(&session), "workshop", "stock"),
+        number(&worn, "workshop", "stock")
+    );
+
+    let without_power = source.replace("  generation: 10.0\n", "  generation: 0.0\n");
+    let mut walker = NativeSession::open(without_power.as_bytes()).unwrap();
+    key(&mut walker, "LaunchExpedition");
+    let walking = projection(&walker);
+    assert_eq!(number(&walking, "workshop", "drive-power"), 0.0);
+    assert!(
+        number(&walking, "workshop", "position") > 0.0,
+        "a living creature walks without powered equipment"
+    );
+
+    let mut unladen = NativeSession::open(SOURCE).unwrap();
+    for component in ["ember-core", "drive", "lance", "cooler"] {
+        choose(&mut unladen, "PickComponent", component);
+        key(&mut unladen, "UnequipComponent");
+        let world = projection(&unladen);
+        assert!(attachment(&world, component).is_none());
+        assert!(field(subject(&world, component), "mounted").is_none());
+    }
+    key(&mut unladen, "LaunchExpedition");
+    let walking = projection(&unladen);
+    assert_eq!(number(&walking, "workshop", "total-mass"), 0.0);
+    assert!((number(&walking, "workshop", "position") - 1.4 * 0.016).abs() < 1e-12);
+
+    let exposed = source
+        .replace("  attached-to: back\n", "")
+        .replace("  attached-to: legs\n", "")
+        .replace("  attached-to: right-arm\n", "")
+        .replace("  phase: \"Workshop\"\n", "  phase: \"Expedition\"\n")
+        .replace("  position: 0.0\n", "  position: 8.0\n");
+    let mut exposed = NativeSession::open(exposed.as_bytes()).unwrap();
+    exposed.tick().unwrap();
+    let injured = projection(&exposed);
+    assert_eq!(number(&injured, "workshop", "total-mass"), 0.0);
+    for part in ["head", "torso", "back", "left-arm", "right-arm", "legs"] {
+        assert!(number(&injured, part, "part-health") < 100.0);
+    }
+}
+
 #[test]
 fn wiring_withdrawal_damage_repair_checkpoint_and_checked_edit() {
     let started = Instant::now();
@@ -96,11 +226,13 @@ fn wiring_withdrawal_damage_repair_checkpoint_and_checked_edit() {
         !powered(&disconnected, "lance"),
         "the lance loses its actual upstream supply"
     );
+    equip(&mut session, "lance", "left-arm");
+    assert!(!powered(&projection(&session), "lance"));
+    assert!(attachment(&projection(&session), "lance").is_some());
     choose(&mut session, "PickComponent", "lance");
     choose(&mut session, "WireComponent", "ember-core");
     assert!(powered(&projection(&session), "lance"));
-    choose(&mut session, "PickComponent", "auxiliary-core");
-    key(&mut session, "ToggleMount");
+    equip(&mut session, "auxiliary-core", "back");
     assert_eq!(
         number(&projection(&session), "workshop", "available-power"),
         16.0
@@ -194,12 +326,10 @@ struct Journey {
 fn expedition(armored: bool, auxiliary: bool, cooler: bool, doctrine: &str) -> Journey {
     let mut session = NativeSession::open(SOURCE).unwrap();
     if armored {
-        choose(&mut session, "PickComponent", "armor");
-        key(&mut session, "ToggleMount");
+        equip(&mut session, "armor", "torso");
     }
     if auxiliary {
-        choose(&mut session, "PickComponent", "auxiliary-core");
-        key(&mut session, "ToggleMount");
+        equip(&mut session, "auxiliary-core", "back");
     }
     if !cooler {
         choose(&mut session, "PickComponent", "cooler");
@@ -283,8 +413,8 @@ fn autonomous_expedition_returns_salvage_and_persistent_wear_then_redesign_chang
         number(&repaired, "workshop", "stock"),
         number(&first, "workshop", "stock") - (45.0 - number(&first, "lance", "health")) / 4.0
     );
-    choose(&mut cautious.session, "PickComponent", "armor");
-    key(&mut cautious.session, "ToggleMount");
+    key(&mut cautious.session, "RestCreature");
+    equip(&mut cautious.session, "armor", "torso");
     choose(&mut cautious.session, "ChooseDoctrine", "assault");
     key(&mut cautious.session, "LaunchExpedition");
     let relaunched = projection(&cautious.session);
@@ -299,7 +429,7 @@ fn autonomous_expedition_returns_salvage_and_persistent_wear_then_redesign_chang
     );
     assert!(
         number(&relaunched, "workshop", "position") < cautious.departure_position,
-        "mounting armor slows the same machine's departure"
+        "fitting torso armor slows the rested wayfarer's departure"
     );
     eprintln!(
         "workshop journey elapsed {:?}; cautious ticks={} cooling={} heat={:.2} lance={:.2}; same-build assault ticks={} cooling={} heat={:.2} lance={:.2}",
