@@ -12,6 +12,7 @@ import {
 const classes: readonly UnitClass[] = ["Warrior", "Artificer", "Rogue", "Priest", "Ranger"];
 const searchParameters = new URLSearchParams(window.location.search);
 const measurementEnabled = searchParameters.get("measure") === "1";
+const performanceProfileEnabled = searchParameters.get("profile") === "1";
 const maximumMeasurementEvents = 4096;
 
 interface GenerationPayload {
@@ -858,6 +859,22 @@ function bindResident(state: GameState): void {
             workerEpochMillis: payload.workerSentEpochMillis,
           });
         }
+      } else if (kind === "performance-profile") {
+        if (
+          (payload.boundary === "candidate" || payload.boundary === "source-edit") &&
+          typeof payload.wallMillis === "number" &&
+          typeof payload.workerSentEpochMillis === "number"
+        ) {
+          measure({
+            metric: "runtime-profile",
+            boundary: payload.boundary,
+            generation: payload.generation,
+            wallMillis: payload.wallMillis,
+            runtime: payload.runtime,
+            outer: payload.outer,
+            workerEpochMillis: payload.workerSentEpochMillis,
+          });
+        }
       } else if (kind === "heartbeat") {
         if (typeof payload.workbenchPhase === "string") document.body.dataset.workbenchPhase = payload.workbenchPhase;
       } else if (kind === "edit-fenced") {
@@ -1420,7 +1437,7 @@ function start(preferredScenarioId: string | null = null): GameState {
     animationFrameHandle = window.requestAnimationFrame(sampleAnimationFrame);
   }
   const resident: ResidentState = {
-    worker: new Worker(`${publicUrl("app/greywrought-clause/resident-worker.js")}${measurementEnabled ? "?measure=1" : ""}`, { type: "module", name: "greywrought-rts-resident" }),
+    worker: new Worker(`${publicUrl("app/greywrought-clause/resident-worker.js")}${measurementEnabled ? `?measure=1${performanceProfileEnabled ? "&profile=1" : ""}` : ""}`, { type: "module", name: "greywrought-rts-resident" }),
     generation: -1,
     polling: false,
     staticGeneration: false,

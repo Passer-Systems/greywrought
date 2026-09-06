@@ -10,6 +10,33 @@ fn main() -> native::Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let proof = root.join("build/native-proof");
     fs::create_dir_all(&proof)?;
+    if let Some(saved_path) = std::env::args_os().nth(1) {
+        let saved_path = PathBuf::from(saved_path);
+        if !fs::metadata(&saved_path)?.is_file() {
+            return Err("saved-world probe requires an existing file".into());
+        }
+        let mut restored = NativeSession::load(&saved_path, EMBODIED_SOURCE)?;
+        let projection = restored.workbench.project_current_world()?;
+        let source = restored.workbench.exact_source().to_vec();
+        let continuity = restored.workbench.source_continuity()?;
+        let copy = proof.join(format!("restored-{}.save", std::process::id()));
+        restored.save(&copy)?;
+        drop(restored);
+        restored = NativeSession::load(&copy, EMBODIED_SOURCE)?;
+        assert_eq!(restored.workbench.project_current_world()?, projection);
+        assert_eq!(restored.workbench.exact_source(), source);
+        assert_eq!(restored.workbench.source_continuity()?, continuity);
+        if let Some(replacement) = std::env::args().nth(2) {
+            let effects = restored.workbench.scalar_effects()?;
+            println!("saved-world edit: catalog 0; prior {:?}; replacement {replacement:?}", effects.first());
+            restored.edit(restored.workbench.generation().handle, 0, replacement.as_bytes())?;
+        }
+        let (input, value) = native::key("SelectAll");
+        restored.input(restored.workbench.generation().handle, input, value)?;
+        restored.tick()?;
+        restored.save(&copy)?;
+        println!("prior saved world reopened; exact admitted projection, source and continuity retained; continued input and tick; save {}", copy.display());
+    }
     let mut session = NativeSession::open(EMBODIED_SOURCE)?;
     let initial = session.snapshot(0, String::new())?;
     assert_eq!(

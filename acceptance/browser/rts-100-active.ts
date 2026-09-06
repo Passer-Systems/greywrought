@@ -4,9 +4,14 @@ const runStartedMillis = performance.now();
 const chromePath = Bun.env.CHROME_PATH ?? "google-chrome";
 const debugPort = 9262;
 const gamePort = 4196;
-const gameUrl = `http://127.0.0.1:${gamePort}/?measure=1`;
+const profileOnly = Bun.argv.includes("--profile");
+const gameUrl = `http://127.0.0.1:${gamePort}/?measure=1${profileOnly ? "&profile=1" : ""}`;
 const fixture = "build/measurement/100-active-source.clause";
-const output = "build/measurement/100-active.json";
+const candidateOnly = Bun.argv.includes("--candidate-only");
+requireCondition(!candidateOnly || profileOnly, "--candidate-only requires --profile");
+const output = profileOnly
+  ? "build/measurement/100-active-profile.json"
+  : "build/measurement/100-active.json";
 const windowMillis = 2_500;
 const rendererMode = "hardware";
 const rendererFlags = ["--enable-gpu"];
@@ -204,7 +209,17 @@ try {
     }});
   };
 
-  await observe("100-active-movement-and-cooldown");
+  const candidateProfiles: Array<Record<string, unknown>> = [];
+  if (profileOnly) {
+    await evaluate("window.__GREYWROUGHT_MEASUREMENTS__.length=0");
+    candidateProfiles.push(await waitFor<Record<string, unknown>>(
+      `window.__GREYWROUGHT_MEASUREMENTS__.find(event=>event.metric==='runtime-profile'&&event.boundary==='candidate') || {}`,
+      (value) => value.boundary === "candidate" && typeof value.wallMillis === "number",
+      "100-actor candidate profile",
+    ));
+  } else {
+    await observe("100-active-movement-and-cooldown");
+  }
 
   await evaluate(`(() => {
     const catalog=document.getElementById('scalar-effect-catalog');
@@ -213,7 +228,12 @@ try {
     catalog.value=option.value; catalog.dispatchEvent(new Event('change'));
   })()`);
   const edits: Array<Record<string, unknown>> = [];
-  for (const expression of ["?cooldown - (?dt * 2.0)", "?cooldown - ?dt", "?cooldown - (?dt * 2.0)"]) {
+  const editExpressions = candidateOnly
+    ? []
+    : profileOnly
+    ? ["?cooldown - (?dt * 2.0)"]
+    : ["?cooldown - (?dt * 2.0)", "?cooldown - ?dt", "?cooldown - (?dt * 2.0)"];
+  for (const expression of editExpressions) {
     const beforeProjection = await projection();
     await evaluate("window.__GREYWROUGHT_MEASUREMENTS__.length=0");
     const before = await evaluate<Record<string, unknown>>(`({
@@ -227,7 +247,7 @@ try {
       `(window.__GREYWROUGHT_GAME_EVENTS__||[]).findLast(e=>e.phase==='live-edit-visible'&&e.generation>${Number(before.generation)}) || {}`,
       (value) => Number.isFinite(value.elapsedMillis),
       `visible edit ${expression}`,
-      800,
+      profileOnly ? 2_000 : 800,
     );
     const afterProjection = await projection();
     const formations = Object.values(visible.continuity?.formations ?? {})
@@ -249,32 +269,49 @@ try {
   const cgroupRoot = `/sys/fs/cgroup${cgroupPath}`;
   const readLimit = async (name: string) => (await Bun.file(`${cgroupRoot}/${name}`).exists())
     ? (await Bun.file(`${cgroupRoot}/${name}`).text()).trim() : "unavailable";
-  const summary = rawWindows[0]!.summary as Record<string, any>;
-  const verdict = {
-    activeActors: summary.projectedUnits === 100 && summary.activeUnits === 100 && summary.movingUnits === 100,
-    rendering: summary.observedFps >= 59 && summary.rafIntervalsMillis.p95 <= 20,
-    realTime: summary.measuredSourceSecondsPerWallSecond.median >= 0.95 && summary.measuredSourceSecondsPerWallSecond.median <= 1.05,
-    checkedEdits: edits.every(edit => Number(edit.clickToVisibleMillis) <= 250 &&
-      (edit.identityProof as Array<{carried: boolean}>).length === 100 &&
-      (edit.identityProof as Array<{carried: boolean}>).every(actor => actor.carried)),
-  };
-  const artifact = {
-    schema: "greywrought-100-active-v1",
-    durationMillis: performance.now() - runStartedMillis,
-    recordedAt: new Date().toISOString(),
-    conditions: { browser, fixedTickMillis: 16, renderAspirationMillis: 16.67, warmupMillis: 1_000, windowMillis,
-      rendererMode, rendererFlags, clausePin: CLAUSE_COMMIT, baseCommit: "5bdc0e83458a52764285a40a005f35b595ec3d8e",
-      fixture, sourceSha256: new Bun.CryptoHasher("sha256").update(source).digest("hex"), sourceCheckResult },
-    cgroup: { path: cgroupPath, cpuMax: await readLimit("cpu.max"), memoryHigh: await readLimit("memory.high"), memoryMax: await readLimit("memory.max"), pidsMax: await readLimit("pids.max") },
-    windows: rawWindows,
-    edits,
-    verdict,
-  };
-  await Bun.write(output, `${JSON.stringify(artifact, null, 2)}\n`);
-  console.log(JSON.stringify({ output, windows: rawWindows.map((window) => ({ label: window.label, summary: window.summary })),
-    edits: edits.map(edit => ({ expression: edit.expression, clickToVisibleMillis: edit.clickToVisibleMillis,
-      nativeCompilerMillis: edit.nativeCompilerMillis, wasmTransferMillis: edit.wasmTransferMillis })), verdict }, null, 2));
-  requireCondition(Object.values(verdict).every(Boolean), "100-active combined performance threshold failed; samples retained");
+  const conditions = { browser, fixedTickMillis: 16, renderAspirationMillis: 16.67, warmupMillis: 1_000, windowMillis,
+    rendererMode, rendererFlags, clausePin: CLAUSE_COMMIT,
+    baseCommit: profileOnly ? "9236c1c797820c46ebab2e60cb96a4255fab73c5" : "5bdc0e83458a52764285a40a005f35b595ec3d8e",
+    fixture, sourceSha256: new Bun.CryptoHasher("sha256").update(source).digest("hex"), sourceCheckResult };
+  const cgroup = { path: cgroupPath, cpuMax: await readLimit("cpu.max"), memoryHigh: await readLimit("memory.high"),
+    memoryMax: await readLimit("memory.max"), pidsMax: await readLimit("pids.max") };
+  if (profileOnly) {
+    const editProfiles = edits.flatMap((edit) => (edit.events as Array<Record<string, unknown>>)
+      .filter((event) => event.metric === "runtime-profile"));
+    requireCondition(candidateProfiles.length === 1, "100-actor candidate profile was not retained");
+    if (!candidateOnly) {
+      requireCondition(editProfiles.some((profile) => profile.boundary === "source-edit"),
+        "100-actor source-edit profile was not retained");
+      requireCondition(edits.every((edit) =>
+        (edit.identityProof as Array<{carried: boolean}>).length === 100 &&
+        (edit.identityProof as Array<{carried: boolean}>).every((actor) => actor.carried)),
+      "100-actor source-edit profile lost identity continuity");
+    }
+    const artifact = { schema: "greywrought-100-active-profile-v1", durationMillis: performance.now() - runStartedMillis,
+      recordedAt: new Date().toISOString(), conditions, cgroup, candidateProfiles, edits };
+    await Bun.write(output, `${JSON.stringify(artifact, null, 2)}\n`);
+    console.log(JSON.stringify({ output, candidateProfiles, edits: edits.map((edit) => ({ expression: edit.expression,
+      clickToVisibleMillis: edit.clickToVisibleMillis, nativeCompilerMillis: edit.nativeCompilerMillis,
+      wasmTransferMillis: edit.wasmTransferMillis,
+      profiles: (edit.events as Array<Record<string, unknown>>).filter((event) => event.metric === "runtime-profile") })) }, null, 2));
+  } else {
+    const summary = rawWindows[0]!.summary as Record<string, any>;
+    const verdict = {
+      activeActors: summary.projectedUnits === 100 && summary.activeUnits === 100 && summary.movingUnits === 100,
+      rendering: summary.observedFps >= 59 && summary.rafIntervalsMillis.p95 <= 20,
+      realTime: summary.measuredSourceSecondsPerWallSecond.median >= 0.95 && summary.measuredSourceSecondsPerWallSecond.median <= 1.05,
+      checkedEdits: edits.every(edit => Number(edit.clickToVisibleMillis) <= 250 &&
+        (edit.identityProof as Array<{carried: boolean}>).length === 100 &&
+        (edit.identityProof as Array<{carried: boolean}>).every(actor => actor.carried)),
+    };
+    const artifact = { schema: "greywrought-100-active-v1", durationMillis: performance.now() - runStartedMillis,
+      recordedAt: new Date().toISOString(), conditions, cgroup, windows: rawWindows, edits, verdict };
+    await Bun.write(output, `${JSON.stringify(artifact, null, 2)}\n`);
+    console.log(JSON.stringify({ output, windows: rawWindows.map((window) => ({ label: window.label, summary: window.summary })),
+      edits: edits.map(edit => ({ expression: edit.expression, clickToVisibleMillis: edit.clickToVisibleMillis,
+        nativeCompilerMillis: edit.nativeCompilerMillis, wasmTransferMillis: edit.wasmTransferMillis })), verdict }, null, 2));
+    requireCondition(Object.values(verdict).every(Boolean), "100-active combined performance threshold failed; samples retained");
+  }
 } catch (error) {
   await Bun.write("build/measurement/100-active-failure.json", JSON.stringify({ error: String(error),
     snapshot: await diagnosticSnapshot?.().catch(snapshotError => ({ error: String(snapshotError) })) }, null, 2));

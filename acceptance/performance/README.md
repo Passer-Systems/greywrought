@@ -54,3 +54,81 @@ ignored, so this summary is the tracked evidence. The run required generic Claus
 repairs for projection capacity, session envelopes, CET1 transport, and the
 complete 2,335,143-byte continuity map; none of the acceptance thresholds or the
 100-member fixture was weakened.
+
+## Performance-reuse integration, 2026-09-06
+
+The integration consumes immutable Clause commit
+`370734d16827eea26544a2616d9275d977a07670` and Wasm SHA-256
+`d40349190b1f59308e6ea3e859142e3624ea24bb96ea40b95ad3f098af112154`,
+on Greywrought parent `08579816fdede04541915609a4e59915a4c11f72`.
+The profile records reusable-definitions base
+`9236c1c797820c46ebab2e60cb96a4255fab73c5`.
+
+### Candidate-only evidence is not the combined gate
+
+The retained historical matched pair measured **2,521.4 → 1,325.5 ms** per
+candidate: 1,195.9 ms (47.43%) less elapsed time. The previously reported
+2,567.0 ms before value is an unretained console observation, not the baseline
+used for this calculation. The raw pair is retained at
+`~/code/greywrought/worktrees/perf-attribution-sol-20260906/build/measurement/100-active-profile-first-pass.json`
+and
+`~/code/greywrought/worktrees/perf-attribution-sol-20260906/build/measurement/100-active-profile.json`.
+Both record Chrome 152, AMD Radeon 890M/ANGLE, 1280×900 DPR 1, hardware rendering,
+six CPUs and an 8 GiB memory-high scope, a 16 ms tick, 1,000 ms warmup, and fixture
+SHA-256 `66b5e11e264edf4011665b25e91a3ca01c8922a84806777c53cc0e70cfcdc9ac`.
+Both retained files label Clause pin `e8a385f7d699226320da9369cd2761603de53641`
+and Greywrought base `a27abec0cc313bd57064e4ebef14c4f3c0336e41`; those labels
+do not independently identify the historical treatment build. This is a
+single-sample comparison, not a statistical or end-to-end acceptance result.
+
+The newly integrated `--profile --candidate-only` run passed its profile-capture
+check and recorded **1,872.5 ms** candidate wall time, with 22,350.6 ms from
+driver start to artifact and 8,047.5 ms for source admission. Its hardware,
+viewport, tick, warmup, and capacity limits match the above, but its source
+SHA-256 is `55ad8c51649933c8fbb2f3f6e133b5d470a021090bba4d44075826cf6128e949`
+and its pin is the new immutable commit. It is therefore not a matched causal
+comparison with the earlier fixture. No checked edits run in candidate-only mode.
+The raw profile is retained at
+`~/code/greywrought/worktrees/perf-reuse-integration-20260906/build/measurement/100-active-profile.json`.
+
+The initial candidate attempt stopped before the browser journey because the
+lane lacked its native resident executable. Building that prerequisite with
+Rust 1.96.1 took 1m 33s; unchanged Wasm and host build gates were not rerun.
+The prerequisite failure and command logs remain in the lane's ignored
+`greywrought:build/measurement/` output. No performance threshold was changed.
+
+### One new full hardware journey
+
+The full run completed in **76,137.4 ms** to its artifact and failed all four
+combined gates. Source admission passed in 8,713.7 ms. The actual observation
+window lasted 2,533 ms, with 100 projected actors and 100 advancing cooldowns,
+but only 98 moving positions. Rendering measured **4.737 FPS** with a **916.7 ms**
+frame-interval p95. Median source-seconds per wall-second was **0.0063166**.
+One admission took 101.8 ms; no complete candidate request/production pair fell
+inside this window, so it supplies no candidate-runtime duration sample.
+
+| Checked edit | Visible latency | Native compiler | Wasm transfer | Carried identities |
+| --- | ---: | ---: | ---: | ---: |
+| Double cooldown advance | 18,784.9 ms | 7,816.8 ms | 6,915.0 ms | 100/100 |
+| Restore cooldown advance | 16,478.3 ms | 6,351.3 ms | 6,105.6 ms | 100/100 |
+| Double cooldown advance again | 14,383.6 ms | 5,249.9 ms | 5,530.5 ms | 100/100 |
+
+Continuity passed independently on all three edits; their latency did not meet
+250 ms. The 100-moving-actor, 60-FPS aspiration (existing ≥59 FPS/p95 ≤20 ms
+gate), real-time ±5%, and edit-latency requirements remain unchanged and unmet.
+This is evidence of a remaining performance boundary, not completed 100-actor
+acceptance or a workaround for it.
+
+This run used the same integrated fixture, hardware, and six-CPU/8 GiB scope
+as the candidate run. Admission also recorded another heavy lease; resource
+contention was not isolated or diagnosed. The full driver's historical
+`baseCommit` label remains `5bdc0e83458a52764285a40a005f35b595ec3d8e`; the actual
+integration parent and pin are recorded above. No second full journey was run.
+Raw evidence and its failure snapshot remain at
+`~/code/greywrought/worktrees/perf-reuse-integration-20260906/build/measurement/100-active.json`
+and
+`~/code/greywrought/worktrees/perf-reuse-integration-20260906/build/measurement/100-active-failure.json`.
+These ignored artifacts and the candidate/full command logs are retained; this
+tracked summary is not a claim that raw measurements are published with Git.
+The driver's transient browser/server exited, its capacity leases were released,
+and ports 4196/9262 were free afterward. No live play service was changed.
