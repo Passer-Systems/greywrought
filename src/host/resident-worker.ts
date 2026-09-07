@@ -120,6 +120,7 @@ type ResidentEvent =
       workbenchGeneration: number;
       projection: ProjectedValue;
       frameUnits: number;
+      decodeMillis?: number;
       workerSentEpochMillis?: number;
     }>
   | Readonly<{
@@ -129,6 +130,7 @@ type ResidentEvent =
       elapsedMillis: number;
       compilerMillis: number;
       continuity: ProjectedValue;
+      continuityMillis?: number;
     }>
   | Readonly<{
       kind: "diagnostic";
@@ -220,6 +222,7 @@ let activeWorkbenchGeneration = -1;
 let pendingExternalGeneration: number | null = null;
 let liveSession: unknown = null;
 let pendingEdit: GenerationPayload | null = null;
+let pendingEditRequest: ReturnType<typeof decodeProcessRequestHex> | null = null;
 let pendingEditStarted = 0;
 let currentEntries: Readonly<{ attack: number; heal: number }> | null = null;
 let sourceEditFence = false;
@@ -348,13 +351,18 @@ function handleReceipt(receipt: LifecycleReceipt): void {
     if (pendingEdit !== null && liveSession !== null) {
       const payload = pendingEdit;
       pendingEdit = null;
+      pendingEditRequest = null;
+      const elapsedMillis = performance.now() - pendingEditStarted;
+      const continuityStarted = measurementEnabled ? performance.now() : 0;
+      const continuity = sourceContinuity(clauseRuntime, liveSession);
       workerScope.postMessage({
         kind: "live-edit",
         generation: activeExternalGeneration,
         workbenchGeneration: activeWorkbenchGeneration,
-        elapsedMillis: performance.now() - pendingEditStarted,
+        elapsedMillis,
         compilerMillis: payload.compilerMicros / 1_000,
-        continuity: sourceContinuity(clauseRuntime, liveSession),
+        continuity,
+        ...(measurementEnabled ? { continuityMillis: performance.now() - continuityStarted } : {}),
       });
       currentEntries = payload.entries;
       sourceEditFence = false;
@@ -413,6 +421,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
   if (disposed) return;
   const module = await modulePromise;
   const request = decodeProcessRequestHex(payload.cwr1);
+  if (pendingEdit !== null) pendingEditRequest = request;
   pendingExternalGeneration = payload.generation;
   if (pendingEdit === null) {
     if (payload.scalarEffects.length > 0 && payload.sourcePreparation === null) {
@@ -427,7 +436,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
       (acceptedPackage, generation, complete) => {
         if (pendingEdit !== null) {
           const edit = pendingEdit;
-          if (liveSession === null || edit.cet1 === null) {
+          if (liveSession === null || edit.cet1 === null || pendingEditRequest === null) {
             throw new Error("live source edit omitted captured session or CET1");
           }
           const profileStarted = beginRuntimeProfile();
@@ -442,7 +451,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
                 module,
                 liveSession,
                 generation,
-                decodeProcessRequestHex(edit.cwr1),
+                pendingEditRequest,
                 decodeCet1Hex(edit.cet1),
                 policy,
               );
@@ -543,11 +552,15 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
             throw new Error("resident projection omitted its workbench generation");
           }
           activeWorkbenchGeneration = workbenchGeneration;
+          const decodeStarted = measurementEnabled ? performance.now() : 0;
+          const projection = decodeProjectedTermFrame(exact);
+          const decodeMillis = measurementEnabled ? performance.now() - decodeStarted : undefined;
           workerScope.postMessage({
             kind: "projection",
             generation: activeExternalGeneration,
             workbenchGeneration,
-            projection: decodeProjectedTermFrame(exact),
+            projection,
+            ...(decodeMillis === undefined ? {} : { decodeMillis }),
             frameUnits: exact.length,
             ...(measurementEnabled ? { workerSentEpochMillis: workerEpochMillis() } : {}),
           });
@@ -604,6 +617,7 @@ async function installEdit(payload: GenerationPayload): Promise<void> {
     await installGeneration(payload);
   } catch (cause) {
     pendingEdit = null;
+    pendingEditRequest = null;
     throw cause;
   }
 }

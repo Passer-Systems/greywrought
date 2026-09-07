@@ -828,6 +828,9 @@ function bindResident(state: GameState): void {
             workbenchGeneration,
           });
         }
+        if (typeof payload.decodeMillis === "number") {
+          measure({ metric: "projection-decode", durationMillis: payload.decodeMillis, generation, workbenchGeneration });
+        }
         applyProjection(state, payload.projection, generation, workbenchGeneration);
       } else if (kind === "receipt") {
         const receipt = record(payload.receipt, "resident receipt");
@@ -894,6 +897,9 @@ function bindResident(state: GameState): void {
           typeof payload.compilerMillis !== "number"
         ) return;
         state.resident.workbenchGeneration = payload.workbenchGeneration;
+        if (typeof payload.continuityMillis === "number") {
+          measure({ metric: "source-continuity", durationMillis: payload.continuityMillis, generation: payload.generation });
+        }
         state.resident.pendingVisibleEdit = {
           startedMillis: state.resident.editStartedMillis,
           runtimeMillis: payload.elapsedMillis,
