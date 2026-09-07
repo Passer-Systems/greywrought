@@ -3,6 +3,7 @@ export interface PartyAttackUnit {
   readonly selected: boolean;
   readonly alive: boolean;
   readonly vitality: number;
+  readonly maximumVitality: number;
   readonly x: number;
   readonly z: number;
   readonly attackDamage: number;
@@ -45,7 +46,9 @@ export function conventionalPartyAttack(fixture: PartyAttackFixture): PartyAttac
   const contributors = fixture.units.filter((unit) => eligible(fixture, unit));
   // Clause evaluates every eligible rule against pre-state, canonicalizes all
   // finite F64 deltas with f64::total_cmp, then folds them into the prior value.
-  const deltas = contributors.map((unit) => 0 - unit.attackDamage).sort((left, right) => left - right);
+  const deltas = contributors.map((unit) => 0 - (
+    unit.vitality < unit.maximumVitality / 2 ? unit.attackDamage / 2 : unit.attackDamage
+  )).sort((left, right) => left - right);
   const targetVitality = deltas.reduce((value, delta) => value + delta, fixture.target.vitality);
   const accumulatedDamage = fixture.target.vitality - targetVitality;
   const contributorIds = contributors.map((unit) => unit.id).sort();

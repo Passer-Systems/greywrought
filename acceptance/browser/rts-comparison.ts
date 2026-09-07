@@ -179,6 +179,7 @@ function exactPartyAttack(explanationValue: unknown, expectedTarget: string, exp
       selected: beforeBoolean(id, "selected"),
       alive: beforeBoolean(id, "alive"),
       vitality: beforeNumber(id, "vitality"),
+      maximumVitality: beforeNumber(id, "maximum-vitality"),
       x: position.x,
       z: position.z,
       attackDamage: beforeNumber(id, "attack-damage"),
@@ -189,8 +190,9 @@ function exactPartyAttack(explanationValue: unknown, expectedTarget: string, exp
   });
   for (const contributor of contributors) {
     const unit = units.find((candidate) => candidate.id === contributor.unitId)!;
-    requireCondition(Object.is(contributor.delta, 0 - unit.attackDamage),
-      `${contributor.unitId} recorded delta ${contributor.delta} differed from source damage ${unit.attackDamage}`);
+    const damage = unit.vitality < unit.maximumVitality / 2 ? unit.attackDamage / 2 : unit.attackDamage;
+    requireCondition(Object.is(contributor.delta, 0 - damage),
+      `${contributor.unitId} recorded delta ${contributor.delta} differed from source damage ${damage}`);
   }
   const fixture: PartyAttackFixture = {
     encounterActive: subjectId(guardReferences.encounterState) === "active",
