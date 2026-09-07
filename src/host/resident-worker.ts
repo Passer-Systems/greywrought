@@ -1,10 +1,9 @@
 import {
-  "->ExactProcessRequest" as createExactProcessRequest,
+  decodeProcessRequestHex,
   "create-wasm-cartridge-port" as createWasmCartridgePort,
   "cse1-projected-term-json-max-source-units" as projectedTermJsonLimit,
   "cse1-projected-term-max-properties" as projectedTermPropertyLimit,
   "decode-cet1-hex" as decodeCet1Hex,
-  "decode-cwr1-hex" as decodeCwr1Hex,
   "decode-projected-term-frame" as decodeProjectedTermFrame,
   editSourceSession,
   prepareSourceSession,
@@ -413,7 +412,7 @@ function exactFrame(frame: WorkbenchEnvelope): string | readonly number[] {
 async function installGeneration(payload: GenerationPayload): Promise<void> {
   if (disposed) return;
   const module = await modulePromise;
-  const request = createExactProcessRequest(decodeCwr1Hex(payload.cwr1));
+  const request = decodeProcessRequestHex(payload.cwr1);
   pendingExternalGeneration = payload.generation;
   if (pendingEdit === null) {
     if (payload.scalarEffects.length > 0 && payload.sourcePreparation === null) {
@@ -443,7 +442,7 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
                 module,
                 liveSession,
                 generation,
-                createExactProcessRequest(decodeCwr1Hex(edit.cwr1)),
+                decodeProcessRequestHex(edit.cwr1),
                 decodeCet1Hex(edit.cet1),
                 policy,
               );
