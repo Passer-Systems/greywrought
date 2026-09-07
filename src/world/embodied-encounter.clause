@@ -1366,7 +1366,7 @@ law closest-projection
     step ?dx ?dz toward relative point ?px ?pz projects if(?dx * ?dx + ?dz * ?dz > 0.0, (?px * ?dx + ?pz * ?dz) / (?dx * ?dx + ?dz * ?dz), 0.0)
 law swept-distance
   then
-    step ?dx ?dz past relative point ?px ?pz radius ?radius along ?along blocked ((?along * ?dx - ?px) * (?along * ?dx - ?px) + (?along * ?dz - ?pz) * (?along * ?dz - ?pz) < ?radius * ?radius)
+    step ?dx ?dz past relative point ?px ?pz radius ?radius along ?along blocked if(?px * ?px + ?pz * ?pz < ?radius * ?radius, ?px * ?dx + ?pz * ?dz > 0.0, (?along * ?dx - ?px) * (?along * ?dx - ?px) + (?along * ?dz - ?pz) * (?along * ?dz - ?pz) < ?radius * ?radius)
 law choose-travel
   then
     paths forward ?forward right ?right left ?left choose if(?forward <= 0.0, 0.0, if(?right <= 0.0, 1.0, if(?left <= 0.0, -1.0, 2.0)))

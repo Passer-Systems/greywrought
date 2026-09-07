@@ -501,6 +501,49 @@ fn travel_fixture(units: &[(&str, [f64; 2], [f64; 2])]) -> Vec<u8> {
 }
 
 #[test]
+fn travel_escapes_company_initial_overlap_without_deeper_penetration() {
+    let company = include_str!("../acceptance/performance/company-100.clause");
+    let mut source = std::str::from_utf8(EMBODIED_SOURCE).unwrap().to_owned();
+    let declared_company = format!("{source}\n{company}");
+    let parsed = clause_package::read_canonical_source_v1(declared_company.as_bytes()).unwrap();
+    for focus in parsed.subject_focuses().iter().filter(|focus|
+        focus.subject == b"company-92" || focus.subject == b"company-93") {
+        source.push('\n');
+        source.push_str(&declared_company[focus.origin.start as usize..focus.origin.end as usize]);
+        source.push('\n');
+    }
+    let mut s = session_for(source.as_bytes());
+    let mut previous = [[-7.0, 3.0], [-5.0, 3.0]];
+    for tick in 0..20 {
+        let frame = admit_tick(&mut s);
+        for (index, id) in [b"company-92", b"company-93"].into_iter().enumerate() {
+            let p = unit_position(&frame, id);
+            let delta = [p[0] - previous[index][0], p[2] - previous[index][1]];
+            let relative = [previous[index][0] + 6.0, previous[index][1] - 4.0];
+            let distance_squared = relative[0] * relative[0] + relative[1] * relative[1];
+            let speed = actor_number(&frame, id, b"movement-speed");
+            assert!(delta[0].hypot(delta[1]) <= speed * 0.016 + 1e-10);
+            if distance_squared < 1.8 * 1.8 {
+                assert!(relative[0] * delta[0] + relative[1] * delta[1] >= -1e-10,
+                    "tick {tick} deepened initial penetration for {id:?}");
+                assert!((p[0] + 6.0).hypot(p[2] - 4.0) > distance_squared.sqrt(),
+                    "tick {tick} failed to escape initial penetration for {id:?}");
+            } else {
+                let norm = delta[0] * delta[0] + delta[1] * delta[1];
+                let along = if norm == 0.0 { 0.0 } else {
+                    (-(relative[0] * delta[0] + relative[1] * delta[1]) / norm).clamp(0.0, 1.0)
+                };
+                assert!((relative[0] + along * delta[0]).hypot(relative[1] + along * delta[1]) >= 1.8 - 1e-10,
+                    "tick {tick} re-entered the stone for {id:?}");
+            }
+            previous[index] = [p[0], p[2]];
+        }
+        assert!((previous[0][0] - previous[1][0]).hypot(previous[0][1] - previous[1][1]) >= 1.2);
+    }
+    assert!(previous.into_iter().all(|p| (p[0] + 6.0).hypot(p[1] - 4.0) >= 1.8));
+}
+
+#[test]
 fn travel_avoids_stationary_units_head_on_crossings_and_the_stone() {
     for (name, units) in [
         ("stationary", vec![("warrior-1", [-4.0, -4.0], [2.0, -4.0]), ("artificer-1", [-1.0, -4.0], [-1.0, -4.0])]),
