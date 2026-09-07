@@ -1439,6 +1439,7 @@ on party-attack ?unit
     encounter encounter state ?state
     ?unit selected ?is-selected
     ?unit vitality ?unit-health
+    ?unit maximum vitality ?unit-maximum
     ?unit alive ?is-alive
     ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
     ?unit attack damage ?damage
@@ -1456,7 +1457,7 @@ on party-attack ?unit
   include
     ?unit action cooldown ?period
   accumulate
-    ?target vitality 0.0 - ?damage
+    ?target vitality 0.0 - if(?unit-health < ?unit-maximum * 0.5, ?damage * 0.5, ?damage)
 on party-heal ?unit
   when
     encounter encounter state ?state

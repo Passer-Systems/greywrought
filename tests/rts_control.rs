@@ -25,6 +25,95 @@ fn session() -> PersistentProcessSessionV1 {
     session_for(EMBODIED_SOURCE)
 }
 
+#[test]
+fn wounded_attack_fixed_oracle() {
+    // Literal translation of authoring-proof-20260906:acceptance/comparison/
+    // wounded-attack-cases.json; only initial facts differ from the real world.
+    let ids = ["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"];
+    let maxima = [160.0, 105.0, 95.0, 90.0, 100.0];
+    let damages = [22.0, 18.0, 24.0, 7.0, 20.0];
+    let cases = [
+        ("healthy", maxima, 9.0, [true; 5]),
+        ("all-wounded", [40.0, 26.25, 23.75, 22.5, 25.0], 54.5, [true; 5]),
+        ("exact-half-is-full", [80.0, 52.5, 47.5, 45.0, 50.0], 9.0, [true; 5]),
+        ("mixed-health", [40.0, 105.0, 47.5, 0.0, 100.0], 27.0, [true, true, true, false, true]),
+        ("existing-eligibility", maxima, 80.0, [false, false, false, false, true]),
+        ("inactive", maxima, 100.0, [false; 5]),
+        ("wrong-target", maxima, 100.0, [false; 5]),
+        ("not-hostile", maxima, 100.0, [false; 5]),
+        ("dead-target", maxima, 0.0, [false; 5]),
+    ];
+    let mut results = Vec::new();
+    for (case, health, expected_health, expected_contributors) in cases {
+        let mut source = std::str::from_utf8(EMBODIED_SOURCE).unwrap().to_owned();
+        let mut fact = |subject: &str, relation: &str, value: String| {
+            let prefix = format!("{subject} {relation} ");
+            let prior = source.lines().find(|line| line.starts_with(&prefix))
+                .unwrap_or_else(|| panic!("missing fixture fact {prefix}" )).to_owned();
+            assert_eq!(source.lines().filter(|line| line.starts_with(&prefix)).count(), 1);
+            source = source.replacen(&prior, &format!("{prefix}{value}"), 1);
+        };
+        fact("encounter", "encounter state", if case == "inactive" { "ready" } else { "active" }.into());
+        fact("player-1", "chosen target", if case == "wrong-target" { "moonwell" } else { "cinder-1" }.into());
+        let initial_target = if case == "dead-target" { 0.0 } else { 100.0 };
+        fact("cinder-1", "vitality", format!("{initial_target:.1}"));
+        fact("cinder-1", "hostile", (case != "not-hostile").to_string());
+        fact("cinder-1", "actor position", "Vec3 { x: 1.0, y: 0.0, z: 0.0 }".into());
+        for (index, id) in ids.iter().enumerate() {
+            let guarded = case == "existing-eligibility";
+            fact(id, "selected", (!(guarded && index == 0)).to_string());
+            fact(id, "alive", (!(guarded && index == 3)).to_string());
+            fact(id, "vitality", format!("{:.2}", health[index]));
+            fact(id, "maximum vitality", format!("{:.1}", maxima[index]));
+            fact(id, "attack damage", format!("{:.1}", damages[index]));
+            fact(id, "attack range", "18.0".into());
+            fact(id, "action cooldown", if guarded && index == 1 { "0.5" } else { "0.0" }.into());
+            fact(id, "action period", "0.8".into());
+            fact(id, "actor position", format!("Vec3 {{ x: {:.1}, y: 0.0, z: 0.0 }}", if guarded && index == 2 { 100.0 } else { 0.0 }));
+        }
+        let workbench = ResidentSourceWorkbenchV1::open(source.as_bytes())
+            .unwrap_or_else(|error| panic!("{case} open: {error:?}"));
+        let generation = &workbench.generation().cwr1;
+        let mut physical = open_fresh_persistent_process_session_v1(generation).unwrap();
+        let step = physical.apply_physical_input(&ExecutableInputSourceV1::Keyboard {
+            code: b"Attack".to_vec(),
+            phase: clause_runtime::ExecutableKeyPhaseV1::Down,
+        }, None).unwrap_or_else(|error| panic!("{case} Attack: {error:?}"));
+        let occurrence = clause_runtime::encode_executable_occurrence_v1(&step.occurrence).unwrap();
+        // The physical command exposes local state only. Admit that exact input
+        // on the identical initial world, with no intervening tick or decay.
+        let mut observed = open_fresh_persistent_process_session_v1(generation).unwrap();
+        observed.apply_opaque_input_and_emit_candidate(&occurrence).unwrap();
+        let authorization = observed.issue_candidate_admission_authorization().unwrap();
+        let (_, projection) = observed.admit_issued_candidate_with_projection(authorization).unwrap();
+        let projection = projection.unwrap().term;
+        let target_health = actor_number(&projection, b"cinder-1", b"vitality");
+        assert_eq!(target_health, expected_health, "{case}: target vitality");
+        let mut contributors = Vec::new();
+        let mut cooldowns = Vec::new();
+        for (index, id) in ids.iter().enumerate() {
+            let cooldown = actor_number(&projection, id.as_bytes(), b"action-cooldown");
+            let original = if case == "existing-eligibility" && index == 1 { 0.5 } else { 0.0 };
+            let expected = if expected_contributors[index] { 0.8 } else { original };
+            assert_eq!(cooldown, expected, "{case}: {id} cooldown");
+            if cooldown != original { contributors.push(*id); }
+            cooldowns.push(format!("\"{id}\":{cooldown}"));
+        }
+        contributors.sort_unstable();
+        let mut expected_ids: Vec<_> = ids.iter().enumerate()
+            .filter_map(|(index, id)| expected_contributors[index].then_some(*id)).collect();
+        expected_ids.sort_unstable();
+        assert_eq!(contributors, expected_ids, "{case}: contributors");
+        let row = format!("{{\"id\":\"{case}\",\"targetVitality\":{target_health},\"accumulatedDamage\":{},\"contributors\":{:?},\"actionCooldowns\":{{{}}}}}",
+            initial_target - target_health, contributors, cooldowns.join(","));
+        println!("{row}");
+        results.push(row);
+    }
+    let output = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("build/authoring-trial");
+    std::fs::create_dir_all(&output).unwrap();
+    std::fs::write(output.join("clause-results.json"), format!("[{}]\n", results.join(",\n"))).unwrap();
+}
+
 fn session_for(source: &[u8]) -> PersistentProcessSessionV1 {
     let generation = ResidentSourceWorkbenchV1::open(source)
         .unwrap()
