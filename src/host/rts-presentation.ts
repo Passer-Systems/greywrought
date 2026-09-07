@@ -614,10 +614,23 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       let bottom = y;
       // Reserve the impact-number space even between hits so labels stay put.
       let distance = Infinity;
-      for (let column = -labels.length; column <= labels.length; column += 1) {
-        for (let row = -labels.length; row <= labels.length; row += 1) {
-          const dx = column * (width + 8);
-          const dy = row * (height + 36);
+      const columnStep = width + 8;
+      const rowStep = height + 36;
+      // Only enumerate offsets whose label rectangle can intersect the viewport.
+      // The old square scan visited every (2N+1)^2 offset, including candidates
+      // that the bounds checks could reject without inspecting any panels.
+      const columnMin = Math.max(-labels.length,
+        Math.ceil((6 + width / 2 - x) / columnStep));
+      const columnMax = Math.min(labels.length,
+        Math.floor((rectangle.width - 6 - width / 2 - x) / columnStep));
+      const rowMin = Math.max(-labels.length,
+        Math.ceil((34 + height - y) / rowStep));
+      const rowMax = Math.min(labels.length,
+        Math.floor((rectangle.height - 6 - y) / rowStep));
+      for (let column = columnMin; column <= columnMax; column += 1) {
+        for (let row = rowMin; row <= rowMax; row += 1) {
+          const dx = column * columnStep;
+          const dy = row * rowStep;
           if (dx * dx + dy * dy >= distance) continue;
           const left = x + dx - width / 2;
           const right = x + dx + width / 2;
