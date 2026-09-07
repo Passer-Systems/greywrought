@@ -11,7 +11,6 @@ const candidateOnly = Bun.argv.includes("--candidate-only");
 const cpuProfile = Bun.argv.includes("--cpu-profile");
 const observeProfile = Bun.argv.includes("--observe");
 requireCondition(!candidateOnly || profileOnly, "--candidate-only requires --profile");
-requireCondition(!cpuProfile || profileOnly, "--cpu-profile requires --profile");
 const output = profileOnly
   ? "build/measurement/100-active-profile.json"
   : "build/measurement/100-active.json";
