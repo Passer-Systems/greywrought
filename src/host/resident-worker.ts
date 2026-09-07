@@ -155,7 +155,7 @@ type ResidentEvent =
     }>
   | Readonly<{
       kind: "performance-profile";
-      boundary: "candidate" | "source-edit";
+      boundary: "candidate" | "admission" | "source-edit";
       generation: number;
       wallMillis: number;
       runtime: unknown;
@@ -241,7 +241,7 @@ function beginRuntimeProfile(): number | null {
 }
 
 function finishRuntimeProfile(
-  boundary: "candidate" | "source-edit",
+  boundary: "candidate" | "admission" | "source-edit",
   started: number | null,
   outer: SourceTransferObservation | null = null,
 ): void {
@@ -473,7 +473,30 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
           }
         }
       },
-      basePort.requestAdmission,
+      (session, candidate, complete) => {
+        const profileStarted = beginRuntimeProfile();
+        if (performanceProfileEnabled && !beginSourceTransferObservation()) {
+          clauseRuntime.clause_source_profile_v1_finish();
+          throw new Error("admission performance profile is already active");
+        }
+        let profileFinished = false;
+        try {
+          return basePort.requestAdmission(session, candidate, (result) => {
+            const outer = performanceProfileEnabled ? finishSourceTransferObservation() : null;
+            if (performanceProfileEnabled && outer === null) {
+              throw new Error("admission performance profile did not finish");
+            }
+            finishRuntimeProfile("admission", profileStarted, outer);
+            profileFinished = true;
+            return complete(result);
+          });
+        } finally {
+          if (profileStarted !== null && !profileFinished) {
+            finishSourceTransferObservation();
+            clauseRuntime.clause_source_profile_v1_finish();
+          }
+        }
+      },
       basePort.disposeSession,
     );
     controller = createCartridgeWorkbench(

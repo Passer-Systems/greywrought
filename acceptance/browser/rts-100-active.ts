@@ -9,6 +9,7 @@ const gameUrl = `http://127.0.0.1:${gamePort}/?measure=1${profileOnly ? "&profil
 const fixture = "build/measurement/100-active-source.clause";
 const candidateOnly = Bun.argv.includes("--candidate-only");
 const cpuProfile = Bun.argv.includes("--cpu-profile");
+const observeProfile = Bun.argv.includes("--observe");
 requireCondition(!candidateOnly || profileOnly, "--candidate-only requires --profile");
 requireCondition(!cpuProfile || profileOnly, "--cpu-profile requires --profile");
 const output = profileOnly
@@ -253,6 +254,7 @@ try {
     await Bun.write("build/measurement/100-active-worker.cpuprofile", JSON.stringify(result.result.profile));
     await call("Target.detachFromTarget", { sessionId: workerSession });
   }
+  if (profileOnly && observeProfile) await observe("100-active-movement-and-cooldown");
 
   await evaluate(`(() => {
     const catalog=document.getElementById('scalar-effect-catalog');
@@ -320,7 +322,7 @@ try {
         (edit.identityProof as Array<{carried: boolean}>).every((actor) => actor.carried)),
       "100-actor source-edit profile lost identity continuity");
     }
-    const artifact = { schema: "greywrought-100-active-profile-v1", durationMillis: performance.now() - runStartedMillis,
+    const artifact = { schema: "greywrought-100-active-profile-v1", windows: rawWindows, durationMillis: performance.now() - runStartedMillis,
       recordedAt: new Date().toISOString(), conditions, cgroup, candidateProfiles, edits };
     await Bun.write(output, `${JSON.stringify(artifact, null, 2)}\n`);
     console.log(JSON.stringify({ output, candidateProfiles, edits: edits.map((edit) => ({ expression: edit.expression,

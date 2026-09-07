@@ -861,7 +861,7 @@ function bindResident(state: GameState): void {
         }
       } else if (kind === "performance-profile") {
         if (
-          (payload.boundary === "candidate" || payload.boundary === "source-edit") &&
+          (payload.boundary === "candidate" || payload.boundary === "admission" || payload.boundary === "source-edit") &&
           typeof payload.wallMillis === "number" &&
           typeof payload.workerSentEpochMillis === "number"
         ) {
