@@ -206,6 +206,7 @@ fn main() -> native::Result<()> {
                 workshop::scene,
                 workshop::enemy_label,
                 workshop::equipment,
+                workshop::combat_feedback,
                 animate,
                 hud,
                 smoke,

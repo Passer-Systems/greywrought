@@ -305,6 +305,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn damage_feedback_requires_fresh_health_loss_and_expires_without_new_events() {
+        let session =
+            NativeSession::open(include_bytes!("../../world/workshop-expedition.clause")).unwrap();
+        let mut snapshot = session.snapshot(0, String::new()).unwrap();
+        snapshot.workshop.as_mut().unwrap().phase = "Expedition".into();
+        let mut feedback = CombatFeedback::default();
+        feedback.observe(&snapshot, 0.0);
+        assert_eq!(feedback.enemy_impact, 0.0);
+        assert_eq!(feedback.wayfarer_impact, 0.0);
+        snapshot.ticks += 1;
+        snapshot
+            .workshop
+            .as_mut()
+            .unwrap()
+            .readings
+            .insert("action".into(), 2.0);
+        feedback.observe(&snapshot, 0.0);
+        assert_eq!(
+            feedback.enemy_impact, 0.0,
+            "firing alone does not invent a hit"
+        );
+        snapshot.ticks += 1;
+        let view = snapshot.workshop.as_mut().unwrap();
+        *view.readings.get_mut("threat-health").unwrap() -= 1.0;
+        view.creature_condition -= 1.0;
+        feedback.observe(&snapshot, 0.0);
+        assert!(feedback.enemy_impact > 0.0 && feedback.wayfarer_impact > 0.0);
+        feedback.observe(&snapshot, 0.3);
+        assert_eq!(
+            feedback.enemy_impact, 0.0,
+            "repeated frames do not replay health loss"
+        );
+        assert_eq!(feedback.wayfarer_impact, 0.0);
+        snapshot.ticks += 1;
+        snapshot.workshop.as_mut().unwrap().creature_condition += 1.0;
+        feedback.observe(&snapshot, 0.0);
+        assert_eq!(feedback.wayfarer_impact, 0.0, "healing is not an impact");
+    }
+
+    #[test]
     fn outfit_is_closed_until_requested_and_recovery_controls_explain_availability() {
         let session =
             NativeSession::open(include_bytes!("../../world/workshop-expedition.clause")).unwrap();
@@ -545,7 +585,7 @@ pub(super) fn present(
                 other => other,
             };
             let guidance = if !selection.help_dismissed && !selection.open {
-                "FIRST TRIP: Open Outfit to inspect or fit gear, then Deploy. The wayfarer travels, fights and gathers salvage automatically. You choose equipment and orders; Return brings them home. Repair fixes worn gear using supplies. Rest heals injuries."
+                "FIRST TRIP: Outfit your gear, then Deploy. Travel, combat and gathering are automatic; you choose gear and orders, and can Return at any time.\nHeat pauses firing while cooling. Reserve is expedition energy; your orders set when to return. Condition is body health. Fill the salvage goal and bring it home for supplies.\nRepair fixes gear using supplies. Rest heals the body."
             } else if expedition {
                 "Reach the ashfield sentinel, defeat it and gather salvage. Return at any time."
             } else if view.phase == "Returned" {
@@ -896,6 +936,129 @@ pub(super) fn scene(
                 },
         )
         .looking_at(center, Vec3::Y);
+    }
+}
+
+#[derive(Default)]
+pub(super) struct CombatFeedback {
+    observed: Option<(WasmSessionHandleV1, u64, f64, f64, BTreeMap<String, f64>)>,
+    enemy_impact: f32,
+    wayfarer_impact: f32,
+}
+
+impl CombatFeedback {
+    fn observe(&mut self, snapshot: &Snapshot, seconds: f32) {
+        self.enemy_impact = (self.enemy_impact - seconds).max(0.0);
+        self.wayfarer_impact = (self.wayfarer_impact - seconds).max(0.0);
+        let Some(view) = &snapshot.workshop else {
+            return;
+        };
+        if view.phase != "Expedition" {
+            self.observed = None;
+            self.enemy_impact = 0.0;
+            self.wayfarer_impact = 0.0;
+            return;
+        }
+        if let Some((generation, tick, enemy, condition, gear)) = &self.observed {
+            if *generation == snapshot.generation && *tick == snapshot.ticks {
+                return;
+            }
+            if *generation == snapshot.generation && *tick < snapshot.ticks {
+                if view.readings["threat-health"] < *enemy {
+                    self.enemy_impact = 0.18;
+                }
+                if view.creature_condition < *condition
+                    || view.components.iter().any(|c| {
+                        gear.get(&c.id)
+                            .is_some_and(|old| c.readings["health"] < *old)
+                    })
+                {
+                    self.wayfarer_impact = 0.18;
+                }
+            } else {
+                self.enemy_impact = 0.0;
+                self.wayfarer_impact = 0.0;
+            }
+        }
+        self.observed = Some((
+            snapshot.generation,
+            snapshot.ticks,
+            view.readings["threat-health"],
+            view.creature_condition,
+            view.components
+                .iter()
+                .map(|c| (c.id.clone(), c.readings["health"]))
+                .collect(),
+        ));
+    }
+}
+
+pub(super) fn combat_feedback(
+    display: Res<Displayed>,
+    time: Res<Time>,
+    gear: Query<(&Gear, &GlobalTransform, &Visibility)>,
+    mut feedback: Local<CombatFeedback>,
+    mut gizmos: Gizmos,
+) {
+    let Some(snapshot) = &display.snapshot else {
+        return;
+    };
+    feedback.observe(snapshot, time.delta_secs());
+    let Some(view) = &snapshot.workshop else {
+        return;
+    };
+    if view.phase != "Expedition" || display.editing {
+        return;
+    }
+    let body = Vec3::new(0.0, 1.1, -view.readings["position"] as f32);
+    let enemy = Vec3::new(0.0, 1.2, -view.readings["encounter-position"] as f32 - 1.45);
+    let clock = time.elapsed_secs();
+    // Shot cadence and spark travel are cosmetic; only source observations trigger damage flashes.
+    if view.readings["action"] == 2.0 && (clock * 5.0).fract() < 0.6 {
+        if let Some((_, transform, _)) = gear.iter().find(|(gear, _, visible)| {
+            *visible != &Visibility::Hidden
+                && view
+                    .components
+                    .get(gear.component)
+                    .is_some_and(|c| c.id == "lance" && c.mounted)
+        }) {
+            let muzzle = transform.translation();
+            let gold = Color::srgb(1.0, 0.85, 0.20);
+            for offset in [-0.045, 0.0, 0.045] {
+                gizmos.line(muzzle + Vec3::Y * offset, enemy + Vec3::Y * offset, gold);
+            }
+            gizmos.sphere(Isometry3d::from_translation(muzzle), 0.19, gold);
+        }
+    }
+    for (point, strength, color) in [
+        (enemy, feedback.enemy_impact, Color::srgb(1.0, 0.82, 0.23)),
+        (body, feedback.wayfarer_impact, Color::srgb(1.0, 0.24, 0.08)),
+    ] {
+        if strength <= 0.0 {
+            continue;
+        }
+        let radius = 0.25 + (0.18 - strength) * 3.0;
+        gizmos.sphere(Isometry3d::from_translation(point), radius, color);
+        for i in 0..8 {
+            let angle = i as f32 * std::f32::consts::TAU / 8.0 + clock;
+            let direction = Vec3::new(angle.cos(), angle.sin(), 0.3);
+            gizmos.line(
+                point + direction * radius,
+                point + direction * (radius + 0.3),
+                color,
+            );
+        }
+    }
+    if view.readings["action"] == 3.0 {
+        for i in 0..6 {
+            let rise = (clock * 0.7 + i as f32 / 6.0).fract();
+            let plume = body + Vec3::new(if i % 2 == 0 { -0.35 } else { 0.35 }, rise * 1.2, 0.2);
+            gizmos.sphere(
+                Isometry3d::from_translation(plume),
+                0.09 + rise * 0.14,
+                Color::srgba(0.4, 0.85, 1.0, 1.0 - rise),
+            );
+        }
     }
 }
 
