@@ -340,3 +340,51 @@ This did not open or modify an installed save and does not assess the separately
 published creature experience. Its newer native integration retains its owner's
 compiler pin; the benchmark candidate remains in the named owned lane rather
 than silently repinning that independently integrated game.
+
+## Current-main recovery integration, 2026-09-07
+
+Greywrought parent `683b34a8647cd1eaca7e9d0d7ae14feb040e74f9` now consumes
+Clause `4fb4648a14311dec25b247912b2ccad961825c1b`, including the preserved grouped
+scalar/vector initial-state fixes and sum-cache comparison order on current main.
+Fresh Wasm SHA-256 is
+`6404a3428714e871ac7715d6c6b1ce511fb5739249d1d48986970c615f6c5800`.
+Native law-edit byte consumers use the current projection export method.
+The embodied source check, source/Wasm pin checks, adapter, host typecheck and
+bundles, resident release build, and existing native law-edit behavior test pass.
+
+One unchanged full hardware journey reached its verdict in 63,117ms. All four
+combined performance gates remain unmet: 100 cooldowns advanced, 98 positions
+moved, rendering measured 9.31 FPS with 150ms frame-interval p95, and median
+source-seconds/wall-second was 0.04965. The stationary actors were company-92
+and company-93. Candidate median was 221.7ms (nine samples); Admission median
+was 74.3ms (eight samples).
+
+| Checked edit | Visible latency | Native compiler | Wasm transfer | Carried identities |
+| --- | ---: | ---: | ---: | ---: |
+| Double cooldown advance | 14,180.7ms | 6,262.8ms | 6,190.5ms | 100/100 |
+| Restore cooldown advance | 13,779.4ms | 6,155.2ms | 5,794.2ms | 100/100 |
+| Double cooldown advance again | 14,005.0ms | 6,282.1ms | 5,942.9ms | 100/100 |
+
+One existing profile journey then passed its capture and continuity checks.
+Its candidate took 258.4ms: 686 sum evaluations consumed 230.0ms, including
+210 actual sum queries consuming 221.5ms. The 8.5ms outside query execution
+selects actual sum-query execution as the next runtime optimization seam.
+The profiled edit took 14,533.8ms; its Wasm witness check took 3,359.1ms,
+including old/new elaboration at 993.2/953.4ms and offered-edit checking at
+679.6ms. Native compilation separately took 6,309.4ms. These observations do
+not identify the internal cause of those remaining costs.
+
+Both captures used Chrome152, Radeon890M/ANGLE hardware, 1280x900/DPR1, the
+unchanged 16ms tick and 1,000ms warmup, and six-CPU/8GiB capacity scopes.
+The admission reports recorded seven peer agent CPUs and zero CPU pressure;
+the runs were not globally isolated. Source SHA-256 was
+`4d3a8bb190c897b35b9e7e0a9b548b926892c52da381c848f442c5954471da70`;
+full-run source admission passed in 7,216ms. The source and compiler differ
+from historical runs, so these are current observations, not matched causal
+percentages. The driver's historical base labels remain unchanged; the actual
+consumer parent is recorded above.
+
+Raw full/profile results and the full-run failure snapshot are retained under
+`~/code/greywrought/worktrees/recovery-integration-20260907/build/measurement/`.
+The full command exited 1 at its unchanged performance assertion; the profile
+command exited 0. Both harness-owned browser/server runs settled.

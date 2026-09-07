@@ -84,11 +84,11 @@ fn source_only_combat_law_edit_changes_the_admitted_outcome() {
         .expect("separate Admission exposes the edited consequence");
 
     assert_eq!(
-        combat_outcome(&base.projection.exact_term_bytes),
+        combat_outcome(&base.projection.exact_term_bytes()),
         (0.0, b"dead".to_vec(), b"ashen-wayfarer".to_vec())
     );
     assert_eq!(
-        combat_outcome(&edited.projection.exact_term_bytes),
+        combat_outcome(&edited.projection.exact_term_bytes()),
         (4.0, b"alive".to_vec(), initial_edited_custody)
     );
     eprintln!(
