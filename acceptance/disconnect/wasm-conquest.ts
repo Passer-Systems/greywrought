@@ -6,7 +6,7 @@ import {
   "open-process-branch!" as openProcessBranch,
   "propose-branch-reconnect!" as proposeBranchReconnect,
   type ProcessCommandEvidenceV1,
-} from "../../build/host/jump-arena-shell/branch-wasm-port.js";
+} from "../../build/host/clause-runtime/branch-wasm-port.js";
 import {
   "->ExactProcessRequest" as createExactProcessRequest,
   "decode-cwr1-hex" as decodeCwr1Hex,
@@ -14,7 +14,7 @@ import {
   "process-request-occurrences!" as processRequestOccurrences,
   type ProjectedObject,
   type ProjectedValue,
-} from "../../build/host/jump-arena-shell/wasm-cartridge-port.js";
+} from "../../build/host/clause-runtime/wasm-cartridge-port.js";
 import {
   clause_branch_v1_command as branchCommand,
   clause_branch_v1_event_byte as branchEventByte,

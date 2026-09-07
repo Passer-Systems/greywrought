@@ -100,9 +100,9 @@ Use the existing pinned Wasm build and staged passive adapter: copy
 `greywrought:build/clause-wasm/clause_runtime.js` and
 `greywrought:build/clause-wasm/clause_runtime_bg.wasm` to
 `greywrought:build/comparison/wasm/`; copy the staged
-`greywrought:build/host/jump-arena-shell/wasm-cartridge-port.js`,
-`greywrought:build/host/jump-arena-shell/workbench.js`, and
-`greywrought:build/host/jump-arena-shell/source-transfer-observation.js`
+`greywrought:build/host/clause-runtime/wasm-cartridge-port.js`,
+`greywrought:build/host/clause-runtime/workbench.js`, and
+`greywrought:build/host/clause-runtime/source-transfer-observation.js`
 to `greywrought:build/comparison/adapter/`. This run copied these already-built
 artifacts from the unchanged evidence checkout
 `~/code/greywrought/worktrees/performance-100-actors-20260906`; the harness

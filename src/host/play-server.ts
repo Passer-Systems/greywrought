@@ -227,10 +227,10 @@ const files: Readonly<Record<string, string>> = {
   "/app/greywrought-clause/rts.css": "src/host/rts.css",
   "/app/greywrought-clause/resident-worker.js": "build/host/resident-worker.js",
   "/app/greywrought-clause/public-url.js": "build/host/public-url.js",
-  "/app/jump-arena-shell/wasm-cartridge-port.js":
-    "build/host/jump-arena-shell/wasm-cartridge-port.js",
-  "/app/jump-arena-shell/workbench.js":
-    "build/host/jump-arena-shell/workbench.js",
+  "/app/clause-runtime/wasm-cartridge-port.js":
+    "build/host/clause-runtime/wasm-cartridge-port.js",
+  "/app/clause-runtime/workbench.js":
+    "build/host/clause-runtime/workbench.js",
   "/vendor/three.module.js": "node_modules/three/build/three.module.js",
   "/vendor/three.core.js": "node_modules/three/build/three.core.js",
   "/vendor/addons/loaders/GLTFLoader.js":

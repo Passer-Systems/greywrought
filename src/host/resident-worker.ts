@@ -17,7 +17,7 @@ import {
   type ExplainedRelationRow,
   type FiniteScalarChange,
   type ProjectedValue,
-} from "../../build/host/jump-arena-shell/wasm-cartridge-port.js";
+} from "../../build/host/clause-runtime/wasm-cartridge-port.js";
 import {
   "->FixedTick" as createFixedTick,
   "->CartridgePort" as createCartridgePort,
@@ -29,12 +29,12 @@ import {
   type CartridgeWorkbench,
   type LifecycleReceipt,
   type WorkbenchEnvelope,
-} from "../../build/host/jump-arena-shell/workbench.js";
+} from "../../build/host/clause-runtime/workbench.js";
 import {
   beginSourceTransferObservation,
   finishSourceTransferObservation,
   type SourceTransferObservation,
-} from "../../build/host/jump-arena-shell/source-transfer-observation.js";
+} from "../../build/host/clause-runtime/source-transfer-observation.js";
 import * as clauseRuntime from "#clause-runtime-wasm";
 
 interface GenerationPayload {

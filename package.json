@@ -10,7 +10,7 @@
     "check:attack": "bun scripts/check-attack.ts",
     "verify:clause-source": "bun scripts/verify-clause-source.ts",
     "verify:clause": "bun run verify:clause-source && bun run build:clause-runtime && bun scripts/verify-clause-pin.ts",
-    "build:clause-adapter": "bunx --bun --package typescript@7.0.2 tsc --project vendor/clause/browser/jump-arena-shell/tsconfig.json --outDir build/clause-adapter",
+    "build:clause-adapter": "bunx --bun --package typescript@7.0.2 tsc --project vendor/clause/browser/runtime/tsconfig.json --outDir build/clause-adapter",
     "build:clause-runtime": "cargo build --manifest-path vendor/clause/Cargo.toml --package clause-runtime --target wasm32-unknown-unknown --release --locked --target-dir build/clause-target -j 2 && wasm-bindgen build/clause-target/wasm32-unknown-unknown/release/clause_runtime.wasm --target web --out-dir build/clause-wasm",
     "build:resident": "cargo build --release --bin resident_generation --locked --target-dir build/cargo-target -j 2",
     "stage:clause": "bun run verify:clause && bun run build:clause-adapter && bun scripts/stage-clause.ts",

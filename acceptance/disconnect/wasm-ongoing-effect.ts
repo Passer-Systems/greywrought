@@ -9,14 +9,14 @@ import {
   "resume-session!" as resumeSession,
   "settle-effect-attempt!" as settleEffectAttempt,
   "suspend-session!" as suspendSession,
-} from "../../build/host/jump-arena-shell/wasm-cartridge-port.js";
+} from "../../build/host/clause-runtime/wasm-cartridge-port.js";
 import {
   "->WorkbenchPolicy" as createWorkbenchPolicy,
   "->WorkbenchSequenceLimits" as createWorkbenchSequenceLimits,
   type CartridgePort,
   type PackageCheck,
   type SessionCompletion,
-} from "../../build/host/jump-arena-shell/workbench.js";
+} from "../../build/host/clause-runtime/workbench.js";
 import {
   clause_session_v1_command_bulk as commandSession,
   clause_session_v1_event_bulk as readSessionEvent,
