@@ -7,6 +7,8 @@ import {
   "decode-cwr1-hex" as decodeCwr1Hex,
   "decode-projected-term-frame" as decodeProjectedTermFrame,
   editSourceSession,
+  prepareSourceSession,
+  decodeSourcePreparationHex,
   explainSession,
   explanationRelationRows,
   checkedProjectedReferent,
@@ -20,6 +22,7 @@ import {
 } from "../../build/host/clause-runtime/wasm-cartridge-port.js";
 import {
   "->FixedTick" as createFixedTick,
+  "->SessionFailed" as createSessionFailed,
   "->CartridgePort" as createCartridgePort,
   "->WorkbenchPolicy" as createWorkbenchPolicy,
   "->WorkbenchSequenceLimits" as createWorkbenchSequenceLimits,
@@ -44,6 +47,7 @@ interface GenerationPayload {
   readonly sourceModifiedMillis: number;
   readonly hot: boolean;
   readonly cet1: string | null;
+  readonly sourcePreparation: string | null;
   readonly scalarEffects: readonly ScalarEffectPayload[];
   readonly entries: Readonly<{ attack: number; heal: number }>;
 }
@@ -220,6 +224,7 @@ let pendingEdit: GenerationPayload | null = null;
 let pendingEditStarted = 0;
 let currentEntries: Readonly<{ attack: number; heal: number }> | null = null;
 let sourceEditFence = false;
+let pendingSourcePreparation: string | null = null;
 let observingInput: ResidentInput | null = null;
 let flushingInput = false;
 let simulationStarted = false;
@@ -410,6 +415,12 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
   const module = await modulePromise;
   const request = createExactProcessRequest(decodeCwr1Hex(payload.cwr1));
   pendingExternalGeneration = payload.generation;
+  if (pendingEdit === null) {
+    if (payload.scalarEffects.length > 0 && payload.sourcePreparation === null) {
+      throw new Error("editable generation omitted checked source preparation");
+    }
+    pendingSourcePreparation = payload.sourcePreparation;
+  }
   if (controller === null) {
     const basePort = createWasmCartridgePort(module, policy);
       const port = createCartridgePort(
@@ -454,7 +465,18 @@ async function installGeneration(payload: GenerationPayload): Promise<void> {
           return complete(result);
         }
         return basePort.startSession(acceptedPackage, generation, (result) => {
-          if (result._tag === "SessionStarted") liveSession = result.session;
+          if (result._tag === "SessionStarted") {
+            try {
+              if (pendingSourcePreparation !== null) {
+                prepareSourceSession(module, result.session, decodeSourcePreparationHex(pendingSourcePreparation));
+              }
+            } catch (cause: unknown) {
+              basePort.disposeSession(result.session);
+              return complete(createSessionFailed(cause instanceof Error ? cause.message : String(cause)));
+            }
+            pendingSourcePreparation = null;
+            liveSession = result.session;
+          }
           return complete(result);
         });
       },

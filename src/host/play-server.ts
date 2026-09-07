@@ -8,6 +8,7 @@ interface GenerationPayload {
   readonly sourceModifiedMillis: number;
   readonly hot: boolean;
   readonly cet1: string | null;
+  readonly sourcePreparation: string | null;
   readonly scalarEffects: readonly ScalarEffectPayload[];
   readonly entries: Readonly<{ attack: number; heal: number }>;
 }
@@ -62,11 +63,12 @@ function spawnResidentGeneration() {
     }
   }
 
-  function generationResponse(
+  async function generationResponse(
     line: string,
     modified: number,
     after: number,
-  ): Response {
+    opensSession = true,
+  ): Promise<Response> {
     const fields = line.split("\t");
     const kind = fields[0];
     if (kind === "generation") {
@@ -77,13 +79,23 @@ function spawnResidentGeneration() {
       const catalog = fields[5];
       const attack = fields[6];
       const heal = fields[7];
+      let sourcePreparation = fields[8];
       if (
         generation === undefined ||
         compilerMicros === undefined ||
         cwr1 === undefined || cet1 === undefined || catalog === undefined ||
-        attack === undefined || heal === undefined
+        attack === undefined || heal === undefined || sourcePreparation === undefined
       ) {
         return new Response("resident generation protocol failed", { status: 500 });
+      }
+      if (opensSession && sourcePreparation.length === 0) {
+        child.stdin.write("prepare\n");
+        child.stdin.flush();
+        const preparation = (await readLine()).split("\t");
+        if (preparation.length !== 3 || preparation[0] !== "preparation" || preparation[1] !== generation || !preparation[2]) {
+          return new Response("resident source preparation failed", { status: 500 });
+        }
+        sourcePreparation = preparation[2];
       }
       const payload: GenerationPayload = {
         generation: Number.parseInt(generation, 10),
@@ -92,6 +104,7 @@ function spawnResidentGeneration() {
         sourceModifiedMillis: modified,
         hot: after >= 0,
         cet1: cet1.length === 0 ? null : cet1,
+        sourcePreparation: sourcePreparation.length === 0 ? null : sourcePreparation,
         scalarEffects: catalog.length === 0 ? [] : catalog.split(";").map((entry) => {
           const [index, handler, effect, start, end, artifact, expression] = entry.split(",");
           if ([index, handler, effect, start, end, artifact, expression].some((value) => value === undefined)) {
@@ -128,7 +141,7 @@ function spawnResidentGeneration() {
 
   function generationNumber(line: string): number | null {
     const fields = line.split("\t");
-    if (fields[0] !== "generation" || fields.length !== 8) return null;
+    if (fields[0] !== "generation" || fields.length !== 9) return null;
     const generation = Number.parseInt(fields[1] ?? "", 10);
     return Number.isSafeInteger(generation) ? generation : null;
   }
@@ -138,7 +151,7 @@ function spawnResidentGeneration() {
     if (generationNumber(line) !== null) active = { line, modified };
   }
 
-  function currentResponse(after: number, modified: number): Response {
+  async function currentResponse(after: number, modified: number): Promise<Response> {
     if (latest === null) {
       return new Response("resident generation protocol failed", { status: 500 });
     }
@@ -201,11 +214,11 @@ function spawnResidentGeneration() {
     const sourceFile = Bun.file(RESIDENT_SOURCE);
     const modified = sourceFile.lastModified;
     if (generationNumber(line) === null) {
-      return generationResponse(line, modified, capturedGeneration);
+      return generationResponse(line, modified, capturedGeneration, false);
     }
     source = await sourceFile.text();
     retainResult(line, modified);
-    return generationResponse(line, modified, capturedGeneration);
+    return generationResponse(line, modified, capturedGeneration, false);
   }
 
 

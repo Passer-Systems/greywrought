@@ -22,6 +22,7 @@ interface GenerationPayload {
   readonly sourceModifiedMillis: number;
   readonly hot: boolean;
   readonly cet1: string | null;
+  readonly sourcePreparation: string | null;
   readonly scalarEffects: readonly ScalarEffectPayload[];
   readonly entries: Readonly<{ attack: number; heal: number }>;
 }
@@ -998,11 +999,11 @@ function bindResident(state: GameState): void {
 
 function parseGeneration(value: unknown): GenerationPayload {
   const source = record(value, "resident generation");
-  const { generation, compilerMicros, cwr1, sourceModifiedMillis, hot, cet1, scalarEffects, entries } = source;
+  const { generation, compilerMicros, cwr1, sourceModifiedMillis, hot, cet1, sourcePreparation, scalarEffects, entries } = source;
   if (
     typeof generation !== "number" || typeof compilerMicros !== "number" ||
     typeof cwr1 !== "string" || typeof sourceModifiedMillis !== "number" || typeof hot !== "boolean" ||
-    !(cet1 === null || typeof cet1 === "string") || !Array.isArray(scalarEffects)
+    !(cet1 === null || typeof cet1 === "string") || !(sourcePreparation === null || typeof sourcePreparation === "string") || !Array.isArray(scalarEffects)
   ) throw new Error("resident generation payload is malformed");
   const parsedEntries = record(entries, "resident entries");
   if (typeof parsedEntries.attack !== "number" || typeof parsedEntries.heal !== "number") {
@@ -1019,7 +1020,7 @@ function parseGeneration(value: unknown): GenerationPayload {
     return effect as unknown as ScalarEffectPayload;
   });
   return {
-    generation, compilerMicros, cwr1, sourceModifiedMillis, hot, cet1,
+    generation, compilerMicros, cwr1, sourceModifiedMillis, hot, cet1, sourcePreparation,
     scalarEffects: parsedEffects,
     entries: { attack: parsedEntries.attack, heal: parsedEntries.heal },
   };
@@ -1069,7 +1070,7 @@ async function pollResident(state: GameState): Promise<void> {
       });
       installGeneration(state, {
         generation: 0, compilerMicros: 0, cwr1: cartridge, sourceModifiedMillis: 0,
-        hot: false, cet1: null, scalarEffects: [], entries: { attack: 0, heal: 0 },
+        hot: false, cet1: null, sourcePreparation: null, scalarEffects: [], entries: { attack: 0, heal: 0 },
       });
       return;
     }

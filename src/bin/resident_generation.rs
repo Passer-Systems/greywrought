@@ -77,6 +77,17 @@ fn serve(source_path: &Path) -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             }
+            "prepare" => {
+                let result = workbench.source_preparation()
+                    .map_err(|error| error.to_string())
+                    .and_then(|preparation| {
+                        writeln!(output, "preparation\t{}\t{}", workbench.generation().handle.generation, hex(&preparation))
+                            .and_then(|_| output.flush()).map_err(|error| error.to_string())
+                    });
+                if let Err(error) = result
+                    && write_error(&mut output, &error).is_err()
+                { return ExitCode::FAILURE; }
+            }
             "quit" => return ExitCode::SUCCESS,
             _ if command.starts_with("edit\t") => {
                 let started = Instant::now();
@@ -113,7 +124,7 @@ fn write_generation(
     let cwr1 = encode_wasm_process_request_v1(&request)?;
     writeln!(
         output,
-        "generation\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+        "generation\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
         workbench.generation().handle.generation,
         started.elapsed().as_micros(),
         hex(&cwr1),
@@ -121,6 +132,7 @@ fn write_generation(
         scalar_catalog(workbench)?,
         handler_entry(workbench, b"party-attack")?,
         handler_entry(workbench, b"party-heal")?,
+        if edited { String::new() } else { hex(&workbench.source_preparation()?) },
     )?;
     output.flush()?;
     Ok(())
