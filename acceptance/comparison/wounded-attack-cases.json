@@ -1,0 +1,27 @@
+{
+  "mechanic": "An otherwise eligible party attacker deals half base damage when vitality is strictly below half maximumVitality. At exactly half it deals full damage. Existing eligibility, cooldown replacement and atomic accumulation remain unchanged.",
+  "base": {
+    "encounterActive": true,
+    "chosenTargetMatches": true,
+    "target": { "id": "cinder-1", "x": 1, "z": 0, "vitality": 100, "hostile": true },
+    "units": [
+      { "id": "warrior-1", "selected": true, "alive": true, "vitality": 160, "maximumVitality": 160, "x": 0, "z": 0, "attackDamage": 22, "attackRange": 18, "actionCooldown": 0, "actionPeriod": 0.8 },
+      { "id": "artificer-1", "selected": true, "alive": true, "vitality": 105, "maximumVitality": 105, "x": 0, "z": 0, "attackDamage": 18, "attackRange": 18, "actionCooldown": 0, "actionPeriod": 0.8 },
+      { "id": "rogue-1", "selected": true, "alive": true, "vitality": 95, "maximumVitality": 95, "x": 0, "z": 0, "attackDamage": 24, "attackRange": 18, "actionCooldown": 0, "actionPeriod": 0.8 },
+      { "id": "priest-1", "selected": true, "alive": true, "vitality": 90, "maximumVitality": 90, "x": 0, "z": 0, "attackDamage": 7, "attackRange": 18, "actionCooldown": 0, "actionPeriod": 0.8 },
+      { "id": "ranger-1", "selected": true, "alive": true, "vitality": 100, "maximumVitality": 100, "x": 0, "z": 0, "attackDamage": 20, "attackRange": 18, "actionCooldown": 0, "actionPeriod": 0.8 }
+    ]
+  },
+  "patchSemantics": "Shallow fixture overrides; target overrides merge into base target; unit overrides keyed by id merge into that base unit. Unspecified fields remain unchanged. Expected cooldown is actionPeriod for contributors and original actionCooldown for everyone else.",
+  "cases": [
+    { "id": "healthy", "patch": {}, "targetVitality": 9, "contributors": ["artificer-1", "priest-1", "ranger-1", "rogue-1", "warrior-1"] },
+    { "id": "all-wounded", "patch": { "units": { "warrior-1": { "vitality": 40 }, "artificer-1": { "vitality": 26.25 }, "rogue-1": { "vitality": 23.75 }, "priest-1": { "vitality": 22.5 }, "ranger-1": { "vitality": 25 } } }, "targetVitality": 54.5, "contributors": ["artificer-1", "priest-1", "ranger-1", "rogue-1", "warrior-1"] },
+    { "id": "exact-half-is-full", "patch": { "units": { "warrior-1": { "vitality": 80 }, "artificer-1": { "vitality": 52.5 }, "rogue-1": { "vitality": 47.5 }, "priest-1": { "vitality": 45 }, "ranger-1": { "vitality": 50 } } }, "targetVitality": 9, "contributors": ["artificer-1", "priest-1", "ranger-1", "rogue-1", "warrior-1"] },
+    { "id": "mixed-health", "patch": { "units": { "warrior-1": { "vitality": 40 }, "rogue-1": { "vitality": 47.5 }, "priest-1": { "vitality": 0 } } }, "targetVitality": 27, "contributors": ["artificer-1", "ranger-1", "rogue-1", "warrior-1"] },
+    { "id": "existing-eligibility", "patch": { "units": { "warrior-1": { "selected": false }, "artificer-1": { "actionCooldown": 0.5 }, "rogue-1": { "x": 100 }, "priest-1": { "alive": false } } }, "targetVitality": 80, "contributors": ["ranger-1"] },
+    { "id": "inactive", "patch": { "encounterActive": false }, "targetVitality": 100, "contributors": [] },
+    { "id": "wrong-target", "patch": { "chosenTargetMatches": false }, "targetVitality": 100, "contributors": [] },
+    { "id": "not-hostile", "patch": { "target": { "hostile": false } }, "targetVitality": 100, "contributors": [] },
+    { "id": "dead-target", "patch": { "target": { "vitality": 0 } }, "targetVitality": 0, "contributors": [] }
+  ]
+}

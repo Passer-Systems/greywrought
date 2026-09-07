@@ -7,6 +7,7 @@
     "#clause-runtime-wasm": "./build/host/wasm/clause_runtime.js"
   },
   "scripts": {
+    "check:attack": "bun scripts/check-attack.ts",
     "verify:clause-source": "bun scripts/verify-clause-source.ts",
     "verify:clause": "bun run verify:clause-source && bun run build:clause-runtime && bun scripts/verify-clause-pin.ts",
     "build:clause-adapter": "bunx --bun --package typescript@7.0.2 tsc --project vendor/clause/browser/jump-arena-shell/tsconfig.json --outDir build/clause-adapter",

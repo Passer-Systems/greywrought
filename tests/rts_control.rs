@@ -25,51 +25,122 @@ fn session() -> PersistentProcessSessionV1 {
     session_for(EMBODIED_SOURCE)
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttackFixture {
+    encounter_active: bool,
+    chosen_target_matches: bool,
+    target: AttackTarget,
+    units: Vec<AttackUnit>,
+}
+
+#[derive(serde::Deserialize)]
+struct AttackTarget {
+    id: String,
+    x: f64,
+    z: f64,
+    vitality: f64,
+    hostile: bool,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttackUnit {
+    id: String,
+    selected: bool,
+    alive: bool,
+    vitality: f64,
+    maximum_vitality: f64,
+    x: f64,
+    z: f64,
+    attack_damage: f64,
+    attack_range: f64,
+    action_cooldown: f64,
+    action_period: f64,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttackCase {
+    id: String,
+    patch: serde_json::Value,
+    target_vitality: f64,
+    contributors: Vec<String>,
+    action_cooldowns: Option<std::collections::BTreeMap<String, f64>>,
+}
+
+#[derive(serde::Deserialize)]
+struct AttackOracle {
+    base: serde_json::Value,
+    cases: Vec<AttackCase>,
+}
+
+fn shallow_fixture_merge(base: &serde_json::Value, patch: &serde_json::Value) -> serde_json::Value {
+    let mut merged = base.as_object().expect("fixture object").clone();
+    merged.extend(patch.as_object().expect("fixture patch object").clone());
+    serde_json::Value::Object(merged)
+}
+
 #[test]
 fn wounded_attack_fixed_oracle() {
-    // Literal translation of authoring-proof-20260906:acceptance/comparison/
-    // wounded-attack-cases.json; only initial facts differ from the real world.
-    let ids = ["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"];
-    let maxima = [160.0, 105.0, 95.0, 90.0, 100.0];
-    let damages = [22.0, 18.0, 24.0, 7.0, 20.0];
-    let cases = [
-        ("healthy", maxima, 9.0, [true; 5]),
-        ("all-wounded", [40.0, 26.25, 23.75, 22.5, 25.0], 54.5, [true; 5]),
-        ("exact-half-is-full", [80.0, 52.5, 47.5, 45.0, 50.0], 9.0, [true; 5]),
-        ("mixed-health", [40.0, 105.0, 47.5, 0.0, 100.0], 27.0, [true, true, true, false, true]),
-        ("existing-eligibility", maxima, 80.0, [false, false, false, false, true]),
-        ("inactive", maxima, 100.0, [false; 5]),
-        ("wrong-target", maxima, 100.0, [false; 5]),
-        ("not-hostile", maxima, 100.0, [false; 5]),
-        ("dead-target", maxima, 0.0, [false; 5]),
-    ];
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source_path = std::env::var_os("WOUNDED_ATTACK_SOURCE")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| root.join("src/world/embodied-encounter.clause"));
+    let oracle_path = std::env::var_os("WOUNDED_ATTACK_CASES")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| root.join("acceptance/comparison/wounded-attack-cases.json"));
+    let original_source = std::fs::read_to_string(&source_path).expect("read current Clause source");
+    let oracle: AttackOracle = serde_json::from_slice(
+        &std::fs::read(&oracle_path).expect("read attack oracle"),
+    ).expect("parse attack oracle");
+    assert!(!oracle.cases.is_empty(), "attack oracle must contain cases");
+    let empty = serde_json::json!({});
     let mut results = Vec::new();
-    for (case, health, expected_health, expected_contributors) in cases {
-        let mut source = std::str::from_utf8(EMBODIED_SOURCE).unwrap().to_owned();
+    for scenario in oracle.cases {
+        let case = &scenario.id;
+        let mut merged = shallow_fixture_merge(&oracle.base, &scenario.patch);
+        merged["target"] = shallow_fixture_merge(
+            &oracle.base["target"], scenario.patch.get("target").unwrap_or(&empty),
+        );
+        merged["units"] = oracle.base["units"].as_array().expect("base units").iter()
+            .map(|unit| shallow_fixture_merge(
+                unit,
+                scenario.patch.get("units")
+                    .and_then(|units| units.get(unit["id"].as_str().expect("unit id")))
+                    .unwrap_or(&empty),
+            )).collect();
+        let fixture: AttackFixture = serde_json::from_value(merged).expect("merged attack fixture");
+        let mut source = original_source.clone();
         let mut fact = |subject: &str, relation: &str, value: String| {
             let prefix = format!("{subject} {relation} ");
             let prior = source.lines().find(|line| line.starts_with(&prefix))
-                .unwrap_or_else(|| panic!("missing fixture fact {prefix}" )).to_owned();
+                .unwrap_or_else(|| panic!("missing fixture fact {prefix}")).to_owned();
             assert_eq!(source.lines().filter(|line| line.starts_with(&prefix)).count(), 1);
             source = source.replacen(&prior, &format!("{prefix}{value}"), 1);
         };
-        fact("encounter", "encounter state", if case == "inactive" { "ready" } else { "active" }.into());
-        fact("player-1", "chosen target", if case == "wrong-target" { "moonwell" } else { "cinder-1" }.into());
-        let initial_target = if case == "dead-target" { 0.0 } else { 100.0 };
-        fact("cinder-1", "vitality", format!("{initial_target:.1}"));
-        fact("cinder-1", "hostile", (case != "not-hostile").to_string());
-        fact("cinder-1", "actor position", "Vec3 { x: 1.0, y: 0.0, z: 0.0 }".into());
-        for (index, id) in ids.iter().enumerate() {
-            let guarded = case == "existing-eligibility";
-            fact(id, "selected", (!(guarded && index == 0)).to_string());
-            fact(id, "alive", (!(guarded && index == 3)).to_string());
-            fact(id, "vitality", format!("{:.2}", health[index]));
-            fact(id, "maximum vitality", format!("{:.1}", maxima[index]));
-            fact(id, "attack damage", format!("{:.1}", damages[index]));
-            fact(id, "attack range", "18.0".into());
-            fact(id, "action cooldown", if guarded && index == 1 { "0.5" } else { "0.0" }.into());
-            fact(id, "action period", "0.8".into());
-            fact(id, "actor position", format!("Vec3 {{ x: {:.1}, y: 0.0, z: 0.0 }}", if guarded && index == 2 { 100.0 } else { 0.0 }));
+        fact("encounter", "encounter state", if fixture.encounter_active { "active" } else { "ready" }.into());
+        fact("player-1", "chosen target", if fixture.chosen_target_matches {
+            fixture.target.id.clone()
+        } else { "moonwell".into() });
+        let target = &fixture.target;
+        fact(&target.id, "vitality", format!("{:?}", target.vitality));
+        fact(&target.id, "hostile", target.hostile.to_string());
+        fact(&target.id, "actor position", format!("Vec3 {{ x: {:?}, y: 0.0, z: {:?} }}", target.x, target.z));
+        for unit in &fixture.units {
+            fact(&unit.id, "selected", unit.selected.to_string());
+            fact(&unit.id, "alive", unit.alive.to_string());
+            for (relation, value) in [
+                ("vitality", unit.vitality),
+                ("maximum vitality", unit.maximum_vitality),
+                ("attack damage", unit.attack_damage),
+                ("attack range", unit.attack_range),
+                ("action cooldown", unit.action_cooldown),
+                ("action period", unit.action_period),
+            ] {
+                fact(&unit.id, relation, format!("{value:?}"));
+            }
+            fact(&unit.id, "actor position", format!("Vec3 {{ x: {:?}, y: 0.0, z: {:?} }}", unit.x, unit.z));
         }
         let workbench = ResidentSourceWorkbenchV1::open(source.as_bytes())
             .unwrap_or_else(|error| panic!("{case} open: {error:?}"));
@@ -87,33 +158,42 @@ fn wounded_attack_fixed_oracle() {
         let authorization = observed.issue_candidate_admission_authorization().unwrap();
         let (_, projection) = observed.admit_issued_candidate_with_projection(authorization).unwrap();
         let projection = projection.unwrap().term;
-        let target_health = actor_number(&projection, b"cinder-1", b"vitality");
-        assert_eq!(target_health, expected_health, "{case}: target vitality");
+        let target_health = actor_number(&projection, target.id.as_bytes(), b"vitality");
+        assert_eq!(target_health, scenario.target_vitality, "{case}: target vitality");
+        let damage = target.vitality - target_health;
+        assert_eq!(damage, target.vitality - scenario.target_vitality, "{case}: accumulated damage");
         let mut contributors = Vec::new();
-        let mut cooldowns = Vec::new();
-        for (index, id) in ids.iter().enumerate() {
-            let cooldown = actor_number(&projection, id.as_bytes(), b"action-cooldown");
-            let original = if case == "existing-eligibility" && index == 1 { 0.5 } else { 0.0 };
-            let expected = if expected_contributors[index] { 0.8 } else { original };
-            assert_eq!(cooldown, expected, "{case}: {id} cooldown");
-            if cooldown != original { contributors.push(*id); }
-            cooldowns.push(format!("\"{id}\":{cooldown}"));
+        let mut cooldowns = std::collections::BTreeMap::new();
+        for unit in &fixture.units {
+            let cooldown = actor_number(&projection, unit.id.as_bytes(), b"action-cooldown");
+            let expected = match &scenario.action_cooldowns {
+                Some(values) => *values.get(&unit.id).expect("explicit cooldown for every unit"),
+                None if scenario.contributors.contains(&unit.id) => unit.action_period,
+                None => unit.action_cooldown,
+            };
+            assert_eq!(cooldown, expected, "{case}: {} cooldown", unit.id);
+            if cooldown != unit.action_cooldown { contributors.push(unit.id.clone()); }
+            cooldowns.insert(unit.id.clone(), cooldown);
         }
         contributors.sort_unstable();
-        let mut expected_ids: Vec<_> = ids.iter().enumerate()
-            .filter_map(|(index, id)| expected_contributors[index].then_some(*id)).collect();
+        let mut expected_ids = scenario.contributors.clone();
         expected_ids.sort_unstable();
         assert_eq!(contributors, expected_ids, "{case}: contributors");
-        let row = format!("{{\"id\":\"{case}\",\"targetVitality\":{target_health},\"accumulatedDamage\":{},\"contributors\":{:?},\"actionCooldowns\":{{{}}}}}",
-            initial_target - target_health, contributors, cooldowns.join(","));
+        let row = serde_json::json!({
+            "id": case,
+            "targetVitality": target_health,
+            "accumulatedDamage": damage,
+            "contributors": contributors,
+            "actionCooldowns": cooldowns,
+        });
         println!("{row}");
         results.push(row);
     }
-    let output = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("build/authoring-trial");
+    let output = root.join("build/authoring-trial");
     std::fs::create_dir_all(&output).unwrap();
-    std::fs::write(output.join("clause-results.json"), format!("[{}]\n", results.join(",\n"))).unwrap();
+    std::fs::write(output.join("clause-results.json"),
+        format!("{}\n", serde_json::to_string_pretty(&results).unwrap())).unwrap();
 }
-
 fn session_for(source: &[u8]) -> PersistentProcessSessionV1 {
     let generation = ResidentSourceWorkbenchV1::open(source)
         .unwrap()
