@@ -267,3 +267,76 @@ The current Wasm digest is
 Details and build timings are in `greywrought:docs/native-desktop.md`.
 No browser profiling, full 100-actor journey, or checked edits were repeated;
 the historical timings above do not establish current-line performance.
+
+## General-handler compiler adoption, 2026-09-06
+
+The unchanged current company source, from Greywrought parent
+`46e70b79cfaa704d098333706e323b42987a8704`, now consumes published Clause
+`a489dfe0de882317e14dfa03c22273fe118826f7`. This removes the specialized
+jump/tick carrier, groups the declared tick event through the general handler
+path, and preserves the independent typed-input repair. No actor count,
+world rule, timestep, assertion, or acceptance threshold changed.
+The exact published compiler's tracked Wasm was reused, SHA-256
+`1d014482c399f987019a3403952209d3297edac6c492580d0c7405b93095fc1a`.
+The native checker rebuilt in 26.64s and resident release in 97s. Host adapters,
+bundles, typechecking, and exact source-pin/Wasm-digest checks passed. The only
+lockfile change adds the compiler substrate's declared package dependency;
+no dependency version changed.
+
+### Current candidate-only capture
+
+The candidate capture took 16,438.8ms end to end, including source admission
+in 6,974.8ms. One candidate took **842.3ms**. Its profile reports one
+preparation, 686 sum evaluations, 210 actual sum queries (428.0ms), and 303.5ms
+inside sum evaluation outside query execution. Two derivation closures took
+7.5ms. Sum evaluation remains the measured dominant boundary; this is not
+real-time acceptance or an attribution of its remaining internal cost.
+
+Both new captures use Chrome152, Radeon890M/ANGLE hardware rendering,
+1280x900/DPR1, 16ms source ticks and 1,000ms warmup. Their exclusive capacity
+scope actually supplied **18 CPUs / 16GiB memory-high**, unlike the older
+6CPU/8GiB captures. Their source SHA-256 is
+`6e5754201bfdc63a0d71a80333967de18f8f9fb18aa927824992662e3f784ad2`;
+CPP1 SHA-256 is
+`1ce073011c93b67e45c5cc25e82b979ce486a871de0c181be7152a43e532273b`.
+The source and compiler have advanced since historical timings, so no matched
+causal percentage follows. The driver's historical `baseCommit` labels remain
+unchanged; the actual consumer parent is stated above.
+
+### One full hardware journey
+
+The full journey reached its verdict in **62,700.3ms**. All four combined
+performance gates still fail: 100 actors were projected and all 100 cooldowns
+advanced, but 98 positions moved; rendering was **10.224 FPS**, frame-interval
+p95 **150ms**, and median source-seconds/wall-second **0.0188753**. Three
+candidate durations had median 785.9ms; admission median was 88.1ms.
+
+| Checked edit | Visible latency | Native compiler | Wasm transfer | Carried identities |
+| --- | ---: | ---: | ---: | ---: |
+| Double cooldown advance | 14,478.5ms | 5,550.1ms | 5,989.5ms | 100/100 |
+| Restore cooldown advance | 13,742.5ms | 5,292.7ms | 5,553.0ms | 100/100 |
+| Double cooldown advance again | 13,117.7ms | 5,339.0ms | 5,589.1ms | 100/100 |
+
+All three edits completed with identity continuity, but none meets 250ms.
+The 100-moving-actor, ≥59FPS/p95≤20ms, real-time ±5%, and edit-latency gates
+remain unchanged and unmet. No second full journey was run.
+
+Raw profiles, full results, failure snapshot and command logs remain under
+`~/code/greywrought/worktrees/preparation-reuse-grey-integration-20260906/build/measurement/`:
+`greywrought:build/measurement/100-active-profile.json`,
+`greywrought:build/measurement/100-active.json`,
+`greywrought:build/measurement/carrier-candidate-profile.log`, and
+`greywrought:build/measurement/carrier-full-journey.log`.
+These ignored artifacts are retained locally, not published by this summary.
+The harness-owned temporary browser/server exited. Live services, installed
+native artifacts, saved worlds, dirty main and separate creature-game lanes
+were untouched.
+
+The same company candidate also passed native desktop compilation (130s) and
+its existing native journey: five actors, selection, attack 100→9, checked
+scalar edit 1681ms, stale-handle rejection, identical admitted projection on
+scratch-save reopen, and continued input/tick (2397ms total; 2.59s build).
+This did not open or modify an installed save and does not assess the separately
+published creature experience. Its newer native integration retains its owner's
+compiler pin; the benchmark candidate remains in the named owned lane rather
+than silently repinning that independently integrated game.
