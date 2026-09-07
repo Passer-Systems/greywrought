@@ -7,6 +7,84 @@ use std::time::Instant;
 
 const SOURCE: &[u8] = include_bytes!("../src/world/workshop-expedition.clause");
 
+#[test]
+fn encounter_unavailable_weapon_returns_without_reapproaching() {
+    let started = Instant::now();
+    let source = std::str::from_utf8(SOURCE)
+        .unwrap()
+        .replace("  phase: \"Workshop\"\n", "  phase: \"Expedition\"\n")
+        .replace("  position: 0.0\n", "  position: 8.0\n")
+        .replace("  firepower: 9.0\n", "  firepower: 0.0\n");
+    let mut session = NativeSession::open(source.as_bytes()).unwrap();
+    let mut trace = Vec::new();
+    for _ in 0..12 {
+        session.tick().unwrap();
+        let world = projection(&session);
+        trace.push((
+            number(&world, "workshop", "action"),
+            number(&world, "workshop", "position"),
+        ));
+    }
+    eprintln!("unavailable weapon trace: {trace:?}");
+    assert!(
+        trace.windows(2).all(|pair| pair[1].1 < pair[0].1),
+        "withdrawal must not reverse: {trace:?}"
+    );
+    for _ in 0..1000 {
+        let before = projection(&session);
+        if text(&before, "workshop", "phase") == "Returned" {
+            break;
+        }
+        session.tick().unwrap();
+        let after = projection(&session);
+        assert_eq!(number(&after, "workshop", "action"), 0.0);
+        assert!(number(&after, "workshop", "position") < number(&before, "workshop", "position"));
+    }
+    assert_eq!(text(&projection(&session), "workshop", "phase"), "Returned");
+    eprintln!("unavailable weapon return elapsed {:?}", started.elapsed());
+}
+
+#[test]
+fn encounter_cooling_finishes_before_firing_resumes() {
+    let source = std::str::from_utf8(SOURCE)
+        .unwrap()
+        .replace("  phase: \"Workshop\"\n", "  phase: \"Expedition\"\n")
+        .replace("  position: 0.0\n", "  position: 8.0\n")
+        .replace("  heat: 0.0\n", "  heat: 35.0\n")
+        .replace("  action: 0.0\n", "  action: 2.0\n");
+    let mut session = NativeSession::open(source.as_bytes()).unwrap();
+    let mut trace = Vec::new();
+    for _ in 0..12 {
+        session.tick().unwrap();
+        let world = projection(&session);
+        trace.push((
+            number(&world, "workshop", "action"),
+            number(&world, "workshop", "heat"),
+        ));
+    }
+    eprintln!("cooling trace: {trace:?}");
+    assert!(
+        trace.iter().all(|point| point.0 == 3.0),
+        "cooling must persist below the upper limit: {trace:?}"
+    );
+    for _ in 0..100 {
+        let before = projection(&session);
+        session.tick().unwrap();
+        let after = projection(&session);
+        if number(&after, "workshop", "action") == 2.0 {
+            assert!(number(&before, "workshop", "heat") <= 25.0);
+            assert!(
+                number(&after, "workshop", "threat-health")
+                    < number(&before, "workshop", "threat-health")
+            );
+            return;
+        }
+        assert_eq!(number(&after, "workshop", "action"), 3.0);
+        assert!(number(&after, "workshop", "heat") < number(&before, "workshop", "heat"));
+    }
+    panic!("cooling never finished");
+}
+
 fn projection(session: &NativeSession) -> Term {
     session.workbench.project_current_world().unwrap()
 }

@@ -379,15 +379,15 @@ derive bound
 
 pilot:
   (shape: F64):
-    ?position ?destination ?enemy ?heat ?reserve ?cargo ?target ?heat-limit ?reserve-floor ?drive ?weapon ?action
+    ?position ?destination ?enemy ?heat ?reserve ?cargo ?target ?heat-limit ?reserve-floor ?drive ?weapon ?prior-action ?action
   ?withdraw shape Bool
-  pilot at ?position destination ?destination enemy ?enemy heat ?heat reserve ?reserve cargo ?cargo target ?target heat-limit ?heat-limit reserve-floor ?reserve-floor drive ?drive weapon ?weapon withdraw ?withdraw chooses ?action
-mode pilot given position destination enemy heat reserve cargo target heat-limit reserve-floor drive weapon withdraw yields action: maybe
+  pilot at ?position destination ?destination enemy ?enemy heat ?heat reserve ?reserve cargo ?cargo target ?target heat-limit ?heat-limit reserve-floor ?reserve-floor drive ?drive weapon ?weapon withdraw ?withdraw prior-action ?prior-action chooses ?action
+mode pilot given position destination enemy heat reserve cargo target heat-limit reserve-floor drive weapon withdraw prior-action yields action: maybe
 law pilot-priorities
   if
     ?position >= 0.0
   then
-    pilot at ?position destination ?destination enemy ?enemy heat ?heat reserve ?reserve cargo ?cargo target ?target heat-limit ?heat-limit reserve-floor ?reserve-floor drive ?drive weapon ?weapon withdraw ?withdraw chooses if(?withdraw, 0.0, if(?reserve <= ?reserve-floor, 0.0, if(?cargo >= ?target, 0.0, if(?drive <= 0.0, 0.0, if(?position < ?destination, 1.0, if(?enemy <= 0.0, 4.0, if(?weapon <= 0.0, 0.0, if(?heat >= ?heat-limit, 3.0, 2.0))))))))
+    pilot at ?position destination ?destination enemy ?enemy heat ?heat reserve ?reserve cargo ?cargo target ?target heat-limit ?heat-limit reserve-floor ?reserve-floor drive ?drive weapon ?weapon withdraw ?withdraw prior-action ?prior-action chooses if(?withdraw, 0.0, if(?reserve <= ?reserve-floor, 0.0, if(?cargo >= ?target, 0.0, if(?drive <= 0.0, 0.0, if(?position < ?destination, 1.0, if(?enemy <= 0.0, 4.0, if(?weapon <= 0.0, 0.0, if(if(?prior-action = 3.0, ?heat > ?heat-limit - 10.0, ?heat >= ?heat-limit), 3.0, 2.0))))))))
 derive pilot-priorities
 
 cautious
@@ -744,7 +744,7 @@ on tick ?workshop ?dt
     legs max-part-health ?maximum-legs
     ?workshop capacity Capacity { mass: ?mass, power: ?power, drive: ?drive, weapon: ?weapon, cooling: ?cooling, drive-draw: ?drive-draw, weapon-draw: ?weapon-draw, cooling-draw: ?cooling-draw }
     ((?baseline * ?body-mass * ?legs / ?maximum-legs + ?drive) / (?body-mass + ?mass)) bounded by 0.0 and 8.0 as ?speed
-    pilot at ?position destination ?destination enemy ?enemy heat ?heat reserve ?reserve cargo ?cargo target ?target heat-limit ?heat-limit reserve-floor ?reserve-floor drive ?speed weapon ?weapon withdraw if(?condition <= ?retreat-condition, true, ?withdraw) chooses ?action
+    pilot at ?position destination ?destination enemy ?enemy heat ?heat reserve ?reserve cargo ?cargo target ?target heat-limit ?heat-limit reserve-floor ?reserve-floor drive ?speed weapon ?weapon withdraw if(?condition <= ?retreat-condition, true, ?withdraw) prior-action ?old-action chooses ?action
     if(?action = 1.0, ?position + ?speed * ?dt, if(?action = 0.0, ?position - ?speed * ?dt, ?position)) bounded by 0.0 and ?destination as ?next-position
     (?heat + if(?action = 2.0, 15.0, if(?action = 1.0, 2.0, 0.0)) * ?dt - (1.0 + if(?power >= if(?action = 2.0, ?weapon-draw + ?cooling-draw, if(?action = 3.0, ?cooling-draw, ?drive-draw + ?cooling-draw)), ?cooling, 0.0)) * ?dt) bounded by 0.0 and 150.0 as ?next-heat
     (?reserve - if(?action = 2.0, 2.2, 0.7) * ?dt) bounded by 0.0 and 100.0 as ?next-reserve
@@ -759,6 +759,7 @@ on tick ?workshop ?dt
     ?workshop report ?report
     ?workshop threat-health ?enemy
     ?workshop action ?old-action
+    ?workshop withdrawing ?withdraw
   include
     ?workshop phase if(?action = 0.0, if(?next-position <= 0.0, "Returned", "Expedition"), "Expedition")
     ?workshop position ?next-position
@@ -768,6 +769,7 @@ on tick ?workshop ?dt
     ?workshop cargo if(?action = 4.0, ?cargo + 3.0 * ?dt, ?cargo)
     ?workshop threat-health ?next-enemy
     ?workshop action ?action
+    ?workshop withdrawing if(?action = 0.0, true, ?withdraw)
     ?workshop report if(?action = 0.0, if(?next-position <= 0.0, "Back at the workshop. Salvage banked; injuries and equipment wear remain.", if(?condition <= ?retreat-condition, "The wayfarer is too injured to press on and is heading home.", if(?drive <= 0.0, "The braces have no power. The wayfarer is returning on foot.", "The wayfarer is withdrawing with remaining reserve."))), if(?action = 1.0, "Approaching the sentinel. Equipment weight and leg condition set the pace.", if(?action = 2.0, "The wayfarer fires the arm-mounted lance; heat is rising.", if(?action = 3.0, "Holding fire to cool within the chosen heat limit.", "Sentinel defeated. Gathering salvage."))))
 
 on tick ?component ?dt
