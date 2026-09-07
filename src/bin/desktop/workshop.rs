@@ -3,6 +3,8 @@ use super::*;
 
 #[derive(Component, Clone)]
 pub(super) enum Control {
+    Outfit,
+    Help,
     Pick(usize),
     Wire(usize),
     Body(usize),
@@ -13,6 +15,8 @@ pub(super) enum Control {
 }
 #[derive(Resource, Default)]
 pub(super) struct Selection {
+    open: bool,
+    help_dismissed: bool,
     body: Option<usize>,
     wiring: bool,
 }
@@ -26,6 +30,8 @@ pub(super) struct Readout;
 pub(super) struct Detail;
 #[derive(Component)]
 pub(super) struct Report;
+#[derive(Component)]
+pub(super) struct SentinelLabel;
 #[derive(Component)]
 pub(super) struct Roster;
 #[derive(Component)]
@@ -84,9 +90,19 @@ fn column() -> Node {
 pub(super) fn setup(commands: &mut Commands) {
     commands.insert_resource(Selection::default());
     commands.spawn((
+        label("", 15.0),
+        Node {
+            position_type: PositionType::Absolute,
+            padding: UiRect::all(px(5)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.15, 0.035, 0.02, 0.9)),
+        SentinelLabel,
+    ));
+    commands.spawn((
         Camera3d::default(),
         WorkshopCamera,
-        Transform::from_xyz(4.5, 3.1, 7.5).looking_at(Vec3::new(0.0, 1.25, 0.0), Vec3::Y),
+        Transform::from_xyz(4.5, 3.1, 7.5).looking_at(Vec3::Y, Vec3::Y),
     ));
     commands.spawn((
         DirectionalLight {
@@ -108,9 +124,9 @@ pub(super) fn setup(commands: &mut Commands) {
         label("Opening the workshop...", 17.0),
         Node {
             position_type: PositionType::Absolute,
-            left: px(24),
+            left: px(16),
             top: px(12),
-            right: px(24),
+            right: px(16),
             ..default()
         },
         Hud,
@@ -119,110 +135,83 @@ pub(super) fn setup(commands: &mut Commands) {
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                left: px(22),
-                top: px(24),
-                width: px(245),
-                padding: UiRect::all(px(16)),
-                ..column()
-            },
-            BackgroundColor(Color::srgba(0.045, 0.075, 0.085, 0.96)),
-            Panel,
-            Outfitting,
-        ))
-        .with_children(|p| {
-            p.spawn(label("GREYWROUGHT", 25.0));
-            p.spawn(label("OUTFIT YOUR WAYFARER", 13.0));
-            p.spawn(label("Equipment", 18.0));
-            p.spawn((column(), Roster));
-            p.spawn(label("Body", 18.0));
-            p.spawn((column(), BodyRoster));
-        });
-    commands
-        .spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                right: px(22),
-                top: px(24),
-                width: px(285),
-                padding: UiRect::all(px(16)),
-                ..column()
-            },
-            BackgroundColor(Color::srgba(0.045, 0.075, 0.085, 0.96)),
-            Panel,
-            Outfitting,
-        ))
-        .with_children(|p| {
-            p.spawn(label("SELECTED EQUIPMENT", 14.0));
-            p.spawn((label("", 16.0), Detail));
-            for (control, caption) in [
-                (Control::Equip, "Equip on selected body part"),
-                (Control::Key("UnequipComponent"), "Remove equipment"),
-                (Control::Wiring, "Connect power..."),
-                (Control::Key("DisconnectComponent"), "Disconnect power"),
-                (Control::Key("RepairComponent"), "Repair selected gear"),
-            ] {
-                p.spawn(button(control)).with_children(|b| {
-                    b.spawn(label(caption, 14.0));
-                });
-            }
-            p.spawn((column(), WireRoster));
-            p.spawn(label("EXPEDITION ORDERS", 14.0));
-            for i in 0..2 {
-                p.spawn(button(Control::Doctrine(i))).with_children(|b| {
-                    b.spawn(label("", 14.0));
-                });
-            }
-            p.spawn(button(Control::Key("RestCreature")))
-                .with_children(|b| {
-                    b.spawn(label("Rest the wayfarer", 15.0));
-                });
-            p.spawn(button(Control::Key("LaunchExpedition")))
-                .with_children(|b| {
-                    b.spawn(label("DEPLOY   [Enter]", 20.0));
-                });
-        });
-    commands
-        .spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                left: px(290),
-                right: px(330),
-                top: px(24),
-                padding: UiRect::all(px(14)),
+                left: px(16),
+                right: px(16),
+                top: px(12),
+                padding: UiRect::all(px(10)),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.045, 0.075, 0.085, 0.90)),
+            BackgroundColor(Color::srgba(0.045, 0.075, 0.085, 0.88)),
             Panel,
         ))
         .with_children(|p| {
-            p.spawn((label("", 19.0), Readout));
+            p.spawn((label("", 17.0), Readout));
         });
     commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                left: px(290),
-                right: px(330),
-                bottom: px(65),
-                padding: UiRect::all(px(14)),
-                ..column()
+                left: px(16),
+                top: px(88),
+                column_gap: px(8),
+                ..default()
             },
-            BackgroundColor(Color::srgba(0.045, 0.075, 0.085, 0.94)),
             Panel,
         ))
         .with_children(|p| {
-            p.spawn((label("", 17.0), Report));
-            p.spawn(button(Control::Key("WithdrawExpedition")))
-                .with_children(|b| {
-                    b.spawn(label("Return to workshop   [Backspace]", 15.0));
+            for (control, caption) in [
+                (Control::Outfit, "Outfit [O]"),
+                (Control::Key("LaunchExpedition"), "Deploy [Enter]"),
+                (Control::Key("WithdrawExpedition"), "Return [Backspace]"),
+                (Control::Help, "How to play [?]"),
+            ] {
+                p.spawn(button(control)).with_children(|b| {
+                    b.spawn(label(caption, 15.0));
                 });
+            }
+        });
+    commands.spawn((Node { position_type: PositionType::Absolute, left: px(16), top: px(136), width: px(660), bottom: px(62), padding: UiRect::all(px(14)), overflow: Overflow::scroll_y(), ..column() }, ScrollPosition::default(), BackgroundColor(Color::srgba(0.045, 0.075, 0.085, 0.98)), Panel, Outfitting)).with_children(|p| {
+        p.spawn(label("OUTFIT  /  Choose gear, then a body part. Scroll for more.", 16.0));
+        p.spawn((Node { column_gap: px(16), ..default() },)).with_children(|p| {
+            p.spawn((Node { width: px(200), flex_shrink: 0.0, ..column() },)).with_children(|p| {
+                p.spawn(label("Equipment", 17.0)); p.spawn((column(), Roster));
+                p.spawn(label("Body parts", 17.0)); p.spawn((column(), BodyRoster));
+            });
+            p.spawn((Node { flex_grow: 1.0, min_width: px(0), ..column() },)).with_children(|p| {
+                p.spawn((label("", 15.0), Detail));
+                for (control, caption) in [(Control::Equip, "Equip on chosen body part"), (Control::Key("UnequipComponent"), "Remove gear"), (Control::Wiring, "Connect power..."), (Control::Key("DisconnectComponent"), "Disconnect power"), (Control::Key("RepairComponent"), "Repair gear with supplies"), (Control::Key("RestCreature"), "Rest - heal the wayfarer")] {
+                    p.spawn(button(control)).with_children(|b| { b.spawn(label(caption, 15.0)); });
+                }
+                p.spawn((column(), WireRoster));
+                p.spawn(label("Repair fixes gear and costs supplies. Rest heals the body. Neither replaces the other.", 14.0));
+                p.spawn(label("Automatic expedition orders", 16.0));
+                for i in 0..2 { p.spawn(button(Control::Doctrine(i))).with_children(|b| { b.spawn(label("", 14.0)); }); }
+            });
+        });
+    });
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: px(16),
+                right: px(16),
+                bottom: px(44),
+                max_width: px(680),
+                padding: UiRect::all(px(10)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.045, 0.075, 0.085, 0.9)),
+            Panel,
+        ))
+        .with_children(|p| {
+            p.spawn((label("", 15.0), Report));
         });
     commands.spawn((
-        label("F5 Save   |   F6 Developer tuning", 14.0),
+        label("F5 Save  |  F6 Developer tuning", 13.0),
         Node {
             position_type: PositionType::Absolute,
-            left: px(290),
-            bottom: px(24),
+            left: px(16),
+            bottom: px(16),
             ..default()
         },
         Panel,
@@ -232,16 +221,142 @@ pub(super) fn setup(commands: &mut Commands) {
 pub(super) fn layout(
     mode: Res<Mode>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    mut scale: ResMut<UiScale>,
+    mut panels: Query<(&mut Node, &mut ScrollPosition), With<Outfitting>>,
+    selection: Option<Res<Selection>>,
+    mut wheel: MessageReader<MouseWheel>,
 ) {
     if !mode.workshop {
         return;
     }
-    if let Ok(window) = windows.single() {
-        // Preserve space for the creature between panels in narrow tiled windows.
-        scale.0 = (window.width() / 1100.0)
-            .min(window.height() / 940.0)
-            .min(1.0);
+    let Ok(window) = windows.single() else {
+        return;
+    };
+    for (mut node, mut scroll) in &mut panels {
+        node.width = px((window.width() - 32.0).min(660.0));
+        if selection.as_ref().is_some_and(|s| s.open) {
+            for event in wheel.read() {
+                scroll.y = (scroll.y - event.y * 32.0).max(0.0);
+            }
+        }
+    }
+}
+
+fn unavailable(
+    control: &Control,
+    view: &native::WorkshopView,
+    selection: &Selection,
+) -> Option<&'static str> {
+    let chosen = view.components.iter().find(|c| c.selected);
+    match control {
+        Control::Outfit if view.phase == "Expedition" => Some("Return to change gear"),
+        Control::Equip if selection.body.is_none() => Some("Choose a body part first"),
+        Control::Equip
+            if !chosen.is_some_and(|c| {
+                selection
+                    .body
+                    .and_then(|i| view.body_parts.get(i))
+                    .is_some_and(|p| c.available_fit.contains(&p.fit))
+            }) =>
+        {
+            Some("Choose a body part marked fits")
+        }
+        Control::Key("UnequipComponent") if !chosen.is_some_and(|c| c.mounted) => {
+            Some("Gear is already removed")
+        }
+        Control::Key("DisconnectComponent") if !chosen.is_some_and(|c| c.linked) => {
+            Some("Already disconnected")
+        }
+        Control::Key("RepairComponent")
+            if chosen.is_some_and(|c| c.readings["health"] >= c.readings["max-health"]) =>
+        {
+            Some("Gear needs no repair")
+        }
+        Control::Key("RepairComponent") if view.readings["stock"] < 1.0 => {
+            Some("Repair needs supplies")
+        }
+        Control::Key("RestCreature") if view.creature_condition >= 100.0 => {
+            Some("Wayfarer is fully rested")
+        }
+        Control::Key("LaunchExpedition") if view.phase == "Expedition" => {
+            Some("Already on expedition")
+        }
+        Control::Key("WithdrawExpedition") if view.phase != "Expedition" => Some("Already home"),
+        _ => None,
+    }
+}
+
+fn gear_description(id: &str) -> &'static str {
+    match id {
+        "ember-core" | "auxiliary-core" => {
+            "Supplies power to connected gear. Fit it to the back, then connect other gear to it."
+        }
+        "drive" => "Powered braces help the wayfarer carry equipment and travel faster.",
+        "lance" => {
+            "An arm-mounted weapon for fighting the sentinel. It needs a live power connection."
+        }
+        "cooler" => "Vents heat while powered, helping the wayfarer keep fighting.",
+        "armor" | "helmet" => "Protects the body part it covers. Heavier equipment slows travel.",
+        _ => "Fit this equipment to a compatible body part.",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn outfit_is_closed_until_requested_and_recovery_controls_explain_availability() {
+        let session =
+            NativeSession::open(include_bytes!("../../world/workshop-expedition.clause")).unwrap();
+        let snapshot = session.snapshot(0, "Workshop ready".into()).unwrap();
+        let view = snapshot.workshop.as_ref().unwrap();
+        assert_eq!(
+            unavailable(
+                &Control::Key("RepairComponent"),
+                view,
+                &Selection::default()
+            ),
+            Some("Gear needs no repair")
+        );
+        assert_eq!(
+            unavailable(&Control::Key("RestCreature"), view, &Selection::default()),
+            Some("Wayfarer is fully rested")
+        );
+        assert_eq!(
+            unavailable(&Control::Equip, view, &Selection::default()),
+            Some("Choose a body part first")
+        );
+        let mut app = App::new();
+        app.insert_resource(Displayed {
+            snapshot: Some(snapshot),
+            status: "Workshop ready".into(),
+            ..default()
+        });
+        app.add_systems(Startup, |mut commands: Commands| setup(&mut commands));
+        app.add_systems(Update, present);
+        app.update();
+        let panel = app
+            .world_mut()
+            .query_filtered::<Entity, With<Outfitting>>()
+            .single(app.world())
+            .unwrap();
+        assert_eq!(
+            *app.world().get::<Visibility>(panel).unwrap(),
+            Visibility::Hidden
+        );
+        app.world_mut().resource_mut::<Selection>().open = true;
+        app.update();
+        assert_eq!(
+            *app.world().get::<Visibility>(panel).unwrap(),
+            Visibility::Inherited
+        );
+        let reports = app
+            .world_mut()
+            .query_filtered::<&Text, With<Report>>()
+            .iter(app.world())
+            .map(|t| t.0.clone())
+            .collect::<Vec<_>>();
+        assert!(reports.iter().all(|text| !text.contains("Workshop ready")));
     }
 }
 
@@ -269,11 +384,19 @@ pub(super) fn controls(
         .filter(|(i, _)| **i == Interaction::Pressed)
         .map(|(_, c)| c.clone())
         .collect::<Vec<_>>();
+    if keys.just_pressed(KeyCode::KeyO) {
+        actions.push(Control::Outfit);
+    }
+    if keys.just_pressed(KeyCode::Slash) {
+        actions.push(Control::Help);
+    }
+    if keys.just_pressed(KeyCode::Escape) {
+        selection.open = false;
+        selection.wiring = false;
+    }
     for (key, binding) in [
         (KeyCode::Enter, "LaunchExpedition"),
         (KeyCode::Backspace, "WithdrawExpedition"),
-        (KeyCode::KeyR, "RepairComponent"),
-        (KeyCode::KeyX, "DisconnectComponent"),
     ] {
         if keys.just_pressed(key) {
             actions.push(Control::Key(binding));
@@ -281,7 +404,19 @@ pub(super) fn controls(
     }
     let mut inputs = Vec::new();
     for action in actions {
+        if unavailable(&action, view, &selection).is_some() {
+            continue;
+        }
         let input = match action {
+            Control::Outfit => {
+                selection.open = !selection.open;
+                selection.wiring = false;
+                None
+            }
+            Control::Help => {
+                selection.help_dismissed = !selection.help_dismissed;
+                None
+            }
             Control::Body(i) => {
                 selection.body = Some(i);
                 None
@@ -311,7 +446,13 @@ pub(super) fn controls(
                 .doctrines
                 .get(i)
                 .map(|d| native::reference("ChooseDoctrine", d.reference.clone())),
-            Control::Key(binding) => Some(native::key(binding)),
+            Control::Key(binding) => {
+                if binding == "LaunchExpedition" {
+                    selection.open = false;
+                    selection.help_dismissed = true;
+                }
+                Some(native::key(binding))
+            }
         };
         if let Some(input) = input {
             inputs.push(input);
@@ -353,7 +494,7 @@ pub(super) fn present(
     };
     let expedition = view.phase == "Expedition";
     for (mut visibility, outfit) in &mut panels {
-        *visibility = if display.editing || (expedition && outfit.is_some()) {
+        *visibility = if display.editing || (outfit.is_some() && (expedition || !selection.open)) {
             Visibility::Hidden
         } else {
             Visibility::Inherited
@@ -363,46 +504,78 @@ pub(super) fn present(
     let chosen = view.components.iter().find(|c| c.selected);
     for (mut content, readout, detail, report) in &mut text {
         if readout.is_some() {
+            let activity = if expedition {
+                match r["action"] as i32 {
+                    0 => "Returning",
+                    1 => "Travelling",
+                    2 => "Firing",
+                    3 => "Cooling",
+                    4 => "Gathering",
+                    _ => "On expedition",
+                }
+            } else {
+                "Home"
+            };
             **content = format!(
-                "{}  |  {}\nCondition {:.0}%   Heat {:.0}   Reserve {:.0}\nSalvage {:.0}/{:.0}   Supplies {:.0}\nEquipment mass {:.0}   Available power {:.0}{}",
+                "{}  |  {}  |  Salvage {:.0}/{:.0}\nCondition {:.0}%  Heat {:.0}  Reserve {:.0}{}",
                 view.creature_name,
-                view.phase,
+                activity,
+                r["cargo"],
+                r["objective"],
                 view.creature_condition,
                 r["heat"],
                 r["reserve"],
-                r["cargo"],
-                r["objective"],
-                r["stock"],
-                r["total-mass"],
-                r["available-power"],
                 if expedition {
-                    format!(
-                        "\nAshfield {:.1}/{:.1}   Sentinel {:.0}/{:.0}",
-                        r["position"],
-                        r["encounter-position"],
-                        r["threat-health"],
-                        r["threat-maximum"]
-                    )
-                } else {
                     String::new()
+                } else {
+                    format!("  |  Supplies {:.0}", r["stock"])
                 }
             );
         } else if detail.is_some() {
             **content = chosen.map(|c| {
                 let attachment = view.body_parts.iter().find(|p| Some(&p.fit) == c.attached_to.as_ref()).map(|p| p.label.as_str()).unwrap_or("Not equipped");
                 let upstream = view.components.iter().find(|p| Some(&p.pick) == c.upstream.as_ref()).map(|p| p.label.as_str()).unwrap_or("None");
-                format!("{}\n{}\nGear {:.0}/{:.0}   Weight {:.0}\n{}\nPower connection: {}\nSupply {:.0}   Draw {:.0}\nThrust {:.0}   Firepower {:.0}\nCooling {:.0}   Protection {:.0}\n\nBody selected: {}", c.label, attachment, c.readings["health"], c.readings["max-health"], c.readings["mass"], if c.powered { "Powered" } else { "No power" }, if c.linked { upstream } else { "Disconnected" }, c.readings["generation"], c.readings["draw"], c.readings["thrust"], c.readings["firepower"], c.readings["cooling"], c.readings["protection"], selection.body.and_then(|i| view.body_parts.get(i)).map(|p| p.label.as_str()).unwrap_or("Choose on the left"))
+                format!("{}\n{}\n\n{}\n\nGear {:.0}/{:.0}  Weight {:.0}\n{} - connected to {}\nTotal load {:.0}  Available power {:.0}\n\n{}",
+                    c.label, attachment, gear_description(&c.id), c.readings["health"], c.readings["max-health"], c.readings["mass"],
+                    if c.powered { "Powered" } else { "No power" }, if c.linked { upstream } else { "nothing" }, r["total-mass"], r["available-power"], view.fit_report)
             }).unwrap_or_default();
         } else if report.is_some() {
-            **content = if expedition {
-                format!("{}\n{}", view.report, display.status)
+            let notice = match display.status.as_str() {
+                "Workshop ready" | "Company ready" => "",
+                other => other,
+            };
+            let guidance = if !selection.help_dismissed && !selection.open {
+                "FIRST TRIP: Open Outfit to inspect or fit gear, then Deploy. The wayfarer travels, fights and gathers salvage automatically. You choose equipment and orders; Return brings them home. Repair fixes worn gear using supplies. Rest heals injuries."
+            } else if expedition {
+                "Reach the ashfield sentinel, defeat it and gather salvage. Return at any time."
+            } else if view.phase == "Returned" {
+                "Home again. Salvage is banked. Open Outfit to repair worn gear and rest injuries before the next trip."
             } else {
-                format!("{}\n\n{}\n{}", view.report, view.fit_report, display.status)
+                "Ready for a trip? Inspect your gear with Outfit, or Deploy to set out."
+            };
+            **content = if selection.open {
+                notice.to_owned()
+            } else if expedition && selection.help_dismissed {
+                format!(
+                    "Automatic expedition - Return at any time.\n{}{}",
+                    view.report,
+                    if notice.is_empty() {
+                        String::new()
+                    } else {
+                        format!("\n{notice}")
+                    }
+                )
+            } else if notice.is_empty() {
+                guidance.to_owned()
+            } else {
+                format!("{guidance}\n{notice}")
             };
         }
     }
     for (control, children, interaction, mut background, mut node) in &mut buttons {
         node.display = match control {
+            Control::Key("LaunchExpedition") if expedition => Display::None,
+            Control::Outfit if expedition => Display::None,
             Control::Wire(_) if !selection.wiring => Display::None,
             Control::Equip
             | Control::Doctrine(_)
@@ -416,7 +589,30 @@ pub(super) fn present(
             Control::Key("WithdrawExpedition") if !expedition => Display::None,
             _ => Display::Flex,
         };
-        let (caption, selected) = match control {
+        let (mut caption, selected) = match control {
+            Control::Outfit => (
+                if selection.open {
+                    "Close outfit [O]"
+                } else {
+                    "Outfit [O]"
+                }
+                .into(),
+                selection.open,
+            ),
+            Control::Help => (
+                if selection.help_dismissed {
+                    "How to play [?]"
+                } else {
+                    "Hide help [?]"
+                }
+                .into(),
+                false,
+            ),
+            Control::Equip => ("Equip on chosen body part".into(), false),
+            Control::Key("RepairComponent") => ("Repair gear with supplies".into(), false),
+            Control::Key("RestCreature") => ("Rest - heal the wayfarer".into(), false),
+            Control::Key("UnequipComponent") => ("Remove gear".into(), false),
+            Control::Key("DisconnectComponent") => ("Disconnect power".into(), false),
             Control::Wiring => (
                 if selection.wiring {
                     "Cancel power connection"
@@ -476,7 +672,13 @@ pub(super) fn present(
                 .unwrap_or_default(),
             _ => (String::new(), false),
         };
-        background.0 = if *interaction == Interaction::Hovered {
+        let reason = unavailable(control, view, &selection);
+        if let Some(reason) = reason {
+            caption = reason.into();
+        }
+        background.0 = if reason.is_some() {
+            Color::srgb(0.08, 0.10, 0.11)
+        } else if *interaction == Interaction::Hovered {
             Color::srgb(0.28, 0.37, 0.35)
         } else if selected {
             Color::srgb(0.26, 0.36, 0.23)
@@ -603,17 +805,44 @@ pub(super) fn scene(
                 Transform::from_xyz(x, 0.0, z).with_scale(Vec3::new(1.0, 0.6, 0.8)),
             ));
         }
-        commands.spawn((
-            Scenery::Sentinel,
-            Mesh3d(meshes.add(Capsule3d::new(0.65, 1.5))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.55, 0.15, 0.07),
-                emissive: LinearRgba::new(0.3, 0.03, 0.0, 1.0),
-                metallic: 0.7,
-                ..default()
-            })),
-            Transform::default(),
-        ));
+        commands
+            .spawn((
+                Scenery::Sentinel,
+                Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 0.9))),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: Color::srgb(0.55, 0.15, 0.07),
+                    emissive: LinearRgba::new(0.3, 0.03, 0.0, 1.0),
+                    metallic: 0.7,
+                    ..default()
+                })),
+                Transform::default(),
+            ))
+            .with_children(|p| {
+                let dark = materials.add(Color::srgb(0.13, 0.08, 0.06));
+                let eye = materials.add(StandardMaterial {
+                    base_color: Color::srgb(1.0, 0.25, 0.03),
+                    emissive: LinearRgba::new(4.0, 0.3, 0.02, 1.0),
+                    ..default()
+                });
+                p.spawn((
+                    Mesh3d(meshes.add(Cuboid::new(1.1, 0.18, 0.15))),
+                    MeshMaterial3d(eye),
+                    Transform::from_xyz(0.0, 0.3, 0.53),
+                ));
+                for x in [-1.0, 1.0] {
+                    p.spawn((
+                        Mesh3d(meshes.add(Cuboid::new(0.35, 1.0, 0.45))),
+                        MeshMaterial3d(dark.clone()),
+                        Transform::from_xyz(x, 0.45, 0.0)
+                            .with_rotation(Quat::from_rotation_z(-x * 0.3)),
+                    ));
+                    p.spawn((
+                        Mesh3d(meshes.add(Cuboid::new(0.35, 0.35, 1.5))),
+                        MeshMaterial3d(dark.clone()),
+                        Transform::from_xyz(x, -0.35, 0.5),
+                    ));
+                }
+            });
         commands.spawn((
             Scenery::Cache,
             Mesh3d(meshes.add(Cuboid::new(0.8, 0.6, 0.8))),
@@ -667,6 +896,35 @@ pub(super) fn scene(
                 },
         )
         .looking_at(center, Vec3::Y);
+    }
+}
+
+pub(super) fn enemy_label(
+    display: Res<Displayed>,
+    cameras: Query<(&Camera, &GlobalTransform), With<WorkshopCamera>>,
+    mut labels: Query<(&mut Text, &mut Node, &mut Visibility), With<SentinelLabel>>,
+) {
+    let Some(view) = display.snapshot.as_ref().and_then(|s| s.workshop.as_ref()) else {
+        return;
+    };
+    let Ok((camera, transform)) = cameras.single() else {
+        return;
+    };
+    for (mut text, mut node, mut visibility) in &mut labels {
+        let point = Vec3::new(0.0, 2.6, -view.readings["encounter-position"] as f32 - 2.0);
+        if view.phase == "Expedition" && !display.editing {
+            if let Ok(position) = camera.world_to_viewport(transform, point) {
+                node.left = px(position.x - 100.0);
+                node.top = px(position.y);
+                **text = format!(
+                    "ASHFIELD SENTINEL\n{:.0}/{:.0}",
+                    view.readings["threat-health"], view.readings["threat-maximum"]
+                );
+                *visibility = Visibility::Inherited;
+                continue;
+            }
+        }
+        *visibility = Visibility::Hidden;
     }
 }
 

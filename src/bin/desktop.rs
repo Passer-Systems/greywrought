@@ -204,6 +204,7 @@ fn main() -> native::Result<()> {
                 present,
                 workshop::present,
                 workshop::scene,
+                workshop::enemy_label,
                 workshop::equipment,
                 animate,
                 hud,
