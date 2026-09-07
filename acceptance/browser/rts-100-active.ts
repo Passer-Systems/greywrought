@@ -248,14 +248,13 @@ try {
   } else {
     await observe("100-active-movement-and-cooldown");
   }
+  if (profileOnly && observeProfile) await observe("100-active-movement-and-cooldown");
   if (workerSession) {
     const result = await call("Profiler.stop", {}, workerSession);
     requireCondition(Boolean(result.result?.profile), "resident worker CPU profile was not retained");
     await Bun.write("build/measurement/100-active-worker.cpuprofile", JSON.stringify(result.result.profile));
     await call("Target.detachFromTarget", { sessionId: workerSession });
   }
-  if (profileOnly && observeProfile) await observe("100-active-movement-and-cooldown");
-
   await evaluate(`(() => {
     const catalog=document.getElementById('scalar-effect-catalog');
     const option=[...catalog.options].find(candidate=>candidate.textContent.startsWith('?cooldown - ?dt ·'));
