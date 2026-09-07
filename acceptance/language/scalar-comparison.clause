@@ -2,24 +2,32 @@ F64
 Bool
 Meter
 
-relation reading
-  reads {meter: Meter} reading {value: F64}
-  subject meter
-  mode given meter yields value: one
-relation positive
-  reads {meter: Meter} positive {value: Bool}
-  subject meter
-  mode given meter yields value: one
+reading:
+  ?meter shape Meter
+  ?value shape F64
+  ?meter:
+    reading: ?value
+
+mode reading given meter yields value: one
+positive:
+  ?meter shape Meter
+  ?value shape Bool
+  ?meter:
+    positive: ?value
+
+mode positive given meter yields value: one
 
 meter
-  shape: Meter
-meter reading 25.0
-meter positive false
+  member of: Meter
+meter
+  reading: 25.0
+  positive: false
 
 on measure ?meter
   when
-    ?meter reading ?value
-    ?meter positive ?prior
+    ?meter:
+      reading: ?value
+      positive: ?prior
   withdraw
     ?meter positive ?prior
   include

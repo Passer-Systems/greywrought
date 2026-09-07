@@ -3,21 +3,34 @@ Bool
 Text
 Device
 
-relation readiness
-  reads {enabled: Bool} enabled with charge {charge: F64} reports {message: Text}
-  mode given enabled charge yields message: maybe
-relation enabled
-  reads {device: Device} enabled {value: Bool}
-  subject device
-  mode given device yields value: one
-relation charge
-  reads {device: Device} charge {value: F64}
-  subject device
-  mode given device yields value: one
-relation message
-  reads {device: Device} message {value: Text}
-  subject device
-  mode given device yields value: one
+readiness:
+  ?enabled shape Bool
+  ?charge shape F64
+  ?message shape Text
+  ?enabled enabled with charge ?charge reports ?message
+
+mode readiness given enabled charge yields message: maybe
+enabled:
+  ?device shape Device
+  ?value shape Bool
+  ?device:
+    enabled: ?value
+
+mode enabled given device yields value: one
+charge:
+  ?device shape Device
+  ?value shape F64
+  ?device:
+    charge: ?value
+
+mode charge given device yields value: one
+message:
+  ?device shape Device
+  ?value shape Text
+  ?device:
+    message: ?value
+
+mode message given device yields value: one
 
 law disabled
   if
@@ -41,16 +54,18 @@ derive empty
 derive ready
 
 device
-  shape: Device
-device enabled true
-device charge 1.0
-device message "Unchecked"
+  member of: Device
+device
+  enabled: true
+  charge: 1.0
+  message: "Unchecked"
 
 on inspect ?device
   when
-    ?device enabled ?enabled
-    ?device charge ?charge
-    ?device message ?prior
+    ?device:
+      enabled: ?enabled
+      charge: ?charge
+      message: ?prior
     ?enabled enabled with charge ?charge reports ?message
   withdraw
     ?device message ?prior
@@ -59,8 +74,9 @@ on inspect ?device
 
 on use ?device
   when
-    ?device enabled ?enabled
-    ?device charge ?charge
+    ?device:
+      enabled: ?enabled
+      charge: ?charge
     ?enabled enabled with charge ?charge reports ?message
     ?message = "Ready"
   withdraw

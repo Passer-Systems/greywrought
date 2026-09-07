@@ -1,40 +1,55 @@
 Actor
 BurnEffect
 
-relation vitality
-  reads {actor: Actor} vitality {value: F64}
-  subject actor
-  mode given actor yields value: one
-relation selected
-  reads {actor: Actor} selected {value: Bool}
-  subject actor
-  mode given actor yields value: one
-relation burn-target
-  reads {effect: BurnEffect} burn target {value: Actor}
-  subject effect
-  mode given effect yields value: one
-relation effect-remaining
-  reads {effect: BurnEffect} effect remaining {value: F64}
-  subject effect
-  mode given effect yields value: one
+vitality:
+  ?actor shape Actor
+  ?value shape F64
+  ?actor:
+    vitality: ?value
+
+mode vitality given actor yields value: one
+selected:
+  ?actor shape Actor
+  ?value shape Bool
+  ?actor:
+    selected: ?value
+
+mode selected given actor yields value: one
+burn-target:
+  ?effect shape BurnEffect
+  ?value shape Actor
+  ?effect:
+    burn target: ?value
+
+mode burn-target given effect yields value: one
+effect-remaining:
+  ?effect shape BurnEffect
+  ?value shape F64
+  ?effect:
+    effect remaining: ?value
+
+mode effect-remaining given effect yields value: one
 
 unit-a
-  shape: Actor
+  member of: Actor
 unit-b
-  shape: Actor
+  member of: Actor
 
-unit-a vitality 100.0
-unit-a selected true
-unit-b vitality 100.0
-unit-b selected true
+unit-a
+  vitality: 100.0
+  selected: true
+unit-b
+  vitality: 100.0
+  selected: true
 
 bind keyboard Attack down to attack
 bind scalar-input IgniteDuration to ignite
 
 on attack ?actor
   when
-    ?actor selected true
-    ?actor vitality ?health
+    ?actor:
+      selected: true
+      vitality: ?health
   accumulate
     ?actor vitality 0.0 - 10.0
 
@@ -43,7 +58,8 @@ on ignite ?actor ?duration
     ?actor selected true
   create
     ?effect
-      shape: BurnEffect
+      member of: BurnEffect
   include
-    ?effect burn target ?actor
-    ?effect effect remaining ?duration
+    ?effect:
+      burn target: ?actor
+      effect remaining: ?duration

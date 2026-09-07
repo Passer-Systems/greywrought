@@ -765,9 +765,10 @@ derive hostile-order-readiness
 
 law selected-living-formation
   if
-    ?unit selected true
-    ?unit alive true
-    ?unit vitality ?health
+    ?unit:
+      selected: true
+      alive: true
+      vitality: ?health
     ?health > 0.0
     ?unit formation offset ?offset
   then
@@ -858,357 +859,498 @@ crossing-victory
 crossing-defeat
   member of: EncounterState
 
-player-1 order target Vec3 { x: 0.0, y: 0.0, z: 0.0 }
-player-1 chosen target cinder-1
-encounter encounter state ready
-encounter encounter scenario moonwell-vigil
-encounter encounter elapsed 0.0
-ready state name "Ready"
-active state name "Battle joined"
-victory state name "Moonwell restored"
-defeat state name "Moonwell lost"
-assault-victory state name "Cinder Crown broken"
-assault-defeat state name "Cinder Crown awakened"
-crossing-victory state name "Dawnroad crossed"
-crossing-defeat state name "Ilyra lost"
-ready state ended false
-active state ended false
-victory state ended true
-defeat state ended true
-assault-victory state ended true
-assault-defeat state ended true
-crossing-victory state ended true
-crossing-defeat state ended true
-ready state message ""
-active state message ""
-victory state message "The wraiths are defeated. The Moonwell still stands."
-defeat state message "The Moonwell has fallen. Rally the company and try again."
-assault-victory state message "The Ashbinder falls before the crown can wake."
-assault-defeat state message "The Cinder Crown awakens. Regroup and strike faster."
-crossing-victory state message "Ilyra reaches the far watchfire and the road lies open."
-crossing-defeat state message "Ilyra falls beneath the ambush. Gather the company and try again."
-combat-rules burn damage 4.0
+player-1
+  order target:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  chosen target: cinder-1
+encounter
+  encounter state: ready
+  encounter scenario: moonwell-vigil
+  encounter elapsed: 0.0
+ready
+  state name: "Ready"
+active
+  state name: "Battle joined"
+victory
+  state name: "Moonwell restored"
+defeat
+  state name: "Moonwell lost"
+assault-victory
+  state name: "Cinder Crown broken"
+assault-defeat
+  state name: "Cinder Crown awakened"
+crossing-victory
+  state name: "Dawnroad crossed"
+crossing-defeat
+  state name: "Ilyra lost"
+ready
+  state ended: false
+active
+  state ended: false
+victory
+  state ended: true
+defeat
+  state ended: true
+assault-victory
+  state ended: true
+assault-defeat
+  state ended: true
+crossing-victory
+  state ended: true
+crossing-defeat
+  state ended: true
+ready
+  state message: ""
+active
+  state message: ""
+victory
+  state message: "The wraiths are defeated. The Moonwell still stands."
+defeat
+  state message: "The Moonwell has fallen. Rally the company and try again."
+assault-victory
+  state message: "The Ashbinder falls before the crown can wake."
+assault-defeat
+  state message: "The Cinder Crown awakens. Regroup and strike faster."
+crossing-victory
+  state message: "Ilyra reaches the far watchfire and the road lies open."
+crossing-defeat
+  state message: "Ilyra falls beneath the ambush. Gather the company and try again."
+combat-rules
+  burn damage: 4.0
 
-moonwell-vigil scenario name "Moonwell Vigil"
-moonwell-vigil scenario objective "Protect and restore the Moonwell"
-moonwell-vigil scenario brief "Marshal the company, choose a target, and balance pressure with Mara's healing ward."
-moonwell-vigil scenario action "Begin defence"
-moonwell-vigil scenario order 1.0
-moonwell-vigil scenario focus moonwell
-moonwell-vigil scenario opening target cinder-1
-cinder-crown scenario name "Cinder Crown"
-cinder-crown scenario objective "Break the Ashbinder before the crown awakens"
-cinder-crown scenario brief "Advance through the flanking sentries and concentrate the company on the Ashbinder before time runs out."
-cinder-crown scenario action "Begin assault"
-cinder-crown scenario order 2.0
-cinder-crown scenario focus ashbinder
-cinder-crown scenario opening target ashbinder
-dawnroad-crossing scenario name "Dawnroad Crossing"
-dawnroad-crossing scenario objective "Escort Ilyra beyond the ash line"
-dawnroad-crossing scenario brief "Move with Ilyra, shield her through each ambush, and clear the road before she reaches it."
-dawnroad-crossing scenario action "Begin crossing"
-dawnroad-crossing scenario order 3.0
-dawnroad-crossing scenario focus ilyra
-dawnroad-crossing scenario opening target road-raider-1
+moonwell-vigil
+  scenario name: "Moonwell Vigil"
+  scenario objective: "Protect and restore the Moonwell"
+  scenario brief: "Marshal the company, choose a target, and balance pressure with Mara's healing ward."
+  scenario action: "Begin defence"
+  scenario order: 1.0
+  scenario focus: moonwell
+  scenario opening target: cinder-1
+cinder-crown
+  scenario name: "Cinder Crown"
+  scenario objective: "Break the Ashbinder before the crown awakens"
+  scenario brief: "Advance through the flanking sentries and concentrate the company on the Ashbinder before time runs out."
+  scenario action: "Begin assault"
+  scenario order: 2.0
+  scenario focus: ashbinder
+  scenario opening target: ashbinder
+dawnroad-crossing
+  scenario name: "Dawnroad Crossing"
+  scenario objective: "Escort Ilyra beyond the ash line"
+  scenario brief: "Move with Ilyra, shield her through each ambush, and clear the road before she reaches it."
+  scenario action: "Begin crossing"
+  scenario order: 3.0
+  scenario focus: ilyra
+  scenario opening target: road-raider-1
 
-warrior-class class name "Warrior"
-warrior-class class role "Front-line defender"
-artificer-class class name "Artificer"
-artificer-class class role "Magitek support"
-rogue-class class name "Rogue"
-rogue-class class role "Mobile striker"
-priest-class class name "Priest"
-priest-class class role "Restoration and wards"
-ranger-class class name "Ranger"
-ranger-class class role "Ranged pressure"
+warrior-class
+  class name: "Warrior"
+  class role: "Front-line defender"
+artificer-class
+  class name: "Artificer"
+  class role: "Magitek support"
+rogue-class
+  class name: "Rogue"
+  class role: "Mobile striker"
+priest-class
+  class name: "Priest"
+  class role: "Restoration and wards"
+ranger-class
+  class name: "Ranger"
+  class role: "Ranged pressure"
 
-warrior-1 actor name "Aldric"
-warrior-1 presentation kind "Warrior"
-warrior-1 unit class warrior-class
-warrior-1 actor position Vec3 { x: -2.0, y: 0.0, z: 1.0 }
-warrior-1 unit destination Vec3 { x: -2.0, y: 0.0, z: 1.0 }
-warrior-1 formation offset Vec3 { x: -2.0, y: 0.0, z: -1.0 }
-warrior-1 movement speed 5.0
-warrior-1 selected true
-warrior-1 moving false
-warrior-1 hostile false
-warrior-1 vitality 160.0
-warrior-1 maximum vitality 160.0
-warrior-1 alive true
-warrior-1 ward remaining 0.0
-warrior-1 burn remaining 0.0
-warrior-1 attack damage 22.0
-warrior-1 attack range 18.0
-warrior-1 healing power 0.0
-warrior-1 ward duration 0.0
-warrior-1 action cooldown 0.0
-warrior-1 action period 0.8
+warrior-1
+  actor name: "Aldric"
+  presentation kind: "Warrior"
+  unit class: warrior-class
+  actor position:
+    x: -2.0
+    y: 0.0
+    z: 1.0
+  unit destination:
+    x: -2.0
+    y: 0.0
+    z: 1.0
+  formation offset:
+    x: -2.0
+    y: 0.0
+    z: -1.0
+  movement speed: 5.0
+  selected: true
+  moving: false
+  hostile: false
+  vitality: 160.0
+  maximum vitality: 160.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  attack damage: 22.0
+  attack range: 18.0
+  healing power: 0.0
+  ward duration: 0.0
+  action cooldown: 0.0
+  action period: 0.8
 
-artificer-1 actor name "Cora"
-artificer-1 presentation kind "Artificer"
-artificer-1 unit class artificer-class
-artificer-1 actor position Vec3 { x: 0.0, y: 0.0, z: 1.0 }
-artificer-1 unit destination Vec3 { x: 0.0, y: 0.0, z: 1.0 }
-artificer-1 formation offset Vec3 { x: 0.0, y: 0.0, z: -1.0 }
-artificer-1 movement speed 4.3
-artificer-1 selected true
-artificer-1 moving false
-artificer-1 hostile false
-artificer-1 vitality 105.0
-artificer-1 maximum vitality 105.0
-artificer-1 alive true
-artificer-1 ward remaining 0.0
-artificer-1 burn remaining 0.0
-artificer-1 attack damage 18.0
-artificer-1 attack range 18.0
-artificer-1 healing power 0.0
-artificer-1 ward duration 0.0
-artificer-1 action cooldown 0.0
-artificer-1 action period 0.8
-artificer-1 ignite duration 3.0
-artificer-1 ignite damage 7.0
+artificer-1
+  actor name: "Cora"
+  presentation kind: "Artificer"
+  unit class: artificer-class
+  actor position:
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  unit destination:
+    x: 0.0
+    y: 0.0
+    z: 1.0
+  formation offset:
+    x: 0.0
+    y: 0.0
+    z: -1.0
+  movement speed: 4.3
+  selected: true
+  moving: false
+  hostile: false
+  vitality: 105.0
+  maximum vitality: 105.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  attack damage: 18.0
+  attack range: 18.0
+  healing power: 0.0
+  ward duration: 0.0
+  action cooldown: 0.0
+  action period: 0.8
+  ignite duration: 3.0
+  ignite damage: 7.0
 
-rogue-1 actor name "Vey"
-rogue-1 presentation kind "Rogue"
-rogue-1 unit class rogue-class
-rogue-1 actor position Vec3 { x: 2.0, y: 0.0, z: 1.0 }
-rogue-1 unit destination Vec3 { x: 2.0, y: 0.0, z: 1.0 }
-rogue-1 formation offset Vec3 { x: 2.0, y: 0.0, z: -1.0 }
-rogue-1 movement speed 5.7
-rogue-1 selected true
-rogue-1 moving false
-rogue-1 hostile false
-rogue-1 vitality 95.0
-rogue-1 maximum vitality 95.0
-rogue-1 alive true
-rogue-1 ward remaining 0.0
-rogue-1 burn remaining 0.0
-rogue-1 attack damage 24.0
-rogue-1 attack range 18.0
-rogue-1 healing power 0.0
-rogue-1 ward duration 0.0
-rogue-1 action cooldown 0.0
-rogue-1 action period 0.8
+rogue-1
+  actor name: "Vey"
+  presentation kind: "Rogue"
+  unit class: rogue-class
+  actor position:
+    x: 2.0
+    y: 0.0
+    z: 1.0
+  unit destination:
+    x: 2.0
+    y: 0.0
+    z: 1.0
+  formation offset:
+    x: 2.0
+    y: 0.0
+    z: -1.0
+  movement speed: 5.7
+  selected: true
+  moving: false
+  hostile: false
+  vitality: 95.0
+  maximum vitality: 95.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  attack damage: 24.0
+  attack range: 18.0
+  healing power: 0.0
+  ward duration: 0.0
+  action cooldown: 0.0
+  action period: 0.8
 
-priest-1 actor name "Mara"
-priest-1 presentation kind "Priest"
-priest-1 unit class priest-class
-priest-1 actor position Vec3 { x: -1.0, y: 0.0, z: 3.0 }
-priest-1 unit destination Vec3 { x: -1.0, y: 0.0, z: 3.0 }
-priest-1 formation offset Vec3 { x: -1.0, y: 0.0, z: 1.0 }
-priest-1 movement speed 4.2
-priest-1 selected true
-priest-1 moving false
-priest-1 hostile false
-priest-1 vitality 90.0
-priest-1 maximum vitality 90.0
-priest-1 alive true
-priest-1 ward remaining 0.0
-priest-1 burn remaining 0.0
-priest-1 attack damage 7.0
-priest-1 attack range 18.0
-priest-1 healing power 28.0
-priest-1 ward duration 4.0
-priest-1 action cooldown 0.0
-priest-1 action period 0.8
+priest-1
+  actor name: "Mara"
+  presentation kind: "Priest"
+  unit class: priest-class
+  actor position:
+    x: -1.0
+    y: 0.0
+    z: 3.0
+  unit destination:
+    x: -1.0
+    y: 0.0
+    z: 3.0
+  formation offset:
+    x: -1.0
+    y: 0.0
+    z: 1.0
+  movement speed: 4.2
+  selected: true
+  moving: false
+  hostile: false
+  vitality: 90.0
+  maximum vitality: 90.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  attack damage: 7.0
+  attack range: 18.0
+  healing power: 28.0
+  ward duration: 4.0
+  action cooldown: 0.0
+  action period: 0.8
 
-ranger-1 actor name "Rowan"
-ranger-1 presentation kind "Ranger"
-ranger-1 unit class ranger-class
-ranger-1 actor position Vec3 { x: 1.0, y: 0.0, z: 3.0 }
-ranger-1 unit destination Vec3 { x: 1.0, y: 0.0, z: 3.0 }
-ranger-1 formation offset Vec3 { x: 1.0, y: 0.0, z: 1.0 }
-ranger-1 movement speed 4.8
-ranger-1 selected true
-ranger-1 moving false
-ranger-1 hostile false
-ranger-1 vitality 100.0
-ranger-1 maximum vitality 100.0
-ranger-1 alive true
-ranger-1 ward remaining 0.0
-ranger-1 burn remaining 0.0
-ranger-1 attack damage 20.0
-ranger-1 attack range 18.0
-ranger-1 healing power 0.0
-ranger-1 ward duration 0.0
-ranger-1 action cooldown 0.0
-ranger-1 action period 0.8
-ranger-1 ignite duration 1.5
-ranger-1 ignite damage 7.0
+ranger-1
+  actor name: "Rowan"
+  presentation kind: "Ranger"
+  unit class: ranger-class
+  actor position:
+    x: 1.0
+    y: 0.0
+    z: 3.0
+  unit destination:
+    x: 1.0
+    y: 0.0
+    z: 3.0
+  formation offset:
+    x: 1.0
+    y: 0.0
+    z: 1.0
+  movement speed: 4.8
+  selected: true
+  moving: false
+  hostile: false
+  vitality: 100.0
+  maximum vitality: 100.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  attack damage: 20.0
+  attack range: 18.0
+  healing power: 0.0
+  ward duration: 0.0
+  action cooldown: 0.0
+  action period: 0.8
+  ignite duration: 1.5
+  ignite damage: 7.0
 
-cinder-1 actor name "Cinder Wraith"
-cinder-1 presentation kind "Cinder"
-cinder-1 actor position Vec3 { x: 0.0, y: 0.0, z: 6.0 }
-cinder-1 hostile true
-cinder-1 vitality 100.0
-cinder-1 maximum vitality 100.0
-cinder-1 alive true
-cinder-1 ward remaining 0.0
-cinder-1 burn remaining 0.0
-cinder-1 enemy target moonwell
-cinder-1 enemy damage 18.0
-cinder-1 enemy range 8.0
-cinder-1 enemy cooldown 0.0
-cinder-1 enemy period 1.0
-cinder-1 enemy burn duration 2.5
-cinder-1 actor scenario moonwell-vigil
+cinder-1
+  actor name: "Cinder Wraith"
+  presentation kind: "Cinder"
+  actor position:
+    x: 0.0
+    y: 0.0
+    z: 6.0
+  hostile: true
+  vitality: 100.0
+  maximum vitality: 100.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  enemy target: moonwell
+  enemy damage: 18.0
+  enemy range: 8.0
+  enemy cooldown: 0.0
+  enemy period: 1.0
+  enemy burn duration: 2.5
+  actor scenario: moonwell-vigil
 
-cinder-2 actor name "Ash Stalker"
-cinder-2 presentation kind "Cinder"
-cinder-2 actor position Vec3 { x: 3.0, y: 0.0, z: 7.0 }
-cinder-2 hostile true
-cinder-2 vitality 100.0
-cinder-2 maximum vitality 100.0
-cinder-2 alive true
-cinder-2 ward remaining 0.0
-cinder-2 burn remaining 0.0
-cinder-2 enemy target warrior-1
-cinder-2 enemy damage 13.0
-cinder-2 enemy range 8.0
-cinder-2 enemy cooldown 0.0
-cinder-2 enemy period 1.25
-cinder-2 enemy burn duration 2.0
-cinder-2 actor scenario moonwell-vigil
+cinder-2
+  actor name: "Ash Stalker"
+  presentation kind: "Cinder"
+  actor position:
+    x: 3.0
+    y: 0.0
+    z: 7.0
+  hostile: true
+  vitality: 100.0
+  maximum vitality: 100.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  enemy target: warrior-1
+  enemy damage: 13.0
+  enemy range: 8.0
+  enemy cooldown: 0.0
+  enemy period: 1.25
+  enemy burn duration: 2.0
+  actor scenario: moonwell-vigil
 
-moonwell actor name "Moonwell"
-moonwell presentation kind "Moonwell"
-moonwell actor position Vec3 { x: 0.0, y: 0.0, z: 4.0 }
-moonwell hostile false
-moonwell vitality 110.0
-moonwell maximum vitality 150.0
-moonwell alive true
-moonwell ward remaining 0.0
-moonwell burn remaining 0.0
-moonwell actor scenario moonwell-vigil
+moonwell
+  actor name: "Moonwell"
+  presentation kind: "Moonwell"
+  actor position:
+    x: 0.0
+    y: 0.0
+    z: 4.0
+  hostile: false
+  vitality: 110.0
+  maximum vitality: 150.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  actor scenario: moonwell-vigil
 
-ashbinder actor name "The Ashbinder"
-ashbinder presentation kind "Cinder"
-ashbinder actor position Vec3 { x: 0.0, y: 0.0, z: 24.0 }
-ashbinder hostile true
-ashbinder vitality 140.0
-ashbinder maximum vitality 140.0
-ashbinder alive true
-ashbinder ward remaining 0.0
-ashbinder burn remaining 0.0
-ashbinder enemy target priest-1
-ashbinder enemy damage 11.0
-ashbinder enemy range 30.0
-ashbinder enemy cooldown 0.0
-ashbinder enemy period 1.4
-ashbinder enemy burn duration 2.2
-ashbinder actor scenario cinder-crown
+ashbinder
+  actor name: "The Ashbinder"
+  presentation kind: "Cinder"
+  actor position:
+    x: 0.0
+    y: 0.0
+    z: 24.0
+  hostile: true
+  vitality: 140.0
+  maximum vitality: 140.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  enemy target: priest-1
+  enemy damage: 11.0
+  enemy range: 30.0
+  enemy cooldown: 0.0
+  enemy period: 1.4
+  enemy burn duration: 2.2
+  actor scenario: cinder-crown
 
-crown-sentry-1 actor name "West Crown Sentry"
-crown-sentry-1 presentation kind "Cinder"
-crown-sentry-1 actor position Vec3 { x: -7.0, y: 0.0, z: 11.0 }
-crown-sentry-1 hostile true
-crown-sentry-1 vitality 85.0
-crown-sentry-1 maximum vitality 85.0
-crown-sentry-1 alive true
-crown-sentry-1 ward remaining 0.0
-crown-sentry-1 burn remaining 0.0
-crown-sentry-1 enemy target warrior-1
-crown-sentry-1 enemy damage 10.0
-crown-sentry-1 enemy range 13.0
-crown-sentry-1 enemy cooldown 0.0
-crown-sentry-1 enemy period 1.3
-crown-sentry-1 enemy burn duration 1.6
-crown-sentry-1 actor scenario cinder-crown
+crown-sentry-1
+  actor name: "West Crown Sentry"
+  presentation kind: "Cinder"
+  actor position:
+    x: -7.0
+    y: 0.0
+    z: 11.0
+  hostile: true
+  vitality: 85.0
+  maximum vitality: 85.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  enemy target: warrior-1
+  enemy damage: 10.0
+  enemy range: 13.0
+  enemy cooldown: 0.0
+  enemy period: 1.3
+  enemy burn duration: 1.6
+  actor scenario: cinder-crown
 
-crown-sentry-2 actor name "East Crown Sentry"
-crown-sentry-2 presentation kind "Cinder"
-crown-sentry-2 actor position Vec3 { x: 7.0, y: 0.0, z: 14.0 }
-crown-sentry-2 hostile true
-crown-sentry-2 vitality 85.0
-crown-sentry-2 maximum vitality 85.0
-crown-sentry-2 alive true
-crown-sentry-2 ward remaining 0.0
-crown-sentry-2 burn remaining 0.0
-crown-sentry-2 enemy target priest-1
-crown-sentry-2 enemy damage 11.0
-crown-sentry-2 enemy range 13.0
-crown-sentry-2 enemy cooldown 0.0
-crown-sentry-2 enemy period 1.3
-crown-sentry-2 enemy burn duration 1.8
-crown-sentry-2 actor scenario cinder-crown
+crown-sentry-2
+  actor name: "East Crown Sentry"
+  presentation kind: "Cinder"
+  actor position:
+    x: 7.0
+    y: 0.0
+    z: 14.0
+  hostile: true
+  vitality: 85.0
+  maximum vitality: 85.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  enemy target: priest-1
+  enemy damage: 11.0
+  enemy range: 13.0
+  enemy cooldown: 0.0
+  enemy period: 1.3
+  enemy burn duration: 1.8
+  actor scenario: cinder-crown
 
-ilyra actor name "Ilyra the Wayfarer"
-ilyra presentation kind "Moonwell"
-ilyra actor position Vec3 { x: 0.0, y: 0.0, z: -5.0 }
-ilyra hostile false
-ilyra vitality 180.0
-ilyra maximum vitality 180.0
-ilyra alive true
-ilyra ward remaining 0.0
-ilyra burn remaining 0.0
-ilyra actor scenario dawnroad-crossing
-ilyra journey destination Vec3 { x: 0.0, y: 0.0, z: 27.0 }
-ilyra journey speed 1.75
+ilyra
+  actor name: "Ilyra the Wayfarer"
+  presentation kind: "Moonwell"
+  actor position:
+    x: 0.0
+    y: 0.0
+    z: -5.0
+  hostile: false
+  vitality: 180.0
+  maximum vitality: 180.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  actor scenario: dawnroad-crossing
+  journey destination:
+    x: 0.0
+    y: 0.0
+    z: 27.0
+  journey speed: 1.75
 
-road-raider-1 actor name "Duskroad Ambusher"
-road-raider-1 presentation kind "Cinder"
-road-raider-1 actor position Vec3 { x: -3.0, y: 0.0, z: 4.0 }
-road-raider-1 hostile true
-road-raider-1 vitality 75.0
-road-raider-1 maximum vitality 75.0
-road-raider-1 alive true
-road-raider-1 ward remaining 0.0
-road-raider-1 burn remaining 0.0
-road-raider-1 enemy target ilyra
-road-raider-1 enemy damage 9.0
-road-raider-1 enemy range 7.0
-road-raider-1 enemy cooldown 0.0
-road-raider-1 enemy period 1.3
-road-raider-1 enemy burn duration 1.4
-road-raider-1 actor scenario dawnroad-crossing
+road-raider-1
+  actor name: "Duskroad Ambusher"
+  presentation kind: "Cinder"
+  actor position:
+    x: -3.0
+    y: 0.0
+    z: 4.0
+  hostile: true
+  vitality: 75.0
+  maximum vitality: 75.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  enemy target: ilyra
+  enemy damage: 9.0
+  enemy range: 7.0
+  enemy cooldown: 0.0
+  enemy period: 1.3
+  enemy burn duration: 1.4
+  actor scenario: dawnroad-crossing
 
-road-raider-2 actor name "Ash-Line Reaver"
-road-raider-2 presentation kind "Cinder"
-road-raider-2 actor position Vec3 { x: 3.0, y: 0.0, z: 13.0 }
-road-raider-2 hostile true
-road-raider-2 vitality 85.0
-road-raider-2 maximum vitality 85.0
-road-raider-2 alive true
-road-raider-2 ward remaining 0.0
-road-raider-2 burn remaining 0.0
-road-raider-2 enemy target ilyra
-road-raider-2 enemy damage 11.0
-road-raider-2 enemy range 7.0
-road-raider-2 enemy cooldown 0.0
-road-raider-2 enemy period 1.35
-road-raider-2 enemy burn duration 1.6
-road-raider-2 actor scenario dawnroad-crossing
+road-raider-2
+  actor name: "Ash-Line Reaver"
+  presentation kind: "Cinder"
+  actor position:
+    x: 3.0
+    y: 0.0
+    z: 13.0
+  hostile: true
+  vitality: 85.0
+  maximum vitality: 85.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  enemy target: ilyra
+  enemy damage: 11.0
+  enemy range: 7.0
+  enemy cooldown: 0.0
+  enemy period: 1.35
+  enemy burn duration: 1.6
+  actor scenario: dawnroad-crossing
 
-road-raider-3 actor name "Far Watch Ravager"
-road-raider-3 presentation kind "Cinder"
-road-raider-3 actor position Vec3 { x: -2.0, y: 0.0, z: 22.0 }
-road-raider-3 hostile true
-road-raider-3 vitality 95.0
-road-raider-3 maximum vitality 95.0
-road-raider-3 alive true
-road-raider-3 ward remaining 0.0
-road-raider-3 burn remaining 0.0
-road-raider-3 enemy target ilyra
-road-raider-3 enemy damage 13.0
-road-raider-3 enemy range 7.0
-road-raider-3 enemy cooldown 0.0
-road-raider-3 enemy period 1.4
-road-raider-3 enemy burn duration 1.8
-road-raider-3 actor scenario dawnroad-crossing
+road-raider-3
+  actor name: "Far Watch Ravager"
+  presentation kind: "Cinder"
+  actor position:
+    x: -2.0
+    y: 0.0
+    z: 22.0
+  hostile: true
+  vitality: 95.0
+  maximum vitality: 95.0
+  alive: true
+  ward remaining: 0.0
+  burn remaining: 0.0
+  enemy target: ilyra
+  enemy damage: 13.0
+  enemy range: 7.0
+  enemy cooldown: 0.0
+  enemy period: 1.4
+  enemy burn duration: 1.8
+  actor scenario: dawnroad-crossing
 
-warrior-1 footprint radius 0.6
-artificer-1 footprint radius 0.6
-rogue-1 footprint radius 0.6
-priest-1 footprint radius 0.6
-ranger-1 footprint radius 0.6
+warrior-1
+  footprint radius: 0.6
+artificer-1
+  footprint radius: 0.6
+rogue-1
+  footprint radius: 0.6
+priest-1
+  footprint radius: 0.6
+ranger-1
+  footprint radius: 0.6
 
 field
   member of: Battlefield
 standing-stone
   member of: Obstacle
-field half width 40.0
-standing-stone obstacle position Vec3 { x: -6.0, y: 0.0, z: 4.0 }
-standing-stone obstacle radius 1.2
+field
+  half width: 40.0
+standing-stone
+  obstacle position:
+    x: -6.0
+    y: 0.0
+    z: 4.0
+  obstacle radius: 1.2
 
 law destination-status
   then
@@ -1235,46 +1377,51 @@ derive closest-projection
 derive swept-distance
 derive choose-travel
 
-warrior-1 attack readiness "No battle in progress"
-warrior-1 heal readiness "No battle in progress"
-warrior-1 ward readiness "No battle in progress"
-warrior-1 ignite readiness "No battle in progress"
-warrior-1 order report ""
-warrior-1 order name ""
-warrior-1 order number 0.0
-warrior-1 order accepted false
-artificer-1 attack readiness "No battle in progress"
-artificer-1 heal readiness "No battle in progress"
-artificer-1 ward readiness "No battle in progress"
-artificer-1 ignite readiness "No battle in progress"
-artificer-1 order report ""
-artificer-1 order name ""
-artificer-1 order number 0.0
-artificer-1 order accepted false
-rogue-1 attack readiness "No battle in progress"
-rogue-1 heal readiness "No battle in progress"
-rogue-1 ward readiness "No battle in progress"
-rogue-1 ignite readiness "No battle in progress"
-rogue-1 order report ""
-rogue-1 order name ""
-rogue-1 order number 0.0
-rogue-1 order accepted false
-priest-1 attack readiness "No battle in progress"
-priest-1 heal readiness "No battle in progress"
-priest-1 ward readiness "No battle in progress"
-priest-1 ignite readiness "No battle in progress"
-priest-1 order report ""
-priest-1 order name ""
-priest-1 order number 0.0
-priest-1 order accepted false
-ranger-1 attack readiness "No battle in progress"
-ranger-1 heal readiness "No battle in progress"
-ranger-1 ward readiness "No battle in progress"
-ranger-1 ignite readiness "No battle in progress"
-ranger-1 order report ""
-ranger-1 order name ""
-ranger-1 order number 0.0
-ranger-1 order accepted false
+warrior-1
+  attack readiness: "No battle in progress"
+  heal readiness: "No battle in progress"
+  ward readiness: "No battle in progress"
+  ignite readiness: "No battle in progress"
+  order report: ""
+  order name: ""
+  order number: 0.0
+  order accepted: false
+artificer-1
+  attack readiness: "No battle in progress"
+  heal readiness: "No battle in progress"
+  ward readiness: "No battle in progress"
+  ignite readiness: "No battle in progress"
+  order report: ""
+  order name: ""
+  order number: 0.0
+  order accepted: false
+rogue-1
+  attack readiness: "No battle in progress"
+  heal readiness: "No battle in progress"
+  ward readiness: "No battle in progress"
+  ignite readiness: "No battle in progress"
+  order report: ""
+  order name: ""
+  order number: 0.0
+  order accepted: false
+priest-1
+  attack readiness: "No battle in progress"
+  heal readiness: "No battle in progress"
+  ward readiness: "No battle in progress"
+  ignite readiness: "No battle in progress"
+  order report: ""
+  order name: ""
+  order number: 0.0
+  order accepted: false
+ranger-1
+  attack readiness: "No battle in progress"
+  heal readiness: "No battle in progress"
+  ward readiness: "No battle in progress"
+  ignite readiness: "No battle in progress"
+  order report: ""
+  order name: ""
+  order number: 0.0
+  order accepted: false
 
 bind scalar-input PointerWorldX to observe-order-x
 bind scalar-input PointerWorldZ to observe-order-z
@@ -1295,18 +1442,42 @@ bind referent-input CancelBurn as BurnEffect to cancel-burn
 
 on observe-order-x ?controller ?x
   when
-    ?controller order target Vec3 { x: ?prior-x, y: ?y, z: ?z }
+    ?controller:
+      order target:
+        x: ?prior-x
+        y: ?y
+        z: ?z
   withdraw
-    ?controller order target Vec3 { x: ?prior-x, y: ?y, z: ?z }
+    ?controller:
+      order target:
+        x: ?prior-x
+        y: ?y
+        z: ?z
   include
-    ?controller order target Vec3 { x: ?x, y: ?y, z: ?z }
+    ?controller:
+      order target:
+        x: ?x
+        y: ?y
+        z: ?z
 on observe-order-z ?controller ?z
   when
-    ?controller order target Vec3 { x: ?x, y: ?y, z: ?prior-z }
+    ?controller:
+      order target:
+        x: ?x
+        y: ?y
+        z: ?prior-z
   withdraw
-    ?controller order target Vec3 { x: ?x, y: ?y, z: ?prior-z }
+    ?controller:
+      order target:
+        x: ?x
+        y: ?y
+        z: ?prior-z
   include
-    ?controller order target Vec3 { x: ?x, y: ?y, z: ?z }
+    ?controller:
+      order target:
+        x: ?x
+        y: ?y
+        z: ?z
 on clear-selection ?unit
   when
     ?unit selected ?was-selected
@@ -1347,8 +1518,9 @@ on choose-target ?controller ?picked
     ?controller chosen target ?picked
 on choose-scenario ?encounter ?picked
   when
-    ?encounter encounter state ready
-    ?encounter encounter scenario ?prior-scenario
+    ?encounter:
+      encounter state: ready
+      encounter scenario: ?prior-scenario
     ?picked scenario opening target ?opening-target
     player-1 chosen target ?prior-target
   withdraw
@@ -1367,8 +1539,16 @@ on begin-encounter ?encounter
     ?encounter encounter state active
 on issue-move ?unit
   when
-    player-1 order target Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?unit selected formation Vec3 { x: ?offset-x, y: ?offset-y, z: ?offset-z }
+    player-1:
+      order target:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+    ?unit:
+      selected formation:
+        x: ?offset-x
+        y: ?offset-y
+        z: ?offset-z
     sum 1.0 where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?group-size
     sum ?x where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-x
     sum ?z where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-z
@@ -1380,19 +1560,33 @@ on issue-move ?unit
     sum 1.0 given ?target-x ?target-z ?offset-x ?offset-z ?offset-sum-x ?offset-sum-z ?group-size ?radius where { ?obstacle obstacle position Vec3 { x: ?x, y: ?y, z: ?z }; ?obstacle obstacle radius ?obstacle-radius; (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) * (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) + (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) * (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) < (?radius + ?obstacle-radius) * (?radius + ?obstacle-radius) } as ?obstacles
     destination with ?blockers blockers terrain ?terrain obstacles ?obstacles reports ?readiness
     ?readiness = "Ready"
-    ?unit unit destination ?prior-destination
-    ?unit moving ?was-moving
+    ?unit:
+      unit destination: ?prior-destination
+      moving: ?was-moving
   withdraw
-    ?unit unit destination ?prior-destination
-    ?unit moving ?was-moving
+    ?unit:
+      unit destination: ?prior-destination
+      moving: ?was-moving
   include
-    ?unit unit destination Vec3 { x: ?target-x + (?offset-x - ?offset-sum-x / ?group-size), y: 0.0, z: ?target-z + (?offset-z - ?offset-sum-z / ?group-size) }
-    ?unit moving true
+    ?unit:
+      unit destination:
+        x: ?target-x + (?offset-x - ?offset-sum-x / ?group-size)
+        y: 0.0
+        z: ?target-z + (?offset-z - ?offset-sum-z / ?group-size)
+      moving: true
 
 on issue-move ?unit
   when
-    player-1 order target Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?unit selected formation Vec3 { x: ?offset-x, y: ?offset-y, z: ?offset-z }
+    player-1:
+      order target:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+    ?unit:
+      selected formation:
+        x: ?offset-x
+        y: ?offset-y
+        z: ?offset-z
     sum 1.0 where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?group-size
     sum ?x where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-x
     sum ?z where { ?member selected formation Vec3 { x: ?x, y: ?y, z: ?z } } as ?offset-sum-z
@@ -1403,53 +1597,68 @@ on issue-move ?unit
     point (?target-x + ?offset-x - ?offset-sum-x / ?group-size) (?target-z + ?offset-z - ?offset-sum-z / ?group-size) radius ?radius inside ?field-size as ?terrain
     sum 1.0 given ?target-x ?target-z ?offset-x ?offset-z ?offset-sum-x ?offset-sum-z ?group-size ?radius where { ?obstacle obstacle position Vec3 { x: ?x, y: ?y, z: ?z }; ?obstacle obstacle radius ?obstacle-radius; (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) * (?target-x + ?offset-x - ?offset-sum-x / ?group-size - ?x) + (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) * (?target-z + ?offset-z - ?offset-sum-z / ?group-size - ?z) < (?radius + ?obstacle-radius) * (?radius + ?obstacle-radius) } as ?obstacles
     destination with ?blockers blockers terrain ?terrain obstacles ?obstacles reports ?readiness
-    ?unit order report ?prior-report
-    ?unit order name ?prior-name
-    ?unit order number ?prior-number
-    ?unit order accepted ?prior-accepted
+    ?unit:
+      order report: ?prior-report
+      order name: ?prior-name
+      order number: ?prior-number
+      order accepted: ?prior-accepted
   withdraw
-    ?unit order report ?prior-report
-    ?unit order name ?prior-name
-    ?unit order number ?prior-number
-    ?unit order accepted ?prior-accepted
+    ?unit:
+      order report: ?prior-report
+      order name: ?prior-name
+      order number: ?prior-number
+      order accepted: ?prior-accepted
   include
-    ?unit order report ?readiness
-    ?unit order name "Move"
-    ?unit order number ?prior-number + 1.0
-    ?unit order accepted (?readiness = "Ready")
+    ?unit:
+      order report: ?readiness
+      order name: "Move"
+      order number: ?prior-number + 1.0
+      order accepted: (?readiness = "Ready")
 
 on stop-unit ?unit
   when
-    ?unit selected true
-    ?unit alive true
-    ?unit vitality ?health
+    ?unit:
+      selected: true
+      alive: true
+      vitality: ?health
     ?health > 0.0
-    ?unit actor position ?position
-    ?unit unit destination ?destination
-    ?unit moving ?was-moving
+    ?unit:
+      actor position: ?position
+      unit destination: ?destination
+      moving: ?was-moving
   withdraw
-    ?unit unit destination ?destination
-    ?unit moving ?was-moving
+    ?unit:
+      unit destination: ?destination
+      moving: ?was-moving
   include
-    ?unit unit destination ?position
-    ?unit moving false
+    ?unit:
+      unit destination: ?position
+      moving: false
 
 on party-attack ?unit
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit maximum vitality ?unit-maximum
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
-    ?unit attack damage ?damage
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
-    ?unit action period ?period
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      maximum vitality: ?unit-maximum
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
+      attack damage: ?damage
+      attack range: ?range
+      action cooldown: ?cooldown
+      action period: ?period
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target vitality ?health
-    ?target hostile ?target-hostile
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?health
+      hostile: ?target-hostile
     hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?readiness = "Ready"
   withdraw
@@ -1461,20 +1670,28 @@ on party-attack ?unit
 on party-heal ?unit
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
-    ?unit healing power ?healing
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
-    ?unit action period ?period
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
+      healing power: ?healing
+      attack range: ?range
+      action cooldown: ?cooldown
+      action period: ?period
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target vitality ?health
-    ?target maximum vitality ?maximum
-    ?target hostile ?target-hostile
-    ?target alive ?target-alive
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?health
+      maximum vitality: ?maximum
+      hostile: ?target-hostile
+      alive: ?target-alive
     ?health + ?healing clamped between 0.0 and ?maximum as ?next-health
     order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?healing > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed (?health < ?maximum) inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
     ?readiness = "Ready"
@@ -1487,19 +1704,27 @@ on party-heal ?unit
 on raise-ward ?unit
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
-    ?unit ward duration ?duration
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
-    ?unit action period ?period
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
+      ward duration: ?duration
+      attack range: ?range
+      action cooldown: ?cooldown
+      action period: ?period
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target ward remaining ?prior
-    ?target hostile ?target-hostile
-    ?target alive ?target-alive
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      ward remaining: ?prior
+      hostile: ?target-hostile
+      alive: ?target-alive
     order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?duration > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
     ?readiness = "Ready"
   withdraw
@@ -1512,19 +1737,27 @@ on raise-ward ?unit
 on ignite-target ?unit
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
-    ?unit ignite duration ?duration
-    ?unit ignite damage ?damage
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
-    ?unit action period ?period
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
+      ignite duration: ?duration
+      ignite damage: ?damage
+      attack range: ?range
+      action cooldown: ?cooldown
+      action period: ?period
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target vitality ?health
-    ?target hostile ?target-hostile
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?health
+      hostile: ?target-hostile
     sum 1.0 given ?unit where { ?unit ignite duration ?duration; ?unit ignite damage ?damage; ?duration > 0.0; ?damage > 0.0 } as ?ignite-count
     hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?readiness = "Ready"
@@ -1535,165 +1768,222 @@ on ignite-target ?unit
     ?unit action cooldown ?cooldown
   include
     ?unit action cooldown ?period
-    ?effect burn target ?target
-    ?effect effect remaining ?duration
-    ?effect effect damage ?damage
+    ?effect:
+      burn target: ?target
+      effect remaining: ?duration
+      effect damage: ?damage
 
 on party-attack ?unit
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
-    ?unit attack damage ?damage
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
-    ?unit action period ?period
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
+      attack damage: ?damage
+      attack range: ?range
+      action cooldown: ?cooldown
+      action period: ?period
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target vitality ?health
-    ?target hostile ?target-hostile
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?health
+      hostile: ?target-hostile
     hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?is-selected = true
-    ?unit order report ?prior-report
-    ?unit order name ?prior-name
-    ?unit order number ?prior-number
-    ?unit order accepted ?prior-accepted
+    ?unit:
+      order report: ?prior-report
+      order name: ?prior-name
+      order number: ?prior-number
+      order accepted: ?prior-accepted
   withdraw
-    ?unit order report ?prior-report
-    ?unit order name ?prior-name
-    ?unit order number ?prior-number
-    ?unit order accepted ?prior-accepted
+    ?unit:
+      order report: ?prior-report
+      order name: ?prior-name
+      order number: ?prior-number
+      order accepted: ?prior-accepted
   include
-    ?unit order report ?readiness
-    ?unit order name "Attack"
-    ?unit order number ?prior-number + 1.0
-    ?unit order accepted (?readiness = "Ready")
+    ?unit:
+      order report: ?readiness
+      order name: "Attack"
+      order number: ?prior-number + 1.0
+      order accepted: (?readiness = "Ready")
 
 on party-heal ?unit
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
-    ?unit healing power ?healing
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
-    ?unit action period ?period
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
+      healing power: ?healing
+      attack range: ?range
+      action cooldown: ?cooldown
+      action period: ?period
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target vitality ?health
-    ?target maximum vitality ?maximum
-    ?target hostile ?target-hostile
-    ?target alive ?target-alive
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?health
+      maximum vitality: ?maximum
+      hostile: ?target-hostile
+      alive: ?target-alive
     order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?healing > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed (?health < ?maximum) inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
     ?is-selected = true
-    ?unit order report ?prior-report
-    ?unit order name ?prior-name
-    ?unit order number ?prior-number
-    ?unit order accepted ?prior-accepted
+    ?unit:
+      order report: ?prior-report
+      order name: ?prior-name
+      order number: ?prior-number
+      order accepted: ?prior-accepted
   withdraw
-    ?unit order report ?prior-report
-    ?unit order name ?prior-name
-    ?unit order number ?prior-number
-    ?unit order accepted ?prior-accepted
+    ?unit:
+      order report: ?prior-report
+      order name: ?prior-name
+      order number: ?prior-number
+      order accepted: ?prior-accepted
   include
-    ?unit order report ?readiness
-    ?unit order name "Heal"
-    ?unit order number ?prior-number + 1.0
-    ?unit order accepted (?readiness = "Ready")
+    ?unit:
+      order report: ?readiness
+      order name: "Heal"
+      order number: ?prior-number + 1.0
+      order accepted: (?readiness = "Ready")
 
 on raise-ward ?unit
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
-    ?unit ward duration ?duration
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
-    ?unit action period ?period
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
+      ward duration: ?duration
+      attack range: ?range
+      action cooldown: ?cooldown
+      action period: ?period
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target ward remaining ?prior
-    ?target hostile ?target-hostile
-    ?target alive ?target-alive
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      ward remaining: ?prior
+      hostile: ?target-hostile
+      alive: ?target-alive
     order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?duration > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
     ?is-selected = true
-    ?unit order report ?prior-report
-    ?unit order name ?prior-name
-    ?unit order number ?prior-number
-    ?unit order accepted ?prior-accepted
+    ?unit:
+      order report: ?prior-report
+      order name: ?prior-name
+      order number: ?prior-number
+      order accepted: ?prior-accepted
   withdraw
-    ?unit order report ?prior-report
-    ?unit order name ?prior-name
-    ?unit order number ?prior-number
-    ?unit order accepted ?prior-accepted
+    ?unit:
+      order report: ?prior-report
+      order name: ?prior-name
+      order number: ?prior-number
+      order accepted: ?prior-accepted
   include
-    ?unit order report ?readiness
-    ?unit order name "Ward"
-    ?unit order number ?prior-number + 1.0
-    ?unit order accepted (?readiness = "Ready")
+    ?unit:
+      order report: ?readiness
+      order name: "Ward"
+      order number: ?prior-number + 1.0
+      order accepted: (?readiness = "Ready")
 
 on ignite-target ?unit
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
     sum 1.0 given ?unit where { ?unit ignite duration ?duration; ?unit ignite damage ?damage; ?duration > 0.0; ?damage > 0.0 } as ?ignite-count
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
+    ?unit:
+      attack range: ?range
+      action cooldown: ?cooldown
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target vitality ?health
-    ?target hostile ?target-hostile
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?health
+      hostile: ?target-hostile
     hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?is-selected = true
-    ?unit order report ?prior-report
-    ?unit order name ?prior-name
-    ?unit order number ?prior-number
-    ?unit order accepted ?prior-accepted
+    ?unit:
+      order report: ?prior-report
+      order name: ?prior-name
+      order number: ?prior-number
+      order accepted: ?prior-accepted
   withdraw
-    ?unit order report ?prior-report
-    ?unit order name ?prior-name
-    ?unit order number ?prior-number
-    ?unit order accepted ?prior-accepted
+    ?unit:
+      order report: ?prior-report
+      order name: ?prior-name
+      order number: ?prior-number
+      order accepted: ?prior-accepted
   include
-    ?unit order report ?readiness
-    ?unit order name "Ignite"
-    ?unit order number ?prior-number + 1.0
-    ?unit order accepted (?readiness = "Ready")
+    ?unit:
+      order report: ?readiness
+      order name: "Ignite"
+      order number: ?prior-number + 1.0
+      order accepted: (?readiness = "Ready")
 
 on cancel-burn ?effect ?picked
   when
-    ?effect burn target ?target
-    ?effect effect remaining ?remaining
-    ?effect effect damage ?damage
+    ?effect:
+      burn target: ?target
+      effect remaining: ?remaining
+      effect damage: ?damage
     ?effect = ?picked
   withdraw
-    ?effect burn target ?target
-    ?effect effect remaining ?remaining
-    ?effect effect damage ?damage
+    ?effect:
+      burn target: ?target
+      effect remaining: ?remaining
+      effect damage: ?damage
 
 on tick ?unit ?dt
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
     sum 1.0 given ?unit where { ?unit ignite duration ?duration; ?unit ignite damage ?damage; ?duration > 0.0; ?damage > 0.0 } as ?ignite-count
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
+    ?unit:
+      attack range: ?range
+      action cooldown: ?cooldown
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target vitality ?health
-    ?target hostile ?target-hostile
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?health
+      hostile: ?target-hostile
     hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?ignite-count > 0.0) hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?unit ignite readiness ?prior-readiness
   withdraw
@@ -1704,18 +1994,26 @@ on tick ?unit ?dt
 on tick ?unit ?dt
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
-    ?unit attack damage ?damage
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
-    ?unit action period ?period
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
+      attack damage: ?damage
+      attack range: ?range
+      action cooldown: ?cooldown
+      action period: ?period
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target vitality ?health
-    ?target hostile ?target-hostile
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?health
+      hostile: ?target-hostile
     hostile order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable true hostile ?target-hostile targetHealth ?health from ?unit-x ?unit-z to ?target-x ?target-z range ?range cooldown ?cooldown reports ?readiness
     ?unit attack readiness ?prior-readiness
   withdraw
@@ -1726,20 +2024,28 @@ on tick ?unit ?dt
 on tick ?unit ?dt
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
-    ?unit healing power ?healing
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
-    ?unit action period ?period
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
+      healing power: ?healing
+      attack range: ?range
+      action cooldown: ?cooldown
+      action period: ?period
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target vitality ?health
-    ?target maximum vitality ?maximum
-    ?target hostile ?target-hostile
-    ?target alive ?target-alive
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?health
+      maximum vitality: ?maximum
+      hostile: ?target-hostile
+      alive: ?target-alive
     order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?healing > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed (?health < ?maximum) inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
     ?unit heal readiness ?prior-readiness
   withdraw
@@ -1750,19 +2056,27 @@ on tick ?unit ?dt
 on tick ?unit ?dt
   when
     encounter encounter state ?state
-    ?unit selected ?is-selected
-    ?unit vitality ?unit-health
-    ?unit alive ?is-alive
-    ?unit actor position Vec3 { x: ?unit-x, y: ?unit-y, z: ?unit-z }
-    ?unit ward duration ?duration
-    ?unit attack range ?range
-    ?unit action cooldown ?cooldown
-    ?unit action period ?period
+    ?unit:
+      selected: ?is-selected
+      vitality: ?unit-health
+      alive: ?is-alive
+      actor position:
+        x: ?unit-x
+        y: ?unit-y
+        z: ?unit-z
+      ward duration: ?duration
+      attack range: ?range
+      action cooldown: ?cooldown
+      action period: ?period
     player-1 chosen target ?target
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target ward remaining ?prior
-    ?target hostile ?target-hostile
-    ?target alive ?target-alive
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      ward remaining: ?prior
+      hostile: ?target-hostile
+      alive: ?target-alive
     order active (?state = active) selected ?is-selected alive ?is-alive health ?unit-health capable (?duration > 0.0) kind (?target-hostile = false) targetAlive ?target-alive needed true inRange ((?target-x - ?unit-x) * (?target-x - ?unit-x) + (?target-z - ?unit-z) * (?target-z - ?unit-z) <= ?range * ?range) cooldown ?cooldown reports ?readiness
     ?unit ward readiness ?prior-readiness
   withdraw
@@ -1773,19 +2087,31 @@ on tick ?unit ?dt
 on tick ?unit ?dt
   when
     ?dt > 0.0
-    ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
-    ?unit unit destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
-    ?unit movement speed ?speed
+    ?unit:
+      actor position:
+        x: ?x
+        y: ?y
+        z: ?z
+      unit destination:
+        x: ?destination-x
+        y: ?destination-y
+        z: ?destination-z
+      movement speed: ?speed
     ?speed >= 0.0
-    ?unit alive true
-    ?unit moving ?is-moving
+    ?unit:
+      alive: true
+      moving: ?is-moving
     ?is-moving = true
     (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > 0.0
     (?speed * ?dt / sqrt((?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z))) clamped between 0.0 and 1.0 as ?fraction
     from ?x toward ?destination-x fraction ?fraction advances ?step-x
     from ?z toward ?destination-z fraction ?fraction advances ?step-z
-    ?unit footprint radius ?radius
-    ?unit formation offset Vec3 { x: ?priority, y: ?offset-y, z: ?offset-z }
+    ?unit:
+      footprint radius: ?radius
+      formation offset:
+        x: ?priority
+        y: ?offset-y
+        z: ?offset-z
     field half width ?field-size
     point (?x + ?step-x) (?z + ?step-z) radius ?radius inside ?field-size as ?forward-terrain
     sum 1.0 given ?unit ?x ?z ?step-x ?step-z ?priority ?radius ?dt where { ?other alive true; ?other actor position Vec3 { x: ?other-x, y: ?other-y, z: ?other-z }; ?other footprint radius ?other-radius; ?other movement speed ?other-speed; ?other moving ?other-moving; ?other formation offset Vec3 { x: ?other-priority, y: ?other-offset-y, z: ?other-offset-z }; (?other = ?unit) = false; step ?step-x ?step-z toward relative point (?other-x - ?x) (?other-z - ?z) projects ?projection; ?projection clamped between 0.0 and 1.0 as ?along; step ?step-x ?step-z past relative point (?other-x - ?x) (?other-z - ?z) radius (?radius + ?other-radius + if(?priority >= ?other-priority, if(?other-moving, ?other-speed * ?dt, 0.0), 0.0)) along ?along blocked ?collision; ?collision = true } as ?forward-units
@@ -1798,16 +2124,31 @@ on tick ?unit ?dt
     sum 1.0 given ?x ?z ?step-x ?step-z ?radius where { ?obstacle obstacle position Vec3 { x: ?obstacle-x, y: ?obstacle-y, z: ?obstacle-z }; ?obstacle obstacle radius ?obstacle-radius; step ?step-z (0.0 - ?step-x) toward relative point (?obstacle-x - ?x) (?obstacle-z - ?z) projects ?projection; ?projection clamped between 0.0 and 1.0 as ?along; step ?step-z (0.0 - ?step-x) past relative point (?obstacle-x - ?x) (?obstacle-z - ?z) radius (?radius + ?obstacle-radius) along ?along blocked ?collision; ?collision = true } as ?left-obstacles
     paths forward (?forward-units + ?forward-obstacles + if(?forward-terrain, 0.0, 1.0)) right (?right-units + ?right-obstacles + if(?right-terrain, 0.0, 1.0)) left (?left-units + ?left-obstacles + if(?left-terrain, 0.0, 1.0)) choose ?direction
   withdraw
-    ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
-    ?unit moving ?is-moving
+    ?unit:
+      actor position:
+        x: ?x
+        y: ?y
+        z: ?z
+      moving: ?is-moving
   include
-    ?unit actor position Vec3 { x: if(?direction = 0.0, (1.0 - ?fraction) * ?x + ?fraction * ?destination-x, ?x + if(?direction = 1.0, 0.0 - ?step-z, if(?direction = -1.0, ?step-z, 0.0))), y: 0.0, z: if(?direction = 0.0, (1.0 - ?fraction) * ?z + ?fraction * ?destination-z, ?z + if(?direction = 1.0, ?step-x, if(?direction = -1.0, 0.0 - ?step-x, 0.0))) }
-    ?unit moving if(?direction = 0.0, (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > (?speed * ?dt) * (?speed * ?dt), true)
+    ?unit:
+      actor position:
+        x: if(?direction = 0.0, (1.0 - ?fraction) * ?x + ?fraction * ?destination-x, ?x + if(?direction = 1.0, 0.0 - ?step-z, if(?direction = -1.0, ?step-z, 0.0)))
+        y: 0.0
+        z: if(?direction = 0.0, (1.0 - ?fraction) * ?z + ?fraction * ?destination-z, ?z + if(?direction = 1.0, ?step-x, if(?direction = -1.0, 0.0 - ?step-x, 0.0)))
+      moving: if(?direction = 0.0, (?destination-x - ?x) * (?destination-x - ?x) + (?destination-z - ?z) * (?destination-z - ?z) > (?speed * ?dt) * (?speed * ?dt), true)
 on tick ?unit ?dt
   when
-    ?unit actor position Vec3 { x: ?x, y: ?y, z: ?z }
-    ?unit unit destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
-    ?unit moving ?is-moving
+    ?unit:
+      actor position:
+        x: ?x
+        y: ?y
+        z: ?z
+      unit destination:
+        x: ?destination-x
+        y: ?destination-y
+        z: ?destination-z
+      moving: ?is-moving
     ?is-moving = true
     ?x = ?destination-x
     ?z = ?destination-z
@@ -1850,9 +2191,10 @@ on tick ?actor ?dt
 on tick ?actor ?dt
   when
     encounter encounter state active
-    ?actor burn remaining ?remaining
-    ?actor ward remaining ?ward
-    ?actor vitality ?health
+    ?actor:
+      burn remaining: ?remaining
+      ward remaining: ?ward
+      vitality: ?health
     combat-rules burn damage ?burn
     ?burn * ?dt damage after ward ?ward as ?damage
     ?remaining > 0.0
@@ -1866,9 +2208,10 @@ on tick ?actor ?dt
 on tick ?effect ?dt
   when
     encounter encounter state active
-    ?effect burn target ?target
-    ?effect effect remaining ?remaining
-    ?effect effect damage ?damage
+    ?effect:
+      burn target: ?target
+      effect remaining: ?remaining
+      effect damage: ?damage
     ?target vitality ?health
     ?remaining > 0.0
     ?health > 0.0
@@ -1881,26 +2224,30 @@ on tick ?effect ?dt
     ?target vitality 0.0 - ?damage * ?elapsed
 on tick ?effect ?dt
   when
-    ?effect burn target ?target
-    ?effect effect remaining ?remaining
-    ?effect effect damage ?damage
+    ?effect:
+      burn target: ?target
+      effect remaining: ?remaining
+      effect damage: ?damage
     ?remaining <= 0.0
   withdraw
-    ?effect burn target ?target
-    ?effect effect remaining ?remaining
-    ?effect effect damage ?damage
+    ?effect:
+      burn target: ?target
+      effect remaining: ?remaining
+      effect damage: ?damage
 on tick ?effect ?dt
   when
-    ?effect burn target ?target
-    ?effect effect remaining ?remaining
-    ?effect effect damage ?damage
+    ?effect:
+      burn target: ?target
+      effect remaining: ?remaining
+      effect damage: ?damage
     ?target vitality ?health
     ?remaining > 0.0
     ?health <= 0.0
   withdraw
-    ?effect burn target ?target
-    ?effect effect remaining ?remaining
-    ?effect effect damage ?damage
+    ?effect:
+      burn target: ?target
+      effect remaining: ?remaining
+      effect damage: ?damage
 on tick ?actor ?dt
   when
     ?actor burn remaining ?remaining
@@ -1911,23 +2258,32 @@ on tick ?actor ?dt
     ?actor burn remaining 0.0
 on tick ?enemy ?dt
   when
-    encounter encounter state active
-    encounter encounter scenario ?scenario
-    ?enemy actor scenario ?scenario
-    ?enemy actor position Vec3 { x: ?enemy-x, y: ?enemy-y, z: ?enemy-z }
-    ?enemy enemy target ?target
-    ?enemy enemy damage ?incoming
-    ?enemy enemy range ?range
-    ?enemy enemy cooldown ?cooldown
-    ?enemy enemy period ?period
-    ?enemy enemy burn duration ?burn-duration
-    ?enemy vitality ?enemy-health
-    ?enemy alive true
-    ?target actor position Vec3 { x: ?target-x, y: ?target-y, z: ?target-z }
-    ?target vitality ?target-health
-    ?target alive true
-    ?target ward remaining ?ward
-    ?target burn remaining ?prior-burn
+    encounter:
+      encounter state: active
+      encounter scenario: ?scenario
+    ?enemy:
+      actor scenario: ?scenario
+      actor position:
+        x: ?enemy-x
+        y: ?enemy-y
+        z: ?enemy-z
+      enemy target: ?target
+      enemy damage: ?incoming
+      enemy range: ?range
+      enemy cooldown: ?cooldown
+      enemy period: ?period
+      enemy burn duration: ?burn-duration
+      vitality: ?enemy-health
+      alive: true
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?target-health
+      alive: true
+      ward remaining: ?ward
+      burn remaining: ?prior-burn
     ?incoming damage after ward ?ward as ?damage
     ?cooldown <= 0.0
     ?enemy-health > 0.0
@@ -1943,8 +2299,9 @@ on tick ?enemy ?dt
     ?target vitality 0.0 - ?damage
 on tick ?actor ?dt
   when
-    ?actor vitality ?health
-    ?actor alive ?was-alive
+    ?actor:
+      vitality: ?health
+      alive: ?was-alive
     ?health <= 0.0
     ?was-alive = true
   withdraw
@@ -1953,33 +2310,51 @@ on tick ?actor ?dt
     ?actor alive false
 on tick ?encounter ?dt
   when
-    ?encounter encounter state active
-    ?encounter encounter scenario cinder-crown
-    ?encounter encounter elapsed ?elapsed
+    ?encounter:
+      encounter state: active
+      encounter scenario: cinder-crown
+      encounter elapsed: ?elapsed
   withdraw
     ?encounter encounter elapsed ?elapsed
   include
     ?encounter encounter elapsed ?elapsed + ?dt
 on tick ?actor ?dt
   when
-    encounter encounter state active
-    encounter encounter scenario dawnroad-crossing
+    encounter:
+      encounter state: active
+      encounter scenario: dawnroad-crossing
     ?actor = ilyra
-    ?actor actor position Vec3 { x: ?x, y: ?y, z: ?z }
-    ?actor journey destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
-    ?actor journey speed ?speed
-    ?actor vitality ?health
+    ?actor:
+      actor position:
+        x: ?x
+        y: ?y
+        z: ?z
+      journey destination:
+        x: ?destination-x
+        y: ?destination-y
+        z: ?destination-z
+      journey speed: ?speed
+      vitality: ?health
     ?health > 0.0
     ?z < ?destination-z
     ?z + ?speed * ?dt clamped between ?z and ?destination-z as ?next-z
   withdraw
-    ?actor actor position Vec3 { x: ?x, y: ?y, z: ?z }
+    ?actor:
+      actor position:
+        x: ?x
+        y: ?y
+        z: ?z
   include
-    ?actor actor position Vec3 { x: ?destination-x, y: ?destination-y, z: ?next-z }
+    ?actor:
+      actor position:
+        x: ?destination-x
+        y: ?destination-y
+        z: ?next-z
 on tick ?encounter ?dt
   when
-    ?encounter encounter state ?state
-    ?encounter encounter scenario moonwell-vigil
+    ?encounter:
+      encounter state: ?state
+      encounter scenario: moonwell-vigil
     cinder-1 vitality ?first-health
     cinder-2 vitality ?second-health
     moonwell vitality ?moonwell-health
@@ -1993,8 +2368,9 @@ on tick ?encounter ?dt
     ?encounter encounter state victory
 on tick ?encounter ?dt
   when
-    ?encounter encounter state ?state
-    ?encounter encounter scenario moonwell-vigil
+    ?encounter:
+      encounter state: ?state
+      encounter scenario: moonwell-vigil
     moonwell vitality ?moonwell-health
     ?moonwell-health <= 0.0
     ?state = active
@@ -2004,8 +2380,9 @@ on tick ?encounter ?dt
     ?encounter encounter state defeat
 on tick ?encounter ?dt
   when
-    ?encounter encounter state ?state
-    ?encounter encounter scenario cinder-crown
+    ?encounter:
+      encounter state: ?state
+      encounter scenario: cinder-crown
     ashbinder vitality ?ashbinder-health
     ?ashbinder-health <= 0.0
     ?state = active
@@ -2015,9 +2392,10 @@ on tick ?encounter ?dt
     ?encounter encounter state assault-victory
 on tick ?encounter ?dt
   when
-    ?encounter encounter state ?state
-    ?encounter encounter scenario cinder-crown
-    ?encounter encounter elapsed ?elapsed
+    ?encounter:
+      encounter state: ?state
+      encounter scenario: cinder-crown
+      encounter elapsed: ?elapsed
     ashbinder vitality ?ashbinder-health
     ?elapsed >= 18.0
     ?ashbinder-health > 0.0
@@ -2028,11 +2406,19 @@ on tick ?encounter ?dt
     ?encounter encounter state assault-defeat
 on tick ?encounter ?dt
   when
-    ?encounter encounter state ?state
-    ?encounter encounter scenario dawnroad-crossing
-    ilyra actor position Vec3 { x: ?x, y: ?y, z: ?z }
-    ilyra journey destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
-    ilyra vitality ?ilyra-health
+    ?encounter:
+      encounter state: ?state
+      encounter scenario: dawnroad-crossing
+    ilyra:
+      actor position:
+        x: ?x
+        y: ?y
+        z: ?z
+      journey destination:
+        x: ?destination-x
+        y: ?destination-y
+        z: ?destination-z
+      vitality: ?ilyra-health
     ?z >= ?destination-z
     ?ilyra-health > 0.0
     ?state = active
@@ -2042,8 +2428,9 @@ on tick ?encounter ?dt
     ?encounter encounter state crossing-victory
 on tick ?encounter ?dt
   when
-    ?encounter encounter state ?state
-    ?encounter encounter scenario dawnroad-crossing
+    ?encounter:
+      encounter state: ?state
+      encounter scenario: dawnroad-crossing
     ilyra vitality ?ilyra-health
     ?ilyra-health <= 0.0
     ?state = active

@@ -42,8 +42,16 @@ function lifecycleDurations(events: readonly Record<string, any>[], startName: s
 const baseSource = await Bun.file("src/world/embodied-encounter.clause").text();
 const companySource = await Bun.file("acceptance/performance/company-100.clause").text();
 const originalUnits = ["warrior-1", "artificer-1", "rogue-1", "priest-1", "ranger-1"];
-const source = baseSource.split("\n").filter(line =>
-  !originalUnits.some(id => line.startsWith(`${id} `))).join("\n") + "\n" + companySource;
+let withoutOriginalUnits = baseSource;
+for (const id of originalUnits) {
+  const blocks = new RegExp(`^${id}\\n(?:[ \\t][^\\n]*(?:\\n|$)|\\n)+`, "gm");
+  if (!blocks.test(withoutOriginalUnits)) throw new Error(`missing grouped source unit ${id}`);
+  withoutOriginalUnits = withoutOriginalUnits.replace(blocks, block => {
+    const membership = block.split("\n").filter(line => line.startsWith("  member of: "));
+    return membership.length ? `${id}\n${membership.join("\n")}\n` : "";
+  });
+}
+const source = withoutOriginalUnits + "\n" + companySource;
 await Bun.write(fixture, source);
 if (Bun.argv.includes("--write-fixture")) {
   console.log(fixture);

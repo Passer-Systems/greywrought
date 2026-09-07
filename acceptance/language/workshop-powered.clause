@@ -26,8 +26,9 @@ core
 
 law live-source
   if
-    ?component mounted true
-    ?component health ?health
+    ?component:
+      mounted: true
+      health: ?health
     ?health > 0.0
     ?component generation ?generation
     ?generation > 0.0
@@ -37,8 +38,9 @@ derive live-source
 
 on inspect ?component
   when
-    ?component powered ?powered
-    ?component mounted ?mounted
+    ?component:
+      powered: ?powered
+      mounted: ?mounted
   withdraw
     ?component mounted ?mounted
   include

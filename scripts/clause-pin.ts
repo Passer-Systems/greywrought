@@ -1,7 +1,7 @@
 export const CLAUSE_COMMIT =
-  "6bcd33125af1aa846994cd9b34b5434f484893b8";
+  "b3902e4ba4dc4845f78db30858cab1e8d7302a8a";
 
 export const CLAUSE_WASM_SHA256 =
-  "1898859753d8a53940dafd3abc93134f55606a0333563a1c6c1bb441119d26ca";
+  "c847795c9630b2817d1765afb5cc9103012550685656c3bff1c48c3b0187c9f3";
 
 export const CLAUSE_ROOT = new URL("../vendor/clause/", import.meta.url).pathname;

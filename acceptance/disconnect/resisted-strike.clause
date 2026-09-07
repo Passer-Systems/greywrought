@@ -95,14 +95,22 @@ moonwell-restoration
 combat-random
   member of: RandomSource
 
-moonwell-restoration pressure 0.0
-ember-strike attack state eligible
-ember-strike attacker ashen-wayfarer
-ember-strike target cinder-wraith
-combat-random random sample Vec3 { x: 0.0, y: 0.0, z: 0.0 }
-cinder-wraith vitality 4.0
-cinder-wraith combat status alive
-ashen-key custody cinder-wraith
+moonwell-restoration
+  pressure: 0.0
+ember-strike
+  attack state: eligible
+  attacker: ashen-wayfarer
+  target: cinder-wraith
+combat-random
+  random sample:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+cinder-wraith
+  vitality: 4.0
+  combat status: alive
+ashen-key
+  custody: cinder-wraith
 
 on world-shift ?objective
   when
@@ -132,7 +140,11 @@ on input ?source Vec3 { x: ?roll, y: 0.0, z: ?attack-signal }
 on apply-damage ?enemy
   when
     ?enemy vitality ?prior
-    combat-random random sample Vec3 { x: ?roll, y: ?unused-y, z: ?attack-signal }
+    combat-random:
+      random sample:
+        x: ?roll
+        y: ?unused-y
+        z: ?attack-signal
     ?roll = 0.90
     ?attack-signal = 1.0
   withdraw
@@ -143,7 +155,11 @@ on apply-damage ?enemy
 on resolve-death ?enemy
   when
     ?enemy combat status ?status
-    combat-random random sample Vec3 { x: ?roll, y: ?unused-y, z: ?attack-signal }
+    combat-random:
+      random sample:
+        x: ?roll
+        y: ?unused-y
+        z: ?attack-signal
     ?status = alive
     ?roll = 0.90
     ?attack-signal = 1.0
@@ -155,7 +171,11 @@ on resolve-death ?enemy
 on transfer-loot ?loot
   when
     ?loot custody ?custodian
-    combat-random random sample Vec3 { x: ?roll, y: ?unused-y, z: ?attack-signal }
+    combat-random:
+      random sample:
+        x: ?roll
+        y: ?unused-y
+        z: ?attack-signal
     ?custodian = cinder-wraith
     ?roll = 0.90
     ?attack-signal = 1.0

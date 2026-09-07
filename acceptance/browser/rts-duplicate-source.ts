@@ -12,34 +12,25 @@ function replaceOnce(value: string, search: string, replacement: string): string
   return value.slice(0, first) + replacement + value.slice(first + search.length);
 }
 
-const declared = replaceOnce(
-  source,
-  "cinder-1\n  member of: Enemy",
-  "warrior-2\n  member of: Unit\n  member of: Actor\ncinder-1\n  member of: Enemy",
-);
 const overrides = new Map([
   ["actor name", '"Bran"'],
-  ["actor position", "Vec3 { x: 4.0, y: 0.0, z: 1.0 }"],
-  ["unit destination", "Vec3 { x: 4.0, y: 0.0, z: 1.0 }"],
-  ["formation offset", "Vec3 { x: 3.0, y: 0.0, z: -1.0 }"],
+  ["actor position", "\n    x: 4.0\n    y: 0.0\n    z: 1.0"],
+  ["unit destination", "\n    x: 4.0\n    y: 0.0\n    z: 1.0"],
+  ["formation offset", "\n    x: 3.0\n    y: 0.0\n    z: -1.0"],
 ]);
-const unitRows = source.split("\n").filter((line) => line.startsWith("warrior-1 ")).map((line) => {
-  const copied = line.replace("warrior-1 ", "warrior-2 ");
-  for (const [relation, value] of overrides) {
-    const prefix = `warrior-2 ${relation} `;
-    if (copied.startsWith(prefix)) return prefix + value;
-  }
-  return copied;
-});
-if (unitRows.length === 0) throw new Error("duplicate RTS fixture has no source unit rows");
+const blocks = source.match(/^warrior-1\n(?:[ \t][^\n]*(?:\n|$)|\n)+/gm);
+if (!blocks?.length) throw new Error("duplicate RTS fixture has no grouped source unit");
+let copied = blocks.map(block => "warrior-2\n" + block.slice("warrior-1\n".length)).join("\n");
+for (const [relation, value] of overrides) {
+  const facts = copied.match(new RegExp(`^  ${relation}:[^\\n]*(?:\\n    [^\\n]*)*`, "gm"));
+  if (facts?.length !== 1) throw new Error(`duplicate RTS fixture needs one ${relation} fact`);
+  const separator = value.startsWith("\n") ? "" : " ";
+  copied = replaceOnce(copied, facts[0], `  ${relation}:${separator}${value}`);
+}
 const fixture = replaceOnce(
-  declared,
-  "cinder-1 actor name",
-  [
-    ...unitRows,
-    "",
-    "cinder-1 actor name",
-  ].join("\n"),
+  source,
+  "cinder-1\n  member of: Enemy",
+  copied + "\ncinder-1\n  member of: Enemy",
 );
 
 await mkdir("build/acceptance", { recursive: true });

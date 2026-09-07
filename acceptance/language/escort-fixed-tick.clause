@@ -47,20 +47,43 @@ dawnroad-crossing
 ilyra
   member of: Actor
 
-encounter encounter scenario dawnroad-crossing
-ilyra actor position Vec3 { x: 0.0, y: 0.0, z: -5.0 }
-ilyra journey destination Vec3 { x: 0.0, y: 0.0, z: 27.0 }
-ilyra journey speed 1.75
+encounter
+  encounter scenario: dawnroad-crossing
+ilyra
+  actor position:
+    x: 0.0
+    y: 0.0
+    z: -5.0
+  journey destination:
+    x: 0.0
+    y: 0.0
+    z: 27.0
+  journey speed: 1.75
 
 on tick ?actor ?dt
   when
     encounter encounter scenario dawnroad-crossing
     ?actor = ilyra
-    ?actor actor position Vec3 { x: ?x, y: ?y, z: ?z }
-    ?actor journey destination Vec3 { x: ?destination-x, y: ?destination-y, z: ?destination-z }
-    ?actor journey speed ?speed
+    ?actor:
+      actor position:
+        x: ?x
+        y: ?y
+        z: ?z
+      journey destination:
+        x: ?destination-x
+        y: ?destination-y
+        z: ?destination-z
+      journey speed: ?speed
     ?z < ?destination-z
   withdraw
-    ?actor actor position Vec3 { x: ?x, y: ?y, z: ?z }
+    ?actor:
+      actor position:
+        x: ?x
+        y: ?y
+        z: ?z
   include
-    ?actor actor position Vec3 { x: ?destination-x, y: ?destination-y, z: ?z + ?speed * ?dt }
+    ?actor:
+      actor position:
+        x: ?destination-x
+        y: ?destination-y
+        z: ?z + ?speed * ?dt

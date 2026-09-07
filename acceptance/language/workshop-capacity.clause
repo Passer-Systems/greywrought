@@ -27,12 +27,16 @@ law component-capacity
     ?workshop phase ?phase
     sum ?mass where { ?component mass ?mass } as ?total
   then
-    ?workshop capacity Capacity { mass: ?total }
+    ?workshop:
+      capacity:
+        mass: ?total
 derive component-capacity
 on inspect ?workshop
   when
-    ?workshop phase ?phase
-    ?workshop capacity Capacity { mass: ?mass }
+    ?workshop:
+      phase: ?phase
+      capacity:
+        mass: ?mass
   withdraw
     ?workshop phase ?phase
   include

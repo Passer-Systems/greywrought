@@ -14,7 +14,7 @@ fn rts_world_compiles_with_five_classes() {
 
     for class in ["Warrior", "Artificer", "Rogue", "Priest", "Ranger"] {
         assert_eq!(
-            source.matches(&format!("class name \"{class}\"")).count(),
+            source.matches(&format!("class name: \"{class}\"")).count(),
             1
         );
     }
@@ -23,6 +23,37 @@ fn rts_world_compiles_with_five_classes() {
 
 fn session() -> PersistentProcessSessionV1 {
     session_for(EMBODIED_SOURCE)
+}
+
+fn fixture_facts(source: &str, facts: &[(String, String, String)]) -> String {
+    let parsed = clause_package::read_canonical_source_v1(source.as_bytes())
+        .expect("read grouped fixture source");
+    let mut edits = Vec::new();
+    for (subject, relation, value) in facts {
+        let mut matches = parsed.subject_focuses().iter()
+            .filter(|focus| focus.subject == subject.as_bytes())
+            .flat_map(|focus| &focus.edges)
+            .filter(|edge| edge.subject == subject.as_bytes() && edge.relation == relation.as_bytes());
+        let edge = matches.next()
+            .unwrap_or_else(|| panic!("missing fixture fact {subject} {relation}"));
+        assert!(matches.next().is_none(), "ambiguous fixture fact {subject} {relation}");
+        let separator = if value.starts_with('\n') { "" } else { " " };
+        edits.push((edge.origin.start as usize, edge.origin.end as usize,
+            format!("  {relation}:{separator}{value}")));
+    }
+    edits.sort_by_key(|edit| edit.0);
+    for pair in edits.windows(2) {
+        assert!(pair[0].1 <= pair[1].0, "overlapping fixture edits");
+    }
+    let mut result = source.to_owned();
+    for (start, end, replacement) in edits.into_iter().rev() {
+        result.replace_range(start..end, &replacement);
+    }
+    result
+}
+
+fn fixture_position(x: f64, z: f64) -> String {
+    format!("\n    x: {x:?}\n    y: 0.0\n    z: {z:?}")
 }
 
 #[derive(serde::Deserialize)]
@@ -111,13 +142,9 @@ fn wounded_attack_fixed_oracle() {
                     .unwrap_or(&empty),
             )).collect();
         let fixture: AttackFixture = serde_json::from_value(merged).expect("merged attack fixture");
-        let mut source = original_source.clone();
+        let mut facts = Vec::new();
         let mut fact = |subject: &str, relation: &str, value: String| {
-            let prefix = format!("{subject} {relation} ");
-            let prior = source.lines().find(|line| line.starts_with(&prefix))
-                .unwrap_or_else(|| panic!("missing fixture fact {prefix}")).to_owned();
-            assert_eq!(source.lines().filter(|line| line.starts_with(&prefix)).count(), 1);
-            source = source.replacen(&prior, &format!("{prefix}{value}"), 1);
+            facts.push((subject.to_owned(), relation.to_owned(), value));
         };
         fact("encounter", "encounter state", if fixture.encounter_active { "active" } else { "ready" }.into());
         fact("player-1", "chosen target", if fixture.chosen_target_matches {
@@ -126,7 +153,7 @@ fn wounded_attack_fixed_oracle() {
         let target = &fixture.target;
         fact(&target.id, "vitality", format!("{:?}", target.vitality));
         fact(&target.id, "hostile", target.hostile.to_string());
-        fact(&target.id, "actor position", format!("Vec3 {{ x: {:?}, y: 0.0, z: {:?} }}", target.x, target.z));
+        fact(&target.id, "actor position", fixture_position(target.x, target.z));
         for unit in &fixture.units {
             fact(&unit.id, "selected", unit.selected.to_string());
             fact(&unit.id, "alive", unit.alive.to_string());
@@ -140,8 +167,9 @@ fn wounded_attack_fixed_oracle() {
             ] {
                 fact(&unit.id, relation, format!("{value:?}"));
             }
-            fact(&unit.id, "actor position", format!("Vec3 {{ x: {:?}, y: 0.0, z: {:?} }}", unit.x, unit.z));
+            fact(&unit.id, "actor position", fixture_position(unit.x, unit.z));
         }
+        let source = fixture_facts(&original_source, &facts);
         let workbench = ResidentSourceWorkbenchV1::open(source.as_bytes())
             .unwrap_or_else(|error| panic!("{case} open: {error:?}"));
         let generation = &workbench.generation().cwr1;
@@ -208,50 +236,31 @@ fn session_for(source: &[u8]) -> PersistentProcessSessionV1 {
 
 fn source_with_second_warrior() -> Vec<u8> {
     let source = std::str::from_utf8(EMBODIED_SOURCE).unwrap();
-    source
-        .replacen(
-            "cinder-1\n  member of: Enemy",
-            "warrior-2\n  member of: Unit\n  member of: Actor\ncinder-1\n  member of: Enemy",
-            1,
-        )
-        .replacen(
-            "cinder-1 actor name",
-            concat!(
-                "warrior-2 actor name \"Bran\"\n",
-                "warrior-2 presentation kind \"Warrior\"\n",
-                "warrior-2 unit class warrior-class\n",
-                "warrior-2 actor position Vec3 { x: 4.0, y: 0.0, z: 1.0 }\n",
-                "warrior-2 unit destination Vec3 { x: 4.0, y: 0.0, z: 1.0 }\n",
-                "warrior-2 formation offset Vec3 { x: 3.0, y: 0.0, z: -1.0 }\n",
-                "warrior-2 movement speed 5.0\n",
-                "warrior-2 footprint radius 0.6\n",
-                "warrior-2 selected true\n",
-                "warrior-2 moving false\n",
-                "warrior-2 hostile false\n",
-                "warrior-2 vitality 155.0\n",
-                "warrior-2 maximum vitality 155.0\n",
-                "warrior-2 alive true\n",
-                "warrior-2 ward remaining 0.0\n",
-                "warrior-2 burn remaining 0.0\n",
-                "warrior-2 attack damage 22.0\n",
-                "warrior-2 attack range 18.0\n",
-                "warrior-2 healing power 0.0\n",
-                "warrior-2 ward duration 0.0\n",
-                "warrior-2 action cooldown 0.0\n",
-                "warrior-2 attack readiness \"No battle in progress\"\n",
-                "warrior-2 heal readiness \"No battle in progress\"\n",
-                "warrior-2 ward readiness \"No battle in progress\"\n",
-                "warrior-2 ignite readiness \"No battle in progress\"\n",
-                "warrior-2 order report \"\"\n",
-                "warrior-2 order name \"\"\n",
-                "warrior-2 order number 0.0\n",
-                "warrior-2 order accepted false\n",
-                "warrior-2 action period 0.8\n\n",
-                "cinder-1 actor name",
-            ),
-            1,
-        )
-        .into_bytes()
+    let parsed = clause_package::read_canonical_source_v1(EMBODIED_SOURCE)
+        .expect("read grouped duplicate fixture source");
+    let mut copied_blocks = String::new();
+    let mut copied = 0;
+    for focus in parsed.subject_focuses().iter().filter(|focus| focus.subject == b"warrior-1") {
+        let block = std::str::from_utf8(parsed.source_slice(focus.origin).unwrap()).unwrap();
+        let fields = block.strip_prefix("warrior-1\n").expect("grouped warrior header");
+        copied_blocks.push_str("warrior-2\n");
+        copied_blocks.push_str(fields);
+        copied_blocks.push_str("\n\n");
+        copied += 1;
+    }
+    assert!(copied > 0, "duplicate fixture has no source warrior blocks");
+    let anchor = parsed.subject_focuses().iter().find(|focus| focus.subject == b"cinder-1")
+        .expect("duplicate fixture enemy anchor").origin.start as usize;
+    let mut duplicate = source.to_owned();
+    duplicate.insert_str(anchor, &copied_blocks);
+    fixture_facts(&duplicate, &[
+        ("warrior-2".into(), "actor name".into(), "\"Bran\"".into()),
+        ("warrior-2".into(), "actor position".into(), fixture_position(4.0, 1.0)),
+        ("warrior-2".into(), "unit destination".into(), fixture_position(4.0, 1.0)),
+        ("warrior-2".into(), "formation offset".into(), fixture_position(3.0, -1.0)),
+        ("warrior-2".into(), "vitality".into(), "155.0".into()),
+        ("warrior-2".into(), "maximum vitality".into(), "155.0".into()),
+    ]).into_bytes()
 }
 
 fn key(session: &mut PersistentProcessSessionV1, code: &[u8]) {
@@ -477,20 +486,18 @@ fn unit_position(projection: &clause_package::Term, id: &[u8]) -> [f64; 3] {
 }
 
 fn travel_fixture(units: &[(&str, [f64; 2], [f64; 2])]) -> Vec<u8> {
-    let mut source = std::str::from_utf8(EMBODIED_SOURCE).unwrap().to_owned();
+    let source = std::str::from_utf8(EMBODIED_SOURCE).unwrap();
+    let mut facts = Vec::new();
     for (id, start, destination) in units {
-        source = source.lines().map(|line| {
-            if line.starts_with(&format!("{id} actor position ")) {
-                format!("{id} actor position Vec3 {{ x: {:?}, y: 0.0, z: {:?} }}", start[0], start[1])
-            } else if line.starts_with(&format!("{id} unit destination ")) {
-                format!("{id} unit destination Vec3 {{ x: {:?}, y: 0.0, z: {:?} }}", destination[0], destination[1])
-            } else if line.starts_with(&format!("{id} moving ")) {
-                format!("{id} moving {}", start != destination)
-            } else { line.to_owned() }
-        }).collect::<Vec<_>>().join("\n");
-        source.push('\n');
+        facts.extend([
+            ((*id).into(), "actor position".into(),
+                fixture_position(start[0], start[1])),
+            ((*id).into(), "unit destination".into(),
+                fixture_position(destination[0], destination[1])),
+            ((*id).into(), "moving".into(), (start != destination).to_string()),
+        ]);
     }
-    source.into_bytes()
+    fixture_facts(source, &facts).into_bytes()
 }
 
 #[test]
@@ -618,11 +625,11 @@ fn movement_has_constant_speed_and_straight_direction_then_exact_arrival() {
 
 #[test]
 fn stop_only_cancels_selected_living_units_and_new_orders_replace_old_routes() {
-    let source = std::str::from_utf8(EMBODIED_SOURCE).unwrap()
-        .replacen("ranger-1 alive true", "ranger-1 alive false", 1)
-        .replacen("ranger-1 moving false", "ranger-1 moving true", 1)
-        .replacen("ranger-1 unit destination Vec3 { x: 1.0, y: 0.0, z: 3.0 }",
-            "ranger-1 unit destination Vec3 { x: 10.0, y: 0.0, z: 12.0 }", 1);
+    let source = fixture_facts(std::str::from_utf8(EMBODIED_SOURCE).unwrap(), &[
+        ("ranger-1".into(), "alive".into(), "false".into()),
+        ("ranger-1".into(), "moving".into(), "true".into()),
+        ("ranger-1".into(), "unit destination".into(), fixture_position(10.0, 12.0)),
+    ]);
     let mut s = session_for(source.as_bytes());
     let initial = admit_tick(&mut s);
     scalar(&mut s, b"PointerWorldX", 30.0);
@@ -827,12 +834,9 @@ fn connected_target_attack_respects_range_cooldown_and_party_contributions() {
         "a second physical action inside the source cooldown must be a no-op",
     );
 
-    let ranged_out = std::str::from_utf8(EMBODIED_SOURCE)
-        .unwrap()
-        .replace(
-            "cinder-1 actor position Vec3 { x: 0.0, y: 0.0, z: 6.0 }",
-            "cinder-1 actor position Vec3 { x: 0.0, y: 0.0, z: 30.0 }",
-        );
+    let ranged_out = fixture_facts(std::str::from_utf8(EMBODIED_SOURCE).unwrap(), &[
+        ("cinder-1".into(), "actor position".into(), fixture_position(0.0, 30.0)),
+    ]);
     let mut distant = session_for(ranged_out.as_bytes());
     let frame = admit_tick(&mut distant);
     key(&mut distant, b"BeginEncounter");
