@@ -388,3 +388,36 @@ Raw full/profile results and the full-run failure snapshot are retained under
 `~/code/greywrought/worktrees/recovery-integration-20260907/build/measurement/`.
 The full command exited 1 at its unchanged performance assertion; the profile
 command exited 0. Both harness-owned browser/server runs settled.
+
+### Shared aggregate join prefixes
+
+Clause `756895f60879e8e06cfe59b6a7cc4adb2cb2c040` reuses the leading
+argument-independent relation joins across sum queries in one immutable
+pre-state. Ordered bindings, reads, rejection counts, and logical visit counts
+are retained. Nine focused relational tests pass, including changing-input,
+floating-point sum-order, trace-mode, empty-prefix and rejection-limit cases.
+Only the runtime matcher changed; the world source and compiler lowering did not.
+
+Greywrought parent `a79b12a12382587137aba39eec34be59ae475bb2` consumes this pin
+with freshly built Wasm SHA-256
+`196eac9b97c9bae5bab17896112f71362ec481d5417fa5959019540f5e984baf`.
+The native checker and resident executable were rebuilt from the same pin,
+and the pin/hash checks passed before staging the browser artifact.
+
+One changed-artifact hardware candidate profile passed in 16,006ms, including
+7,164ms source admission. Candidate time was 127.9ms; 700 sum evaluations took
+103.2ms, including 212 actual queries taking 96.4ms. The retained preceding
+profile recorded 258.4ms per candidate and 221.5ms in 210 actual queries.
+Both use the same source hash, hardware, viewport, 16ms tick, warmup and
+six-CPU/8GiB scope recorded above. Faster warmup reaches a different simulation
+tick (700 versus 686 sum evaluations), so these are observed improvements,
+not an exact matched-state causal percentage. Remaining query execution is
+still the dominant candidate phase.
+
+The new command used `--profile --candidate-only` and exited 0. It does not
+reassess rendering, all-actor movement, real-time progress or checked-edit
+latency; the preceding failed combined verdict remains the latest evidence
+for those gates. Before/after profiles are retained in the same lane's
+`greywrought:build/measurement/100-active-profile-before-prefix.json` and
+`greywrought:build/measurement/100-active-profile.json`. The browser/server
+commands settled and ports 4196/9262 were clear afterward.
