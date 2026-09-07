@@ -326,6 +326,20 @@ impl NativeSession {
         Ok(())
     }
 
+    pub fn replace_source_items(
+        &mut self,
+        captured: WasmSessionHandleV1,
+        replacements: &[clause_package::CanonicalSourceItemReplacementV1],
+    ) -> Result<()> {
+        self.workbench
+            .replace_source_items(captured, replacements)?;
+        if self.workbench.generation().handle != captured {
+            self.input_sequence = 0;
+            self.configuration_revision = 0;
+        }
+        Ok(())
+    }
+
     pub fn snapshot(&self, tick_millis: u128, status: String) -> Result<Snapshot> {
         let projection = self.workbench.project_current_world()?;
         let mut actors = Vec::new();

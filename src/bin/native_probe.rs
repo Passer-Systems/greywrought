@@ -6,6 +6,11 @@ use greywrought_clause::{
 use std::{fs, path::PathBuf, time::Instant};
 
 fn main() -> native::Result<()> {
+    match std::env::args().nth(1).as_deref() {
+        Some("--source-items") => return source_items(),
+        Some("--replace-source-items") => return replace_source_items(),
+        _ => {}
+    }
     let started = Instant::now();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let proof = root.join("build/native-proof");
@@ -18,16 +23,25 @@ fn main() -> native::Result<()> {
         let mut restored = NativeSession::load(&saved_path, EMBODIED_SOURCE)?;
         let projection = restored.workbench.project_current_world()?;
         let source = restored.workbench.exact_source().to_vec();
-        let continuity = restored.workbench.last_source_edit()
-            .map(|_| restored.workbench.source_continuity()).transpose()?;
+        let continuity = restored
+            .workbench
+            .last_source_edit()
+            .map(|_| restored.workbench.source_continuity())
+            .transpose()?;
         let copy = proof.join(format!("restored-{}.save", std::process::id()));
         restored.save(&copy)?;
         drop(restored);
         restored = NativeSession::load(&copy, EMBODIED_SOURCE)?;
         assert_eq!(restored.workbench.project_current_world()?, projection);
         assert_eq!(restored.workbench.exact_source(), source);
-        assert_eq!(restored.workbench.last_source_edit()
-            .map(|_| restored.workbench.source_continuity()).transpose()?, continuity);
+        assert_eq!(
+            restored
+                .workbench
+                .last_source_edit()
+                .map(|_| restored.workbench.source_continuity())
+                .transpose()?,
+            continuity
+        );
         if let Some(replacement) = std::env::args().nth(2) {
             let effects = restored.workbench.scalar_effects()?;
             if replacement == "--catalog" {
@@ -174,6 +188,90 @@ fn main() -> native::Result<()> {
         "native journey passed: five company actors; exact selection; encounter attack {health_before}->{health_after}; checked scalar edit {edit_millis}ms; stale handle rejected; identical admitted projection on reopen; continued input and tick; total {}ms; save {}",
         started.elapsed().as_millis(),
         save.display()
+    );
+    Ok(())
+}
+
+fn source_items() -> native::Result<()> {
+    let path = std::env::args_os()
+        .nth(2)
+        .ok_or("--source-items needs a source path")?;
+    let source = fs::read(path)?;
+    let session = NativeSession::open(&source)?;
+    for (index, item) in session.workbench.source_items()?.iter().enumerate() {
+        println!(
+            "{index}: {:?} [{}..{}] {}",
+            item.production,
+            item.origin.start,
+            item.origin.end,
+            String::from_utf8_lossy(&item.source)
+                .lines()
+                .next()
+                .unwrap_or_default()
+        );
+    }
+    Ok(())
+}
+
+fn replace_source_items() -> native::Result<()> {
+    let mut args = std::env::args_os().skip(2);
+    let save = PathBuf::from(args.next().ok_or("missing input save path")?);
+    let expected = fs::read(args.next().ok_or("missing expected source path")?)?;
+    let next = fs::read(args.next().ok_or("missing replacement source path")?)?;
+    let output = PathBuf::from(args.next().ok_or("missing output save path")?);
+    if !save.is_file() || output.exists() {
+        return Err("input save must exist and output path must be unused".into());
+    }
+    let mut session = NativeSession::load(&save, &expected)?;
+    if session.workbench.exact_source() != expected {
+        return Err(
+            "saved source differs from the explicit update precondition; save untouched".into(),
+        );
+    }
+    let replacements = NativeSession::open(&next)?.workbench.source_items()?;
+    let offered = session.workbench.source_items()?;
+    let mut operations = Vec::new();
+    for pair in args {
+        let pair = pair.to_str().ok_or("source item pair must be UTF-8")?;
+        let (old, new) = pair
+            .split_once(':')
+            .ok_or("source item pair must be OLD:NEW")?;
+        let old: usize = old.parse()?;
+        let new: usize = new.parse()?;
+        operations.push(clause_package::CanonicalSourceItemReplacementV1 {
+            selected: offered.get(old).ok_or("unknown old source item")?.clone(),
+            replacement: replacements
+                .get(new)
+                .ok_or("unknown new source item")?
+                .source
+                .clone(),
+        });
+    }
+    if operations.is_empty() {
+        return Err("select at least one offered source item explicitly".into());
+    }
+    session.replace_source_items(session.workbench.generation().handle, &operations)?;
+    if session.workbench.exact_source() != next {
+        return Err(
+            "checked operations do not produce the requested source; no save written".into(),
+        );
+    }
+    let projection = session.workbench.project_current_world()?;
+    let continuity = session.workbench.source_continuity()?;
+    session.save(&output)?;
+    let mut reopened = NativeSession::load(&output, &next)?;
+    if reopened.workbench.exact_source() != next
+        || reopened.workbench.project_current_world()? != projection
+        || reopened.workbench.source_continuity()? != continuity
+    {
+        return Err(
+            "updated save failed exact reopen verification; original save untouched".into(),
+        );
+    }
+    reopened.tick()?;
+    println!(
+        "Checked source-item update preserved the world; exact source, admitted projection and continuity survived reopen; next tick accepted. Original save untouched. Output: {}",
+        output.display()
     );
     Ok(())
 }

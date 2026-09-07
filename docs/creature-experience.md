@@ -1,11 +1,21 @@
 # Wayfarer outfitting and expedition
 
-The native workshop outfits a living Wayfarer, not a separate assembled robot.
-Select equipment on the left, choose a body part marked `[fits]`, and equip it
-from the contextual panel. Connecting its power is a separate action. Compare
-equipment mass, available power, condition, and individual equipment readings.
-Choose protective or aggressive orders, then Deploy (Enter). Backspace requests
-an early return. The Wayfarer handles travel, firing, cooling and salvage.
+Open rofi's application launcher, search **Greywrought**, and press Enter.
+The objective is to outfit the Wayfarer, defeat the ashfield sentinel, collect
+salvage, and return home. The Wayfarer handles travel, firing, cooling and
+salvage automatically; you choose equipment, orders, and when to retreat.
+
+The scene starts unobscured. Open **Outfit** with O, select equipment on the
+left, choose a body part marked `[fits]`, and equip it. Connecting its power is
+a separate action. The panel explains each item, compatible body parts, power,
+and condition; scroll for the remaining equipment and orders. Esc closes it.
+Choose protective or aggressive orders, then **Deploy** (Enter). Backspace
+requests an early return and keeps that retreat order until the next deployment.
+**How to play** (?) explains the objective, controls, readings, and consequences.
+
+Gold weapon flashes and beams show firing, hit sparks show damage, and blue
+vapor shows cooling. The labelled sentinel's health shows combat progress.
+The Wayfarer cools below the selected heat limit before resuming fire.
 
 Returning retains injuries and equipment wear. Repair spends supplies on the
 selected equipment; Rest heals the Wayfarer without restoring worn gear. F5
@@ -13,12 +23,49 @@ saves, and normal close saves too. F6 opens developer tuning; Page Up/Down selec
 an offered expression, Ctrl+A replaces it, and Enter applies it without deploying.
 The installed launcher starts this mode with the separate save
 `~/.local/share/greywrought/creature.save` (or its `XDG_DATA_HOME` equivalent).
-Older company/workshop saves are not migrated or overwritten. Saved worlds
+Separate company/workshop saves are not overwritten. Saved worlds
 retain their exact source, including accepted tuning.
 
-## Observed usable journey
+## First-session repair, 2026-09-06
 
-The source pins Clause `bfecc7e9416bd413069b4b4e57bbfd0391374b62`; its exact
+The current compiler pin is `6bcd33125af1aa846994cd9b34b5434f484893b8`;
+the generated Wasm SHA-256 is
+`1898859753d8a53940dafd3abc93134f55606a0333563a1c6c1bb441119d26ca`.
+The final native build passed in 15.66 seconds and Wasm build in 23.57 seconds.
+The existing pin/hash check passed. The focused presentation tests passed,
+including restoration of Deploy and Return captions after phase changes.
+
+Rofi launched the staged native launcher into an isolated X11 session. The
+compact HUD and Outfit panel were inspected at 1440x900 and 720x900. A trip
+defeated the sentinel and returned 12 salvage and 27 supplies, with body
+condition at 81%. Repair restored the selected weapon from 2/45 to 45/45,
+spent 11 supplies, and left injuries unchanged. Rest restored body condition.
+
+The next trip fitted the helmet to the head, raising equipment load from
+24 to 27. Captured combat showed gold damage sparks, blue cooling vapor,
+falling sentinel health, and stable firing/cooling intervals. Other gear was
+still worn: when the braces lost power, the Wayfarer retreated on foot without
+reapproaching. At home, helmet repair restored 56/65 to 65/65 for two supplies;
+Rest then healed the body. F5 saved, normal window close completed another
+save, and a second rofi launch displayed the same helmet attachment and
+condition, 14 supplies, 100% body condition, heat 16 and reserve 68.
+
+These are native interaction observations using llvmpipe, not hardware FPS
+evidence. One earlier isolated test process was externally terminated before
+completion; it was not counted as a pass. The completed run used an attached
+terminal and a window manager for the normal-close check.
+
+The original installed save also passed the final native checked-source update
+probe: exact expected source, explicit replacement of four offered source
+items, preserved progress, exact source/projection/continuity on reopening,
+and a subsequent tick. The upstream check additionally compared retained
+supplies, injuries, equipment damage, and attachment identity against the
+actual old checkpoint. Reopening validates its recorded execution layout;
+the explicit source update selects the new layout without resetting the world.
+
+## Earlier creature-slice observations
+
+That earlier candidate pinned Clause `bfecc7e9416bd413069b4b4e57bbfd0391374b62`; its exact
 Wasm SHA-256 is `c8761f74bec66a0c03579e4ebbac54aa73299e9d9a924a2e11658d1712fd32f2`.
 The native executable built in 46.22 seconds. Its presentation repair rebuilt
 in 16.79 seconds. Both focused native projection tests passed after integration.

@@ -170,7 +170,7 @@ pub(super) fn setup(commands: &mut Commands) {
                 });
             }
         });
-    commands.spawn((Node { position_type: PositionType::Absolute, left: px(16), top: px(136), width: px(660), bottom: px(62), padding: UiRect::all(px(14)), overflow: Overflow::scroll_y(), ..column() }, ScrollPosition::default(), BackgroundColor(Color::srgba(0.045, 0.075, 0.085, 0.98)), Panel, Outfitting)).with_children(|p| {
+    commands.spawn((Node { position_type: PositionType::Absolute, left: px(16), top: px(136), width: px(660), bottom: px(110), padding: UiRect::all(px(14)), overflow: Overflow::scroll_y(), ..column() }, ScrollPosition::default(), BackgroundColor(Color::srgba(0.045, 0.075, 0.085, 0.98)), Panel, Outfitting)).with_children(|p| {
         p.spawn(label("OUTFIT  /  Choose gear, then a body part. Scroll for more.", 16.0));
         p.spawn((Node { column_gap: px(16), ..default() },)).with_children(|p| {
             p.spawn((Node { width: px(200), flex_shrink: 0.0, ..column() },)).with_children(|p| {
@@ -397,6 +397,28 @@ mod tests {
             .map(|t| t.0.clone())
             .collect::<Vec<_>>();
         assert!(reports.iter().all(|text| !text.contains("Workshop ready")));
+        for (phase, expected) in [
+            ("Expedition", "Return [Backspace]"),
+            ("Returned", "Deploy [Enter]"),
+        ] {
+            app.world_mut()
+                .resource_mut::<Displayed>()
+                .snapshot
+                .as_mut()
+                .unwrap()
+                .workshop
+                .as_mut()
+                .unwrap()
+                .phase = phase.into();
+            app.update();
+            assert!(
+                app.world_mut()
+                    .query::<&Text>()
+                    .iter(app.world())
+                    .any(|text| text.0 == expected),
+                "available controls must restore their action label after a phase change"
+            );
+        }
     }
 }
 
@@ -649,6 +671,8 @@ pub(super) fn present(
                 false,
             ),
             Control::Equip => ("Equip on chosen body part".into(), false),
+            Control::Key("LaunchExpedition") => ("Deploy [Enter]".into(), false),
+            Control::Key("WithdrawExpedition") => ("Return [Backspace]".into(), false),
             Control::Key("RepairComponent") => ("Repair gear with supplies".into(), false),
             Control::Key("RestCreature") => ("Rest - heal the wayfarer".into(), false),
             Control::Key("UnequipComponent") => ("Remove gear".into(), false),
