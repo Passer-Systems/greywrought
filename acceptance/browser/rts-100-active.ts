@@ -8,7 +8,9 @@ const profileOnly = Bun.argv.includes("--profile");
 const gameUrl = `http://127.0.0.1:${gamePort}/?measure=1${profileOnly ? "&profile=1" : ""}`;
 const fixture = "build/measurement/100-active-source.clause";
 const candidateOnly = Bun.argv.includes("--candidate-only");
+const cpuProfile = Bun.argv.includes("--cpu-profile");
 requireCondition(!candidateOnly || profileOnly, "--candidate-only requires --profile");
+requireCondition(!cpuProfile || profileOnly, "--cpu-profile requires --profile");
 const output = profileOnly
   ? "build/measurement/100-active-profile.json"
   : "build/measurement/100-active.json";
@@ -105,17 +107,21 @@ try {
   socket = new WebSocket(tab.webSocketDebuggerUrl);
   let nextId = 1;
   const pending = new Map<number, (value: any) => void>();
+  const workerTargets = new Map<string, string>();
   socket.onmessage = (event) => {
     const message = JSON.parse(String(event.data));
     if (message.id) { pending.get(message.id)?.(message); pending.delete(message.id); }
+    if (message.method === "Target.attachedToTarget" && message.params.targetInfo.type === "worker") {
+      workerTargets.set(message.params.targetInfo.url, message.params.sessionId);
+    }
   };
   await Promise.race([
     new Promise<void>((resolve) => { socket!.onopen = () => resolve(); }),
     Bun.sleep(10_000).then(() => { throw new Error("measurement CDP socket timed out"); }),
   ]);
-  const call = (method: string, params: Record<string, unknown> = {}) => {
+  const call = (method: string, params: Record<string, unknown> = {}, sessionId?: string) => {
     const id = nextId++;
-    socket!.send(JSON.stringify({ id, method, params }));
+    socket!.send(JSON.stringify({ id, method, params, sessionId }));
     return Promise.race([
       new Promise<any>((resolve) => pending.set(id, resolve)),
       Bun.sleep(15_000).then(() => { throw new Error(`measurement CDP timeout in ${method}`); }),
@@ -140,6 +146,10 @@ try {
 
   await call("Runtime.enable");
   await call("Page.enable");
+  if (cpuProfile) {
+    const result = await call("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
+    requireCondition(!result.error, "measurement could not attach worker profiler");
+  }
   await call("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
   await call("Page.navigate", { url: gameUrl });
   await waitFor<string>("document.body?.dataset.gamePhase || ''", (value) => value === "ready", "measurement world ready");
@@ -218,6 +228,15 @@ try {
   };
 
   const candidateProfiles: Array<Record<string, unknown>> = [];
+  let workerSession: string | undefined;
+  if (cpuProfile) {
+    workerSession = [...workerTargets].find(([url]) => url.includes("resident-worker"))?.[1];
+    requireCondition(typeof workerSession === "string", "resident worker CPU profile did not attach");
+    for (const method of ["Profiler.enable", "Profiler.start"]) {
+      const result = await call(method, {}, workerSession);
+      requireCondition(!result.error, `resident worker ${method} failed: ${JSON.stringify(result.error)}`);
+    }
+  }
   if (profileOnly) {
     await evaluate("window.__GREYWROUGHT_MEASUREMENTS__.length=0");
     candidateProfiles.push(await waitFor<Record<string, unknown>>(
@@ -227,6 +246,12 @@ try {
     ));
   } else {
     await observe("100-active-movement-and-cooldown");
+  }
+  if (workerSession) {
+    const result = await call("Profiler.stop", {}, workerSession);
+    requireCondition(Boolean(result.result?.profile), "resident worker CPU profile was not retained");
+    await Bun.write("build/measurement/100-active-worker.cpuprofile", JSON.stringify(result.result.profile));
+    await call("Target.detachFromTarget", { sessionId: workerSession });
   }
 
   await evaluate(`(() => {
