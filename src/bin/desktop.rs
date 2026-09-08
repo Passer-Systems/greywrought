@@ -271,7 +271,11 @@ fn run_world(
     } else {
         "src/world/embodied-encounter.clause"
     }))?;
-    let mut session = NativeSession::load(&save, &source)?;
+    let mut session = if forest {
+        native::forest::load_journey(&save, &source)?
+    } else {
+        NativeSession::load(&save, &source)?
+    };
     let opened = session.snapshot(0, String::new())?;
     if opened.workshop.is_some() != workshop || opened.forest.is_some() != forest {
         return Err(

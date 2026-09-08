@@ -354,6 +354,17 @@ impl NativeSession {
         Ok(())
     }
 
+    pub fn append_source_items(&mut self, additions: &[u8]) -> Result<()> {
+        let captured = self.workbench.generation().handle;
+        self.workbench.append_source_items(captured, additions)?;
+        while self.workbench.reclaim_retired() {}
+        if self.workbench.generation().handle != captured {
+            self.input_sequence = 0;
+            self.configuration_revision = 0;
+        }
+        Ok(())
+    }
+
     pub fn edit_catalog(&self) -> Result<EditCatalog> {
         let effects = self.workbench.scalar_effects()?;
         let source = self.workbench.exact_source();

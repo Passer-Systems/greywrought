@@ -10,12 +10,15 @@ new build; supported gameplay tuning happens inside the open world.
 Start in town and walk north through its gate. The forest begins as you cross
 its boundary; returning through the gate secures carried cores and relics.
 
-- W/S walks forward/back. A/D turns; Q/E strafes.
-- Left-drag orbits the camera. Right-drag steers the character and makes A/D
-  strafe. The wheel zooms, from a close view to a wider view of the road.
+- W/S walks forward/back. A/D strafes. Space jumps.
+- Left-drag orbits the camera. Right-drag steers the character. Holding both
+  mouse buttons walks forward. The wheel zooms along the road.
+- Approach Mara beside the Hearthstead road and press F to trade. A health
+  potion costs 3 secured supplies and restores up to 30 health. H drinks one;
+  at full health, you keep it. Escape closes the shop.
 - Walk toward the blue frost cores near the lookout. G gathers when close.
   Read the selected threat's current and upcoming intentions before engaging.
-- Click a threat card or press 1–5 to target it. Space strikes within reach;
+- Click a threat card or press Tab to target it. 1 strikes within reach;
   B braces. Clearing the lookout stops its repeated alarms.
 - R offers six carried cores at the deep grove to call the guardian. Its relic
   still needs a living return. O opens equipment; return to town to change it.
@@ -57,6 +60,9 @@ character. The earlier `~/.local/share/greywrought/forest.save` retains its
 clearing-based map and belongs with the earlier installed release. This
 playtest does not convert or overwrite it. The `--company` and `--workshop`
 modes retain their separate default saves.
+
+Existing spatial journeys gain jumping and Mara's shop when reopened. Their
+progress and accepted tuning remain; potion inventory is saved with the journey.
 
 One file lock owns each save. Corruption or incompatible source reports an
 error rather than silently replacing the saved world. Installing the spatial

@@ -1,5 +1,27 @@
-//! Read-only native presentation of the authored forest expedition.
+//! Passive source loading and native presentation of the forest expedition.
 use super::*;
+
+pub fn load_journey(path: &Path, source: &[u8]) -> Result<NativeSession> {
+    use clause_package::{CanonicalSourceProductionV1, read_canonical_source_v1};
+
+    let mut session = NativeSession::load(path, source)?;
+    let saved = read_canonical_source_v1(session.workbench.exact_source())?;
+    let has_additions = saved.declarations().any(|declaration| {
+        declaration.production == CanonicalSourceProductionV1::Relation
+            && declaration.designation == b"elevation"
+    });
+    if !has_additions {
+        let authored = read_canonical_source_v1(source)?;
+        if let Some(start) = authored.subject_focuses().iter().find_map(|focus| {
+            (focus.subject == b"elevation").then_some(focus.origin.start as usize)
+        }) {
+            // Declaration membership selects the one-time addition. Clause's
+            // append witness alone retains existing identities and live values.
+            session.append_source_items(&source[start..])?;
+        }
+    }
+    Ok(session)
+}
 
 #[derive(Clone, Debug)]
 pub struct ForestThreatView {
