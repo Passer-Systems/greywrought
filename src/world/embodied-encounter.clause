@@ -483,6 +483,22 @@ enemy-burn-duration:
 
 mode enemy-burn-duration given enemy yields value: one
 
+ready-enemy-target:
+  ?enemy shape Enemy
+  ?target shape Actor
+  ?enemy:
+    ready enemy target: ?target
+
+mode ready-enemy-target given enemy yields target: maybe
+
+incoming-burn:
+  ?actor shape Actor
+  ?duration shape F64
+  ?actor:
+    incoming burn: ?duration
+
+mode incoming-burn given actor yields duration: many
+
 encounter-state:
   ?encounter shape Encounter
   ?value shape EncounterState
@@ -774,6 +790,45 @@ law selected-living-formation
   then
     ?unit selected formation ?offset
 derive selected-living-formation
+
+law ready-enemy-strike
+  if
+    encounter:
+      encounter state: active
+      encounter scenario: ?scenario
+    ?enemy:
+      actor scenario: ?scenario
+      actor position:
+        x: ?enemy-x
+        y: ?enemy-y
+        z: ?enemy-z
+      enemy target: ?target
+      enemy range: ?range
+      enemy cooldown: ?cooldown
+      vitality: ?enemy-health
+      alive: true
+    ?target:
+      actor position:
+        x: ?target-x
+        y: ?target-y
+        z: ?target-z
+      vitality: ?target-health
+      alive: true
+    ?cooldown <= 0.0
+    ?enemy-health > 0.0
+    ?target-health > 0.0
+    (?target-x - ?enemy-x) * (?target-x - ?enemy-x) + (?target-z - ?enemy-z) * (?target-z - ?enemy-z) <= ?range * ?range
+  then
+    ?enemy ready enemy target ?target
+derive ready-enemy-strike
+
+law incoming-enemy-burn
+  if
+    ?enemy ready enemy target ?target
+    ?enemy enemy burn duration ?duration
+  then
+    ?target incoming burn ?duration
+derive incoming-enemy-burn
 
 player-1
   member of: Controller
@@ -2199,12 +2254,22 @@ on tick ?actor ?dt
     ?burn * ?dt damage after ward ?ward as ?damage
     ?remaining > 0.0
     ?health > 0.0
+  accumulate
+    ?actor vitality 0.0 - ?damage
+on tick ?actor ?dt
+  when
+    encounter encounter state active
+    ?actor:
+      burn remaining: ?remaining
+      vitality: ?health
+    ?remaining > 0.0
+    ?health > 0.0
+    sum 1.0 given ?actor where { ?actor incoming burn ?duration } as ?refreshes
+    ?refreshes = 0.0
   withdraw
     ?actor burn remaining ?remaining
   include
     ?actor burn remaining ?remaining - ?dt
-  accumulate
-    ?actor vitality 0.0 - ?damage
 on tick ?effect ?dt
   when
     encounter encounter state active
@@ -2252,49 +2317,35 @@ on tick ?actor ?dt
   when
     ?actor burn remaining ?remaining
     ?remaining < 0.0
+    sum 1.0 given ?actor where { ?actor incoming burn ?duration } as ?refreshes
+    ?refreshes = 0.0
   withdraw
     ?actor burn remaining ?remaining
   include
     ?actor burn remaining 0.0
+on tick ?actor ?dt
+  when
+    ?actor burn remaining ?remaining
+    ?actor incoming burn ?duration
+    sum 1.0 given ?actor ?duration where { ?actor incoming burn ?other-duration; ?other-duration > ?duration } as ?longer-burns
+    ?longer-burns = 0.0
+  withdraw
+    ?actor burn remaining ?remaining
+  include
+    ?actor burn remaining ?duration
 on tick ?enemy ?dt
   when
-    encounter:
-      encounter state: active
-      encounter scenario: ?scenario
+    ?enemy ready enemy target ?target
     ?enemy:
-      actor scenario: ?scenario
-      actor position:
-        x: ?enemy-x
-        y: ?enemy-y
-        z: ?enemy-z
-      enemy target: ?target
       enemy damage: ?incoming
-      enemy range: ?range
       enemy cooldown: ?cooldown
       enemy period: ?period
-      enemy burn duration: ?burn-duration
-      vitality: ?enemy-health
-      alive: true
-    ?target:
-      actor position:
-        x: ?target-x
-        y: ?target-y
-        z: ?target-z
-      vitality: ?target-health
-      alive: true
-      ward remaining: ?ward
-      burn remaining: ?prior-burn
+    ?target ward remaining ?ward
     ?incoming damage after ward ?ward as ?damage
-    ?cooldown <= 0.0
-    ?enemy-health > 0.0
-    ?target-health > 0.0
-    (?target-x - ?enemy-x) * (?target-x - ?enemy-x) + (?target-z - ?enemy-z) * (?target-z - ?enemy-z) <= ?range * ?range
   withdraw
     ?enemy enemy cooldown ?cooldown
-    ?target burn remaining ?prior-burn
   include
     ?enemy enemy cooldown ?period
-    ?target burn remaining ?burn-duration
   accumulate
     ?target vitality 0.0 - ?damage
 on tick ?actor ?dt

@@ -991,6 +991,37 @@ fn ordinary_ignite_creates_distinct_burns_with_exact_expiry_and_cancellation() {
 }
 
 #[test]
+fn enemy_strike_refreshes_an_existing_burn_without_stalling() {
+    for (prior_burn, second_duration) in [
+        (1.5, None),
+        (-0.01, None),
+        (1.5, Some(2.5)),
+        (1.5, Some(3.0)),
+    ] {
+        let mut facts = vec![
+            ("encounter".into(), "encounter state".into(), "active".into()),
+            ("moonwell".into(), "burn remaining".into(), format!("{prior_burn:?}")),
+        ];
+        if let Some(duration) = second_duration {
+            facts.push(("cinder-2".into(), "enemy target".into(), "moonwell".into()));
+            facts.push(("cinder-2".into(), "enemy burn duration".into(), format!("{duration:?}")));
+        }
+        let source = fixture_facts(std::str::from_utf8(EMBODIED_SOURCE).unwrap(), &facts);
+        let mut s = session_for(source.as_bytes());
+        let struck = admit_tick(&mut s);
+        let expected_health = 110.0 - 18.0
+            - if second_duration.is_some() { 13.0 } else { 0.0 }
+            - if prior_burn > 0.0 { 0.064 } else { 0.0 };
+        let refreshed = second_duration.unwrap_or(2.5);
+        assert!((actor_number(&struck, b"moonwell", b"vitality") - expected_health).abs() < 0.000_001);
+        assert!((actor_number(&struck, b"moonwell", b"burn-remaining") - refreshed).abs() < 0.000_001);
+        let decayed = admit_tick(&mut s);
+        assert!((actor_number(&decayed, b"moonwell", b"burn-remaining") - (refreshed - 0.016)).abs() < 0.000_001);
+        assert!((actor_number(&decayed, b"moonwell", b"vitality") - (expected_health - 0.064)).abs() < 0.000_001);
+    }
+}
+
+#[test]
 fn ward_healing_enemy_policy_and_actual_outcomes_are_source_owned() {
     let mut defended = session();
     admit_tick(&mut defended);
