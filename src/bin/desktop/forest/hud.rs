@@ -589,6 +589,13 @@ pub(crate) fn present(
     let Some(mut state) = state.take() else {
         return;
     };
+    for mut visible in &mut tuning {
+        *visible = if display.editing || display.snapshot.is_none() {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
     let Some(view) = display.snapshot.as_ref().and_then(|s| s.forest.as_ref()) else {
         return;
     };
@@ -724,13 +731,6 @@ pub(crate) fn present(
             node.left = px(91. + delta.x);
             node.top = px(91. + delta.y);
         }
-    }
-    for mut visible in &mut tuning {
-        *visible = if display.editing {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
     }
     for mut visible in &mut help {
         *visible = if state.help && !display.editing && !display.inspecting {
