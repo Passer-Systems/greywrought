@@ -21,7 +21,7 @@ struct Mode {
 type PhysicalInput = (ExecutableInputSourceV1, Option<ExecutableValueV1>);
 enum Request {
     Input(WasmSessionHandleV1, Vec<PhysicalInput>),
-    Edit(WasmSessionHandleV1, usize, String),
+    Edit(WasmSessionHandleV1, usize, String, Instant),
     Inspect(WasmSessionHandleV1, inspection::InspectionQuery),
     Save,
     Quit,
@@ -345,8 +345,7 @@ fn run_world(
                         status = "The company changed; give that order again.".into();
                     }
                 }
-                Request::Edit(captured, index, expression) => {
-                    let started = Instant::now();
+                Request::Edit(captured, index, expression, started) => {
                     eprintln!(
                         "native edit request: generation {captured:?}; catalog index {index}; replacement {expression:?}"
                     );
@@ -643,6 +642,7 @@ fn controls(
                         snapshot.generation,
                         display.edit_index,
                         display.expression.clone(),
+                        Instant::now(),
                     ),
                 );
             }

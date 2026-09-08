@@ -322,6 +322,7 @@ impl NativeSession {
         let effect = effects.get(index).ok_or("unknown offered expression")?;
         self.workbench
             .edit_scalar_effect(captured, effect, replacement)?;
+        while self.workbench.reclaim_retired() {}
         if self.workbench.generation().handle != captured {
             self.input_sequence = 0;
             self.configuration_revision = 0;
@@ -336,6 +337,7 @@ impl NativeSession {
     ) -> Result<()> {
         self.workbench
             .replace_source_items(captured, replacements)?;
+        while self.workbench.reclaim_retired() {}
         if self.workbench.generation().handle != captured {
             self.input_sequence = 0;
             self.configuration_revision = 0;
