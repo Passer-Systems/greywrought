@@ -8,9 +8,11 @@ const profileOnly = Bun.argv.includes("--profile");
 const gameUrl = `http://127.0.0.1:${gamePort}/?measure=1${profileOnly ? "&profile=1" : ""}`;
 const fixture = "build/measurement/100-active-source.clause";
 const candidateOnly = Bun.argv.includes("--candidate-only");
-const cpuProfile = Bun.argv.includes("--cpu-profile");
+const sourceCpuProfile = Bun.argv.includes("--source-cpu-profile");
+const cpuProfile = Bun.argv.includes("--cpu-profile") || sourceCpuProfile;
 const observeProfile = Bun.argv.includes("--observe");
 requireCondition(!candidateOnly || profileOnly, "--candidate-only requires --profile");
+requireCondition(!sourceCpuProfile || !candidateOnly, "--source-cpu-profile requires source edits");
 const output = profileOnly
   ? "build/measurement/100-active-profile.json"
   : "build/measurement/100-active.json";
@@ -232,7 +234,7 @@ try {
   if (cpuProfile) {
     workerSession = [...workerTargets].find(([url]) => url.includes("resident-worker"))?.[1];
     requireCondition(typeof workerSession === "string", "resident worker CPU profile did not attach");
-    for (const method of ["Profiler.enable", "Profiler.start"]) {
+    for (const method of sourceCpuProfile ? ["Profiler.enable"] : ["Profiler.enable", "Profiler.start"]) {
       const result = await call(method, {}, workerSession);
       requireCondition(!result.error, `resident worker ${method} failed: ${JSON.stringify(result.error)}`);
     }
@@ -248,7 +250,7 @@ try {
     await observe("100-active-movement-and-cooldown");
   }
   if (profileOnly && observeProfile) await observe("100-active-movement-and-cooldown");
-  if (workerSession) {
+  if (workerSession && !sourceCpuProfile) {
     const result = await call("Profiler.stop", {}, workerSession);
     requireCondition(Boolean(result.result?.profile), "resident worker CPU profile was not retained");
     await Bun.write("build/measurement/100-active-worker.cpuprofile", JSON.stringify(result.result.profile));
@@ -260,6 +262,10 @@ try {
     if(!option) throw new Error('measurement effect absent');
     catalog.value=option.value; catalog.dispatchEvent(new Event('change'));
   })()`);
+  if (sourceCpuProfile && workerSession) {
+    const result = await call("Profiler.start", {}, workerSession);
+    requireCondition(!result.error, "source-edit CPU profile did not start");
+  }
   const edits: Array<Record<string, unknown>> = [];
   const editExpressions = candidateOnly
     ? []
@@ -298,6 +304,12 @@ try {
       events: await evaluate("window.__GREYWROUGHT_MEASUREMENTS__.slice()") });
   }
 
+  if (sourceCpuProfile && workerSession) {
+    const result = await call("Profiler.stop", {}, workerSession);
+    requireCondition(Boolean(result.result?.profile), "source-edit worker CPU profile was not retained");
+    await Bun.write("build/measurement/100-active-source-worker.cpuprofile", JSON.stringify(result.result.profile));
+    await call("Target.detachFromTarget", { sessionId: workerSession });
+  }
   const cgroupPath = (await Bun.file("/proc/self/cgroup").text()).trim().split(":").at(-1) ?? "";
   const cgroupRoot = `/sys/fs/cgroup${cgroupPath}`;
   const readLimit = async (name: string) => (await Bun.file(`${cgroupRoot}/${name}`).exists())
