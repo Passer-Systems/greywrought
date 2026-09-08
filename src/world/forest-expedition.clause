@@ -1,0 +1,1286 @@
+F64
+Bool
+Text
+Component
+Workshop
+Creature
+BodyPart
+PartKind
+
+creature-name
+  domain: Creature
+  range: Text
+  cardinality: one
+baseline-speed
+  domain: Creature
+  range: F64
+  cardinality: one
+body-mass
+  domain: Creature
+  range: F64
+  cardinality: one
+retreat-condition
+  domain: Creature
+  range: F64
+  cardinality: one
+creature-condition
+  domain: Creature
+  range: F64
+  cardinality: maybe
+part-label
+  domain: BodyPart
+  range: Text
+  cardinality: one
+part-owner
+  domain: BodyPart
+  range: Creature
+  cardinality: one
+part-kind
+  domain: BodyPart
+  range: PartKind
+  cardinality: one
+part-health
+  domain: BodyPart
+  range: F64
+  cardinality: one
+max-part-health
+  domain: BodyPart
+  range: F64
+  cardinality: one
+slot-capacity
+  domain: BodyPart
+  range: F64
+  cardinality: one
+accepted-kind
+  domain: Component
+  range: PartKind
+  cardinality: one
+attached-to
+  domain: Component
+  range: BodyPart
+  cardinality: maybe
+available-fit
+  domain: Component
+  range: BodyPart
+  cardinality: many
+fit-report
+  domain: Workshop
+  range: Text
+  cardinality: one
+
+Capacity:
+  mass: F64
+  power: F64
+  drive: F64
+  weapon: F64
+  cooling: F64
+  drive-draw: F64
+  weapon-draw: F64
+  cooling-draw: F64
+
+capacity
+  domain: Workshop
+  range: Capacity
+  cardinality: maybe
+
+
+label
+  domain: Component
+  range: Text
+  cardinality: one
+mounted
+  domain: Component
+  range: Bool
+  cardinality: maybe
+linked
+  domain: Component
+  range: Bool
+  cardinality: one
+upstream
+  domain: Component
+  range: Component
+  cardinality: one
+health
+  domain: Component
+  range: F64
+  cardinality: one
+max-health
+  domain: Component
+  range: F64
+  cardinality: one
+mass
+  domain: Component
+  range: F64
+  cardinality: one
+generation
+  domain: Component
+  range: F64
+  cardinality: one
+draw
+  domain: Component
+  range: F64
+  cardinality: one
+thrust
+  domain: Component
+  range: F64
+  cardinality: one
+firepower
+  domain: Component
+  range: F64
+  cardinality: one
+cooling
+  domain: Component
+  range: F64
+  cardinality: one
+protection
+  domain: Component
+  range: F64
+  cardinality: one
+phase
+  domain: Workshop
+  range: Text
+  cardinality: one
+position
+  domain: Workshop
+  range: F64
+  cardinality: one
+stock
+  domain: Workshop
+  range: F64
+  cardinality: one
+cargo
+  domain: Workshop
+  range: F64
+  cardinality: one
+report
+  domain: Workshop
+  range: Text
+  cardinality: one
+selected
+  domain: Workshop
+  range: Component
+  cardinality: one
+total-mass
+  domain: Workshop
+  range: F64
+  cardinality: one
+available-power
+  domain: Workshop
+  range: F64
+  cardinality: one
+drive-power
+  domain: Workshop
+  range: F64
+  cardinality: one
+weapon-power
+  domain: Workshop
+  range: F64
+  cardinality: one
+cooling-power
+  domain: Workshop
+  range: F64
+  cardinality: one
+powered
+  domain: Component
+  range: Bool
+  cardinality: maybe
+
+head-kind
+  member of: PartKind
+torso-kind
+  member of: PartKind
+back-kind
+  member of: PartKind
+arm-kind
+  member of: PartKind
+legs-kind
+  member of: PartKind
+
+wayfarer
+  creature-name: "Wayfarer"
+  baseline-speed: 1.4
+  body-mass: 28.0
+  retreat-condition: 60.0
+
+head
+  part-label: "Head"
+  part-owner: wayfarer
+  part-kind: head-kind
+  part-health: 100.0
+  max-part-health: 100.0
+  slot-capacity: 1.0
+torso
+  part-label: "Torso"
+  part-owner: wayfarer
+  part-kind: torso-kind
+  part-health: 100.0
+  max-part-health: 100.0
+  slot-capacity: 1.0
+back
+  part-label: "Back"
+  part-owner: wayfarer
+  part-kind: back-kind
+  part-health: 100.0
+  max-part-health: 100.0
+  slot-capacity: 3.0
+left-arm
+  part-label: "Left arm"
+  part-owner: wayfarer
+  part-kind: arm-kind
+  part-health: 100.0
+  max-part-health: 100.0
+  slot-capacity: 1.0
+right-arm
+  part-label: "Right arm"
+  part-owner: wayfarer
+  part-kind: arm-kind
+  part-health: 100.0
+  max-part-health: 100.0
+  slot-capacity: 1.0
+legs
+  part-label: "Legs"
+  part-owner: wayfarer
+  part-kind: legs-kind
+  part-health: 100.0
+  max-part-health: 100.0
+  slot-capacity: 1.0
+
+law anatomical-attachment
+  if
+    ?component:
+      attached-to: ?part
+      accepted-kind: ?kind
+    ?part:
+      part-kind: ?kind
+      part-owner: ?creature
+  then
+    ?component mounted true
+derive anatomical-attachment
+
+law free-compatible-slot
+  if
+    workshop phase ?phase
+    if(?phase = "Workshop", true, ?phase = "Returned") = true
+    ?component accepted-kind ?kind
+    ?part:
+      part-kind: ?kind
+      slot-capacity: ?slots
+    sum 1.0 given ?part ?component where { ?other attached-to ?part; ?other != ?component } as ?occupied
+    ?occupied < ?slots
+  then
+    ?component available-fit ?part
+derive free-compatible-slot
+
+law living-condition
+  if
+    ?creature baseline-speed ?speed
+    sum ?health given ?creature where { ?part part-owner ?creature; ?part part-health ?health } as ?health
+    sum ?maximum given ?creature where { ?part part-owner ?creature; ?part max-part-health ?maximum } as ?maximum
+    ?maximum > 0.0
+  then
+    ?creature creature-condition 100.0 * ?health / ?maximum
+derive living-condition
+
+law live-source
+  if
+    ?component:
+      mounted: true
+      health: ?health
+    ?health > 0.0
+    ?component generation ?generation
+    ?generation > 0.0
+  then
+    ?component powered true
+derive live-source
+
+law live-connection
+  if
+    ?component:
+      mounted: true
+      health: ?health
+    ?health > 0.0
+    ?component:
+      linked: true
+      upstream: ?upstream
+    ?upstream powered true
+  then
+    ?component powered true
+derive live-connection
+
+law component-capacity
+  if
+    ?workshop phase ?phase
+    sum ?mass where { ?component mounted true; ?component mass ?mass } as ?mass
+    sum ?generation where { ?component powered true; ?component generation ?generation } as ?power
+    sum (?thrust * ?health / ?maximum) where { ?component powered true; ?component thrust ?thrust; ?component attached-to ?part; ?part part-health ?health; ?part max-part-health ?maximum } as ?drive
+    sum (?firepower * ?health / ?maximum) where { ?component powered true; ?component firepower ?firepower; ?component attached-to ?part; ?part part-health ?health; ?part max-part-health ?maximum } as ?weapon
+    sum ?cooling where { ?component powered true; ?component cooling ?cooling } as ?cooling
+    sum ?draw where { ?component powered true; ?component thrust ?thrust; ?thrust > 0.0; ?component draw ?draw } as ?drive-draw
+    sum ?draw where { ?component powered true; ?component firepower ?firepower; ?firepower > 0.0; ?component draw ?draw } as ?weapon-draw
+    sum ?draw where { ?component powered true; ?component cooling ?cooling; ?cooling > 0.0; ?component draw ?draw } as ?cooling-draw
+  then
+    ?workshop:
+      capacity:
+        mass: ?mass
+        power: ?power
+        drive: if(?power >= ?drive-draw, ?drive, 0.0)
+        weapon: if(?power >= ?weapon-draw, ?weapon, 0.0)
+        cooling: if(?power >= ?cooling-draw, ?cooling, 0.0)
+        drive-draw: ?drive-draw
+        weapon-draw: ?weapon-draw
+        cooling-draw: ?cooling-draw
+derive component-capacity
+
+bounded:
+  (shape: F64):
+    ?value ?low ?high ?result
+  ?value bounded by ?low and ?high as ?result
+mode bounded given value low high yields result: maybe
+law bound
+  if
+    ?low <= ?high
+  then
+    ?value bounded by ?low and ?high as if(?value < ?low, ?low, if(?value > ?high, ?high, ?value))
+derive bound
+
+ember-core
+  label: "Ember heart"
+  accepted-kind: back-kind
+  attached-to: back
+  linked: true
+  upstream: ember-core
+  health: 100.0
+  max-health: 100.0
+  mass: 8.0
+  generation: 10.0
+  draw: 0.0
+  thrust: 0.0
+  firepower: 0.0
+  cooling: 0.0
+  protection: 0.0
+
+drive
+  label: "Powered leg braces"
+  accepted-kind: legs-kind
+  attached-to: legs
+  linked: true
+  upstream: ember-core
+  health: 80.0
+  max-health: 80.0
+  mass: 7.0
+  generation: 0.0
+  draw: 4.0
+  thrust: 36.0
+  firepower: 0.0
+  cooling: 0.0
+  protection: 0.0
+
+lance
+  label: "Sun lance"
+  accepted-kind: arm-kind
+  attached-to: right-arm
+  linked: true
+  upstream: drive
+  health: 45.0
+  max-health: 45.0
+  mass: 5.0
+  generation: 0.0
+  draw: 8.0
+  thrust: 0.0
+  firepower: 9.0
+  cooling: 0.0
+  protection: 0.0
+
+cooler
+  label: "Mist vanes"
+  accepted-kind: back-kind
+  attached-to: back
+  linked: true
+  upstream: ember-core
+  health: 50.0
+  max-health: 50.0
+  mass: 4.0
+  generation: 0.0
+  draw: 3.0
+  thrust: 0.0
+  firepower: 0.0
+  cooling: 7.0
+  protection: 0.0
+
+armor
+  label: "Iron mantle"
+  accepted-kind: torso-kind
+  linked: true
+  upstream: ember-core
+  health: 100.0
+  max-health: 100.0
+  mass: 14.0
+  generation: 0.0
+  draw: 0.0
+  thrust: 0.0
+  firepower: 0.0
+  cooling: 0.0
+  protection: 3.0
+
+auxiliary-core
+  label: "Reserve ember heart"
+  accepted-kind: back-kind
+  linked: true
+  upstream: ember-core
+  health: 80.0
+  max-health: 80.0
+  mass: 8.0
+  generation: 6.0
+  draw: 0.0
+  thrust: 0.0
+  firepower: 0.0
+  cooling: 0.0
+  protection: 0.0
+
+helmet
+  label: "Ashguard helmet"
+  accepted-kind: head-kind
+  linked: true
+  upstream: ember-core
+  health: 65.0
+  max-health: 65.0
+  mass: 3.0
+  generation: 0.0
+  draw: 0.0
+  thrust: 0.0
+  firepower: 0.0
+  cooling: 0.0
+  protection: 4.0
+
+workshop
+  phase: "Workshop"
+  position: 0.0
+  stock: 15.0
+  cargo: 0.0
+  report: "Prepare at Hearthstead. Gather frost cores in the forest and return alive."
+  fit-report: "Choose equipment, then choose a compatible body part."
+  selected: lance
+  total-mass: 24.0
+  available-power: 10.0
+  drive-power: 36.0
+  weapon-power: 9.0
+  cooling-power: 7.0
+
+bind referent-input PickComponent as Component to pick-component
+bind referent-input WireComponent as Component to wire-component
+bind referent-input FitComponent as BodyPart to fit-component
+bind keyboard UnequipComponent down to unequip-component
+bind keyboard RestCreature down to rest-creature
+bind keyboard DisconnectComponent down to disconnect-component
+bind keyboard RepairComponent down to repair-component
+bind keyboard LaunchExpedition down to launch-expedition
+bind keyboard WithdrawExpedition down to retreat-forest
+
+on pick-component ?workshop ?picked
+  when
+    ?workshop selected ?prior
+    ?picked health ?health
+  withdraw
+    ?workshop selected ?prior
+  include
+    ?workshop selected ?picked
+
+on wire-component ?workshop ?upstream
+  when
+    ?workshop phase ?phase
+    if(?phase = "Workshop", true, ?phase = "Returned") = true
+    ?workshop selected ?component
+    ?component:
+      upstream: ?prior
+      linked: ?linked
+    ?upstream health ?health
+  withdraw
+    ?component:
+      upstream: ?prior
+      linked: ?linked
+  include
+    ?component:
+      upstream: ?upstream
+      linked: true
+
+on fit-component ?workshop ?part
+  when
+    ?workshop:
+      phase: ?phase
+      selected: ?component
+      fit-report: ?prior
+    ?component accepted-kind ?expected
+    ?part part-kind ?actual
+    sum 1.0 given ?component ?part where { ?component available-fit ?part } as ?available
+  withdraw
+    ?workshop fit-report ?prior
+  include
+    ?workshop fit-report if(?phase = "Expedition", "Return before changing equipment.", if(?expected = ?actual, if(?available > 0.0, "Equipment fitted to the selected body part.", "That body part has no free attachment slot."), "That equipment does not fit this body part."))
+
+on fit-component ?workshop ?part
+  when
+    ?workshop selected ?component
+    ?component:
+      available-fit: ?part
+      attached-to: ?prior
+  withdraw
+    ?component attached-to ?prior
+  include
+    ?component attached-to ?part
+
+on fit-component ?workshop ?part
+  when
+    ?workshop selected ?component
+    ?component available-fit ?part
+    sum 1.0 given ?component where { ?component attached-to ?prior } as ?attached
+    ?attached = 0.0
+  include
+    ?component attached-to ?part
+
+on unequip-component ?workshop
+  when
+    ?workshop phase ?phase
+    if(?phase = "Workshop", true, ?phase = "Returned") = true
+    ?workshop selected ?component
+    ?component attached-to ?part
+  withdraw
+    ?component attached-to ?part
+
+on rest-creature ?part
+  when
+    workshop phase ?phase
+    if(?phase = "Workshop", true, ?phase = "Returned") = true
+    ?part:
+      part-health: ?health
+      max-part-health: ?maximum
+  withdraw
+    ?part part-health ?health
+  include
+    ?part part-health ?maximum
+
+on disconnect-component ?workshop
+  when
+    ?workshop phase ?phase
+    if(?phase = "Workshop", true, ?phase = "Returned") = true
+    ?workshop selected ?component
+    ?component linked ?prior
+  withdraw
+    ?component linked ?prior
+  include
+    ?component linked false
+
+on repair-component ?workshop
+  when
+    ?workshop phase ?phase
+    if(?phase = "Workshop", true, ?phase = "Returned") = true
+    ?workshop selected ?component
+    ?component:
+      health: ?health
+      max-health: ?maximum
+    ?health < ?maximum
+    ?workshop stock ?stock
+    ?stock >= 1.0
+    (?stock * 4.0) bounded by 0.0 and (?maximum - ?health) as ?repair
+  withdraw
+    ?component health ?health
+    ?workshop stock ?stock
+  include
+    ?component health ?health + ?repair
+    ?workshop stock ?stock - ?repair / 4.0
+
+
+presence
+  domain: Workshop
+  range: F64
+  cardinality: one
+party-size
+  domain: Workshop
+  range: F64
+  cardinality: one
+connected
+  domain: Workshop
+  range: Bool
+  cardinality: one
+resource-remaining
+  domain: Workshop
+  range: F64
+  cardinality: one
+ritual-called
+  domain: Workshop
+  range: Bool
+  cardinality: one
+carried-relics
+  domain: Workshop
+  range: F64
+  cardinality: one
+banked-relics
+  domain: Workshop
+  range: F64
+  cardinality: one
+action-cooldown
+  domain: Workshop
+  range: F64
+  cardinality: one
+guard-remaining
+  domain: Workshop
+  range: F64
+  cardinality: one
+
+workshop
+  presence: 0.0
+  party-size: 1.0
+  connected: true
+  resource-remaining: 12.0
+  ritual-called: false
+  carried-relics: 0.0
+  banked-relics: 0.0
+  action-cooldown: 0.0
+  guard-remaining: 0.0
+
+journey-vitality
+  domain: Workshop
+  range: F64
+  cardinality: maybe
+law journey-vitality
+  if
+    workshop phase ?phase
+    torso part-health ?health
+  then
+    workshop journey-vitality ?health
+derive journey-vitality
+
+bind keyboard AdvanceForest down to advance-forest
+bind keyboard RetreatForest down to retreat-forest
+bind keyboard GatherResource down to gather-resource
+bind keyboard ExtractExpedition down to extract-expedition
+bind scalar-input PartySize to choose-party-size
+bind keyboard ConnectionLost down to connection-lost
+bind keyboard ConnectionRestored down to connection-restored
+
+on choose-party-size ?workshop ?size
+  when
+    ?workshop phase ?phase
+    if(?phase = "Workshop", true, ?phase = "Returned") = true
+    ?workshop party-size ?prior
+    if(?size = 1.0, true, if(?size = 2.0, true, if(?size = 3.0, true, ?size = 4.0))) = true
+  withdraw
+    ?workshop party-size ?prior
+  include
+    ?workshop party-size ?size
+
+on connection-lost ?workshop
+  when
+    ?workshop connected true
+  withdraw
+    ?workshop connected true
+  include
+    ?workshop connected false
+on connection-restored ?workshop
+  when
+    ?workshop connected false
+  withdraw
+    ?workshop connected false
+  include
+    ?workshop connected true
+
+on launch-expedition ?workshop
+  when
+    ?workshop phase ?phase
+    if(?phase = "Workshop", true, ?phase = "Returned") = true
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop position ?position
+    ?workshop cargo ?cargo
+    ?workshop presence ?presence
+    ?workshop report ?report
+    ?workshop resource-remaining ?resource
+    ?workshop ritual-called ?called
+    ?workshop carried-relics ?relics
+  withdraw
+    ?workshop phase ?phase
+    ?workshop position ?position
+    ?workshop cargo ?cargo
+    ?workshop presence ?presence
+    ?workshop report ?report
+    ?workshop resource-remaining ?resource
+    ?workshop ritual-called ?called
+    ?workshop carried-relics ?relics
+  include
+    ?workshop phase "Expedition"
+    ?workshop position 0.0
+    ?workshop cargo 0.0
+    ?workshop presence 0.0
+    ?workshop report "The forest is listening. Frost cores wait at the deep grove; Hearthstead lies behind you."
+    ?workshop resource-remaining 12.0
+    ?workshop ritual-called false
+    ?workshop carried-relics 0.0
+
+on advance-forest ?workshop
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop position ?position
+    ?position < 4.0
+    nest enemy-health ?nest
+    ?workshop capacity Capacity { mass: ?mass, power: ?power, drive: ?drive, weapon: ?weapon, cooling: ?cooling, drive-draw: ?drive-draw, weapon-draw: ?weapon-draw, cooling-draw: ?cooling-draw }
+    ?workshop party-size ?party
+    ?workshop action-cooldown ?cooldown
+    ?cooldown <= 0.0
+  withdraw
+    ?workshop position ?position
+    ?workshop action-cooldown ?cooldown
+  include
+    ?workshop position if(?position = 2.0, if(?nest <= 0.0, 4.0, 3.0), ?position + 1.0)
+    ?workshop action-cooldown 1.0 / (1.0 + ?drive / (28.0 + ?mass))
+  accumulate
+    ?workshop presence 2.0 + 0.2 * (?party - 1.0)
+
+on retreat-forest ?workshop
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop position ?position
+    ?position > 0.0
+    nest enemy-health ?nest
+    ?workshop party-size ?party
+    ?workshop action-cooldown ?cooldown
+    ?cooldown <= 0.0
+  withdraw
+    ?workshop position ?position
+    ?workshop action-cooldown ?cooldown
+  include
+    ?workshop position if(?position = 4.0, if(?nest <= 0.0, 2.0, 3.0), ?position - 1.0)
+    ?workshop action-cooldown 1.0
+  accumulate
+    ?workshop presence 1.0 + 0.1 * (?party - 1.0)
+
+on gather-resource ?workshop
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop position 4.0
+    ?workshop resource-remaining ?remaining
+    ?remaining >= 3.0
+    ?workshop action-cooldown ?cooldown
+    ?cooldown <= 0.0
+    ?workshop report ?report
+  withdraw
+    ?workshop resource-remaining ?remaining
+    ?workshop action-cooldown ?cooldown
+    ?workshop report ?report
+  include
+    ?workshop resource-remaining ?remaining - 3.0
+    ?workshop action-cooldown 2.0
+    ?workshop report "Three frost cores gathered. They are yours only if you return alive."
+  accumulate
+    ?workshop cargo 3.0
+    ?workshop presence 4.0
+
+on extract-expedition ?workshop
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop position 0.0
+    ?workshop cargo ?cargo
+    ?workshop carried-relics ?carried
+    ?workshop report ?report
+  withdraw
+    ?workshop phase "Expedition"
+    ?workshop cargo ?cargo
+    ?workshop carried-relics ?carried
+    ?workshop report ?report
+  include
+    ?workshop phase "Returned"
+    ?workshop cargo 0.0
+    ?workshop carried-relics 0.0
+    ?workshop report "Safe at Hearthstead. Extracted cores and relics are secured."
+  accumulate
+    ?workshop stock ?cargo
+    ?workshop banked-relics ?carried
+
+on tick ?workshop ?dt
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+  accumulate
+    ?workshop presence 0.1 * ?dt
+on tick ?workshop ?dt
+  when
+    ?workshop connected true
+    ?workshop action-cooldown ?cooldown
+    ?cooldown > 0.0
+  withdraw
+    ?workshop action-cooldown ?cooldown
+  include
+    ?workshop action-cooldown if(?cooldown > ?dt, ?cooldown - ?dt, 0.0)
+
+on tick ?workshop ?dt
+  when
+    ?workshop:
+      phase: ?phase
+      total-mass: ?old-mass
+      available-power: ?old-power
+      drive-power: ?old-drive
+      weapon-power: ?old-weapon
+      cooling-power: ?old-cooling
+      capacity:
+        mass: ?mass
+        power: ?power
+        drive: ?drive
+        weapon: ?weapon
+        cooling: ?cooling
+        drive-draw: ?drive-draw
+        weapon-draw: ?weapon-draw
+        cooling-draw: ?cooling-draw
+  withdraw
+    ?workshop:
+      total-mass: ?old-mass
+      available-power: ?old-power
+      drive-power: ?old-drive
+      weapon-power: ?old-weapon
+      cooling-power: ?old-cooling
+  include
+    ?workshop:
+      total-mass: ?mass
+      available-power: ?power
+      drive-power: ?drive
+      weapon-power: ?weapon
+      cooling-power: ?cooling
+
+
+ForestThreat
+selected-threat
+  domain: Workshop
+  range: ForestThreat
+  cardinality: one
+threat-name
+  domain: ForestThreat
+  range: Text
+  cardinality: one
+threat-position
+  domain: ForestThreat
+  range: F64
+  cardinality: one
+enemy-health
+  domain: ForestThreat
+  range: F64
+  cardinality: one
+maximum-enemy-health
+  domain: ForestThreat
+  range: F64
+  cardinality: one
+active-threat
+  domain: ForestThreat
+  range: Bool
+  cardinality: one
+intent-stage
+  domain: ForestThreat
+  range: F64
+  cardinality: one
+intent-remaining
+  domain: ForestThreat
+  range: F64
+  cardinality: one
+intent-preparation
+  domain: ForestThreat
+  range: Text
+  cardinality: one
+intent-action
+  domain: ForestThreat
+  range: Text
+  cardinality: one
+intent-damage
+  domain: ForestThreat
+  range: F64
+  cardinality: one
+intent-noise
+  domain: ForestThreat
+  range: F64
+  cardinality: one
+intent-reach
+  domain: ForestThreat
+  range: F64
+  cardinality: one
+obstacle-benefit
+  domain: ForestThreat
+  range: Text
+  cardinality: one
+current-intent
+  domain: ForestThreat
+  range: Text
+  cardinality: maybe
+upcoming-intent
+  domain: ForestThreat
+  range: Text
+  cardinality: maybe
+
+workshop
+  selected-threat: scout
+
+law readable-current-intent
+  if
+    ?enemy active-threat ?active
+    ?enemy enemy-health ?health
+    ?enemy intent-stage ?stage
+    ?enemy intent-preparation ?preparation
+    ?enemy intent-action ?action
+  then
+    ?enemy current-intent if(?active, if(?health > 0.0, if(?stage = 0.0, ?preparation, ?action), "Cleared"), "Dormant until called")
+derive readable-current-intent
+law readable-upcoming-intent
+  if
+    ?enemy active-threat ?active
+    ?enemy enemy-health ?health
+    ?enemy intent-stage ?stage
+    ?enemy intent-preparation ?preparation
+    ?enemy intent-action ?action
+  then
+    ?enemy upcoming-intent if(?active, if(?health > 0.0, if(?stage = 0.0, ?action, ?preparation), "Route remains clear"), "Offer six frost cores at the deep grove")
+derive readable-upcoming-intent
+
+scout
+  threat-name: "Briar lookout"
+  threat-position: 1.0
+  enemy-health: 18.0
+  maximum-enemy-health: 18.0
+  active-threat: true
+  intent-stage: 0.0
+  intent-remaining: 3.0
+  intent-preparation: "Listening for footsteps"
+  intent-action: "Sounding the alarm"
+  intent-damage: 0.0
+  intent-noise: 3.0
+  intent-reach: 4.0
+  obstacle-benefit: "Clear the lookout to stop its repeated alarms."
+
+nest
+  threat-name: "Thorn nest"
+  threat-position: 2.0
+  enemy-health: 24.0
+  maximum-enemy-health: 24.0
+  active-threat: true
+  intent-stage: 0.0
+  intent-remaining: 3.0
+  intent-preparation: "Rousing the swarm"
+  intent-action: "Swarm rush"
+  intent-damage: 7.0
+  intent-noise: 0.0
+  intent-reach: 0.0
+  obstacle-benefit: "Clear the nest to open the short path between the thicket and deep grove."
+
+warder
+  threat-name: "Root warder"
+  threat-position: 3.0
+  enemy-health: 30.0
+  maximum-enemy-health: 30.0
+  active-threat: true
+  intent-stage: 0.0
+  intent-remaining: 3.0
+  intent-preparation: "Raising thorn wards"
+  intent-action: "Thorn lash"
+  intent-damage: 8.0
+  intent-noise: 0.0
+  intent-reach: 1.0
+  obstacle-benefit: "Clear the warder to gather frost cores without cutting thorns."
+
+patrol
+  threat-name: "Ash hound patrol"
+  threat-position: 4.0
+  enemy-health: 36.0
+  maximum-enemy-health: 36.0
+  active-threat: true
+  intent-stage: 0.0
+  intent-remaining: 3.0
+  intent-preparation: "Sweeping the trail"
+  intent-action: "Charging the company"
+  intent-damage: 10.0
+  intent-noise: 0.0
+  intent-reach: 2.0
+  obstacle-benefit: "Clear the patrol to prevent ambushes during retreat."
+
+ritual-guardian
+  threat-name: "Called frost guardian"
+  threat-position: 4.0
+  enemy-health: 48.0
+  maximum-enemy-health: 48.0
+  active-threat: false
+  intent-stage: 0.0
+  intent-remaining: 3.0
+  intent-preparation: "Drawing a freezing breath"
+  intent-action: "Frost torrent"
+  intent-damage: 20.0
+  intent-noise: 0.0
+  intent-reach: 0.0
+  obstacle-benefit: "Defeat the deliberately called guardian, then extract its frost relic."
+
+bind referent-input TargetThreat as ForestThreat to target-threat
+bind keyboard StrikeThreat down to strike-threat
+bind keyboard Brace down to brace
+bind keyboard CallRitual down to call-ritual
+
+on target-threat ?workshop ?target
+  when
+    ?workshop connected true
+    ?workshop selected-threat ?prior
+    ?target threat-name ?name
+  withdraw
+    ?workshop selected-threat ?prior
+  include
+    ?workshop selected-threat ?target
+
+on launch-expedition ?enemy
+  when
+    workshop phase ?phase
+    if(?phase = "Workshop", true, ?phase = "Returned") = true
+    workshop connected true
+    torso part-health ?living
+    ?living > 0.0
+    ?enemy enemy-health ?health
+    ?enemy maximum-enemy-health ?maximum
+    ?enemy active-threat ?active
+    ?enemy intent-stage ?stage
+    ?enemy intent-remaining ?remaining
+  withdraw
+    ?enemy enemy-health ?health
+    ?enemy active-threat ?active
+    ?enemy intent-stage ?stage
+    ?enemy intent-remaining ?remaining
+  include
+    ?enemy enemy-health ?maximum
+    ?enemy active-threat if(?enemy = ritual-guardian, false, true)
+    ?enemy intent-stage 0.0
+    ?enemy intent-remaining 3.0
+
+on strike-threat ?workshop
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?living
+    ?living > 0.0
+    ?workshop position ?position
+    ?workshop selected-threat ?target
+    ?target threat-position ?target-position
+    ?target active-threat true
+    ?target enemy-health ?health
+    ?health > 0.0
+    (?position - ?target-position) * (?position - ?target-position) <= 1.0
+    ?workshop action-cooldown ?cooldown
+    ?cooldown <= 0.0
+    ?workshop party-size ?party
+    ?workshop banked-relics ?relics
+    ?workshop capacity Capacity { mass: ?mass, power: ?power, drive: ?drive, weapon: ?weapon, cooling: ?cooling, drive-draw: ?drive-draw, weapon-draw: ?weapon-draw, cooling-draw: ?cooling-draw }
+    ?weapon > 0.0
+  withdraw
+    ?workshop action-cooldown ?cooldown
+  include
+    ?workshop action-cooldown 2.0 / (1.0 + ?cooling / 20.0)
+  accumulate
+    ?target enemy-health 0.0 - (?weapon + 4.0 * (?party - 1.0) + 4.0 * ?relics)
+    ?workshop presence 1.0 + 0.1 * (?party - 1.0)
+
+on brace ?workshop
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?living
+    ?living > 0.0
+    ?workshop action-cooldown ?cooldown
+    ?cooldown <= 0.0
+    ?workshop guard-remaining ?guard
+  withdraw
+    ?workshop action-cooldown ?cooldown
+    ?workshop guard-remaining ?guard
+  include
+    ?workshop action-cooldown 1.0
+    ?workshop guard-remaining 3.0
+
+on tick ?workshop ?dt
+  when
+    ?workshop connected true
+    ?workshop guard-remaining ?guard
+    ?guard > 0.0
+  withdraw
+    ?workshop guard-remaining ?guard
+  include
+    ?workshop guard-remaining if(?guard > ?dt, ?guard - ?dt, 0.0)
+
+on tick ?enemy ?dt
+  when
+    workshop phase "Expedition"
+    workshop connected true
+    torso part-health ?living
+    ?living > 0.0
+    ?enemy active-threat true
+    ?enemy enemy-health ?health
+    ?health > 0.0
+    ?enemy intent-remaining ?remaining
+    ?enemy intent-stage ?stage
+  withdraw
+    ?enemy intent-remaining ?remaining
+    ?enemy intent-stage ?stage
+  include
+    ?enemy intent-remaining if(?remaining > ?dt, ?remaining - ?dt, 3.0)
+    ?enemy intent-stage if(?remaining > ?dt, ?stage, if(?stage = 0.0, 1.0, 0.0))
+
+on tick ?enemy ?dt
+  when
+    workshop phase "Expedition"
+    workshop connected true
+    torso part-health ?living
+    ?living > 0.0
+    workshop position ?position
+    ?position > 0.0
+    workshop presence ?presence
+    workshop guard-remaining ?guard
+    ?enemy active-threat true
+    ?enemy enemy-health ?health
+    ?health > 0.0
+    ?enemy intent-stage 0.0
+    ?enemy intent-remaining ?remaining
+    ?remaining <= ?dt
+    ?enemy threat-position ?enemy-position
+    ?enemy intent-reach ?reach
+    (?position - ?enemy-position) * (?position - ?enemy-position) <= ?reach * ?reach
+    ?enemy intent-damage ?damage
+    ?enemy intent-noise ?noise
+    sum ?protection where { ?armor attached-to torso; ?armor mounted true; ?armor protection ?protection; ?armor health ?health; ?health > 0.0 } as ?protection
+  accumulate
+    torso part-health 0.0 - ?damage * (1.0 + ?presence / 100.0) * if(?guard > 0.0, 0.5, 1.0) / (1.0 + ?protection * 0.1)
+    workshop presence ?noise
+
+on gather-resource ?workshop
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop position 4.0
+    ?workshop resource-remaining ?remaining
+    ?remaining >= 3.0
+    ?workshop action-cooldown ?cooldown
+    ?cooldown <= 0.0
+    warder enemy-health ?warder
+    ?warder > 0.0
+    ?workshop guard-remaining ?guard
+  accumulate
+    torso part-health if(?guard > 0.0, -4.0, -8.0)
+
+on retreat-forest ?workshop
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop position ?position
+    ?position > 1.0
+    ?workshop action-cooldown ?cooldown
+    ?cooldown <= 0.0
+    patrol enemy-health ?patrol
+    ?patrol > 0.0
+    ?workshop guard-remaining ?guard
+  accumulate
+    torso part-health if(?guard > 0.0, -2.0, -4.0)
+
+on call-ritual ?workshop
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?living
+    ?living > 0.0
+    ?workshop position 4.0
+    ?workshop cargo ?cargo
+    ?cargo >= 6.0
+    ?workshop ritual-called false
+    ?workshop action-cooldown ?cooldown
+    ?cooldown <= 0.0
+    ?workshop report ?report
+    ritual-guardian active-threat false
+  withdraw
+    ?workshop cargo ?cargo
+    ?workshop ritual-called false
+    ?workshop action-cooldown ?cooldown
+    ?workshop report ?report
+    ritual-guardian active-threat false
+  include
+    ?workshop cargo ?cargo - 6.0
+    ?workshop ritual-called true
+    ?workshop action-cooldown 1.0
+    ?workshop report "Six cores offered. The frost guardian answers; its relic still has to be carried home."
+    ritual-guardian active-threat true
+  accumulate
+    ?workshop presence 12.0
+
+on tick ?workshop ?dt
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    torso part-health ?living
+    ?living > 0.0
+    ?workshop ritual-called true
+    ritual-guardian enemy-health ?health
+    ?health <= 0.0
+    ?workshop carried-relics 0.0
+    ?workshop report ?report
+  withdraw
+    ?workshop carried-relics 0.0
+    ?workshop report ?report
+  include
+    ?workshop carried-relics 1.0
+    ?workshop report "The frost relic is in your pack. Reach Hearthstead alive to keep it."
+
+on tick ?workshop ?dt
+  when
+    ?workshop phase "Expedition"
+    torso part-health ?health
+    ?health <= 0.0
+    ?workshop cargo ?cargo
+    ?workshop stock ?stock
+    ?workshop carried-relics ?carried
+    ?workshop banked-relics ?banked
+    ?workshop report ?report
+  withdraw
+    ?workshop phase "Expedition"
+    ?workshop cargo ?cargo
+    ?workshop stock ?stock
+    ?workshop carried-relics ?carried
+    ?workshop banked-relics ?banked
+    ?workshop report ?report
+  include
+    ?workshop phase "Lost"
+    ?workshop cargo 0.0
+    ?workshop stock 0.0
+    ?workshop carried-relics 0.0
+    ?workshop banked-relics 0.0
+    ?workshop report "The wayfarer is lost. Equipment, carried rewards and personal stores are gone."
+
+on tick ?component ?dt
+  when
+    workshop phase "Expedition"
+    torso part-health ?health
+    ?health <= 0.0
+    ?component health ?prior
+  withdraw
+    ?component health ?prior
+  include
+    ?component health 0.0
+on tick ?part ?dt
+  when
+    workshop phase "Expedition"
+    torso part-health ?health
+    ?health <= 0.0
+    ?part part-health ?prior
+  withdraw
+    ?part part-health ?prior
+  include
+    ?part part-health 0.0
