@@ -386,7 +386,7 @@ fn effect_physical_plan(
         input: None,
         program: ExecutableProgramV1 {
             initial_configuration: vec![ExecutableValueV1::number(0.0)?],
-            rules: vec![],
+            rules: vec![].into(),
             projection: None,
         },
         source_metadata: None,
