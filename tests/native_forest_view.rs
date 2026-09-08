@@ -20,6 +20,7 @@ fn forest_snapshot_carries_exact_inputs_and_inspection_without_workshop_autopilo
             .all(|(_, name, _)| !name.chars().any(char::is_control))
     );
     assert_eq!(forest.equipment.phase, "Workshop");
+    assert_eq!(forest.location_name(), "Hearthstead");
     let scout = forest
         .threats
         .iter()
@@ -36,6 +37,7 @@ fn forest_snapshot_carries_exact_inputs_and_inspection_without_workshop_autopilo
         .forest
         .ok_or("lost forest")?;
     assert_eq!(current.equipment.phase, "Expedition");
+    assert_eq!(current.location_name(), "Frostwood");
     assert!(
         current
             .threats

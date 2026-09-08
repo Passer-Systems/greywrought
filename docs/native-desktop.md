@@ -25,8 +25,9 @@ its boundary; returning through the gate secures carried cores and relics.
 The first route has been exercised in a private native window: walking,
 orbit/zoom/steering, gathering, fighting, inspecting, live tuning, returning
 and reopening. This is a local playtest. Buildings and trees are decorative;
-map, gate and thicket bounds constrain movement. Camera/scenery collision,
-shared hubs, companions and multiplayer disconnect protection remain unfinished.
+map, gate and thicket bounds constrain movement. The camera pulls in before
+visible scenery and restores the selected zoom when clear. Shared hubs,
+companions and multiplayer disconnect protection remain unfinished.
 
 ## Tune and inspect
 

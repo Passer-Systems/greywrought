@@ -32,6 +32,17 @@ pub struct ForestView {
     pub threats: Vec<ForestThreatView>,
 }
 
+impl ForestView {
+    /// Player-facing names for the locations of the authored expedition phases.
+    pub fn location_name(&self) -> &str {
+        match self.equipment.phase.as_str() {
+            "Workshop" | "Returned" => "Hearthstead",
+            "Expedition" | "Lost" => "Frostwood",
+            phase => phase,
+        }
+    }
+}
+
 pub(super) fn view(projection: &Term) -> Option<ForestView> {
     let workshop = field(projection, "workshop")?;
     field(workshop, "presence")?;

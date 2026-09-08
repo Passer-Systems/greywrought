@@ -1,5 +1,7 @@
 //! Forest art, projected readouts and physical controls. Route outcomes remain in Clause.
 use super::*;
+#[path = "forest/camera.rs"]
+mod camera;
 
 #[derive(Component)]
 pub(super) struct ForestCamera;
@@ -526,8 +528,8 @@ pub(super) fn present(
     }
     if let Ok(mut text) = readouts.p0().single_mut() {
         **text = format!(
-            "HEARTHSTEAD / FROSTWOOD  |  {}  |  Vitality {:.0}  |  Presence {:.1}\nCarried cores {:.0}  |  Banked supplies {:.0}  |  Relics carried {:.0} / banked {:.0}  |  Grove cores {:.0}\n{}{}",
-            view.equipment.phase,
+            "{}  |  Vitality {:.0}  |  Presence {:.1}\nCarried cores {:.0}  |  Banked supplies {:.0}  |  Relics carried {:.0} / banked {:.0}  |  Grove cores {:.0}\n{}{}",
+            view.location_name(),
             view.vitality,
             view.presence,
             view.cargo,
@@ -613,6 +615,7 @@ pub(super) struct Orbit {
     yaw: f32,
     pitch: f32,
     distance: f32,
+    clear_distance: f32,
     heading: f32,
     last_input: Vec2,
     last_sent: f64,
@@ -624,6 +627,7 @@ impl Default for Orbit {
             yaw: 0.,
             pitch: 0.38,
             distance: 8.,
+            clear_distance: 8.,
             heading: 0.,
             last_input: Vec2::ZERO,
             last_sent: -1.,
@@ -644,8 +648,18 @@ pub(super) fn navigate(
     mut cursors: Query<&mut bevy::window::CursorOptions, With<PrimaryWindow>>,
     mut orbit: Option<ResMut<Orbit>>,
     outfit: Option<Res<Outfit>>,
-    mut cameras: Query<&mut Transform, (With<ForestCamera>, Without<Wayfarer>)>,
-    mut players: Query<&mut Transform, (With<Wayfarer>, Without<ForestCamera>)>,
+    mut cameras: Query<(&mut Transform, &Projection), (With<ForestCamera>, Without<Wayfarer>)>,
+    mut players: Query<(Entity, &mut Transform), (With<Wayfarer>, Without<ForestCamera>)>,
+    geometry: Query<
+        (
+            Entity,
+            &bevy::camera::primitives::Aabb,
+            &GlobalTransform,
+            &InheritedVisibility,
+        ),
+        With<Mesh3d>,
+    >,
+    parents: Query<&ChildOf>,
 ) {
     let Some(mut rig) = orbit.take() else { return };
     let Some(snapshot) = &display.snapshot else {
@@ -717,7 +731,7 @@ pub(super) fn navigate(
         rig.last_sent = now;
         rig.generation = Some(snapshot.generation);
     }
-    if let Ok(mut player) = players.single_mut() {
+    if let Ok((player_entity, mut player)) = players.single_mut() {
         if snapshot.forest.as_ref().is_some_and(|f| f.vitality > 0.) {
             player.rotation = Quat::from_rotation_y(rig.heading);
         }
@@ -726,9 +740,32 @@ pub(super) fn navigate(
             -rig.yaw.sin() * rig.pitch.cos(),
             rig.pitch.sin(),
             -rig.yaw.cos() * rig.pitch.cos(),
-        ) * rig.distance;
-        for mut camera in &mut cameras {
-            *camera = Transform::from_translation(focus + offset).looking_at(focus, Vec3::Y);
+        );
+        for (mut transform, projection) in &mut cameras {
+            let direction = Dir3::new(offset).expect("orbit angles form a nonzero direction");
+            let limit = camera::distance(
+                focus,
+                direction,
+                rig.distance,
+                camera::clearance(projection),
+                geometry
+                    .iter()
+                    .filter(|(entity, _, _, visible)| {
+                        visible.get()
+                            && *entity != player_entity
+                            && !parents
+                                .iter_ancestors(*entity)
+                                .any(|parent| parent == player_entity)
+                    })
+                    .map(|(_, bounds, world, _)| camera::world_bounds(bounds, world)),
+            );
+            rig.clear_distance = if limit < rig.clear_distance {
+                limit
+            } else {
+                rig.clear_distance + (limit - rig.clear_distance) * (time.delta_secs() * 8.).min(1.)
+            };
+            *transform = Transform::from_translation(focus + offset * rig.clear_distance)
+                .looking_at(focus, Vec3::Y);
         }
     }
 }
