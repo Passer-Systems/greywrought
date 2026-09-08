@@ -28,5 +28,14 @@ debug = 0
 [profile.dev.package."*"]
 opt-level = 1
 
+[profile.dev.package.clause-package]
+opt-level = 3
+
+[profile.dev.package.clause-runtime]
+opt-level = 3
+
+[profile.dev.package.clause-workbench]
+opt-level = 3
+
 [lints.rust]
 unsafe_code = "forbid"
