@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod conquest;
+pub mod cooperative;
 pub mod ongoing_effect;
 pub mod native;
 

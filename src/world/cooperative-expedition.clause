@@ -1,0 +1,143 @@
+F64
+Bool
+Text
+Player
+Territory
+
+Point:
+  x: F64
+  z: F64
+
+player-name
+  domain: Player
+  range: Text
+  cardinality: one
+connection-number
+  domain: Player
+  range: F64
+  cardinality: one
+connected
+  domain: Player
+  range: Bool
+  cardinality: one
+position
+  domain: Player
+  range: Point
+  cardinality: one
+last-sequence
+  domain: Player
+  range: F64
+  cardinality: one
+cargo
+  domain: Player
+  range: F64
+  cardinality: one
+stock
+  domain: Player
+  range: F64
+  cardinality: one
+vitality
+  domain: Player
+  range: F64
+  cardinality: one
+resource-remaining
+  domain: Territory
+  range: F64
+  cardinality: one
+enemy-health
+  domain: Territory
+  range: F64
+  cardinality: one
+presence
+  domain: Territory
+  range: F64
+  cardinality: one
+
+first
+  player-name: "first"
+  connection-number: 1.0
+  connected: true
+  position:
+    x: 0.0
+    z: 0.0
+  last-sequence: 0.0
+  cargo: 0.0
+  stock: 0.0
+  vitality: 100.0
+
+second
+  player-name: "second"
+  connection-number: 2.0
+  connected: true
+  position:
+    x: 0.0
+    z: 0.0
+  last-sequence: 0.0
+  cargo: 0.0
+  stock: 0.0
+  vitality: 100.0
+
+forest
+  resource-remaining: 12.0
+  enemy-health: 18.0
+  presence: 0.0
+
+on command ?forest ?connection ?claimed ?sequence ?operation ?x ?z
+  when
+    ?forest resource-remaining ?resources
+    ?forest enemy-health ?enemy
+    ?player connection-number ?connection
+    ?player player-name ?claimed
+    ?player connected true
+    ?player position Point { x: ?prior-x, z: ?prior-z }
+    ?player last-sequence ?prior-sequence
+    ?player vitality ?health
+    ?health > 0.0
+    ?player cargo ?cargo
+    ?player stock ?stock
+    ?sequence = ?prior-sequence + 1.0
+    if(?operation = "move", true, if(?operation = "gather", true, if(?operation = "strike", true, ?operation = "extract"))) = true
+    if(?operation = "move", (?x - ?prior-x) * (?x - ?prior-x) + (?z - ?prior-z) * (?z - ?prior-z) <= 1.0, true) = true
+    if(?operation = "move", ?x >= -4.0, true) = true
+    if(?operation = "move", ?x <= 4.0, true) = true
+    if(?operation = "move", ?z >= 0.0, true) = true
+    if(?operation = "move", ?z <= 4.0, true) = true
+    if(?operation = "gather", ?prior-z >= 1.0, true) = true
+    if(?operation = "gather", ?resources >= 3.0, true) = true
+    if(?operation = "strike", ?prior-z >= 1.0, true) = true
+    if(?operation = "strike", ?enemy > 0.0, true) = true
+    if(?operation = "extract", ?prior-z = 0.0, true) = true
+  withdraw
+    ?player last-sequence ?prior-sequence
+    ?player position Point { x: ?prior-x, z: ?prior-z }
+    ?player cargo ?cargo
+    ?player stock ?stock
+    ?forest resource-remaining ?resources
+    ?forest enemy-health ?enemy
+  include
+    ?player last-sequence ?sequence
+    ?player position Point { x: if(?operation = "move", ?x, ?prior-x), z: if(?operation = "move", ?z, ?prior-z) }
+    ?player cargo if(?operation = "gather", ?cargo + 3.0, if(?operation = "extract", 0.0, ?cargo))
+    ?player stock if(?operation = "extract", ?stock + ?cargo, ?stock)
+    ?forest resource-remaining if(?operation = "gather", ?resources - 3.0, ?resources)
+    ?forest enemy-health if(?operation = "strike", ?enemy - 9.0, ?enemy)
+  accumulate
+    ?forest presence if(?operation = "gather", 4.0, if(?operation = "strike", 1.0, if(?operation = "move", 2.0, 0.0)))
+
+on disconnect-client ?player ?connection
+  when
+    ?player connection-number ?connection
+    ?player connected true
+  withdraw
+    ?player connected true
+  include
+    ?player connected false
+
+on reconnect-client ?player ?connection
+  when
+    ?player connection-number ?connection
+    ?player connected false
+  withdraw
+    ?player connected false
+  include
+    ?player connected true
