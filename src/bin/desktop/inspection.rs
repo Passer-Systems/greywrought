@@ -8,6 +8,7 @@ pub(super) enum InspectionQuery {
     Action(&'static [u8]),
     Handler(FormationLocalId),
     Survival(ExecutableReferentV1),
+    ForestGathering,
 }
 
 #[derive(Component)]
@@ -111,7 +112,9 @@ pub(super) fn controls(
             .inspection_handlers
             .get(display.inspection_handler)
             .map(|h| InspectionQuery::Handler(h.identity))
-    } else if keys.just_pressed(KeyCode::Digit3) && snapshot.forest.is_none() {
+    } else if keys.just_pressed(KeyCode::Digit3) && snapshot.forest.is_some() {
+        Some(InspectionQuery::ForestGathering)
+    } else if keys.just_pressed(KeyCode::Digit3) {
         snapshot
             .selected_target
             .clone()
@@ -126,7 +129,7 @@ pub(super) fn controls(
         display.inspection = Some(native::Inspection {
             generation,
             title: "What if?".into(),
-            lines: vec![if snapshot.forest.is_some() {"Forest counterfactual choices are not yet offered. State and recorded-action evidence remain available."} else {"Choose a target in the world before asking about the last strike."}.into()],
+            lines: vec!["Choose a target in the world before asking about the last strike.".into()],
         });
     }
 }
@@ -157,7 +160,7 @@ pub(super) fn present(
         .as_ref()
         .is_some_and(|s| s.forest.is_some())
     {
-        "1: state  |  2: last strike  |  3: counterfactual availability  |  4: last gathering  |  Enter: chosen action"
+        "1: state  |  2: last strike  |  3: gathering without warder  |  4: last gathering  |  Enter: chosen action"
     } else {
         "1: state  |  2: last strike  |  3: could target survive?  |  4: last heal  |  Enter: explain chosen action"
     };

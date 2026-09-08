@@ -167,6 +167,105 @@ impl NativeSession {
         })
     }
 
+    /// One explicit historical alternative, evaluated only by the compiler.
+    pub fn inspect_forest_gathering(
+        &self,
+        captured: WasmSessionHandleV1,
+        maximum_evaluations: u32,
+    ) -> Result<Inspection> {
+        self.inspect_generation(captured)?;
+        if !(1..=2).contains(&maximum_evaluations) {
+            return Err("forest gathering query permits one or two evaluations".into());
+        }
+        let recorded = self
+            .workbench
+            .recorded_event(b"gather-resource")?
+            .ok_or("Gather frost cores before asking about the last gathering.")?;
+        let event = recorded.step.id;
+        let explanation = self.workbench.explanation(b"gather-resource")?;
+        let (warder_slot, warder, warder_before, _) =
+            explained_numeric_row(&explanation, "enemy-health", "warder")?;
+        let (health_slot, torso, before, after) =
+            explained_numeric_row(&explanation, "part-health", "torso")?;
+        let query = ExecutableInterventionQueryV1 {
+            event,
+            allowed: vec![ExecutableInterventionChangeV1 {
+                slot: warder_slot,
+                subject: Some(warder),
+                value: ExecutableValueV1::Number(0f64.to_bits()),
+            }],
+            desired: E::LessThanOrEqual(
+                Box::new(E::Constant(ExecutableValueV1::Number(before.to_bits()))),
+                Box::new(E::RelationRead(
+                    Box::new(E::Slot(health_slot)),
+                    Box::new(E::Constant(ExecutableValueV1::Referent(torso.clone()))),
+                )),
+            ),
+            maximum_evaluations,
+        };
+        let result = self.workbench.intervene(&query)?;
+        let mut lines = vec![
+            "Would clearing the warder have prevented the last gathering injury?".into(),
+            format!(
+                "Recorded gather-resource Step {}",
+                text_field(&explanation, "step")
+            ),
+            format!(
+                "Only allowed change: warder enemy-health {warder_before} -> 0 in that event's pre-state."
+            ),
+            format!(
+                "Desired: torso part-health after gathering >= its recorded before value ({before})."
+            ),
+            format!("Observed torso vitality: {before} -> {after}."),
+            format!(
+                "Bound: {maximum_evaluations} evaluations; finite domain: unchanged state or that one changed row."
+            ),
+            format!(
+                "Evaluations: {}; completed: {}; exhausted: {}",
+                result.evaluations, result.completed, result.exhausted
+            ),
+        ];
+        if let Some(solution) = &result.solution {
+            lines.push(if solution.is_empty() {
+                "The recorded gathering already met the condition; no alternative was needed."
+                    .into()
+            } else {
+                "Yes, the cleared-warder alternative prevents injury in this recorded gathering."
+                    .into()
+            });
+            if let Some(ExecutableValueV1::RelationTable(table)) = result
+                .predicted
+                .as_ref()
+                .and_then(|p| p.get(health_slot as usize))
+                .and_then(|s| s.value())
+            {
+                if let Some(ExecutableValueV1::Number(bits)) =
+                    table.rows().get(&torso).and_then(|v| v.iter().next())
+                {
+                    lines.push(format!(
+                        "Predicted torso vitality: {}",
+                        f64::from_bits(*bits)
+                    ));
+                }
+            }
+        } else if result.completed {
+            lines.push("Neither state in this finite domain met the condition; no broader impossibility is established.".into());
+        } else {
+            lines.push(
+                "Evaluation limit reached without a witness; the alternative is unresolved.".into(),
+            );
+        }
+        lines.push(
+            "Historical prediction only; live world, source and orders are unchanged.".into(),
+        );
+        lines.push("This does not evaluate the time, injury or resources needed to clear the warder, or later actions.".into());
+        Ok(Inspection {
+            generation: captured,
+            title: "What if? Gathering without the warder".into(),
+            lines,
+        })
+    }
+
     /// The browser's finite deselection question, evaluated against the recorded
     /// strike's pre-state. No input, candidate or admission is created here.
     pub fn inspect_survival(
@@ -276,6 +375,60 @@ impl NativeSession {
             lines,
         })
     }
+}
+
+fn explained_numeric_row(
+    explanation: &Term,
+    relation: &str,
+    subject: &str,
+) -> Result<(u16, ExecutableReferentV1, f64, f64)> {
+    let mut found = None;
+    for (slot, state) in
+        fields(field(explanation, "states").ok_or("recorded event has no state evidence")?)
+    {
+        if field(state, "source")
+            .map(|s| text_field(s, "relation"))
+            .as_deref()
+            != Some(relation)
+        {
+            continue;
+        }
+        let Some(rows) = field(state, "rows") else {
+            continue;
+        };
+        for row in index_values(rows) {
+            if subject_label(explanation, field(row, "subject")) != subject {
+                continue;
+            }
+            if found.is_some() {
+                return Err("ambiguous recorded source coordinate".into());
+            }
+            let reference = projected_referent_value_v1(
+                field(row, "subject").ok_or("missing recorded subject")?,
+            )?
+            .ok_or("invalid recorded subject")?;
+            let number = |name| -> Result<f64> {
+                let atom = field(row, name)
+                    .and_then(|t| t.as_atom())
+                    .ok_or("missing recorded scalar")?;
+                if atom.kind() != b"clause/process-projected-f64-v1" {
+                    return Err("recorded state is not numeric".into());
+                }
+                let value = f64::from_le_bytes(atom.canonical_payload().try_into()?);
+                if !value.is_finite() {
+                    return Err("recorded state is not finite".into());
+                }
+                Ok(value)
+            };
+            found = Some((
+                slot.parse()?,
+                reference,
+                number("before")?,
+                number("after")?,
+            ));
+        }
+    }
+    found.ok_or_else(||format!("recorded gathering does not expose {subject}.{relation}; this question is unavailable for that event").into())
 }
 
 fn index_values(term: &Term) -> impl Iterator<Item = &Term> {

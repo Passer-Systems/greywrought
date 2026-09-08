@@ -343,6 +343,9 @@ fn run_world(
                         inspection::InspectionQuery::Handler(handler) => {
                             session.inspect_handler(captured, handler)
                         }
+                        inspection::InspectionQuery::ForestGathering => {
+                            session.inspect_forest_gathering(captured, 2)
+                        }
                         inspection::InspectionQuery::Survival(target) => {
                             session.inspect_survival(captured, target)
                         }
