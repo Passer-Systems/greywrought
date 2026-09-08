@@ -674,11 +674,11 @@ pub(super) fn navigate(
         let mouse_forward = pointer_active
             && buttons.pressed(MouseButton::Left)
             && buttons.pressed(MouseButton::Right);
-        let forward = if keys.pressed(KeyCode::KeyW) || mouse_forward {
+        let forward = if mouse_forward {
             1.0
         } else {
-            0.0
-        } - pressed(KeyCode::KeyS);
+            pressed(KeyCode::KeyW) - pressed(KeyCode::KeyS)
+        };
         let strafe = pressed(KeyCode::KeyD) - pressed(KeyCode::KeyA);
         input = Vec2::new(rig.heading.sin(), rig.heading.cos()) * forward
             + Vec2::new(-rig.heading.cos(), rig.heading.sin()) * strafe;

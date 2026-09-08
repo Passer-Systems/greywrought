@@ -24,6 +24,7 @@ required-features = ["desktop"]
 
 [profile.dev]
 debug = 0
+opt-level = 3
 
 [profile.dev.package."*"]
 opt-level = 1
