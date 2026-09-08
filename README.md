@@ -1,8 +1,10 @@
 # Greywrought
 
 Greywrought is a native Bevy game with Clause-authored gameplay. Its direction
-is a dangerous forest expedition: enter with a plan, read enemy intentions,
-choose what is worth fighting, gather something valuable and get home alive.
+is a third-person MMORPG with WASD movement, an orbit camera, walkable hubs
+and physical routes into dangerous territories. The first expedition is a
+forest: enter with a plan, read enemy intentions, choose what is worth fighting,
+gather something valuable and get home alive.
 Equipment and extracted resources carry lasting power; kills grant no XP.
 
 Clause owns world rules and checked gameplay changes. Bevy handles presentation,
@@ -42,7 +44,10 @@ benefits, predictable resources, ritual rewards and permanent loss all come
 from the running Clause world. Living extraction and checked-edit save/reopen
 have been exercised in the native window. This remains a small trail prototype
 with placeholder enemies; free exploration and networked companions are
-unfinished. Older prototypes remain available with `--company` and `--workshop`.
+unfinished. The next native milestone replaces the clearing-step controls with
+direct character movement from Hearthstead through its gate into the forest;
+see `greywrought:docs/native-desktop.md`. Older prototypes remain available with
+`--company` and `--workshop`.
 
 ## Source and checks
 

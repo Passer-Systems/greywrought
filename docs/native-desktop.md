@@ -5,6 +5,26 @@ The launcher runs the compiled Bevy window in the project's Linux development
 environment. No server or watcher is needed. Host/compiler changes require a
 new build; supported gameplay tuning happens inside the open world.
 
+## Next native playtest
+
+The target is a third-person MMORPG with WASD character movement and a
+World of Warcraft-style orbit camera, mouse steering and zoom. Start inside
+a walkable Hearthstead, leave through its gate, and follow the road across
+the forest boundary. An instance can load at that physical crossing. Return
+along the route to the hub with extracted rewards.
+
+Prove camera and movement feel, the hub-to-forest crossing, approaching one
+threat/resource, and the return journey before expanding the map. Clause owns
+movement rules, location, zone transitions and interaction eligibility; Bevy
+handles physical input, camera control and presentation. Keep checked edits,
+inspection and save/reopen usable throughout. Shared hubs, companions and
+multiplayer disconnect protection remain required beyond the local slice.
+
+The clearing-step controls below describe the currently playable prototype.
+They are not the target movement system. Tested native milestones should be
+promoted through the existing launcher with a short what-changed/what-to-try
+note, preserving an existing playtest and its saves.
+
 ## Play, tune and inspect
 
 1. Enter departs Hearthstead. D advances along the trail and A retreats.
@@ -17,8 +37,9 @@ new build; supported gameplay tuning happens inside the open world.
    Rejected edits preserve the running world. Arbitrary structural file reloads
    are not promised to preserve state.
 3. Press F7 for developer inspection. 1 shows accepted state, 2 the last forest
-   strike and 4 the last gathering action. Forest counterfactual choices are
-   not yet offered. Left/Right chooses an offered handler; Enter explains it.
+   strike and 4 the last gathering action. 3 asks whether clearing the warder
+   would have prevented the recorded gathering injury. Left/Right chooses
+   an offered handler; Enter explains it.
    Up/Down/Page Up/Page Down scroll. F7 or Escape closes the panel.
 4. Press F5 to save, or close normally, then reopen with the same save path.
    The saved exact source includes accepted tuning changes.
