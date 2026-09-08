@@ -8,6 +8,7 @@ use clause_runtime::{
 use clause_workbench::ResidentSourceWorkbenchV1;
 use std::{collections::BTreeMap, error::Error, fs, io::Write, path::Path};
 
+pub mod forest;
 pub mod inspection;
 pub use inspection::{Inspection, InspectionHandler};
 
@@ -29,6 +30,7 @@ pub struct ActorView {
 
 #[derive(Clone, Debug)]
 pub struct Snapshot {
+    pub forest: Option<forest::ForestView>,
     pub workshop: Option<WorkshopView>,
     pub generation: WasmSessionHandleV1,
     pub actors: Vec<ActorView>,
@@ -412,8 +414,10 @@ impl NativeSession {
                 }
             })
             .unwrap_or_default();
+        let forest = forest::view(&projection);
         Ok(Snapshot {
-            workshop: workshop_view(&projection),
+            workshop: if forest.is_some() { None } else { workshop_view(&projection) },
+            forest,
             generation: self.workbench.generation().handle,
             actors,
             scenarios,

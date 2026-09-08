@@ -9,12 +9,15 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+#[path = "desktop/forest.rs"]
+mod forest;
 #[path = "desktop/inspection.rs"]
 mod inspection;
 #[path = "desktop/workshop.rs"]
 mod workshop;
 #[derive(Resource, Clone, Copy)]
 struct Mode {
+    forest: bool,
     workshop: bool,
 }
 
@@ -109,6 +112,7 @@ fn main() -> native::Result<()> {
     let mut save = data.join("greywrought/world.save");
     let mut smoke_seconds = None;
     let mut workshop = false;
+    let mut forest = true;
     let mut explicit_save = false;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -118,7 +122,18 @@ fn main() -> native::Result<()> {
                 save = args.next().ok_or("--save needs a path")?.into();
                 explicit_save = true;
             }
-            "--workshop" => workshop = true,
+            "--workshop" => {
+                workshop = true;
+                forest = false;
+            }
+            "--company" => {
+                workshop = false;
+                forest = false;
+            }
+            "--forest" => {
+                workshop = false;
+                forest = true;
+            }
             "--smoke-seconds" => {
                 smoke_seconds = Some(
                     args.next()
@@ -129,12 +144,17 @@ fn main() -> native::Result<()> {
             _ => return Err(format!("unknown argument: {arg}").into()),
         }
     }
+    if forest && !explicit_save {
+        save = data.join("greywrought/forest.save");
+    }
     if workshop && !explicit_save {
         save = data.join("greywrought/workshop.save");
     }
     let (sender, receiver) = mpsc::sync_channel(32);
     let mailbox = Arc::new(Mutex::new(Mailbox {
-        status: if workshop {
+        status: if forest {
+            "Opening Hearthstead..."
+        } else if workshop {
             "Opening the workshop..."
         } else {
             "Gathering the company..."
@@ -153,6 +173,7 @@ fn main() -> native::Result<()> {
                 receiver,
                 worker_mailbox.clone(),
                 workshop,
+                forest,
             );
             if let Err(error) = &result {
                 eprintln!("native session failed: {error}");
@@ -162,7 +183,7 @@ fn main() -> native::Result<()> {
             result.map_err(|error| error.to_string())
         })?;
     App::new()
-        .insert_resource(Mode { workshop })
+        .insert_resource(Mode { workshop, forest })
         .insert_resource(Bridge {
             sender: sender.clone(),
             mailbox,
@@ -211,10 +232,12 @@ fn main() -> native::Result<()> {
                 inspection::controls,
                 controls,
                 workshop::controls,
+                forest::controls,
                 workshop::layout,
                 present,
                 workshop::present,
                 workshop::scene,
+                forest::present,
                 workshop::enemy_label,
                 workshop::equipment,
                 workshop::combat_feedback,
@@ -239,6 +262,7 @@ fn run_world(
     receiver: mpsc::Receiver<Request>,
     mailbox: Arc<Mutex<Mailbox>>,
     workshop: bool,
+    forest: bool,
 ) -> native::Result<()> {
     std::fs::create_dir_all(save.parent().ok_or("save needs parent directory")?)?;
     let lease = std::fs::OpenOptions::new()
@@ -250,19 +274,24 @@ fn run_world(
     lease
         .try_lock()
         .map_err(|_| "this saved company is already open in another window")?;
-    let source = std::fs::read(root.join(if workshop {
+    let source = std::fs::read(root.join(if forest {
+        "src/world/forest-expedition.clause"
+    } else if workshop {
         "src/world/workshop-expedition.clause"
     } else {
         "src/world/embodied-encounter.clause"
     }))?;
     let mut session = NativeSession::load(&save, &source)?;
-    if session.snapshot(0, String::new())?.workshop.is_some() != workshop {
+    let opened = session.snapshot(0, String::new())?;
+    if opened.workshop.is_some() != workshop || opened.forest.is_some() != forest {
         return Err(
             "save belongs to a different game mode; choose its mode or a different --save path"
                 .into(),
         );
     }
-    let mut status = if workshop {
+    let mut status = if forest {
+        "Hearthstead ready"
+    } else if workshop {
         "Workshop ready"
     } else {
         "Company ready"
@@ -418,6 +447,10 @@ fn setup(
     assets: Res<AssetServer>,
     mode: Res<Mode>,
 ) {
+    if mode.forest {
+        forest::setup(&mut commands, &mut meshes, &mut materials, &assets);
+        return;
+    }
     if mode.workshop {
         workshop::setup(&mut commands);
         return;
@@ -660,7 +693,7 @@ fn controls(
         return;
     };
     let generation = snapshot.generation;
-    if snapshot.workshop.is_some() {
+    if snapshot.workshop.is_some() || snapshot.forest.is_some() {
         return;
     }
     let mut inputs = Vec::new();
@@ -761,7 +794,7 @@ fn present(
     let Some(snapshot) = &display.snapshot else {
         return;
     };
-    if snapshot.workshop.is_some() {
+    if snapshot.workshop.is_some() || snapshot.forest.is_some() {
         return;
     }
     for (id, position, radius) in &snapshot.obstacles {
@@ -936,7 +969,9 @@ fn animate(
             }
             continue;
         }
-        let model = if snapshot.workshop.is_some() && actor.id == "wayfarer" {
+        let model = if (snapshot.workshop.is_some() || snapshot.forest.is_some())
+            && actor.id == "wayfarer"
+        {
             "Worker_Female"
         } else {
             let Some(view) = snapshot.actors.iter().find(|view| view.id == actor.id) else {
@@ -996,7 +1031,7 @@ fn hud(display: Res<Displayed>, mut text: Query<&mut Text, With<Hud>>) {
         **text = display.status.clone();
         return;
     };
-    if snapshot.workshop.is_some() {
+    if snapshot.workshop.is_some() || snapshot.forest.is_some() {
         **text = String::new();
         return;
     }

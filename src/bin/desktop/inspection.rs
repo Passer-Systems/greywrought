@@ -95,15 +95,23 @@ pub(super) fn controls(
     let query = if keys.just_pressed(KeyCode::Digit1) {
         Some(InspectionQuery::State)
     } else if keys.just_pressed(KeyCode::Digit2) {
-        Some(InspectionQuery::Action(b"party-attack"))
+        Some(InspectionQuery::Action(if snapshot.forest.is_some() {
+            b"strike-threat"
+        } else {
+            b"party-attack"
+        }))
     } else if keys.just_pressed(KeyCode::Digit4) {
-        Some(InspectionQuery::Action(b"party-heal"))
+        Some(InspectionQuery::Action(if snapshot.forest.is_some() {
+            b"gather-resource"
+        } else {
+            b"party-heal"
+        }))
     } else if keys.just_pressed(KeyCode::Enter) {
         display
             .inspection_handlers
             .get(display.inspection_handler)
             .map(|h| InspectionQuery::Handler(h.identity))
-    } else if keys.just_pressed(KeyCode::Digit3) {
+    } else if keys.just_pressed(KeyCode::Digit3) && snapshot.forest.is_none() {
         snapshot
             .selected_target
             .clone()
@@ -118,7 +126,7 @@ pub(super) fn controls(
         display.inspection = Some(native::Inspection {
             generation,
             title: "What if?".into(),
-            lines: vec!["Choose a target in the world before asking about the last strike.".into()],
+            lines: vec![if snapshot.forest.is_some() {"Forest counterfactual choices are not yet offered. State and recorded-action evidence remain available."} else {"Choose a target in the world before asking about the last strike."}.into()],
         });
     }
 }
@@ -144,8 +152,17 @@ pub(super) fn present(
         .get(display.inspection_handler)
         .map(|h| h.label.as_str())
         .unwrap_or("No offered handler");
+    let shortcuts = if display
+        .snapshot
+        .as_ref()
+        .is_some_and(|s| s.forest.is_some())
+    {
+        "1: state  |  2: last strike  |  3: counterfactual availability  |  4: last gathering  |  Enter: chosen action"
+    } else {
+        "1: state  |  2: last strike  |  3: could target survive?  |  4: last heal  |  Enter: explain chosen action"
+    };
     let heading = format!(
-        "DEVELOPER INSPECTION\n1: state  |  2: last strike  |  3: could target survive?  |  4: last heal  |  Enter: explain chosen action\nLeft / Right: choose action  |  Up / Down / Page Up / Down: scroll  |  F5: save  |  F7 / Esc: close\nAction {} / {count}: {handler}\n",
+        "DEVELOPER INSPECTION\n{shortcuts}\nLeft / Right: choose action  |  Up / Down / Page Up / Down: scroll  |  F5: save  |  F7 / Esc: close\nAction {} / {count}: {handler}\n",
         display.inspection_handler + 1
     );
     if let Some(report) = &display.inspection {
