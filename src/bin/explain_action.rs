@@ -88,7 +88,7 @@ fn run(
 
 fn accepted_world(w: &ResidentSourceWorkbenchV1) -> Result<Term, Box<dyn Error>> {
     let projection = w.last_projection().ok_or("no admitted projection")?;
-    Ok(decode_canonical_term_bytes(&projection.exact_term_bytes)?)
+    Ok(decode_canonical_term_bytes(&projection.exact_term_bytes())?)
 }
 
 fn explain(w: &ResidentSourceWorkbenchV1, states: &[State]) -> Result<(), Box<dyn Error>> {
