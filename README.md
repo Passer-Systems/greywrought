@@ -1,62 +1,61 @@
-# Greywrought Clause
+# Greywrought
 
-Greywrought is a Clause-authored Warcraft III-style tactical command game. Clause owns the world model, unit selection, orders, formation destinations, movement, combat, effects, enemy actions, and encounter outcome; the TypeScript/Three.js shell only transports input and renders admitted projections.
+Greywrought is a native Bevy game with Clause-authored gameplay. Its direction
+is a dangerous forest expedition: enter with a plan, read enemy intentions,
+choose what is worth fighting, gather something valuable and get home alive.
+Equipment and extracted resources carry lasting power; kills grant no XP.
 
-The source-authored company contains exactly five controllable classes: Warrior, Artificer, Rogue, Priest, and Ranger. The roster is projected from Clause unit occurrences, and click/drag selection transports each occurrence's typed identity rather than dispatching by class or display name. Right-click the ground to issue a formation move. Selected units display green rings. The camera is independent of unit facing: pan with WASD/arrow keys and zoom with the wheel.
+Clause owns world rules and checked gameplay changes. Bevy handles presentation,
+assets, input and UI. The native window keeps its world while supported checked
+edits are applied. Web delivery is a later Bevy export.
 
-The selected-unit panel includes a WoW-style paper doll with head, shoulders, neck, cloak, chest, shirt, tabard, bracers, gloves, belt, legs, pants, shoes, two rings, two trinkets, weapon, offhand, and ranged/relic slots.
+## Play and develop
 
-Movement is issued exclusively as RTS orders to the selected company. A single
-selected living unit lands exactly on the right-click marker. Groups use
-separated destinations centered on that marker, retaining their formation
-spacing. This assigns destinations; obstacle avoidance is not yet implemented.
-In the
-Moonwell Vigil, choose any projected actor in the target deck and use Attack,
-Ignite, Heal, or Ward. Attack acts through every eligible selected unit. Ignite
-lets selected eligible company members create independent, source-timed burns
-on the exact hostile target; their remaining lifetimes are projected in the
-target deck. Mara the
-Priest can restore and ward friendly targets; a ward halves direct cinder
-damage and ongoing burn while its source-owned duration remains. Defeat both
-cinders before their autonomous assault destroys the Moonwell.
+On this Linux machine, initialize the immutable compiler and build once:
 
-## Development
+```sh
+git submodule update --init --recursive
+nix develop '.?submodules=1'
+bun install --frozen-lockfile
+bun run build:play
+bun run play
+```
 
-Prerequisites are Git, Bun, Rust with the `wasm32-unknown-unknown` target, a C
-toolchain, `wasm-bindgen-cli 0.2.108`, and Chrome. Initialize the pinned Clause
-submodule with `git submodule update --init --recursive`, install dependencies
-with `bun install --frozen-lockfile`, then run `bun run play` and open
-<http://127.0.0.1:4173/>.
+The project development shell supplies Rust and native window libraries.
+Its source is `greywrought:flake.clause`; the pinned Clause compiler generates
+`greywrought:flake.nix`. Run the build again after changing Rust or the compiler
+pin. Gameplay tuning inside the open window does not rebuild or restart it.
+The Git flake includes the pinned submodule and excludes ignored build output.
+Regenerate an environment change with the pinned workbench's `project-nix`
+command, keeping compiler builds in `greywrought:build/authoring-target/` and
+game builds in `greywrought:build/desktop-target/`.
 
-On this Linux development machine, `bun run play:local` starts the already-built
-game and both interface watchers as user services, or reuses them if running.
-It does not compile Rust or rebuild Wasm. `bun run play:local --restart` restarts
-those services; refresh the browser afterward. The command recreates the
-services after reboot. Run it from the desired checkout, or invoke
-greywrought:scripts/play-local.ts by its full filesystem path with Bun.
+The current interactive window opens the company encounter prototype. Select
+with click/Shift-click or Tab; right-click moves or selects a target. Enter
+begins an encounter; Space attacks, H heals, J wards and I ignites. WASD/arrows
+pan; the wheel zooms. F5 saves. F6 opens checked tuning; F7 opens inspection.
+See `greywrought:docs/native-desktop.md` for the edit/inspection loop.
 
-Supported checked rule edits continue in the open game. Interface edits rebuild
-automatically but need a browser refresh. Compiler changes require
-`bun run build:play`, then `bun run play:local --restart` and a refresh.
-Arbitrary structural rule edits do not guarantee state preservation.
-For ordinary interface validation, `bun run typecheck:host` uses existing staged
-compiler declarations; `bun run build:host` retains the full compiler staging
-and pin/hash checks. Native and browser builds run independently in
-`bun run build:play` with separate Cargo targets.
+The new forest's rules execute through native tests, including useful
+enemy-clearing benefits, predictable resources, deliberate ritual rewards,
+extraction and permanent loss. Its native scene and input integration are the
+next delivery. The older outfitting prototype is available with
+`bun run play --workshop`; it is not the completed forest game.
 
-The immutable Clause pin and fresh compiled Wasm hash are recorded by the
-repository's verification scripts. `bun run build:clause-runtime` compiles the
-browser runtime from the pinned submodule instead of consuming its historical
-prebuilt Wasm. Generated Wasm and JavaScript artifacts belong under ignored
-`build/` and `dist/` directories.
+## Source and checks
 
-Focused browser acceptance: `bun acceptance/browser/rts-journey.ts` proves the
-five-class roster, exact occurrence and box selection, Clause-backed formation
-movement, target/ward/heal/attack controls, autonomous pressure, and a visible
-victory. `bun acceptance/browser/rts-idle-loss.ts` opens a fresh page and proves
-idle play reaches defeat through actual Moonwell damage. The duplicate-source
-writer creates an ignored six-unit fixture used by the main journey to retain
-the same-class identity regression without a new host branch or roster row.
-`bun acceptance/browser/rts-created-burn.ts` proves the visible Ignite control
-creates two distinct equal-damage occurrences with unequal lifetimes, applies
-their source-owned timed contributions and expires each exact occurrence.
+- `greywrought:src/world/forest-expedition.clause`: new expedition rules.
+- `greywrought:src/bin/desktop.rs`: passive Bevy window and input transport.
+- `greywrought:src/native.rs`: resident Clause session, projection and saves.
+- `greywrought:tests/forest_expedition.rs`: native expedition journeys.
+- `greywrought:tests/native_inspection.rs`: explanations, prediction and continuity.
+- `greywrought:acceptance/performance/README.md`: measured limits and targets.
+
+Run `bun run test:forest`, `bun run test:inspection`, or the full
+`bun run test:native`. Keep the full native gate intact; focused passing tests
+do not imply the older formation tests or performance targets pass.
+
+The former browser implementation is preserved at Git tag
+`browser-snapshot-20260908`. Assets and attribution remain under
+`greywrought:assets/`. Generated artifacts and private test saves belong under
+`greywrought:build/`.
