@@ -2,6 +2,8 @@
 use super::*;
 #[path = "forest/camera.rs"]
 mod camera;
+#[path = "forest/hud.rs"]
+pub(super) mod hud;
 
 #[derive(Component)]
 pub(super) struct ForestCamera;
@@ -11,8 +13,6 @@ pub(super) struct Wayfarer;
 pub(super) struct Threat(String);
 #[derive(Component)]
 pub(super) struct TrailLabel(usize);
-#[derive(Component)]
-pub(super) struct Readout;
 #[derive(Component)]
 pub(super) struct ThreatReadout(usize);
 #[derive(Component)]
@@ -29,6 +29,10 @@ pub(super) enum Control {
     Gear(usize),
     Fit(usize),
     Wire(usize),
+    Save,
+    Help,
+    Journal(bool),
+    MapZoom,
 }
 #[derive(Resource, Default)]
 pub(super) struct Outfit {
@@ -45,7 +49,7 @@ fn label(text: impl Into<String>, size: f32) -> (Text, TextFont, TextColor) {
             font_size: FontSize::Px(size),
             ..default()
         },
-        TextColor(Color::srgb(0.93, 0.91, 0.79)),
+        TextColor(Color::srgb(0.22, 0.17, 0.12)),
     )
 }
 fn button(control: Control) -> impl Bundle {
@@ -56,7 +60,7 @@ fn button(control: Control) -> impl Bundle {
             padding: UiRect::axes(px(9), px(7)),
             ..default()
         },
-        BackgroundColor(Color::srgb(0.13, 0.20, 0.17)),
+        BackgroundColor(Color::srgba(0.58, 0.43, 0.23, 0.2)),
     )
 }
 
@@ -168,79 +172,14 @@ pub(super) fn setup(
                 Transform::from_scale(Vec3::splat(0.4)),
             ));
         });
-    commands.spawn((
-        label("Opening Hearthstead...", 17.),
-        Node {
-            position_type: PositionType::Absolute,
-            left: px(16),
-            top: px(12),
-            right: px(16),
-            padding: UiRect::all(px(12)),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(0.03, 0.055, 0.04, 0.94)),
-        Readout,
-    ));
-    commands.spawn((
-        label("", 15.),
-        Node {
-            position_type: PositionType::Absolute,
-            left: px(16),
-            top: px(12),
-            right: px(16),
-            ..default()
-        },
-        Hud,
-    ));
-    commands
-        .spawn((Node {
-            position_type: PositionType::Absolute,
-            right: px(16),
-            top: px(115),
-            width: px(300),
-            flex_direction: FlexDirection::Column,
-            row_gap: px(7),
-            ..default()
-        },))
-        .with_children(|p| {
-            for i in 0..5 {
-                p.spawn(button(Control::Target(i))).with_children(|p| {
-                    p.spawn((label("", 14.), ThreatReadout(i)));
-                });
-            }
-        });
-    commands
-        .spawn((Node {
-            position_type: PositionType::Absolute,
-            left: px(16),
-            bottom: px(48),
-            right: px(16),
-            flex_wrap: FlexWrap::Wrap,
-            column_gap: px(6),
-            row_gap: px(6),
-            ..default()
-        },))
-        .with_children(|p| {
-            for (control, text) in [
-                (Control::Key("StrikeThreat"), "Space: strike"),
-                (Control::Key("Brace"), "B: brace"),
-                (Control::Key("GatherResource"), "G: gather"),
-                (Control::Key("CallRitual"), "R: offer 6 cores"),
-                (Control::Outfit, "O: equipment"),
-            ] {
-                p.spawn(button(control)).with_children(|p| {
-                    p.spawn(label(text, 14.));
-                });
-            }
-        });
-    commands.spawn((label("W/S walk | A/D turn | Q/E strafe | Drag: orbit | Right-drag: steer | Wheel: zoom | Walk home to bank cores | F5 save F6 tune F7 inspect",14.),Node {position_type:PositionType::Absolute,left:px(16),bottom:px(16),..default()}));
+    hud::setup(commands, assets);
     commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
                 left: px(16),
                 top: px(115),
-                width: px(650),
+                width: px(620),
                 bottom: px(140),
                 padding: UiRect::all(px(14)),
                 flex_direction: FlexDirection::Column,
@@ -249,12 +188,22 @@ pub(super) fn setup(
                 ..default()
             },
             ScrollPosition::default(),
-            BackgroundColor(Color::srgb(0.035, 0.065, 0.05)),
+            ImageNode {
+                image: assets.load("ui/parchment.png"),
+                image_mode: NodeImageMode::Stretch,
+                visual_box: bevy::ui::VisualBox::BorderBox,
+                ..default()
+            },
+            Interaction::None,
+            hud::Surface,
             GlobalZIndex(20),
             Visibility::Hidden,
             OutfitPanel,
         ))
         .with_children(|p| {
+            p.spawn(button(Control::Outfit)).with_children(|p| {
+                p.spawn(label("Equipment | Close [O / Esc]", 20.));
+            });
             p.spawn((label("", 14.), OutfitReadout));
             p.spawn((
                 Node {
@@ -285,6 +234,7 @@ pub(super) fn controls(
     outfit: Option<ResMut<Outfit>>,
     mut wheel: MessageReader<MouseWheel>,
     mut panels: Query<&mut ScrollPosition, With<OutfitPanel>>,
+    hud: Option<ResMut<hud::State>>,
 ) {
     if display.editing || display.inspecting || display.editor_handled_frame {
         return;
@@ -298,6 +248,7 @@ pub(super) fn controls(
     let Some(mut outfit) = outfit else {
         return;
     };
+    let Some(mut hud) = hud else { return };
     if outfit.open {
         for event in wheel.read() {
             for mut scroll in &mut panels {
@@ -325,6 +276,7 @@ pub(super) fn controls(
     }
     if keys.just_pressed(KeyCode::Escape) {
         outfit.open = false;
+        hud.help = false;
     }
     for (i, key) in [
         KeyCode::Digit1,
@@ -343,6 +295,22 @@ pub(super) fn controls(
     let mut inputs = Vec::new();
     for action in actions {
         let input = match action {
+            Control::Save => {
+                submit(&bridge, Request::Save);
+                None
+            }
+            Control::Help => {
+                hud.help = !hud.help;
+                None
+            }
+            Control::Journal(combat) => {
+                hud.combat = combat;
+                None
+            }
+            Control::MapZoom => {
+                hud.zoom = !hud.zoom;
+                None
+            }
             Control::Outfit => {
                 outfit.open = !outfit.open;
                 None
@@ -385,7 +353,6 @@ pub(super) fn present(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut readouts: ParamSet<(
-        Query<&mut Text, With<Readout>>,
         Query<(&mut Text, &ThreatReadout)>,
         Query<&mut Text, With<OutfitReadout>>,
     )>,
@@ -397,11 +364,7 @@ pub(super) fn present(
     camera: Query<(&Camera, &GlobalTransform), With<ForestCamera>>,
     mut trail_labels: Query<
         (&TrailLabel, &mut Node, &mut Text),
-        (
-            Without<Readout>,
-            Without<ThreatReadout>,
-            Without<OutfitReadout>,
-        ),
+        (Without<ThreatReadout>, Without<OutfitReadout>),
     >,
     mut panels: Query<&mut Visibility, (With<OutfitPanel>, Without<Threat>)>,
     outfit: Option<Res<Outfit>>,
@@ -413,16 +376,19 @@ pub(super) fn present(
     };
     if !*initialized {
         for (i, (id, _, position)) in view.places.iter().enumerate() {
-            commands.spawn((
-                label("", 14.),
-                Node {
-                    position_type: PositionType::Absolute,
-                    padding: UiRect::all(px(4)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.04, 0.06, 0.04, 0.85)),
-                TrailLabel(i),
-            ));
+            commands
+                .spawn((
+                    label("", 14.),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        padding: UiRect::all(px(4)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.04, 0.06, 0.04, 0.85)),
+                    GlobalZIndex(1),
+                    TrailLabel(i),
+                ))
+                .insert(TextColor(Color::srgb(0.93, 0.91, 0.79)));
             if id == "frost-cores" || id == "ritual-site" {
                 commands.spawn((
                     Mesh3d(meshes.add(Cuboid::new(1., 1.5, 1.))),
@@ -526,37 +492,15 @@ pub(super) fn present(
             }
         }
     }
-    if let Ok(mut text) = readouts.p0().single_mut() {
-        **text = format!(
-            "{}  |  Vitality {:.0}  |  Presence {:.1}\nCarried cores {:.0}  |  Banked supplies {:.0}  |  Relics carried {:.0} / banked {:.0}  |  Grove cores {:.0}\n{}{}",
-            view.location_name(),
-            view.vitality,
-            view.presence,
-            view.cargo,
-            view.stock,
-            view.carried_relics,
-            view.banked_relics,
-            view.resource_remaining,
-            view.equipment.report,
-            if view.connected {
-                ""
-            } else {
-                "  Connection paused"
-            }
-        );
-    }
-    for (mut text, index) in &mut readouts.p1() {
+    for (mut text, index) in &mut readouts.p0() {
         if let Some(t) = view.threats.get(index.0) {
             **text = format!(
-                "{}  {}{}  {:.0}/{:.0}\nNow: {}\nNext: {}\n{}",
+                "{}  {}{}  {:.0}/{:.0}",
                 index.0 + 1,
-                if t.selected { "[Target] " } else { "" },
+                if t.selected { "› " } else { "" },
                 t.name,
                 t.health,
-                t.maximum_health,
-                t.current_intent,
-                t.upcoming_intent,
-                t.benefit
+                t.maximum_health
             );
         }
     }
@@ -568,7 +512,7 @@ pub(super) fn present(
                 Visibility::Hidden
             };
     }
-    if let Ok(mut text) = readouts.p2().single_mut() {
+    if let Ok(mut text) = readouts.p1().single_mut() {
         **text = format!(
             "EQUIPMENT  |  O / Esc closes  |  Scroll to see all controls\n{}\n{}\n{}",
             view.equipment.fit_report,
@@ -660,6 +604,11 @@ pub(super) fn navigate(
         With<Mesh3d>,
     >,
     parents: Query<&ChildOf>,
+    pointer: (
+        Query<&Interaction, Or<(With<hud::Surface>, With<Button>)>>,
+        Option<Res<hud::State>>,
+        Local<bool>,
+    ),
 ) {
     let Some(mut rig) = orbit.take() else { return };
     let Some(snapshot) = &display.snapshot else {
@@ -673,8 +622,18 @@ pub(super) fn navigate(
         && !display.inspecting
         && !display.editor_handled_frame
         && !outfit.as_ref().is_some_and(|o| o.open);
-    let dragging =
-        active && (buttons.pressed(MouseButton::Left) || buttons.pressed(MouseButton::Right));
+    let (surfaces, hud, mut pointer_claimed) = pointer;
+    let over_ui = surfaces.iter().any(|i| *i != Interaction::None);
+    if buttons.just_pressed(MouseButton::Left) || buttons.just_pressed(MouseButton::Right) {
+        *pointer_claimed = over_ui;
+    }
+    if !buttons.pressed(MouseButton::Left) && !buttons.pressed(MouseButton::Right) {
+        *pointer_claimed = false;
+    }
+    let active = active && !hud.as_ref().is_some_and(|h| h.help);
+    let pointer_active = active && !*pointer_claimed;
+    let dragging = pointer_active
+        && (buttons.pressed(MouseButton::Left) || buttons.pressed(MouseButton::Right));
     if let Ok(mut cursor) = cursors.single_mut() {
         cursor.visible = !dragging;
         cursor.grab_mode = if dragging {
@@ -690,14 +649,14 @@ pub(super) fn navigate(
         }
     }
     for event in wheel.read() {
-        if active {
+        if active && !over_ui {
             rig.distance = (rig.distance - event.y * 0.8).clamp(3., 18.);
         }
     }
     let mut input = Vec2::ZERO;
     if active {
         let pressed = |key| if keys.pressed(key) { 1.0 } else { 0.0 };
-        let steering = buttons.pressed(MouseButton::Right);
+        let steering = pointer_active && buttons.pressed(MouseButton::Right);
         let turn = pressed(KeyCode::KeyA) - pressed(KeyCode::KeyD);
         if steering {
             rig.heading = rig.yaw;

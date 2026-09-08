@@ -225,7 +225,7 @@ fn main() -> native::Result<()> {
                 present,
                 workshop::present,
                 workshop::scene,
-                forest::present,
+                (forest::present, forest::hud::present).chain(),
                 forest::navigate,
                 workshop::enemy_label,
                 workshop::equipment,
