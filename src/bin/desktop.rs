@@ -13,6 +13,9 @@ use std::{
 mod forest;
 #[path = "desktop/inspection.rs"]
 mod inspection;
+#[path = "desktop/measurement.rs"]
+mod measurement;
+use measurement::{Smoke, smoke};
 #[path = "desktop/workshop.rs"]
 mod workshop;
 #[derive(Resource, Clone, Copy)]
@@ -92,15 +95,6 @@ struct Clips {
 struct Presented {
     entities: BTreeMap<String, Entity>,
 }
-#[derive(Resource)]
-struct Smoke {
-    start: Instant,
-    seconds: Option<u64>,
-    screenshot: bool,
-    observation: Option<(Instant, u64)>,
-    previous_frame: Option<Instant>,
-    frame_intervals_ms: Vec<f64>,
-}
 
 fn main() -> native::Result<()> {
     let mut root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -174,6 +168,7 @@ fn main() -> native::Result<()> {
                 worker_mailbox.clone(),
                 workshop,
                 forest,
+                smoke_seconds.is_some(),
             );
             if let Err(error) = &result {
                 eprintln!("native session failed: {error}");
@@ -194,14 +189,7 @@ fn main() -> native::Result<()> {
             center: Vec3::new(0.0, 0.0, 5.0),
             distance: 27.0,
         })
-        .insert_resource(Smoke {
-            start: Instant::now(),
-            seconds: smoke_seconds,
-            screenshot: false,
-            observation: None,
-            previous_frame: None,
-            frame_intervals_ms: Vec::new(),
-        })
+        .insert_resource(Smoke::new(smoke_seconds))
         .insert_resource(ClearColor(Color::srgb(0.045, 0.064, 0.055)))
         .insert_resource(GlobalAmbientLight {
             brightness: 500.0,
@@ -264,6 +252,7 @@ fn run_world(
     mailbox: Arc<Mutex<Mailbox>>,
     workshop: bool,
     forest: bool,
+    measure: bool,
 ) -> native::Result<()> {
     std::fs::create_dir_all(save.parent().ok_or("save needs parent directory")?)?;
     let lease = std::fs::OpenOptions::new()
@@ -299,6 +288,11 @@ fn run_world(
     }
     .to_string();
     refresh_edit_catalog(&session, &mailbox)?;
+    if measure {
+        for (index, expression) in session.edit_catalog()?.expressions.iter().enumerate() {
+            eprintln!("native measurement catalog {index}: {expression}");
+        }
+    }
     let mut catalog_generation = session.workbench.generation().handle;
     let publish = |session: &NativeSession, elapsed, status: &str| -> native::Result<()> {
         let snapshot = session.snapshot(elapsed, status.to_string())?;
@@ -310,6 +304,7 @@ fn run_world(
     publish(&session, 0, &status)?;
     let mut deadline = Instant::now();
     let mut pending_inputs = false;
+    let mut timings = measurement::WorldTimings::new(measure);
     loop {
         let request = if deadline > Instant::now() {
             match receiver.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
@@ -332,6 +327,7 @@ fn run_world(
             }
             match request {
                 Request::Quit => {
+                    timings.report();
                     session.save(&save)?;
                     eprintln!("native save complete: {}", save.display());
                     return Ok(());
@@ -383,8 +379,16 @@ fn run_world(
                     eprintln!(
                         "native edit request: generation {captured:?}; catalog index {index}; replacement {expression:?}"
                     );
+                    let checked_started = Instant::now();
                     match session.edit(captured, index, expression.as_bytes()) {
                         Ok(()) => {
+                            if measure {
+                                eprintln!(
+                                    "native edit phases: queue_ms={:.3}; checked_and_reclaim_ms={:.3}",
+                                    checked_started.duration_since(started).as_secs_f64() * 1000.,
+                                    checked_started.elapsed().as_secs_f64() * 1000.
+                                );
+                            }
                             status = "Tuning applied".into();
                             mailbox.lock().unwrap().edit_receipt =
                                 Some((session.workbench.generation().handle, started));
@@ -402,7 +406,14 @@ fn run_world(
                 }
             }
             if session.workbench.generation().handle != catalog_generation {
+                let catalog_started = Instant::now();
                 refresh_edit_catalog(&session, &mailbox)?;
+                if measure {
+                    eprintln!(
+                        "native edit catalog_ms={:.3}",
+                        catalog_started.elapsed().as_secs_f64() * 1000.
+                    );
+                }
                 catalog_generation = session.workbench.generation().handle;
             }
         }
@@ -410,7 +421,10 @@ fn run_world(
             let started = Instant::now();
             session.tick()?;
             pending_inputs = false;
-            publish(&session, started.elapsed().as_millis(), &status)?;
+            let tick_time = started.elapsed();
+            let publish_started = Instant::now();
+            publish(&session, tick_time.as_millis(), &status)?;
+            timings.tick(session.ticks, tick_time, publish_started.elapsed());
             // Every required fixed tick remains pending when evaluation is slow.
             deadline += Duration::from_millis(16);
         }
@@ -776,6 +790,7 @@ fn present(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut actors: Query<(&Actor, &mut Transform, &mut Visibility, &mut Motion)>,
     mut gizmos: Gizmos,
+    smoke: Res<Smoke>,
 ) {
     let Some(snapshot) = &display.snapshot else {
         return;
@@ -909,6 +924,7 @@ fn present(
         }
     }
     if let Some((generation, started)) = display.edit_receipt.take() {
+        measurement::edited_frame(&mut commands, &smoke, generation, started);
         eprintln!(
             "native edited projection submitted to scene: {} ms; generation {:?}",
             started.elapsed().as_millis(),
@@ -1047,64 +1063,4 @@ fn hud(display: Res<Displayed>, mut text: Query<&mut Text, With<Hud>>) {
             ""
         }
     );
-}
-
-fn smoke(
-    mut commands: Commands,
-    mut smoke: ResMut<Smoke>,
-    mut exit: MessageWriter<AppExit>,
-    display: Res<Displayed>,
-) {
-    let Some(seconds) = smoke.seconds else {
-        return;
-    };
-    if !smoke.screenshot {
-        if let Some(snapshot) = &display.snapshot {
-            let now = Instant::now();
-            smoke.observation.get_or_insert((now, snapshot.ticks));
-            if let Some(previous) = smoke.previous_frame.replace(now) {
-                smoke
-                    .frame_intervals_ms
-                    .push(now.duration_since(previous).as_secs_f64() * 1000.0);
-            }
-        }
-    }
-    if smoke.start.elapsed() >= Duration::from_secs(seconds) && !smoke.screenshot {
-        commands
-            .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
-            .observe(bevy::render::view::screenshot::save_to_disk(
-                "build/native-window.png",
-            ));
-        smoke.screenshot = true;
-        eprintln!(
-            "native window smoke: accepted projection present={}",
-            display.snapshot.is_some()
-        );
-        if let (Some((started, first_tick)), Some(snapshot)) =
-            (smoke.observation, display.snapshot.as_ref())
-        {
-            let elapsed = smoke
-                .previous_frame
-                .unwrap_or(started)
-                .duration_since(started)
-                .as_secs_f64();
-            smoke.frame_intervals_ms.sort_by(f64::total_cmp);
-            let frames = smoke.frame_intervals_ms.len();
-            let p95 = (frames * 95)
-                .div_ceil(100)
-                .checked_sub(1)
-                .and_then(|index| smoke.frame_intervals_ms.get(index))
-                .copied()
-                .unwrap_or(0.0);
-            eprintln!(
-                "native window smoke after first accepted projection: frame_count={}; frame_intervals={frames}; actual_seconds={elapsed:.3}; p95_frame_interval_ms={p95:.3}; observed_clause_ticks={}; simulated_seconds={:.3}",
-                frames + 1,
-                snapshot.ticks.saturating_sub(first_tick),
-                snapshot.ticks.saturating_sub(first_tick) as f64 * 0.016
-            );
-        }
-    }
-    if smoke.screenshot && smoke.start.elapsed() >= Duration::from_secs(seconds + 3) {
-        exit.write(AppExit::Success);
-    }
 }

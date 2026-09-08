@@ -1,4 +1,4 @@
 export const CLAUSE_COMMIT =
-  "6055d15d76493c9f3b6738c3ccd0dbd797b0c5be";
+  "3d9ba095a994c5e09444626cd439b59bab11ea3a";
 
 export const CLAUSE_ROOT = new URL("../vendor/clause/", import.meta.url).pathname;
