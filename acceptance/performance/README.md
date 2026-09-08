@@ -30,6 +30,14 @@ seconds: 0.508 of wall speed. Actors can reach their destinations during this
 interval, and the camera does not frame all 100 throughout. This is evidence
 of insufficient simulation throughput, not a completed sustained-motion gate.
 
+With input queueing and complete per-edit reclamation included, three keyboard
+edits in the native 100-actor window subsequently reached scene submission in
+567 / 417 / 450 ms. Their edit-settlement receipts were 424 / 288 / 291 ms;
+the remaining interval includes catalog refresh, the next accepted tick and
+projection delivery. These ordinary desktop-profile observations are distinct
+from the optimized compiler-only samples above. Scene submission precedes GPU
+presentation, so these samples already miss the 250 ms visible-edit target.
+
 The next optimization must address measured native simulation work while
 preserving every fixed tick and accepted world change. Final edit measurement
 must include input queueing, checking, reclamation and presentation. Do not

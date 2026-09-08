@@ -7,16 +7,18 @@ new build; supported gameplay tuning happens inside the open world.
 
 ## Play, tune and inspect
 
-1. Choose an encounter with 1/2/3, select the company with Tab and begin with
-   Enter. Click/Shift-click selects exact units; right-click moves or targets.
-   Space attacks, H heals, J wards, I ignites and X stops movement.
+1. Enter departs Hearthstead. D advances along the trail and A retreats.
+   Click a threat card or press 1–5 to select it; Space strikes and B braces.
+   G gathers at the grove, R offers six cores to call the guardian, and X
+   extracts when back at Hearthstead. O opens equipment. Read current and
+   upcoming intentions before deciding whether to engage or move on.
 2. Press F6 for developer tuning. Page Up/Down selects a compiler-offered
    expression. Ctrl+A clears its text; Enter submits the checked change.
    Rejected edits preserve the running world. Arbitrary structural file reloads
    are not promised to preserve state.
-3. Press F7 for developer inspection. 1 shows accepted state, 2 the last strike,
-   3 a bounded prediction of whether the target could have survived, and 4 the
-   last heal. Left/Right chooses an offered handler; Enter explains it.
+3. Press F7 for developer inspection. 1 shows accepted state, 2 the last forest
+   strike and 4 the last gathering action. Forest counterfactual choices are
+   not yet offered. Left/Right chooses an offered handler; Enter explains it.
    Up/Down/Page Up/Page Down scroll. F7 or Escape closes the panel.
 4. Press F5 to save, or close normally, then reopen with the same save path.
    The saved exact source includes accepted tuning changes.
@@ -28,9 +30,11 @@ run on the world thread and stale source generations are rejected.
 
 ## Saves and execution
 
-The default company save is `~/.local/share/greywrought/world.save`, respecting
-`XDG_DATA_HOME`. Supply `bun run play --save /absolute/path/to/world.save` for a
-separate company. The older `--workshop` mode uses its own save by default.
+The default forest save is `~/.local/share/greywrought/forest.save`, respecting
+`XDG_DATA_HOME`. Supply `bun run play --save /absolute/path/to/forest.save` for a
+separate character. Permanent death remains saved; another character needs a
+different save path. The older `--company` and `--workshop` modes use their own
+saves by default; existing saves are preserved.
 One file lock owns each save. Corruption or incompatible source reports an
 error rather than silently replacing the saved world.
 
@@ -41,14 +45,16 @@ Assets retain their notices under `greywrought:assets/external/`.
 
 ## Observed boundary
 
-The actual native window passed play, recorded strike explanation, bounded
-prediction, checked edit, state inspection, save and reopen. That five-actor
-observation recorded 140 ms for checking and 200 ms through scene submission.
-Scene submission is not a measured GPU-present timestamp. The 100-actor and
-three-visible-edit targets remain open.
+The actual forest window displayed changing intentions, combat, gathering and
+a living extraction. A checked gathering-yield edit survived play, state
+inspection, saving and reopening: the observed character returned with vitality
+61 and banked supplies increasing from 15 to 19. A separate prolonged expedition
+ended in permanent loss and retained that loss when reopened.
 
-The focused inspection test checks prediction nonmutation, explanation
-premises/changed vitality, stale-generation rejection, actor identity and exact
-source/projection after reopening. The new forest's five native scenarios are
-a separate rules proof; its scene, controls and multiplayer disconnect behavior
-remain unfinished.
+The forest projection test checks exact input referents, explanation evidence,
+checked editing, stale-generation rejection and source/state save continuity.
+Five source-rule journeys and the existing company inspection test cover their
+respective boundaries. The 100-actor and three-visible-edit targets remain open;
+scene submission is not a GPU-present timestamp. The forest is a five-clearing
+trail, with free exploration, networked companions and multiplayer disconnect
+integration still unfinished.

@@ -30,17 +30,19 @@ Regenerate an environment change with the pinned workbench's `project-nix`
 command, keeping compiler builds in `greywrought:build/authoring-target/` and
 game builds in `greywrought:build/desktop-target/`.
 
-The current interactive window opens the company encounter prototype. Select
-with click/Shift-click or Tab; right-click moves or selects a target. Enter
-begins an encounter; Space attacks, H heals, J wards and I ignites. WASD/arrows
-pan; the wheel zooms. F5 saves. F6 opens checked tuning; F7 opens inspection.
-See `greywrought:docs/native-desktop.md` for the edit/inspection loop.
+The window opens at Hearthstead beside a five-clearing forest trail. Enter
+departs, D advances and A retreats. Click a threat card or press 1–5 to target;
+Space strikes and B braces. G gathers at the grove; R offers six cores to call
+the guardian. Return to Hearthstead and press X to secure carried rewards.
+O opens equipment. F5 saves, F6 opens checked tuning and F7 opens inspection.
+See `greywrought:docs/native-desktop.md` for saves and the edit/inspection loop.
 
-The new forest's rules execute through native tests, including useful
-enemy-clearing benefits, predictable resources, deliberate ritual rewards,
-extraction and permanent loss. Its native scene and input integration are the
-next delivery. The older outfitting prototype is available with
-`bun run play --workshop`; it is not the completed forest game.
+Current and upcoming enemy intentions, rising presence, useful clearing
+benefits, predictable resources, ritual rewards and permanent loss all come
+from the running Clause world. Living extraction and checked-edit save/reopen
+have been exercised in the native window. This remains a small trail prototype
+with placeholder enemies; free exploration and networked companions are
+unfinished. Older prototypes remain available with `--company` and `--workshop`.
 
 ## Source and checks
 
@@ -49,6 +51,7 @@ next delivery. The older outfitting prototype is available with
 - `greywrought:src/native.rs`: resident Clause session, projection and saves.
 - `greywrought:tests/forest_expedition.rs`: native expedition journeys.
 - `greywrought:tests/native_inspection.rs`: explanations, prediction and continuity.
+- `greywrought:tests/native_forest_view.rs`: forest input, inspection and edit/save continuity.
 - `greywrought:acceptance/performance/README.md`: measured limits and targets.
 
 Run `bun run test:forest`, `bun run test:inspection`, or the full
