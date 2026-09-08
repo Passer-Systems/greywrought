@@ -5,7 +5,7 @@ use super::*;
 pub struct ForestThreatView {
     pub id: String,
     pub name: String,
-    pub position: f64,
+    pub position: [f64; 2],
     pub health: f64,
     pub maximum_health: f64,
     pub active: bool,
@@ -19,7 +19,8 @@ pub struct ForestThreatView {
 #[derive(Clone, Debug)]
 pub struct ForestView {
     pub equipment: WorkshopView,
-    pub position: f64,
+    pub position: [f64; 2],
+    pub places: Vec<(String, String, [f64; 2])>,
     pub presence: f64,
     pub vitality: f64,
     pub cargo: f64,
@@ -34,6 +35,7 @@ pub struct ForestView {
 pub(super) fn view(projection: &Term) -> Option<ForestView> {
     let workshop = field(projection, "workshop")?;
     field(workshop, "presence")?;
+    let location = position(workshop, "position")?;
     let selected = projected_reference(workshop, "selected-threat");
     let threats = fields(projection)
         .filter_map(|(id, subject)| {
@@ -41,7 +43,7 @@ pub(super) fn view(projection: &Term) -> Option<ForestView> {
             Some(ForestThreatView {
                 id,
                 name: text_field(subject, "threat-name"),
-                position: number_field(subject, "threat-position"),
+                position: position(subject, "threat-position")?,
                 health: number_field(subject, "enemy-health"),
                 maximum_health: number_field(subject, "maximum-enemy-health"),
                 active: bool_field(subject, "active-threat"),
@@ -55,7 +57,13 @@ pub(super) fn view(projection: &Term) -> Option<ForestView> {
         .collect();
     Some(ForestView {
         equipment: workshop_view(projection)?,
-        position: number_field(workshop, "position"),
+        position: location,
+        places: fields(projection)
+            .filter_map(|(id, subject)| {
+                let location = position(subject, "place-position")?;
+                Some((id, text_field(subject, "place-name"), location))
+            })
+            .collect(),
         presence: number_field(workshop, "presence"),
         vitality: number_field(workshop, "journey-vitality"),
         cargo: number_field(workshop, "cargo"),
@@ -66,4 +74,13 @@ pub(super) fn view(projection: &Term) -> Option<ForestView> {
         connected: bool_field(workshop, "connected"),
         threats,
     })
+}
+
+fn position(subject: &Term, role: &str) -> Option<[f64; 2]> {
+    let point = field(subject, role)?;
+    let coordinate = |axis| {
+        let payload = field(point, axis)?.as_atom()?.canonical_payload();
+        Some(f64::from_le_bytes(payload.try_into().ok()?))
+    };
+    Some([coordinate("x")?, coordinate("z")?])
 }

@@ -1,3 +1,5 @@
+#[path = "common/forest.rs"]
+mod movement;
 use greywrought_clause::native::{self, NativeSession};
 const SOURCE: &[u8] = include_bytes!("../src/world/forest-expedition.clause");
 
@@ -9,20 +11,26 @@ fn forest_snapshot_carries_exact_inputs_and_inspection_without_workshop_autopilo
     assert!(initial.workshop.is_none());
     let forest = initial.forest.ok_or("missing forest")?;
     assert_eq!(forest.threats.len(), 5);
-    assert_eq!(forest.position, 0.);
+    assert_eq!(forest.position, [0., -8.]);
+    assert_eq!(forest.places.len(), 4);
+    assert!(
+        forest
+            .places
+            .iter()
+            .all(|(_, name, _)| !name.chars().any(char::is_control))
+    );
     assert_eq!(forest.equipment.phase, "Workshop");
     let scout = forest
         .threats
         .iter()
         .find(|t| t.id == "scout")
         .ok_or("no scout")?;
-    for (source, value) in [
-        native::key("LaunchExpedition"),
-        native::reference("TargetThreat", scout.target.clone()),
-    ] {
+    for (source, value) in [native::reference("TargetThreat", scout.target.clone())] {
         session.input(initial.generation, source, value)?;
     }
     session.tick()?;
+    movement::walk(&mut session, [0., 5.])?;
+    movement::walk(&mut session, [-2., 9.])?;
     let current = session
         .snapshot(0, String::new())?
         .forest

@@ -33,19 +33,8 @@ pub(super) struct Outfit {
     open: bool,
 }
 
-const PLACES: [(&str, [f32; 3]); 5] = [
-    ("Hearthstead / Extraction", [-16., 0., 5.]),
-    ("Lookout", [-8., 0., -1.]),
-    ("Thicket", [0., 0., -5.]),
-    ("Thorn passage", [6., 0., 3.]),
-    ("Deep grove / Ritual", [14., 0., -3.]),
-];
-fn point(depth: f64) -> Vec3 {
-    let depth = (depth as f32).clamp(0., 4.);
-    let index = depth.floor() as usize;
-    let a = Vec3::from_array(PLACES[index].1);
-    let b = Vec3::from_array(PLACES[(index + 1).min(4)].1);
-    a.lerp(b, depth - index as f32)
+fn point(position: [f64; 2]) -> Vec3 {
+    Vec3::new(position[0] as f32, 0., position[1] as f32)
 }
 fn label(text: impl Into<String>, size: f32) -> (Text, TextFont, TextColor) {
     (
@@ -76,10 +65,11 @@ pub(super) fn setup(
     assets: &AssetServer,
 ) {
     commands.insert_resource(Outfit::default());
+    commands.insert_resource(Orbit::default());
     commands.spawn((
         Camera3d::default(),
         ForestCamera,
-        Transform::from_xyz(0., 32., 35.).looking_at(Vec3::new(0., 0., 0.), Vec3::Y),
+        Transform::from_xyz(0., 5., -16.).looking_at(Vec3::new(0., 1., -8.), Vec3::Y),
     ));
     commands.spawn((
         DirectionalLight {
@@ -94,50 +84,53 @@ pub(super) fn setup(
         Transform::from_xyz(0., -0.12, 0.),
     ));
     let path = materials.add(Color::srgb(0.32, 0.28, 0.19));
-    for pair in PLACES.windows(2) {
-        let a = Vec3::from_array(pair[0].1);
-        let b = Vec3::from_array(pair[1].1);
-        let delta = b - a;
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(5., 0.06, 60.))),
+        MeshMaterial3d(path),
+        Transform::from_xyz(0., -0.02, 15.),
+    ));
+    // These buildings and trees are decoration; the authored gate bounds the route.
+    for (x, z) in [(-8., -9.), (8., -9.), (-8., -3.), (8., -3.)] {
         commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(2.3, 0.06, delta.length()))),
-            MeshMaterial3d(path.clone()),
-            Transform::from_translation((a + b) * 0.5)
-                .with_rotation(Quat::from_rotation_y(delta.x.atan2(delta.z))),
+            Mesh3d(meshes.add(Cuboid::new(4., 3., 4.))),
+            MeshMaterial3d(materials.add(Color::srgb(0.38, 0.26, 0.15))),
+            Transform::from_xyz(x, 1.5, z),
+        ));
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(4.8, 0.6, 4.8))),
+            MeshMaterial3d(materials.add(Color::srgb(0.22, 0.12, 0.09))),
+            Transform::from_xyz(x, 3.2, z),
         ));
     }
-    for (i, (_, p)) in PLACES.iter().enumerate() {
+    for x in [-8., 8.] {
         commands.spawn((
-            Mesh3d(meshes.add(Cylinder::new(2.5, 0.08))),
-            MeshMaterial3d(path.clone()),
-            Transform::from_translation(Vec3::from_array(*p)),
-        ));
-        commands.spawn((
-            label("", 14.),
-            Node {
-                position_type: PositionType::Absolute,
-                padding: UiRect::all(px(4)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.04, 0.06, 0.04, 0.85)),
-            TrailLabel(i),
+            Mesh3d(meshes.add(Cuboid::new(10., 2.5, 0.7))),
+            MeshMaterial3d(materials.add(Color::srgb(0.32, 0.34, 0.30))),
+            Transform::from_xyz(x, 1.25, 0.),
         ));
     }
+    for x in [-3.3, 3.3] {
+        commands.spawn((
+            Mesh3d(meshes.add(Cuboid::new(0.7, 4., 0.7))),
+            MeshMaterial3d(materials.add(Color::srgb(0.32, 0.34, 0.30))),
+            Transform::from_xyz(x, 2., 0.),
+        ));
+    }
+    commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(7.3, 0.7, 0.7))),
+        MeshMaterial3d(materials.add(Color::srgb(0.32, 0.34, 0.30))),
+        Transform::from_xyz(0., 4., 0.),
+    ));
     for (x, z, scale) in [
-        (-23., -4., 1.4),
-        (-18., -8., 1.1),
-        (-13., -7., 1.4),
-        (-10., -11., 1.3),
-        (-3., -12., 1.8),
-        (5., -12., 1.6),
-        (12., -11., 1.2),
-        (20., -9., 1.9),
-        (23., 1., 1.7),
-        (-22., 10., 1.4),
-        (-11., 12., 1.3),
-        (-4., 7., 1.2),
-        (5., 11., 1.3),
-        (15., 9., 1.4),
-        (21., 10., 1.6),
+        (-8., 6., 1.4),
+        (8., 8., 1.4),
+        (-7., 16., 1.6),
+        (9., 19., 1.4),
+        (-9., 24., 1.7),
+        (8., 28., 1.8),
+        (-8., 35., 1.5),
+        (10., 40., 1.8),
+        (-6., 44., 1.4),
     ] {
         commands.spawn((
             WorldAssetRoot(
@@ -147,28 +140,6 @@ pub(super) fn setup(
                 ),
             ),
             Transform::from_xyz(x, 0., z).with_scale(Vec3::splat(scale)),
-        ));
-    }
-    // Hearthstead's shelter, trail lantern and the frost-core grove are art only.
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(3., 2., 2.5))),
-        MeshMaterial3d(materials.add(Color::srgb(0.38, 0.26, 0.15))),
-        Transform::from_xyz(-19., 1., 3.),
-    ));
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(4., 0.5, 3.5))),
-        MeshMaterial3d(materials.add(Color::srgb(0.20, 0.12, 0.09))),
-        Transform::from_xyz(-19., 2.3, 3.).with_rotation(Quat::from_rotation_z(0.15)),
-    ));
-    for (x, z) in [(13., -5.), (15., -5.), (16., -3.)] {
-        commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.7, 1.4, 0.7))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.28, 0.75, 0.84),
-                emissive: LinearRgba::new(0.1, 0.4, 0.5, 1.),
-                ..default()
-            })),
-            Transform::from_xyz(x, 0.7, z).with_rotation(Quat::from_rotation_z(0.2)),
         ));
     }
     commands
@@ -181,7 +152,7 @@ pub(super) fn setup(
                 moving: false,
                 alive: true,
             },
-            Transform::from_translation(point(0.)),
+            Transform::default(),
             Visibility::default(),
         ))
         .with_children(|p| {
@@ -192,7 +163,7 @@ pub(super) fn setup(
                             .from_asset("external/quaternius/rts-company/Worker_Female.gltf"),
                     ),
                 ),
-                Transform::from_scale(Vec3::splat(1.35)),
+                Transform::from_scale(Vec3::splat(0.4)),
             ));
         });
     commands.spawn((
@@ -249,14 +220,10 @@ pub(super) fn setup(
         },))
         .with_children(|p| {
             for (control, text) in [
-                (Control::Key("LaunchExpedition"), "Enter: depart"),
-                (Control::Key("AdvanceForest"), "D: advance"),
-                (Control::Key("RetreatForest"), "A: retreat"),
                 (Control::Key("StrikeThreat"), "Space: strike"),
                 (Control::Key("Brace"), "B: brace"),
                 (Control::Key("GatherResource"), "G: gather"),
                 (Control::Key("CallRitual"), "R: offer 6 cores"),
-                (Control::Key("ExtractExpedition"), "X: extract"),
                 (Control::Outfit, "O: equipment"),
             ] {
                 p.spawn(button(control)).with_children(|p| {
@@ -264,7 +231,7 @@ pub(super) fn setup(
                 });
             }
         });
-    commands.spawn((label("Follow the trail; each advance travels to its next clearing. Click a threat card to target it.  |  F5 save  F6 tuning  F7 inspect",14.),Node {position_type:PositionType::Absolute,left:px(16),bottom:px(16),..default()}));
+    commands.spawn((label("W/S walk | A/D turn | Q/E strafe | Drag: orbit | Right-drag: steer | Wheel: zoom | Walk home to bank cores | F5 save F6 tune F7 inspect",14.),Node {position_type:PositionType::Absolute,left:px(16),bottom:px(16),..default()}));
     commands
         .spawn((
             Node {
@@ -342,14 +309,10 @@ pub(super) fn controls(
         .map(|(_, c)| c.clone())
         .collect::<Vec<_>>();
     for (key, binding) in [
-        (KeyCode::Enter, "LaunchExpedition"),
-        (KeyCode::KeyD, "AdvanceForest"),
-        (KeyCode::KeyA, "RetreatForest"),
         (KeyCode::Space, "StrikeThreat"),
         (KeyCode::KeyB, "Brace"),
         (KeyCode::KeyG, "GatherResource"),
         (KeyCode::KeyR, "CallRitual"),
-        (KeyCode::KeyX, "ExtractExpedition"),
     ] {
         if keys.just_pressed(key) {
             actions.push(Control::Key(binding));
@@ -447,6 +410,29 @@ pub(super) fn present(
         return;
     };
     if !*initialized {
+        for (i, (id, _, position)) in view.places.iter().enumerate() {
+            commands.spawn((
+                label("", 14.),
+                Node {
+                    position_type: PositionType::Absolute,
+                    padding: UiRect::all(px(4)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.04, 0.06, 0.04, 0.85)),
+                TrailLabel(i),
+            ));
+            if id == "frost-cores" || id == "ritual-site" {
+                commands.spawn((
+                    Mesh3d(meshes.add(Cuboid::new(1., 1.5, 1.))),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: Color::srgb(0.28, 0.75, 0.84),
+                        emissive: LinearRgba::new(0.1, 0.4, 0.5, 1.),
+                        ..default()
+                    })),
+                    Transform::from_translation(point(*position) + Vec3::Y * 0.75),
+                ));
+            }
+        }
         for threat in &view.threats {
             let color = match threat.id.as_str() {
                 "scout" => Color::srgb(0.65, 0.43, 0.13),
@@ -496,7 +482,7 @@ pub(super) fn present(
         *initialized = true;
     }
     for (mut transform, mut motion) in &mut player {
-        let destination = point(view.position) + Vec3::new(0., 0.1, 0.8);
+        let destination = point(view.position) + Vec3::new(0., 0.1, 0.);
         let displacement = destination - transform.translation;
         motion.moving = displacement.length() > 0.05;
         motion.alive = view.vitality > 0.;
@@ -511,16 +497,7 @@ pub(super) fn present(
     }
     for (id, mut transform, mut visible) in &mut threats {
         if let Some(threat) = view.threats.iter().find(|t| t.id == id.0) {
-            transform.translation = point(threat.position)
-                + Vec3::new(
-                    if threat.id == "ritual-guardian" {
-                        2.5
-                    } else {
-                        -1.5
-                    },
-                    1.2,
-                    -1.5,
-                );
+            transform.translation = point(threat.position) + Vec3::Y * 1.2;
             transform.scale = Vec3::splat(if threat.selected { 1.2 } else { 1.0 });
             *visible = if threat.active {
                 Visibility::Inherited
@@ -536,13 +513,14 @@ pub(super) fn present(
     }
     if let Ok((camera, transform)) = camera.single() {
         for (label, mut node, mut text) in &mut trail_labels {
-            if let Ok(screen) = camera.world_to_viewport(
-                transform,
-                Vec3::from_array(PLACES[label.0].1) + Vec3::new(0., 0., 2.3),
-            ) {
+            if let Ok(screen) =
+                camera.world_to_viewport(transform, point(view.places[label.0].2) + Vec3::Y * 2.5)
+            {
                 node.left = px(screen.x - 65.);
                 node.top = px(screen.y);
-                **text = PLACES[label.0].0.to_string();
+                **text = view.places[label.0].1.clone();
+            } else {
+                **text = String::new();
             }
         }
     }
@@ -627,5 +605,130 @@ pub(super) fn present(
             started.elapsed().as_millis(),
             generation
         );
+    }
+}
+
+#[derive(Resource)]
+pub(super) struct Orbit {
+    yaw: f32,
+    pitch: f32,
+    distance: f32,
+    heading: f32,
+    last_input: Vec2,
+    last_sent: f64,
+    generation: Option<WasmSessionHandleV1>,
+}
+impl Default for Orbit {
+    fn default() -> Self {
+        Self {
+            yaw: 0.,
+            pitch: 0.38,
+            distance: 8.,
+            heading: 0.,
+            last_input: Vec2::ZERO,
+            last_sent: -1.,
+            generation: None,
+        }
+    }
+}
+
+pub(super) fn navigate(
+    bridge: Res<Bridge>,
+    display: Res<Displayed>,
+    time: Res<Time>,
+    keys: Res<ButtonInput<KeyCode>>,
+    buttons: Res<ButtonInput<MouseButton>>,
+    mut motion: MessageReader<bevy::input::mouse::MouseMotion>,
+    mut wheel: MessageReader<MouseWheel>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut cursors: Query<&mut bevy::window::CursorOptions, With<PrimaryWindow>>,
+    mut orbit: Option<ResMut<Orbit>>,
+    outfit: Option<Res<Outfit>>,
+    mut cameras: Query<&mut Transform, (With<ForestCamera>, Without<Wayfarer>)>,
+    mut players: Query<&mut Transform, (With<Wayfarer>, Without<ForestCamera>)>,
+) {
+    let Some(mut rig) = orbit.take() else { return };
+    let Some(snapshot) = &display.snapshot else {
+        return;
+    };
+    if snapshot.forest.is_none() {
+        return;
+    }
+    let active = windows.single().is_ok_and(|w| w.focused)
+        && !display.editing
+        && !display.inspecting
+        && !display.editor_handled_frame
+        && !outfit.as_ref().is_some_and(|o| o.open);
+    let dragging =
+        active && (buttons.pressed(MouseButton::Left) || buttons.pressed(MouseButton::Right));
+    if let Ok(mut cursor) = cursors.single_mut() {
+        cursor.visible = !dragging;
+        cursor.grab_mode = if dragging {
+            bevy::window::CursorGrabMode::Confined
+        } else {
+            bevy::window::CursorGrabMode::None
+        };
+    }
+    for event in motion.read() {
+        if dragging {
+            rig.yaw -= event.delta.x * 0.004;
+            rig.pitch = (rig.pitch + event.delta.y * 0.004).clamp(0.12, 1.25);
+        }
+    }
+    for event in wheel.read() {
+        if active {
+            rig.distance = (rig.distance - event.y * 0.8).clamp(3., 18.);
+        }
+    }
+    let mut input = Vec2::ZERO;
+    if active {
+        let pressed = |key| if keys.pressed(key) { 1.0 } else { 0.0 };
+        let steering = buttons.pressed(MouseButton::Right);
+        let turn = pressed(KeyCode::KeyA) - pressed(KeyCode::KeyD);
+        if steering {
+            rig.heading = rig.yaw;
+        } else {
+            let delta = turn * time.delta_secs() * 2.2;
+            rig.heading += delta;
+            rig.yaw += delta;
+        }
+        let forward = pressed(KeyCode::KeyW) - pressed(KeyCode::KeyS);
+        let strafe =
+            pressed(KeyCode::KeyE) - pressed(KeyCode::KeyQ) + if steering { -turn } else { 0. };
+        input = Vec2::new(rig.heading.sin(), rig.heading.cos()) * forward
+            + Vec2::new(-rig.heading.cos(), rig.heading.sin()) * strafe;
+    }
+    let now = time.elapsed_secs_f64();
+    if input != rig.last_input
+        || rig.generation != Some(snapshot.generation)
+        || (input != Vec2::ZERO && now - rig.last_sent >= 0.1)
+    {
+        submit(
+            &bridge,
+            Request::Input(
+                snapshot.generation,
+                vec![
+                    native::scalar("MoveX", input.x as f64),
+                    native::scalar("MoveZ", input.y as f64),
+                ],
+            ),
+        );
+        rig.last_input = input;
+        rig.last_sent = now;
+        rig.generation = Some(snapshot.generation);
+    }
+    if let Ok(mut player) = players.single_mut() {
+        if snapshot.forest.as_ref().is_some_and(|f| f.vitality > 0.) {
+            player.rotation = Quat::from_rotation_y(rig.heading);
+        }
+        let focus = player.translation + Vec3::Y * 1.5;
+        let offset = Vec3::new(
+            -rig.yaw.sin() * rig.pitch.cos(),
+            rig.pitch.sin(),
+            -rig.yaw.cos() * rig.pitch.cos(),
+        ) * rig.distance;
+        for mut camera in &mut cameras {
+            *camera = Transform::from_translation(focus + offset).looking_at(focus, Vec3::Y);
+        }
     }
 }

@@ -238,6 +238,7 @@ fn main() -> native::Result<()> {
                 workshop::present,
                 workshop::scene,
                 forest::present,
+                forest::navigate,
                 workshop::enemy_label,
                 workshop::equipment,
                 workshop::combat_feedback,

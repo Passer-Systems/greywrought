@@ -140,9 +140,13 @@ phase
   domain: Workshop
   range: Text
   cardinality: one
+Position:
+  x: F64
+  z: F64
+
 position
   domain: Workshop
-  range: F64
+  range: Position
   cardinality: one
 stock
   domain: Workshop
@@ -454,10 +458,12 @@ helmet
 
 workshop
   phase: "Workshop"
-  position: 0.0
+  position:
+    x: 0.0
+    z: -8.0
   stock: 15.0
   cargo: 0.0
-  report: "Prepare at Hearthstead. Gather frost cores in the forest and return alive."
+  report: "Walk through Hearthstead’s north gate. Gather frost cores and return alive."
   fit-report: "Choose equipment, then choose a compatible body part."
   selected: lance
   total-mass: 24.0
@@ -473,8 +479,6 @@ bind keyboard UnequipComponent down to unequip-component
 bind keyboard RestCreature down to rest-creature
 bind keyboard DisconnectComponent down to disconnect-component
 bind keyboard RepairComponent down to repair-component
-bind keyboard LaunchExpedition down to launch-expedition
-bind keyboard WithdrawExpedition down to retreat-forest
 
 on pick-component ?workshop ?picked
   when
@@ -649,10 +653,7 @@ law journey-vitality
     workshop journey-vitality ?health
 derive journey-vitality
 
-bind keyboard AdvanceForest down to advance-forest
-bind keyboard RetreatForest down to retreat-forest
 bind keyboard GatherResource down to gather-resource
-bind keyboard ExtractExpedition down to extract-expedition
 bind scalar-input PartySize to choose-party-size
 bind keyboard ConnectionLost down to connection-lost
 bind keyboard ConnectionRestored down to connection-restored
@@ -683,14 +684,15 @@ on connection-restored ?workshop
   include
     ?workshop connected true
 
-on launch-expedition ?workshop
+on tick ?workshop ?dt
   when
     ?workshop phase ?phase
     if(?phase = "Workshop", true, ?phase = "Returned") = true
     ?workshop connected true
     torso part-health ?health
     ?health > 0.0
-    ?workshop position ?position
+    ?workshop position Position { x: ?x, z: ?z }
+    ?z >= 2.0
     ?workshop cargo ?cargo
     ?workshop presence ?presence
     ?workshop report ?report
@@ -699,7 +701,6 @@ on launch-expedition ?workshop
     ?workshop carried-relics ?relics
   withdraw
     ?workshop phase ?phase
-    ?workshop position ?position
     ?workshop cargo ?cargo
     ?workshop presence ?presence
     ?workshop report ?report
@@ -708,56 +709,12 @@ on launch-expedition ?workshop
     ?workshop carried-relics ?relics
   include
     ?workshop phase "Expedition"
-    ?workshop position 0.0
     ?workshop cargo 0.0
     ?workshop presence 0.0
-    ?workshop report "The forest is listening. Frost cores wait at the deep grove; Hearthstead lies behind you."
+    ?workshop report "The forest is listening. Frost cores wait near the lookout; Hearthstead lies behind you."
     ?workshop resource-remaining 12.0
     ?workshop ritual-called false
     ?workshop carried-relics 0.0
-
-on advance-forest ?workshop
-  when
-    ?workshop phase "Expedition"
-    ?workshop connected true
-    torso part-health ?health
-    ?health > 0.0
-    ?workshop position ?position
-    ?position < 4.0
-    nest enemy-health ?nest
-    ?workshop capacity Capacity { mass: ?mass, power: ?power, drive: ?drive, weapon: ?weapon, cooling: ?cooling, drive-draw: ?drive-draw, weapon-draw: ?weapon-draw, cooling-draw: ?cooling-draw }
-    ?workshop party-size ?party
-    ?workshop action-cooldown ?cooldown
-    ?cooldown <= 0.0
-  withdraw
-    ?workshop position ?position
-    ?workshop action-cooldown ?cooldown
-  include
-    ?workshop position if(?position = 2.0, if(?nest <= 0.0, 4.0, 3.0), ?position + 1.0)
-    ?workshop action-cooldown 1.0 / (1.0 + ?drive / (28.0 + ?mass))
-  accumulate
-    ?workshop presence 2.0 + 0.2 * (?party - 1.0)
-
-on retreat-forest ?workshop
-  when
-    ?workshop phase "Expedition"
-    ?workshop connected true
-    torso part-health ?health
-    ?health > 0.0
-    ?workshop position ?position
-    ?position > 0.0
-    nest enemy-health ?nest
-    ?workshop party-size ?party
-    ?workshop action-cooldown ?cooldown
-    ?cooldown <= 0.0
-  withdraw
-    ?workshop position ?position
-    ?workshop action-cooldown ?cooldown
-  include
-    ?workshop position if(?position = 4.0, if(?nest <= 0.0, 2.0, 3.0), ?position - 1.0)
-    ?workshop action-cooldown 1.0
-  accumulate
-    ?workshop presence 1.0 + 0.1 * (?party - 1.0)
 
 on gather-resource ?workshop
   when
@@ -765,7 +722,9 @@ on gather-resource ?workshop
     ?workshop connected true
     torso part-health ?health
     ?health > 0.0
-    ?workshop position 4.0
+    ?workshop position Position { x: ?x, z: ?z }
+    frost-cores place-position Position { x: ?resource-x, z: ?resource-z }
+    (?x - ?resource-x) * (?x - ?resource-x) + (?z - ?resource-z) * (?z - ?resource-z) <= 9.0
     ?workshop resource-remaining ?remaining
     ?remaining >= 3.0
     ?workshop action-cooldown ?cooldown
@@ -783,13 +742,14 @@ on gather-resource ?workshop
     ?workshop cargo 3.0
     ?workshop presence 4.0
 
-on extract-expedition ?workshop
+on tick ?workshop ?dt
   when
     ?workshop phase "Expedition"
     ?workshop connected true
     torso part-health ?health
     ?health > 0.0
-    ?workshop position 0.0
+    ?workshop position Position { x: ?x, z: ?z }
+    ?z <= 0.0
     ?workshop cargo ?cargo
     ?workshop carried-relics ?carried
     ?workshop report ?report
@@ -870,7 +830,7 @@ threat-name
   cardinality: one
 threat-position
   domain: ForestThreat
-  range: F64
+  range: Position
   cardinality: one
 enemy-health
   domain: ForestThreat
@@ -951,7 +911,9 @@ derive readable-upcoming-intent
 
 scout
   threat-name: "Briar lookout"
-  threat-position: 1.0
+  threat-position:
+    x: -3.0
+    z: 10.0
   enemy-health: 18.0
   maximum-enemy-health: 18.0
   active-threat: true
@@ -961,12 +923,14 @@ scout
   intent-action: "Sounding the alarm"
   intent-damage: 0.0
   intent-noise: 3.0
-  intent-reach: 4.0
+  intent-reach: 35.0
   obstacle-benefit: "Clear the lookout to stop its repeated alarms."
 
 nest
   threat-name: "Thorn nest"
-  threat-position: 2.0
+  threat-position:
+    x: 5.0
+    z: 20.0
   enemy-health: 24.0
   maximum-enemy-health: 24.0
   active-threat: true
@@ -976,12 +940,14 @@ nest
   intent-action: "Swarm rush"
   intent-damage: 7.0
   intent-noise: 0.0
-  intent-reach: 0.0
-  obstacle-benefit: "Clear the nest to open the short path between the thicket and deep grove."
+  intent-reach: 3.0
+  obstacle-benefit: "Clear the nest to open the east path through the thicket."
 
 warder
   threat-name: "Root warder"
-  threat-position: 3.0
+  threat-position:
+    x: -3.0
+    z: 30.0
   enemy-health: 30.0
   maximum-enemy-health: 30.0
   active-threat: true
@@ -991,12 +957,14 @@ warder
   intent-action: "Thorn lash"
   intent-damage: 8.0
   intent-noise: 0.0
-  intent-reach: 1.0
+  intent-reach: 5.0
   obstacle-benefit: "Clear the warder to gather frost cores without cutting thorns."
 
 patrol
   threat-name: "Ash hound patrol"
-  threat-position: 4.0
+  threat-position:
+    x: 3.0
+    z: 35.0
   enemy-health: 36.0
   maximum-enemy-health: 36.0
   active-threat: true
@@ -1006,12 +974,14 @@ patrol
   intent-action: "Charging the company"
   intent-damage: 10.0
   intent-noise: 0.0
-  intent-reach: 2.0
+  intent-reach: 7.0
   obstacle-benefit: "Clear the patrol to prevent ambushes during retreat."
 
 ritual-guardian
   threat-name: "Called frost guardian"
-  threat-position: 4.0
+  threat-position:
+    x: 2.0
+    z: 40.0
   enemy-health: 48.0
   maximum-enemy-health: 48.0
   active-threat: false
@@ -1021,7 +991,7 @@ ritual-guardian
   intent-action: "Frost torrent"
   intent-damage: 20.0
   intent-noise: 0.0
-  intent-reach: 0.0
+  intent-reach: 3.0
   obstacle-benefit: "Defeat the deliberately called guardian, then extract its frost relic."
 
 bind referent-input TargetThreat as ForestThreat to target-threat
@@ -1039,10 +1009,12 @@ on target-threat ?workshop ?target
   include
     ?workshop selected-threat ?target
 
-on launch-expedition ?enemy
+on tick ?enemy ?dt
   when
     workshop phase ?phase
     if(?phase = "Workshop", true, ?phase = "Returned") = true
+    workshop position Position { x: ?x, z: ?z }
+    ?z >= 2.0
     workshop connected true
     torso part-health ?living
     ?living > 0.0
@@ -1068,13 +1040,13 @@ on strike-threat ?workshop
     ?workshop connected true
     torso part-health ?living
     ?living > 0.0
-    ?workshop position ?position
+    ?workshop position Position { x: ?x, z: ?z }
     ?workshop selected-threat ?target
-    ?target threat-position ?target-position
+    ?target threat-position Position { x: ?target-x, z: ?target-z }
     ?target active-threat true
     ?target enemy-health ?health
     ?health > 0.0
-    (?position - ?target-position) * (?position - ?target-position) <= 1.0
+    (?x - ?target-x) * (?x - ?target-x) + (?z - ?target-z) * (?z - ?target-z) <= 12.25
     ?workshop action-cooldown ?cooldown
     ?cooldown <= 0.0
     ?workshop party-size ?party
@@ -1139,8 +1111,8 @@ on tick ?enemy ?dt
     workshop connected true
     torso part-health ?living
     ?living > 0.0
-    workshop position ?position
-    ?position > 0.0
+    workshop position Position { x: ?x, z: ?z }
+    ?z > 0.0
     workshop presence ?presence
     workshop guard-remaining ?guard
     ?enemy active-threat true
@@ -1149,9 +1121,9 @@ on tick ?enemy ?dt
     ?enemy intent-stage 0.0
     ?enemy intent-remaining ?remaining
     ?remaining <= ?dt
-    ?enemy threat-position ?enemy-position
+    ?enemy threat-position Position { x: ?enemy-x, z: ?enemy-z }
     ?enemy intent-reach ?reach
-    (?position - ?enemy-position) * (?position - ?enemy-position) <= ?reach * ?reach
+    (?x - ?enemy-x) * (?x - ?enemy-x) + (?z - ?enemy-z) * (?z - ?enemy-z) <= ?reach * ?reach
     ?enemy intent-damage ?damage
     ?enemy intent-noise ?noise
     sum ?protection where { ?armor attached-to torso; ?armor mounted true; ?armor protection ?protection; ?armor health ?health; ?health > 0.0 } as ?protection
@@ -1165,7 +1137,9 @@ on gather-resource ?workshop
     ?workshop connected true
     torso part-health ?health
     ?health > 0.0
-    ?workshop position 4.0
+    ?workshop position Position { x: ?x, z: ?z }
+    frost-cores place-position Position { x: ?resource-x, z: ?resource-z }
+    (?x - ?resource-x) * (?x - ?resource-x) + (?z - ?resource-z) * (?z - ?resource-z) <= 9.0
     ?workshop resource-remaining ?remaining
     ?remaining >= 3.0
     ?workshop action-cooldown ?cooldown
@@ -1176,29 +1150,15 @@ on gather-resource ?workshop
   accumulate
     torso part-health if(?guard > 0.0, -4.0, -8.0)
 
-on retreat-forest ?workshop
-  when
-    ?workshop phase "Expedition"
-    ?workshop connected true
-    torso part-health ?health
-    ?health > 0.0
-    ?workshop position ?position
-    ?position > 1.0
-    ?workshop action-cooldown ?cooldown
-    ?cooldown <= 0.0
-    patrol enemy-health ?patrol
-    ?patrol > 0.0
-    ?workshop guard-remaining ?guard
-  accumulate
-    torso part-health if(?guard > 0.0, -2.0, -4.0)
-
 on call-ritual ?workshop
   when
     ?workshop phase "Expedition"
     ?workshop connected true
     torso part-health ?living
     ?living > 0.0
-    ?workshop position 4.0
+    ?workshop position Position { x: ?x, z: ?z }
+    ritual-site place-position Position { x: ?resource-x, z: ?resource-z }
+    (?x - ?resource-x) * (?x - ?resource-x) + (?z - ?resource-z) * (?z - ?resource-z) <= 9.0
     ?workshop cargo ?cargo
     ?cargo >= 6.0
     ?workshop ritual-called false
@@ -1284,3 +1244,116 @@ on tick ?part ?dt
     ?part part-health ?prior
   include
     ?part part-health 0.0
+
+Landmark
+place-name
+  domain: Landmark
+  range: Text
+  cardinality: one
+place-position
+  domain: Landmark
+  range: Position
+  cardinality: one
+hearthstead
+  place-name: "Hearthstead"
+  place-position:
+    x: 0.0
+    z: -8.0
+forest-gate
+  place-name: "North gate / return to safety"
+  place-position:
+    x: 0.0
+    z: 0.0
+frost-cores
+  place-name: "Frost cores / G to gather"
+  place-position:
+    x: -2.0
+    z: 12.0
+ritual-site
+  place-name: "Deep grove / R to offer six cores"
+  place-position:
+    x: 2.0
+    z: 40.0
+
+move-x
+  domain: Workshop
+  range: F64
+  cardinality: one
+move-z
+  domain: Workshop
+  range: F64
+  cardinality: one
+move-remaining
+  domain: Workshop
+  range: F64
+  cardinality: one
+workshop
+  move-x: 0.0
+  move-z: 0.0
+  move-remaining: 0.0
+bind scalar-input MoveX to move-x
+bind scalar-input MoveZ to move-z
+on move-x ?workshop ?value
+  when
+    ?workshop move-x ?old
+    ?value bounded by -1.0 and 1.0 as ?bounded
+  withdraw
+    ?workshop move-x ?old
+  include
+    ?workshop move-x ?bounded
+on move-z ?workshop ?value
+  when
+    ?workshop move-z ?old
+    ?workshop move-remaining ?remaining
+    ?value bounded by -1.0 and 1.0 as ?bounded
+  withdraw
+    ?workshop move-z ?old
+    ?workshop move-remaining ?remaining
+  include
+    ?workshop move-z ?bounded
+    ?workshop move-remaining 0.25
+on tick ?workshop ?dt
+  when
+    ?workshop move-remaining ?remaining
+    ?remaining > 0.0
+  withdraw
+    ?workshop move-remaining ?remaining
+  include
+    ?workshop move-remaining if(?remaining > ?dt, ?remaining - ?dt, 0.0)
+on tick ?workshop ?dt
+  when
+    ?workshop phase ?phase
+    ?phase != "Lost"
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop position Position { x: ?x, z: ?z }
+    ?workshop move-x ?mx
+    ?workshop move-z ?mz
+    ?workshop move-remaining ?remaining
+    ?remaining > 0.0
+    ?mx * ?mx + ?mz * ?mz > 0.0
+    sqrt(?mx * ?mx + ?mz * ?mz) bounded by 1.0 and 2.0 as ?length
+    (?x + ?mx * 4.5 * ?dt / ?length) bounded by -12.0 and 12.0 as ?nx
+    (?z + ?mz * 4.5 * ?dt / ?length) bounded by -14.0 and 45.0 as ?nz
+    nest enemy-health ?nest
+    if(?nz >= -0.5, if(?nz <= 4.0, ?nx * ?nx <= 9.0, true), true) = true
+    if(?nz >= 18.0, if(?nz <= 24.0, if(?nest > 0.0, ?nx <= 2.0, true), true), true) = true
+  withdraw
+    ?workshop position Position { x: ?x, z: ?z }
+  include
+    ?workshop position Position { x: ?nx, z: ?nz }
+on tick ?workshop ?dt
+  when
+    ?workshop phase "Expedition"
+    ?workshop connected true
+    ?workshop move-remaining ?remaining
+    ?remaining > 0.0
+    ?workshop move-x ?mx
+    ?workshop move-z ?mz
+    ?mx * ?mx + ?mz * ?mz > 0.0
+    ?workshop party-size ?party
+    torso part-health ?health
+    ?health > 0.0
+  accumulate
+    ?workshop presence (0.4 + 0.04 * (?party - 1.0)) * ?dt

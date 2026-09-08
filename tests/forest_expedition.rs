@@ -1,3 +1,5 @@
+#[path = "common/forest.rs"]
+mod movement;
 use clause_package::Term;
 use clause_runtime::{
     ExecutableInputSourceV1, ExecutableKeyPhaseV1, ExecutableValueV1, projected_referent_value_v1,
@@ -104,6 +106,22 @@ fn party(session: &mut NativeSession, size: f64) {
 }
 
 fn clear(session: &mut NativeSession, id: &str) {
+    let position = session
+        .snapshot(0, String::new())
+        .unwrap()
+        .forest
+        .unwrap()
+        .threats
+        .iter()
+        .find(|t| t.id == id)
+        .unwrap()
+        .position;
+    movement::walk(session, [0., position[1]]).unwrap();
+    if id == "nest" {
+        movement::walk(session, [2., position[1]]).unwrap();
+    } else {
+        movement::walk(session, position).unwrap();
+    }
     target(session, id);
     for _ in 0..8 {
         if number(&world(session), id, "enemy-health") <= 0.0 {
@@ -117,42 +135,39 @@ fn clear(session: &mut NativeSession, id: &str) {
 #[test]
 fn forest_resource_is_permanent_only_after_extraction() {
     let mut session = NativeSession::open(SOURCE).unwrap();
-    press(&mut session, "LaunchExpedition");
-    for _ in 0..4 {
-        act(&mut session, "AdvanceForest");
-    }
+    movement::walk(&mut session, [0., 5.]).unwrap();
+    movement::walk(&mut session, [-2., 12.]).unwrap();
     act(&mut session, "GatherResource");
     let gathered = world(&session);
     assert_eq!(number(&gathered, "workshop", "cargo"), 3.0);
     assert_eq!(number(&gathered, "workshop", "stock"), 15.0);
     assert_eq!(number(&gathered, "workshop", "resource-remaining"), 9.0);
-    press(&mut session, "ExtractExpedition");
+    session.tick().unwrap();
     assert_eq!(text(&world(&session), "workshop", "phase"), "Expedition");
-    for _ in 0..4 {
-        act(&mut session, "RetreatForest");
-    }
-    press(&mut session, "ExtractExpedition");
+    movement::walk(&mut session, [0., 5.]).unwrap();
+    movement::walk(&mut session, [0., -1.]).unwrap();
+    session.tick().unwrap();
     let returned = world(&session);
     assert_eq!(text(&returned, "workshop", "phase"), "Returned");
     assert_eq!(number(&returned, "workshop", "stock"), 18.0);
     assert_eq!(number(&returned, "workshop", "cargo"), 0.0);
-    press(&mut session, "ExtractExpedition");
+    session.tick().unwrap();
     assert_eq!(number(&world(&session), "workshop", "stock"), 18.0);
 }
 
 #[test]
 fn forest_intents_remain_readable_for_thirty_seconds_and_clearing_scout_stops_alarms() {
     let mut session = NativeSession::open(SOURCE).unwrap();
-    press(&mut session, "LaunchExpedition");
-    act(&mut session, "AdvanceForest");
+    movement::walk(&mut session, [0., 5.]).unwrap();
+    movement::walk(&mut session, [-3., 10.]).unwrap();
     let initial = world(&session);
-    assert_eq!(
-        text(&initial, "scout", "current-intent"),
-        "Listening for footsteps"
+    assert!(
+        ["Listening for footsteps", "Sounding the alarm"]
+            .contains(&text(&initial, "scout", "current-intent").as_str())
     );
-    assert_eq!(
-        text(&initial, "scout", "upcoming-intent"),
-        "Sounding the alarm"
+    assert_ne!(
+        text(&initial, "scout", "current-intent"),
+        text(&initial, "scout", "upcoming-intent")
     );
     let mut observed = std::collections::BTreeSet::new();
     for _ in 0..30 {
@@ -166,7 +181,12 @@ fn forest_intents_remain_readable_for_thirty_seconds_and_clearing_scout_stops_al
         }
     }
     assert_eq!(observed.len(), 2);
-    assert!(number(&world(&session), "workshop", "presence") > 19.0);
+    let added_presence =
+        number(&world(&session), "workshop", "presence") - number(&initial, "workshop", "presence");
+    assert!(
+        (added_presence - 18.024).abs() < 0.000_001,
+        "{added_presence}"
+    );
     clear(&mut session, "scout");
     let cleared = world(&session);
     assert_eq!(text(&cleared, "scout", "current-intent"), "Cleared");
@@ -182,24 +202,18 @@ fn forest_intents_remain_readable_for_thirty_seconds_and_clearing_scout_stops_al
 fn forest_ritual_is_deliberate_and_its_known_reward_requires_a_living_return() {
     let mut session = NativeSession::open(SOURCE).unwrap();
     party(&mut session, 4.0);
-    press(&mut session, "LaunchExpedition");
+    movement::walk(&mut session, [0., 5.]).unwrap();
     act(&mut session, "CallRitual");
     assert_eq!(
         text(&world(&session), "ritual-guardian", "current-intent"),
         "Dormant until called"
     );
-    act(&mut session, "AdvanceForest");
     clear(&mut session, "scout");
     clear(&mut session, "nest");
-    act(&mut session, "AdvanceForest");
     clear(&mut session, "warder");
-    act(&mut session, "AdvanceForest");
-    assert_eq!(number(&world(&session), "workshop", "position"), 4.0);
     clear(&mut session, "patrol");
-    let cleared = world(&session);
-    assert_eq!(number(&cleared, "workshop", "stock"), 15.0);
-    assert_eq!(number(&cleared, "workshop", "cargo"), 0.0);
-    ready(&mut session);
+    movement::walk(&mut session, [0., 12.]).unwrap();
+    movement::walk(&mut session, [-2., 12.]).unwrap();
     let safe_health = number(&world(&session), "torso", "part-health");
     for _ in 0..5 {
         act(&mut session, "GatherResource");
@@ -208,6 +222,7 @@ fn forest_ritual_is_deliberate_and_its_known_reward_requires_a_living_return() {
     assert_eq!(number(&gathered, "torso", "part-health"), safe_health);
     assert_eq!(number(&gathered, "workshop", "cargo"), 12.0);
     assert_eq!(number(&gathered, "workshop", "resource-remaining"), 0.0);
+    movement::walk(&mut session, [2., 40.]).unwrap();
     act(&mut session, "CallRitual");
     assert_eq!(number(&world(&session), "workshop", "cargo"), 6.0);
     clear(&mut session, "ritual-guardian");
@@ -220,21 +235,20 @@ fn forest_ritual_is_deliberate_and_its_known_reward_requires_a_living_return() {
     assert_eq!(number(&world(&session), "workshop", "cargo"), 6.0);
     ready(&mut session);
     let retreat_health = number(&world(&session), "torso", "part-health");
-    for _ in 0..3 {
-        act(&mut session, "RetreatForest");
-    }
-    assert_eq!(number(&world(&session), "workshop", "position"), 0.0);
+    movement::walk(&mut session, [0., 5.]).unwrap();
+    movement::walk(&mut session, [0., -1.]).unwrap();
     assert_eq!(
         number(&world(&session), "torso", "part-health"),
         retreat_health
     );
-    press(&mut session, "ExtractExpedition");
+    session.tick().unwrap();
     let returned = world(&session);
     assert_eq!(text(&returned, "workshop", "phase"), "Returned");
     assert_eq!(number(&returned, "workshop", "stock"), 21.0);
     assert_eq!(number(&returned, "workshop", "banked-relics"), 1.0);
     assert_eq!(number(&returned, "workshop", "carried-relics"), 0.0);
-    press(&mut session, "LaunchExpedition");
+    movement::walk(&mut session, [0., 5.]).unwrap();
+    movement::walk(&mut session, [-3., 10.]).unwrap();
     target(&mut session, "scout");
     act(&mut session, "StrikeThreat");
     assert!((number(&world(&session), "scout", "enemy-health") + 7.0).abs() < 0.000_001);
@@ -245,17 +259,11 @@ fn forest_party_presence_is_modest_and_disconnected_checkpoint_preserves_the_ins
     let mut solo = NativeSession::open(SOURCE).unwrap();
     let mut group = NativeSession::open(SOURCE).unwrap();
     party(&mut group, 4.0);
-    press(&mut solo, "LaunchExpedition");
-    press(&mut group, "LaunchExpedition");
-    act(&mut solo, "AdvanceForest");
-    act(&mut group, "AdvanceForest");
-    assert!(
-        (number(&world(&group), "workshop", "presence")
-            - number(&world(&solo), "workshop", "presence")
-            - 0.6)
-            .abs()
-            < 0.000_001
-    );
+    movement::walk(&mut solo, [0., 3.]).unwrap();
+    movement::walk(&mut group, [0., 3.]).unwrap();
+    let solo_presence = number(&world(&solo), "workshop", "presence");
+    let group_presence = number(&world(&group), "workshop", "presence");
+    assert!(group_presence > solo_presence && group_presence < solo_presence * 1.3);
     party(&mut group, 1.0);
     assert_eq!(number(&world(&group), "workshop", "party-size"), 4.0);
     press(&mut group, "ConnectionLost");
@@ -267,14 +275,22 @@ fn forest_party_presence_is_modest_and_disconnected_checkpoint_preserves_the_ins
     group.save(&path).unwrap();
     let mut reopened = NativeSession::load(&path, SOURCE).unwrap();
     ticks(&mut reopened, 100);
-    press(&mut reopened, "AdvanceForest");
+    let (input, value) = greywrought_clause::native::scalar("MoveZ", 1.);
+    reopened
+        .input(reopened.workbench.generation().handle, input, value)
+        .unwrap();
+    ticks(&mut reopened, 20);
     let retained = world(&reopened);
-    for role in ["presence", "position", "cargo", "stock", "action-cooldown"] {
+    for role in ["presence", "cargo", "stock", "action-cooldown"] {
         assert_eq!(
             number(&paused, "workshop", role),
             number(&retained, "workshop", role)
         );
     }
+    assert_eq!(
+        field(field(&paused, "workshop").unwrap(), "position"),
+        field(field(&retained, "workshop").unwrap(), "position")
+    );
     assert_eq!(
         number(&paused, "scout", "intent-remaining"),
         number(&retained, "scout", "intent-remaining")
@@ -284,8 +300,18 @@ fn forest_party_presence_is_modest_and_disconnected_checkpoint_preserves_the_ins
         number(&retained, "torso", "part-health")
     );
     press(&mut reopened, "ConnectionRestored");
-    act(&mut reopened, "AdvanceForest");
-    assert_eq!(number(&world(&reopened), "workshop", "position"), 2.0);
+    movement::walk(&mut reopened, [0., 6.]).unwrap();
+    assert!(
+        (reopened
+            .snapshot(0, String::new())
+            .unwrap()
+            .forest
+            .unwrap()
+            .position[1]
+            - 6.)
+            .abs()
+            < 0.1
+    );
     std::fs::remove_file(path).unwrap();
 }
 
@@ -294,7 +320,7 @@ fn forest_death_loses_carried_and_personal_power_and_cannot_be_restored_at_the_h
     let source = std::str::from_utf8(SOURCE)
         .unwrap()
         .replace("  phase: \"Workshop\"\n", "  phase: \"Expedition\"\n")
-        .replace("  position: 0.0\n", "  position: 4.0\n")
+        .replace("    z: -8.0\n", "    z: 35.0\n")
         .replace("  part-health: 100.0\n", "  part-health: 1.0\n")
         .replace("  cargo: 0.0\n", "  cargo: 3.0\n")
         .replace("  banked-relics: 0.0\n", "  banked-relics: 2.0\n")
@@ -308,14 +334,69 @@ fn forest_death_loses_carried_and_personal_power_and_cannot_be_restored_at_the_h
     }
     assert_eq!(number(&lost, "torso", "part-health"), 0.0);
     assert_eq!(number(&lost, "lance", "health"), 0.0);
-    for command in [
-        "RestCreature",
-        "RepairComponent",
-        "LaunchExpedition",
-        "ExtractExpedition",
-    ] {
+    for command in ["RestCreature", "RepairComponent"] {
         press(&mut session, command);
     }
+    let (input, value) = greywrought_clause::native::scalar("MoveZ", -1.);
+    session
+        .input(session.workbench.generation().handle, input, value)
+        .unwrap();
+    ticks(&mut session, 30);
     assert_eq!(text(&world(&session), "workshop", "phase"), "Lost");
     assert_eq!(number(&world(&session), "torso", "part-health"), 0.0);
+}
+
+#[test]
+fn forest_walk_is_bounded_and_stops_when_input_expires() {
+    let mut session = NativeSession::open(SOURCE).unwrap();
+    for (channel, value) in [("MoveX", 1.), ("MoveZ", 1.)] {
+        let (input, value) = greywrought_clause::native::scalar(channel, value);
+        session
+            .input(session.workbench.generation().handle, input, value)
+            .unwrap();
+    }
+    ticks(&mut session, 10);
+    let p = session
+        .snapshot(0, String::new())
+        .unwrap()
+        .forest
+        .unwrap()
+        .position;
+    let distance = (p[0] * p[0] + (p[1] + 8.) * (p[1] + 8.)).sqrt();
+    assert!((distance - 0.72).abs() < 0.000_001);
+    ticks(&mut session, 20);
+    let stopped = session
+        .snapshot(0, String::new())
+        .unwrap()
+        .forest
+        .unwrap()
+        .position;
+    ticks(&mut session, 20);
+    assert_eq!(
+        session
+            .snapshot(0, String::new())
+            .unwrap()
+            .forest
+            .unwrap()
+            .position,
+        stopped
+    );
+    movement::walk(&mut session, [8., -1.]).unwrap();
+    for _ in 0..10 {
+        let (input, value) = greywrought_clause::native::scalar("MoveZ", 1.);
+        session
+            .input(session.workbench.generation().handle, input, value)
+            .unwrap();
+        ticks(&mut session, 10);
+    }
+    let bounded = session
+        .snapshot(0, String::new())
+        .unwrap()
+        .forest
+        .unwrap()
+        .position;
+    assert!(bounded[1] < -0.5);
+    assert_eq!(text(&world(&session), "workshop", "phase"), "Workshop");
+    press(&mut session, "GatherResource");
+    assert_eq!(number(&world(&session), "workshop", "cargo"), 0.);
 }
