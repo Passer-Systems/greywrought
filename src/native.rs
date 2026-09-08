@@ -8,6 +8,9 @@ use clause_runtime::{
 use clause_workbench::ResidentSourceWorkbenchV1;
 use std::{collections::BTreeMap, error::Error, fs, io::Write, path::Path};
 
+pub mod inspection;
+pub use inspection::{Inspection, InspectionHandler};
+
 pub type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 #[derive(Clone, Debug)]

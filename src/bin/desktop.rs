@@ -9,6 +9,8 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+#[path = "desktop/inspection.rs"]
+mod inspection;
 #[path = "desktop/workshop.rs"]
 mod workshop;
 #[derive(Resource, Clone, Copy)]
@@ -20,6 +22,7 @@ type PhysicalInput = (ExecutableInputSourceV1, Option<ExecutableValueV1>);
 enum Request {
     Input(WasmSessionHandleV1, Vec<PhysicalInput>),
     Edit(WasmSessionHandleV1, usize, String),
+    Inspect(WasmSessionHandleV1, inspection::InspectionQuery),
     Save,
     Quit,
 }
@@ -27,6 +30,8 @@ enum Request {
 struct Mailbox {
     snapshot: Option<Snapshot>,
     status: String,
+    inspection: Option<native::Inspection>,
+    handlers: Vec<native::InspectionHandler>,
     edits: Vec<String>,
     edit_labels: Vec<String>,
     edit_receipt: Option<(WasmSessionHandleV1, Instant)>,
@@ -40,6 +45,11 @@ struct Bridge {
 struct Displayed {
     snapshot: Option<Snapshot>,
     status: String,
+    inspecting: bool,
+    inspection: Option<native::Inspection>,
+    inspection_handlers: Vec<native::InspectionHandler>,
+    inspection_handler: usize,
+    inspection_offset: usize,
     edit_catalog: Vec<String>,
     edit_labels: Vec<String>,
     edit_index: usize,
@@ -192,12 +202,13 @@ fn main() -> native::Result<()> {
                     ..default()
                 }),
         )
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (setup, inspection::setup))
         .add_systems(
             Update,
             (
                 receive,
                 camera,
+                inspection::controls,
                 controls,
                 workshop::controls,
                 workshop::layout,
@@ -209,6 +220,7 @@ fn main() -> native::Result<()> {
                 workshop::combat_feedback,
                 animate,
                 hud,
+                inspection::present,
                 smoke,
             )
                 .chain(),
@@ -293,6 +305,32 @@ fn run_world(
                     eprintln!("native save complete: {}", save.display());
                     return Ok(());
                 }
+                Request::Inspect(captured, query) => {
+                    let result = match query {
+                        inspection::InspectionQuery::State => session.inspect_state(captured),
+                        inspection::InspectionQuery::Action(name) => {
+                            session.inspect_action(captured, name)
+                        }
+                        inspection::InspectionQuery::Handler(handler) => {
+                            session.inspect_handler(captured, handler)
+                        }
+                        inspection::InspectionQuery::Survival(target) => {
+                            session.inspect_survival(captured, target)
+                        }
+                    };
+                    let report = result.unwrap_or_else(|error| native::Inspection {
+                        generation: captured,
+                        title: "Inspection unavailable".into(),
+                        lines: vec![error.to_string()],
+                    });
+                    eprintln!(
+                        "native inspection: {}; {} lines; {:?}",
+                        report.title,
+                        report.lines.len(),
+                        report.generation
+                    );
+                    mailbox.lock().unwrap().inspection = Some(report);
+                }
                 Request::Save => {
                     session.save(&save)?;
                     status = "Journey saved".into();
@@ -368,6 +406,7 @@ fn refresh_edit_catalog(session: &NativeSession, mailbox: &Mutex<Mailbox>) -> na
         .map(|effect| String::from_utf8_lossy(&effect.expression).into_owned())
         .collect();
     let mut mailbox = mailbox.lock().unwrap();
+    mailbox.handlers = session.inspection_handlers()?;
     mailbox.edits = expressions;
     mailbox.edit_labels = labels;
     Ok(())
@@ -453,6 +492,25 @@ fn receive(bridge: Res<Bridge>, mut display: ResMut<Displayed>) {
     {
         display.edit_receipt = mailbox.edit_receipt.take();
     }
+    if let Some(report) = mailbox.inspection.take() {
+        if display
+            .snapshot
+            .as_ref()
+            .is_some_and(|s| s.generation == report.generation)
+        {
+            display.inspection = Some(report);
+            display.inspection_offset = 0;
+        }
+    }
+    if display.inspection.as_ref().is_some_and(|report| {
+        display
+            .snapshot
+            .as_ref()
+            .is_some_and(|s| s.generation != report.generation)
+    }) {
+        display.inspection = None;
+    }
+    display.inspection_handlers.clone_from(&mailbox.handlers);
     display.status.clone_from(&mailbox.status);
     display.edit_catalog.clone_from(&mailbox.edits);
     display.edit_labels.clone_from(&mailbox.edit_labels);
@@ -466,7 +524,7 @@ fn camera(
     mut camera: Query<&mut Transform, With<MainCamera>>,
     display: Res<Displayed>,
 ) {
-    if display.editing {
+    if display.editing || display.inspecting {
         wheel.clear();
         return;
     }
@@ -513,6 +571,11 @@ fn controls(
     camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     mut typing: MessageReader<bevy::input::keyboard::KeyboardInput>,
 ) {
+    if display.inspecting {
+        typing.clear();
+        display.editor_handled_frame = true;
+        return;
+    }
     let mut editor_handled = display.editing;
     for event in typing.read() {
         // Modifier transitions and text can share one frame; preserve their order.
@@ -952,7 +1015,7 @@ fn hud(display: Res<Displayed>, mut text: Query<&mut Text, With<Hud>>) {
         .collect::<Vec<_>>()
         .join("   |   ");
     **text = format!(
-        "GREYWROUGHT\n{}\n{}\n\n{}\n{}\n\nClick: select  |  Shift-click: add  |  Tab: company  |  Right-click: move / target\nEnter: begin  |  Space: attack  |  H: heal  |  J: ward  |  I: ignite  |  X: stop\nWASD / arrows: camera  |  Wheel: zoom  |  F5: save\n{}",
+        "GREYWROUGHT\n{}\n{}\n\n{}\n{}\n\nClick: select  |  Shift-click: add  |  Tab: company  |  Right-click: move / target\nEnter: begin  |  Space: attack  |  H: heal  |  J: ward  |  I: ignite  |  X: stop\nWASD / arrows: camera  |  Wheel: zoom  |  F5: save  |  F6: tuning  |  F7: inspect\n{}",
         scenarios,
         snapshot.message,
         company,
