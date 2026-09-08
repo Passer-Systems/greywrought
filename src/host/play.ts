@@ -571,6 +571,10 @@ function readinessSummary(state: GameState, action: "attack" | "heal" | "ward" |
   return selected.map((unit) => `${unit.name}: ${unit.readiness[action]}`).join(" · ");
 }
 
+function setText(node: Element, text: string): void {
+  if (node.textContent !== text) node.textContent = text;
+}
+
 function renderHud(state: GameState): void {
   const selected = state.units.filter((unit) => unit.selected);
   const createdBurnLabel = (id: string): string => {
@@ -602,33 +606,32 @@ function renderHud(state: GameState): void {
       card.append(rune, labels);
       roster.insertBefore(card, element("selection-count"));
     }
-    card.className = `roster-card ${unit.unitClass.toLowerCase()}`;
-    card.classList.toggle("selected", unit.selected);
-    card.classList.toggle("moving", unit.moving);
+    const cardClasses = `roster-card ${unit.unitClass.toLowerCase()}${unit.selected ? " selected" : ""}${unit.moving ? " moving" : ""}`;
+    if (card.className !== cardClasses) card.className = cardClasses;
     card.setAttribute("aria-pressed", String(unit.selected));
     const rune = card.querySelector("b")!;
-    rune.textContent = unit.unitClass.slice(0, 1);
+    setText(rune, unit.unitClass.slice(0, 1));
     const name = card.querySelector("strong")!;
-    name.textContent = unit.name;
+    setText(name, unit.name);
     const className = card.querySelector("small")!;
-    className.textContent = `${unit.unitClass} · ${Math.max(0, unit.vitality).toFixed(0)}/${unit.maximumVitality.toFixed(0)}${unit.wardRemaining > 0 ? " · Ward" : ""}${unit.burnRemaining > 0 ? " · Burn" : ""}${createdBurnLabel(unit.id)}${unit.cooldown > 0 ? ` · ${unit.cooldown.toFixed(1)}s` : ""}${unit.alive ? "" : " · Fallen"}`;
+    setText(className, `${unit.unitClass} · ${Math.max(0, unit.vitality).toFixed(0)}/${unit.maximumVitality.toFixed(0)}${unit.wardRemaining > 0 ? " · Ward" : ""}${unit.burnRemaining > 0 ? " · Burn" : ""}${createdBurnLabel(unit.id)}${unit.cooldown > 0 ? ` · ${unit.cooldown.toFixed(1)}s` : ""}${unit.alive ? "" : " · Fallen"}`);
   }
   const selectionCount = element("selection-count");
   const primary = selected[0];
-  selectionCount.textContent = `${selected.length} / ${state.units.length} selected`;
-  element("selected-name").textContent = primary?.name ?? "No unit selected";
-  element("selected-class").textContent = primary?.unitClass ?? "Drag a box or click a unit";
-  element("equipment-owner").textContent = primary === undefined
+  setText(selectionCount, `${selected.length} / ${state.units.length} selected`);
+  setText(element("selected-name"), primary?.name ?? "No unit selected");
+  setText(element("selected-class"), primary?.unitClass ?? "Drag a box or click a unit");
+  setText(element("equipment-owner"), primary === undefined
     ? "No unit selected"
-    : `${primary.name} · ${primary.unitClass}`;
+    : `${primary.name} · ${primary.unitClass}`);
   element("command-move").toggleAttribute("disabled", selected.length === 0);
   element("command-stop").toggleAttribute("disabled", selected.length === 0);
   element("retry-encounter").toggleAttribute("disabled", state.units.length === 0 || state.resident.editing);
   element("outcome-retry").toggleAttribute("disabled", state.units.length === 0 || state.resident.editing);
   element("outcome-panel").hidden = !state.encounter.ended;
-  element("outcome-encounter-name").textContent = state.encounter.name;
-  element("outcome-title").textContent = state.encounter.phase;
-  element("outcome-message").textContent = state.encounter.message;
+  setText(element("outcome-encounter-name"), state.encounter.name);
+  setText(element("outcome-title"), state.encounter.phase);
+  setText(element("outcome-message"), state.encounter.message);
 
   document.body.dataset.encounterId = state.encounter.id;
   document.body.dataset.encounterObjective = state.encounter.objective;
@@ -637,14 +640,14 @@ function renderHud(state: GameState): void {
   const focus = state.actors.find((actor) => actor.id === state.encounter.focusId);
   const target = state.actors.find((actor) => actor.id === state.encounter.targetId) ??
     state.units.find((unit) => unit.id === state.encounter.targetId);
-  element("encounter-name").textContent = state.encounter.name;
-  element("encounter-objective").textContent = state.encounter.objective;
-  element("encounter-brief").textContent = state.encounter.brief;
-  element("begin-encounter").textContent = state.encounter.action;
-  element("encounter-state").textContent = state.encounter.phase;
-  element("objective-status").textContent = focus === undefined
+  setText(element("encounter-name"), state.encounter.name);
+  setText(element("encounter-objective"), state.encounter.objective);
+  setText(element("encounter-brief"), state.encounter.brief);
+  setText(element("begin-encounter"), state.encounter.action);
+  setText(element("encounter-state"), state.encounter.phase);
+  setText(element("objective-status"), focus === undefined
     ? "Objective unseen"
-    : `${focus.name} · ${Math.max(0, focus.vitality).toFixed(0)} / ${focus.maximumVitality.toFixed(0)}${focus.wardRemaining > 0 ? " · warded" : ""}${focus.burnRemaining > 0 ? " · burning" : ""}`;
+    : `${focus.name} · ${Math.max(0, focus.vitality).toFixed(0)} / ${focus.maximumVitality.toFixed(0)}${focus.wardRemaining > 0 ? " · warded" : ""}${focus.burnRemaining > 0 ? " · burning" : ""}`);
   const scenarioSelection = element("encounter-selection");
   const priorChoices = [...scenarioSelection.querySelectorAll<HTMLElement>(".encounter-choice")];
   const choicesChanged = priorChoices.length !== state.scenarios.length ||
@@ -665,12 +668,12 @@ function renderHud(state: GameState): void {
     choice.classList.toggle("chosen", scenario.id === state.encounter.id);
     choice.setAttribute("aria-pressed", String(scenario.id === state.encounter.id));
     choice.toggleAttribute("disabled", state.encounter.phase !== "Ready" || state.resident.editing);
-    choice.querySelector("strong")!.textContent = scenario.name;
-    choice.querySelector("span")!.textContent = scenario.objective;
+    setText(choice.querySelector("strong")!, scenario.name);
+    setText(choice.querySelector("span")!, scenario.objective);
   }
-  element("target-status").textContent = target === undefined
+  setText(element("target-status"), target === undefined
     ? "No target"
-    : `Target: ${target.name}`;
+    : `Target: ${target.name}`);
   const targets = element("encounter-targets");
   const priorTargets = [...targets.querySelectorAll<HTMLElement>(".target-card")];
   const targetIds = state.actors.map((actor) => actor.id);
@@ -691,8 +694,8 @@ function renderHud(state: GameState): void {
     card.id = `target-${actor.id}`;
     card.classList.toggle("targeted", actor.targeted);
     card.classList.toggle("dead", !actor.alive);
-    card.querySelector("strong")!.textContent = actor.name;
-    card.querySelector("span")!.textContent = `${Math.max(0, actor.vitality).toFixed(0)} / ${actor.maximumVitality.toFixed(0)}${actor.wardRemaining > 0 ? " · Ward" : ""}${actor.burnRemaining > 0 ? " · Burn" : ""}${createdBurnLabel(actor.id)}`;
+    setText(card.querySelector("strong")!, actor.name);
+    setText(card.querySelector("span")!, `${Math.max(0, actor.vitality).toFixed(0)} / ${actor.maximumVitality.toFixed(0)}${actor.wardRemaining > 0 ? " · Ward" : ""}${actor.burnRemaining > 0 ? " · Burn" : ""}${createdBurnLabel(actor.id)}`);
   }
   element("begin-encounter").toggleAttribute("disabled", state.encounter.phase !== "Ready");
   for (const action of ["attack", "heal", "ward", "ignite"] as const) {
@@ -703,7 +706,7 @@ function renderHud(state: GameState): void {
     button.dataset.readyCount = String(ready);
     button.title = summary;
     button.setAttribute("aria-describedby", `readiness-${action}`);
-    element(`readiness-${action}`).textContent = `${action[0]!.toUpperCase()}${action.slice(1)} · ${ready}/${selected.length} ready — ${summary}`;
+    setText(element(`readiness-${action}`), `${action[0]!.toUpperCase()}${action.slice(1)} · ${ready}/${selected.length} ready — ${summary}`);
   }
 }
 

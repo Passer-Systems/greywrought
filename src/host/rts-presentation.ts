@@ -530,16 +530,18 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       }
       readout.point.set(actor.x, actor.kind === "Moonwell" ? 1.8 : 2.9, actor.z);
       readout.element.classList.toggle("fallen", !actor.alive);
-      readout.health.textContent = `${Math.max(0, actor.vitality).toFixed(0)} / ${actor.maximumVitality.toFixed(0)}`;
+      const healthText = `${Math.max(0, actor.vitality).toFixed(0)} / ${actor.maximumVitality.toFixed(0)}`;
+      if (readout.health.textContent !== healthText) readout.health.textContent = healthText;
       readout.fill.style.width = `${MathUtils.clamp(actor.healthFraction, 0, 1) * 100}%`;
       const burnCount = actor.burns.length + Number(actor.burnRemaining > 0);
       const burnTime = Math.max(actor.burnRemaining, ...actor.burns);
-      readout.effects.textContent = [
+      const effectsText = [
         actor.wardRemaining > 0 ? `Ward ${actor.wardRemaining.toFixed(1)}s` : "",
         burnCount > 0 ? `Burn${burnCount > 1 ? ` ×${burnCount}` : ""} ${burnTime.toFixed(1)}s` : "",
         actor.cooldown > 0 ? `${actor.cooldown.toFixed(1)}s to act` : "",
         actor.alive ? "" : "Fallen",
       ].filter(Boolean).join(" · ");
+      if (readout.effects.textContent !== effectsText) readout.effects.textContent = effectsText;
       readout.element.classList.toggle("warded", actor.wardRemaining > 0);
       readout.element.classList.toggle("burning", burnCount > 0);
     }

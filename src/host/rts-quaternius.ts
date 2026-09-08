@@ -3,13 +3,16 @@ import {
   Box3,
   BoxGeometry,
   CylinderGeometry,
+  Float32BufferAttribute,
   Group,
   LoopRepeat,
   Mesh,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Object3D,
+  PropertyBinding,
   SphereGeometry,
+  SkinnedMesh,
   Texture,
   TorusGeometry,
   Vector3,
@@ -20,6 +23,8 @@ import {
   type Scene,
 } from "three";
 import { GLTFLoader, type GLTF } from "three/addons/loaders/GLTFLoader.js";
+import { clone as cloneSkeleton } from "three/addons/utils/SkeletonUtils.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { UnitClass } from "./rts-presentation.js";
 
 const assetUrl = (path: string): string =>
@@ -95,7 +100,7 @@ function normalizeCharacter(root: Object3D): void {
   });
 }
 
-function addArtificerKit(owner: Group): void {
+function addArtificerKit(owner: Group): Group {
   const brass = new MeshStandardMaterial({ color: 0xb77a25, roughness: 0.38, metalness: 0.72 });
   const iron = new MeshStandardMaterial({ color: 0x4b5353, roughness: 0.42, metalness: 0.78 });
   const cyan = new MeshPhysicalMaterial({
@@ -142,6 +147,7 @@ function addArtificerKit(owner: Group): void {
     if (object instanceof Mesh) object.castShadow = true;
   });
   owner.add(kit);
+  return kit;
 }
 
 export interface QuaterniusUnitModel {
@@ -152,20 +158,93 @@ export interface QuaterniusUnitModel {
   dispose(): void;
 }
 
+export function mergeColoredSkin(root: Object3D, animations: readonly AnimationClip[]): Object3D[] {
+  const retired: Object3D[] = [];
+  const animatedNodes = new Set(animations.flatMap((clip) => clip.tracks.map((track) =>
+    PropertyBinding.parseTrackName(track.name).nodeName)));
+  root.traverse((parent) => {
+    const parts = parent.children.filter((child): child is SkinnedMesh => child instanceof SkinnedMesh);
+    const first = parts[0];
+    if (parts.length < 2 || first === undefined || !(first.material instanceof MeshStandardMaterial)) return;
+    const materialKey = (surface: MeshStandardMaterial): string => {
+      const { uuid, name, color, ...properties } = surface.toJSON();
+      return JSON.stringify(properties);
+    };
+    const key = materialKey(first.material);
+    if (parts.some((part) => !(part.material instanceof MeshStandardMaterial) || part.material.transparent ||
+      part.material.vertexColors || materialKey(part.material) !== key ||
+      part.skeleton !== first.skeleton || !part.bindMatrix.equals(first.bindMatrix) ||
+      part.bindMode !== first.bindMode || !part.matrix.equals(first.matrix) ||
+      part.castShadow !== first.castShadow || part.receiveShadow !== first.receiveShadow ||
+      part.visible !== first.visible || part.renderOrder !== first.renderOrder ||
+      part.layers.mask !== first.layers.mask || part.frustumCulled !== first.frustumCulled ||
+      animatedNodes.has(part.name) || animatedNodes.has(part.uuid) ||
+      Object.keys(part.geometry.morphAttributes).length > 0 || part.geometry.groups.length > 0 ||
+      part.geometry.drawRange.start !== 0 || part.geometry.drawRange.count !== Infinity ||
+      part.geometry.getAttribute("color") !== undefined || part.children.length > 0)) return;
+    const geometries = parts.map((part) => {
+      const geometry = part.geometry.clone();
+      const colors = new Float32Array(geometry.getAttribute("position").count * 3);
+      const surface = part.material;
+      if (!(surface instanceof MeshStandardMaterial)) throw new Error("Expected a standard skin material");
+      for (let index = 0; index < colors.length; index += 3) surface.color.toArray(colors, index);
+      geometry.setAttribute("color", new Float32BufferAttribute(colors, 3));
+      return geometry;
+    });
+    const geometry = mergeGeometries(geometries);
+    geometries.forEach((part) => part.dispose());
+    if (geometry === null) throw new Error("Compatible skin primitives could not be merged");
+    const surface = first.material.clone();
+    surface.color.setRGB(1, 1, 1);
+    surface.vertexColors = true;
+    const mesh = new SkinnedMesh(geometry, surface);
+    mesh.position.copy(first.position);
+    mesh.quaternion.copy(first.quaternion);
+    mesh.scale.copy(first.scale);
+    mesh.bindMode = first.bindMode;
+    mesh.bind(first.skeleton, first.bindMatrix);
+    mesh.name = first.name;
+    mesh.castShadow = first.castShadow;
+    mesh.receiveShadow = first.receiveShadow;
+    mesh.visible = first.visible;
+    mesh.renderOrder = first.renderOrder;
+    mesh.layers.mask = first.layers.mask;
+    mesh.frustumCulled = first.frustumCulled;
+    parent.remove(...parts);
+    parent.add(mesh);
+    retired.push(...parts);
+  });
+  return retired;
+}
+
+const loadedCharacters = new Map<UnitClass, { ready: Promise<{ gltf: GLTF; retired: Object3D[] }>; users: number }>();
+
 export async function loadQuaterniusUnitModel(unitClass: UnitClass): Promise<QuaterniusUnitModel> {
-  const gltf = await new GLTFLoader().loadAsync(assetUrl(companyModels[unitClass]));
-  const model = gltf.scene;
-  normalizeCharacter(model);
+  let shared = loadedCharacters.get(unitClass);
+  if (shared === undefined) {
+    const ready = new GLTFLoader().loadAsync(assetUrl(companyModels[unitClass])).then((gltf) => {
+      normalizeCharacter(gltf.scene);
+      return { gltf, retired: mergeColoredSkin(gltf.scene, gltf.animations) };
+    });
+    shared = { ready, users: 0 };
+    loadedCharacters.set(unitClass, shared);
+    void ready.catch(() => { loadedCharacters.delete(unitClass); });
+  }
+  shared.users += 1;
+  const { gltf, retired } = await shared.ready;
+  // Geometry, materials and textures are shared; each actor owns its bones and mixer.
+  const model = cloneSkeleton(gltf.scene);
   const root = new Group();
   root.name = `greywrought.company.${unitClass.toLowerCase()}`;
   root.add(model);
-  if (unitClass === "Artificer") addArtificerKit(root);
+  const kit = unitClass === "Artificer" ? addArtificerKit(root) : null;
 
   const mixer = new AnimationMixer(model);
   const idle = exactClip(gltf.animations, "Idle", companyModelNames[unitClass]);
   const run = exactClip(gltf.animations, "Run", companyModelNames[unitClass]);
   let current: AnimationAction = mixer.clipAction(idle);
   let moving = false;
+  let disposed = false;
   current.setLoop(LoopRepeat, Number.POSITIVE_INFINITY).play();
 
   return {
@@ -182,9 +261,16 @@ export async function loadQuaterniusUnitModel(unitClass: UnitClass): Promise<Qua
       mixer.update(deltaSeconds);
     },
     dispose() {
+      if (disposed) return;
+      disposed = true;
       mixer.stopAllAction();
       mixer.uncacheRoot(model);
-      disposeResources([root]);
+      if (kit !== null) disposeResources([kit]);
+      shared.users -= 1;
+      if (shared.users === 0) {
+        disposeResources([gltf.scene, ...retired]);
+        loadedCharacters.delete(unitClass);
+      }
       root.removeFromParent();
     },
   };
