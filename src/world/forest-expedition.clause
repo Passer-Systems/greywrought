@@ -1357,3 +1357,152 @@ on tick ?workshop ?dt
     ?health > 0.0
   accumulate
     ?workshop presence (0.4 + 0.04 * (?party - 1.0)) * ?dt
+
+elevation
+  domain: Workshop
+  range: F64
+  cardinality: one
+vertical-speed
+  domain: Workshop
+  range: F64
+  cardinality: one
+potions
+  domain: Workshop
+  range: F64
+  cardinality: one
+shop-open
+  domain: Workshop
+  range: Bool
+  cardinality: one
+shop-status
+  domain: Workshop
+  range: Text
+  cardinality: one
+seller-near
+  domain: Workshop
+  range: Bool
+  cardinality: maybe
+Merchant
+potion-price
+  domain: Merchant
+  range: F64
+  cardinality: one
+potion-healing
+  domain: Merchant
+  range: F64
+  cardinality: one
+
+workshop
+  elevation: 0.0
+  vertical-speed: 0.0
+  potions: 0.0
+  shop-open: false
+  shop-status: "Mara sells health potions beside the Hearthstead road."
+mara
+  place-name: "Mara / Apothecary / F to talk"
+  place-position:
+    x: 3.4
+    z: -7.5
+  potion-price: 3.0
+  potion-healing: 30.0
+
+law seller-near
+  if
+    workshop position Position { x: ?x, z: ?z }
+    mara place-position Position { x: ?sx, z: ?sz }
+  then
+    workshop seller-near ((?x - ?sx) * (?x - ?sx) + (?z - ?sz) * (?z - ?sz) <= 6.25)
+derive seller-near
+
+bind keyboard Jump down to jump
+bind keyboard Interact down to interact
+bind keyboard CloseShop down to close-shop
+bind keyboard BuyPotion down to buy-potion
+bind keyboard DrinkPotion down to drink-potion
+
+on jump ?workshop
+  when
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop elevation 0.0
+    ?workshop vertical-speed 0.0
+  withdraw
+    ?workshop vertical-speed 0.0
+  include
+    ?workshop vertical-speed 5.5
+
+on tick ?workshop ?dt
+  when
+    ?workshop connected true
+    ?workshop elevation ?height
+    ?workshop vertical-speed ?speed
+    if(?height > 0.0, true, ?speed > 0.0) = true
+  withdraw
+    ?workshop elevation ?height
+    ?workshop vertical-speed ?speed
+  include
+    ?workshop elevation if(?height + ?speed * ?dt - 7.0 * ?dt * ?dt > 0.0, ?height + ?speed * ?dt - 7.0 * ?dt * ?dt, 0.0)
+    ?workshop vertical-speed if(?height + ?speed * ?dt - 7.0 * ?dt * ?dt > 0.0, ?speed - 14.0 * ?dt, 0.0)
+
+on interact ?workshop
+  when
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop seller-near ?near
+    ?workshop shop-open ?open
+    ?workshop shop-status ?status
+  withdraw
+    ?workshop shop-open ?open
+    ?workshop shop-status ?status
+  include
+    ?workshop shop-open ?near
+    ?workshop shop-status if(?near, "Mara: A little preparation goes a long way.", "Approach Mara beside the Hearthstead road to trade.")
+
+on close-shop ?workshop
+  when
+    ?workshop shop-open true
+  withdraw
+    ?workshop shop-open true
+  include
+    ?workshop shop-open false
+
+on buy-potion ?workshop
+  when
+    ?workshop connected true
+    torso part-health ?health
+    ?health > 0.0
+    ?workshop shop-open true
+    ?workshop seller-near ?near
+    ?workshop stock ?stock
+    ?workshop potions ?potions
+    ?workshop shop-status ?status
+    mara potion-price ?price
+  withdraw
+    ?workshop stock ?stock
+    ?workshop potions ?potions
+    ?workshop shop-status ?status
+  include
+    ?workshop stock if(?near, if(?stock >= ?price, ?stock - ?price, ?stock), ?stock)
+    ?workshop potions if(?near, if(?stock >= ?price, ?potions + 1.0, ?potions), ?potions)
+    ?workshop shop-status if(?near, if(?stock >= ?price, "Health potion purchased. Press H to drink when hurt.", "Not enough supplies for a health potion."), "You are too far from Mara. Move closer to buy.")
+
+on drink-potion ?workshop
+  when
+    ?workshop connected true
+    torso part-health ?health
+    torso max-part-health ?maximum
+    ?health > 0.0
+    ?workshop potions ?potions
+    ?workshop shop-status ?status
+    mara potion-healing ?healing
+    (?health + ?healing) bounded by 0.0 and ?maximum as ?healed
+  withdraw
+    torso part-health ?health
+    ?workshop potions ?potions
+    ?workshop shop-status ?status
+  include
+    torso part-health if(?potions >= 1.0, if(?health < ?maximum, ?healed, ?health), ?health)
+    ?workshop potions if(?potions >= 1.0, if(?health < ?maximum, ?potions - 1.0, ?potions), ?potions)
+    ?workshop shop-status if(?health >= ?maximum, "Your health is already full. Potion kept.", if(?potions >= 1.0, "You drink a health potion and recover health.", "No health potions. Visit Mara in Hearthstead."))

@@ -262,7 +262,10 @@ pub(super) fn controls(
         .map(|(_, c)| c.clone())
         .collect::<Vec<_>>();
     for (key, binding) in [
-        (KeyCode::Space, "StrikeThreat"),
+        (KeyCode::Space, "Jump"),
+        (KeyCode::Digit1, "StrikeThreat"),
+        (KeyCode::KeyF, "Interact"),
+        (KeyCode::KeyH, "DrinkPotion"),
         (KeyCode::KeyB, "Brace"),
         (KeyCode::KeyG, "GatherResource"),
         (KeyCode::KeyR, "CallRitual"),
@@ -277,20 +280,15 @@ pub(super) fn controls(
     if keys.just_pressed(KeyCode::Escape) {
         outfit.open = false;
         hud.help = false;
+        actions.push(Control::Key("CloseShop"));
     }
-    for (i, key) in [
-        KeyCode::Digit1,
-        KeyCode::Digit2,
-        KeyCode::Digit3,
-        KeyCode::Digit4,
-        KeyCode::Digit5,
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        if keys.just_pressed(key) {
-            actions.push(Control::Target(i));
-        }
+    if keys.just_pressed(KeyCode::Tab) && !view.threats.is_empty() {
+        let next = view
+            .threats
+            .iter()
+            .position(|t| t.selected)
+            .map_or(0, |i| (i + 1) % view.threats.len());
+        actions.push(Control::Target(next));
     }
     let mut inputs = Vec::new();
     for action in actions {
@@ -368,6 +366,7 @@ pub(super) fn present(
     >,
     mut panels: Query<&mut Visibility, (With<OutfitPanel>, Without<Threat>)>,
     outfit: Option<Res<Outfit>>,
+    assets: Res<AssetServer>,
     mut initialized: Local<bool>,
     equipment_controls: Query<Entity, With<EquipmentControls>>,
 ) {
@@ -389,6 +388,19 @@ pub(super) fn present(
                     TrailLabel(i),
                 ))
                 .insert(TextColor(Color::srgb(0.93, 0.91, 0.79)));
+            if id == "mara" {
+                commands.spawn((
+                    WorldAssetRoot(
+                        assets.load(
+                            GltfAssetLabel::Scene(0)
+                                .from_asset("external/quaternius/rts-company/Worker_Female.gltf"),
+                        ),
+                    ),
+                    Transform::from_translation(point(*position))
+                        .with_scale(Vec3::splat(0.4))
+                        .with_rotation(Quat::from_rotation_y(-1.57)),
+                ));
+            }
             if id == "frost-cores" || id == "ritual-site" {
                 commands.spawn((
                     Mesh3d(meshes.add(Cuboid::new(1., 1.5, 1.))),
@@ -450,7 +462,7 @@ pub(super) fn present(
         *initialized = true;
     }
     for (mut transform, mut motion) in &mut player {
-        let destination = point(view.position) + Vec3::new(0., 0.1, 0.);
+        let destination = point(view.position) + Vec3::new(0., view.elevation as f32 + 0.1, 0.);
         let displacement = destination - transform.translation;
         motion.moving = displacement.length() > 0.05;
         motion.alive = view.vitality > 0.;
@@ -495,8 +507,7 @@ pub(super) fn present(
     for (mut text, index) in &mut readouts.p0() {
         if let Some(t) = view.threats.get(index.0) {
             **text = format!(
-                "{}  {}{}  {:.0}/{:.0}",
-                index.0 + 1,
+                "{}{}  {:.0}/{:.0}",
                 if t.selected { "› " } else { "" },
                 t.name,
                 t.health,
@@ -657,17 +668,18 @@ pub(super) fn navigate(
     if active {
         let pressed = |key| if keys.pressed(key) { 1.0 } else { 0.0 };
         let steering = pointer_active && buttons.pressed(MouseButton::Right);
-        let turn = pressed(KeyCode::KeyA) - pressed(KeyCode::KeyD);
         if steering {
             rig.heading = rig.yaw;
-        } else {
-            let delta = turn * time.delta_secs() * 2.2;
-            rig.heading += delta;
-            rig.yaw += delta;
         }
-        let forward = pressed(KeyCode::KeyW) - pressed(KeyCode::KeyS);
-        let strafe =
-            pressed(KeyCode::KeyE) - pressed(KeyCode::KeyQ) + if steering { -turn } else { 0. };
+        let mouse_forward = pointer_active
+            && buttons.pressed(MouseButton::Left)
+            && buttons.pressed(MouseButton::Right);
+        let forward = if keys.pressed(KeyCode::KeyW) || mouse_forward {
+            1.0
+        } else {
+            0.0
+        } - pressed(KeyCode::KeyS);
+        let strafe = pressed(KeyCode::KeyD) - pressed(KeyCode::KeyA);
         input = Vec2::new(rig.heading.sin(), rig.heading.cos()) * forward
             + Vec2::new(-rig.heading.cos(), rig.heading.sin()) * strafe;
     }

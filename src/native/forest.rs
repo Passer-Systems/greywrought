@@ -20,6 +20,13 @@ pub struct ForestThreatView {
 pub struct ForestView {
     pub equipment: WorkshopView,
     pub position: [f64; 2],
+    pub elevation: f64,
+    pub vertical_speed: f64,
+    pub potions: f64,
+    pub shop_open: bool,
+    pub shop_status: String,
+    pub potion_price: f64,
+    pub potion_healing: f64,
     pub places: Vec<(String, String, [f64; 2])>,
     pub presence: f64,
     pub vitality: f64,
@@ -69,6 +76,13 @@ pub(super) fn view(projection: &Term) -> Option<ForestView> {
     Some(ForestView {
         equipment: workshop_view(projection)?,
         position: location,
+        elevation: number_field(workshop, "elevation"),
+        vertical_speed: number_field(workshop, "vertical-speed"),
+        potions: number_field(workshop, "potions"),
+        shop_open: bool_field(workshop, "shop-open"),
+        shop_status: text_field(workshop, "shop-status"),
+        potion_price: number_field(field(projection, "mara")?, "potion-price"),
+        potion_healing: number_field(field(projection, "mara")?, "potion-healing"),
         places: fields(projection)
             .filter_map(|(id, subject)| {
                 let location = position(subject, "place-position")?;

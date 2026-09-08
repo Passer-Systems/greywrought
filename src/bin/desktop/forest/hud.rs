@@ -21,6 +21,7 @@ enum Field {
     Footer,
     Journal,
     Help,
+    Shop,
 }
 #[derive(Component)]
 pub(crate) struct Meter(bool);
@@ -28,6 +29,8 @@ pub(crate) struct Meter(bool);
 pub(crate) struct MapMark(usize);
 #[derive(Component)]
 pub(crate) struct HelpPanel;
+#[derive(Component)]
+pub(crate) struct ShopPanel;
 #[derive(Component)]
 pub(crate) struct TuningPanel;
 #[derive(Resource, Default)]
@@ -38,6 +41,7 @@ pub(crate) struct State {
     entries: VecDeque<(bool, String)>,
     report: String,
     status: String,
+    shop_status: String,
     threat: String,
     health: BTreeMap<String, f64>,
 }
@@ -418,7 +422,7 @@ pub(super) fn setup(commands: &mut Commands, assets: &AssetServer) {
                     (
                         "StrikeThreat",
                         "ui/icons/spells/sword-strike.png",
-                        "Space · Strike",
+                        "1 · Strike",
                     ),
                     ("Brace", "ui/icons/spells/defensive-shield.png", "B · Brace"),
                     (
@@ -542,9 +546,41 @@ pub(super) fn setup(commands: &mut Commands, assets: &AssetServer) {
         .with_children(|p| {
             p.spawn((text(assets, "", 14.), Copy(Field::Footer)));
         });
+    commands
+        .spawn((
+            paper(
+                assets,
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: percent(50),
+                    margin: UiRect::left(px(-210)),
+                    top: percent(28),
+                    width: px(420),
+                    padding: UiRect::all(px(24)),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(16),
+                    ..default()
+                },
+            ),
+            ShopPanel,
+            Visibility::Hidden,
+        ))
+        .insert(GlobalZIndex(24))
+        .with_children(|p| {
+            p.spawn(text(assets, "Mara’s Apothecary", 26.));
+            p.spawn((text(assets, "", 18.), Copy(Field::Shop)));
+            p.spawn(button(Control::Key("BuyPotion")))
+                .with_children(|p| {
+                    p.spawn(text(assets, "Buy health potion", 19.));
+                });
+            p.spawn(button(Control::Key("CloseShop")))
+                .with_children(|p| {
+                    p.spawn(text(assets, "Back to the road · Esc", 17.));
+                });
+        });
     commands.spawn((paper(assets,Node{position_type:PositionType::Absolute,left:percent(50),margin:UiRect::left(px(-235)),top:percent(28),width:px(470),padding:UiRect::all(px(24)),flex_direction:FlexDirection::Column,row_gap:px(12),..default()}),HelpPanel,Visibility::Hidden)).insert(GlobalZIndex(25)).with_children(|p|{
         p.spawn((text(assets,"A Wayfarer’s Guide",26.),Copy(Field::Help)));
-        p.spawn(text(assets,"Walk through the north gate into Frostwood. Gather frost cores, overcome the trail’s threats and reach Hearthstead alive to secure your finds.\n\nW / S  Walk     A / D  Turn     Q / E  Strafe\nDrag  Look around     Right-drag  Steer\nWheel  Move the view closer or farther\n1–5  Choose a threat     Space  Strike\nB  Brace     G  Gather     R  Offer a ritual\nO  Equipment     F5  Save\nF6  Developer tuning     F7  Developer inspection",17.));
+        p.spawn(text(assets,"Walk through the north gate into Frostwood. Gather frost cores, overcome the trail’s threats and reach Hearthstead alive to secure your finds.\n\nW / S  Forward / back     A / D  Strafe\nDrag  Look around     Right-drag  Steer\nBoth mouse buttons  Walk forward\nWheel  Move the view closer or farther\nTab / click  Choose a threat     1  Strike\nSpace  Jump     F  Talk to Mara     H  Drink potion\nB  Brace     G  Gather     R  Offer a ritual\nO  Equipment     F5  Save\nF6  Developer tuning     F7  Developer inspection",17.));
         p.spawn((Button,Control::Help,Node{padding:UiRect::all(px(8)),..default()},BackgroundColor(Color::srgba(0.6,0.45,0.25,0.2)))).with_children(|p|{p.spawn(text(assets,"Back to the trail · Esc",18.));});
     });
     commands
@@ -581,9 +617,34 @@ pub(crate) fn present(
     mut state: Option<ResMut<State>>,
     mut texts: Query<(&Copy, &mut Text)>,
     mut meters: Query<(&Meter, &mut Node), Without<MapMark>>,
-    mut marks: Query<(&MapMark, &mut Node, &mut Visibility), Without<Meter>>,
-    mut help: Query<&mut Visibility, (With<HelpPanel>, Without<MapMark>, Without<TuningPanel>)>,
-    mut tuning: Query<&mut Visibility, (With<TuningPanel>, Without<MapMark>, Without<HelpPanel>)>,
+    mut marks: Query<(&MapMark, &mut Node, &mut Visibility), (Without<Meter>, Without<ShopPanel>)>,
+    mut help: Query<
+        &mut Visibility,
+        (
+            With<HelpPanel>,
+            Without<MapMark>,
+            Without<TuningPanel>,
+            Without<ShopPanel>,
+        ),
+    >,
+    mut tuning: Query<
+        &mut Visibility,
+        (
+            With<TuningPanel>,
+            Without<MapMark>,
+            Without<HelpPanel>,
+            Without<ShopPanel>,
+        ),
+    >,
+    mut shop: Query<
+        &mut Visibility,
+        (
+            With<ShopPanel>,
+            Without<MapMark>,
+            Without<HelpPanel>,
+            Without<TuningPanel>,
+        ),
+    >,
     mut buttons: Query<(&Interaction, &mut BackgroundColor), With<Button>>,
 ) {
     let Some(mut state) = state.take() else {
@@ -599,7 +660,18 @@ pub(crate) fn present(
     let Some(view) = display.snapshot.as_ref().and_then(|s| s.forest.as_ref()) else {
         return;
     };
+    for mut visible in &mut shop {
+        *visible = if view.shop_open && !display.editing && !display.inspecting {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
     let seconds = time.elapsed_secs() as u64;
+    if state.shop_status != view.shop_status {
+        state.shop_status = view.shop_status.clone();
+        remember(&mut state, false, view.shop_status.clone(), seconds);
+    }
     if state.report != view.equipment.report {
         state.report = view.equipment.report.clone();
         remember(&mut state, false, view.equipment.report.clone(), seconds);
@@ -676,8 +748,8 @@ pub(crate) fn present(
                 view.banked_relics
             ),
             Field::Packs => format!(
-                "Your pack   ·   {:.0} cores   ·   {:.0} relics",
-                view.cargo, view.carried_relics
+                "Your pack · {:.0} cores · {:.0} relics · {:.0} potions [H]",
+                view.cargo, view.carried_relics, view.potions
             ),
             Field::Footer => format!(
                 "GREYWROUGHT    ·    {}    ·    {:.0} supplies secured    ·    Walk home to bank your finds",
@@ -699,6 +771,10 @@ pub(crate) fn present(
                     entries.into_iter().rev().collect::<Vec<_>>().join("\n")
                 }
             }
+            Field::Shop => format!(
+                "Health potion\nRestores {:.0} health · {:.0} supplies\n\nSupplies: {:.0}    Potions: {:.0}\n\n{}",
+                view.potion_healing, view.potion_price, view.stock, view.potions, view.shop_status
+            ),
             Field::Help => "A Wayfarer’s Guide".into(),
         };
     }
