@@ -145,7 +145,7 @@ fn main() -> native::Result<()> {
         }
     }
     if forest && !explicit_save {
-        save = data.join("greywrought/forest.save");
+        save = data.join("greywrought/spatial.save");
     }
     if workshop && !explicit_save {
         save = data.join("greywrought/workshop.save");

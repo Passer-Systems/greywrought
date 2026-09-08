@@ -32,22 +32,26 @@ Regenerate an environment change with the pinned workbench's `project-nix`
 command, keeping compiler builds in `greywrought:build/authoring-target/` and
 game builds in `greywrought:build/desktop-target/`.
 
-The window opens at Hearthstead beside a five-clearing forest trail. Enter
-departs, D advances and A retreats. Click a threat card or press 1–5 to target;
-Space strikes and B braces. G gathers at the grove; R offers six cores to call
-the guardian. Return to Hearthstead and press X to secure carried rewards.
-O opens equipment. F5 saves, F6 opens checked tuning and F7 opens inspection.
-See `greywrought:docs/native-desktop.md` for saves and the edit/inspection loop.
+Start inside Hearthstead and walk north through its gate into the forest.
+W/S walks forward/back, A/D turns, and Q/E strafes. Left-drag orbits the camera;
+right-drag steers and makes A/D strafe. The mouse wheel zooms. Click a threat
+card or press 1–5 to target; Space strikes and B braces. G gathers near the
+frost cores, while R offers six cores at the deep grove to call the guardian.
+Walk back through the gate to secure carried rewards. O opens equipment.
+F5 saves, F6 opens checked tuning and F7 opens developer inspection.
+
+The spatial playtest uses `~/.local/share/greywrought/spatial.save`, respecting
+`XDG_DATA_HOME`. Earlier `~/.local/share/greywrought/forest.save` journeys remain
+with the earlier game; no automatic map conversion is performed. See
+`greywrought:docs/native-desktop.md` for saves and the edit/inspection loop.
 
 Current and upcoming enemy intentions, rising presence, useful clearing
 benefits, predictable resources, ritual rewards and permanent loss all come
 from the running Clause world. Living extraction and checked-edit save/reopen
-have been exercised in the native window. This remains a small trail prototype
-with placeholder enemies; free exploration and networked companions are
-unfinished. The next native milestone replaces the clearing-step controls with
-direct character movement from Hearthstead through its gate into the forest;
-see `greywrought:docs/native-desktop.md`. Older prototypes remain available with
-`--company` and `--workshop`.
+have been exercised in the native window, along with movement and mouse camera
+control. This is a small local playtest with placeholder enemies and decorative
+buildings; scenery collision, networked companions and multiplayer remain
+unfinished. Older prototypes remain available with `--company` and `--workshop`.
 
 ## Source and checks
 
