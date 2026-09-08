@@ -108,6 +108,7 @@ fn serve(source_path: &Path) -> ExitCode {
                 }
             }
         }
+        while workbench.reclaim_retired() {}
     }
     ExitCode::SUCCESS
 }
