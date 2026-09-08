@@ -369,11 +369,17 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    panelRectsValid = false;
   };
   // Defer layout writes out of the observer callback; synchronously changing
   // the canvas size can make Chromium report a ResizeObserver loop error.
   const resizeObserver = new ResizeObserver(() => { requestAnimationFrame(resize); });
   resizeObserver.observe(host);
+  const collisionPanels = [...host.querySelectorAll<HTMLElement>("#war-table, #objective-panel, #command-deck")];
+  let panelRectsValid = false;
+  let panelRects: Array<{ left: number; right: number; top: number; bottom: number }> = [];
+  const panelResizeObserver = new ResizeObserver(() => { panelRectsValid = false; });
+  collisionPanels.forEach((panel) => panelResizeObserver.observe(panel));
   resize();
 
   const applyUnits = (units: readonly UnitView[]): void => {
@@ -590,12 +596,15 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
         y: (-point.y * 0.5 + 0.5) * rectangle.height,
         width: readout.element.offsetWidth, height: readout.element.offsetHeight };
     }).sort((left, right) => right.y - left.y);
-    const placed = [...host.querySelectorAll<HTMLElement>("#war-table, #objective-panel, #command-deck")]
-      .map((panel) => {
+    if (!panelRectsValid) {
+      panelRects = collisionPanels.map((panel) => {
         const box = panel.getBoundingClientRect();
         return { left: box.left - rectangle.left, right: box.right - rectangle.left,
           top: box.top - rectangle.top, bottom: box.bottom - rectangle.top };
       });
+      panelRectsValid = true;
+    }
+    const placed = panelRects.map((box) => ({ ...box }));
     for (const readout of combatReadouts.values()) {
       if (readout.pending !== 0 && time - readout.changedAt >= 120) {
         const change = readout.pending;
@@ -712,6 +721,7 @@ export function createRtsPresentation(host: HTMLElement): RtsPresentation {
       alive = false;
       cancelAnimationFrame(frame);
       resizeObserver.disconnect();
+      panelResizeObserver.disconnect();
       battlefield.dispose();
       figures.forEach((figure) => figure.model?.dispose());
       ownedGeometries.forEach((entry) => entry.dispose());
