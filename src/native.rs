@@ -43,6 +43,13 @@ pub struct Snapshot {
     pub status: String,
 }
 
+#[derive(Debug)]
+pub struct EditCatalog {
+    pub labels: Vec<String>,
+    pub expressions: Vec<String>,
+    pub handlers: Vec<InspectionHandler>,
+}
+
 #[derive(Clone, Debug)]
 pub struct ComponentView {
     pub id: String,
@@ -347,8 +354,40 @@ impl NativeSession {
         Ok(())
     }
 
+    pub fn edit_catalog(&self) -> Result<EditCatalog> {
+        let effects = self.workbench.scalar_effects()?;
+        let source = self.workbench.exact_source();
+        let newlines = source
+            .iter()
+            .enumerate()
+            .filter_map(|(offset, byte)| (*byte == b'\n').then_some(offset))
+            .collect::<Vec<_>>();
+        let labels = effects
+            .iter()
+            .map(|effect| {
+                let line = newlines
+                    .partition_point(|offset| *offset < effect.expression_origin.start as usize)
+                    + 1;
+                let handler = String::from_utf8_lossy(
+                    &source[effect.handler_origin.start as usize..effect.handler_origin.end as usize],
+                );
+                format!("{}  |  source line {line}", handler.lines().next().unwrap_or(""))
+            })
+            .collect();
+        let expressions = effects
+            .iter()
+            .map(|effect| String::from_utf8_lossy(&effect.expression).into_owned())
+            .collect();
+        Ok(EditCatalog {
+            labels,
+            expressions,
+            handlers: self.inspection_handlers()?,
+        })
+    }
+
     pub fn snapshot(&self, tick_millis: u128, status: String) -> Result<Snapshot> {
         let projection = self.workbench.project_current_world()?;
+        let referent_inputs = field(&projection, "$referent-inputs");
         let mut actors = Vec::new();
         let mut scenarios = Vec::new();
         let mut obstacles = Vec::new();
@@ -372,7 +411,8 @@ impl NativeSession {
                 let references = ["Pick", "TogglePick", "Target"]
                     .into_iter()
                     .filter_map(|channel| {
-                        referent(&projection, subject, channel).map(|r| (channel.to_string(), r))
+                        referent_with_inputs(referent_inputs, subject, channel)
+                            .map(|r| (channel.to_string(), r))
                     })
                     .collect();
                 actors.push(ActorView {
@@ -388,7 +428,7 @@ impl NativeSession {
                     references,
                 });
             }
-            if let Some(reference) = referent(&projection, subject, "Scenario") {
+            if let Some(reference) = referent_with_inputs(referent_inputs, subject, "Scenario") {
                 scenarios.push((id, text_field(subject, "scenario-name"), reference));
             }
         }
@@ -469,8 +509,14 @@ pub fn fields(mut term: &Term) -> impl Iterator<Item = (String, &Term)> {
         ))
     })
 }
-pub fn field<'a>(term: &'a Term, name: &str) -> Option<&'a Term> {
-    fields(term).find_map(|(key, value)| (key == name).then_some(value))
+pub fn field<'a>(mut term: &'a Term, name: &str) -> Option<&'a Term> {
+    loop {
+        let [key, value, rest] = term.as_triple()?.slots();
+        if String::from_utf8_lossy(key.as_atom()?.canonical_payload()) == name {
+            return Some(value);
+        }
+        term = rest;
+    }
 }
 pub fn number_field(term: &Term, name: &str) -> f64 {
     field(term, name)
@@ -491,7 +537,14 @@ fn bool_field(term: &Term, name: &str) -> bool {
         .is_some_and(|a| a.canonical_payload() == [1])
 }
 fn referent(projection: &Term, subject: &Term, channel: &str) -> Option<ExecutableReferentV1> {
-    let inputs = field(projection, "$referent-inputs")?;
+    referent_with_inputs(field(projection, "$referent-inputs"), subject, channel)
+}
+fn referent_with_inputs(
+    inputs: Option<&Term>,
+    subject: &Term,
+    channel: &str,
+) -> Option<ExecutableReferentV1> {
+    let inputs = inputs?;
     field(inputs, channel)?;
     let domain = number_field(inputs, channel) as u32;
     let term = if let Some(facets) = field(subject, "$referents") {

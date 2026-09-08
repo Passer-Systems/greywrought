@@ -298,6 +298,7 @@ fn run_world(
     }
     .to_string();
     refresh_edit_catalog(&session, &mailbox)?;
+    let mut catalog_generation = session.workbench.generation().handle;
     let publish = |session: &NativeSession, elapsed, status: &str| -> native::Result<()> {
         let snapshot = session.snapshot(elapsed, status.to_string())?;
         let mut out = mailbox.lock().unwrap();
@@ -399,7 +400,10 @@ fn run_world(
                     }
                 }
             }
-            refresh_edit_catalog(&session, &mailbox)?;
+            if session.workbench.generation().handle != catalog_generation {
+                refresh_edit_catalog(&session, &mailbox)?;
+                catalog_generation = session.workbench.generation().handle;
+            }
         }
         if Instant::now() >= deadline {
             let started = Instant::now();
@@ -413,33 +417,11 @@ fn run_world(
 }
 
 fn refresh_edit_catalog(session: &NativeSession, mailbox: &Mutex<Mailbox>) -> native::Result<()> {
-    let effects = session.workbench.scalar_effects()?;
-    let source = session.workbench.exact_source();
-    let labels = effects
-        .iter()
-        .map(|effect| {
-            let line = source[..effect.expression_origin.start as usize]
-                .iter()
-                .filter(|b| **b == b'\n')
-                .count()
-                + 1;
-            let handler = String::from_utf8_lossy(
-                &source[effect.handler_origin.start as usize..effect.handler_origin.end as usize],
-            );
-            format!(
-                "{}  |  source line {line}",
-                handler.lines().next().unwrap_or("")
-            )
-        })
-        .collect();
-    let expressions = effects
-        .iter()
-        .map(|effect| String::from_utf8_lossy(&effect.expression).into_owned())
-        .collect();
+    let catalog = session.edit_catalog()?;
     let mut mailbox = mailbox.lock().unwrap();
-    mailbox.handlers = session.inspection_handlers()?;
-    mailbox.edits = expressions;
-    mailbox.edit_labels = labels;
+    mailbox.handlers = catalog.handlers;
+    mailbox.edits = catalog.expressions;
+    mailbox.edit_labels = catalog.labels;
     Ok(())
 }
 
