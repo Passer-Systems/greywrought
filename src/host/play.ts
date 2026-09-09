@@ -420,10 +420,14 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const icon = element("player-action-icon") as HTMLImageElement;
     const source = art?.src ?? publicUrl("assets/ui/icons/spells/sword-strike.png");
     if (icon.src !== source) icon.src = source;
-    text("player-action-name", (actionControl?.getAttribute("aria-label") ?? "Action") + " · Recovery");
-    text("player-action-time", player.actionCooldown.toFixed(1) + " / " + player.actionDuration.toFixed(1));
-    element("player-action-fill").style.width = (100 * player.actionCooldown / Math.max(.001, player.actionDuration)) + "%";
-    recovery.setAttribute("aria-valuenow", String(player.actionCooldown)); recovery.setAttribute("aria-valuemin", "0"); recovery.setAttribute("aria-valuemax", String(player.actionDuration));
+    const gathering = player.currentAction === "gather";
+    const label = gathering ? "Gathering" : (actionControl?.getAttribute("aria-label") ?? "Action") + " · Recovery";
+    const progress = gathering ? player.actionDuration - player.actionCooldown : player.actionCooldown;
+    text("player-action-name", label);
+    text("player-action-time", progress.toFixed(1) + " / " + player.actionDuration.toFixed(1));
+    element("player-action-fill").style.width = (100 * progress / Math.max(.001, player.actionDuration)) + "%";
+    recovery.setAttribute("role", gathering ? "progressbar" : "meter"); recovery.setAttribute("aria-label", label);
+    recovery.setAttribute("aria-valuenow", String(progress)); recovery.setAttribute("aria-valuemin", "0"); recovery.setAttribute("aria-valuemax", String(player.actionDuration));
   }
   text("potion-count", `${snapshot.potions} carried · heals ${snapshot.potionHealing}`);
   const nearbyLoot = snapshot.loot.some(item => item.available && item.reachable);

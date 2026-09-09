@@ -72,7 +72,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const remove = node("button", "combat-plan-remove", editor); remove.type = "button"; remove.textContent = "Remove";
   remove.addEventListener("click", removeSelected);
   const help = node("p", "combat-plan-help", root);
-  help.textContent = "1–5 choose slot · Drag to move / swap · Backspace removes";
+  help.textContent = "1–5 choose slot · Drag onto another move to swap · Backspace removes";
   const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
   feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();

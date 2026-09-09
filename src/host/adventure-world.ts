@@ -313,10 +313,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         knight.mixer.update(delta);
         document.body.dataset.rigAnimationMode=playerDead?"death":playerHitRemaining>0?"hit":playerAttackRemaining>0?"attack":snapshot.player.moving?"locomotion":"idle";
       }
-      if(merchant) { merchant.play(snapshot.shopOpen?"Idle_Weapon":"Idle"); merchant.mixer.update(delta); }
+      if (merchant) {
+        mara.rotation.y = snapshot.shopOpen ? Math.atan2(position.x - mara.position.x, position.z - mara.position.z) : -Math.PI / 2;
+        merchant.play(snapshot.shopOpen ? "Idle_Weapon" : "Idle"); merchant.mixer.update(delta);
+      }
       if (innkeeper) {
-        const nearInn = Math.hypot(position.x - innPosition.x, position.z - innPosition.z) < 4;
-        if (nearInn) rowan.rotation.y = Math.atan2(position.x - innPosition.x, position.z - innPosition.z);
+        rowan.rotation.y = snapshot.innOpen ? Math.atan2(position.x - innPosition.x, position.z - innPosition.z) : -Math.PI / 3;
         innkeeper.mixer.update(delta);
       }
       innSign.visible = rowanName.visible = Math.hypot(position.x - innPosition.x, position.z - innPosition.z) < 17;
