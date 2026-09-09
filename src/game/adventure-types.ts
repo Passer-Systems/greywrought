@@ -153,6 +153,8 @@ export interface AdventureSnapshot {
 export interface AdventureOptions {
   readonly archetype?: CharacterArchetype;
   readonly save?: string;
+  /** Wall clock in milliseconds since the Unix epoch. */
+  readonly now?: () => number;
 }
 export interface AdventureGame {
   readonly movementCheckpoint?: MovementCheckpoint;

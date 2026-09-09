@@ -236,12 +236,15 @@ export async function createWorldService(options: WorldServiceOptions) {
     },
     close(socket) { disconnect(socket); },
   };
+  // Save newly assigned legacy regrowth deadlines even when nobody has joined yet.
+  if (saved) await persist();
   let previousTick = performance.now();
   const tick = setInterval(() => {
     const now = performance.now();
     const elapsed = Math.min((now - previousTick) / 1000, 0.25);
     previousTick = now;
-    if (online.size > 0) { world.advance(elapsed); serverTime += elapsed; broadcast(); }
+    world.advance(elapsed);
+    if (online.size > 0) { serverTime += elapsed; broadcast(); }
     for (const socket of clients) if (socket.data.id === null && now - socket.data.openedAt > 10_000) socket.close(4003, 'Choose a character');
   }, 50);
   const saves = setInterval(() => { if (online.size > 0) void persist().catch(onPersistenceError); }, 5000);

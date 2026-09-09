@@ -9,21 +9,21 @@ export interface CorpseLoot {
 export function createCorpseLoot(host: HTMLElement, callbacks: { onTake(): void; onClose(): void }): CorpseLoot {
   const style = document.createElement("style");
   style.textContent = `
-    #loot-window { position:absolute; z-index:24; left:50%; top:52%; transform:translate(-50%,-50%); display:grid; grid-template-rows:27px 1fr auto; width:min(236px,calc(100% - 28px)); min-height:282px; padding:0; border:3px ridge #78796b; border-radius:5px; color:#e5e0d1; background:repeating-linear-gradient(115deg,#171a19 0px,#171a19 2px,#191c1b 3px,#191c1b 5px); box-shadow:0 0 0 1px #171912,0 8px 28px #000b,inset 0 0 14px #000; font:14px Georgia,serif; pointer-events:auto; }
+    #loot-window { position:absolute; z-index:24; left:50%; top:52%; transform:translate(-50%,-50%); display:grid; grid-template-rows:27px 1fr auto; width:min(236px,calc(100% - 28px)); min-height:282px; padding:0; border:3px ridge #78796b; border-radius:5px; color:#e5e0d1; background:repeating-linear-gradient(115deg,#171a19 0px,#171a19 2px,#191c1b 3px,#191c1b 5px); box-shadow:0 0 0 1px #171912,0 8px 28px #000b,inset 0 0 14px #000; font:var(--ui-font-prominent) Georgia,serif; pointer-events:auto; }
     #loot-window[hidden], #corpse-loot-prompt[hidden] { display:none; }
-    #loot-source-name { position:absolute; bottom:calc(100% + 9px); left:0; max-width:100%; color:#ddd6bc; text-shadow:0 2px 3px #000,1px 0 #000; font:16px Georgia,serif; white-space:nowrap; }
+    #loot-source-name { position:absolute; bottom:calc(100% + 9px); left:0; max-width:100%; color:#ddd6bc; text-shadow:0 2px 3px #000,1px 0 #000; font:var(--ui-font-heading) Georgia,serif; white-space:nowrap; }
     #loot-window header { --window-emblem-space:58px; }
     #loot-skull { position:absolute; left:-9px; top:-14px; width:68px; height:68px; display:grid; place-items:center; border:5px ridge #9b9265; border-radius:50%; background:radial-gradient(#252c24,#020503); color:#cbcbb8; font:47px/1 Georgia,serif; text-shadow:2px 2px #000; box-shadow:0 2px 6px #000; }
     #loot-item { align-self:start; display:flex; align-items:center; gap:9px; width:calc(100% - 20px); margin:32px 10px 10px; min-height:49px; text-align:left; border:1px solid #666c62; border-radius:3px; padding:3px; background:linear-gradient(90deg,#31383199,#101412bb); color:#e1dfd5; cursor:pointer; }
     #loot-item:hover, #loot-item:focus-visible { background:#3a423799; outline:1px solid #c2ad69; }
     #loot-item-icon { position:relative; width:42px; height:42px; flex:0 0 42px; border:2px ridge #8695ab; background:#10151c; }
     #loot-item-icon img { display:block; width:100%; height:100%; object-fit:cover; }
-    #loot-item-quantity { position:absolute; right:1px; bottom:-2px; color:white; font:bold 14px system-ui; text-shadow:-1px -1px #000,1px 1px #000,0 0 3px #000; }
+    #loot-item-quantity { position:absolute; right:1px; bottom:-2px; color:white; font:bold var(--ui-font-prominent) system-ui; text-shadow:-1px -1px #000,1px 1px #000,0 0 3px #000; }
     #loot-item strong, #loot-item small { display:block; }
-    #loot-item strong { font:14px/1.25 Georgia,serif; }
-    #loot-item small { margin-top:4px; color:#9eaaa0; font:10px system-ui; }
-    #loot-window p { margin:10px; text-align:center; font:10px/1.45 system-ui,sans-serif; color:#8b9288; }
-    #corpse-loot-prompt { position:absolute; z-index:18; bottom:160px; left:50%; transform:translateX(-50%); border:1px solid #b99a5e; border-radius:4px; padding:7px 12px; color:#ffe8ae; background:#15211ded; font:14px Georgia,serif; pointer-events:none; white-space:nowrap; }
+    #loot-item strong { font:var(--ui-font-prominent)/1.25 Georgia,serif; }
+    #loot-item small { margin-top:4px; color:#9eaaa0; font:var(--ui-font-tiny) system-ui; }
+    #loot-window p { margin:10px; text-align:center; font:var(--ui-font-tiny)/1.45 system-ui,sans-serif; color:#8b9288; }
+    #corpse-loot-prompt { position:absolute; z-index:18; bottom:160px; left:50%; transform:translateX(-50%); border:1px solid #b99a5e; border-radius:4px; padding:7px 12px; color:#ffe8ae; background:#15211ded; font:var(--ui-font-prominent) Georgia,serif; pointer-events:none; white-space:nowrap; }
   `;
   const panel = document.createElement("section");
   panel.id = "loot-window";

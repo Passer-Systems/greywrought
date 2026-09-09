@@ -160,7 +160,7 @@ function release(): void {
 }
 function save(_force = false): void {
   if (!running?.ready) return;
-  text("save-status", running.game.online ? "Shared world" : "Connection lost · reconnecting…");
+  element("connection-status").hidden = running.game.online;
   document.body.dataset.gamePersistence = running.game.online ? "server" : "disconnected";
 }
 
@@ -292,6 +292,7 @@ function setPaused(value: boolean): void {
 function setMenuOpen(value: boolean): void {
   if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
   element("pause-panel").hidden = !value;
+  button("pause-open").setAttribute("aria-expanded", String(value));
   if (!value) running.world.canvas.focus();
   save(true);
 }

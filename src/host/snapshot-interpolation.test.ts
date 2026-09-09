@@ -36,3 +36,17 @@ test('server restart and teleport do not interpolate across unrelated positions'
   push(0, -5);
   expect(buffer.sample(0).players[0]!.player.position.x).toBe(-5);
 });
+
+test('a corpse stays at its death position until its respawn snapshot', () => {
+  const base = createAdventure().snapshot;
+  const threat = base.threats[0]!;
+  const buffer = createSnapshotInterpolation();
+  buffer.push({...base, threats: [{...threat, health: 0, phase: 'cleared', position: {x: -5, y: 0, z: 10}}]}, [], 10);
+  buffer.push({...base, threats: [threat]}, [], 10.05);
+  const corpse = buffer.sample(0.17).threats[0]!;
+  expect(corpse.health).toBe(0);
+  expect(corpse.position.x).toBe(-5);
+  const respawn = buffer.sample(0.1).threats[0]!;
+  expect(respawn.health).toBe(threat.maximumHealth);
+  expect(respawn.position).toEqual(threat.position);
+});

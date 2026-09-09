@@ -45,6 +45,7 @@ export function createSnapshotInterpolation() {
         threats: a.threats.map(before => {
           const after = b.threats.find(item => item.id === before.id);
           if (!after) return before;
+          if ((before.health === 0) !== (after.health === 0)) return before;
           const sameAction = before.phase === after.phase && before.actionSequence === after.actionSequence;
           return {...before,
             position: position(before.position, after.position, t),

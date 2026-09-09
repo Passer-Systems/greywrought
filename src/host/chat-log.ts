@@ -6,9 +6,9 @@ interface ScrollPosition { following: boolean; entryId: string | null; offset: n
 export function createChatLog(host: HTMLElement, onSend?: (text: string) => void) {
   const style = document.createElement("style");
   style.textContent = `
-    #chat-log { position:absolute; z-index:15; left:8px; bottom:8px; width:min(340px,calc(100% - 16px)); height:160px; display:flex; flex-direction:column; color:#e0d8bd; pointer-events:auto; font:12px/1.45 system-ui,sans-serif; text-shadow:0 1px 2px #000; }
+    #chat-log { position:absolute; z-index:15; left:8px; bottom:8px; width:min(340px,calc(100% - 16px)); height:160px; display:flex; flex-direction:column; color:#e0d8bd; pointer-events:auto; font:var(--ui-font-body)/1.45 system-ui,sans-serif; text-shadow:0 1px 2px #000; }
     #chat-log-tabs { display:flex; flex:0 0 25px; align-items:end; gap:3px; padding-left:5px; }
-    #chat-log [data-log-tab] { padding:3px 11px 4px; border:1px solid #8d815c88; border-bottom:0; border-radius:4px 4px 0 0; color:#b8a270; background:#101510b3; font:12px Georgia,serif; white-space:nowrap; }
+    #chat-log [data-log-tab] { padding:3px 11px 4px; border:1px solid #8d815c88; border-bottom:0; border-radius:4px 4px 0 0; color:#b8a270; background:#101510b3; font:var(--ui-font-body) Georgia,serif; white-space:nowrap; }
     #chat-log [data-log-tab][aria-selected="true"] { color:#f1d18b; background:#1b2118e3; border-color:#b3a16d99; }
     #chat-log [data-log-tab]:hover { color:#ffe6ad; background:#293024db; }
     #chat-log [data-log-tab]:focus-visible, #chat-log-messages:focus-visible { outline:1px solid #e4c780; outline-offset:-2px; }
@@ -16,7 +16,7 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
     #chat-log [data-log-entry] { margin:0 0 3px; overflow-wrap:anywhere; }
     #chat-log .log-chat { color:#dfd5ab; }
     #chat-log .log-combat { color:#e1b794; }
-    #chat-log-input { box-sizing:border-box; flex:0 0 30px; width:100%; border:1px solid #78806388; border-radius:3px; background:#0d1815e8; padding:5px 9px; color:#f3e6c7; font:12px system-ui,sans-serif; }
+    #chat-log-input { box-sizing:border-box; flex:0 0 30px; width:100%; border:1px solid #78806388; border-radius:3px; background:#0d1815e8; padding:5px 9px; color:#f3e6c7; font:var(--ui-font-body) system-ui,sans-serif; }
     #chat-log-input:focus { outline:1px solid #e4c780; }
     #chat-log-input::placeholder { color:#c1bea6; }
     @media(max-width:700px) { #chat-log { width:min(310px,calc(100% - 16px)); height:140px; } }

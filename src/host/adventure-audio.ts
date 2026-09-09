@@ -46,7 +46,7 @@ export function createAdventureAudio(): AdventureAudio {
   let lastWarning = -Infinity;
   const panel = document.createElement("fieldset");
   panel.id = "adventure-audio-controls";
-  panel.style.cssText = "display:grid;gap:8px;margin:14px 0 0;padding:10px;border:1px solid #86734b;border-radius:8px;text-align:left;font-size:13px";
+  panel.style.cssText = "display:grid;gap:8px;margin:14px 0 0;padding:10px;border:1px solid #86734b;border-radius:8px;text-align:left;font-size:var(--ui-font-body)";
   panel.innerHTML = `<legend>Sound</legend>
     <label style="display:flex;align-items:center;gap:10px">Music <input data-volume="music" aria-label="Music volume" type="range" min="0" max="100" style="flex:1;min-width:70px"><output data-level="music"></output></label>
     <label style="display:flex;align-items:center;gap:10px">Effects <input data-volume="effects" aria-label="Effects volume" type="range" min="0" max="100" style="flex:1;min-width:70px"><output data-level="effects"></output></label>

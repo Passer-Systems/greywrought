@@ -23,6 +23,7 @@ export const COMBAT_RULES = {
   wolf: { circleRange: 5.5, circleRadius: 4.5, circleSpeed: 1.5, lungeDistance: 8, lungeHeight: 0.9 },
 } as const;
 export const MARA_TRADE_RULES = { suppliesPerPotion: 3, suppliesPerPotionSold: 2 } as const;
+export const WORLD_RESPAWN_MILLISECONDS = 120_000;
 interface Maneuver {
   kind: "lunge" | "disengage"; targetId: string; remainingSeconds: number;
   start: Vector; destination: Vector; facing: Vector;
@@ -50,6 +51,7 @@ interface ThreatDefinition {
 }
 interface ThreatState {
   id: string; health: number; active: boolean; phase: ThreatPhase;
+  respawnAt: number | null;
   rng: number;
   joinCycle: number; windowCycle: number; specialOffset: number; specialLaunched: boolean; specialResolved: boolean;
   remainingSeconds: number; actionSequence: number; lastActionHit: boolean; damage: number;
@@ -60,9 +62,13 @@ interface ThreatState {
 type QueueEntry = { -readonly [K in keyof QueuedCombatAction]: QueuedCombatAction[K] };
 interface CombatClock { phase: CombatView["phase"]; elapsedSeconds: number; cycle: number; }
 interface CombatState { clock: CombatClock; queued: QueueEntry[]; nextId: number; }
-interface WorldState { threats: ThreatState[]; resourceRemaining: number; ritualCalled: boolean; }
+interface WorldState {
+  threats: ThreatState[]; resourceRemaining: number; ritualCalled: boolean;
+  resourceRespawns: { at: number; quantity: number }[];
+}
 interface SharedContext {
   world: WorldState; clock: CombatClock;
+  now: () => number;
   online: Map<string, Adventure>;
 }
 const newClock = (): CombatClock => ({ phase: "idle", elapsedSeconds: 0, cycle: 0 });
@@ -131,15 +137,27 @@ const newWolf = (): WolfState => ({ facing: point(0, 1), motion: null,
   nextAttackSeconds: COMBAT_RULES.enemy.preparation, circling: false, attackOrigin: point(-3, 10),
 });
 const newHead = (): HeadState => ({ opened: false, events: [], block: 0, blockSeconds: 0, volley: 1, projectileSequence: 0, fireballs: [] });
-const newThreats = (): ThreatState[] => DEFINITIONS.map(t => ({
+const newThreat = (t: ThreatDefinition): ThreatState => ({
   id: t.id, health: t.health, active: t.id !== "ritual-guardian", phase: t.patrol && t.id !== "ritual-guardian" ? "patrol" : "dormant",
+  respawnAt: null,
   rng: crypto.getRandomValues(new Uint32Array(1))[0]!,
   joinCycle: 0, windowCycle: 0, specialOffset: 0, specialLaunched: false, specialResolved: false,
   remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: t.behavior === "wolf" ? 18 : t.damage,
   position: { ...t.position }, targetPosition: { ...t.position }, targetPlayerId: null, aggro: false,
   lootClaimed: false, patrolIndex: 1, moving: false, abilityIndex: 0,
-  wolf: t.behavior === "wolf" ? newWolf() : null, head: t.behavior === "head" ? newHead() : null,
-}));
+  wolf: t.behavior === "wolf" ? { ...newWolf(), attackOrigin: { ...t.position } } : null, head: t.behavior === "head" ? newHead() : null,
+});
+const newThreats = (): ThreatState[] => DEFINITIONS.map(newThreat);
+function refreshWorld(world: WorldState, now: number): void {
+  for (const threat of world.threats) {
+    if (threat.id !== "ritual-guardian" && threat.health === 0 && threat.respawnAt !== null && threat.respawnAt <= now) {
+      Object.assign(threat, newThreat(definition(threat.id)));
+    }
+  }
+  for (const batch of world.resourceRespawns) if (batch.at <= now) world.resourceRemaining += batch.quantity;
+  world.resourceRemaining = Math.min(12, world.resourceRemaining);
+  world.resourceRespawns = world.resourceRespawns.filter(batch => batch.at > now);
+}
 function seedForThreat(id: string): number {
   let seed = 0x811c9dc5;
   for (let i = 0; i < id.length; i++) seed = Math.imul(seed ^ id.charCodeAt(i), 0x01000193) >>> 0;
@@ -157,7 +175,7 @@ function initialState(archetype: CharacterArchetype): State {
     guardSeconds: 0, block: 0, stamina: 5, staminaRecoverySeconds: 0, bloodRage: 0, rageDrainSeconds: 0, rageDecaySeconds: 0, maneuver: null,
     attackSequence: 0, selectedThreat: "scout",
     report: "Visit Mara for potions, then take the north gate. Gather frost cores and return alive.",
-    world: { threats: newThreats(), resourceRemaining: 12, ritualCalled: false }, combat: newCombat(),
+    world: { threats: newThreats(), resourceRemaining: 12, resourceRespawns: [], ritualCalled: false }, combat: newCombat(),
   };
 }
 
@@ -190,15 +208,15 @@ class Adventure implements AdventureGame {
   private eventId = 0;
   private lootOpenId: string | null = null;
 
-  static sharedAdventure(options: { save?: string }): SharedAdventure {
-    const context: SharedContext = { world: initialState("warrior").world, clock: newClock(), online: new Map() };
+  static sharedAdventure(options: Pick<AdventureOptions, "save" | "now">): SharedAdventure {
+    const context: SharedContext = { world: initialState("warrior").world, clock: newClock(), now: options.now ?? Date.now, online: new Map() };
     const characters = new Map<string, { name: string; game: Adventure }>();
     if (options.save !== undefined) {
       const root = record(JSON.parse(options.save));
       if (root.version !== 1 || root.kind !== "shared-adventure" || !Array.isArray(root.characters)) throw new Error("Unsupported shared adventure save.");
       const world = record(root.world), clock = record(root.clock);
       const template = savedState(initialState("warrior"));
-      const restored = readSave(JSON.stringify({ version: 9, state: { ...template, ...world, phase: "expedition", combat: { ...clock, queued: [], nextId: 1 } } }));
+      const restored = readSave(JSON.stringify({ version: 9, state: { ...template, ...world, phase: "expedition", combat: { ...clock, queued: [], nextId: 1 } } }), context.now());
       context.world = restored.world; context.clock = restored.combat.clock;
       for (const value of root.characters) {
         const entry = record(value), id = text(entry.id), name = text(entry.name), state = record(entry.state), queue = record(state.combat);
@@ -206,11 +224,16 @@ class Adventure implements AdventureGame {
         const game = new Adventure({}, context, id);
         game.state = readSave(JSON.stringify({ version: 9, state: {
           ...state, ...world, combat: { ...(state.phase === "expedition" ? clock : newClock()), ...queue },
-        } }));
+        } }), context.now());
         game.state.world = context.world; game.state.combat.clock = context.clock;
         characters.set(id, { name, game });
       }
     }
+    const refresh = () => {
+      refreshWorld(context.world, context.now());
+      for (const { game } of characters.values()) game.closeMissingLoot();
+    };
+    refresh();
     const retarget = (driver: Adventure, t: ThreatState): Adventure | undefined => {
       const target = driver.chooseTarget(t);
       if (t.aggro && target) t.targetPlayerId = target.playerId;
@@ -218,6 +241,7 @@ class Adventure implements AdventureGame {
     };
     return {
       join(id, name, archetype) {
+        refresh();
         if (!id || !name.trim()) throw new Error("A character needs an identity and name.");
         let entry = characters.get(id);
         if (!entry) {
@@ -239,6 +263,7 @@ class Adventure implements AdventureGame {
       players() { return [...context.online].map(([id, game]) => ({ id, name: characters.get(id)!.name, player: game.snapshot.player })); },
       advance(seconds) {
         if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Elapsed time must be finite and nonnegative.");
+        refresh();
         const players = [...context.online.values()], driver = players[0];
         if (!driver) return;
         let remaining = seconds;
@@ -267,6 +292,7 @@ class Adventure implements AdventureGame {
         }
       },
       save() {
+        refresh();
         return JSON.stringify({ version: 1, kind: "shared-adventure", world: context.world, clock: context.clock,
           characters: [...characters].map(([id, { name, game }]) => {
             const { world, combat, ...player } = game.state;
@@ -277,9 +303,12 @@ class Adventure implements AdventureGame {
     };
   }
 
+  private readonly now: () => number;
   constructor(options: AdventureOptions, private readonly shared?: SharedContext, private readonly playerId: string | null = null) {
-    this.state = options.save === undefined ? initialState(options.archetype ?? "warrior") : readSave(options.save);
+    this.now = shared?.now ?? options.now ?? Date.now;
+    this.state = options.save === undefined ? initialState(options.archetype ?? "warrior") : readSave(options.save, this.now());
     if (shared) { this.state.world = shared.world; this.state.combat.clock = shared.clock; }
+    else refreshWorld(this.state.world, this.now());
     if (options.archetype !== undefined && options.archetype !== this.state.archetype) {
       throw new Error("The saved character has a different calling.");
     }
@@ -689,6 +718,7 @@ class Adventure implements AdventureGame {
     s.attackSequence += 1; s.presence += 1;
     this.report(`You ${verb} ${definition(t.id).name} for ${dealt} damage${blocked ? ` (${blocked} absorbed by Ember Ward)` : ""}.`, "combat");
     if (t.health === 0) {
+      t.respawnAt = t.id === "ritual-guardian" ? null : this.now() + WORLD_RESPAWN_MILLISECONDS;
       for (const player of this.participants()) player.clearTargetQueue(t.id);
       t.targetPlayerId = null; t.phase = "cleared"; t.remainingSeconds = 0; t.lastActionHit = false; t.aggro = false; t.moving = false;
       if (t.head) { t.head.fireballs = []; t.head.block = 0; t.head.blockSeconds = 0; }
@@ -703,8 +733,10 @@ class Adventure implements AdventureGame {
     const s = this.state;
     if (!this.ready()) return;
     if (!this.near("frost-cores", 3)) { this.report("Approach the frost cores in the first clearing to gather."); return; }
-    if (s.world.resourceRemaining < 3) { this.report("No frost cores remain here this trip."); return; }
+    if (s.world.resourceRemaining < 3) { this.report("The frost cores are regrowing. Return soon to gather more."); return; }
     s.world.resourceRemaining -= 3; s.cargo += 3; s.presence += 4; this.recover("gather", 2);
+    // Each harvest returns its three cores two minutes later, independently of later harvests.
+    s.world.resourceRespawns.push({ at: this.now() + WORLD_RESPAWN_MILLISECONDS, quantity: 3 });
     this.report("You gather Frost cores × 3. Return alive to keep them.");
     if (s.world.threats.some(t => t.id === "warder" && t.health > 0)) {
       this.hurt(8, "The warder's thorns");
@@ -735,6 +767,8 @@ class Adventure implements AdventureGame {
   advance(seconds: number): void {
     if (this.shared) throw new Error("Advance the shared adventure, not an individual character.");
     if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Elapsed time must be finite and nonnegative.");
+    refreshWorld(this.state.world, this.now());
+    this.closeMissingLoot();
     let remaining = seconds;
     while (remaining > EPSILON) {
       const phaseLength = this.state.combat.clock.phase === "idle" ? Infinity : COMBAT_RULES.window[this.state.combat.clock.phase];
@@ -821,19 +855,22 @@ class Adventure implements AdventureGame {
       return enter <= exit;
     });
   }
+  private closeMissingLoot(): void {
+    if (this.lootOpenId !== null && !this.state.world.threats.some(t => t.id === this.lootOpenId && this.canLoot(t))) this.lootOpenId = null;
+  }
   private stepPlayer(dt: number): void {
     const s = this.state;
     if (s.phase === "lost") { if (this.movementFrames) this.consumeMovement(dt, true); this.moving = false; this.backpedaling = false; return; }
     if (s.maneuver) { if (this.movementFrames) this.consumeMovement(dt, true); this.moveManeuver(dt); }
     else if (this.movementFrames) this.consumeMovement(dt, false);
     else this.move(dt);
-    if (this.lootOpenId !== null && !s.world.threats.some(t => t.id === this.lootOpenId && this.canLoot(t))) this.lootOpenId = null;
+    this.closeMissingLoot();
     if (this.shopOpen && !this.near("mara", 2.5)) { this.shopOpen = false; this.trade = null; }
     if (this.innOpen && !this.near("inn", 2.5)) this.innOpen = false;
     if (s.phase === "town" && s.position.z >= 2) {
       s.phase = "expedition"; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.presence = 0;
       if (!this.shared) {
-        s.world.resourceRemaining = 12; s.world.ritualCalled = false;
+        s.world.resourceRemaining = 12; s.world.resourceRespawns = []; s.world.ritualCalled = false;
         const fresh = newThreats();
         for (const t of fresh) {
           const previous = s.world.threats.find(old => old.id === t.id);
@@ -1327,7 +1364,7 @@ function groundPosition(value: unknown, maximumHeight = 0): Vector {
   const p = record(value);
   return { x: number(p.x, -12, 12), y: number(p.y, 0, maximumHeight), z: number(p.z, -14, 45) };
 }
-function readSave(serialized: string): State {
+function readSave(serialized: string, now = Date.now()): State {
   let parsed: unknown;
   try { parsed = JSON.parse(serialized); }
   catch { throw new Error("Invalid adventure save: unreadable saved data."); }
@@ -1354,6 +1391,9 @@ function readSave(serialized: string): State {
     const head = headVersion && id === "scout" ? readHead(t.head, v7, v8, root.version === 8) : null;
     const maxDuration = v8 ? 20 : v7 && id === "scout" ? 10 : headVersion ? id === "scout" ? phase === "action" ? 0.6 + ((head?.volley ?? 1)-1)*0.2 : phase === "preparation" || phase === "recovery" ? 5 : 0 : (id === "patrol" ? PHASE_SECONDS : OTHER_PHASE_SECONDS)[phase] : (current && id === "scout" ? PHASE_SECONDS : OTHER_PHASE_SECONDS)[phase];
     const result: ThreatState = { id, health, active, phase,
+      respawnAt: health === 0 && id !== "ritual-guardian"
+        ? t.respawnAt === undefined || t.respawnAt === null ? now + WORLD_RESPAWN_MILLISECONDS : number(t.respawnAt)
+        : null,
       rng: v8 && t.rng !== undefined ? number(t.rng, 0, 0xffffffff, true) : seedForThreat(id),
       joinCycle: v8 ? number(t.joinCycle, 0, Number.MAX_SAFE_INTEGER, true) : 0,
       windowCycle: v8 ? number(t.windowCycle, 0, Number.MAX_SAFE_INTEGER, true) : 0,
@@ -1430,10 +1470,11 @@ function readSave(serialized: string): State {
     archetype: choice(s.archetype, ["warrior", "mage", "hunter"] as const),
     position: { x: number(p.x, -12, 12), y: number(p.y, 0, 2), z: number(p.z, -14, 45) },
     verticalSpeed: number(s.verticalSpeed, -6, 5.5), health: number(s.health, 0, 100),
-    supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, 12, true),
+    supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, Number.MAX_SAFE_INTEGER, true),
     resourceRemaining: number(s.resourceRemaining, 0, 12, true), potions: number(s.potions, 0, Number.MAX_SAFE_INTEGER, true),
+    resourceRespawns: readResourceRespawns(s.resourceRespawns, number(s.resourceRemaining, 0, 12, true), now),
     carriedRelics: number(s.carriedRelics, 0, 1, true), bankedRelics: number(s.bankedRelics, 0, Number.MAX_SAFE_INTEGER, true),
-    carriedSalvage: root.version === 3 || current ? number(s.carriedSalvage, 0, DEFINITIONS.length - 1, true) : 0,
+    carriedSalvage: root.version === 3 || current ? number(s.carriedSalvage, 0, Number.MAX_SAFE_INTEGER, true) : 0,
     presence: number(s.presence), ritualCalled: boolean(s.ritualCalled), actionCooldown: number(s.actionCooldown, 0, 2),
     currentAction: v7 && s.currentAction !== null ? choice(s.currentAction, ["strike", "disengage", "brace", "bloodRage", "jab", "guard", "drinkPotion", "gather", "ritual"] as const) : null,
     actionDuration: v7 ? number(s.actionDuration, 0, 2) : number(s.actionCooldown, 0, 2),
@@ -1476,9 +1517,21 @@ function readSave(serialized: string): State {
   }
   const reserved = state.combat.queued.filter(e => e.status === "pending").reduce((sum,e) => sum + e.cost, 0);
   if (state.combat.queued.filter(e => e.status === "pending" && e.action === "drinkPotion").length > state.potions || reserved > state.stamina || (state.combat.phase !== "idle" && state.phase !== "expedition") || state.combat.queued.some(e => e.status === "pending" && state.combat.phase === "active" && e.offsetSeconds < state.combat.elapsedSeconds - EPSILON)) throw new Error("Invalid adventure save: inconsistent combat plan.");
-  const { threats: restoredThreats, resourceRemaining, ritualCalled, combat, ...player } = state;
+  const { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled, combat, ...player } = state;
   const { queued, nextId, ...clock } = combat;
-  return { ...player, world: { threats: restoredThreats, resourceRemaining, ritualCalled }, combat: { clock, queued, nextId } };
+  return { ...player, world: { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled }, combat: { clock, queued, nextId } };
+}
+
+function readResourceRespawns(value: unknown, remaining: number, now: number): WorldState["resourceRespawns"] {
+  if (value !== undefined && !Array.isArray(value)) throw new Error("Invalid adventure save: invalid core regrowth.");
+  const batches = (value ?? []).map((item: unknown) => {
+    const batch = record(item);
+    return { at: number(batch.at), quantity: number(batch.quantity, 1, 12, true) };
+  });
+  const missing = 12 - remaining - batches.reduce((sum, batch) => sum + batch.quantity, 0);
+  if (missing < 0) throw new Error("Invalid adventure save: too many regrowing cores.");
+  if (missing > 0) batches.push({ at: now + WORLD_RESPAWN_MILLISECONDS, quantity: missing });
+  return batches;
 }
 
 function readWolf(value: unknown, v8 = false): WolfState {
@@ -1509,7 +1562,7 @@ export function createAdventure(options: AdventureOptions = {}): AdventureGame {
   return new Adventure(options);
 }
 
-export function createSharedAdventure(options: { save?: string } = {}): SharedAdventure {
+export function createSharedAdventure(options: Pick<AdventureOptions, "save" | "now"> = {}): SharedAdventure {
   return Adventure.sharedAdventure(options);
 }
 
