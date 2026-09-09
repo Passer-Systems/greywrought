@@ -43,11 +43,11 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
   const grid = node("div", "combat-plan-grid", root);
   node("span", "combat-plan-axis", grid).textContent = "Beat";
-  for (let i = 0; i < 5; i++) node("span", "combat-plan-tick", grid).textContent = "Slot " + (i + 1) + " · " + i + "s";
+  for (let i = 0; i < 3; i++) node("span", "combat-plan-tick", grid).textContent = "Slot " + (i + 1) + " · " + i + "s";
   const enemyLabel = node("span", "combat-plan-row-label", grid);
-  const enemyCells = Array.from({ length: 5 }, () => node("div", "combat-plan-cell combat-plan-enemy", grid));
+  const enemyCells = Array.from({ length: 3 }, () => node("div", "combat-plan-cell combat-plan-enemy", grid));
   node("span", "combat-plan-row-label", grid).textContent = "You";
-  const cells = Array.from({ length: 5 }, () => node("div", "combat-plan-cell combat-plan-player", grid));
+  const cells = Array.from({ length: 3 }, () => node("div", "combat-plan-cell combat-plan-player", grid));
   cells.forEach((cell, offset) => {
     cell.dataset.beat = String(offset);
     cell.addEventListener("dragover", event => {
@@ -63,7 +63,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   });
   const editor = node("div", "combat-plan-editor", root);
   const selection = node("span", "combat-plan-selection", editor);
-  const delayButtons = Array.from({ length: 5 }, (_, seconds) => {
+  const delayButtons = Array.from({ length: 3 }, (_, seconds) => {
     const button = node("button", "combat-plan-delay", editor); button.type = "button";
     button.dataset.slot = String(seconds + 1); button.textContent = String(seconds + 1);
     button.title = "Place in slot " + (seconds + 1) + " · " + seconds + " seconds";
@@ -72,7 +72,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const remove = node("button", "combat-plan-remove", editor); remove.type = "button"; remove.textContent = "Remove";
   remove.addEventListener("click", removeSelected);
   const help = node("p", "combat-plan-help", root);
-  help.textContent = "1–5 choose slot · Drag onto another move to swap · Backspace removes";
+  help.textContent = "1–3 choose slot · Drag onto another move to swap · Backspace removes";
   const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
   feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();
@@ -120,9 +120,9 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       root.hidden = next.phase !== "expedition" || (!enemy && combat.phase === "idle");
       Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
       write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : combat.phase === "preparation" ? "Ⅱ Prepare · " + combat.remainingSeconds.toFixed(1) + "s" : "Active · " + combat.remainingSeconds.toFixed(1) + "s left");
-      write(resources, combat.queued.length + "/5 slots · " + combat.availableStamina + " stamina free · " + combat.reservedStamina + " reserved");
-      staminaHint.hidden = combat.availableStamina > 0 || combat.queued.length >= 5;
-      clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / 5) + "%";
+      write(resources, combat.queued.length + "/3 slots · " + combat.availableStamina + " stamina free · " + combat.reservedStamina + " reserved");
+      staminaHint.hidden = combat.availableStamina > 0 || combat.queued.length >= 3;
+      clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / (combat.elapsedSeconds + combat.remainingSeconds)) + "%";
       clear.disabled = !combat.queued.some(entry => entry.status === "pending");
       const newest = combat.queued.reduce<QueuedCombatAction | undefined>((latest, move) => !latest || move.id > latest.id ? move : latest, undefined);
       if (newest && newest.id !== lastId) { selectedId = lastId = newest.id; }
@@ -131,7 +131,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       for (const [id, button] of buttons) if (!combat.queued.some(entry => entry.id === id)) { button.remove(); buttons.delete(id); }
       for (const move of combat.queued) {
         let button = buttons.get(move.id);
-        const cell = cells[Math.min(4, Math.max(0, Math.floor(move.offsetSeconds)))];
+        const cell = cells[Math.min(2, Math.max(0, Math.floor(move.offsetSeconds)))];
         if (!cell) continue;
         if (!button) {
           button = node("button", "combat-plan-move", cell); button.type = "button";
@@ -175,7 +175,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         enemyKey = key;
         for (const cell of enemyCells) cell.replaceChildren();
         for (const move of shown) {
-          const cell = enemyCells[Math.min(4, Math.max(0, Math.floor(move.seconds + .02)))];
+          const cell = enemyCells[Math.min(2, Math.max(0, Math.floor(move.seconds + .02)))];
           if (cell) enemyMove(cell, move.ability, Math.max(0, move.seconds), move.status);
         }
       }

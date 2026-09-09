@@ -2,13 +2,11 @@ import type { AdventureSnapshot, ThreatAbilityView, ThreatView } from "../game/a
 import type { AdventureWorld } from "./adventure-world.js";
 import { publicUrl } from "./public-url.js";
 
-interface AbilityIcon {
-  button: HTMLButtonElement; icon: HTMLElement; amount: HTMLElement; clock: HTMLElement; tooltip: HTMLElement; name: HTMLElement;
-}
+interface AbilityIcon { button: HTMLButtonElement; icon: HTMLElement; clock: HTMLElement; tooltip: HTMLElement; }
 interface Plate {
   width: number; height: number;
   root: HTMLDivElement; target: HTMLButtonElement; health: HTMLElement; healthFill: HTMLElement;
-  status: HTMLElement; fill: HTMLElement; castLabel: HTMLElement; current: AbilityIcon; next: AbilityIcon; later: AbilityIcon; gap: HTMLElement; nextArrow: HTMLElement; laterArrow: HTMLElement; shield: HTMLElement;
+  status: HTMLElement; level: HTMLElement; fill: HTMLElement; current: AbilityIcon; next: AbilityIcon; later: AbilityIcon; gap: HTMLElement; nextArrow: HTMLElement; laterArrow: HTMLElement; shield: HTMLElement;
   opening: HTMLElement; openingClock: HTMLElement; effect: HTMLElement; effectClock: HTMLElement;
 }
 function span(className: string, parent: HTMLElement): HTMLSpanElement {
@@ -18,13 +16,11 @@ function write(node: HTMLElement, value: string): void { if (node.textContent !=
 function abilityIcon(parent: HTMLElement, enemyId: string, slot: "current" | "next" | "later"): AbilityIcon {
   const button = document.createElement("button"); button.type = "button"; button.className = "nameplate-ability";
   button.dataset.abilitySlot = slot; parent.append(button);
-  span("nameplate-ability-label", button).textContent = slot === "current" ? "Now" : "Next";
   const square = span("nameplate-ability-square", button);
-  const icon = span("nameplate-ability-art", square), amount = span("nameplate-ability-damage", square), clock = span("nameplate-ability-clock", square);
-  const name = span("nameplate-ability-name", button);
+  const icon = span("nameplate-ability-art", square), clock = span("nameplate-ability-clock", square);
   const tooltip = span("nameplate-tooltip", button); tooltip.id = "intent-" + enemyId + "-" + slot; tooltip.setAttribute("role", "tooltip");
   button.setAttribute("aria-describedby", tooltip.id);
-  return { button, icon, amount, clock, tooltip, name };
+  return { button, icon, clock, tooltip };
 }
 function renderAbility(view: AbilityIcon, ability: ThreatAbilityView, threat: ThreatView, next: boolean, forecast?: ThreatView["forecast"][number]): void {
   if (view.button.dataset.abilityId !== ability.id) {
@@ -38,28 +34,24 @@ function renderAbility(view: AbilityIcon, ability: ThreatAbilityView, threat: Th
     if (artwork[ability.id]) { const img=document.createElement("img");img.src=publicUrl("assets/ui/icons/spells/"+artwork[ability.id]+".png");img.alt="";view.icon.replaceChildren(img); }
     else view.icon.replaceChildren(svg);
   }
-  write(view.name, ability.name.replace("Ember Beam", "Beam").replace("Ember Ward", "Ward").replace("Lunging Maul", "Maul").replace(/Fireball ×\d+/, "Fireball").replace("Swarm rush", "Swarm").replace("Thorn lash", "Thorns").replace("Frost torrent", "Frost"));
   const seconds = forecast?.remainingSeconds ?? 0;
   const stored = forecast?.status === "stored";
   const active = forecast?.status === "active";
-  const label = stored ? "Opener" : active ? "Active" : next ? "Then" : "Next";
-  write(view.button.querySelector<HTMLElement>(".nameplate-ability-label")!, label);
   view.button.dataset.state = active ? "active" : stored ? "waiting" : "warning";
   view.button.dataset.remaining = String(seconds);
   view.button.dataset.forecastStatus = forecast?.status ?? (stored ? "stored" : "pending");
-  write(view.amount, ability.damage > 0 ? String(ability.damage) : ability.id === "ember-ward" ? "6" : ability.id === "kindle" ? "+1" : "");
-  write(view.clock, stored ? "In range" : active ? seconds > 0 ? seconds.toFixed(1) + "s" : "NOW" : seconds <= 0 ? "Ready" : seconds.toFixed(1) + "s");
+  write(view.clock, stored ? "" : active ? seconds > 0 ? seconds.toFixed(1) + "s" : "NOW" : seconds <= 0 ? "Ready" : seconds.toFixed(1) + "s");
   const timing = stored ? "Stored opener: used on engagement as soon as you are in range." : active ? "Resolving now." : "Happens in " + seconds.toFixed(1) + " seconds. This move is already committed.";
   const facts = [ability.damage > 0 ? ability.damage + " damage" : "Power / defense", ability.range > 0 ? ability.range + " m range" : "Self"];
   const detail = [ability.name, facts.join(" · "), ability.description, timing].join("\n");
   write(view.tooltip, detail);
-  view.button.setAttribute("aria-label", label + ": " + ability.name + ". " + timing);
+  view.button.setAttribute("aria-label", (active ? "Active" : stored ? "Opener" : next ? "Then" : "Next") + ": " + ability.name + ". " + timing);
 
 }
 export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnapshot) {
   host.replaceChildren();
   const plates = new Map<string, Plate>();
-  snapshot.threats.forEach((threat, index) => {
+  snapshot.threats.forEach((threat) => {
     const root = document.createElement("div"); root.className = "enemy-nameplate";
     root.dataset.enemyId = threat.id; root.hidden = true; host.append(root);
     const row = span("nameplate-intents", root);
@@ -69,16 +61,17 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
     const laterArrow = span("nameplate-queue-arrow", row); laterArrow.textContent = "›";
     const gap = span("nameplate-wait", row);
     const later = abilityIcon(row, threat.id, "later");
-    const target = document.createElement("button"); target.type = "button"; target.className = "nameplate-target"; root.append(target);
-    const healthTrack = span("nameplate-health", target);
-    const healthFill = span("nameplate-health-fill", healthTrack), health = span("nameplate-health-value", healthTrack);
+    const target = document.createElement("button"); target.type = "button"; target.className = "nameplate-target";
+    // The identity line leads the health bar, matching the compact nameplate
+    // convention used by the rest of the game UI.
     const heading = span("nameplate-heading", target);
-    span("nameplate-number", heading).textContent = String(index + 1);
+    const level = span("nameplate-level", heading); level.title = "Level " + threat.level; level.textContent = String(threat.level);
     span("nameplate-name", heading).textContent = threat.name;
     const status = span("nameplate-status", heading);
-    root.append(row);
+    const healthTrack = span("nameplate-health", target);
+    const healthFill = span("nameplate-health-fill", healthTrack), health = span("nameplate-health-value", healthTrack);
+    root.append(target, row);
     const track = span("nameplate-cast", root), fill = span("nameplate-cast-fill", track);
-    const castLabel = span("nameplate-cast-label", root);
     const opening = span("nameplate-opening", root); opening.hidden = true;
     const openingIcon = document.createElement("img"); openingIcon.src = publicUrl("assets/ui/icons/spells/sword-strike.png"); openingIcon.alt = "Lunge opening"; opening.append(openingIcon);
     const openingClock = span("nameplate-opening-clock", opening);
@@ -86,7 +79,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
     const effect = span("nameplate-rooted", root); effect.hidden = true; effect.title = "Rooted until you land";
     span("nameplate-effect-icon", effect).textContent = "\u2744";
     const effectClock = span("nameplate-effect-clock", effect);
-    plates.set(threat.id, { width: 0, height: 0, root, target, health, healthFill, status, fill, castLabel, current, next, later, gap, nextArrow, laterArrow, shield, opening, openingClock, effect, effectClock });
+    plates.set(threat.id, { width: 0, height: 0, root, target, health, healthFill, status, level, fill, current, next, later, gap, nextArrow, laterArrow, shield, opening, openingClock, effect, effectClock });
   });
   let nextContentTime = 0;
   let bounds = { width: 0, height: 0 };
@@ -113,6 +106,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
           plate.target.setAttribute("aria-pressed", String(threat.selected));
           plate.target.setAttribute("aria-label", "Target " + threat.name + ". " + Math.ceil(threat.health) + " of " + threat.maximumHealth + " health. " + threat.benefit);
           write(plate.health, Math.ceil(threat.health) + " (" + Math.round(100*threat.health/threat.maximumHealth) + "%)");
+          write(plate.level, String(threat.level));
           const opening = snapshot.combat.phase === "active" && (threat.phase === "recovery" || threat.currentAbility.id === "kindle") && threat.block === 0 && threat.canStrike;
           plate.opening.hidden = !opening;
           root.dataset.strikeOpening = String(opening);
@@ -138,9 +132,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
               const symbol = document.createElement("span"); symbol.className = "nameplate-pause-symbol"; symbol.textContent = "Ⅱ"; plate.current.icon.replaceChildren(symbol);
             }
             plate.current.button.dataset.state = "waiting";
-            write(plate.current.button.querySelector<HTMLElement>(".nameplate-ability-label")!, "Active");
-            write(plate.current.name, !threat.aggro ? "Watching" : recovering ? "Recover" : "Pause");
-            write(plate.current.amount, ""); write(plate.current.clock, !threat.aggro ? "—" : seconds.toFixed(1) + "s");
+            write(plate.current.clock, !threat.aggro ? "" : seconds.toFixed(1) + "s");
             const detail = !threat.aggro ? "Watching. The stored opener fires when you engage and enter range." : threat.joinsNextWindow ? "Approaching. Joins the next shared active window without resetting the fight." : recovering ? "Recovering for " + seconds.toFixed(1) + " seconds. Attacks happen during the shared active window." : "Pause before the next special: " + seconds.toFixed(1) + " seconds. Prepare your next moves.";
             write(plate.current.tooltip, detail); plate.current.button.setAttribute("aria-label", detail);
           }
@@ -149,11 +141,9 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
           plate.gap.hidden = !second || !first || second.remainingSeconds - first.remainingSeconds < .05;
           if (first) {
             renderAbility(plate.next, first.ability, threat, false, first);
-            if (first.status !== "stored") write(plate.next.clock, active ? "in " + first.remainingSeconds.toFixed(1) + "s" : first.ability.damage > 0 ? "Hit" : first.ability.id === "ember-ward" ? "2s" : "Instant");
           }
           if (second && first) {
             renderAbility(plate.later, second.ability, threat, true, second);
-            write(plate.later.clock, second.status === "stored" ? "In range" : second.ability.damage > 0 ? "Hit" : second.ability.id === "ember-ward" ? "2s" : "Instant");
             const delay = Math.max(0, second.remainingSeconds-first.remainingSeconds);
             write(plate.gap, "Ⅱ " + delay.toFixed(1) + "s ›");
             plate.gap.title = delay.toFixed(1) + " seconds after " + first.ability.name;
@@ -162,13 +152,14 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
           }
           write(plate.status, threat.disposition === "neutral" && !threat.aggro ? "\u25C7" : "\u25C6");
           plate.status.title = threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
-          write(plate.castLabel, threat.currentAbility.id === "ember-ward" ? "Ember Ward · " + threat.block + " block · " + threat.remainingSeconds.toFixed(1) + "s" : threat.phase === "preparation" ? threat.intention + " \u00B7 " + threat.remainingSeconds.toFixed(1) + "s" : threat.phase === "action" ? threat.intention + " \u00B7 Active" : threat.phase === "recovery" ? "Ⅱ Recovering \u00B7 " + threat.remainingSeconds.toFixed(1) + "s" : threat.phase === "approach" ? "Closing in" : threat.phase === "returning" ? "Returning home" : "");
           plate.fill.style.width = Math.max(0, Math.min(100, threat.remainingSeconds / Math.max(0.01, threat.phaseDuration) * 100)) + "%";
           plate.width = root.offsetWidth; plate.height = root.offsetHeight;
         }
         const { width, height } = plate;
         const x = Math.max(8, Math.min(bounds.width - width - 8, anchor.x - width / 2));
-        const y = Math.max(8, Math.min(bounds.height - height - 8, anchor.y - height - 10));
+        const y = anchor.y - height - 10;
+        const fitsViewport = y >= 4 && y + height <= bounds.height - 4;
+        root.style.visibility = fitsViewport ? "visible" : "hidden";
         root.style.transform = `translate(${x}px, ${y}px)`;
         root.dataset.tooltipBelow = String(y < 140);
         for (const ability of [plate.current, plate.next, plate.later]) ability.tooltip.style.left = `${Math.max(8 - x, Math.min(width / 2 - 120, bounds.width - 248 - x))}px`;

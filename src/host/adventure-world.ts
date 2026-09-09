@@ -188,7 +188,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let disposed = false;
   let elapsed = 0;
   let yaw = 0;
-  let pitch = 0.72;
+  let pitch = 0.48;
   let distance = 15;
   let lastAttack = initial.player.attackSequence;
   let playerProjectileTime = 0;

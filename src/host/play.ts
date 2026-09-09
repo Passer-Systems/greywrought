@@ -403,7 +403,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   ] as const) {
     const cost = COMBAT_RULES[action].cost;
     const available = snapshot.phase === "expedition" && selected?.active && selected.health > 0;
-    const full = snapshot.combat.queued.length >= 5;
+      const full = snapshot.combat.queued.length >= 3;
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]');
     if (control) {
       control.disabled = !available || full || snapshot.combat.availableStamina < cost;
@@ -415,7 +415,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
         control.append(badge);
       }
     }
-    const detail = !available ? "Select a living enemy in the forest" : full ? "Five moves already planned" : snapshot.combat.availableStamina < cost ? "Need " + cost + " free stamina" : "Queue · " + cost + " stamina";
+    const detail = !available ? "Select a living enemy in the forest" : full ? "Three moves already planned" : snapshot.combat.availableStamina < cost ? "Need " + cost + " free stamina" : "Queue · " + cost + " stamina";
     text(label, detail);
   }
   const recovery = element("player-action-bar");
@@ -637,7 +637,7 @@ listen(window, "keydown", (event) => {
     }
     return;
   }
-  if (/^Digit[1-5]$/.test(event.code) || event.code === "Backspace") {
+  if (/^Digit[1-3]$/.test(event.code) || event.code === "Backspace") {
     event.preventDefault();
     if (!event.repeat && running?.ready && !paused) {
       if (event.code === "Backspace") combatPlan.removeSelected();

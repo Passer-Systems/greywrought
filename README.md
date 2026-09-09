@@ -10,11 +10,11 @@ Search defeated enemies for salvage, then return alive to exchange it for
 supplies. Offer six carried cores in the deep grove to call a guardian whose
 relic must be looted and brought home. Kills grant no experience points.
 
-Combat follows five active seconds then five preparation seconds. You can plan
-up to five moves; each enemy commits only one announced move per window.
+Combat follows three active seconds then five preparation seconds. You can plan
+up to three moves with five stamina; each enemy commits only one announced move per window.
 Additional enemies join the next shared opening without resetting the clock.
 
-The first enemy is an animated Ember head with 72 health. It opens with a
+The first enemy is an animated Ember head with 96 health. It opens with a
 small targeted Beam, then uses Fireball, a two-second Ward, and Kindle in
 successive windows. Kindle strengthens later volleys. Painted icons below the
 nameplate show current activity and future windows, with explicit pauses.
@@ -69,9 +69,9 @@ to move forward, including while S is held. Drag either mouse button to turn
 the view, and use the wheel to zoom.
 
 Tab selects a target. Q queues Lunge, E Block, Z Disengage, X Blood Rage,
-V a free Jab, and N a free Guard. Up to five moves fit the active window.
+V a free Jab, and N a free Guard. Up to three moves fit the active window.
 QE means Lunge at 0s, Block at 1s; QE3 places Block in slot 3, at 2s.
-Numbers 1–5 place the selected pending move in slots 1–5 (0–4 seconds),
+Numbers 1–3 place the selected pending move in slots 1–3 (0–2 seconds),
 swapping with another pending move when possible. Click to select another move;
 drag to move or swap it. Backspace removes. Executed moves stay locked. G gathers frost cores and R
 calls the grove guardian. F talks to Mara or Rowan, or opens nearby corpse loot; click an

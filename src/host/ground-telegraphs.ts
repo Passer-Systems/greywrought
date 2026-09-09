@@ -23,7 +23,7 @@ function warningState(threat: ThreatView, snapshot: AdventureSnapshot) {
   const seconds = Math.max(0, untilOpening + move.offsetSeconds, threat.currentActivity?.remainingSeconds ?? 0);
   const position = style.kind === "target" ? snapshot.player.position : style.kind === "self" ? threat.position : threat.targetPosition;
   const radius = style.kind === "area" ? move.ability.range : style.kind === "target" ? 0.8 : 1.1;
-  return { style, position, radius, seconds, beat: Math.min(5, Math.floor(move.offsetSeconds) + 1), damage: move.ability.damage, ability: move.ability.id, committed: move.status === "active" };
+  return { style, position, radius, seconds, beat: Math.min(3, Math.floor(move.offsetSeconds) + 1), damage: move.ability.damage, ability: move.ability.id, committed: move.status === "active" };
 }
 
 export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElement) {

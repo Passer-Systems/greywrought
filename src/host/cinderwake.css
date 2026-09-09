@@ -1894,8 +1894,6 @@ button { cursor: pointer !important; }
 .enemy-nameplate:focus-visible { outline: none; }
 .enemy-nameplate:focus-visible .nameplate-health { outline: 2px solid white; outline-offset: 1px; }
 .nameplate-heading { display: flex; align-items: center; gap: 3px; height: 16px; white-space: nowrap; }
-.nameplate-number { color: var(--enemy-color); font-size: 10px; }
-.nameplate-number::after { content: "."; }
 .nameplate-name { overflow: hidden; text-overflow: ellipsis; flex: 1; font-size: 11px; text-align:center; }
 .nameplate-status { color: var(--enemy-color); font-size: 10px; }
 .nameplate-health { position: relative; display: block; height: 16px; background: #250b10; border: 1px solid #100d0c; box-shadow: 0 1px 2px #0009; }
@@ -1908,12 +1906,10 @@ button { cursor: pointer !important; }
 .nameplate-intents { display:flex; align-items:center; justify-content:center; gap:9px; height:60px; padding-bottom:6px; box-sizing:border-box; }
 .nameplate-queue-arrow { color:#c4ae7c; font:22px/1 Georgia; padding-top:9px; }
 .nameplate-ability { display:flex; flex-direction:column; align-items:center; padding:0; margin:0; gap:3px; border:0; background:none; color:#ffe3a4; cursor:help; font:inherit; }
-.nameplate-ability-label { font:700 9px/1 system-ui; text-transform:uppercase; letter-spacing:.06em; color:#ebd4a8; }
-.nameplate-ability-square { position:relative; display:block; box-sizing:border-box; width:36px; height:36px; border:2px ridge #c5a968; border-radius:3px; background:radial-gradient(at 35% 20%,#794b27,#251a18); box-shadow:0 1px 4px #000; }
+.nameplate-ability-square { position:relative; display:block; box-sizing:border-box; width:32px; height:32px; border:2px ridge #c5a968; border-radius:3px; background:radial-gradient(at 35% 20%,#794b27,#251a18); box-shadow:0 1px 4px #000; }
 .nameplate-ability[data-ability-id="maul"] .nameplate-ability-square { background:radial-gradient(at 35% 20%,#953d34,#2f1420); color:#ffbc98; }
 .nameplate-ability-art { position:absolute; inset:1px 3px 6px; }
 .nameplate-ability-art svg { width:100%; height:100%; filter:drop-shadow(0 1px 1px #000); }
-.nameplate-ability-damage { position:absolute; right:1px; top:0; font:bold 11px/1 system-ui; color:white; text-shadow:1px 1px 2px #000, -1px -1px 2px #000; }
 .nameplate-ability-clock { position:absolute; bottom:-1px; left:-2px; right:-2px; background:#080909c9; color:#fff1d2; font:700 9px/12px system-ui; font-variant-numeric:tabular-nums; text-align:center; }
 .nameplate-ability[data-state="warning"] .nameplate-ability-square { border-color:#ffe18e; box-shadow:0 0 7px #ffb22f90; }
 .nameplate-ability[data-state="active"] .nameplate-ability-square { border-color:#ff7564; box-shadow:0 0 8px #ff4936; }
@@ -1921,9 +1917,7 @@ button { cursor: pointer !important; }
 .nameplate-ability:hover .nameplate-ability-square, .nameplate-ability:focus-visible .nameplate-ability-square { outline:1px solid #fff2d1; outline-offset:2px; }
 .nameplate-cast { display:block; height:3px; width:100%; background:#07101580; margin-top:2px; }
 .nameplate-cast-fill { display:block; height:100%; background:#ffc974; }
-.nameplate-cast-label { display:block; height:13px; font:600 10px/13px system-ui; text-align:center; color:#ffda91; }
 .enemy-nameplate[data-phase="recovery"] .nameplate-cast-fill { background:#a4e4c8; }
-.enemy-nameplate[data-phase="recovery"] .nameplate-cast-label { color:#a4e4c8; }
 .enemy-nameplate:is([data-phase="dormant"],[data-phase="patrol"],[data-phase="returning"],[data-phase="approach"]) .nameplate-cast { visibility:hidden; }
 .nameplate-tooltip { display:none; position:absolute; bottom:calc(100% + 7px); box-sizing:border-box; width:240px; padding:10px 12px; border:1px solid #c0a776; border-radius:3px; background:#101923fa; color:#fff0d5; font:12px/1.5 system-ui,sans-serif; text-align:left; white-space:pre-line; text-shadow:none; pointer-events:none; box-shadow:0 3px 10px #0008; }
 .nameplate-tooltip::first-line { color:#ffd47d; font-weight:700; font-size:14px; }
@@ -2042,25 +2036,25 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .adventure-bottom {width:min(720px,calc(100vw - 370px));}
 .adventure-controls {text-align:center;}
 @media(max-width:850px) {.adventure-bottom {width:calc(100vw - 20px);} .adventure-actions button {width:43px;height:56px;} .action-tooltip {width:195px;} .adventure-actions button:nth-child(1) .action-tooltip,.adventure-actions button:nth-child(2) .action-tooltip {left:0;transform:none;} .adventure-actions button:nth-last-child(1) .action-tooltip,.adventure-actions button:nth-last-child(2) .action-tooltip {left:auto;right:0;transform:none;}}
-.nameplate-intents {height:74px;gap:5px;}
-.nameplate-ability {width:52px;}
+.nameplate-intents {height:39px;gap:5px;padding:3px 0 0;}
+.nameplate-ability {width:36px;}
 .nameplate-ability[hidden] {display:none;}
-.nameplate-ability-name {display:block;max-width:62px;color:#fff0cd;font:600 10px/12px system-ui;white-space:nowrap;text-shadow:0 1px 3px #000,1px 0 #000;}
-.nameplate-opening,.nameplate-rooted,.nameplate-shield {top:72px;}
-.nameplate-ability[data-ability-slot=current]:has(+ .nameplate-ability) {margin-right:4px;}
-.nameplate-intents {padding:5px 0 0;height:75px;}
-.nameplate-opening,.nameplate-rooted,.nameplate-shield {top:2px;}
-.enemy-nameplate {width:228px;padding-left:42px;padding-right:30px;}
+.nameplate-opening,.nameplate-rooted,.nameplate-shield {top:42px;}
+.enemy-nameplate {width:180px;padding:0 26px 0 26px;}
 .nameplate-target {width:180px;margin:0 auto;}
 .nameplate-intents {gap:3px;justify-content:center;}
-.nameplate-ability {width:44px;flex-shrink:0;}
+.nameplate-ability {width:32px;flex-shrink:0;}
 .nameplate-queue-arrow {padding-top:0;flex-shrink:0;font-size:18px;}
 .nameplate-queue-arrow[hidden],.nameplate-wait[hidden] {display:none;}
 .nameplate-wait {color:#d9d5bb;white-space:nowrap;font:600 10px/1 system-ui;}
 .nameplate-pause-symbol {display:grid;place-items:center;height:100%;font:700 25px/1 Georgia;color:#e6d8a0;}
 .nameplate-ability[data-ability-id=pause] .nameplate-ability-square {background:linear-gradient(#35423b,#141d1b);border-color:#959179;}
-.nameplate-opening {left:30px;}
+.nameplate-opening {left:0;}
 .nameplate-ability[data-ability-slot=current]:has(+ .nameplate-ability) {margin-right:0;}
+.nameplate-heading {height:16px;gap:5px;}
+.nameplate-level {display:grid;place-items:center;flex:0 0 16px;width:16px;height:16px;box-sizing:border-box;border:1px solid var(--enemy-color);border-radius:50%;color:#fff2c8;font:700 9px/1 system-ui;text-shadow:0 1px 2px #000;}
+.nameplate-name {font-size:12px;}
+.nameplate-cast {margin-top:1px;}
 .unit-frames {z-index:10;}
 .adventure-bottom {z-index:35;}
 .combat-plan { box-sizing:border-box; width:100%; margin:0 auto 9px; padding:10px 12px; border:1px solid #80745a; border-radius:3px; background:linear-gradient(#192422f5,#0d1516f5); box-shadow:0 2px 8px #0009,inset 0 0 0 1px #292f27; color:#ded5bb; font:12px/1.3 system-ui,sans-serif; pointer-events:auto; }
@@ -2080,7 +2074,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-clock {height:3px;background:#090e10;margin:4px 0 3px;}
 .combat-plan-clock>span {display:block;height:100%;background:#d0b563;}
 .combat-plan[data-phase=active] .combat-plan-clock>span {background:#d96a46;}
-.combat-plan-grid {display:grid;grid-template-columns:90px repeat(5,minmax(0,1fr));gap:3px;align-items:stretch;}
+.combat-plan-grid {display:grid;grid-template-columns:90px repeat(3,minmax(0,1fr));gap:3px;align-items:stretch;}
 .combat-plan-axis,.combat-plan-tick {font-size:10px;color:#aeb5a3;text-align:center;}
 .combat-plan-row-label {display:flex;align-items:center;overflow:hidden;font-size:10px;color:#d9c991;}
 .combat-plan-cell {position:relative;min-height:32px;display:flex;align-items:center;justify-content:center;gap:2px;background:#111b1c;border-left:1px solid #56605755;}
@@ -2105,7 +2099,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-feedback {min-height:16px;margin:3px 0 0;color:#ead6ac;text-align:center;font-size:12px;white-space:normal;}
 .stamina-pip[data-reserved=true] {background:#887844;box-shadow:inset 0 0 0 1px #e7cf7c;}
 body[data-game-combat-plan=true] .unit-frames {top:auto;bottom:calc(var(--combat-hud-height,310px) + 22px);}
-@media(max-width:850px) {.combat-plan {padding:5px;max-width:490px;} .combat-plan-grid {grid-template-columns:65px repeat(5,minmax(0,1fr));} .combat-plan-help {font-size:9px;} }
+@media(max-width:850px) {.combat-plan {padding:5px;max-width:490px;} .combat-plan-grid {grid-template-columns:65px repeat(3,minmax(0,1fr));} .combat-plan-help {font-size:9px;} }
 .enemy-nameplate:has(.nameplate-ability:hover),.enemy-nameplate:has(.nameplate-ability:focus-visible) {z-index:40;}
 
 /* The expedition objective stays visible while traveling and fighting. */

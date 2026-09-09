@@ -216,8 +216,8 @@ Current upstream references checked in September 2026:
 ## Shared combat beat
 
 Target a creature and queue your response before entering its engagement range.
-Combat begins with five active seconds, followed by five preparation seconds.
-Both sides use the same clock. The player may use up to five moves, but each
+Combat begins with three active seconds, followed by five preparation seconds.
+Both sides use the same clock. The player may use up to three moves, but each
 enemy commits only one announced ability per window. There are no separate
 enemy auto-attacks. Additional enemies approach and show their plan
 immediately, then join the next active opening without resetting that clock.
@@ -232,26 +232,30 @@ to the opening beat. Further moves default to the earliest legal time, with
 at least one second between actions. Blood Rage commits two seconds.
 Activation and effect duration are separate: Block raises a two-second shield
 on its chosen beat and permits attacking on the next beat without dropping it. At most
-five moves fit in an active window; stamina and longer commitments constrain
-that further. Queued stamina is reserved, then spent when a move executes.
+three moves fit in an active window; stamina and longer commitments constrain
+that further. The active window is three seconds, with player beats at
+0s, 1s, and 2s, followed by the five-second preparation phase. Queued stamina
+is reserved, then spent when a move executes.
 
-Press 1–5 to place the selected pending move in slots 1–5 (0–4 seconds),
+Press 1–3 to place the selected pending move in slots 1–3 (0–2 seconds),
 swapping with another pending move there when their recovery times allow it.
 QE means Lunge at 0s and Block at 1s; QE3 means Block in slot 3, at 2s.
 The last queued move stays selected indefinitely,
 so numbers also allow last-second adjustments during the active window until
 it fires. Clicking another pending icon selects it. Drag to an empty beat to
-move it, or onto a pending move to swap them; Shift+1–5 does the same by
-column. Pointer buttons use the same slot numbers 1–5. Backspace removes
+move it, or onto a pending move to swap them; Shift+1–3 does the same by
+column. Pointer buttons use the same slot numbers 1–3. Backspace removes
 the selected pending move. Already-used moves cannot be moved or swapped.
 Past times, recovery conflicts, and moves outside the window are rejected
 without changing the existing plan. Movement and jump remain immediate.
 
-A compact five-column timeline aligns your plan with the selected enemy's
+A compact three-column timeline aligns your plan with the selected enemy's
 announced moves. It shows the shared phase, remaining time, selected move,
 and reserved stamina. Target changes cancel stale moves. Defeat, return to
 town, and losing the encounter clear the plan. Saved journeys retain the clock
-and pending plan. Same-beat player defense resolves before enemy damage.
+and pending plan. Older five-slot journeys keep character and world progress;
+unused slots four and five are removed, and an ongoing encounter resumes with
+a fresh five-second preparation period. Same-beat player defense resolves before enemy damage.
 Attack range and paths are checked when the move actually fires.
 
 ## First encounter: Ember head
@@ -259,7 +263,7 @@ Attack range and paths are checked when the move actually fires.
 The first clearing holds an animated floating skull with 96 health. Its sole
 opening move is Ember Beam (8 targeted damage). Queue Block before pulling to
 absorb it. Subsequent windows cycle through one Fireball volley, one Ember Ward
-(6 block for 2 seconds), and one Kindle power-up. After its stored opener, each window chooses one of five beats with equal probability.
+(6 block for 2 seconds), and one Kindle power-up. After its stored opener, each window chooses one of three beats with equal probability.
 The preceding preparation announces the chosen beat and it stays fixed.
 
 During Ward, power up or heal, then attack after the shield expires. During
@@ -273,9 +277,13 @@ Kindle adds a projectile to later volleys. Defeating the head or leaving its
 territory extinguishes remaining fireballs. Projectiles and enemy block survive
 reopening the encounter.
 
-The nameplate shows current activity and two actual upcoming moves, including
-explicit pause durations across future windows. Actual shields
-and roots appear beside the health bar. The lorebook describes the same moves.
+The whole nameplate stays above the creature: level, name and disposition above
+health, then a compact icon sequence for current activity and two upcoming moves.
+Pause durations remain visible; ability names, damage and engagement conditions
+are explained on hover or focus. Avoid redundant labels and unexplained numbers
+on the icons. Level marks encounter progression (head 1, bee/hound 2, warder 3,
+guardian 4); it does not multiply damage. Actual shields and roots appear beside
+the plate. The lorebook describes the same moves.
 
 ## Player stamina and Blood Rage
 
@@ -333,7 +341,7 @@ L toggles the lorebook. Every current monster has a page with its portrait,
 disposition, health, engagement behavior, opener, all abilities,
 move sequences and useful responses. These entries consume the same ability
 and sequence definitions as combat. The head's ability order is fixed, but each enemy independently chooses
-its next beat with a 20% chance for each of the five slots. Choices are preserved
+its next beat with a one-third chance for each of the three player slots. Choices are preserved
 when reopening a journey. The wolf's left/right approach hops each have a 50% chance. Explain actual randomness rather than inventing it.
 Opening the book does not pause movement or combat. Escape and its flush
 header close button both close it.
@@ -401,10 +409,10 @@ they do not pretend to be dodgeable splash areas. Shield and power-up cues sit
 under their caster and identify an enemy buff. Existing damage attacks do not
 acquire poison-over-time or freeze effects merely from their warning color.
 
-Each subsequent enemy window independently selects one of five beats.
+Each subsequent enemy window independently selects one of three player beats.
 Head attacks resolve on that beat; physical attacks retain their windup, landing
 0.35 seconds later (ordinary enemies) or 0.65 seconds later (Maul).
-The fifth slot remains valid, all impacts finish before preparation, and
+All three player slots remain valid, all impacts finish before preparation, and
 previews reflect the exact saved choice rather than rerolling during a countdown.
 
 ## Patrols and encounter pressure

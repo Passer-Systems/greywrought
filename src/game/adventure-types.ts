@@ -62,6 +62,7 @@ export interface ThreatForecastEntry {
 export interface ThreatView {
   readonly id: string;
   readonly name: string;
+  readonly level: number;
   readonly position: Position;
   readonly homePosition: Position;
   readonly disposition: "hostile" | "neutral";
