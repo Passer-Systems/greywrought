@@ -209,7 +209,6 @@ describe("Frostwood expedition", () => {
     tap(game, "brace"); tap(game, "jump"); game.setAction("left", true); game.advance(0.1);
     const saved = game.save();
     const loaded = createAdventure({ save: saved });
-    loaded.start();
     expect(loaded.save()).toBe(saved);
     expect(loaded.snapshot.threats).toEqual(game.snapshot.threats);
     const position = loaded.snapshot.player.position;

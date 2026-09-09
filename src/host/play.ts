@@ -296,7 +296,11 @@ function bindWorld(app: RunningAdventure): void {
     app.game.setMouseForward((buttons & 3) === 3);
   }, app.unbind);
   listen(canvas, "pointermove", (event) => {
-    if (!(event instanceof PointerEvent) || paused || !app.ready || buttons === 0) return;
+    if (!(event instanceof PointerEvent) || paused || !app.ready) return;
+    // A mouse chord changes buttons through pointermove, without another pointerdown.
+    buttons = event.buttons;
+    app.game.setMouseForward((buttons & 3) === 3);
+    if (buttons === 0) return;
     const dx = event.clientX - lastX; const dy = event.clientY - lastY;
     lastX = event.clientX; lastY = event.clientY;
     dragDistance += Math.abs(dx) + Math.abs(dy);
@@ -336,6 +340,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     bindWorld(app);
     await world.ready;
     if (!alive || running !== app) { world.dispose(); return; }
+    world.render(game.snapshot, 0);
     app.ready = true;
     const forward = world.forward(); game.setCameraForward(forward.x, forward.z);
     makeEnemyInterface(game.snapshot);

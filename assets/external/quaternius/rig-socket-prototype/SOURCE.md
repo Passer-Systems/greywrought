@@ -64,5 +64,5 @@ No mesh, rig, material, or texture bytes were otherwise changed.
 - License: CC0 1.0 Universal; exact bundled notice is
   `animations/LICENSE.txt`
 
-The `_RM` root-motion variant is intentionally absent. Clause remains the
-authority for displacement; these clips supply presentation poses only.
+The `_RM` root-motion variant is intentionally absent. Gameplay owns
+displacement; these clips supply presentation poses only.

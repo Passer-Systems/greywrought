@@ -72,7 +72,9 @@ export async function openBrowser(label: string) {
         if (await evaluate<boolean>(expression)) return;
         await Bun.sleep(75);
       }
-      throw new Error(`Browser condition timed out: ${expression}`);
+      await shot("timeout");
+      const state = await evaluate('({ state: {...document.body.dataset}, feedback: document.getElementById("entry-roster-feedback")?.textContent })');
+      throw new Error(`Browser condition timed out: ${expression}; ${JSON.stringify(state)}`);
     }
     async function key(code: string, down: boolean) {
       await call("Input.dispatchKeyEvent", {
@@ -86,7 +88,7 @@ export async function openBrowser(label: string) {
       if (reply.result?.data) await Bun.write(`${output}/${name}.png`, Buffer.from(reply.result.data, "base64"));
     }
     async function enter() {
-      await waitFor('Boolean(document.getElementById("entry-account-form"))');
+      await waitFor('["account", "creator", "roster"].includes(document.body.dataset.entryRoute)');
       await evaluate(`(() => {
         if(document.body.dataset.entryRoute==='account') { document.getElementById('entry-display-name').value='Playtest'; document.getElementById('entry-account-form').requestSubmit(); }
         if(document.body.dataset.entryRoute==='creator') { document.getElementById('entry-character-name').value='Wayfarer'; document.getElementById('entry-character-form').requestSubmit(); }
@@ -94,6 +96,7 @@ export async function openBrowser(label: string) {
       })()`);
       await waitFor('document.body.dataset.entryRoute === "world" && document.body.dataset.gamePhase === "town"');
       await waitFor('document.body.dataset.rigState === "ready"');
+      await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     }
     const read = () => evaluate<Record<string, string>>('({...document.body.dataset})');
     await call("Runtime.enable");

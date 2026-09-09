@@ -1591,9 +1591,7 @@ export function createCinderwakePresentation(
 ): CinderwakePresentation {
   const scene = new Scene();
   const camera = new PerspectiveCamera(43, 1, 0.1, 90);
-  // Keep the presentation path responsive on integrated/software GPUs. The
-  // semantic session runs independently in the resident worker; rendering
-  // must never consume the browser's frame budget with multisample overhead.
+  // Avoid multisample overhead on integrated and software GPUs.
   const renderer = new WebGLRenderer({
     antialias: false,
     alpha: false,

@@ -76,8 +76,8 @@ function label(text: string, color = "#fff1ce", scale = 3): Sprite {
   ctx.fillText(text, 256, 48, 495);
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
-  const sprite = new Sprite(new SpriteMaterial({ map: texture, depthTest: false, transparent: true }));
-  sprite.scale.set(scale, scale * 96 / 512, 1);
+  const sprite = new Sprite(new SpriteMaterial({ map: texture, depthTest: false, transparent: true, sizeAttenuation: false }));
+  sprite.scale.set(scale * 0.055, scale * 0.055 * 96 / 512, 1);
   sprite.renderOrder = 5;
   return sprite;
 }
@@ -136,7 +136,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   }
   terrain.add(thicket);
   const townSign = label("HEARTHSTEAD · SAFE HAVEN", "#ffe1a2", 5.2);
-  townSign.position.set(0, 3.5, -12);
+  townSign.position.set(-6, 3.5, -5);
   terrain.add(townSign);
   for (const [x, z] of [[-7, -8], [7, -12], [-7, -14]] as const) {
     addBox(x, 1.2, z, 3.5, 2.4, 3.6, 0xd2bd8b);

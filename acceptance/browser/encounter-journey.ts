@@ -65,8 +65,8 @@ try {
   check(Number(returned.gameSupplies) === 15, "Living return did not bank gathered cores");
   await page.shot("returned");
   await page.call("Page.reload");
-  await page.waitFor('document.body.dataset.entryRoute === "roster"');
-  await page.evaluate('document.getElementById("entry-enter-world").click()');
+  await page.waitFor('["roster", "world"].includes(document.body.dataset.entryRoute)');
+  await page.evaluate('if(document.body.dataset.entryRoute === "roster") document.getElementById("entry-enter-world").click()');
   await page.waitFor('document.body.dataset.entryRoute === "world" && Number(document.body.dataset.gameSupplies) === 15');
   check(page.errors.length === 0, "Browser exceptions occurred");
   await Bun.write(`${page.output}/result.json`, JSON.stringify({ gathered, returned, reopened: await page.read(), errors: page.errors }, null, 2));

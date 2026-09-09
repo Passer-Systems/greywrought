@@ -35,8 +35,8 @@ Assets and their attribution live in `greywrought:assets/`.
 ## Controls
 
 W/S move forward and backward; A/D strafe. Space jumps. Hold both mouse buttons
-to move forward, including while S is held. Left-drag looks around, right-drag
-turns with the camera, and the wheel zooms.
+to move forward, including while S is held. Drag either mouse button to turn
+the view, and use the wheel to zoom.
 
 Tab selects a target. 1 strikes; B or E braces. G gathers frost cores and R
 calls the grove guardian. F talks to Mara; H drinks a potion. Return through the
