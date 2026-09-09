@@ -24,6 +24,7 @@ use measurement::{Smoke, smoke};
 struct InputQueue {
     commands: Vec<Command>,
     save: bool,
+    new_journey: bool,
 }
 #[derive(Resource)]
 struct Journey {
@@ -36,9 +37,14 @@ struct Journey {
 struct Displayed {
     snapshot: Option<Snapshot>,
     status: String,
+    alert: bool,
 }
 #[derive(Component)]
 struct Hud;
+#[derive(Component)]
+struct LostPanel;
+#[derive(Component)]
+struct NewJourney;
 #[derive(Component)]
 struct Actor {
     id: String,
@@ -89,12 +95,13 @@ fn main() -> greywrought::Result<()> {
                 Displayed {
                     snapshot: Some(snapshot),
                     status,
+                    alert: false,
                 },
             )
         }
         Err(error) => {
             eprintln!("cannot open saved journey {}: {error}", save.display());
-            (None, None, Displayed { snapshot: None, status: "Your journey could not be opened. Close this window and check the game log; your save has been kept.".into() })
+            (None, None, Displayed { snapshot: None, alert: true, status: "Your journey could not be opened. Close this window and check the game log; your save has been kept.".into() })
         }
     };
     let mut virtual_time = Time::<Virtual>::default();
@@ -181,6 +188,15 @@ fn setup(
     forest::setup(&mut commands, &mut meshes, &mut materials, &assets);
     eprintln!("native game ready");
     commands.spawn((
+        Node { position_type: PositionType::Absolute, left: percent(50), top: percent(28), margin: UiRect::left(px(-240)), width: px(480), padding: UiRect::all(px(24)), flex_direction: FlexDirection::Column, row_gap: px(20), ..default() },
+        BackgroundColor(Color::srgb(0.86, 0.78, 0.60)), GlobalZIndex(80), Visibility::Hidden, LostPanel,
+        Interaction::None, forest::hud::Surface,
+    )).with_children(|p| {
+        p.spawn(forest::label("This journey has ended. Your fallen wayfarer and their final possessions will be kept when you begin again.", 22.));
+        p.spawn((Button, NewJourney, Node { padding: UiRect::all(px(12)), ..default() }, BackgroundColor(Color::srgb(0.67, 0.56, 0.36))))
+            .with_children(|p| { p.spawn(forest::label("Begin a new journey · N", 22.)); });
+    });
+    commands.spawn((
         Text::new(""),
         TextFont {
             font_size: FontSize::Px(18.),
@@ -210,6 +226,27 @@ fn advance(
     if journey.stopped || journey.game.is_none() {
         input.commands.clear();
         return;
+    }
+    if std::mem::take(&mut input.new_journey) {
+        let previous = journey.game.as_ref().expect("checked above");
+        if previous.phase == "Lost" {
+            match persistence::start_new_journey(previous, &journey.save) {
+                Ok((fresh, archive)) => {
+                    eprintln!("ended journey preserved: {}", archive.display());
+                    display.snapshot = Some(fresh.snapshot());
+                    display.status =
+                        "A new journey begins. Your previous wayfarer has been kept.".into();
+                    display.alert = false;
+                    journey.game = Some(fresh);
+                    input.commands.clear();
+                }
+                Err(error) => {
+                    eprintln!("cannot begin new journey: {error}");
+                    display.status = "A new journey could not be saved. Your previous wayfarer is still here; check the game log, then press N to try again.".into();
+                    display.alert = true;
+                }
+            }
+        }
     }
     let started = Instant::now();
     let game = journey.game.as_mut().expect("checked above");
@@ -255,16 +292,31 @@ fn save_journey(journey: &Journey, display: &mut Displayed) -> bool {
     match persistence::save(game, &journey.save) {
         Ok(()) => {
             display.status = "Journey saved".into();
+            display.alert = false;
             true
         }
         Err(error) => {
             eprintln!("cannot save journey {}: {error}", journey.save.display());
+            display.alert = true;
             display.status = "Your journey could not be saved. Keep this window open, check the game log, then try F5 again.".into();
             false
         }
     }
 }
-fn controls(keys: Res<ButtonInput<KeyCode>>, mut input: ResMut<InputQueue>) {
+fn controls(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut input: ResMut<InputQueue>,
+    display: Res<Displayed>,
+    buttons: Query<&Interaction, (With<NewJourney>, Changed<Interaction>)>,
+) {
+    if display
+        .snapshot
+        .as_ref()
+        .is_some_and(|s| s.forest.equipment.phase == "Lost")
+        && (keys.just_pressed(KeyCode::KeyN) || buttons.iter().any(|i| *i == Interaction::Pressed))
+    {
+        input.new_journey = true;
+    }
     if keys.just_pressed(KeyCode::F5) {
         input.save = true;
     }
@@ -285,10 +337,23 @@ fn hud(
     display: Res<Displayed>,
     journey: Res<Journey>,
     mut text: Query<(&mut Text, &mut Visibility), With<Hud>>,
+    mut lost: Query<&mut Visibility, (With<LostPanel>, Without<Hud>)>,
 ) {
+    for mut visible in &mut lost {
+        *visible = if display
+            .snapshot
+            .as_ref()
+            .is_some_and(|s| s.forest.equipment.phase == "Lost")
+            && !journey.stopped
+        {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
     for (mut text, mut visible) in &mut text {
         **text = display.status.clone();
-        *visible = if display.snapshot.is_none() || journey.stopped {
+        *visible = if display.snapshot.is_none() || journey.stopped || display.alert {
             Visibility::Visible
         } else {
             Visibility::Hidden

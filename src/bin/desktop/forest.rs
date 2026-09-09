@@ -44,7 +44,7 @@ pub(super) struct Outfit {
 fn point(position: [f64; 2]) -> Vec3 {
     Vec3::new(position[0] as f32, 0., position[1] as f32)
 }
-fn label(text: impl Into<String>, size: f32) -> (Text, TextFont, TextColor) {
+pub(super) fn label(text: impl Into<String>, size: f32) -> (Text, TextFont, TextColor) {
     (
         Text::new(text),
         TextFont {
