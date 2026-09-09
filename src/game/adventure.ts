@@ -12,10 +12,20 @@ export const COMBAT_RULES = {
   disengage: { damage: 6, range: 3.5, distance: 5, duration: 0.8, cooldown: 6 },
   brace: { block: 5, duration: 5, cooldown: 7 },
   enemy: { preparation: 5, action: 0.65, recovery: 2 },
+  wolf: { hopDuration: 0.5, hopDistance: 2.8, hopHeight: 0.6, circleRange: 5.5, circleRadius: 4.5, circleSpeed: 1.5, lungeDistance: 8, lungeHeight: 0.9, biteInterval: 4, biteSpeed: 7 },
 } as const;
 interface Maneuver {
   kind: "lunge" | "disengage"; targetId: string; remainingSeconds: number;
   start: Vector; destination: Vector; facing: Vector;
+}
+interface WolfMotion {
+  kind: "hop" | "lunge"; start: Vector; destination: Vector;
+  remainingSeconds: number; duration: number;
+}
+interface WolfState {
+  rng: number; facing: Vector; motion: WolfMotion | null;
+  nextAttackSeconds: number; circling: boolean; attackOrigin: Vector;
+  autoAttackSeconds: number; autoAttackSequence: number; contacted: boolean; pursuingBite: boolean;
 }
 interface ThreatDefinition {
   id: string; name: string; position: Position; health: number;
@@ -27,6 +37,7 @@ interface ThreatState {
   remainingSeconds: number; actionSequence: number; lastActionHit: boolean; damage: number;
   position: Vector; targetPosition: Vector; aggro: boolean; lootClaimed: boolean;
   patrolIndex: number; moving: boolean; abilityIndex: number;
+  wolf: WolfState | null;
 }
 interface State {
   phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number;
@@ -79,11 +90,15 @@ const definition = (id: string): ThreatDefinition => {
   if (!found) throw new Error(`Unknown threat: ${id}`);
   return found;
 };
+const newWolf = (): WolfState => ({ rng: 0x6d2b79f5, facing: point(0, 1), motion: null,
+  nextAttackSeconds: COMBAT_RULES.enemy.preparation, circling: false, attackOrigin: point(-3, 10),
+  autoAttackSeconds: COMBAT_RULES.wolf.biteInterval, autoAttackSequence: 0, contacted: false, pursuingBite: false });
 const newThreats = (): ThreatState[] => DEFINITIONS.map(t => ({
   id: t.id, health: t.health, active: t.id !== "ritual-guardian", phase: t.patrol ? "patrol" : "dormant",
-  remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: t.damage,
+  remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: t.id === "scout" ? 9 : t.damage,
   position: { ...t.position }, targetPosition: { ...t.position }, aggro: false,
   lootClaimed: false, patrolIndex: 1, moving: false, abilityIndex: 0,
+  wolf: t.id === "scout" ? newWolf() : null,
 }));
 function initialState(archetype: CharacterArchetype): State {
   return {
@@ -135,6 +150,12 @@ class Adventure implements AdventureGame {
         return {
           ...t, name: d.name, position: { ...t.position }, homePosition: { ...d.position },
           disposition: d.disposition, moving: s.phase !== "lost" && t.moving, maximumHealth: d.health,
+          movementMode: this.movementMode(t), motionProgress: t.wolf?.motion ? 1 - t.wolf.motion.remainingSeconds / t.wolf.motion.duration : 0,
+          facing: { ...(t.wolf?.facing ?? this.direction(t.position, t.aggro ? s.position : t.targetPosition)) },
+          nextAttackSeconds: t.wolf?.nextAttackSeconds ?? t.remainingSeconds,
+          attackOrigin: { ...(t.wolf && t.phase === "action" && t.abilityIndex === 1 ? t.wolf.attackOrigin : t.position), y: 0 },
+          autoAttack: t.wolf ? { id: "bite", name: "Bite", description: "Bites for 4 damage within 2 metres. Ready again after 4 seconds, then chases to bite. Waits out of reach during Maul or recovery. Block absorbs either attack.", damage: 4, range: 2, noticeSeconds: 0 } : null,
+          autoAttackSeconds: t.wolf?.autoAttackSeconds ?? 0, autoAttackSequence: t.wolf?.autoAttackSequence ?? 0,
           rootedSeconds: this.rootedSeconds(t), canStrike: this.canUseAttack(t, "strike"), canDisengage: this.canUseAttack(t, "disengage"),
           selected: t.id === s.selectedThreat, phaseDuration: this.phaseDuration(t),
           preparation: d.preparation, currentAbility: this.ability(t), nextAbility: this.ability(t, true),
@@ -157,7 +178,7 @@ class Adventure implements AdventureGame {
     };
   }
 
-  save(): string { return JSON.stringify({ version: 4, state: this.state }); }
+  save(): string { return JSON.stringify({ version: 5, state: this.state }); }
   private report(text: string, channel: AdventureLogEntry["channel"] = "chat"): void {
     this.state.report = text;
     this.appendLog(text, channel);
@@ -285,12 +306,19 @@ class Adventure implements AdventureGame {
   private intention(t: ThreatState): string {
     return this.ability(t).name;
   }
+  private direction(from: Position, to: Position): Vector {
+    const length = distance(from, to);
+    return length > EPSILON ? point((to.x - from.x) / length, (to.z - from.z) / length) : point(0, 1);
+  }
+  private movementMode(t: ThreatState): ThreatView["movementMode"] {
+    if (t.health === 0 || this.state.phase === "lost") return "idle";
+    if (t.wolf?.motion) return t.wolf.motion.kind;
+    if (t.wolf?.pursuingBite && t.moving) return "bite";
+    return t.moving ? t.wolf?.circling ? "circle" : "walk" : "idle";
+  }
   private ability(t: ThreatState, next = false): ThreatAbilityView {
     if (t.id === "scout") {
-      const maul = next ? t.abilityIndex === 0 : t.abilityIndex === 1;
-      return maul
-        ? { id: "maul", name: "Lunging Maul", description: "Pursues you for 5 seconds, then commits to the marked ground. Leap clear before it lands.", damage: 9, range: 3, noticeSeconds: 5 }
-        : { id: "bite", name: "Bite", description: "Bites immediately within 2 metres. Follows with Lunging Maul.", damage: 4, range: 2, noticeSeconds: 0 };
+      return { id: "maul", name: "Lunging Maul", description: "Leaps at your position after 5 seconds. Dodge the landing, then punish its 2-second recovery. The next 5 seconds start when it lands. Bite continues independently.", damage: 9, range: 3, noticeSeconds: 5 };
     }
     const d = definition(t.id);
     return { id: t.id, name: d.intention, description: `${d.preparation}. Strikes the marked ground after 3 seconds.`, damage: t.damage, range: d.reach, noticeSeconds: 3 };
@@ -333,10 +361,12 @@ class Adventure implements AdventureGame {
     const s = this.state, dealt = Math.min(damage, t.health);
     t.health -= dealt;
     if (t.health > 0 && !t.aggro) { t.aggro = true; this.prepareOrApproach(t); }
+    if (t.wolf?.motion && this.rootedSeconds(t) > EPSILON) this.groundWolfMotion(t);
     s.attackSequence += 1; s.presence += 1;
     this.report(`You ${verb} ${definition(t.id).name} for ${dealt} damage.`, "combat");
     if (t.health === 0) {
       t.phase = "cleared"; t.remainingSeconds = 0; t.lastActionHit = false; t.aggro = false; t.moving = false;
+      if (t.wolf) { t.wolf.motion = null; t.wolf.circling = false; t.position.y = 0; }
       this.report(`${definition(t.id).name} dies. ${definition(t.id).benefit}`, "combat");
       if (t.id === "ritual-guardian") {
         this.report("The guardian falls. Search its body for the frost relic, then carry it home.");
@@ -485,6 +515,7 @@ class Adventure implements AdventureGame {
     }
   }
   private prepareOrApproach(t: ThreatState): boolean {
+    if (t.wolf) { this.engageWolf(t); return true; }
     const d = definition(t.id);
     if (t.id === "scout") t.damage = this.ability(t).damage;
     if (d.speed === 0 || distance(this.state.position, t.position) <= this.ability(t).range + EPSILON) {
@@ -496,6 +527,12 @@ class Adventure implements AdventureGame {
   private releaseThreat(t: ThreatState): void {
     t.aggro = false; t.remainingSeconds = 0; t.lastActionHit = false; t.moving = false; t.abilityIndex = 0;
     t.damage = definition(t.id).damage;
+    if (t.wolf) {
+      t.wolf.motion = null; t.wolf.circling = false; t.wolf.contacted = false;
+      t.wolf.autoAttackSeconds = COMBAT_RULES.wolf.biteInterval; t.wolf.pursuingBite = false;
+      t.wolf.nextAttackSeconds = COMBAT_RULES.enemy.preparation; t.position.y = 0;
+      t.damage = 9;
+    }
     const d = definition(t.id);
     t.phase = distance(t.position, d.position) > EPSILON ? "returning" : d.patrol ? "patrol" : "dormant";
   }
@@ -519,8 +556,7 @@ class Adventure implements AdventureGame {
     if (gap > EPSILON && d.speed > 0) this.moveThreat(t, this.state.position, Math.min(dt, gap / d.speed));
     t.targetPosition = { ...t.position };
   }
-  private moveThreat(t: ThreatState, destination: Position, dt: number): void {
-    const speed = definition(t.id).speed;
+  private moveThreat(t: ThreatState, destination: Position, dt: number, speed = definition(t.id).speed): void {
     if (speed === 0 || this.rootedSeconds(t) > EPSILON) return;
     let next = destination;
     if (!this.clearPath(t.position, destination)) {
@@ -545,6 +581,7 @@ class Adventure implements AdventureGame {
     t.position.x += (next.x - t.position.x) * amount;
     t.position.z += (next.z - t.position.z) * amount;
     t.moving = true;
+    if (t.wolf) t.wolf.facing = this.direction(t.position, next);
   }
   private advanceThreat(t: ThreatState, dt: number): void {
     if (!t.active || t.health <= 0) return;
@@ -560,6 +597,7 @@ class Adventure implements AdventureGame {
     if (this.state.phase !== "expedition" || this.state.position.z <= 2 || distance(this.state.position, d.position) > d.leash || distance(t.position, d.position) > d.leash) {
       this.releaseThreat(t); return;
     }
+    if (t.wolf) { this.advanceWolf(t, dt); return; }
     if (t.phase === "approach") {
       this.pursue(t, dt);
       if (distance(this.state.position, t.position) <= this.ability(t).range + EPSILON) this.beginPreparation(t);
@@ -583,6 +621,141 @@ class Adventure implements AdventureGame {
       t.abilityIndex = 0;
       if (this.prepareOrApproach(t)) t.remainingSeconds -= overrun;
     }
+  }
+  private engageWolf(t: ThreatState): void {
+    const w = t.wolf;
+    if (!w) return;
+    w.nextAttackSeconds = COMBAT_RULES.enemy.preparation; w.contacted = false; w.autoAttackSeconds = COMBAT_RULES.wolf.biteInterval;
+    w.facing = this.direction(t.position, this.state.position); w.circling = false;
+    w.attackOrigin = { ...t.position };
+    this.warnWolf(t);
+    if (distance(t.position, this.state.position) <= 2 + EPSILON) this.bite(t);
+  }
+  private warnWolf(t: ThreatState): void {
+    if (!t.wolf) return;
+    t.phase = "preparation"; t.abilityIndex = 1; t.damage = 9; t.lastActionHit = false;
+    t.remainingSeconds = t.wolf.nextAttackSeconds;
+    t.targetPosition = this.wolfEndpoint(t);
+  }
+  private bite(t: ThreatState): void {
+    const w = t.wolf;
+    if (!w) return;
+    w.contacted = true; w.autoAttackSeconds = COMBAT_RULES.wolf.biteInterval;
+    w.autoAttackSequence += 1;
+    this.hurt(4, `${definition(t.id).name} — Bite`);
+  }
+  private reachableEndpoint(from: Position, to: Position): Vector {
+    const destination = point(Math.max(-12, Math.min(12, to.x)), Math.max(-14, Math.min(45, to.z)));
+    const steps = Math.max(1, Math.ceil(distance(from, destination) / 0.05));
+    let reachable = point(from.x, from.z);
+    for (let step = 1; step <= steps; step++) {
+      const next = point(from.x + (destination.x - from.x) * step / steps, from.z + (destination.z - from.z) * step / steps);
+      if (this.blocked(next.x, next.z)) break;
+      reachable = next;
+    }
+    return reachable;
+  }
+  private wolfEndpoint(t: ThreatState): Vector {
+    if (this.rootedSeconds(t) > EPSILON) return point(t.position.x, t.position.z);
+    const facing = this.direction(t.position, this.state.position);
+    const length = Math.min(distance(t.position, this.state.position), COMBAT_RULES.wolf.lungeDistance);
+    return this.reachableEndpoint(t.position, point(t.position.x + facing.x * length, t.position.z + facing.z * length));
+  }
+  private launchMaul(t: ThreatState): void {
+    const w = t.wolf;
+    if (!w) return;
+    t.position.y = 0;
+    w.facing = this.direction(t.position, this.state.position); w.circling = false;
+    w.attackOrigin = { ...t.position };
+    t.targetPosition = this.wolfEndpoint(t);
+    w.motion = { kind: "lunge", start: { ...t.position }, destination: { ...t.targetPosition },
+      remainingSeconds: COMBAT_RULES.enemy.action, duration: COMBAT_RULES.enemy.action };
+    t.phase = "action"; t.abilityIndex = 1; t.damage = 9; t.lastActionHit = false;
+    t.remainingSeconds = COMBAT_RULES.enemy.action;
+  }
+  private groundWolfMotion(t: ThreatState): void {
+    const motion = t.wolf?.motion;
+    if (!motion) return;
+    motion.start = point(t.position.x, t.position.z); motion.destination = { ...motion.start };
+    if (motion.kind === "lunge") t.targetPosition = { ...motion.destination };
+  }
+  private moveWolfMotion(t: ThreatState, dt: number): void {
+    const w = t.wolf, motion = w?.motion;
+    if (!w || !motion) return;
+    const old = { ...t.position };
+    motion.remainingSeconds = Math.max(0, motion.remainingSeconds - dt);
+    const progress = 1 - motion.remainingSeconds / motion.duration;
+    t.position.x = motion.start.x + (motion.destination.x - motion.start.x) * progress;
+    t.position.z = motion.start.z + (motion.destination.z - motion.start.z) * progress;
+    const height = motion.kind === "hop" ? COMBAT_RULES.wolf.hopHeight : COMBAT_RULES.wolf.lungeHeight;
+    t.position.y = 4 * height * progress * (1 - progress);
+    t.moving = Math.hypot(t.position.x - old.x, t.position.y - old.y, t.position.z - old.z) > EPSILON;
+    if (motion.kind === "hop") w.facing = this.direction(t.position, this.state.position);
+    if (motion.remainingSeconds > EPSILON) return;
+    t.position.y = 0; w.motion = null;
+  }
+  private positionWolf(t: ThreatState, dt: number): void {
+    const w = t.wolf;
+    if (!w) return;
+    w.facing = this.direction(t.position, this.state.position); w.circling = false;
+    if (w.motion) { this.moveWolfMotion(t, dt); return; }
+    if (this.rootedSeconds(t) > EPSILON) return;
+    const gap = distance(t.position, this.state.position);
+    if (gap > COMBAT_RULES.wolf.circleRange) {
+      w.rng = (Math.imul(w.rng, 1664525) + 1013904223) >>> 0;
+      const side = w.rng >= 0x80000000 ? 1 : -1, facing = w.facing;
+      const length = COMBAT_RULES.wolf.hopDistance / Math.SQRT2;
+      const destination = this.reachableEndpoint(t.position, point(
+        t.position.x + (facing.x - side * facing.z) * length,
+        t.position.z + (facing.z + side * facing.x) * length));
+      w.motion = { kind: "hop", start: point(t.position.x, t.position.z), destination,
+        remainingSeconds: COMBAT_RULES.wolf.hopDuration, duration: COMBAT_RULES.wolf.hopDuration };
+      this.moveWolfMotion(t, dt);
+    } else {
+      const radial = Math.max(-1, Math.min(1, gap - COMBAT_RULES.wolf.circleRadius));
+      const tangentX = -w.facing.z, tangentZ = w.facing.x;
+      const norm = Math.hypot(tangentX + w.facing.x * radial, tangentZ + w.facing.z * radial);
+      const amount = COMBAT_RULES.wolf.circleSpeed * dt / norm;
+      const next = this.reachableEndpoint(t.position, point(t.position.x + (tangentX + w.facing.x * radial) * amount,
+        t.position.z + (tangentZ + w.facing.z * radial) * amount));
+      t.moving = distance(t.position, next) > EPSILON; t.position = next; w.circling = t.moving;
+      w.facing = this.direction(t.position, this.state.position);
+    }
+  }
+  private advanceWolf(t: ThreatState, dt: number): void {
+    const w = t.wolf;
+    if (!w) return;
+    w.nextAttackSeconds = Math.max(0, w.nextAttackSeconds - dt); w.circling = false; w.pursuingBite = false;
+    w.autoAttackSeconds = Math.max(0, w.autoAttackSeconds - dt);
+    if ((!w.contacted || w.autoAttackSeconds <= EPSILON) && distance(t.position, this.state.position) <= 2 + EPSILON &&
+      this.clearPath(t.position, this.state.position)) this.bite(t);
+    if (this.state.health <= 0) return;
+    if (t.phase === "action") {
+      t.remainingSeconds = Math.max(0, t.remainingSeconds - dt);
+      if (t.abilityIndex === 1 && w.motion) this.moveWolfMotion(t, dt);
+      if (t.remainingSeconds > EPSILON) return;
+      if (t.abilityIndex === 0) this.warnWolf(t);
+      else {
+        t.position.y = 0; w.motion = null; this.resolveAttack(t);
+        t.phase = "recovery"; t.remainingSeconds = COMBAT_RULES.enemy.recovery;
+        w.nextAttackSeconds = COMBAT_RULES.enemy.preparation;
+      }
+      return;
+    }
+    if (t.phase === "recovery") {
+      t.remainingSeconds = Math.max(0, t.remainingSeconds - dt);
+      if (t.remainingSeconds > EPSILON) return;
+      this.warnWolf(t);
+      return;
+    }
+    if (w.nextAttackSeconds <= EPSILON && !w.motion) { this.launchMaul(t); return; }
+    if (w.autoAttackSeconds <= EPSILON && !w.motion) {
+      const gap = Math.max(0, distance(t.position, this.state.position) - 2);
+      this.moveThreat(t, this.state.position, Math.min(dt, gap / COMBAT_RULES.wolf.biteSpeed), COMBAT_RULES.wolf.biteSpeed);
+      w.facing = this.direction(t.position, this.state.position); w.pursuingBite = t.moving;
+      if (distance(t.position, this.state.position) <= 2 + EPSILON && this.clearPath(t.position, this.state.position)) this.bite(t);
+    } else this.positionWolf(t, dt);
+    t.remainingSeconds = w.nextAttackSeconds; t.targetPosition = this.wolfEndpoint(t);
   }
   private resolveAttack(t: ThreatState): void {
     t.lastActionHit = distance(this.state.position, t.targetPosition) <= this.ability(t).range + EPSILON &&
@@ -631,17 +804,17 @@ function choice<T extends string>(value: unknown, choices: readonly T[]): T {
   if (match === undefined) throw new Error("Invalid adventure save: unknown value.");
   return match;
 }
-function groundPosition(value: unknown): Vector {
+function groundPosition(value: unknown, maximumHeight = 0): Vector {
   const p = record(value);
-  return { x: number(p.x, -12, 12), y: number(p.y, 0, 0), z: number(p.z, -14, 45) };
+  return { x: number(p.x, -12, 12), y: number(p.y, 0, maximumHeight), z: number(p.z, -14, 45) };
 }
 function readSave(serialized: string): State {
   let parsed: unknown;
   try { parsed = JSON.parse(serialized); }
   catch { throw new Error("Invalid adventure save: unreadable saved data."); }
   const root = record(parsed);
-  if (root.version !== 1 && root.version !== 2 && root.version !== 3 && root.version !== 4) throw new Error("Unsupported adventure save version.");
-  const current = root.version === 4;
+  if (root.version !== 1 && root.version !== 2 && root.version !== 3 && root.version !== 4 && root.version !== 5) throw new Error("Unsupported adventure save version.");
+  const current = root.version === 4 || root.version === 5, latest = root.version === 5;
   const s = record(root.state), p = record(s.position);
   if (!Array.isArray(s.threats) || s.threats.length !== DEFINITIONS.length) throw new Error("Invalid adventure save: missing threats.");
   const threats: ThreatState[] = s.threats.map((value: unknown) => {
@@ -660,13 +833,14 @@ function readSave(serialized: string): State {
     const result: ThreatState = { id, health, active, phase, remainingSeconds: number(t.remainingSeconds, 0, maxDuration),
       actionSequence: number(t.actionSequence, 0, Number.MAX_SAFE_INTEGER, true), lastActionHit: boolean(t.lastActionHit),
       damage: number(t.damage, !current && id === "scout" ? 0 : definition(id).damage, Number.MAX_SAFE_INTEGER, true),
-      position: root.version === 1 ? { ...definition(id).position } : groundPosition(t.position),
+      position: root.version === 1 ? { ...definition(id).position } : groundPosition(t.position, latest ? COMBAT_RULES.wolf.lungeHeight : 0),
       targetPosition: root.version === 1 ? { ...definition(id).position } : groundPosition(t.targetPosition),
       aggro: root.version === 1 ? phase !== "dormant" && phase !== "cleared" : boolean(t.aggro),
       lootClaimed: root.version === 3 || current ? boolean(t.lootClaimed) : id === "ritual-guardian" && health === 0,
       patrolIndex: current ? number(t.patrolIndex, 0, definition(id).patrol?.length ?? 1, true) : 1,
       moving: current ? boolean(t.moving) : false,
       abilityIndex: current ? number(t.abilityIndex, 0, id === "scout" ? 1 : 0, true) : 0,
+      wolf: latest ? id === "scout" ? readWolf(t.wolf) : null : id === "scout" ? newWolf() : null,
     };
     if (!current) {
       // Old action saves already applied damage at commitment; never replay that hit.
@@ -680,6 +854,19 @@ function readSave(serialized: string): State {
     }
     if (root.version === 1 && id === "nest" && health === definition(id).health) {
       result.aggro = false; result.phase = "dormant"; result.remainingSeconds = 0; result.lastActionHit = false;
+    }
+    if (!latest && result.wolf) {
+      const w = result.wolf;
+      w.attackOrigin = { ...result.position };
+      w.contacted = result.aggro;
+      w.autoAttackSeconds = COMBAT_RULES.wolf.biteInterval;
+      if (current && result.phase === "action" && result.abilityIndex === 0) {
+        // Version 4 Bite already resolved; resume its follow-up notice without replay.
+        result.phase = "preparation"; result.remainingSeconds = COMBAT_RULES.enemy.preparation;
+      }
+      w.nextAttackSeconds = result.phase === "preparation" ? result.remainingSeconds
+        : result.phase === "recovery" ? result.remainingSeconds + 3 : COMBAT_RULES.enemy.preparation;
+      result.abilityIndex = 1; result.damage = 9;
     }
     if (result.aggro !== ["approach", "preparation", "action", "recovery"].includes(result.phase)) {
       throw new Error("Invalid adventure save: inconsistent aggression.");
@@ -717,6 +904,21 @@ function readSave(serialized: string): State {
 function readCooldowns(value: unknown): State["cooldowns"] {
   const c = record(value);
   return { strike: number(c.strike, 0, COMBAT_RULES.strike.cooldown), disengage: number(c.disengage, 0, COMBAT_RULES.disengage.cooldown), brace: number(c.brace, 0, COMBAT_RULES.brace.cooldown) };
+}
+function readWolf(value: unknown): WolfState {
+  const w = record(value), f = record(w.facing);
+  let motion: WolfMotion | null = null;
+  if (w.motion !== null) {
+    const m = record(w.motion), kind = choice(m.kind, ["hop", "lunge"] as const);
+    const duration = kind === "hop" ? COMBAT_RULES.wolf.hopDuration : COMBAT_RULES.enemy.action;
+    motion = { kind, start: groundPosition(m.start), destination: groundPosition(m.destination),
+      remainingSeconds: number(m.remainingSeconds, 0, duration), duration: number(m.duration, duration, duration) };
+  }
+  return { rng: number(w.rng, 0, 0xffffffff, true),
+    facing: { x: number(f.x, -1, 1), y: number(f.y, 0, 0), z: number(f.z, -1, 1) }, motion,
+    nextAttackSeconds: number(w.nextAttackSeconds, 0, COMBAT_RULES.enemy.preparation), circling: boolean(w.circling),
+    attackOrigin: groundPosition(w.attackOrigin), autoAttackSeconds: number(w.autoAttackSeconds, 0, COMBAT_RULES.wolf.biteInterval),
+    autoAttackSequence: number(w.autoAttackSequence, 0, Number.MAX_SAFE_INTEGER, true), contacted: boolean(w.contacted), pursuingBite: boolean(w.pursuingBite) };
 }
 function readManeuver(value: unknown): Maneuver | null {
   if (value === null) return null;

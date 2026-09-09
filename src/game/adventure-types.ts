@@ -37,6 +37,14 @@ export interface ThreatView {
   readonly disposition: "hostile" | "neutral";
   readonly aggro: boolean;
   readonly moving: boolean;
+  readonly movementMode: "idle" | "walk" | "hop" | "circle" | "lunge" | "bite";
+  readonly motionProgress: number;
+  readonly facing: Position;
+  readonly nextAttackSeconds: number;
+  readonly attackOrigin: Position;
+  readonly autoAttack: ThreatAbilityView | null;
+  readonly autoAttackSeconds: number;
+  readonly autoAttackSequence: number;
   readonly rootedSeconds: number;
   readonly canStrike: boolean;
   readonly canDisengage: boolean;
