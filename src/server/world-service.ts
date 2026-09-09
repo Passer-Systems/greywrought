@@ -136,9 +136,10 @@ export async function createWorldService(options: WorldServiceOptions) {
   function error(socket: ServerWebSocket<WorldSocketData>, text: string): void { send(socket, { type: 'error', text }); }
   function broadcast(): void {
     const players = world.players();
+    const serverWallTimeMillis = Date.now();
     for (const [id, socket] of online) {
       const player = world.getPlayer(id);
-      if (player) send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat, serverTime, movement: player.movementCheckpoint! });
+      if (player) send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat, serverTime, serverWallTimeMillis, movement: player.movementCheckpoint! });
     }
   }
   function disconnect(socket: ServerWebSocket<WorldSocketData>): void {

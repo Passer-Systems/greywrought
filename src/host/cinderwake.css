@@ -1855,9 +1855,10 @@ button { cursor: pointer !important; }
 .adventure-objective strong { display: block; font: 700 var(--ui-font-title)/1.3 Georgia, serif; }
 .adventure-objective p { font-size: var(--ui-font-body); line-height: 1.5; color: #c8d3d3; }
 #cargo-summary { border-top: 1px solid #b79a674f; padding-top: 10px; white-space: pre-line; line-height: 1.8; font-size: var(--ui-font-body); color: #f3d59d; }
-.adventure-map { position:absolute; right:8px; top:8px; width:175px; display:flex; flex-direction:column; gap:3px; pointer-events:auto; }
-.adventure-map header { align-self:center; max-width:100%; box-sizing:border-box; padding:2px 7px; background:#000c; color:#a7dfe4; text-align:center; font:600 var(--ui-font-body)/16px system-ui,sans-serif; text-shadow:0 1px 2px #000,1px 0 2px #000,-1px 0 2px #000; }
+.adventure-map { position:absolute; right:8px; top:30px; width:175px; pointer-events:auto; }
+.adventure-map header { position:absolute; z-index:5; top:0; left:50%; transform:translate(-50%,-100%); width:max-content; max-width:calc(100% - 16px); box-sizing:border-box; padding:2px 7px; border:1px solid #6d6040; border-radius:5px; background:#10130ff5; color:#e7cd77; text-align:center; font:600 var(--ui-font-body)/16px system-ui,sans-serif; text-shadow:0 1px 2px #000; }
 #map-field { width:100%; aspect-ratio:1; box-sizing:border-box; position:relative; overflow:hidden; background:linear-gradient(to top,#927849 0%,#927849 25%,#36544c 25%,#294b47 70%,#344755); border:1px solid #080e12; box-shadow:0 1px 3px #0009; }
+#map-clock { display:block; width:max-content; margin:0 auto; padding:1px 6px; border:1px solid #6d6040; border-radius:3px; background:#10130ff5; color:#e9e2cf; font:600 var(--ui-font-small)/14px system-ui,sans-serif; font-variant-numeric:tabular-nums; text-align:center; }
 .map-road { position: absolute; top: 5%; bottom: 5%; left: 46%; width: 8%; background: #b3aa825e; border-inline: 1px dashed #d5d2a283; }
 .map-landmark { position:absolute; z-index:3; display:grid; place-items:center; width:16px; height:16px; transform:translate(-50%,-50%); font-size:var(--ui-font-prominent); line-height:1; text-shadow:0 1px 2px #000; }
 .map-town,.map-inn { color:#ffe4a8; }

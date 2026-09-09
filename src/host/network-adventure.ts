@@ -6,6 +6,7 @@ import { LocalMovement, isLocomotionAction } from './local-movement.js';
 export interface NetworkAdventure extends AdventureGame {
   readonly renderPlayer: AdventureSnapshot['player'];
   readonly serverTime: number;
+  readonly serverWallTimeMillis: number;
   readonly online: boolean;
   readonly players: readonly RemotePlayerView[];
   readonly chat: readonly SharedChatMessage[];
@@ -23,7 +24,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let socket: WebSocket;
   let snapshot: AdventureSnapshot;
   let prediction: LocalMovement;
-  let serverTime = 0, lastMovementAt = 0;
+  let serverTime = 0, serverWallTimeMillis = 0, lastMovementAt = 0;
   let players: readonly RemotePlayerView[] = [], chat: readonly SharedChatMessage[] = [];
   let sequence = 0, closed = false, online = false;
   let reconnect: ReturnType<typeof setTimeout> | undefined;
@@ -54,6 +55,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       if (message.type === 'state') {
         snapshot = message.snapshot; players = message.players; chat = message.chat;
         serverTime = message.serverTime;
+        serverWallTimeMillis = message.serverWallTimeMillis;
         if (!online) prediction = new LocalMovement(snapshot, message.movement);
         prediction.reconcile(snapshot, message.movement, serverTime);
         online = true; clearTimeout(timeout); readyResolve();
@@ -72,6 +74,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     get snapshot() { return snapshot; },
     get renderPlayer() { return prediction.player; },
     get serverTime() { return serverTime; },
+    get serverWallTimeMillis() { return serverWallTimeMillis; },
     get online() { return online; },
     get players() { return players; },
     get chat() { return chat; },

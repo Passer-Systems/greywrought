@@ -72,11 +72,15 @@ test('two socket clients share movement and chat; saved identity survives restar
   const firstToken = crypto.randomUUID();
   try {
     listen();
+    const joinedAt = Date.now();
     const first = client(); await first.connect(firstCharacter, firstToken);
     const firstState = await first.state();
+    expect(firstState.serverWallTimeMillis).toBeGreaterThanOrEqual(joinedAt);
+    expect(firstState.serverWallTimeMillis).toBeLessThanOrEqual(Date.now());
     const initial = firstState.snapshot.player.position;
     const second = client(); await second.connect(secondCharacter, crypto.randomUUID());
     const together = await first.state(state => state.players.some(player => player.id === 'second'));
+    expect(together.serverWallTimeMillis).toBeGreaterThanOrEqual(firstState.serverWallTimeMillis);
     expect(together.players[0]?.name).toBe('Briar');
     expect((await second.state()).snapshot.player.archetype).toBe('mage');
     expect(await first.command({ type: 'camera', x: 1, z: 0 })).toBe(true);

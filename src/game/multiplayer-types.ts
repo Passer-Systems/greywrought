@@ -25,6 +25,6 @@ export type ClientWorldMessage =
   | { type: 'join'; token: string; character: LocalCharacter }
   | { type: 'command'; sequence: number; command: WorldCommand };
 export type ServerWorldMessage =
-  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; movement: MovementCheckpoint }
+  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; movement: MovementCheckpoint }
   | { type: 'result'; sequence: number; accepted: boolean }
   | { type: 'error'; text: string };

@@ -380,7 +380,18 @@ function makeEnemyInterface(snapshot: AdventureSnapshot): void {
     markers.set(threat.id, marker);
   });
 }
+const serverClockFormat = new Intl.DateTimeFormat('en-GB', {timeZone:'UTC',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+let displayedServerMinute = -1;
 function renderHud(snapshot: AdventureSnapshot): void {
+  const wallTime = running?.game.serverWallTimeMillis;
+  const minute = running?.game.online && typeof wallTime === 'number' && Number.isFinite(wallTime) ? Math.floor(wallTime / 60_000) : -1;
+  if (minute !== displayedServerMinute) {
+    displayedServerMinute = minute;
+    const clock = element('map-clock');
+    clock.textContent = minute < 0 ? '--:--' : serverClockFormat.format(minute * 60_000);
+    if (minute < 0) clock.removeAttribute('datetime');
+    else clock.setAttribute('datetime', new Date(minute * 60_000).toISOString());
+  }
   const { player } = snapshot;
   const data = document.body.dataset;
   data.gamePhase = snapshot.phase;
