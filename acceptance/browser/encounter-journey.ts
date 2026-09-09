@@ -49,15 +49,24 @@ try {
   await page.press("Digit1");
   await page.waitFor(`document.querySelector('${lookout}')?.dataset.phase === "cleared"`);
   await moveTo(0, 16);
-  await moveTo(3, 17);
+  await moveTo(4.2, 17.65, 0.25);
   await page.evaluate('document.querySelector(\'[data-enemy-id="nest"]\')?.click()');
-  await page.waitFor('document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.phase === "preparation"');
+  await page.waitFor('document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.phase === "preparation" && Number(document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.remaining) > 2.2');
+  const beforeBrace = await page.read();
+  const predictedDamage = await page.evaluate<number>('Number(document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.damage)');
   await page.shot("forecast");
   await page.press("KeyB");
   await page.waitFor('Number(document.body.dataset.gameGuardSeconds) > 0');
   await page.waitFor('document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.phase === "action"', 8_000);
-  await page.shot("attack");
-  await moveTo(0, 15);
+  const braced = await page.read();
+  check(Number(beforeBrace.gamePlayerVitality) - Number(braced.gamePlayerVitality) === predictedDamage / 2, "Brace did not halve the forecast hit");
+  await page.shot("braced-hit");
+  await moveTo(0, 16);
+  await page.waitFor('document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.phase === "preparation"');
+  await page.waitFor('document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.phase === "action"', 8_000);
+  const avoided = await page.read();
+  check(Number(avoided.gamePlayerVitality) === Number(braced.gamePlayerVitality), "Stepping outside the warning failed to avoid damage");
+  await page.shot("avoided-hit");
   await moveTo(0, 5);
   await moveTo(0, -2);
   await page.waitFor('document.body.dataset.gamePhase === "town" && Number(document.body.dataset.gameCargo) === 0');
@@ -69,6 +78,6 @@ try {
   await page.evaluate('if(document.body.dataset.entryRoute === "roster") document.getElementById("entry-enter-world").click()');
   await page.waitFor('document.body.dataset.entryRoute === "world" && Number(document.body.dataset.gameSupplies) === 15');
   check(page.errors.length === 0, "Browser exceptions occurred");
-  await Bun.write(`${page.output}/result.json`, JSON.stringify({ gathered, returned, reopened: await page.read(), errors: page.errors }, null, 2));
-  console.log(`PASS: buy, gather, heal, strike, forecast, brace, return, reload. Evidence: ${page.output}`);
+  await Bun.write(`${page.output}/result.json`, JSON.stringify({ gathered, beforeBrace, predictedDamage, braced, avoided, returned, reopened: await page.read(), errors: page.errors }, null, 2));
+  console.log(`PASS: buy, gather, heal, strike, forecast, halve a hit, avoid a hit, return, reload. Evidence: ${page.output}`);
 } finally { await hold([]).catch(() => {}); await page.close(); }

@@ -13,3 +13,7 @@ Do not introduce another language, compiler, interpreter, or runtime dependency.
 Keep product interface copy in player language. Keep build output under ignored
 `build/`. Preserve assets and their attribution. Use the nearest relevant Bun
 checks and a real browser journey for changes affecting play.
+
+Apply `game-design-prototyping-distilled` for world, character, and encounter
+presentation. It records the shared local Quaternius library and the requirement
+to use suitable authored models and animations instead of placeholder actors.
