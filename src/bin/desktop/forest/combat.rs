@@ -92,7 +92,7 @@ fn readout(threat: &ForestThreatView) -> String {
         ThreatPhase::Cleared => unreachable!(),
     };
     let power = if threat.intent_damage > 0. {
-        format!(" • {:.0} damage before guard", threat.intent_damage)
+        format!(" • {:.0} base damage", threat.intent_damage)
     } else {
         " • Raises alarm".to_owned()
     };
@@ -237,7 +237,7 @@ fn spawn_enemy(
                 IntentText(threat.id.clone()),
                 Text::new(""),
                 TextFont {
-                    font: assets.load("ui/fonts/LiberationSerif-Regular.ttf"),
+                    font: FontSource::Handle(assets.load("ui/fonts/LiberationSerif-Regular.ttf")),
                     font_size: FontSize::Px(15.),
                     ..default()
                 },
@@ -344,7 +344,7 @@ pub(crate) fn sync(
         } else {
             Visibility::Hidden
         };
-        if let Some(material) = materials.get_mut(&material.0) {
+        if let Some(mut material) = materials.get_mut(&material.0) {
             material.base_color = color(threat.phase);
         }
     }
