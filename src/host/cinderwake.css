@@ -2091,7 +2091,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .enemy-nameplate:has(.nameplate-ability:hover),.enemy-nameplate:has(.nameplate-ability:focus-visible) {z-index:40;}
 
 /* The expedition objective stays visible while traveling and fighting. */
-#quest-tracker { width:210px; box-sizing:border-box; background:#152329f2; padding:12px; }
+#quest-tracker { width:241.5px; box-sizing:border-box; background:#152329f2; padding:12px; }
 #quest-tracker .eyebrow { font-size: var(--ui-font-tiny); margin-bottom: 10px; }
 .quest-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #f5ce7e; margin-bottom: 8px; font: 700 var(--ui-font-prominent)/1.3 Georgia, serif; }
 #quest-progress { flex-shrink: 0; font: 600 var(--ui-font-tiny)/1.3 system-ui, sans-serif; }
@@ -2110,7 +2110,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
   body[data-game-in-combat=true] #quest-tracker :is(.eyebrow,.quest-steps,#route-detail,#route-warning) {display:none;}
 }
 @media (max-width: 700px) {
-  #quest-tracker {width:min(187.5px,calc(100vw - 190px));}
+  #quest-tracker {width:min(215.625px,calc(100vw - 190px));}
   #quest-tracker .eyebrow, #quest-tracker .quest-steps, #quest-tracker #cargo-summary { display: none; }
   .quest-heading { flex-wrap: wrap; font-size: var(--ui-font-body); }
   #route-objective { font-size: var(--ui-font-prominent); }
