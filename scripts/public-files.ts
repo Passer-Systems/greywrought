@@ -1,6 +1,6 @@
 const frostwoodFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/frostwood",onlyFiles:true}));
 const iconFiles = await Array.fromAsync(
-  new Bun.Glob("**/*.png").scan({ cwd: "assets/ui/icons", onlyFiles: true }),
+  new Bun.Glob("**/*.{png,svg}").scan({ cwd: "assets/ui/icons", onlyFiles: true }),
 );
 const cursorFiles = await Array.fromAsync(
   new Bun.Glob("*.png").scan({ cwd: "assets/ui/cursors", onlyFiles: true }),

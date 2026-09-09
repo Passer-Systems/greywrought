@@ -169,6 +169,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   terrain.add(groveLabel);
   const player = new Group();
   scene.add(player);
+  const playerArchetype = initial.player.archetype;
   const shield = new Mesh(new SphereGeometry(0.95, 20, 12), new MeshBasicMaterial({ color: 0x9bdfff, transparent: true, opacity: 0.22, wireframe: true, depthWrite: false }));
   shield.position.y = 0.9;
   player.add(shield);
@@ -176,9 +177,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   playerHalo.rotation.x = -Math.PI / 2;
   playerHalo.position.y = 0.04;
   player.add(playerHalo);
+  const playerProjectile = new Mesh(new SphereGeometry(0.16, 12, 8), new MeshStandardMaterial({ color: playerArchetype === "mage" ? 0xb78cff : 0xffd36b, emissive: playerArchetype === "mage" ? 0x5420a8 : 0x8a4a00, emissiveIntensity: 1.2 }));
+  playerProjectile.visible = false; scene.add(playerProjectile);
   const rigs = new Map<string, ThreatRig>();
   let knight: ForestActor | null = null;
-  const playerArchetype = initial.player.archetype;
   const playerAnimation = playerArchetype === "mage" ? { attack: "Staff_Attack", hit: "RecieveHit", jump: "Roll" } : playerArchetype === "hunter" ? { attack: "Bow_Shoot", hit: "RecieveHit", jump: "Roll" } : { attack: "Sword_Attack", hit: "RecieveHit", jump: "Roll" };
   let merchant: ForestActor | null = null;
   let innkeeper: ForestActor | null = null;
@@ -189,6 +191,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let pitch = 0.72;
   let distance = 15;
   let lastAttack = initial.player.attackSequence;
+  let playerProjectileTime = 0;
+  let playerProjectileFrom = new Vector3();
+  let playerProjectileTo = new Vector3();
   let lastHealth = initial.player.health;
   let playerHitRemaining = 0;
   let playerDead = false;
@@ -278,9 +283,25 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (snapshot.player.moving || snapshot.player.maneuver !== "none") player.rotation.y = Math.atan2(face.x, face.z);
       const selected = snapshot.threats.find((threat) => threat.id === snapshot.selectedThreat);
       if (snapshot.player.attackSequence !== lastAttack && knight) {
-        if (selected) player.rotation.y = Math.atan2(selected.position.x-position.x,selected.position.z-position.z);
+        if (selected) {
+          player.rotation.y = Math.atan2(selected.position.x-position.x,selected.position.z-position.z);
+          if (playerArchetype !== "warrior" && snapshot.player.currentAction === "strike") {
+            playerProjectileFrom.set(position.x, position.y + 1.15, position.z);
+            playerProjectileTo.set(selected.position.x, selected.position.y + 1.05, selected.position.z);
+            playerProjectileTime = 0.22;
+          }
+        }
         const swing = snapshot.player.maneuver === "disengage" ? 0.18 : 0.4;
         knight.play(playerAnimation.attack,false,swing); playerAttackRemaining=swing; lastAttack=snapshot.player.attackSequence;
+      }
+      playerProjectileTime = Math.max(0, playerProjectileTime - delta);
+      playerProjectile.visible = playerArchetype !== "warrior" && playerProjectileTime > 0;
+      if (playerProjectile.visible) {
+        const progress = 1 - playerProjectileTime / 0.22;
+        playerProjectile.position.lerpVectors(playerProjectileFrom, playerProjectileTo, progress);
+        if (playerArchetype === "hunter") {
+          playerProjectile.scale.set(.3,.3,3); playerProjectile.lookAt(playerProjectileTo);
+        } else playerProjectile.scale.setScalar(1 + Math.sin(progress * Math.PI) * 0.9);
       }
       if (knight) {
         if(snapshot.player.health<=0 && !playerDead) { playerDead=true; knight.play("Death",false); }
@@ -303,7 +324,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       shield.visible = snapshot.player.block > 0;
       shield.rotation.y = elapsed;
       coreRoot.visible = snapshot.resourceRemaining > 0;
-      thicket.visible = snapshot.threats.some((threat) => threat.id === "nest" && threat.health > 0);
       for (const threat of snapshot.threats) {
         const rig = rigs.get(threat.id);
         if (!rig) continue;

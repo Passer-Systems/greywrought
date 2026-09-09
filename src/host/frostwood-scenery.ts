@@ -44,7 +44,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       place("Fence",side*(4.5+i*1.8),-0.3,1.1,0);
     }
   }
-  // A dense east briar island opens with the nest; its west edge marks the collision.
+  // The west edge of the permanent briar island marks its collision boundary.
   for(let row=0;row<4;row++) for(let col=0;col<7;col++) {
     const x=2.8+col*1.5+Math.sin(col*8+row)*0.2, z=18.45+row*1.65+Math.sin(col*3+row)*0.2;
     if(Math.hypot(x-5,z-20)<1.55) continue;

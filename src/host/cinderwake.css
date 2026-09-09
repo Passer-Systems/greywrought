@@ -2066,6 +2066,9 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-heading {display:flex;align-items:center;gap:8px;min-height:20px;}
 .combat-plan-phase {color:#e5d59a;font-size:13px;flex:1;}
 .combat-plan-resources {font-size:10px;color:#cabf95;white-space:nowrap;}
+.combat-plan-danger {margin:3px 0;color:#ffc67b;font-weight:700;text-align:center;}
+.combat-plan-danger[hidden] {display:none;}
+.combat-plan-danger[data-severity=critical] {color:#ff9185;}
 .combat-plan button {font:inherit;cursor:pointer;}
 .combat-plan-clear,.combat-plan-remove,.combat-plan-delay {padding:2px 5px;min-height:21px;border:1px solid #756c50;border-radius:2px;background:#26322f;color:#e6d9b4;}
 .combat-plan button:disabled {opacity:.4;cursor:default;}

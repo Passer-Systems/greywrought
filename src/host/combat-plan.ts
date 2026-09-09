@@ -20,7 +20,7 @@ function node<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, 
 }
 function write(element: HTMLElement, value: string): void { if (element.textContent !== value) element.textContent = value; }
 function art(parent: HTMLElement, icon: string): void {
-  const image = node("img", "", parent); image.src = publicUrl("assets/ui/icons/" + (icon.startsWith("items/") ? icon : "spells/" + icon) + ".png"); image.alt = "";
+  const image = node("img", "", parent); image.src = publicUrl("assets/ui/icons/" + (icon.startsWith("items/") ? icon : "spells/" + icon) + (icon.endsWith(".svg") ? "" : ".png")); image.alt = "";
 }
 
 export function createCombatPlan(host: HTMLElement, callbacks: {
@@ -36,6 +36,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const resources = node("span", "combat-plan-resources", header);
   const clear = node("button", "combat-plan-clear", header); clear.type = "button"; clear.textContent = "Clear";
   clear.addEventListener("click", callbacks.onClear);
+  const danger = node("p", "combat-plan-danger", root); danger.id = "combat-plan-danger";
+  danger.setAttribute("role", "status");
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
   const grid = node("div", "combat-plan-grid", root);
   node("span", "combat-plan-axis", grid).textContent = "Beat";
@@ -73,6 +75,10 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const buttons = new Map<number, HTMLButtonElement>();
   let selectedId: number | null = null, lastId: number | null = null;
   let snapshot: AdventureSnapshot | null = null, enemyKey = "";
+  function actionLabel(action: CombatAction): string {
+    return action === "strike" && snapshot?.player.archetype !== "warrior"
+      ? snapshot?.player.archetype === "mage" ? "Arcane Bolt" : "Aimed Shot" : actions[action].name;
+  }
   function selected(): QueuedCombatAction | undefined { return snapshot?.combat.queued.find(entry => entry.id === selectedId); }
   function adjustDelay(seconds: number): void { if (selectedId !== null) callbacks.onDelay(selectedId, seconds); }
   function removeSelected(): void { if (selectedId !== null) callbacks.onRemove(selectedId); }
@@ -84,7 +90,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const index = snapshot.combat.queued.indexOf(move);
     const previous = snapshot.combat.queued[index - 1];
     const delay = move.offsetSeconds - (previous?.offsetSeconds ?? 0);
-    write(selection, actions[move.action].name + (move.status === "pending" ? previous ? " · delay after previous" : " · delay from opening" : move.status === "executed" ? " · used" : " · failed"));
+    write(selection, actionLabel(move.action) + (move.status === "pending" ? previous ? " · delay after previous" : " · delay from opening" : move.status === "executed" ? " · used" : " · failed"));
     for (const button of delayButtons) {
       button.disabled = move.status !== "pending" || (button.dataset.delay === "0" && !!previous);
       button.setAttribute("aria-pressed", String(Math.abs(Number(button.dataset.delay) - delay) < .01));
@@ -106,6 +112,12 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       snapshot = next;
       const combat = next.combat;
       const enemy = next.threats.find(threat => threat.id === next.selectedThreat && threat.active && threat.health > 0);
+      const attackers = next.threats.filter(threat => threat.active && threat.health > 0 && threat.aggro);
+      root.dataset.enemies = String(attackers.length);
+      danger.hidden = attackers.length < 2;
+      danger.dataset.severity = attackers.length >= 3 ? "critical" : "danger";
+      write(danger, attackers.length >= 3 ? `${attackers.length} enemies · Overwhelmed — retreat!` : "2 enemies · Dangerous pull — defend or retreat");
+      danger.title = attackers.map(threat => threat.name + (threat.joinsNextWindow ? " · joining next window" : "")).join("\n");
       root.hidden = next.phase !== "expedition" || (!enemy && combat.phase === "idle");
       Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
       write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : combat.phase === "preparation" ? "Ⅱ Prepare · " + combat.remainingSeconds.toFixed(1) + "s" : "Active · " + combat.remainingSeconds.toFixed(1) + "s left");
@@ -115,6 +127,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       const newest = combat.queued.reduce<QueuedCombatAction | undefined>((latest, move) => !latest || move.id > latest.id ? move : latest, undefined);
       if (newest && newest.id !== lastId) { selectedId = lastId = newest.id; }
       if (!combat.queued.some(entry => entry.id === selectedId)) selectedId = newest?.id ?? null;
+      root.dataset.selectedId = String(selectedId ?? "");
       for (const [id, button] of buttons) if (!combat.queued.some(entry => entry.id === id)) { button.remove(); buttons.delete(id); }
       for (const move of combat.queued) {
         let button = buttons.get(move.id);
@@ -138,12 +151,17 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           button.addEventListener("dragend", () => { for (const cell of cells) delete cell.dataset.drop; });
           buttons.set(move.id, button);
         }
+        const ranged = next.player.archetype !== "warrior" && move.action === "strike";
+        const moveName = actionLabel(move.action);
+        const moveIcon = ranged ? (next.player.archetype === "mage" ? "wand-bolt.svg" : "bow-shot.svg") : actions[move.action].icon + ".png";
+        const moveImage = button.querySelector<HTMLImageElement>("img");
+        if (moveImage && !moveImage.src.endsWith("/" + moveIcon)) moveImage.src = publicUrl("assets/ui/icons/" + (moveIcon.startsWith("items/") ? "" : "spells/") + moveIcon);
         if (button.parentElement !== cell) cell.append(button);
         button.dataset.status = move.status; button.dataset.queuedAction = move.action; button.dataset.offset = String(move.offsetSeconds);
         button.draggable = move.status === "pending";
         button.setAttribute("aria-pressed", String(move.id === selectedId));
         const target = next.threats.find(threat => threat.id === move.targetId)?.name;
-        const label = actions[move.action].name + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina" + (target ? " · " + target : "") + " · " + move.status + (move.reason ? ": " + move.reason : "");
+        const label = moveName + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina" + (target ? " · " + target : "") + " · " + move.status + (move.reason ? ": " + move.reason : "");
         button.title = label; button.setAttribute("aria-label", label);
         write(button.querySelector<HTMLElement>(".combat-plan-move-time")!, move.status === "executed" ? "✓" : move.status === "failed" ? "×" : move.offsetSeconds.toFixed(1) + "s");
       }

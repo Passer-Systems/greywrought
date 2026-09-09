@@ -36,8 +36,10 @@ existing saved supplies and potion inventory.
 
 Warrior, mage and ranger use distinct authored Quaternius characters and native
 sword, staff and bow animations. Their silhouettes and held weapons must remain
-recognizable from the normal camera. This release retains the shared prototype
-ability kit; distinct class combat rules are a separate design step.
+recognizable from the normal camera. The warrior lunges into melee; the wizard
+fires a wand attack and the ranger shoots from range. The remaining prototype
+abilities are shared. Basic attack icons and queued moves use a sword, wand,
+or bow to match the selected character.
 
 ## First milestone: a readable place and a readable encounter
 
@@ -221,7 +223,11 @@ enemy auto-attacks. Additional enemies approach and show their plan
 immediately, then join the next active opening without resetting that clock.
 Disengaging buys space; it is not necessary to repair separate enemy timers.
 
-Q queues Lunge, E Block, Z Disengage, and X Blood Rage. The first move defaults
+Summoning the frost guardian gives at least five seconds to read its opening
+and queue a response. Summoning while already fighting must preserve the
+existing encounter's clock and give the guardian its own safe joining window.
+
+Q queues Lunge for warriors, Arcane Bolt for mages, or Aimed Shot for rangers; E queues Block, Z Disengage, and X Blood Rage. The first move defaults
 to the opening beat. Further moves default to the earliest legal time, with
 at least one second between actions. Blood Rage commits two seconds.
 Activation and effect duration are separate: Block raises a two-second shield
@@ -251,8 +257,8 @@ Attack range and paths are checked when the move actually fires.
 
 ## First encounter: Ember head
 
-The first clearing holds an animated floating skull with 72 health. Its sole
-opening move is Ember Beam (1 targeted damage). Queue Block before pulling to
+The first clearing holds an animated floating skull with 96 health. Its sole
+opening move is Ember Beam (8 targeted damage). Queue Block before pulling to
 absorb it. Subsequent windows cycle through one Fireball volley, one Ember Ward
 (6 block for 2 seconds), and one Kindle power-up. After its stored opener, each window chooses one of five beats with equal probability.
 The preceding preparation announces the chosen beat and it stays fixed.
@@ -262,7 +268,7 @@ Kindle, choose whether to exploit the opening or defend against another
 creature. Each extra enemy adds one announced move to read, not five.
 
 Fireball timing advertises impact, with release 0.9 seconds earlier. Each
-projectile deals 3 targeted damage. Successive impacts are spaced up to 0.2s
+projectile deals 18 targeted damage. Successive impacts are spaced up to 0.2s
 apart, tightened for larger volleys to finish inside the active window.
 Kindle adds a projectile to later volleys. Defeating the head or leaving its
 territory extinguishes remaining fireballs. Projectiles and enemy block survive
@@ -274,17 +280,16 @@ and roots appear beside the health bar. The lorebook describes the same moves.
 
 ## Player stamina and Blood Rage
 
-The starting kit is available to existing characters; distinct class kits come
-later. Each active window has five stamina, replenished when preparation begins
+The class basic attacks differ; the remaining starting kit is shared. Each active window has five stamina, replenished when preparation begins
 and when combat ends. There is no midwindow stamina regeneration. There
 is no backup resource or per-ability cooldown in this prototype. Actions share
 recovery time; movement remains available while recovering and reading menus.
 
 | Key | Ability | Stamina | Effect | Action recovery |
 | --- | --- | --- | --- | --- |
-| Q | Lunge | 1 | Move into reach; deal 9 melee damage | 1s |
+| Q | Lunge / Arcane Bolt / Aimed Shot | 1 | Warrior closes into melee for 9 damage; mage/ranger hit from up to 10m without moving | 1s |
 | Z | Disengage | 1 | Deal 6 melee damage, leap backward; root target until landing | 1s |
-| E | Block | 2 | Absorb 10 damage over at most 2s | 1s |
+| E | Block | 2 | Absorb 24 damage over at most 2s | 1s |
 | X | Blood Rage | 1 | Gain one stack, up to 3; combat only | 2s |
 | V | Jab | 0 | Stationary strike for 3 melee damage within 2m | 1s |
 | N | Guard | 0 | Absorb 2 damage over at most 1s | 1s |
@@ -314,7 +319,7 @@ independently with equal probability while facing the player. Nearby it circles
 and commits Maul toward a fixed landing point. It recovers for 2 seconds after
 landing. After the first encounter, Maul starts on a randomly chosen beat
 after the visible preparation.
-The first encounter warns for 4 seconds before launching. A lunge takes 0.65 seconds and deals 9 damage within 3 metres of its
+The first encounter warns for 4 seconds before launching. A lunge takes 0.65 seconds and starts at 18 damage within 3 metres of its
 committed landing. Disengage provides a deliberate escape and punishment loop.
 
 Maul is the hound’s sole combat action in each window. It does not home.
@@ -366,6 +371,14 @@ extraction with salvage but no main reward, and a death whose log and visible
 intentions explain the fatal sequence. The player should be able to name a
 plausible better choice. Fairness and the desire to retry require Tom's playtest.
 
+Nearby hostile allies assist each other through clear terrain. Neutral creatures
+remain neutral until attacked. Reinforcements share the encounter clock and
+announce their move before joining. Pulling one creature remains manageable;
+two should threaten near death without deliberate defense, and three should
+overwhelm a committed fight. These are balance targets, not automatic damage
+multipliers or a rule that kills the player merely for engaging three enemies.
+The combat plan explicitly warns when two or more enemies are engaged.
+
 
 ### Next balance question
 
@@ -394,3 +407,25 @@ Head attacks resolve on that beat; physical attacks retain their windup, landing
 0.35 seconds later (ordinary enemies) or 0.65 seconds later (Maul).
 The fifth slot remains valid, all impacts finish before preparation, and
 previews reflect the exact saved choice rather than rerolling during a countdown.
+
+## Patrols and encounter pressure
+
+Every creature has a short patrol, pausing 0.75 seconds between route legs. The
+Briar bee wanders beside the permanent thicket; killing it never changes shrubs
+or collision. Hostile allies assist within 9 metres through clear terrain,
+within their own territory. Neutral bees only fight when attacked.
+
+The bee, warder and hound have 72 health; the head and guardian have 96.
+The warder starts at 18 damage, the bee at 16 and the guardian at 20. Each
+resolved attack increases the next by 15% of base, capped at double, plus forest
+attention. Maul starts at 18 and gains 2 per attack to 36. Preparation commits
+the displayed damage; impact never secretly changes it. Block absorbs 24
+within two seconds for two stamina.
+
+The seeded committed-melee comparison begins at 100 health without potions:
+solo warder 82 health attacking / 98 with timed Block; warder plus hound 22 / 42;
+adding the guardian kills both strategies. The controller pursues its target,
+uses five attacks or one timed Block plus three attacks and Jab, and retargets
+on defeat. This bounds the tested claim: movement, potions, different random
+beats and player choices can change the result; it is not a guaranteed death
+rule or a substitute for playtesting.

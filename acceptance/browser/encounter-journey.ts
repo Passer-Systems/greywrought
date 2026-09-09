@@ -1,3 +1,4 @@
+import { COMBAT_RULES } from "../../src/game/adventure.js";
 import { check, openBrowser } from "./session.js";
 
 const page = await openBrowser("expedition");
@@ -117,7 +118,7 @@ try {
   check(moves[0]?.status === "executed" && moves[1]?.status === "pending", "Last-second retiming must leave the executed Lunge locked and Block pending");
   await page.shot("live-queue-adjustment");
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued)[1]?.status === "executed"');
-  check(Number((await page.read()).gameBlock) === (fireballBeat === 3 ? 7 : 10), "Retimed Block must absorb only the fireball when it shares beat 3");
+  check(Number((await page.read()).gameBlock) === (fireballBeat === 3 ? COMBAT_RULES.brace.block-COMBAT_RULES.head.fireballDamage : COMBAT_RULES.brace.block), "Retimed Block must absorb only the fireball when it shares beat 3");
   await page.waitFor('document.body.dataset.gameCombatPhase === "preparation"');
   for (const code of ["KeyQ", "KeyN", "KeyV", "KeyE"]) await page.press(code);
   await page.waitFor('document.querySelectorAll(".combat-plan-move").length === 4');
@@ -231,7 +232,7 @@ try {
   await page.shot("forecast");
   await page.waitFor(`Number(document.querySelector('${nest}')?.dataset.actionSequence) > ${firstSequence}`, 8_000);
   const braced = await page.read();
-  check(Number(beforeBrace.gamePlayerVitality) - Number(braced.gamePlayerVitality) === Math.max(0, predictedDamage - 10), "Block did not absorb 10 of the forecast hit");
+  check(Number(beforeBrace.gamePlayerVitality) - Number(braced.gamePlayerVitality) === Math.max(0, predictedDamage - COMBAT_RULES.brace.block), "Block did not absorb its advertised capacity");
   await page.shot("braced-hit");
   await page.waitFor('document.getElementById("chat-log-messages").textContent.includes("blocked")');
   await page.waitFor(`document.querySelector('${nest}')?.dataset.strikeOpening === "true"`);

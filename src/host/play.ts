@@ -364,6 +364,24 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gameCombatCycle = String(snapshot.combat.cycle); data.gameReservedStamina = String(snapshot.combat.reservedStamina);
   data.gameAvailableStamina = String(snapshot.combat.availableStamina);
   data.archetype = player.archetype;
+  const strikeControl = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="strike"]');
+  if (strikeControl) {
+    const ranged = player.archetype !== "warrior";
+    const name = player.archetype === "mage" ? "Arcane Bolt" : player.archetype === "hunter" ? "Aimed Shot" : "Lunge";
+    const icon = player.archetype === "warrior" ? "sword-strike.png" : player.archetype === "mage" ? "wand-bolt.svg" : "bow-shot.svg";
+    if (strikeControl.dataset.archetype !== player.archetype) {
+      strikeControl.dataset.archetype = player.archetype;
+      strikeControl.setAttribute("aria-label", name);
+      const image = strikeControl.querySelector<HTMLImageElement>(".action-art img");
+      if (image) image.src = publicUrl("assets/ui/icons/spells/" + icon);
+      const tooltip = strikeControl.querySelector<HTMLElement>(".action-tooltip span:last-child");
+      if (tooltip) tooltip.textContent = ranged
+        ? `1 stamina · 1 second recovery. ${name} strikes a target up to 10m away for 9 damage. You remain in place.`
+        : "1 stamina · 1 second recovery. Lunge into reach and strike for 9 damage, plus 2 per Rage stack.";
+      const title = strikeControl.querySelector<HTMLElement>(".action-tooltip strong");
+      if (title) title.textContent = name;
+    }
+  }
   text("adventure-zone", snapshot.phase === "town" ? "Hearthstead · safe haven" : snapshot.phase === "lost" ? "Journey ended" : "Frostwood");
   if (running) unitFrames.update(running.character, snapshot);
   combatPlan.update(snapshot);

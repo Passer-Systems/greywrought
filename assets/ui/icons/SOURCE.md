@@ -9,3 +9,6 @@ Individual transparent PNG assets extracted from the generated UI sheets.
 - `*/source-crops/` — tight native-resolution crops preserving the original generated pixels
 
 The `512` versions are transparent 512×512 PNGs with each icon centered and aspect-ratio preserved.
+
+The wand and bow action silhouettes at greywrought:assets/ui/icons/spells/wand-bolt.svg
+and greywrought:assets/ui/icons/spells/bow-shot.svg are original project SVG artwork.

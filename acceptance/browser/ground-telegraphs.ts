@@ -1,3 +1,4 @@
+import { COMBAT_RULES } from "../../src/game/adventure.js";
 import { check, openBrowser } from './session.js';
 import { createAdventure } from '../../src/game/adventure.js';
 const page = await openBrowser('ground-telegraphs');
@@ -36,7 +37,7 @@ try {
     await page.shot(kind+'-preparation');
     if(kind==='fire') {
       await page.press('KeyE'); await page.press('Digit5');
-      await page.waitFor('Number(document.body.dataset.gameBlock) === 7',12000);
+      await page.waitFor(`Number(document.body.dataset.gameBlock) === ${COMBAT_RULES.brace.block-COMBAT_RULES.head.fireballDamage}`,12000);
       check(Number((await page.read()).gamePlayerVitality)===100,'Fifth-slot Block must cover the announced fireball impact');
       await page.waitFor('!JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).some(c=>c.ability==="fireball")');
       await page.shot('fifth-beat-fire-blocked');

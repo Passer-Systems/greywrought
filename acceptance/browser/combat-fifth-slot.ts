@@ -1,3 +1,4 @@
+import { COMBAT_RULES } from "../../src/game/adventure.js";
 import { check, openBrowser } from "./session.js";
 
 const page = await openBrowser("combat-fifth-slot");
@@ -25,7 +26,7 @@ try {
   await page.waitFor('document.body.dataset.gameCombatPhase === "active"');
   await page.key("KeyW", false);
   await page.waitFor('document.querySelector(".combat-plan-move[data-queued-action=brace]")?.dataset.status === "executed"', 7000);
-  check(Number((await page.read()).gameBlock) === 10, "Fifth-slot Block must activate at four seconds");
+  check(Number((await page.read()).gameBlock) === COMBAT_RULES.brace.block, "Fifth-slot Block must activate at four seconds");
   await page.shot("fifth-slot-executed");
   check(page.errors.length === 0, "Browser exceptions occurred");
   console.log(`PASS: QE3 preserved, 5 places skill in fifth slot, all five slots fill, fifth-slot Block executes. ${page.output}`);
