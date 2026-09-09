@@ -7,16 +7,16 @@ const PAPER: Color = Color::srgb(0.91, 0.87, 0.73);
 const BLUE: Color = Color::srgb(0.02, 0.29, 0.53);
 
 #[derive(Component)]
-struct Canvas;
+pub(crate) struct Canvas;
 #[derive(Component)]
-struct Caption;
+pub(crate) struct Caption;
 #[derive(Component)]
-struct Terrain {
+pub(crate) struct Terrain {
     center: [f64; 2],
     size: [f32; 2],
 }
 #[derive(Component)]
-enum Mark {
+pub(crate) enum Mark {
     Place(usize),
     Threat(usize),
     Player,
