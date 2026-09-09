@@ -108,17 +108,19 @@
                 </div>
                 <ol id="entry-roster-list" class="entry-roster-list"></ol>
                 <p id="entry-roster-empty" hidden></p>
+                <div id="entry-roster-delete" class="entry-roster-delete" hidden>
+                  <button id="entry-delete-character" class="entry-danger-button" type="button">Delete Character</button>
+                  <div id="entry-delete-confirm" class="entry-delete-confirm" hidden role="alertdialog" aria-label="Delete character confirmation">
+                    <span id="entry-delete-copy"></span>
+                    <button id="entry-delete-cancel" class="entry-secondary-button" type="button">Cancel</button>
+                    <button id="entry-delete-accept" class="entry-danger-button" type="button">Delete</button>
+                  </div>
+                </div>
               </aside>
             </div>
             <div class="entry-roster-actions">
               <button id="entry-change-character" class="entry-secondary-button" type="button">Create Character</button>
-              <button id="entry-delete-character" class="entry-danger-button" type="button">Delete Character</button>
               <button id="entry-enter-world" class="entry-primary-button" type="button">Enter World</button>
-              <div id="entry-delete-confirm" class="entry-delete-confirm" hidden role="alertdialog" aria-label="Delete character confirmation">
-                <span id="entry-delete-copy"></span>
-                <button id="entry-delete-cancel" class="entry-secondary-button" type="button">Cancel</button>
-                <button id="entry-delete-accept" class="entry-danger-button" type="button">Delete</button>
-              </div>
               <output id="entry-roster-feedback" class="entry-feedback" aria-live="polite"></output>
             </div>
           </section>

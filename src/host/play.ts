@@ -243,6 +243,7 @@ function renderEntry(): void {
   button("entry-enter-world").hidden = rosterTab === "rip";
   button("entry-enter-world").disabled = entering || selected === null || selected.fallenAtMillis !== undefined;
   const deleteButton = button("entry-delete-character");
+  element("entry-roster-delete").hidden = selected === null;
   deleteButton.disabled = entering || selected === null || pendingDeleteId !== null;
   const confirm = element("entry-delete-confirm");
   confirm.hidden = pendingDeleteId === null;

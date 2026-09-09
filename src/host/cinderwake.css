@@ -692,20 +692,22 @@ body[data-game-phase="completed"] .terminal-feedback-title {
 .entry-roster-actions { position: relative; display: flex; min-height: 58px; align-items: center; justify-content: center; gap: 12px; }
 .entry-danger-button { border: 1px solid #9d5549; color: #f2c3b4; background: #291513; padding: 11px 16px; font: 700 12px ui-sans-serif, system-ui, sans-serif; letter-spacing: .05em; text-transform: uppercase; cursor: pointer; }
 .entry-danger-button:hover, .entry-danger-button:focus-visible { border-color: #ef927f; color: #fff0e9; background: #4a201a; }
-.entry-delete-confirm { position: absolute; z-index: 3; right: 0; bottom: calc(100% + 8px); display: flex; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid #a45b4c; background: #1d0e0deF; box-shadow: 0 8px 24px #000b; }
-.entry-delete-confirm span { max-width: 230px; color: #f4d8cc; font: 12px/1.35 ui-sans-serif, system-ui, sans-serif; }
+.entry-roster-delete { flex-shrink:0; display:grid; gap:9px; margin-top:14px; padding-top:14px; border-top:1px solid #c9a85d4a; }
+.entry-delete-confirm { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:center; gap:9px; padding:10px 12px; border:1px solid #a45b4c; background:#1d0e0def; }
+.entry-delete-confirm span { grid-column:1 / -1; color:#f4d8cc; font:12px/1.35 ui-sans-serif,system-ui,sans-serif; }
+.entry-delete-confirm button { min-width:0; padding-inline:8px; }
 .entry-creator-actions label { margin-left: 8px; }
 .entry-creator-actions input { width: min(320px, 34vw); }
 .entry-creator-actions .entry-feedback,
 .entry-roster-actions .entry-feedback { position: absolute; bottom: -2px; transform: translateY(100%); }
-.entry-roster-panel { align-self: stretch; overflow: hidden; }
+.entry-roster-panel { align-self:stretch; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
 .entry-roster-heading { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 15px; border-bottom: 1px solid #c9a85d4a; }
 .entry-roster-heading h3 { margin-top: 4px; font-size: 26px; }
 .entry-roster-heading > span { color: var(--entry-muted); font: 12px ui-monospace, monospace; }
 .entry-roster-tabs { display: flex; gap: 6px; margin-top: 12px; }
 .entry-roster-tabs button { padding: 7px 12px; border: 1px solid #504a3a; color: var(--entry-muted); background: #101617dc; font: 13px ui-sans-serif, system-ui, sans-serif; }
 .entry-roster-tabs button[aria-pressed="true"] { border-color: #e8c66d; color: #f2d584; background: #35291c; }
-.entry-roster-list { display: grid; gap: 7px; margin: 14px 0 0; padding: 0; list-style: none; }
+.entry-roster-list { display:grid; gap:7px; min-height:0; overflow-y:auto; margin:14px 0 0; padding:0; list-style:none; }
 .entry-roster-item button,
 .entry-roster-empty { display: grid; width: 100%; min-height: 58px; grid-template-columns: 45px 1fr; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid #504a3a; color: #e7dcc4; background: #101617dc; text-align: left; }
 .entry-roster-item button[aria-pressed="true"] { border-color: #e8c66d; box-shadow: inset 4px 0 #d9ad55; background: linear-gradient(90deg, #4c3226, #111718); }
