@@ -69,7 +69,6 @@ export interface AdventureOptions {
 }
 export interface AdventureGame {
   readonly snapshot: AdventureSnapshot;
-  start(): void;
   advance(seconds: number): void;
   setAction(action: AdventureAction, pressed: boolean): void;
   setMouseForward(active: boolean): void;

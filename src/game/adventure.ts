@@ -115,7 +115,6 @@ class Adventure implements AdventureGame {
     };
   }
 
-  start(): void { /* A loaded expedition continues from its saved position. */ }
   save(): string { return JSON.stringify({ version: 1, state: this.state }); }
 
   setCameraForward(x: number, z: number): void {
