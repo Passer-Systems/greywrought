@@ -100,7 +100,8 @@
                 </div>
                 <div class="entry-character-title"><p id="entry-roster-class">Warrior</p><strong id="entry-roster-name">Wayfarer</strong><span id="entry-roster-summary"></span></div>
               </div>
-              <aside class="entry-roster-panel">
+              <div class="entry-roster-column">
+                <aside class="entry-roster-panel">
                 <div class="entry-roster-heading"><div><p class="entry-kicker">Character roster</p><h3>Your Characters</h3></div><span id="entry-roster-count">0 / 8</span></div>
                 <div class="entry-roster-tabs" role="group" aria-label="Character roster">
                   <button id="entry-roster-active" type="button" aria-pressed="true" aria-controls="entry-roster-list">Characters</button>
@@ -108,6 +109,10 @@
                 </div>
                 <ol id="entry-roster-list" class="entry-roster-list"></ol>
                 <p id="entry-roster-empty" hidden></p>
+                <div class="entry-roster-create">
+                  <button id="entry-change-character" class="entry-secondary-button" type="button">Create Character</button>
+                </div>
+                </aside>
                 <div id="entry-roster-delete" class="entry-roster-delete" hidden>
                   <button id="entry-delete-character" class="entry-danger-button" type="button">Delete Character</button>
                   <div id="entry-delete-confirm" class="entry-delete-confirm" hidden role="alertdialog" aria-label="Delete character confirmation">
@@ -116,10 +121,9 @@
                     <button id="entry-delete-accept" class="entry-danger-button" type="button">Delete</button>
                   </div>
                 </div>
-              </aside>
+              </div>
             </div>
             <div class="entry-roster-actions">
-              <button id="entry-change-character" class="entry-secondary-button" type="button">Create Character</button>
               <button id="entry-enter-world" class="entry-primary-button" type="button">Enter World</button>
               <output id="entry-roster-feedback" class="entry-feedback" aria-live="polite"></output>
             </div>
