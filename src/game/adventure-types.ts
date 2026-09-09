@@ -5,11 +5,15 @@ export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
   | "strike" | "brace" | "gather" | "ritual" | "interact"
   | "buyPotion" | "drinkPotion" | "rest" | "target" | "closeShop";
-export type ThreatPhase = "dormant" | "preparation" | "action" | "recovery" | "cleared";
+export type ThreatPhase = "dormant" | "approach" | "preparation" | "action" | "recovery" | "returning" | "cleared";
 export interface ThreatView {
   readonly id: string;
   readonly name: string;
   readonly position: Position;
+  readonly homePosition: Position;
+  readonly disposition: "hostile" | "neutral";
+  readonly aggro: boolean;
+  readonly moving: boolean;
   readonly health: number;
   readonly maximumHealth: number;
   readonly active: boolean;
