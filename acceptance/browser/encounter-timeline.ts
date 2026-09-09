@@ -48,6 +48,7 @@ try {
  const rows=await page.evaluate<{y:number;playerX:number;enemyX:number}[]>(`[...document.querySelectorAll('.combat-plan-beat-row')].map(r=>({y:r.getBoundingClientRect().y,playerX:r.querySelector('.combat-plan-player').getBoundingClientRect().x,enemyX:r.querySelector('.combat-plan-enemy').getBoundingClientRect().x}))`);
  check(rows.length===3&&rows[0]!.y<rows[1]!.y&&rows[1]!.y<rows[2]!.y,'Beats must be three vertical rows');
  check(rows.every(r=>r.playerX<r.enemyX),'Player moves must be left of incoming moves');
+ check(await page.evaluate<number>('document.getElementById("combat-plan").getBoundingClientRect().width')===360,'The desktop timeline must use half its former 720px width');
  await page.shot('vertical-opening-plan');
  const source=timelineFixture().save();
  await restore(source);

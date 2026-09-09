@@ -504,7 +504,8 @@ Whether its deaths feel fair remains a player-playtest judgment.
 ## Encounter timeline layout — 0.7.12
 
 The approved mockup groups all incoming actions by beat beside the player
-response. Exactly three rows remain visible. Caster health updates in place,
+response. The centered desktop panel is 360px wide, half the previous 720px, with
+the action bar retaining its own width. Exactly three rows remain visible. Caster health updates in place,
 so hovered tiles remain stable. During Choosing, the next decisions stay hidden.
 Enemies arriving during active combat are named as joining the next window,
 then appear alongside the others during preparation. The selected enemy’s
