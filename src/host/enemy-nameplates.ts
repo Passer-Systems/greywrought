@@ -35,7 +35,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
     render(snapshot: AdventureSnapshot, world: AdventureWorld) {
       const bounds = host.getBoundingClientRect();
       const occupied: Box[] = [];
-      for (const node of document.querySelectorAll<HTMLElement>(".adventure-vitals, .adventure-objective, .adventure-map, .adventure-bottom")) {
+      for (const node of document.querySelectorAll<HTMLElement>(".adventure-vitals, .adventure-objective, .adventure-map, .adventure-bottom, .adventure-menu-button")) {
         const box = node.getBoundingClientRect();
         if (box.width) occupied.push({ x: box.left - bounds.left, y: box.top - bounds.top, width: box.width, height: box.height });
       }
