@@ -1,6 +1,11 @@
 import type { CharacterArchetype } from "../host/character-profile.js";
 
 export interface Position { readonly x: number; readonly y: number; readonly z: number; }
+export interface AdventureLogEntry {
+  readonly id: number;
+  readonly channel: "chat" | "combat";
+  readonly text: string;
+}
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
   | "strike" | "brace" | "gather" | "ritual" | "interact"
