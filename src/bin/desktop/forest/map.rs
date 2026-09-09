@@ -17,10 +17,13 @@ pub(crate) struct Terrain {
 }
 #[derive(Component)]
 pub(crate) enum Mark {
-    Place(usize),
-    Threat(usize),
+    Place(String),
+    Threat(String),
     Player,
 }
+
+#[derive(Component)]
+pub(crate) struct ThreatNumber(String);
 
 fn text(assets: &AssetServer, value: impl Into<String>, size: f32, color: Color) -> impl Bundle {
     (
@@ -152,10 +155,12 @@ pub(crate) fn present(
             &mut Visibility,
             &mut UiTransform,
             &mut BorderColor,
+            Option<&mut Control>,
         ),
         Without<Terrain>,
     >,
-    mut caption: Query<&mut Text, With<Caption>>,
+    mut caption: Query<&mut Text, (With<Caption>, Without<ThreatNumber>)>,
+    mut numbers: Query<(&ThreatNumber, &mut Text), Without<Caption>>,
 ) {
     let Some(view) = display.snapshot.as_ref().map(|s| &s.forest) else {
         return;
@@ -194,7 +199,7 @@ pub(crate) fn present(
                     ZIndex(-1),
                 ));
             }
-            for (i, (id, _, _)) in view.places.iter().enumerate() {
+            for (id, _, _) in &view.places {
                 let (symbol, label, color, left) = match id.as_str() {
                     "hearthstead" => ("H", "Hearthstead", INK, true),
                     "forest-gate" => ("Π", "Gate / home", INK, false),
@@ -215,7 +220,7 @@ pub(crate) fn present(
                     },
                     BackgroundColor(PAPER),
                     BorderColor::all(color),
-                    Mark::Place(i),
+                    Mark::Place(id.clone()),
                     ZIndex(2),
                 ))
                 .with_children(|p| {
@@ -235,11 +240,11 @@ pub(crate) fn present(
                     ));
                 });
             }
-            for (i, _) in view.threats.iter().enumerate() {
+            for (i, threat) in view.threats.iter().enumerate() {
                 p.spawn((
                     Button,
                     Control::Target(i),
-                    Mark::Threat(i),
+                    Mark::Threat(threat.id.clone()),
                     ZIndex(3),
                     Node {
                         position_type: PositionType::Absolute,
@@ -255,6 +260,7 @@ pub(crate) fn present(
                 .with_children(|p| {
                     p.spawn((
                         text(&assets, format!("{}", i + 1), 15., Color::WHITE),
+                        ThreatNumber(threat.id.clone()),
                         BackgroundColor(Color::srgb(0.58, 0.09, 0.06)),
                     ));
                 });
@@ -292,11 +298,37 @@ pub(crate) fn present(
             node.top = px(point.y - feature.size[1] * scale / 2.);
         }
     }
-    for (mark, mut node, mut visible, mut transform, mut border) in &mut marks {
+    for (number, mut text) in &mut numbers {
+        **text = view
+            .threats
+            .iter()
+            .position(|threat| threat.id == number.0)
+            .map(|index| (index + 1).to_string())
+            .unwrap_or_default();
+    }
+    for (mark, mut node, mut visible, mut transform, mut border, control) in &mut marks {
         let (position, radius, active) = match mark {
-            Mark::Place(i) => (view.places[*i].2, 9., true),
-            Mark::Threat(i) => {
-                let t = &view.threats[*i];
+            Mark::Place(id) => {
+                let Some((_, _, position)) = view.places.iter().find(|(place, _, _)| place == id)
+                else {
+                    *visible = Visibility::Hidden;
+                    continue;
+                };
+                (*position, 9., true)
+            }
+            Mark::Threat(id) => {
+                let Some((index, t)) = view
+                    .threats
+                    .iter()
+                    .enumerate()
+                    .find(|(_, threat)| &threat.id == id)
+                else {
+                    *visible = Visibility::Hidden;
+                    continue;
+                };
+                if let Some(mut control) = control {
+                    *control = Control::Target(index);
+                }
                 *border = BorderColor::all(if t.selected {
                     Color::srgb(1., 0.8, 0.1)
                 } else {
