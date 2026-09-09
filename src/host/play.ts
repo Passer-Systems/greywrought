@@ -399,7 +399,16 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const available = snapshot.phase === "expedition" && selected?.active && selected.health > 0;
     const full = snapshot.combat.queued.length >= 5;
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]');
-    if (control) { control.disabled = !available || full || snapshot.combat.availableStamina < cost; control.style.setProperty("--recovery", "0"); }
+    if (control) {
+      control.disabled = !available || full || snapshot.combat.availableStamina < cost;
+      control.style.setProperty("--recovery", "0");
+      control.dataset.affordable = String(snapshot.combat.availableStamina >= cost);
+      if (!control.querySelector(".action-cost")) {
+        const badge = document.createElement("span"); badge.className = "action-cost";
+        badge.textContent = cost === 0 ? "Free" : String(cost); badge.title = cost + " stamina";
+        control.append(badge);
+      }
+    }
     const detail = !available ? "Select a living enemy in the forest" : full ? "Five moves already planned" : snapshot.combat.availableStamina < cost ? "Need " + cost + " free stamina" : "Queue · " + cost + " stamina";
     text(label, detail);
   }

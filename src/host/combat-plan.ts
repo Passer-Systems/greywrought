@@ -35,6 +35,9 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const resources = node("span", "combat-plan-resources", header);
   const clear = node("button", "combat-plan-clear", header); clear.type = "button"; clear.textContent = "Clear";
   clear.addEventListener("click", callbacks.onClear);
+  const staminaHint = node("p", "combat-plan-stamina-hint", root);
+  staminaHint.setAttribute("role", "status");
+  staminaHint.textContent = "No stamina left. Fill open slots with V: Jab or N: Guard — both cost 0.";
   const danger = node("p", "combat-plan-danger", root); danger.id = "combat-plan-danger";
   danger.setAttribute("role", "status");
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
@@ -117,7 +120,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       root.hidden = next.phase !== "expedition" || (!enemy && combat.phase === "idle");
       Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
       write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : combat.phase === "preparation" ? "Ⅱ Prepare · " + combat.remainingSeconds.toFixed(1) + "s" : "Active · " + combat.remainingSeconds.toFixed(1) + "s left");
-      write(resources, combat.availableStamina + " free · " + combat.reservedStamina + " queued");
+      write(resources, combat.queued.length + "/5 slots · " + combat.availableStamina + " stamina free · " + combat.reservedStamina + " reserved");
+      staminaHint.hidden = combat.availableStamina > 0 || combat.queued.length >= 5;
       clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / 5) + "%";
       clear.disabled = !combat.queued.some(entry => entry.status === "pending");
       const newest = combat.queued.reduce<QueuedCombatAction | undefined>((latest, move) => !latest || move.id > latest.id ? move : latest, undefined);
@@ -133,6 +137,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           button = node("button", "combat-plan-move", cell); button.type = "button";
           button.dataset.queueId = String(move.id); art(button, actions[move.action].icon);
           node("span", "combat-plan-move-time", button);
+          const cost = node("span", "combat-plan-move-cost", button);
+          cost.textContent = String(move.cost); cost.title = move.cost + " stamina";
           button.addEventListener("click", () => {
             selectedId = move.id; root.dataset.selectedId = String(move.id);
             for (const [id, control] of buttons) control.setAttribute("aria-pressed", String(id === selectedId));

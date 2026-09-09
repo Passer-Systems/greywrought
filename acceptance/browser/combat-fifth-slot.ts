@@ -8,6 +8,20 @@ try {
   await page.waitFor('Number(document.body.dataset.gamePlayerZ) > 2.4');
   await page.key("KeyW", false);
   await page.waitFor('document.getElementById("combat-plan").dataset.phase === "idle"');
+  await page.press("KeyE");
+  for (let i = 0; i < 4; i++) await page.press("KeyQ");
+  await page.waitFor('document.getElementById("combat-plan-feedback").textContent.includes("Lunge needs 1 stamina; 0 free")');
+  check(await page.evaluate<boolean>('JSON.parse(document.getElementById("combat-plan").dataset.queued).length === 4'), "Block plus three paid attacks exhausts five stamina");
+  check(await page.evaluate<boolean>('!document.querySelector(".combat-plan-stamina-hint").hidden && document.querySelector(".combat-plan-resources").textContent.includes("4/5 slots")'), "An open slot must be distinguished from having stamina available");
+  check(await page.evaluate<boolean>('document.querySelector("[data-action=brace] .action-cost").textContent === "2" && document.querySelector("[data-action=jab] .action-cost").textContent === "Free"'), "Paid and free moves must show their costs without hovering");
+  await page.shot("block-plus-four-paid-attacks");
+  await page.press("KeyV");
+  await page.waitFor('document.querySelector(".combat-plan-player[data-beat=\\"4\\"] .combat-plan-move")?.dataset.queuedAction === "jab"');
+  await page.click(".combat-plan-clear");
+  await page.press("KeyE");
+  for (let i = 0; i < 4; i++) await page.press("KeyV");
+  await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued).length === 5 && document.body.dataset.gameAvailableStamina === "3"');
+  await page.click(".combat-plan-clear");
   await page.press("KeyQ"); await page.press("KeyE");
   for (const slot of [3,1,2,4,5]) {
     await page.press("Digit" + slot);

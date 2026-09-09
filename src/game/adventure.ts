@@ -269,7 +269,9 @@ class Adventure implements AdventureGame {
   private queueAction(action: CombatAction): void {
     const s = this.state, c = s.combat, cost = COMBAT_RULES[action].cost;
     if (c.queued.length >= COMBAT_RULES.window.maximumActions) { this.report("Five moves already fill this plan.", "combat"); return; }
-    if (s.stamina - this.reservedStamina() < cost) { this.report("Not enough unreserved stamina for that move.", "combat"); return; }
+    if (s.stamina - this.reservedStamina() < cost) {
+      this.report(`${actionName(action, s.archetype)} needs ${cost} stamina; ${s.stamina - this.reservedStamina()} free. Use Jab or Guard for 0 stamina, or remove a queued move.`, "combat"); return;
+    }
     if (action === "drinkPotion" && c.queued.filter(e => e.action === "drinkPotion" && e.status === "pending").length >= s.potions) { this.report("No unreserved health potion is available.", "combat"); return; }
     const earliest = c.phase === "active" ? c.elapsedSeconds + s.actionCooldown : 0;
     let offsetSeconds = Math.max(0, Math.ceil(earliest - EPSILON));
