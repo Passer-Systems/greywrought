@@ -27,7 +27,9 @@ const server = Bun.serve({
     if (relative === "app/greywrought/play.js") {
       try { await ensureClientBuild(); } catch (error) { return new Response(String(error), { status: 500 }); }
     }
-    const path = relative.startsWith("app/") ? `build/${relative}` : relative;
+    const path = relative === "app/greywrought/play.js"
+      ? "build/host/play.js"
+      : relative.startsWith("app/") ? `build/${relative}` : relative;
     const file = Bun.file(join(root, path));
     if (!(await file.exists())) return new Response("Not found", { status: 404 });
     const type = mime[path.slice(path.lastIndexOf("."))] ?? file.type;
