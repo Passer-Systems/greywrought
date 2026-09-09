@@ -3,23 +3,22 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="A Clause/Wasm action-RPG expedition where every visible world change passes separate Admission." />
+    <meta name="description" content="Prepare in Hearthstead, read the dangers of Frostwood, and bring your discoveries home." />
     <meta name="theme-color" content="#100a0d" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Greywrought Clause — Boar Breach" />
-    <meta property="og:description" content="Fight, extract, and establish a permanent foothold across three Clause-authored expeditions." />
+    <meta property="og:title" content="Greywrought — Frostwood" />
+    <meta property="og:description" content="Read enemy intentions, gather frost cores, and find your way home." />
     <meta property="og:url" content="https://passer-systems.github.io/greywrought/" />
     <meta name="twitter:card" content="summary" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./site.webmanifest" />
-    <title>Greywrought Clause — Magitek Boar</title>
-    <link rel="stylesheet" href="./app/greywrought-clause/cinderwake.css" />
+    <title>Greywrought — Frostwood</title>
+    <link rel="stylesheet" href="./app/greywrought/cinderwake.css" />
     <script type="importmap">
       {
         "imports": {
           "three": "./vendor/three.module.js",
-          "three/addons/": "./vendor/three-addons/",
-          "#clause-runtime-wasm": "./wasm/clause_runtime.js"
+          "three/addons/": "./vendor/three-addons/"
         }
       }
     </script>
@@ -34,7 +33,7 @@
           <section id="entry-account" class="entry-account" data-entry-view="account" aria-labelledby="character-select-title">
             <img class="entry-logo entry-account-logo" src="./assets/ui/brand/greywrought-logo.webp" alt="Greywrought" />
             <form id="entry-account-form" class="entry-account-card">
-              <p class="entry-kicker">Local conference profile</p>
+              <p class="entry-kicker">Local adventurer profile</p>
               <h2 id="character-select-title">Create your account</h2>
               <p>Your adventurers are saved only in this browser. No email or password required.</p>
               <label for="entry-display-name">Display name</label>
@@ -53,9 +52,9 @@
             <div class="entry-creator-layout">
               <aside class="entry-class-panel" aria-label="Classes">
                 <p class="entry-kicker">Class</p>
-                <button type="button" data-entry-archetype="warrior"><strong>Warrior</strong><span>Rage · charge · whirlwind · block</span></button>
-                <button type="button" data-entry-archetype="mage"><strong>Mage</strong><span>Mana · Frostbolt · nova · blink</span></button>
-                <button type="button" data-entry-archetype="hunter"><strong>Hunter</strong><span>Focus · aimed shot · trap · disengage</span></button>
+                <button type="button" data-entry-archetype="warrior"><strong>Warrior</strong><span>Resolve · steel · steadfastness</span></button>
+                <button type="button" data-entry-archetype="mage"><strong>Mage</strong><span>Insight · secrets · curiosity</span></button>
+                <button type="button" data-entry-archetype="hunter"><strong>Hunter</strong><span>Instinct · trails · wilderness</span></button>
               </aside>
               <div class="entry-character-stage" aria-label="Selected character preview">
                 <div class="entry-stage-light" aria-hidden="true"></div>
@@ -68,8 +67,8 @@
               <aside class="entry-lore-panel">
                 <p class="entry-kicker">Greywrought archetype</p>
                 <h3 id="entry-lore-title">Warrior</h3>
-                <p id="entry-lore-copy">Break the breach at close range, turning every impact into the rage for your next charge.</p>
-                <div id="entry-lore-kit" class="entry-lore-kit">Attack · Charge · Whirlwind · Block</div>
+                <p id="entry-lore-copy">A steadfast wayfarer who meets the forest with courage and a ready blade.</p>
+                <div id="entry-lore-kit" class="entry-lore-kit">Strike · Brace · Explore</div>
               </aside>
             </div>
             <form id="entry-character-form" class="entry-creator-actions">
@@ -84,14 +83,14 @@
           <section id="entry-roster" class="entry-roster" data-entry-view="roster" aria-labelledby="entry-roster-title" hidden>
             <header class="entry-screen-header entry-roster-header">
               <img class="entry-logo" src="./assets/ui/brand/greywrought-logo.webp" alt="Greywrought" />
-              <div><p class="entry-kicker">Ashen Verge</p><h2 id="entry-roster-title">Choose a character</h2></div>
+              <div><p class="entry-kicker">Frostwood</p><h2 id="entry-roster-title">Choose a character</h2></div>
               <span id="entry-roster-profile" class="entry-profile-name"></span>
             </header>
             <div class="entry-roster-layout">
               <aside class="entry-realm-panel">
                 <p class="entry-kicker">Realm</p>
-                <h3>Boar Breach</h3>
-                <p>A local conference expedition. Each browser keeps its own adventurer roster.</p>
+                <h3>Hearthstead</h3>
+                <p>Prepare in a safe haven, explore Frostwood, and bring your discoveries home. Each character has one life.</p>
               </aside>
               <div class="entry-character-stage entry-roster-stage">
                 <div class="entry-stage-light" aria-hidden="true"></div>
@@ -107,237 +106,25 @@
               </aside>
             </div>
             <div class="entry-roster-actions">
-              <button id="entry-change-character" class="entry-secondary-button" type="button">Change Character</button>
+              <button id="entry-change-character" class="entry-secondary-button" type="button">Create Character</button>
               <button id="entry-enter-world" class="entry-primary-button" type="button">Enter World</button>
               <output id="entry-roster-feedback" class="entry-feedback" aria-live="polite"></output>
             </div>
           </section>
         </section>
-        <div id="branch-label" class="realm-label">Disconnected branch · retained</div>
-        <div id="enemy-damage-number" class="enemy-damage-number">0</div>
-        <div id="enemy-nameplates" class="enemy-nameplates">
-          <div id="enemy-hit-stun" class="enemy-hit-stun" hidden>
-            <span class="enemy-hit-stun-glyph">✦</span>
-            <strong id="enemy-hit-stun-timer" class="enemy-hit-stun-timer">0.00</strong>
-          </div>
-        </div>
-        <section id="loot-window" class="loot-window" aria-label="Corpse loot" hidden>
-          <header class="loot-window-header">
-            <span class="loot-window-emblem" aria-hidden="true">☠</span>
-            <strong>Loot</strong>
-            <button id="loot-close" class="loot-close" type="button" aria-label="Close loot window">×</button>
-          </header>
-          <button id="loot-item" class="loot-item" type="button">
-            <span id="loot-item-icon" class="loot-item-icon" aria-hidden="true">⚿</span>
-            <span class="loot-item-copy">
-              <strong id="loot-item-name">Ashen Breach Key</strong>
-              <small id="loot-item-category">Quest Item</small>
-            </span>
-          </button>
+        <section id="adventure-hud" hidden aria-label="Expedition">
+          <section class="adventure-vitals parchment"><span id="adventure-character"></span><strong id="adventure-zone">Hearthstead</strong><div class="health-track"><div id="health-fill"></div><span id="health-value"></span></div><div id="guard-status"></div></section>
+          <section class="adventure-objective parchment"><span class="eyebrow">YOUR EXPEDITION</span><strong id="route-objective"></strong><p id="route-detail"></p><div id="cargo-summary"></div></section>
+          <section class="adventure-map parchment" aria-label="North-up Frostwood map"><header>FROSTWOOD <span>↑ N</span></header><div id="map-field"><div class="map-road"></div><span class="map-landmark map-town">⌂ Hearthstead · safe</span><span class="map-landmark map-gate">North gate</span><span class="map-landmark map-cores">◆ Frost cores</span><span class="map-landmark map-grove">◇ Deep Grove</span><div id="map-threats"></div><div id="map-player" title="You">▲</div></div><footer>▲ You · ◆ Cores · numbers: threats<br>Follow the road south to return</footer></section>
+          <section id="enemy-intents" aria-label="Nearby enemy intentions"></section>
+          <section class="adventure-bottom"><div id="adventure-report" class="parchment" role="status"></div><div class="adventure-actions parchment"><button data-action="strike"><kbd>1</kbd><strong>Strike</strong><small id="strike-ready">Ready</small></button><button data-action="brace"><kbd>B / E</kbd><strong>Brace</strong><small>Halve incoming damage</small></button><button data-action="drinkPotion"><kbd>H</kbd><strong>Potion</strong><small id="potion-count"></small></button><button data-action="gather"><kbd>G</kbd><strong>Gather</strong><small>Frost cores</small></button><button data-action="ritual"><kbd>R</kbd><strong>Ritual</strong><small>Offer 6 carried cores</small></button><button data-action="interact"><kbd>F</kbd><strong>Talk</strong><small>Mara's shop</small></button><button id="rest-button" data-action="rest"><kbd>T</kbd><strong>Rest</strong><small>In Hearthstead</small></button></div><div class="adventure-controls">W S move · A D strafe · Space jump · drag mouse to look · both buttons run · Tab / click target · Esc pause <span id="save-status"></span></div></section>
+          <button id="pause-open" class="adventure-menu-button" aria-label="Pause">☰</button>
         </section>
-        <div id="terminal-feedback" class="terminal-feedback" aria-live="assertive" hidden>
-          <div class="terminal-feedback-card">
-            <div id="terminal-feedback-kicker" class="terminal-feedback-kicker">ENCOUNTER TERMINATED</div>
-            <div id="terminal-feedback-title" class="terminal-feedback-title">WAYFARER DISABLED</div>
-            <div id="terminal-feedback-detail" class="terminal-feedback-detail">The boar reduced your vitality to zero.</div>
-            <div id="terminal-feedback-action" class="terminal-feedback-action">PRESS SHIFT+R TO RESTORE THE REVISION</div>
-          </div>
-        </div>
-        <div id="game-hud">
-          <section class="minimap" aria-label="Ashen Verge minimap">
-            <div class="minimap-zone">Ashen Verge</div>
-            <div class="minimap-ring">
-              <div class="minimap-north">N</div>
-              <div id="minimap-player" class="minimap-player">▲</div>
-              <div id="minimap-target" class="minimap-target">●</div>
-              <div id="minimap-objective" class="minimap-objective">◆</div>
-            </div>
-            <div class="minimap-zoom"><span>+</span><span>−</span></div>
-            <div class="minimap-tracking" aria-hidden="true"></div>
-            <time id="minimap-clock" class="minimap-clock" aria-label="Local time">--:--</time>
-          </section>
-          <section id="player-frame" class="unit-frame player-frame" aria-label="Player status">
-            <div class="unit-portrait player-portrait" aria-hidden="true"><span>70</span></div>
-            <div class="unit-readout">
-              <div class="unit-heading"><strong id="player-frame-name">Wayfarer</strong><span id="player-vitality">4 / 4</span></div>
-              <div class="bar health-bar" aria-hidden="true"><span id="player-vitality-bar"></span></div>
-              <div class="bar resource-bar" aria-hidden="true"><span id="booster-energy-bar"></span></div>
-              <div class="bar shield-resource-bar" aria-hidden="true"><span id="shield-energy-bar"></span></div>
-              <div class="unit-resource"><span id="class-resource-name">Resource</span><strong id="class-resource-value">0 / 100</strong></div>
-              <div class="unit-resource shield-resource"><span>Shield</span><strong id="shield-energy">100 / 100</strong></div>
-              <div id="player-cast" class="enemy-cast player-cast" hidden>
-                <span id="player-cast-fill" class="enemy-cast-fill"></span>
-                <strong id="player-cast-name" class="enemy-cast-name">CINDERBOLT</strong>
-                <span id="player-cast-time" class="player-cast-time">0.75</span>
-              </div>
-            </div>
-          </section>
-
-          <section id="target-frame" class="unit-frame target-frame" aria-label="Current target status">
-            <div class="unit-readout">
-              <div class="unit-heading"><strong id="target-frame-name">Corrupted Magitek Boar</strong><span id="enemy-vitality">6 / 6</span></div>
-              <div class="bar health-bar" aria-hidden="true"><span id="enemy-vitality-bar"></span></div>
-              <div class="bar status-bar" aria-hidden="true"><span></span></div>
-              <div class="unit-resource"><span>Corrupted</span><strong>Target</strong></div>
-              <div id="enemy-cast" class="enemy-cast" hidden>
-                <span id="enemy-cast-fill" class="enemy-cast-fill"></span>
-                <strong id="enemy-cast-name" class="enemy-cast-name">ANNIHILATION BEAM</strong>
-              </div>
-            </div>
-            <div class="unit-portrait target-portrait" aria-hidden="true"><span>70</span></div>
-          </section>
-
-          <section class="action-bars" aria-label="Abilities">
-            <div class="action-bar secondary-action-bar">
-              <div class="action-slot loot-slot"><kbd>F</kbd><span>◆</span><small>Interact</small></div>
-              <div class="action-slot shield-slot"><kbd>E</kbd><span>◉</span><small>Shield</small></div>
-              <div class="action-slot dash-slot"><kbd>Q</kbd><span>»</span><small>Dash</small></div>
-              <div class="action-slot boost-slot"><kbd>Space</kbd><span>⇧</span><small>Boost</small></div>
-              <div class="action-slot sprint-slot"><kbd>Shift</kbd><span>⇧</span><small>Sprint</small></div>
-              <div class="action-slot reset-slot"><kbd>Shift+R</kbd><span>↻</span><small>Reset</small></div>
-            </div>
-            <div class="action-bar primary-action-bar">
-              <div id="ability-slot-1" class="action-slot sword-slot" data-combat-slot="0" draggable="true"><kbd>1</kbd><span>⚔</span><small>Attack</small></div>
-              <div id="ability-slot-2" class="action-slot bolt-slot" data-combat-slot="1" draggable="true"><kbd>2</kbd><span>✦</span><small>Cinderbolt</small></div>
-              <div id="ability-slot-3" class="action-slot spell-slot" data-combat-slot="2" draggable="true"><kbd>3</kbd><span>✹</span><small>Ability 3</small></div>
-              <div id="ability-slot-4" class="action-slot shield-slot" data-combat-slot="3" draggable="true"><kbd>4</kbd><span>✧</span><small>Ability 4</small></div>
-              <div id="ability-slot-5" class="action-slot dash-slot" data-combat-slot="4" draggable="true"><kbd>5</kbd><span>➤</span><small>Ability 5</small></div>
-              <div id="class-utility-slot" class="action-slot interrupt-slot"><kbd>R</kbd><span>!</span><small>Interrupt</small></div>
-            </div>
-          </section>
-
-          <section class="objective-tracker" aria-label="Current objective">
-            <div id="quest-tracker-heading" class="quest-tracker-heading">Quest Tracker · 0/3</div>
-            <div class="objective-kicker"><span>!</span> [60] Boar Breach</div>
-            <div id="objective">Defeat the corrupted boar and recover its breach key.</div>
-            <div class="quest-objectives">
-              <div id="quest-step-gate">— Breach key: 0/1</div>
-              <div id="quest-step-boss">— Ashen Colossus: 0/1</div>
-              <div id="quest-step-core">— Cephorium Core: 0/1</div>
-            </div>
-          </section>
-
-          <section id="chat-window" class="chat-window" aria-label="Chat and combat log">
-            <input id="chat-tab-general" class="chat-tab-state" type="radio" name="chat-tab" checked />
-            <input id="chat-tab-combat" class="chat-tab-state" type="radio" name="chat-tab" />
-            <div class="chat-tabs" aria-label="Log channels">
-              <label for="chat-tab-general">Chat</label>
-              <label for="chat-tab-combat">Combat Log</label>
-            </div>
-            <div class="chat-panel chat-general" aria-live="polite">
-              <p><span>[System]</span> Resident Clause generation linked.</p>
-              <p><span>[Local]</span> The Ashen Verge stirs around the breach.</p>
-            </div>
-            <div class="chat-panel chat-combat" aria-live="polite">
-              <div id="combat-state">BOOST 100 / 100 · IGNITE 25 · REGEN 0 &nbsp; STATUS clear · 12</div>
-              <div id="combat-feedback"></div>
-            </div>
-          </section>
-
-          <nav class="micro-menu" aria-label="Bags and game menu">
-            <div class="micro-slot bag-small" title="Utility bag"></div>
-            <div class="micro-slot bag-medium" title="Inventory"></div>
-            <div class="micro-slot backpack" title="Backpack"></div>
-            <div class="micro-slot character" title="Character"></div>
-            <div class="micro-slot talents" title="Abilities"></div>
-            <div class="micro-slot quests" title="Quests"></div>
-            <div class="micro-slot help" title="Help"></div>
-            <div class="micro-slot menu" title="Menu"></div>
-          </nav>
-        </div>
-        <section id="escape-menu" class="escape-menu" role="dialog" aria-modal="true" aria-labelledby="escape-menu-title" hidden>
-          <div class="escape-menu-card">
-            <header class="escape-menu-header">
-              <span>Greywrought</span>
-              <h2 id="escape-menu-title">Game Menu</h2>
-            </header>
-            <div class="escape-menu-body">
-              <nav class="escape-menu-actions" aria-label="Game menu">
-                <button id="escape-return" type="button">Return to Game</button>
-                <button id="escape-controls" type="button" aria-controls="escape-controls-panel" aria-expanded="false">Controls</button>
-                <button id="escape-accessibility" type="button" aria-controls="escape-accessibility-panel" aria-expanded="false">Accessibility</button>
-                <button id="escape-change-character" type="button">Change Character</button>
-                <button id="reset-encounter" type="button">Reset Encounter</button>
-              </nav>
-              <section id="escape-controls-panel" class="escape-subpanel controls-panel" aria-label="Controls" hidden>
-                <h3>Controls</h3>
-                <p id="gamepad-status" class="settings-status" aria-live="polite">Gamepad ready · connect or press any button</p>
-                <div class="binding-list" aria-label="Keyboard bindings">
-                  <span>Move forward</span><button type="button" data-input-action="forward">W</button>
-                  <span>Move backward</span><button type="button" data-input-action="backward">S</button>
-                  <span>Move left</span><button type="button" data-input-action="left">A</button>
-                  <span>Move right</span><button type="button" data-input-action="right">D</button>
-                  <span>Cycle target</span><button type="button" data-input-action="target">Tab</button>
-                  <span>Attack</span><button type="button" data-input-action="ability1">1</button>
-                  <span>Cinderbolt</span><button type="button" data-input-action="ability2">2</button>
-                  <span>Ability 3</span><button type="button" data-input-action="ability3">3</button>
-                  <span>Ability 4</span><button type="button" data-input-action="ability4">4</button>
-                  <span>Ability 5</span><button type="button" data-input-action="ability5">5</button>
-                  <span>Class utility / interrupt</span><button type="button" data-input-action="classUtility">R</button>
-                  <span>Interact / loot</span><button type="button" data-input-action="loot">F</button>
-                  <span>Jump / air boost</span><button type="button" data-input-action="jump">Space</button>
-                  <span>Shield</span><button type="button" data-input-action="shield">E</button>
-                  <span>Sprint</span><button type="button" data-input-action="horizontalSustain">Left Shift</button>
-                  <span>Dash</span><button type="button" data-input-action="horizontalBurst">Q</button>
-                  <span>Reset encounter</span><button type="button" data-input-action="reset">Shift+R</button>
-                </div>
-                <button id="reset-bindings" type="button">Restore Default Bindings</button>
-                <p id="input-preference-status" class="settings-status" aria-live="polite">Changes save in this browser.</p>
-                <p class="truth-note">Gamepad: left stick/D-pad move, hold A to jump and boost in air, B interact, X attack, Y target, shoulders dash/Cinderbolt, right trigger shield, Start reset.</p>
-              </section>
-              <section id="escape-accessibility-panel" class="escape-subpanel accessibility-panel" aria-label="Accessibility" hidden>
-                <h3>Accessibility</h3>
-                <div class="accessibility-options">
-                  <label><input id="reduced-motion" type="checkbox" /> Reduce motion</label>
-                  <label><input id="high-contrast" type="checkbox" /> High contrast</label>
-                  <label><input id="large-text" type="checkbox" /> Larger interface text</label>
-                  <label class="volume-setting">Master volume <input id="effects-volume" type="range" min="0" max="100" step="5" value="72" /><output id="effects-volume-value" for="effects-volume">72%</output></label>
-                </div>
-              </section>
-            </div>
-            <p class="escape-menu-hint">Esc closes the menu</p>
-          </div>
-        </section>
+        <section id="shop-panel" class="adventure-modal" role="dialog" aria-labelledby="shop-title" hidden><div class="parchment"><span class="eyebrow">HEARTHSTEAD APOTHECARY</span><h2 id="shop-title">Mara's remedies</h2><p>A little warmth for the road ahead.</p><p id="shop-offer"></p><button id="shop-buy-potion">Buy potion</button><button id="shop-close">Farewell</button></div></section>
+        <section id="pause-panel" class="adventure-modal" role="dialog" aria-label="Paused" hidden><div class="parchment"><h2>Take a breath</h2><p>Your expedition is paused.</p><button id="pause-resume">Return to the forest</button><button id="return-roster">Choose a character</button></div></section>
+        <section id="death-panel" class="adventure-modal" role="dialog" aria-label="Expedition ended" hidden><div class="parchment"><span class="eyebrow">YOUR JOURNEY HAS ENDED</span><h2>Frostwood remembers</h2><p>This adventurer has fallen. Their journey remains saved; begin again with a new character.</p><button id="death-roster">Choose a character</button></div></section>
       </div>
-      <aside id="sidebar">
-        <h1>Boar Breach</h1>
-        <div class="kicker">One living Clause session</div>
-        <div id="stage">Opening world…</div>
-        <div id="expedition-progress" class="expedition-progress" role="progressbar" aria-label="Ashen Verge foothold" aria-valuemin="0" aria-valuenow="0" aria-valuemax="3">Expedition 1 of 3 · foothold 0 / 3</div>
-        <div id="save-status" class="save-status" aria-live="polite">Checking saved foothold…</div>
-        <p id="summary">The source-authored room is entering real Wasm.</p>
-        <button id="clear-progress">Clear saved campaign</button>
-        <section>
-          <h2>Authoritative custody</h2>
-          <div id="game-custody">No gameplay advance yet.</div>
-          <p class="truth-note">Input and ticks produce a hidden Candidate Delta. Only the following separate Admission installs a visible frame.</p>
-        </section>
-        <section>
-          <h2>Resident Clause law</h2>
-          <div id="resident-law">Opening the resident Clause generation…</div>
-        </section>
-        <section>
-          <h2>Input focus</h2>
-          <p id="selection">Click the arena to route keyboard input into the resident Clause session.</p>
-        </section>
-        <details>
-          <summary>Secondary disconnect proof</summary>
-          <p class="truth-note">The original exact fork, reconnect Candidate, Admission, explanation, and moonwell effect remain reachable here.</p>
-          <div class="controls">
-            <button id="enter-world">Enter branch proof</button>
-            <button id="disconnect">Disconnect at tick 41</button>
-            <button id="continue-branch">Advance isolated branch</button>
-            <button id="submit-candidate">Submit Candidate Delta</button>
-            <button id="admit-candidate">Invoke Admission</button>
-            <button id="pulse-moonwell" class="effect">Pulse moonwell effect</button>
-          </div>
-          <div id="candidate" aria-live="polite"></div>
-          <section><h2>Effect ledger</h2><div id="effect">No effect attempt yet.</div></section>
-          <section><h2>Admitted projection</h2><div id="projection">Hidden until Admission.</div></section>
-          <section><h2>Causal explanation</h2><div id="explanation">No successor yet.</div></section>
-        </details>
-      </aside>
     </main>
-    <script type="module" src="./app/greywrought-clause/play.js"></script>
+    <script type="module" src="./app/greywrought/play.js"></script>
   </body>
 </html>
