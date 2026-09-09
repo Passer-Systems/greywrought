@@ -10,29 +10,37 @@ Search defeated enemies for salvage, then return alive to exchange it for
 supplies. Offer six carried cores in the deep grove to call a guardian whose
 relic must be looted and brought home. Kills grant no experience points.
 
-The first enemy is an animated Ember head with 72 health. It opens with a
-6-point ward and a targeted beam. Its beam repeats every three seconds;
-separate announced pairs alternate fireballs, wards and Kindle power-ups.
-Kindle adds another homing fireball to subsequent volleys. The nameplate shows
-painted ability icons below its health: active action, then two future moves,
-with explicit pauses between them. Auto-attacks have a separate timer.
-Hover icons for damage, timing and responses; press L for every monster's
-abilities, move patterns and random variations.
+Combat follows five active seconds then five preparation seconds. You can plan
+up to five moves; each enemy commits only one announced move per window.
+Additional enemies join the next shared opening without resetting the clock.
 
-You have 3 stamina, recovering 1 every 2 seconds. Spend it on attacks, a brief
+The first enemy is an animated Ember head with 72 health. It opens with a
+small targeted Beam, then uses Fireball, a two-second Ward, and Kindle in
+successive windows. Kindle strengthens later volleys. Painted icons below the
+nameplate show current activity and future windows, with explicit pauses.
+Hover for details; press L for every monster's abilities and move patterns.
+
+You have five stamina per active window, refilled at the start of preparation.
+Queue moves before pulling and edit their timing in the five-column plan.
+Spend stamina on attacks, a brief
 10-point Block, or Blood Rage. Rage adds melee damage but drains health, caps
-at three stacks and fades rapidly outside combat. Time Block around overlapping
+at three stacks and fades rapidly outside combat. Free Jab and Guard fill
+a beat without spending stamina. Time Block around overlapping
 impacts, power up during enemy wards, and attack before Kindle strengthens it.
 
 Deeper in the forest, the Ash hound approaches with diagonal hops, circles,
-then commits to a dodgeable Maul. Its targeted Bite pursues for contact on a
-separate clock. Hostile creatures are red; neutral creatures are yellow until
+then commits to a dodgeable Maul. It makes one attack per window. Hostile creatures are red; neutral creatures are yellow until
 provoked. The map, road and landmarks keep the route home visible.
 Characters and expeditions are saved in the browser; defeat is permanent.
 Animated Quaternius creatures and village scenery bring the route to life.
+Warrior, mage and ranger have distinct models and sword, staff and bow animations.
+They currently share the prototype ability kit.
 Music and sampled combat sounds begin after interaction; open the game menu to adjust
 music and effects volume or mute them.
 Rowan offers free healing at The Wayfarer’s Rest beside the town square.
+Mara’s **Trade goods** window exchanges three supplies for a health potion,
+or a potion for two supplies. Adjust the offer, then Accept; nothing changes
+until you accept. Escape or Cancel returns to her shop.
 Centered player, target and target-of-target frames track the fight; the Chat
 and Combat Log tabs preserve recent dialogue, damage, mitigation and loot.
 
@@ -60,11 +68,14 @@ W/S move forward and backward; A/D strafe. Space jumps. Hold both mouse buttons
 to move forward, including while S is held. Drag either mouse button to turn
 the view, and use the wheel to zoom.
 
-Tab selects a target. 1 lunges and strikes; 2 strikes and leaps back, rooting the
-enemy until you land; 3 (or E) spends 2 stamina for 10 block lasting 2 seconds. 4 gains a Blood Rage
-stack at the cost of 1 stamina and 2 seconds of action recovery. G gathers frost cores and R
+Tab selects a target. Q queues Lunge, E Block, Z Disengage, X Blood Rage,
+V a free Jab, and N a free Guard. Up to five moves fit the active window.
+QE means Lunge at 0s, Block at 1s; QE3 delays Block until 3s after Lunge.
+Numbers keep adjusting the selected pending move until it fires. Click to
+select another move; drag to move or swap it. Shift+1–5 places or swaps into a
+column; Backspace removes. Executed moves stay locked. G gathers frost cores and R
 calls the grove guardian. F talks to Mara or Rowan, or opens nearby corpse loot; click an
-item to take it. You can also click a lootable body. H drinks a potion. Return through the
+item to take it. You can also click a lootable body. H queues a potion during combat or drinks it immediately outside combat. Return through the
 gate to secure carried rewards. Visit Rowan at the inn to recover health.
 C opens the character paper doll with all 19 Classic equipment slots. Select
 a slot to inspect it; gear changes are not yet implemented. B opens your backpack
@@ -72,6 +83,9 @@ to inspect carried items; click an item for its tooltip and potion action.
 L opens the monster lorebook. The icon hotbar shows ability keys and hover
 tooltips; the separate recovery bar shows your current commitment. Escape
 closes a window or opens the game menu. Movement continues while windows are open.
+To delete a character, return to the roster, select them, and choose **Delete
+Character**. Confirming removes that character and their saved journey from
+the current browser; your other characters remain.
 
 ## Versions and archives
 

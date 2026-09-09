@@ -31,8 +31,7 @@ interface ThreatRig {
   readonly height: number;
   health: number;
   sequence: number;
-  autoSequence: number;
-  biteTime: number;
+  attackTime: number;
   phase: ThreatView["phase"];
   hitTime: number;
   lootable: boolean;
@@ -179,6 +178,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   player.add(playerHalo);
   const rigs = new Map<string, ThreatRig>();
   let knight: ForestActor | null = null;
+  const playerArchetype = initial.player.archetype;
+  const playerAnimation = playerArchetype === "mage" ? { attack: "Staff_Attack", hit: "RecieveHit", jump: "Roll" } : playerArchetype === "hunter" ? { attack: "Bow_Shoot", hit: "RecieveHit", jump: "Roll" } : { attack: "Sword_Attack", hit: "RecieveHit", jump: "Roll" };
   let merchant: ForestActor | null = null;
   let innkeeper: ForestActor | null = null;
   let playerAttackRemaining = 0;
@@ -195,13 +196,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   document.body.dataset.rigState = "loading";
   document.body.dataset.boarRigState = "loading";
   document.body.dataset.environmentState = "loading";
-  const knightReady = actor("Knight", 2.2, true).then(async mounted => {
+  const knightReady = actor("Knight", 2.2, playerArchetype).then(mounted => {
     if (disposed) { mounted.dispose(); return; }
     knight = mounted; player.add(mounted.root); mounted.play("Idle");
-    const sword = await prop("Sword", 1.1);
-    const hand = mounted.model.getObjectByName("FistR");
-    if (!hand) throw Error("Knight right hand is missing");
-    sword.position.set(0, 0.04, 0); sword.rotation.x = Math.PI / 2; hand.add(sword);
     document.body.dataset.rigState = "ready";
   });
   const merchantReady = actor("Cleric", 1.85).then(mounted => {
@@ -241,7 +238,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const beam = new Mesh(new CylinderGeometry(0.045,0.045,1,8),new MeshBasicMaterial({color:0xffbc71,transparent:true,opacity:0.85,depthWrite:false})); beam.visible=false;scene.add(beam);
     const ward = new Mesh(new SphereGeometry(1.05,20,12),new MeshBasicMaterial({color:0x80c6ff,transparent:true,opacity:0.2,depthWrite:false}));ward.position.y=look.height*0.55;ward.visible=false;root.add(ward);
     rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,warning,ring,lootGlint:glint,lungePath,rootEffect,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
-      health:threat.health,sequence:threat.actionSequence,autoSequence:threat.autoAttackSequence,biteTime:0,phase:threat.phase,hitTime:0,lootable:false});
+      health:threat.health,sequence:threat.actionSequence,attackTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const natureReady = buildFrostwood(terrain, thicket, innPosition).then(()=>{document.body.dataset.environmentState="ready";});
   const ready = Promise.all([knightReady, merchantReady, innkeeperReady, creaturesReady, natureReady]).then(()=>undefined);
@@ -284,14 +281,14 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (snapshot.player.attackSequence !== lastAttack && knight) {
         if (selected) player.rotation.y = Math.atan2(selected.position.x-position.x,selected.position.z-position.z);
         const swing = snapshot.player.maneuver === "disengage" ? 0.18 : 0.4;
-        knight.play("SwordSlash",false,swing); playerAttackRemaining=swing; lastAttack=snapshot.player.attackSequence;
+        knight.play(playerAnimation.attack,false,swing); playerAttackRemaining=swing; lastAttack=snapshot.player.attackSequence;
       }
       if (knight) {
         if(snapshot.player.health<=0 && !playerDead) { playerDead=true; knight.play("Death",false); }
-        else if(snapshot.player.health<lastHealth && snapshot.player.health>0) { playerHitRemaining=0.4; knight.play("RecieveHit",false,0.4); }
+        else if(snapshot.player.health<lastHealth && snapshot.player.health>0) { playerHitRemaining=0.4; knight.play(playerAnimation.hit,false,0.4); }
         if(!playerDead) {
           playerHitRemaining=Math.max(0,playerHitRemaining-delta); playerAttackRemaining=Math.max(0,playerAttackRemaining-delta);
-          if(playerHitRemaining===0&&playerAttackRemaining===0) knight.play(snapshot.player.maneuver === "disengage" || !snapshot.player.grounded ? "Jump" : snapshot.player.moving ? "Run" : "Idle");
+          if(playerHitRemaining===0&&playerAttackRemaining===0) knight.play(snapshot.player.maneuver === "disengage" || !snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle");
         }
         knight.mixer.update(delta);
         document.body.dataset.rigAnimationMode=playerDead?"death":playerHitRemaining>0?"hit":playerAttackRemaining>0?"attack":snapshot.player.moving?"locomotion":"idle";
@@ -328,20 +325,19 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.rootEffect.visible = threat.rootedSeconds > 0;
         const attackClip = threat.currentAbility.id === "maul" ? "Gallop_Jump" : rig.attack;
         const changed = threat.phase !== rig.phase;
-        if (threat.autoAttackSequence > rig.autoSequence) { rig.biteTime = 0.3; if (threat.autoAttack?.id === "ember-beam") rig.beamTime = 0.18; }
-        rig.autoSequence = threat.autoAttackSequence;
+        if (threat.actionSequence > rig.sequence && threat.currentAbility.id === "ember-beam") { rig.attackTime = 0.3; rig.beamTime = 0.18; }
         if (threat.phase === "cleared") {
           if(rig.health>0) rig.actor.play("Death",false,undefined,0.08);
         } else if (threat.movementMode === "hop" || threat.movementMode === "lunge") {
           const action = rig.actor.action?.getClip().name === "Gallop_Jump" ? rig.actor.action : rig.actor.play("Gallop_Jump",false,undefined,0.04);
           action.paused = true; action.time = action.getClip().duration * threat.motionProgress;
-        } else if (rig.biteTime > 0) {
+        } else if (rig.attackTime > 0) {
           const action = rig.actor.action?.getClip().name === rig.attack ? rig.actor.action : rig.actor.play(rig.attack,false,0.3,0.03);
-          action.paused = true; action.time = action.getClip().duration * (1 - rig.biteTime/0.3);
+          action.paused = true; action.time = action.getClip().duration * (1 - rig.attackTime/0.3);
         } else if(threat.phase === "action") {
           const action = changed ? rig.actor.play(attackClip,false,undefined,0.035) : rig.actor.action!;
           action.paused = true;
-          const impactStart = threat.currentAbility.id === "bite" ? 0.5 : 0.3;
+          const impactStart = 0.3;
           action.time = action.getClip().duration * (impactStart + (1-impactStart) * Math.max(0, 1-threat.remainingSeconds/threat.phaseDuration));
         } else if(threat.health < rig.health && threat.health>0) {
           rig.hitTime=0.3; rig.actor.play(rig.hit,false,0.3,0.04);
@@ -353,10 +349,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           rig.actor.play(threat.movementMode === "circle" ? "Walk" : threat.moving ? rig.walk : rig.idle);
         }
         rig.hitTime=Math.max(0,rig.hitTime-delta);
-        rig.biteTime=Math.max(0,rig.biteTime-delta);
+        rig.attackTime=Math.max(0,rig.attackTime-delta);
         // Authored motion supplies the pose; a restrained lean makes the full windup visible.
         const preparation = threat.phase === "preparation" && !threat.moving ? Math.max(0,1-threat.remainingSeconds/threat.phaseDuration) : 0;
-        rig.body.position.y = threat.autoAttack?.id === "ember-beam" ? 1.25 : 0;
+        rig.body.position.y = threat.id === "scout" ? 1.25 : 0;
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;
         rig.warning.visible = threat.active && ["maul","nest","warder","ritual-guardian"].includes(threat.currentAbility.id) && threat.currentAbility.noticeSeconds > 0 && (threat.phase === "preparation" || threat.phase === "action");

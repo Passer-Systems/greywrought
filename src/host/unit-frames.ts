@@ -66,7 +66,7 @@ export function createUnitFrames(host: HTMLElement) {
   const player = makeFrame(root, "player-frame", "player");
   const resources = node("div", "unit-frame-stamina", player.root.querySelector<HTMLElement>(".unit-frame-bars")!);
   resources.id = "player-stamina"; resources.setAttribute("role", "meter"); resources.setAttribute("aria-label", "Stamina");
-  const pips = Array.from({length:3}, () => node("span", "stamina-pip", resources));
+  const pips = Array.from({length:5}, () => node("span", "stamina-pip", resources));
   const staminaText = node("span", "stamina-value", resources);
   const rage = node("span", "unit-frame-rage", player.root.querySelector<HTMLElement>(".unit-frame-bars")!); rage.id = "player-rage";
   const targetGroup = node("div", "unit-frame-target-group", root); targetGroup.hidden = true;
@@ -91,11 +91,11 @@ export function createUnitFrames(host: HTMLElement) {
       health(player, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id);
       write(player.status, snapshot.player.health <= 0 ? "Journey ended" : snapshot.player.block > 0 ? `${snapshot.player.block} block · ${snapshot.player.guardSeconds.toFixed(1)}s` : snapshot.phase === "town" ? "Hearthstead" : "Frostwood");
       const stats = snapshot.player;
-      for (let i=0;i<pips.length;i++) pips[i]!.dataset.filled = String(i < stats.stamina);
+      for (let i=0;i<pips.length;i++) { pips[i]!.dataset.filled = String(i < stats.stamina); pips[i]!.dataset.reserved = String(i < stats.stamina && i >= snapshot.combat.availableStamina); }
       resources.setAttribute("aria-valuenow", String(stats.stamina)); resources.setAttribute("aria-valuemin", "0"); resources.setAttribute("aria-valuemax", String(stats.maximumStamina));
-      write(staminaText, stats.stamina + "/" + stats.maximumStamina + (stats.stamina < stats.maximumStamina ? " · +1 in " + stats.staminaRecoverySeconds.toFixed(1) + "s" : " stamina"));
-      resources.title = "Stamina powers your actions. Recover 1 every 2 seconds.";
-      write(rage, "Rage " + stats.bloodRage + "/3" + (stats.bloodRage > 0 ? stats.inCombat ? " · −" + stats.bloodRage + " HP in " + stats.rageDrainSeconds.toFixed(1) + "s" : " · fades in " + stats.rageDecaySeconds.toFixed(1) + "s" : " · Power up with 4"));
+      write(staminaText, snapshot.combat.availableStamina + " free · " + snapshot.combat.reservedStamina + " queued");
+      resources.title = "Five stamina per active window. Queued moves reserve shaded pips. Refill when preparation begins.";
+      write(rage, "Rage " + stats.bloodRage + "/3" + (stats.bloodRage > 0 ? stats.inCombat ? " · −" + stats.bloodRage + " HP in " + stats.rageDrainSeconds.toFixed(1) + "s" : " · fades in " + stats.rageDecaySeconds.toFixed(1) + "s" : " · Power up with X"));
       rage.dataset.active = String(stats.bloodRage > 0);
       rage.title = "Each Rage stack adds 2 melee damage and costs 1 health every 5 seconds. Outside combat, lose 1 stack every 2 seconds.";
       const enemy = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat && threat.active);

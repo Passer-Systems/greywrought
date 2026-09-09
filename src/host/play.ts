@@ -16,6 +16,8 @@ import { createUnitFrames } from "./unit-frames.js";
 import { createInnPanel } from "./inn-panel.js";
 import { createLorebook } from "./lorebook.js";
 import { createShopPanel } from "./shop-panel.js";
+import { createTradePanel } from "./trade-panel.js";
+import { createCombatPlan } from "./combat-plan.js";
 import { publicUrl } from "./public-url.js";
 
 declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
@@ -34,6 +36,17 @@ const bags = createBagPanel(element("adventure-hud"), {
 const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => unitFrames.portrait(id));
 const chatLog = createChatLog(element("adventure-hud"));
 const unitFrames = createUnitFrames(element("adventure-hud"));
+const combatPlan = createCombatPlan(element("combat-plan-mount"), {
+  onDelay: (id, seconds) => { if (running?.ready && !paused) { running.game.setQueuedDelay(id, seconds); combatPlan.update(running.game.snapshot); } },
+  onRemove: id => { if (running?.ready && !paused) { running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
+  onClear: () => { if (running?.ready && !paused) { running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
+  onMove: (id, seconds) => { if (running?.ready && !paused) { running.game.moveQueuedAction(id, seconds); combatPlan.update(running.game.snapshot); } },
+});
+const hudSize = new ResizeObserver(entries => {
+  const entry = entries[0];
+  if (entry) document.body.style.setProperty("--combat-hud-height", entry.contentRect.height + "px");
+});
+hudSize.observe(element("combat-plan-mount").parentElement!);
 const inn = createInnPanel(element("adventure-hud"), {
   onRest: () => pulse("rest"),
   onClose: () => { pulse("closeInn"); running?.world.canvas.focus(); },
@@ -41,7 +54,17 @@ const inn = createInnPanel(element("adventure-hud"), {
 void unitFrames.ready.catch(cause => console.error("Unit portraits failed to load", cause));
 const shop = createShopPanel(element("adventure-hud"), {
   onBuyPotion: () => pulse("buyPotion"),
+  onTrade: () => pulse("openTrade"),
   onClose: () => { pulse("closeShop"); running?.world.canvas.focus(); },
+});
+const trade = createTradePanel(element("adventure-hud"), {
+  onOffer: (kind, quantity) => {
+    if (!running?.ready || paused) return;
+    running.game.setTradeOffer(kind, quantity);
+    trade.update(running.game.snapshot);
+  },
+  onAccept: () => { pulse("acceptTrade"); save(); },
+  onClose: () => { pulse("closeTrade"); running?.world.canvas.focus(); },
 });
 void shop.ready.catch(cause => console.error("Merchant portrait failed to load", cause));
 
@@ -71,7 +94,7 @@ const classes: Record<CharacterArchetype, { name: string; copy: string }> = {
 };
 const keyActions: Readonly<Record<string, AdventureAction>> = {
   KeyW: "forward", KeyS: "backward", KeyA: "left", KeyD: "right", Space: "jump",
-  Digit1: "strike", Digit2: "disengage", Digit3: "brace", Digit4: "bloodRage", KeyE: "brace", KeyG: "gather", KeyR: "ritual",
+  KeyQ: "strike", KeyE: "brace", KeyZ: "disengage", KeyX: "bloodRage", KeyV: "jab", KeyN: "guard", KeyG: "gather", KeyR: "ritual",
   KeyF: "interact", KeyH: "drinkPotion", KeyT: "rest", Tab: "target",
 };
 const resumeKey = "greywrought/adventure-active-character";
@@ -99,6 +122,7 @@ let profile: LocalProfile | null = null;
 let profileBlocked = false;
 let route: "account" | "creator" | "roster" | "world" = "account";
 let draft: CharacterArchetype = "warrior";
+let pendingDeleteId: string | null = null;
 
 function listen(target: EventTarget, type: string, handler: EventListener, local = removers): void {
   target.addEventListener(type, handler);
@@ -109,6 +133,7 @@ function pulse(action: AdventureAction): void {
   if (!running?.ready || (paused && action !== "closeLoot" && action !== "closeShop")) return;
   running.game.setAction(action, true);
   running.game.setAction(action, false);
+  combatPlan.update(running.game.snapshot);
 }
 function release(): void {
   if (running) {
@@ -188,12 +213,46 @@ function renderEntry(): void {
   }
   text("entry-roster-count", `${profile?.characters.length ?? 0} / 8`);
   button("entry-enter-world").disabled = entering || selected === null;
+  const deleteButton = button("entry-delete-character");
+  deleteButton.disabled = entering || selected === null || pendingDeleteId !== null;
+  const confirm = element("entry-delete-confirm");
+  confirm.hidden = pendingDeleteId === null;
+  const pending = profile?.characters.find((character) => character.id === pendingDeleteId);
+  text("entry-delete-copy", pending ? `Delete ${pending.name}? This removes their journey from this browser.` : "");
   if (selected) {
     avatar("entry-roster", selected.archetype);
     text("entry-roster-class", classes[selected.archetype].name);
     text("entry-roster-name", selected.name);
     text("entry-roster-summary", "One life · One journey into Frostwood");
   }
+}
+function requestDeleteSelected(): void {
+  const selected = selectedCharacter();
+  if (!selected || entering) return;
+  pendingDeleteId = selected.id;
+  text("entry-roster-feedback", "");
+  renderEntry();
+  button("entry-delete-cancel").focus();
+}
+function cancelDelete(): void {
+  pendingDeleteId = null;
+  renderEntry();
+}
+function deletePendingCharacter(): void {
+  if (!profile || !pendingDeleteId || entering) return;
+  const id = pendingDeleteId;
+  const deleted = profile.characters.find((character) => character.id === id);
+  if (!deleted) { pendingDeleteId = null; renderEntry(); return; }
+  try { localStorage.removeItem(`greywrought/adventure-v1/${id}`); } catch (cause: unknown) { console.error("Character journey removal failed", cause); }
+  try { if (sessionStorage.getItem(resumeKey) === id) sessionStorage.removeItem(resumeKey); } catch { /* Session storage may be unavailable. */ }
+  const characters = profile.characters.filter((character) => character.id !== id);
+  const next = characters[0] ?? null;
+  profile = { ...profile, characters, selectedCharacterId: next?.id ?? null, savedAtMillis: Date.now() };
+  pendingDeleteId = null;
+  persistProfile();
+  text("entry-roster-feedback", `${deleted.name} was deleted.`);
+  route = characters.length ? "roster" : "creator";
+  renderEntry();
 }
 function returnToRoster(): void {
   release();
@@ -202,6 +261,7 @@ function returnToRoster(): void {
   closeBags();
   closeLorebook();
   chatLog.reset();
+  combatPlan.reset();
   if (running) audio.update(running.game.snapshot, true);
   audio.reset();
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
@@ -299,29 +359,36 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gameBlock = String(player.block); data.gameManeuver = player.maneuver;
   data.gameManeuverSeconds = String(player.maneuverSeconds);
   data.gameStamina = String(player.stamina); data.gameBloodRage = String(player.bloodRage); data.gameInCombat = String(player.inCombat);
+  data.gameCombatPhase = snapshot.combat.phase; data.gameCombatElapsed = String(snapshot.combat.elapsedSeconds);
+  data.gameCombatCycle = String(snapshot.combat.cycle); data.gameReservedStamina = String(snapshot.combat.reservedStamina);
+  data.gameAvailableStamina = String(snapshot.combat.availableStamina);
   data.archetype = player.archetype;
   text("adventure-zone", snapshot.phase === "town" ? "Hearthstead · safe haven" : snapshot.phase === "lost" ? "Journey ended" : "Frostwood");
   if (running) unitFrames.update(running.character, snapshot);
+  combatPlan.update(snapshot);
+  data.gameCombatPlan = String(!element("combat-plan").hidden);
   chatLog.update(snapshot.log);
   inn.update(snapshot, snapshot.innOpen);
   shop.update(snapshot);
+  trade.update(snapshot);
   const selected = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat);
-  for (const [action, label, available] of [
-    ["strike", "strike-ready", selected?.canStrike], ["disengage", "disengage-ready", selected?.canDisengage],
-    ["brace", "block-ready", snapshot.phase === "expedition" && player.maneuver === "none"],
-    ["bloodRage", "rage-ready", player.inCombat && player.bloodRage < 3 && player.maneuver === "none"],
+  for (const [action, label] of [
+    ["strike", "strike-ready"], ["disengage", "disengage-ready"],
+    ["brace", "block-ready"], ["bloodRage", "rage-ready"],
+    ["jab", "jab-ready"], ["guard", "guard-ready"],
   ] as const) {
     const cost = COMBAT_RULES[action].cost;
-    const recovering = player.actionCooldown > 0.001;
-    const control = document.querySelector<HTMLButtonElement>('[data-action="' + action + '"]');
-    if (control) { control.disabled = !available || recovering || player.stamina < cost; control.style.setProperty("--recovery", String(player.actionDuration > 0 ? player.actionCooldown / player.actionDuration : 0)); }
-    const detail = player.stamina < cost ? "Need " + cost + " stamina" : recovering ? "Recover " + player.actionCooldown.toFixed(1) + "s" : action === "bloodRage" ? player.bloodRage >= 3 ? "Maximum rage" : !player.inCombat ? "Combat only" : "1 stamina · +1 Rage" : action === "brace" ? cost + " stamina · 10 block" : available ? cost + " stamina" : "Out of reach";
+    const available = snapshot.phase === "expedition" && selected?.active && selected.health > 0;
+    const full = snapshot.combat.queued.length >= 5;
+    const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]');
+    if (control) { control.disabled = !available || full || snapshot.combat.availableStamina < cost; control.style.setProperty("--recovery", "0"); }
+    const detail = !available ? "Select a living enemy in the forest" : full ? "Five moves already planned" : snapshot.combat.availableStamina < cost ? "Need " + cost + " free stamina" : "Queue · " + cost + " stamina";
     text(label, detail);
   }
   const recovery = element("player-action-bar");
   recovery.hidden = player.actionCooldown <= 0.001;
   if (!recovery.hidden) {
-    const actionControl = player.currentAction ? document.querySelector<HTMLButtonElement>('[data-action="' + player.currentAction + '"]') : null;
+    const actionControl = player.currentAction ? document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + player.currentAction + '"]') : null;
     const art = actionControl?.querySelector<HTMLImageElement>(".action-art img");
     const icon = element("player-action-icon") as HTMLImageElement;
     const source = art?.src ?? publicUrl("assets/ui/icons/spells/sword-strike.png");
@@ -473,6 +540,9 @@ listen(element("entry-roster-list"), "click", (event) => {
   if (!id || !profile.characters.some((character) => character.id === id)) return;
   profile = { ...profile, selectedCharacterId: id, savedAtMillis: Date.now() }; persistProfile(); renderEntry();
 });
+click("entry-delete-character", requestDeleteSelected);
+click("entry-delete-cancel", cancelDelete);
+click("entry-delete-accept", deletePendingCharacter);
 click("entry-creator-back", () => { route = profile?.characters.length ? "roster" : "account"; renderEntry(); });
 click("entry-change-character", () => { if (!entering) { route = "creator"; renderEntry(); } });
 click("entry-enter-world", () => { const character = selectedCharacter(); if (character) void enterWorld(character); });
@@ -490,11 +560,17 @@ for (const target of [element("map-threats"), element("enemy-intents")]) listen(
 });
 for (const control of document.querySelectorAll<HTMLElement>("[data-action]")) listen(control, "click", () => {
   const action = control.dataset.action;
-  if (action && ["strike", "disengage", "brace", "bloodRage", "drinkPotion", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
+  if (action && ["strike", "disengage", "brace", "bloodRage", "jab", "guard", "drinkPotion", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
 });
 listen(window, "keydown", (event) => {
   if (event.isTrusted) void audio.unlock();
-  if (!(event instanceof KeyboardEvent) || route !== "world") return;
+  if (!(event instanceof KeyboardEvent)) return;
+  if (route === "roster" && pendingDeleteId !== null && event.code === "Escape") {
+    event.preventDefault();
+    if (!event.repeat) cancelDelete();
+    return;
+  }
+  if (route !== "world") return;
   if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
   if (event.code === "KeyC") {
     event.preventDefault();
@@ -519,9 +595,19 @@ listen(window, "keydown", (event) => {
     if (!event.repeat) {
       if (!element("pause-panel").hidden) setMenuOpen(false);
       else if (running?.game.snapshot.lootOpenId) pulse("closeLoot");
+      else if (running?.game.snapshot.trade) pulse("closeTrade");
       else if (running?.game.snapshot.shopOpen) pulse("closeShop");
       else if (running?.game.snapshot.innOpen) pulse("closeInn");
       else setMenuOpen(true);
+    }
+    return;
+  }
+  if (/^Digit[1-5]$/.test(event.code) || event.code === "Backspace") {
+    event.preventDefault();
+    if (!event.repeat && running?.ready && !paused) {
+      if (event.code === "Backspace") combatPlan.removeSelected();
+      else if (event.shiftKey) combatPlan.moveSelected(Number(event.code.slice(-1)) - 1);
+      else if (event.code !== "Digit5") combatPlan.adjustDelay(Number(event.code.slice(-1)));
     }
     return;
   }
@@ -531,6 +617,7 @@ listen(window, "keydown", (event) => {
   if (keys.has(event.code)) return;
   keys.add(event.code);
   running.game.setAction(action, true);
+  combatPlan.update(running.game.snapshot);
 });
 listen(window, "keyup", (event) => {
   if (!(event instanceof KeyboardEvent)) return;
@@ -572,7 +659,10 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   unitFrames.dispose();
   inn.dispose();
   shop.dispose();
+  trade.dispose();
   lorebook.dispose();
+  combatPlan.dispose();
+  hudSize.disconnect();
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
 };
 try {

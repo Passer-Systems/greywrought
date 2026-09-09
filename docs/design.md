@@ -21,6 +21,24 @@ language experiments are outside this delivery.
 - One local expedition first; shared hubs, companions and online disconnect
   protection belong to later multiplayer work.
 
+## Town barter
+
+Mara offers a working trade window beside her normal potion shop. The player
+chooses supplies or health potions to offer and adjusts the quantity. The two
+columns show exactly what each side gives: three supplies buy one potion;
+one potion returns two supplies. A quote changes no inventory. Accept exchanges
+both sides together after checking current inventory and proximity to Mara.
+Cancel, Escape and the corner close button return to the shop. Walking remains
+available; leaving talking range cancels the offer. Accepted exchanges use the
+existing saved supplies and potion inventory.
+
+## Character appearance
+
+Warrior, mage and ranger use distinct authored Quaternius characters and native
+sword, staff and bow animations. Their silhouettes and held weapons must remain
+recognizable from the normal camera. This release retains the shared prototype
+ability kit; distinct class combat rules are a separate design step.
+
 ## First milestone: a readable place and a readable encounter
 
 The next usable delivery is the walk from Hearthstead to one forest encounter
@@ -64,7 +82,7 @@ recovery, hit reaction and defeat as appropriate. Prefer suitable existing
 Greywrought assets. Pick the first encounter around a coherent set of usable
 animations; visual variety can grow after that encounter works.
 
-Auto-attacks and special intentions must be attached to the enemy they describe.
+Intentions must be attached to the enemy they describe.
 Show a compact action icon and concise description, with damage, target or
 area when that information is actually determined. Selection can reveal more
 detail. Several enemies must remain distinguishable without stacking large
@@ -82,9 +100,9 @@ presentation. Presentation must not invent attacks, damage, defensive windows,
 interruptibility or enemy decisions. If an attack cannot be interrupted, its
 cue must not imply otherwise.
 
-Start with one complete encounter: the Ember head teaches independent beam
-and fireball clocks, shielding, and growing volleys. The later Ash hound adds
-movement through a five-second warned, dodgeable Lunging Maul. Establish a readable
+Start with one complete encounter: the Ember head teaches shared combat timing,
+shielding, and growing volleys. The later Ash hound adds
+movement through a warned, dodgeable Lunging Maul. Establish a readable
 offense-versus-defense decision here before building a two-enemy combination. Any added interrupt or movement mechanic needs its own
 real rule and visible result.
 
@@ -128,8 +146,8 @@ Player and target frames sit near the lower center with room between them for
 the character. Show the target's target beneath its frame when it is actually
 attacking someone. Painted ability icons sit below enemy health and name. Read the current action
 or pause, then the next two special moves, with explicit pause durations between
-them. Adjacent moves with a plus sign happen together. Auto-attacks have a
-separate icon and clock beside that sequence. The stored opener is visible
+them. Each enemy commits only one ability per active window; following icons
+preview following windows. The stored opener is visible
 before engagement. Each ability has its own hover tooltip.
 Each tooltip names the attack, damage, range, timing and positional response.
 Offensive opportunities appear on the left only while actionable; actual
@@ -193,60 +211,95 @@ Current upstream references checked in September 2026:
   positioning and viewport collision handling for more involved tooltips and
   popovers. Add it when those interactions exceed the current simple tooltip.
 
+## Shared combat beat
+
+Target a creature and queue your response before entering its engagement range.
+Combat begins with five active seconds, followed by five preparation seconds.
+Both sides use the same clock. The player may use up to five moves, but each
+enemy commits only one announced ability per window. There are no separate
+enemy auto-attacks. Additional enemies approach and show their plan
+immediately, then join the next active opening without resetting that clock.
+Disengaging buys space; it is not necessary to repair separate enemy timers.
+
+Q queues Lunge, E Block, Z Disengage, and X Blood Rage. The first move defaults
+to the opening beat. Further moves default to the earliest legal time, with
+at least one second between actions. Blood Rage commits two seconds.
+Activation and effect duration are separate: Block raises a two-second shield
+on its chosen beat and permits attacking on the next beat without dropping it. At most
+five moves fit in an active window; stamina and longer commitments constrain
+that further. Queued stamina is reserved, then spent when a move executes.
+
+Numbers 1–4 change the selected move's delay relative to the preceding move
+(or the opening beat for the first). QE means Lunge at 0s and Block at 1s;
+QE3 means Block at 3s. The last queued move stays selected indefinitely,
+so numbers also allow last-second adjustments during the active window until
+it fires. Clicking another pending icon selects it. Drag to an empty beat to
+move it, or onto a pending move to swap them; Shift+1–5 does the same by
+column. Pointer delay controls include 0s for the first move. Backspace removes
+the selected pending move. Already-used moves cannot be moved or swapped.
+Past times, recovery conflicts, and moves outside the window are rejected
+without changing the existing plan. Movement and jump remain immediate.
+
+A compact five-column timeline aligns your plan with the selected enemy's
+announced moves. It shows the shared phase, remaining time, selected move,
+and reserved stamina. Target changes cancel stale moves. Defeat, return to
+town, and losing the encounter clear the plan. Saved journeys retain the clock
+and pending plan. Same-beat player defense resolves before enemy damage.
+Attack range and paths are checked when the move actually fires.
+
 ## First encounter: Ember head
 
-The first clearing holds an animated floating skull with 72 health. On
-engagement in range it immediately raises Ember Ward (6 block for 5 seconds)
-and fires Ember Beam (1 targeted damage). The stored opener and auto-attack
-are visible before pulling. Beam repeats on its own 3-second clock.
+The first clearing holds an animated floating skull with 72 health. Its sole
+opening move is Ember Beam (1 targeted damage). Queue Block before pulling to
+absorb it. Subsequent windows cycle through one Fireball volley, one Ember Ward
+(6 block for 2 seconds), and one Kindle power-up. One move activates at the
+opening of each window; the preceding preparation announces it.
 
-The head follows three repeating pairs. Times are measured from each pair's
-start; a new pair starts after the previous pair's final projectile or ward
-finishes. Its first move happens at +5 seconds and the second at +5 through
-+10 seconds. No input synchronization is needed.
-
-| Pair | First move | Second move | Gap |
-| --- | --- | --- | --- |
-| 1 | Fireball at +5s | Ember Ward at +5s | Together |
-| 2 | Kindle at +5s | Fireball at +10s | 5 seconds |
-| 3 | Kindle at +5s | Fireball at +8s | 3 seconds |
+During Ward, power up or heal, then attack after the shield expires. During
+Kindle, choose whether to exploit the opening or defend against another
+creature. Each extra enemy adds one announced move to read, not five.
 
 Fireball timing advertises impact, with release 0.9 seconds earlier. Each
-projectile deals 3 targeted damage and successive impacts are spaced 0.2 seconds
-apart. Kindle adds one projectile to later volleys. The head's ward is down
-during Kindle preparation: attack before the increase resolves. Defeating the
-head or leaving its territory extinguishes remaining fireballs. In-flight
-projectiles and enemy block survive reopening the encounter.
+projectile deals 3 targeted damage. Successive impacts are spaced up to 0.2s
+apart, tightened for larger volleys to finish inside the active window.
+Kindle adds a projectile to later volleys. Defeating the head or leaving its
+territory extinguishes remaining fireballs. Projectiles and enemy block survive
+reopening the encounter.
 
-The queue shows current activity and two actual upcoming moves, previewing
-across the fixed pair boundary when necessary to keep both future slots useful.
-A pause is a visible time gap, not an unnamed ability. For example: pause 5s →
-Fireball → pause 3s → Fireball. This example illustrates the display; the table
-above defines the head's actual sequence. Auto-attacks remain independent and
-can overlap a spell. Actual shields and roots appear beside the health bar.
+The nameplate shows current activity and two actual upcoming moves, including
+explicit pause durations across future windows. Actual shields
+and roots appear beside the health bar. The lorebook describes the same moves.
 
 ## Player stamina and Blood Rage
 
 The starting kit is available to existing characters; distinct class kits come
-later. Active stamina is capped at 3 and recovers by 1 every 2 seconds. There
+later. Each active window has five stamina, replenished when preparation begins
+and when combat ends. There is no midwindow stamina regeneration. There
 is no backup resource or per-ability cooldown in this prototype. Actions share
 recovery time; movement remains available while recovering and reading menus.
 
 | Key | Ability | Stamina | Effect | Action recovery |
 | --- | --- | --- | --- | --- |
-| 1 | Lunge | 1 | Move into reach; deal 9 melee damage | 1s |
-| 2 | Disengage | 1 | Deal 6 melee damage, leap backward; root target until landing | 1s |
-| 3 / E | Block | 2 | Absorb 10 damage over at most 2s | 1s |
-| 4 | Blood Rage | 1 | Gain one stack, up to 3; combat only | 2s |
+| Q | Lunge | 1 | Move into reach; deal 9 melee damage | 1s |
+| Z | Disengage | 1 | Deal 6 melee damage, leap backward; root target until landing | 1s |
+| E | Block | 2 | Absorb 10 damage over at most 2s | 1s |
+| X | Blood Rage | 1 | Gain one stack, up to 3; combat only | 2s |
+| V | Jab | 0 | Stationary strike for 3 melee damage within 2m | 1s |
+| N | Guard | 0 | Absorb 2 damage over at most 1s | 1s |
+| H | Health potion | 1 | Drink a carried potion for 30 health during combat | 1s |
 
-Each Rage stack adds 2 damage to Lunge and Disengage and drains 1 health every
+Free fillers are manual and still occupy one beat. There is no automatic
+filling. Potions remain immediate outside combat; a queued potion is only
+consumed when it fires.
+
+Each Rage stack adds 2 damage to melee attacks and drains 1 health every
 5 seconds, bypassing Block. It can kill you. Outside combat lose one stack
 every 2 seconds; re-engaging in time preserves momentum. The cap and health
 cost bound farming on a weak enemy. Stamina and Rage, including their timers,
 are saved. Older adventure saves initialize these resources without erasing
 characters, health, loot or secured rewards.
 
-Player frames show three stamina pips and the current Rage count, drain or
+Player frames show five stamina pips and the current Rage count, drain or
 fade timer. The compact painted-icon hotbar has key labels and full hover
 explanations. A separate bar shows successful action recovery; it never claims
 an instant action is still casting or can be interrupted.
@@ -257,21 +310,20 @@ The animated Ash hound patrols the deeper western forest. On engagement it
 approaches through forward diagonal hops, choosing left or right at 45 degrees
 independently with equal probability while facing the player. Nearby it circles
 and commits Maul toward a fixed landing point. It recovers for 2 seconds after
-landing; the next 5-second Maul preparation starts at that landing and includes
-recovery. A lunge takes 0.65 seconds and deals 9 damage within 3 metres of its
+landing. Maul follows the shared active opening after the visible preparation.
+The first encounter warns for 4 seconds before launching. A lunge takes 0.65 seconds and deals 9 damage within 3 metres of its
 committed landing. Disengage provides a deliberate escape and punishment loop.
 
-Bite is independent: 4 targeted damage, ready every 4 seconds. The hound pursues
-for real contact rather than dealing phantom ranged damage. Maul does not home.
-Block can absorb either source; coincident attacks compete for the same pool.
-The other forest creatures retain their distinct attacks and 3-second warnings.
-Their single repeating special is shown truthfully; the head is the full paired
-forecast encounter in this prototype.
+Maul is the hound’s sole combat action in each window. It does not home.
+Block can absorb it; movement can avoid its committed landing.
+The other forest creatures retain their distinct attacks, previewed during
+shared preparation before a short windup at the active opening.
+Their single repeating special is shown truthfully; future icons preview their next windows.
 
 ## In-game lorebook
 
 L toggles the lorebook. Every current monster has a page with its portrait,
-disposition, health, engagement behavior, opener, auto-attack, all abilities,
+disposition, health, engagement behavior, opener, all abilities,
 move sequences and useful responses. These entries consume the same ability
 and sequence definitions as combat. The head's order is fixed; the wolf's
 left/right approach hops each have a 50% chance; ordinary repeated moves have
@@ -283,7 +335,7 @@ header close button both close it.
 
 The first head is a teaching fight, not the final difficulty bar. The next
 milestone is one legible failed expedition: a player can identify the decisions
-that killed them and want to try those decisions differently. Keep attack on 1.
+that killed them and want to try those decisions differently. Keep the Q/E/Z/X queue controls.
 
 Health and limited potions remain expedition attrition. Active stamina governs
 short combat choices; it is not a persistent expedition wound resource. Damage and potion use carry between

@@ -36,20 +36,16 @@ export function createLorebook(host: HTMLElement, onClose: () => void, portrait:
     node("p", article, "lorebook-description", entry.description);
     node("h3", article, "lorebook-section-title", "On engagement");
     node("p", article, "lorebook-opener", entry.opener);
-    if (entry.autoAttack) {
-      node("h3", article, "lorebook-section-title", "Auto-attack · independent clock");
-      ability(entry.autoAttack, article);
-    }
     node("h3", article, "lorebook-section-title", "Abilities");
     const abilities = node("div", article, "lorebook-abilities");
-    for (const view of entry.abilities) if (view.id !== entry.autoAttack?.id) ability(view, abilities);
+    for (const view of entry.abilities) ability(view, abilities);
     node("h3", article, "lorebook-section-title", "Move sequences & variations");
     for (const sequence of entry.sequences) {
       const row = node("section", article, "lorebook-sequence"); row.dataset.loreSequence = sequence.name;
       node("h4", row, "", sequence.name + (sequence.probability === undefined ? "" : " · " + Math.round(sequence.probability * 100) + "%"));
       const steps = node("ol", row, "lorebook-steps");
       sequence.abilityIds.forEach((id, index) => {
-        const view = entry.abilities.find(ability => ability.id === id) ?? (entry.autoAttack?.id === id ? entry.autoAttack : undefined);
+        const view = entry.abilities.find(ability => ability.id === id);
         const step = node("li", steps);
         const time = sequence.offsetsSeconds[index];
         node("span", step, "lorebook-time", time === undefined ? "" : "+" + time + "s");

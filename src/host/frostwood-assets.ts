@@ -29,8 +29,9 @@ export interface ForestActor {
   play(name: string, loop?: boolean, duration?: number, fade?: number): AnimationAction;
   dispose(): void;
 }
-export async function actor(name: string, height: number, player = false): Promise<ForestActor> {
-  const gltf = await source(player ? "assets/quaternius/rig/wayfarer/Knight_Golden_Female.gltf" : `${root}actors/${name}.gltf`);
+export async function actor(name: string, height: number, playerModel?: "warrior" | "mage" | "hunter"): Promise<ForestActor> {
+  const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger" : playerModel === "mage" ? "Wizard" : "Warrior"}.glb` : null;
+  const gltf = await source(playerPath ?? `${root}actors/${name}.gltf`);
   const model = clone(gltf.scene);
   const wrapper = fit(model, height);
   const shadowCanvas = document.createElement("canvas"); shadowCanvas.width=shadowCanvas.height=64;

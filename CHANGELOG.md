@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 — 2026-09-09
+
+- Queue moves on a shared five-second active window with five seconds to prepare. Additional enemies inherit the fight’s clock; each announces only one move per active window.
+- Edit the larger five-beat plan with delayed hotkeys, live retiming, drag-and-drop swaps, and keyboard placement.
+- Budget five stamina per window; free Jab and Guard fill beats manually. Queue healing potions during combat.
+- Preserve pending plans and combat timing in saved journeys.
+- Trade supplies and health potions with Mara through adjustable offers and explicit acceptance; inventory persists between visits.
+- Give warrior, mage and ranger distinct Quaternius models with authored weapons and class-specific attack animations.
+- Delete individual characters and their saved journeys from the roster, with a named confirmation.
+- Anchor enemy nameplates to their creatures without jumping around other HUD panels.
+
 ## 0.3.0 — 2026-09-09
 
 - Made ordinary TypeScript, Three.js, and Bun the supported game, with source-save browser reload and named archives of the previous experiments.

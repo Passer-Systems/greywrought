@@ -2,7 +2,7 @@ import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
 import { createUnitPortraits } from "./unit-portraits.js";
 
-export function createShopPanel(host: HTMLElement, callbacks: { onBuyPotion(): void; onClose(): void }) {
+export function createShopPanel(host: HTMLElement, callbacks: { onBuyPotion(): void; onClose(): void; onTrade?(): void }) {
   const panel = document.createElement("section");
   panel.id = "shop-panel"; panel.hidden = true;
   panel.setAttribute("role", "dialog"); panel.setAttribute("aria-labelledby", "shop-title");
@@ -21,12 +21,13 @@ export function createShopPanel(host: HTMLElement, callbacks: { onBuyPotion(): v
     #shop-panel footer { border-top:2px ridge #676d5e; padding:7px; text-align:right; color:#e6d59b; background:#0c130eb0; }
     #shop-panel .shop-tab { width:92px; margin:0 0 -24px; padding:3px; background:linear-gradient(#413b26,#1b2118); border:2px ridge #897d57;border-radius:0 0 5px 5px;color:#e8d18b;text-align:center;font:13px Georgia; }
     #shop-panel button:focus-visible {outline:2px solid #efd286;outline-offset:2px;}
-  </style><header class="rpg-window-header"><img id="shop-portrait" alt="Mara, the apothecary" /><h2 id="shop-title" class="rpg-window-title">Mara</h2><button id="shop-close" class="rpg-window-close" type="button" aria-label="Close shop">×</button></header><div class="shop-stock"><button id="shop-buy-potion" type="button"><img alt="" /><span><strong>Health potion</strong><small></small></span></button></div><p id="shop-offer"></p><footer></footer><div class="shop-tab">Merchant</div>`;
+  </style><header class="rpg-window-header"><img id="shop-portrait" alt="Mara, the apothecary" /><h2 id="shop-title" class="rpg-window-title">Mara</h2><button id="shop-close" class="rpg-window-close" type="button" aria-label="Close shop">×</button></header><div class="shop-stock"><button id="shop-buy-potion" type="button"><img alt="" /><span><strong>Health potion</strong><small></small></span></button></div><p id="shop-offer"></p><footer><span id="shop-supplies"></span> <button id="shop-trade" type="button">Trade goods</button></footer><div class="shop-tab">Merchant</div>`;
   const buy = panel.querySelector<HTMLButtonElement>("#shop-buy-potion")!;
   buy.querySelector("img")!.src = publicUrl("assets/ui/icons/items/health-potion-red.png");
   const price = buy.querySelector("small")!, offer = panel.querySelector<HTMLElement>("#shop-offer")!, total = panel.querySelector("footer")!;
   const close = panel.querySelector<HTMLButtonElement>("#shop-close")!;
-  buy.addEventListener("click", callbacks.onBuyPotion); close.addEventListener("click", callbacks.onClose);
+  const trade = panel.querySelector<HTMLButtonElement>("#shop-trade")!;
+  buy.addEventListener("click", callbacks.onBuyPotion); close.addEventListener("click", callbacks.onClose); trade.addEventListener("click", () => callbacks.onTrade?.());
   host.append(panel);
   let disposed = false;
   const ready = createUnitPortraits([["mara", "Cleric"]]).then(images => {
@@ -43,9 +44,9 @@ export function createShopPanel(host: HTMLElement, callbacks: { onBuyPotion(): v
       const description = `Restores ${snapshot.potionHealing} health · ${snapshot.potions} in your bags`;
       if(offer.textContent !== description) offer.textContent = description;
       const supplies = `${snapshot.supplies} supplies`;
-      if(total.textContent !== supplies) total.textContent = supplies;
+      const supplyText = panel.querySelector("#shop-supplies")!; if(supplyText.textContent !== supplies) supplyText.textContent = supplies;
       buy.setAttribute("aria-label", `Buy health potion for ${cost}`);
     },
-    dispose(): void { disposed=true; buy.removeEventListener("click",callbacks.onBuyPotion);close.removeEventListener("click",callbacks.onClose);panel.remove(); },
+    dispose(): void { disposed=true; buy.removeEventListener("click",callbacks.onBuyPotion);close.removeEventListener("click",callbacks.onClose);trade.remove();panel.remove(); },
   };
 }

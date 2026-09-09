@@ -8,8 +8,23 @@ export interface AdventureLogEntry {
 }
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
-  | "strike" | "disengage" | "brace" | "bloodRage" | "gather" | "ritual" | "interact"
-  | "buyPotion" | "drinkPotion" | "rest" | "target" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn";
+  | "strike" | "disengage" | "brace" | "bloodRage" | "jab" | "guard" | "gather" | "ritual" | "interact"
+  | "buyPotion" | "drinkPotion" | "rest" | "target" | "openTrade" | "closeTrade" | "acceptTrade" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn";
+export interface TradeView {
+  readonly kind: "supplies" | "potions"; readonly quantity: number; readonly receivedQuantity: number;
+  readonly available: number; readonly canAccept: boolean; readonly reason: string; readonly step: number;
+}
+export type CombatAction = "strike" | "brace" | "disengage" | "bloodRage" | "jab" | "guard" | "drinkPotion";
+export interface QueuedCombatAction {
+  readonly id: number; readonly action: CombatAction; readonly targetId: string | null;
+  readonly offsetSeconds: number; readonly cost: number;
+  readonly status: "pending" | "executed" | "failed"; readonly reason: string | null;
+}
+export interface CombatView {
+  readonly phase: "idle" | "active" | "preparation"; readonly remainingSeconds: number;
+  readonly elapsedSeconds: number; readonly cycle: number; readonly queued: readonly QueuedCombatAction[];
+  readonly reservedStamina: number; readonly availableStamina: number;
+}
 export interface CorpseLootView {
   readonly sourceId: string;
   readonly sourceName: string;
@@ -32,7 +47,7 @@ export interface ThreatAbilityView {
 export interface MonsterLoreEntry {
   readonly id: string; readonly name: string; readonly health: number;
   readonly disposition: "hostile" | "neutral"; readonly description: string;
-  readonly autoAttack: ThreatAbilityView | null; readonly opener: string;
+  readonly opener: string;
   readonly abilities: readonly ThreatAbilityView[];
   readonly sequences: readonly { readonly name: string; readonly abilityIds: readonly string[]; readonly offsetsSeconds: readonly number[]; readonly description: string; readonly probability?: number }[];
   readonly strategy: string;
@@ -50,22 +65,20 @@ export interface ThreatView {
   readonly position: Position;
   readonly homePosition: Position;
   readonly disposition: "hostile" | "neutral";
-  readonly aggro: boolean;
+  readonly aggro: boolean; readonly joinsNextWindow: boolean;
   readonly moving: boolean;
-  readonly movementMode: "idle" | "walk" | "hop" | "circle" | "lunge" | "bite";
+  readonly movementMode: "idle" | "walk" | "hop" | "circle" | "lunge";
   readonly motionProgress: number;
   readonly facing: Position;
   readonly nextAttackSeconds: number;
   readonly attackOrigin: Position;
-  readonly autoAttack: ThreatAbilityView | null;
-  readonly autoAttackSeconds: number;
-  readonly autoAttackSequence: number;
   readonly block: number; readonly blockSeconds: number; readonly volley: number;
   readonly fireballs: readonly FireballView[];
   readonly rootedSeconds: number;
   readonly canStrike: boolean;
   readonly canDisengage: boolean;
   readonly currentActivity: ThreatForecastEntry | null;
+  readonly windowAction: { readonly ability: ThreatAbilityView; readonly offsetSeconds: number; readonly status: "pending" | "active" | "resolved" } | null;
   readonly forecast: readonly ThreatForecastEntry[];
   readonly currentAbility: ThreatAbilityView;
   readonly nextAbility: ThreatAbilityView;
@@ -93,6 +106,7 @@ export interface PlaceView {
 }
 export interface AdventureSnapshot {
   readonly phase: "town" | "expedition" | "lost";
+  readonly combat: CombatView;
   readonly player: {
     readonly position: Position;
     readonly cameraForward: Position;
@@ -126,7 +140,7 @@ export interface AdventureSnapshot {
   readonly bankedRelics: number;
   readonly presence: number;
   readonly ritualCalled: boolean;
-  readonly shopOpen: boolean;
+  readonly shopOpen: boolean; readonly trade: TradeView | null;
   readonly innOpen: boolean;
   readonly log: readonly AdventureLogEntry[];
   readonly potionPrice: number;
@@ -144,6 +158,11 @@ export interface AdventureGame {
   setMouseForward(active: boolean): void;
   setCameraForward(x: number, z: number): void;
   selectTarget(id: string): void;
+  setQueuedDelay(id: number, seconds: number): void;
+  moveQueuedAction(id: number, offsetSeconds: number): void;
+  removeQueuedAction(id: number): void;
+  clearQueuedActions(): void;
   openLoot(sourceId: string): void;
+  setTradeOffer(kind: "supplies" | "potions", quantity: number): void;
   save(): string;
 }
