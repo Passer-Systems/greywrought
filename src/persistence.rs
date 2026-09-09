@@ -27,13 +27,18 @@ pub fn load(path: &Path) -> Result<Game> {
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Game::new()),
         Err(error) => return Err(error.into()),
     };
-    let saved: SavedGame = serde_json::from_slice(&bytes)
-        .map_err(|error| format!("Could not read saved journey at {}: {error}", path.display()))?;
+    let saved: SavedGame = serde_json::from_slice(&bytes).map_err(|error| {
+        format!(
+            "Could not read saved journey at {}: {error}",
+            path.display()
+        )
+    })?;
     if saved.version != SAVE_VERSION {
         return Err(format!(
             "This saved journey needs a different game version (save version {}).",
             saved.version
-        ).into());
+        )
+        .into());
     }
     Ok(saved.game)
 }
@@ -52,14 +57,22 @@ pub fn save(game: &Game, path: &Path) -> Result<()> {
     let bytes = encode(game)?;
     let parent = parent_directory(path);
     fs::create_dir_all(parent)?;
-    let name = path.file_name().ok_or("Saved journey path has no file name")?;
+    let name = path
+        .file_name()
+        .ok_or("Saved journey path has no file name")?;
     let (pending, mut file) = loop {
         let mut pending_name = name.to_os_string();
         pending_name.push(format!(
-            ".pending-{}-{}", std::process::id(), NEXT_PENDING.fetch_add(1, Ordering::Relaxed)
+            ".pending-{}-{}",
+            std::process::id(),
+            NEXT_PENDING.fetch_add(1, Ordering::Relaxed)
         ));
         let pending_path = parent.join(pending_name);
-        match OpenOptions::new().write(true).create_new(true).open(&pending_path) {
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&pending_path)
+        {
             Ok(file) => break (PendingSave(pending_path), file),
             Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error.into()),
@@ -79,14 +92,19 @@ fn encode(game: &Game) -> Result<Vec<u8>> {
         version: u32,
         game: &'a Game,
     }
-    let bytes = serde_json::to_vec_pretty(&SavedGameRef { version: SAVE_VERSION, game })?;
+    let bytes = serde_json::to_vec_pretty(&SavedGameRef {
+        version: SAVE_VERSION,
+        game,
+    })?;
     // JSON cannot represent non-finite numbers; reject them before replacing any save.
     let _: SavedGame = serde_json::from_slice(&bytes)?;
     Ok(bytes)
 }
 
 fn parent_directory(path: &Path) -> &Path {
-    path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."))
+    path.parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
 }
 
 /// Preserve the ended character, then save a fresh journey after an explicit player request.
@@ -99,15 +117,24 @@ pub fn start_new_journey(previous: &Game, path: &Path) -> Result<(Game, PathBuf)
     let bytes = encode(previous)?;
     let parent = parent_directory(path);
     fs::create_dir_all(parent)?;
-    let name = path.file_name().ok_or("Saved journey path has no file name")?;
-    let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos();
+    let name = path
+        .file_name()
+        .ok_or("Saved journey path has no file name")?;
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_nanos();
     let (archive, mut file) = loop {
         let mut archive_name = name.to_os_string();
         archive_name.push(format!(
-            ".ended-{timestamp}-{}.json", NEXT_PENDING.fetch_add(1, Ordering::Relaxed)
+            ".ended-{timestamp}-{}.json",
+            NEXT_PENDING.fetch_add(1, Ordering::Relaxed)
         ));
         let archive_path = parent.join(archive_name);
-        match OpenOptions::new().write(true).create_new(true).open(&archive_path) {
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&archive_path)
+        {
             Ok(file) => break (archive_path, file),
             Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error.into()),

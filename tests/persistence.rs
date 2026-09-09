@@ -1,22 +1,34 @@
 use greywrought::{game::Game, persistence};
-use std::{fs, path::PathBuf, sync::atomic::{AtomicU64, Ordering}};
+use std::{
+    fs,
+    path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 struct SaveDirectory(PathBuf);
 impl SaveDirectory {
     fn new() -> Self {
-        let path = std::env::temp_dir().join(format!("greywrought-save-test-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+        let path = std::env::temp_dir().join(format!(
+            "greywrought-save-test-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
         fs::create_dir(&path).unwrap();
         Self(path)
     }
-    fn save(&self) -> PathBuf { self.0.join(persistence::SAVE_FILE_NAME) }
+    fn save(&self) -> PathBuf {
+        self.0.join(persistence::SAVE_FILE_NAME)
+    }
 }
 impl Drop for SaveDirectory {
     fn drop(&mut self) {
         for entry in fs::read_dir(&self.0).unwrap() {
             let path = entry.unwrap().path();
-            if path.is_file() { fs::remove_file(path).unwrap(); }
+            if path.is_file() {
+                fs::remove_file(path).unwrap();
+            }
         }
         fs::remove_dir(&self.0).unwrap();
     }
@@ -66,11 +78,17 @@ fn corrupt_and_incompatible_saves_fail_without_replacement() {
         assert_eq!(fs::read(dir.save()).unwrap(), bytes);
     }
     persistence::save(&Game::new(), &dir.save()).unwrap();
-    let mut saved: serde_json::Value = serde_json::from_slice(&fs::read(dir.save()).unwrap()).unwrap();
+    let mut saved: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.save()).unwrap()).unwrap();
     saved["version"] = 999.into();
     let bytes = serde_json::to_vec(&saved).unwrap();
     fs::write(dir.save(), &bytes).unwrap();
-    assert!(persistence::load(&dir.save()).unwrap_err().to_string().contains("different game version"));
+    assert!(
+        persistence::load(&dir.save())
+            .unwrap_err()
+            .to_string()
+            .contains("different game version")
+    );
     assert_eq!(fs::read(dir.save()).unwrap(), bytes);
 }
 
@@ -100,7 +118,10 @@ fn new_journey_archives_the_ended_character_and_preserves_legacy_save() {
     assert_eq!(fresh, Game::new());
     assert_eq!(persistence::load(&dir.save()).unwrap(), fresh);
     assert_eq!(persistence::load(&archive).unwrap(), ended);
-    assert_eq!(fs::read(legacy_path).unwrap(), b"untouched legacy character");
+    assert_eq!(
+        fs::read(legacy_path).unwrap(),
+        b"untouched legacy character"
+    );
     assert!(persistence::start_new_journey(&fresh, &dir.save()).is_err());
     assert_eq!(persistence::load(&dir.save()).unwrap(), fresh);
 }
