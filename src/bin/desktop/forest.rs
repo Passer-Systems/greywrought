@@ -1,16 +1,18 @@
-//! Forest art, projected readouts and physical controls. Route outcomes remain in Clause.
+//! Forest art, projected readouts and physical controls.
 use super::*;
 #[path = "forest/camera.rs"]
 mod camera;
+#[path = "forest/combat.rs"]
+pub(super) mod combat;
 #[path = "forest/hud.rs"]
 pub(super) mod hud;
+#[path = "forest/map.rs"]
+pub(super) mod map;
 
 #[derive(Component)]
 pub(super) struct ForestCamera;
 #[derive(Component)]
 pub(super) struct Wayfarer;
-#[derive(Component)]
-pub(super) struct Threat(String);
 #[derive(Component)]
 pub(super) struct TrailLabel(usize);
 #[derive(Component)]
@@ -23,7 +25,7 @@ pub(super) struct EquipmentControls;
 pub(super) struct OutfitPanel;
 #[derive(Component, Clone)]
 pub(super) enum Control {
-    Key(&'static str),
+    Action(Command),
     Target(usize),
     Outfit,
     Gear(usize),
@@ -214,20 +216,21 @@ pub(super) fn setup(
                 EquipmentControls,
             ));
             for (binding, text) in [
-                ("UnequipComponent", "Remove selected gear"),
-                ("DisconnectComponent", "Disconnect selected gear"),
-                ("RepairComponent", "Repair selected gear"),
-                ("RestCreature", "Rest at Hearthstead"),
+                (Command::UnequipComponent, "Remove selected gear"),
+                (Command::DisconnectComponent, "Disconnect selected gear"),
+                (Command::RepairComponent, "Repair selected gear"),
+                (Command::Rest, "Rest at Hearthstead"),
             ] {
-                p.spawn(button(Control::Key(binding))).with_children(|p| {
-                    p.spawn(label(text, 14.));
-                });
+                p.spawn(button(Control::Action(binding)))
+                    .with_children(|p| {
+                        p.spawn(label(text, 14.));
+                    });
             }
         });
 }
 
 pub(super) fn controls(
-    bridge: Res<Bridge>,
+    mut input: ResMut<InputQueue>,
     display: Res<Displayed>,
     keys: Res<ButtonInput<KeyCode>>,
     interactions: Query<(&Interaction, &Control), Changed<Interaction>>,
@@ -236,15 +239,10 @@ pub(super) fn controls(
     mut panels: Query<&mut ScrollPosition, With<OutfitPanel>>,
     hud: Option<ResMut<hud::State>>,
 ) {
-    if display.editing || display.inspecting || display.editor_handled_frame {
-        return;
-    }
     let Some(snapshot) = &display.snapshot else {
         return;
     };
-    let Some(view) = &snapshot.forest else {
-        return;
-    };
+    let view = &snapshot.forest;
     let Some(mut outfit) = outfit else {
         return;
     };
@@ -262,16 +260,16 @@ pub(super) fn controls(
         .map(|(_, c)| c.clone())
         .collect::<Vec<_>>();
     for (key, binding) in [
-        (KeyCode::Space, "Jump"),
-        (KeyCode::Digit1, "StrikeThreat"),
-        (KeyCode::KeyF, "Interact"),
-        (KeyCode::KeyH, "DrinkPotion"),
-        (KeyCode::KeyB, "Brace"),
-        (KeyCode::KeyG, "GatherResource"),
-        (KeyCode::KeyR, "CallRitual"),
+        (KeyCode::Space, Command::Jump),
+        (KeyCode::Digit1, Command::Strike),
+        (KeyCode::KeyF, Command::Interact),
+        (KeyCode::KeyH, Command::DrinkPotion),
+        (KeyCode::KeyB, Command::Brace),
+        (KeyCode::KeyG, Command::Gather),
+        (KeyCode::KeyR, Command::Ritual),
     ] {
         if keys.just_pressed(key) {
-            actions.push(Control::Key(binding));
+            actions.push(Control::Action(binding));
         }
     }
     if keys.just_pressed(KeyCode::KeyO) {
@@ -280,7 +278,7 @@ pub(super) fn controls(
     if keys.just_pressed(KeyCode::Escape) {
         outfit.open = false;
         hud.help = false;
-        actions.push(Control::Key("CloseShop"));
+        actions.push(Control::Action(Command::CloseShop));
     }
     if keys.just_pressed(KeyCode::Tab) && !view.threats.is_empty() {
         let next = view
@@ -290,11 +288,12 @@ pub(super) fn controls(
             .map_or(0, |i| (i + 1) % view.threats.len());
         actions.push(Control::Target(next));
     }
-    let mut inputs = Vec::new();
+
+    let mut pending = Vec::new();
     for action in actions {
-        let input = match action {
+        let command = match action {
             Control::Save => {
-                submit(&bridge, Request::Save);
+                input.save = true;
                 None
             }
             Control::Help => {
@@ -313,40 +312,38 @@ pub(super) fn controls(
                 outfit.open = !outfit.open;
                 None
             }
-            Control::Key(binding) => Some(native::key(binding)),
+            Control::Action(command) => Some(command),
             Control::Target(i) => view
                 .threats
                 .get(i)
-                .map(|t| native::reference("TargetThreat", t.target.clone())),
+                .map(|t| Command::TargetThreat(t.target.clone())),
             Control::Gear(i) => view
                 .equipment
                 .components
                 .get(i)
-                .map(|c| native::reference("PickComponent", c.pick.clone())),
+                .map(|c| Command::PickComponent(c.pick.clone())),
             Control::Fit(i) => view
                 .equipment
                 .body_parts
                 .get(i)
-                .map(|c| native::reference("FitComponent", c.fit.clone())),
+                .map(|c| Command::FitComponent(c.fit.clone())),
             Control::Wire(i) => view
                 .equipment
                 .components
                 .get(i)
                 .and_then(|c| c.wire.clone())
-                .map(|r| native::reference("WireComponent", r)),
+                .map(Command::WireComponent),
         };
-        if let Some(input) = input {
-            inputs.push(input);
+        if let Some(command) = command {
+            pending.push(command);
         }
     }
-    if !inputs.is_empty() {
-        submit(&bridge, Request::Input(snapshot.generation, inputs));
-    }
+    input.commands.extend(pending);
 }
 
 pub(super) fn present(
     mut commands: Commands,
-    mut display: ResMut<Displayed>,
+    display: Res<Displayed>,
     time: Res<Time>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -355,22 +352,18 @@ pub(super) fn present(
         Query<&mut Text, With<OutfitReadout>>,
     )>,
     mut player: Query<(&mut Transform, &mut Motion), With<Wayfarer>>,
-    mut threats: Query<
-        (&Threat, &mut Transform, &mut Visibility),
-        (Without<Wayfarer>, Without<ForestCamera>),
-    >,
     camera: Query<(&Camera, &GlobalTransform), With<ForestCamera>>,
     mut trail_labels: Query<
         (&TrailLabel, &mut Node, &mut Text),
         (Without<ThreatReadout>, Without<OutfitReadout>),
     >,
-    mut panels: Query<&mut Visibility, (With<OutfitPanel>, Without<Threat>)>,
+    mut panels: Query<&mut Visibility, With<OutfitPanel>>,
     outfit: Option<Res<Outfit>>,
     assets: Res<AssetServer>,
     mut initialized: Local<bool>,
     equipment_controls: Query<Entity, With<EquipmentControls>>,
 ) {
-    let Some(view) = display.snapshot.as_ref().and_then(|s| s.forest.as_ref()) else {
+    let Some(view) = display.snapshot.as_ref().map(|s| &s.forest) else {
         return;
     };
     if !*initialized {
@@ -401,6 +394,13 @@ pub(super) fn present(
                         .with_rotation(Quat::from_rotation_y(-1.57)),
                 ));
             }
+            if id == "ritual-site" {
+                commands.spawn((
+                    Mesh3d(meshes.add(Cuboid::new(10., 0.04, 8.))),
+                    MeshMaterial3d(materials.add(Color::srgb(0.25, 0.29, 0.18))),
+                    Transform::from_translation(point(*position) - Vec3::Y * 0.08),
+                ));
+            }
             if id == "frost-cores" || id == "ritual-site" {
                 commands.spawn((
                     Mesh3d(meshes.add(Cuboid::new(1., 1.5, 1.))),
@@ -412,27 +412,6 @@ pub(super) fn present(
                     Transform::from_translation(point(*position) + Vec3::Y * 0.75),
                 ));
             }
-        }
-        for threat in &view.threats {
-            let color = match threat.id.as_str() {
-                "scout" => Color::srgb(0.65, 0.43, 0.13),
-                "nest" => Color::srgb(0.25, 0.33, 0.08),
-                "warder" => Color::srgb(0.26, 0.18, 0.08),
-                "patrol" => Color::srgb(0.42, 0.15, 0.09),
-                _ => Color::srgb(0.35, 0.7, 0.84),
-            };
-            let mesh = if threat.id == "nest" {
-                meshes.add(Sphere::new(1.3))
-            } else {
-                meshes.add(Capsule3d::new(0.65, 1.5))
-            };
-            commands.spawn((
-                Threat(threat.id.clone()),
-                Mesh3d(mesh),
-                MeshMaterial3d(materials.add(color)),
-                Transform::default(),
-                Visibility::default(),
-            ));
         }
         for entity in &equipment_controls {
             commands.entity(entity).with_children(|p| {
@@ -475,22 +454,6 @@ pub(super) fn present(
             .translation
             .lerp(destination, (time.delta_secs() * 10.).min(1.));
     }
-    for (id, mut transform, mut visible) in &mut threats {
-        if let Some(threat) = view.threats.iter().find(|t| t.id == id.0) {
-            transform.translation = point(threat.position) + Vec3::Y * 1.2;
-            transform.scale = Vec3::splat(if threat.selected { 1.2 } else { 1.0 });
-            *visible = if threat.active {
-                Visibility::Inherited
-            } else {
-                Visibility::Hidden
-            };
-            transform.rotation = if threat.health <= 0. {
-                Quat::from_rotation_z(1.5)
-            } else {
-                Quat::IDENTITY
-            };
-        }
-    }
     if let Ok((camera, transform)) = camera.single() {
         for (label, mut node, mut text) in &mut trail_labels {
             if let Ok(screen) =
@@ -516,12 +479,11 @@ pub(super) fn present(
         }
     }
     for mut visible in &mut panels {
-        *visible =
-            if outfit.as_ref().is_some_and(|s| s.open) && !display.inspecting && !display.editing {
-                Visibility::Visible
-            } else {
-                Visibility::Hidden
-            };
+        *visible = if outfit.as_ref().is_some_and(|s| s.open) {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
     }
     if let Ok(mut text) = readouts.p1().single_mut() {
         **text = format!(
@@ -556,13 +518,6 @@ pub(super) fn present(
                 .join("\n")
         );
     }
-    if let Some((generation, started)) = display.edit_receipt.take() {
-        eprintln!(
-            "native edited forest projection submitted to scene: {} ms; generation {:?}",
-            started.elapsed().as_millis(),
-            generation
-        );
-    }
 }
 
 #[derive(Resource)]
@@ -574,7 +529,6 @@ pub(super) struct Orbit {
     heading: f32,
     last_input: Vec2,
     last_sent: f64,
-    generation: Option<WasmSessionHandleV1>,
 }
 impl Default for Orbit {
     fn default() -> Self {
@@ -586,13 +540,12 @@ impl Default for Orbit {
             heading: 0.,
             last_input: Vec2::ZERO,
             last_sent: -1.,
-            generation: None,
         }
     }
 }
 
 pub(super) fn navigate(
-    bridge: Res<Bridge>,
+    mut input_queue: ResMut<InputQueue>,
     display: Res<Displayed>,
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -625,14 +578,8 @@ pub(super) fn navigate(
     let Some(snapshot) = &display.snapshot else {
         return;
     };
-    if snapshot.forest.is_none() {
-        return;
-    }
-    let active = windows.single().is_ok_and(|w| w.focused)
-        && !display.editing
-        && !display.inspecting
-        && !display.editor_handled_frame
-        && !outfit.as_ref().is_some_and(|o| o.open);
+    let active =
+        windows.single().is_ok_and(|w| w.focused) && !outfit.as_ref().is_some_and(|o| o.open);
     let (surfaces, hud, mut pointer_claimed) = pointer;
     let over_ui = surfaces.iter().any(|i| *i != Interaction::None);
     if buttons.just_pressed(MouseButton::Left) || buttons.just_pressed(MouseButton::Right) {
@@ -674,36 +621,24 @@ pub(super) fn navigate(
         let mouse_forward = pointer_active
             && buttons.pressed(MouseButton::Left)
             && buttons.pressed(MouseButton::Right);
-        let forward = if mouse_forward {
-            1.0
-        } else {
-            pressed(KeyCode::KeyW) - pressed(KeyCode::KeyS)
-        };
-        let strafe = pressed(KeyCode::KeyD) - pressed(KeyCode::KeyA);
-        input = Vec2::new(rig.heading.sin(), rig.heading.cos()) * forward
-            + Vec2::new(-rig.heading.cos(), rig.heading.sin()) * strafe;
+        input = movement_input(
+            rig.heading,
+            pressed(KeyCode::KeyW) - pressed(KeyCode::KeyS),
+            pressed(KeyCode::KeyD) - pressed(KeyCode::KeyA),
+            mouse_forward,
+        );
     }
     let now = time.elapsed_secs_f64();
-    if input != rig.last_input
-        || rig.generation != Some(snapshot.generation)
-        || (input != Vec2::ZERO && now - rig.last_sent >= 0.1)
-    {
-        submit(
-            &bridge,
-            Request::Input(
-                snapshot.generation,
-                vec![
-                    native::scalar("MoveX", input.x as f64),
-                    native::scalar("MoveZ", input.y as f64),
-                ],
-            ),
-        );
+    if input != rig.last_input || (input != Vec2::ZERO && now - rig.last_sent >= 0.1) {
+        input_queue.commands.push(Command::Move {
+            x: input.x as f64,
+            z: input.y as f64,
+        });
         rig.last_input = input;
         rig.last_sent = now;
-        rig.generation = Some(snapshot.generation);
     }
     if let Ok((player_entity, mut player)) = players.single_mut() {
-        if snapshot.forest.as_ref().is_some_and(|f| f.vitality > 0.) {
+        if snapshot.forest.vitality > 0. {
             player.rotation = Quat::from_rotation_y(rig.heading);
         }
         let focus = player.translation + Vec3::Y * 1.5;
@@ -738,5 +673,28 @@ pub(super) fn navigate(
             *transform = Transform::from_translation(focus + offset * rig.clear_distance)
                 .looking_at(focus, Vec3::Y);
         }
+    }
+}
+
+fn movement_input(heading: f32, keyboard_forward: f32, strafe: f32, mouse_forward: bool) -> Vec2 {
+    let forward = if mouse_forward { 1.0 } else { keyboard_forward };
+    Vec2::new(heading.sin(), heading.cos()) * forward
+        + Vec2::new(-heading.cos(), heading.sin()) * strafe
+}
+
+#[cfg(test)]
+mod controls_tests {
+    use super::*;
+    #[test]
+    fn both_buttons_override_backpedal_without_losing_strafe() {
+        assert_eq!(movement_input(0., -1., 0., true), Vec2::Y);
+        assert_eq!(movement_input(0., -1., 1., true), Vec2::new(-1., 1.));
+        assert_eq!(movement_input(0., -1., 0., false), -Vec2::Y);
+    }
+    #[test]
+    fn strafe_follows_heading_without_changing_it() {
+        let heading = std::f32::consts::FRAC_PI_2;
+        assert!((movement_input(heading, 0., 1., false) - Vec2::Y).length() < 0.00001);
+        assert!((movement_input(heading, 1., 0., false) - Vec2::X).length() < 0.00001);
     }
 }
