@@ -1945,7 +1945,7 @@ button { cursor: pointer !important; }
 .adventure-modal h2 { font: 700 30px Georgia; color: #f8deac; margin: 12px 0; }.adventure-modal p { font-size: 14px; line-height: 1.7; color: #d2dada; }
 .adventure-modal button { border: 1px solid #c0a16c; padding: 11px 14px; margin: 8px 5px 0 0; background: #584830; color: #ffeac8; border-radius: 3px; font: 600 13px system-ui; }.adventure-modal button:hover { background: #736044; }.adventure-modal button:disabled { opacity: .4; }
 @media (max-width: 1000px) { .adventure-map { width: 210px; right: 12px; }#map-field { height: 270px; }.adventure-objective { left: 12px; width: 240px; }.adventure-objective { top: 20px; }.adventure-actions small { font-size: 8px; } }
-@media (max-width: 700px) { .adventure-objective { display: none; }.adventure-map { width: 155px; top: 12px; padding: 7px; }#map-field { height: 215px; }.map-enemy span { display: none; }.map-landmark { font-size: 8px; }.adventure-map footer { font-size: 8px; }.adventure-actions { gap: 2px; }.adventure-actions strong { font-size: 12px; }.adventure-actions small { display: none; }.adventure-controls { font-size: 8px; }.adventure-bottom { bottom: 6px; width: calc(100vw - 20px); }.adventure-menu-button { bottom: 140px; left: 12px; } }.enemy-nameplate:hover:not(:disabled) { background: none; border-color: transparent; }
+@media (max-width: 700px) { .adventure-objective { width: min(290px, calc(100vw - 145px)); padding: 10px; }.adventure-map { width: 155px; top: 12px; padding: 7px; }#map-field { height: 215px; }.map-enemy span { display: none; }.map-landmark { font-size: 8px; }.adventure-map footer { font-size: 8px; }.adventure-actions { gap: 2px; }.adventure-actions strong { font-size: 12px; }.adventure-actions small { display: none; }.adventure-controls { font-size: 8px; }.adventure-bottom { bottom: 6px; width: calc(100vw - 20px); }.adventure-menu-button { bottom: 140px; left: 12px; } }.enemy-nameplate:hover:not(:disabled) { background: none; border-color: transparent; }
 body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .bag-open { position: absolute; right: 22px; bottom: 70px; pointer-events: auto; display: flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid #b89a62; border-radius: 4px; background: #233439; color: #f6dfad; font: 600 13px system-ui; }
 .bag-open img { width: 24px; height: 24px; object-fit: contain; }
@@ -2099,3 +2099,27 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 body[data-game-combat-plan=true] .unit-frames {top:auto;bottom:calc(var(--combat-hud-height,310px) + 22px);}
 @media(max-width:850px) {.combat-plan {padding:5px;max-width:490px;} .combat-plan-grid {grid-template-columns:65px repeat(5,minmax(0,1fr));} .combat-plan-help {font-size:9px;} }
 .enemy-nameplate:has(.nameplate-ability:hover),.enemy-nameplate:has(.nameplate-ability:focus-visible) {z-index:40;}
+
+/* The expedition objective stays visible while traveling and fighting. */
+#quest-tracker { width: 300px; box-sizing: border-box; background: #152329f2; }
+#quest-tracker .eyebrow { font-size: 10px; margin-bottom: 10px; }
+.quest-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #f5ce7e; margin-bottom: 8px; font: 700 14px/1.3 Georgia, serif; }
+#quest-progress { flex-shrink: 0; font: 600 10px/1.3 system-ui, sans-serif; }
+#route-objective { font: 700 19px/1.25 system-ui, sans-serif; color: #fff4d8; }
+#quest-destination { color: #ffe09a; font: 600 12px/1.4 system-ui, sans-serif; margin-top: 8px; }
+#quest-tracker #route-detail { font: 13px/1.45 system-ui, sans-serif; color: #edf0e9; margin: 10px 0; }
+.quest-steps { padding: 9px 0; margin: 0; list-style: none; border-block: 1px solid #b79a674f; }
+.quest-steps li { padding: 3px 0; font: 12px/1.4 system-ui, sans-serif; color: #aab7b9; }
+.quest-steps [data-state="current"] { color: #ffe09a; font-weight: 700; }
+.quest-steps [data-state="done"] { color: #9bd5a5; }
+#quest-tracker #route-warning { font: 12px/1.45 system-ui, sans-serif; color: #e8c393; margin: 9px 0; }
+#quest-tracker #cargo-summary { font-size: 11px; padding-top: 7px; line-height: 1.4; }
+.map-landmark.quest-destination, .map-enemy.quest-destination { outline: 2px solid #ffd56d; outline-offset: 5px; border-radius: 50%; box-shadow: 0 0 15px #ffd56d; }
+.map-landmark.quest-destination > span { color: #ffe09a; font-weight: 700; }
+@media (max-width: 1000px) { #quest-tracker { width: 275px; } }
+@media (max-width: 700px) {
+  #quest-tracker { width: min(290px, calc(100vw - 145px)); left: 8px; top: 12px; }
+  #quest-tracker .eyebrow, #quest-tracker .quest-steps, #quest-tracker #cargo-summary { display: none; }
+  .quest-heading { flex-wrap: wrap; font-size: 12px; }
+  #route-objective { font-size: 16px; }
+}

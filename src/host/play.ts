@@ -18,6 +18,7 @@ import { createLorebook } from "./lorebook.js";
 import { createShopPanel } from "./shop-panel.js";
 import { createTradePanel } from "./trade-panel.js";
 import { createCombatPlan } from "./combat-plan.js";
+import { updateQuestTracker } from "./quest-tracker.js";
 import { publicUrl } from "./public-url.js";
 
 declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
@@ -399,7 +400,6 @@ function renderHud(snapshot: AdventureSnapshot): void {
     recovery.setAttribute("aria-valuenow", String(player.actionCooldown)); recovery.setAttribute("aria-valuemin", "0"); recovery.setAttribute("aria-valuemax", String(player.actionDuration));
   }
   text("potion-count", `${snapshot.potions} carried · heals ${snapshot.potionHealing}`);
-  text("cargo-summary", `Carried: ${snapshot.cargo} cores · ${snapshot.carriedSalvage} salvage · ${snapshot.carriedRelics} relics\nSecured: ${snapshot.supplies} supplies · ${snapshot.bankedRelics} relics`);
   const nearbyLoot = snapshot.loot.some(item => item.available && item.reachable);
   const nearbyInn = snapshot.phase === "town" && snapshot.places.some(place => place.kind === "inn" && Math.hypot(place.position.x-player.position.x,place.position.z-player.position.z) <= 2.5);
   text("interact-label", nearbyLoot ? "Loot" : "Talk");
@@ -407,8 +407,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   corpseLoot.update(snapshot);
   bags.update(snapshot);
   if (equipment.isOpen && running) equipment.update(running.character, snapshot);
-  text("route-objective", snapshot.phase === "town" ? "Prepare, then follow the road north" : snapshot.carriedRelics > 0 ? "Bring the grove relic home" : snapshot.cargo > 0 ? "Return with your cores, or press deeper" : "Find frost cores in the first clearing");
-  text("route-detail", snapshot.phase === "town" ? "Mara sells potions. Rowan offers rest at the inn beside the square." : `Follow the road south to Hearthstead to secure what you carry. Forest alertness: ${snapshot.presence.toFixed(0)}.`);
+  updateQuestTracker(snapshot);
   element("rest-button").hidden = !nearbyInn;
   mapPosition(element("map-player"), player.position.x, player.position.z);
   element("map-player").style.transform = `translate(-50%, -50%) rotate(${-Math.atan2(player.cameraForward.x, player.cameraForward.z)}rad)`;
