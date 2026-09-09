@@ -235,15 +235,14 @@ on its chosen beat and permits attacking on the next beat without dropping it. A
 five moves fit in an active window; stamina and longer commitments constrain
 that further. Queued stamina is reserved, then spent when a move executes.
 
-Press 5 to place the selected pending move in the fifth slot (4 seconds),
+Press 1–5 to place the selected pending move in slots 1–5 (0–4 seconds),
 swapping with another pending move there when their recovery times allow it.
-Numbers 1–4 change the selected move's delay relative to the preceding move
-(or the opening beat for the first). QE means Lunge at 0s and Block at 1s;
-QE3 means Block at 3s. The last queued move stays selected indefinitely,
+QE means Lunge at 0s and Block at 1s; QE3 means Block in slot 3, at 2s.
+The last queued move stays selected indefinitely,
 so numbers also allow last-second adjustments during the active window until
 it fires. Clicking another pending icon selects it. Drag to an empty beat to
 move it, or onto a pending move to swap them; Shift+1–5 does the same by
-column. Pointer delay controls include 0s for the first move. Backspace removes
+column. Pointer buttons use the same slot numbers 1–5. Backspace removes
 the selected pending move. Already-used moves cannot be moved or swapped.
 Past times, recovery conflicts, and moves outside the window are rejected
 without changing the existing plan. Movement and jump remain immediate.

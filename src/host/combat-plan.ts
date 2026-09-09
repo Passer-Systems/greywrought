@@ -24,7 +24,6 @@ function art(parent: HTMLElement, icon: string): void {
 }
 
 export function createCombatPlan(host: HTMLElement, callbacks: {
-  onDelay: (id: number, seconds: number) => void;
   onRemove: (id: number) => void;
   onClear: () => void;
   onMove: (id: number, offsetSeconds: number) => void;
@@ -41,7 +40,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
   const grid = node("div", "combat-plan-grid", root);
   node("span", "combat-plan-axis", grid).textContent = "Beat";
-  for (let i = 0; i < 5; i++) node("span", "combat-plan-tick", grid).textContent = i + "s · " + (i === 4 ? "5" : "⇧" + (i + 1));
+  for (let i = 0; i < 5; i++) node("span", "combat-plan-tick", grid).textContent = "Slot " + (i + 1) + " · " + i + "s";
   const enemyLabel = node("span", "combat-plan-row-label", grid);
   const enemyCells = Array.from({ length: 5 }, () => node("div", "combat-plan-cell combat-plan-enemy", grid));
   node("span", "combat-plan-row-label", grid).textContent = "You";
@@ -63,13 +62,14 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const selection = node("span", "combat-plan-selection", editor);
   const delayButtons = Array.from({ length: 5 }, (_, seconds) => {
     const button = node("button", "combat-plan-delay", editor); button.type = "button";
-    button.dataset.delay = String(seconds); button.textContent = seconds + "s";
-    button.addEventListener("click", () => adjustDelay(seconds)); return button;
+    button.dataset.slot = String(seconds + 1); button.textContent = String(seconds + 1);
+    button.title = "Place in slot " + (seconds + 1) + " · " + seconds + " seconds";
+    button.addEventListener("click", () => moveSelected(seconds)); return button;
   });
   const remove = node("button", "combat-plan-remove", editor); remove.type = "button"; remove.textContent = "Remove";
   remove.addEventListener("click", removeSelected);
   const help = node("p", "combat-plan-help", root);
-  help.textContent = "Drag to move / swap · 1–4 delay · 5 last slot · Shift+1–5 place / swap · Backspace removes";
+  help.textContent = "1–5 choose slot · Drag to move / swap · Backspace removes";
   const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
   feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();
@@ -80,20 +80,16 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       ? snapshot?.player.archetype === "mage" ? "Arcane Bolt" : "Aimed Shot" : actions[action].name;
   }
   function selected(): QueuedCombatAction | undefined { return snapshot?.combat.queued.find(entry => entry.id === selectedId); }
-  function adjustDelay(seconds: number): void { if (selectedId !== null) callbacks.onDelay(selectedId, seconds); }
   function removeSelected(): void { if (selectedId !== null) callbacks.onRemove(selectedId); }
   function moveSelected(offsetSeconds: number): void { if (selectedId !== null) callbacks.onMove(selectedId, offsetSeconds); }
   function updateEditor(): void {
     const move = selected();
     editor.hidden = !move;
     if (!move || !snapshot) return;
-    const index = snapshot.combat.queued.indexOf(move);
-    const previous = snapshot.combat.queued[index - 1];
-    const delay = move.offsetSeconds - (previous?.offsetSeconds ?? 0);
-    write(selection, actionLabel(move.action) + (move.status === "pending" ? previous ? " · delay after previous" : " · delay from opening" : move.status === "executed" ? " · used" : " · failed"));
+    write(selection, actionLabel(move.action) + (move.status === "pending" ? " · choose slot" : move.status === "executed" ? " · used" : " · failed"));
     for (const button of delayButtons) {
-      button.disabled = move.status !== "pending" || (button.dataset.delay === "0" && !!previous);
-      button.setAttribute("aria-pressed", String(Math.abs(Number(button.dataset.delay) - delay) < .01));
+      button.disabled = move.status !== "pending";
+      button.setAttribute("aria-pressed", String(Number(button.dataset.slot) === move.offsetSeconds + 1));
     }
     remove.disabled = move.status !== "pending";
   }
@@ -106,7 +102,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     node("span", "combat-plan-damage", icon).textContent = status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "";
   }
   return {
-    adjustDelay, removeSelected, moveSelected,
+    removeSelected, moveSelected,
     reset(): void { selectedId = lastId = null; snapshot = null; enemyKey = ""; },
     update(next: AdventureSnapshot): void {
       snapshot = next;

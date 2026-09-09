@@ -105,14 +105,14 @@ try {
   await page.waitFor('document.querySelectorAll(".combat-plan-move").length === 2');
   let moves = await plan();
   check(moves[0]?.offsetSeconds === 0 && moves[1]?.offsetSeconds === 1, "QE must queue at zero and one seconds");
-  await page.press("Digit3");
+  await page.press("Digit4");
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued)[1]?.offsetSeconds === 3');
-  await page.click('.combat-plan-delay[data-delay="1"]');
+  await page.click('.combat-plan-delay[data-slot="2"]');
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued)[1]?.offsetSeconds === 1');
   const upcomingCycle = Number((await page.read()).gameCombatCycle) + 1;
   const fireballBeat = await page.evaluate<number>('Number(document.querySelector(".combat-plan-enemy-move[data-ability-id=fireball]")?.dataset.offset)');
   await page.waitFor('document.body.dataset.gameCombatPhase === "active" && Number(document.body.dataset.gameCombatCycle) === ' + upcomingCycle);
-  await page.press("Digit3");
+  await page.press("Digit4");
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued)[1]?.offsetSeconds === 3');
   moves = await plan();
   check(moves[0]?.status === "executed" && moves[1]?.status === "pending", "Last-second retiming must leave the executed Lunge locked and Block pending");
@@ -269,5 +269,5 @@ try {
   await page.waitFor(`document.body.dataset.entryRoute === "world" && Number(document.body.dataset.gameSupplies) === ${15 + lootQuantity}`);
   check(page.errors.length === 0, "Browser exceptions occurred");
   await Bun.write(`${page.output}/result.json`, JSON.stringify({ gathered, lootQuantity, looted, beforeBrace, predictedDamage, braced, avoided, returned, reopened: await page.read(), errors: page.errors }, null, 2));
-  console.log(`PASS: Lorebook L and movement, five stamina, prequeued opening defense, QE/QE3 and live retiming, free fillers, keyboard swaps, queue/reload and five-move cap; inn, merchant, bag, loot/reload, neutral/aggro, log, nest defense/dodge, extraction. Evidence: ${page.output}`);
+  console.log(`PASS: Lorebook L and movement, five stamina, prequeued opening defense, QE/QE4 and live retiming, free fillers, keyboard swaps, queue/reload and five-move cap; inn, merchant, bag, loot/reload, neutral/aggro, log, nest defense/dodge, extraction. Evidence: ${page.output}`);
 } finally { await hold([]).catch(() => {}); await page.close(); }

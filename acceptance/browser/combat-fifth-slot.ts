@@ -9,8 +9,14 @@ try {
   await page.key("KeyW", false);
   await page.waitFor('document.getElementById("combat-plan").dataset.phase === "idle"');
   await page.press("KeyQ"); await page.press("KeyE");
-  await page.press("Digit3");
-  await page.waitFor('document.querySelector(".combat-plan-move[data-queued-action=brace]")?.dataset.offset === "3"');
+  for (const slot of [3,1,2,4,5]) {
+    await page.press("Digit" + slot);
+    await page.waitFor(`document.querySelector('.combat-plan-move[data-queued-action=brace]')?.dataset.offset === '${slot-1}'`);
+  }
+  await page.click('.combat-plan-move[data-queued-action=strike]');
+  await page.press("Digit1");
+  await page.waitFor('document.querySelector(".combat-plan-move[data-queued-action=strike]")?.dataset.offset === "0"');
+  await page.click('.combat-plan-move[data-queued-action=brace]');
   await page.press("Digit5");
   await page.waitFor('document.querySelector(".combat-plan-player[data-beat=\\"4\\"] .combat-plan-move")?.dataset.queuedAction === "brace"');
   check(await page.evaluate<boolean>('document.querySelector(".combat-plan-move[data-queued-action=strike]")?.dataset.offset === "0"'), "Placing Block in slot five moved Lunge");
@@ -29,5 +35,5 @@ try {
   check(Number((await page.read()).gameBlock) === COMBAT_RULES.brace.block, "Fifth-slot Block must activate at four seconds");
   await page.shot("fifth-slot-executed");
   check(page.errors.length === 0, "Browser exceptions occurred");
-  console.log(`PASS: QE3 preserved, 5 places skill in fifth slot, all five slots fill, fifth-slot Block executes. ${page.output}`);
+  console.log(`PASS: 1–5 select slots 1–5, occupied slots swap, all five slots fill, fifth-slot Block executes. ${page.output}`);
 } finally { await page.key("KeyW", false).catch(() => {}); await page.close(); }

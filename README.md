@@ -70,10 +70,10 @@ the view, and use the wheel to zoom.
 
 Tab selects a target. Q queues Lunge, E Block, Z Disengage, X Blood Rage,
 V a free Jab, and N a free Guard. Up to five moves fit the active window.
-QE means Lunge at 0s, Block at 1s; QE3 delays Block until 3s after Lunge.
-Numbers keep adjusting the selected pending move until it fires. Click to
-select another move; drag to move or swap it. Shift+1–5 places or swaps into a
-column; Backspace removes. Executed moves stay locked. G gathers frost cores and R
+QE means Lunge at 0s, Block at 1s; QE3 places Block in slot 3, at 2s.
+Numbers 1–5 place the selected pending move in slots 1–5 (0–4 seconds),
+swapping with another pending move when possible. Click to select another move;
+drag to move or swap it. Backspace removes. Executed moves stay locked. G gathers frost cores and R
 calls the grove guardian. F talks to Mara or Rowan, or opens nearby corpse loot; click an
 item to take it. You can also click a lootable body. H queues a potion during combat or drinks it immediately outside combat. Return through the
 gate to secure carried rewards. Visit Rowan at the inn to recover health.

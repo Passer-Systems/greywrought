@@ -38,7 +38,6 @@ const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => u
 const chatLog = createChatLog(element("adventure-hud"));
 const unitFrames = createUnitFrames(element("adventure-hud"));
 const combatPlan = createCombatPlan(element("combat-plan-mount"), {
-  onDelay: (id, seconds) => { if (running?.ready && !paused) { running.game.setQueuedDelay(id, seconds); combatPlan.update(running.game.snapshot); } },
   onRemove: id => { if (running?.ready && !paused) { running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
   onClear: () => { if (running?.ready && !paused) { running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
   onMove: (id, seconds) => { if (running?.ready && !paused) { running.game.moveQueuedAction(id, seconds); combatPlan.update(running.game.snapshot); } },
@@ -623,9 +622,7 @@ listen(window, "keydown", (event) => {
     event.preventDefault();
     if (!event.repeat && running?.ready && !paused) {
       if (event.code === "Backspace") combatPlan.removeSelected();
-      else if (event.shiftKey) combatPlan.moveSelected(Number(event.code.slice(-1)) - 1);
-      else if (event.code === "Digit5") combatPlan.moveSelected(4);
-      else combatPlan.adjustDelay(Number(event.code.slice(-1)));
+      else combatPlan.moveSelected(Number(event.code.slice(-1)) - 1);
     }
     return;
   }

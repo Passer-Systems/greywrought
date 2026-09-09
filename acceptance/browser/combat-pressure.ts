@@ -34,8 +34,7 @@ try {
   await page.press('KeyE');
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued).some(e=>e.action==="brace"&&e.status==="pending")');
   const id = await page.evaluate<number>('JSON.parse(document.getElementById("combat-plan").dataset.queued).find(e=>e.action==="brace").id');
-  // The editor uses delay from opening for the first queued action.
-  await page.click(`.combat-plan-delay[data-delay="${Math.floor(offset)}"]`);
+  await page.click(`.combat-plan-delay[data-slot="${Math.floor(offset)+1}"]`);
   check(await page.evaluate<boolean>(`JSON.parse(document.getElementById('combat-plan').dataset.queued).some(e=>e.id===${id}&&e.action==='brace'&&e.status==='pending')`), 'Block must queue during the summon warning');
   await page.waitFor('document.body.dataset.gameCombatPhase === "preparation" && Number(document.body.dataset.gameCombatElapsed) >= 3');
   check(Number((await page.read()).gamePlayerVitality) === 100, 'Boss attacked before preparation ended');
