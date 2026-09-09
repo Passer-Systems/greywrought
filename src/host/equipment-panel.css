@@ -1,0 +1,59 @@
+.equipment-open {
+  position: absolute; left: 22px; bottom: 70px; pointer-events: auto;
+  display: flex; align-items: center; gap: 8px; padding: 8px 11px;
+  border: 1px solid #b89a62; border-radius: 4px; background: #233439;
+  color: #f6dfad; font: 600 13px system-ui;
+}
+.equipment-open img { width: 24px; height: 24px; object-fit: contain; }
+.equipment-open kbd { padding: 2px 5px; border: 1px solid #a4916266; border-radius: 3px; font: 11px system-ui; }
+.equipment-open:hover { background: #3b4947; }
+.equipment-panel {
+  width: min(780px, calc(100vw - 28px)); max-height: calc(100dvh - 28px);
+  padding: 20px 24px 15px; overflow: auto; color: #efe4cf;
+  border: 1px solid #ae9565; border-radius: 7px;
+  background: radial-gradient(ellipse at 50% 35%, #344039, transparent 65%), #15201f;
+  box-shadow: 0 12px 80px #000b, inset 0 0 0 4px #bc9b5020;
+}
+.equipment-panel::backdrop { background: #06100eca; }
+.equipment-panel, .equipment-panel button { cursor: auto !important; }
+.equipment-panel button { cursor: pointer !important; }
+.equipment-panel button:focus-visible, .equipment-open:focus-visible { outline: 2px solid #f0d29b; outline-offset: 3px; }
+.equipment-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.equipment-kicker { margin: 0 0 4px; color: #bea878; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
+.equipment-heading h2 { margin: 0; font: 26px Georgia, serif; color: #f5dfb2; }
+.equipment-heading p:last-child { margin: 4px 0 0; font-size: 12px; color: #b6c6b8; }
+.equipment-close { align-self: flex-start; padding: 7px 10px; border: 1px solid #9d89586e; border-radius: 3px; background: #101b19; color: #e6d5b0; font: 12px system-ui; }
+.equipment-doll { display: grid; grid-template-columns: 170px minmax(100px, 1fr) 170px; gap: 12px; }
+.equipment-column { display: grid; gap: 5px; align-content: start; }
+.equipment-slot {
+  display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 44px;
+  margin: 0; padding: 4px 8px; text-align: left; color: #dfd6c2;
+  border: 1px solid #68746580; border-radius: 3px; background: #0b1515ad; font: 12px system-ui;
+}
+.equipment-slot:hover { border-color: #baa06d; background: #2c362c; }
+.equipment-slot[aria-pressed="true"] { border-color: #e0bd77; background: #49402b; box-shadow: inset 0 0 0 1px #e0bd7733; }
+.equipment-slot-mark { display: grid; place-items: center; flex: 0 0 28px; height: 28px; border: 1px solid #8d9b7950; color: #8d9b7980; font: 21px Georgia; }
+.equipment-slot-mark img { width: 28px; height: 28px; object-fit: contain; }
+.equipment-slot strong, .equipment-slot small { display: block; }
+.equipment-slot strong { font-size: 12px; font-weight: 600; }
+.equipment-slot small { margin-top: 2px; color: #a6ada0; font-size: 10px; }
+.equipment-portrait-wrap { position: relative; margin: 0; min-height: 250px; overflow: hidden; border: 1px solid #bfa97650; border-radius: 48% 48% 4px 4px; background: #0b1515; }
+.equipment-portrait-wrap img { position: absolute; width: 100%; height: 100%; object-fit: cover; object-position: center 25%; }
+.equipment-portrait-wrap figcaption { position: absolute; bottom: 0; width: 100%; padding: 30px 8px 14px; background: linear-gradient(transparent, #0b1515); text-align: center; color: #ddd0b3; font: italic 14px Georgia; }
+.equipment-weapons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.equipment-details { margin-top: 14px; padding: 12px 14px; border: 1px solid #a58b5755; background: #0b1515a8; min-height: 99px; }
+.equipment-detail-kind { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #b9aa89; }
+.equipment-details h3 { margin: 4px 0; color: #f0d69e; font: 19px Georgia; }
+.equipment-details p { margin: 0; color: #c0c6b8; font: 12px/1.5 system-ui; }
+.equipment-hint { margin: 10px 0 0; text-align: center; color: #9fac9c; font: 11px system-ui; }
+@media (max-width: 700px) {
+  .equipment-open { left: 12px; bottom: 187px; }
+  .equipment-panel { padding: 16px 12px 12px; }
+  .equipment-doll { grid-template-columns: minmax(105px, 1fr) minmax(65px, .8fr) minmax(105px, 1fr); gap: 6px; }
+  .equipment-slot { gap: 5px; padding: 4px 5px; }
+  .equipment-slot-mark { display: none; }
+  .equipment-portrait-wrap figcaption { font-size: 11px; }
+  .equipment-weapons { gap: 6px; }
+  .equipment-slot strong { font-size: 11px; }
+  .equipment-heading h2 { font-size: 22px; }
+}
