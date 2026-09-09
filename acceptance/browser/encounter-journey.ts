@@ -109,6 +109,7 @@ try {
   await page.click('.combat-plan-delay[data-delay="1"]');
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued)[1]?.offsetSeconds === 1');
   const upcomingCycle = Number((await page.read()).gameCombatCycle) + 1;
+  const fireballBeat = await page.evaluate<number>('Number(document.querySelector(".combat-plan-enemy-move[data-ability-id=fireball]")?.dataset.offset)');
   await page.waitFor('document.body.dataset.gameCombatPhase === "active" && Number(document.body.dataset.gameCombatCycle) === ' + upcomingCycle);
   await page.press("Digit3");
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued)[1]?.offsetSeconds === 3');
@@ -116,7 +117,7 @@ try {
   check(moves[0]?.status === "executed" && moves[1]?.status === "pending", "Last-second retiming must leave the executed Lunge locked and Block pending");
   await page.shot("live-queue-adjustment");
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued)[1]?.status === "executed"');
-  check(Number((await page.read()).gameBlock) === 10, "Retimed Block must activate on its new beat; there must be no extra auto-attack");
+  check(Number((await page.read()).gameBlock) === (fireballBeat === 3 ? 7 : 10), "Retimed Block must absorb only the fireball when it shares beat 3");
   await page.waitFor('document.body.dataset.gameCombatPhase === "preparation"');
   for (const code of ["KeyQ", "KeyN", "KeyV", "KeyE"]) await page.press(code);
   await page.waitFor('document.querySelectorAll(".combat-plan-move").length === 4');
@@ -222,8 +223,10 @@ try {
   await page.waitFor('document.body.dataset.gameCombatPhase === "preparation" && Number(document.getElementById("combat-plan").dataset.remaining) > 3',12000);
   const beforeBrace = await page.read();
   const predictedDamage = await page.evaluate<number>(`Number(document.querySelector('${nest}')?.dataset.damage)`);
+  const nestBeat = await page.evaluate<number>('Math.floor(Number(document.querySelector(".combat-plan-enemy-move[data-ability-id=nest]")?.dataset.offset))');
   const firstSequence = await page.evaluate<number>(`Number(document.querySelector('${nest}')?.dataset.actionSequence)`);
   await page.press("KeyE");
+  if (nestBeat > 0) await page.press("Digit" + nestBeat);
   await page.waitFor('Number(document.body.dataset.gameGuardSeconds) > 0',12000);
   await page.shot("forecast");
   await page.waitFor(`Number(document.querySelector('${nest}')?.dataset.actionSequence) > ${firstSequence}`, 8_000);

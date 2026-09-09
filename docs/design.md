@@ -254,8 +254,8 @@ Attack range and paths are checked when the move actually fires.
 The first clearing holds an animated floating skull with 72 health. Its sole
 opening move is Ember Beam (1 targeted damage). Queue Block before pulling to
 absorb it. Subsequent windows cycle through one Fireball volley, one Ember Ward
-(6 block for 2 seconds), and one Kindle power-up. One move activates at the
-opening of each window; the preceding preparation announces it.
+(6 block for 2 seconds), and one Kindle power-up. After its stored opener, each window chooses one of five beats with equal probability.
+The preceding preparation announces the chosen beat and it stays fixed.
 
 During Ward, power up or heal, then attack after the shield expires. During
 Kindle, choose whether to exploit the opening or defend against another
@@ -312,14 +312,15 @@ The animated Ash hound patrols the deeper western forest. On engagement it
 approaches through forward diagonal hops, choosing left or right at 45 degrees
 independently with equal probability while facing the player. Nearby it circles
 and commits Maul toward a fixed landing point. It recovers for 2 seconds after
-landing. Maul follows the shared active opening after the visible preparation.
+landing. After the first encounter, Maul starts on a randomly chosen beat
+after the visible preparation.
 The first encounter warns for 4 seconds before launching. A lunge takes 0.65 seconds and deals 9 damage within 3 metres of its
 committed landing. Disengage provides a deliberate escape and punishment loop.
 
 Maul is the hound’s sole combat action in each window. It does not home.
 Block can absorb it; movement can avoid its committed landing.
 The other forest creatures retain their distinct attacks, previewed during
-shared preparation before a short windup at the active opening.
+shared preparation before a short windup on their announced random beat.
 Their single repeating special is shown truthfully; future icons preview their next windows.
 
 ## In-game lorebook
@@ -327,9 +328,9 @@ Their single repeating special is shown truthfully; future icons preview their n
 L toggles the lorebook. Every current monster has a page with its portrait,
 disposition, health, engagement behavior, opener, all abilities,
 move sequences and useful responses. These entries consume the same ability
-and sequence definitions as combat. The head's order is fixed; the wolf's
-left/right approach hops each have a 50% chance; ordinary repeated moves have
-no random permutations. Explain actual randomness rather than inventing it.
+and sequence definitions as combat. The head's ability order is fixed, but each enemy independently chooses
+its next beat with a 20% chance for each of the five slots. Choices are preserved
+when reopening a journey. The wolf's left/right approach hops each have a 50% chance. Explain actual randomness rather than inventing it.
 Opening the book does not pause movement or combat. Escape and its flush
 header close button both close it.
 
@@ -374,3 +375,22 @@ lose to growing volleys; spending everything on offense should expose the
 player to predictable damage. A passing rules test establishes those mechanics,
 not the fairness or enjoyment of the final balance. The next playtest decides
 whether the timings, health and pressure produce decisions Tom wants to repeat.
+
+## Ground attack warnings
+
+Every engaged enemy shows its announced attack independently of target selection.
+Highlighted areas use a bright effect-colored boundary and matching painted icon:
+green for swarm/thorns, blue for frost, amber for Maul. The area matches the actual
+strike radius and follows the caster until the windup commits its ground.
+A countdown and beat number sit at the far edge of the area.
+
+Homing fireballs and beams mark the player in red and say Tracks you / Block;
+they do not pretend to be dodgeable splash areas. Shield and power-up cues sit
+under their caster and identify an enemy buff. Existing damage attacks do not
+acquire poison-over-time or freeze effects merely from their warning color.
+
+Each subsequent enemy window independently selects one of five beats.
+Head attacks resolve on that beat; physical attacks retain their windup, landing
+0.35 seconds later (ordinary enemies) or 0.65 seconds later (Maul).
+The fifth slot remains valid, all impacts finish before preparation, and
+previews reflect the exact saved choice rather than rerolling during a countdown.

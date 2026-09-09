@@ -1,5 +1,5 @@
 import {
-  CanvasTexture, CircleGeometry, Color,
+  CanvasTexture, Color,
   ConeGeometry, CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
   Material, Mesh, MeshBasicMaterial, MeshStandardMaterial,
   Object3D, PerspectiveCamera, PlaneGeometry, RingGeometry, Scene, SphereGeometry,
@@ -9,6 +9,7 @@ import {
 import type { AdventureSnapshot, ThreatView } from "../game/adventure-types.js";
 import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
+import { createGroundTelegraphs } from "./ground-telegraphs.js";
 
 interface ThreatRig {
   readonly root: Group;
@@ -19,7 +20,6 @@ interface ThreatRig {
   readonly selection: Mesh<RingGeometry, MeshBasicMaterial>;
   readonly attack: string;
   readonly hit: string;
-  readonly warning: Mesh<CircleGeometry, MeshBasicMaterial>;
   readonly ring: Mesh<RingGeometry, MeshBasicMaterial>;
   readonly lootGlint: Sprite;
   readonly beam: Mesh<CylinderGeometry, MeshBasicMaterial>;
@@ -224,8 +224,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const root = new Group(), body = creature.root;
     root.add(body); root.userData.threatId = threat.id; scene.add(root);
     creature.play(threat.health <= 0 ? "Death" : look.idle, threat.health > 0);
-    const warning = new Mesh(new CircleGeometry(1, 64), new MeshBasicMaterial({ color: 0xf49a43, transparent: true, opacity: 0.23, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
-    warning.rotation.x = -Math.PI/2; warning.visible = false; warning.renderOrder = 2; scene.add(warning);
     const ring = new Mesh(new RingGeometry(0.93, 1.03, 48), new MeshBasicMaterial({ color: 0xffd278, side: 2 }));
     ring.rotation.x = -Math.PI/2; ring.position.y=0.05; root.add(ring);
     const selection = new Mesh(new RingGeometry(1.09, 1.14, 48), new MeshBasicMaterial({ color: 0xfff6df, side: 2 }));
@@ -237,11 +235,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     lungePath.visible = false; lungePath.renderOrder = 3; scene.add(lungePath);
     const beam = new Mesh(new CylinderGeometry(0.045,0.045,1,8),new MeshBasicMaterial({color:0xffbc71,transparent:true,opacity:0.85,depthWrite:false})); beam.visible=false;scene.add(beam);
     const ward = new Mesh(new SphereGeometry(1.05,20,12),new MeshBasicMaterial({color:0x80c6ff,transparent:true,opacity:0.2,depthWrite:false}));ward.position.y=look.height*0.55;ward.visible=false;root.add(ward);
-    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,warning,ring,lootGlint:glint,lungePath,rootEffect,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
+    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,ring,lootGlint:glint,lungePath,rootEffect,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
       health:threat.health,sequence:threat.actionSequence,attackTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const natureReady = buildFrostwood(terrain, thicket, innPosition).then(()=>{document.body.dataset.environmentState="ready";});
-  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, creaturesReady, natureReady]).then(()=>undefined);
+  const telegraphs = createGroundTelegraphs(scene, canvas);
+  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, creaturesReady, natureReady, telegraphs.ready]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
   const forward = () => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
@@ -355,12 +354,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.body.position.y = threat.id === "scout" ? 1.25 : 0;
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;
-        rig.warning.visible = threat.active && ["maul","nest","warder","ritual-guardian"].includes(threat.currentAbility.id) && threat.currentAbility.noticeSeconds > 0 && (threat.phase === "preparation" || threat.phase === "action");
-        rig.warning.position.set(threat.targetPosition.x, 0.1, threat.targetPosition.z);
-        rig.warning.scale.setScalar(threat.reach);
-        rig.warning.material.color.setHex(threat.damage === 0 ? 0x8badd4 : threat.phase === "action" ? 0xff4936 : 0xf5a43e);
-        rig.warning.material.opacity = threat.damage === 0 ? 0.025 : threat.phase === "action" ? 0.55 : 0.2 + 0.13 * (1 - threat.remainingSeconds / threat.phaseDuration);
-        rig.lungePath.visible = threat.currentAbility.id === "maul" && (threat.phase === "preparation" || threat.movementMode === "lunge");
+        rig.lungePath.visible = threat.aggro && threat.health > 0 && threat.currentAbility.id === "maul" && threat.windowAction?.status !== "resolved";
         if (rig.lungePath.visible) {
           const from = threat.attackOrigin, to = threat.targetPosition;
           const dx = to.x - from.x, dz = to.z - from.z;
@@ -408,6 +402,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       }
       cameraTarget.lerp(new Vector3(position.x, position.y, position.z), 1 - Math.exp(-delta * 12));
       const facing = forward();
+      telegraphs.update(snapshot, facing);
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
       camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
       renderer.render(scene, camera);
