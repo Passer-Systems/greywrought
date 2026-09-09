@@ -1,0 +1,82 @@
+import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3, type AnimationAction, type Object3D } from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
+import { clone } from "three/addons/utils/SkeletonUtils.js";
+import { publicUrl } from "./public-url.js";
+
+const root = "assets/quaternius/frostwood/";
+const loader = new GLTFLoader();
+const models = new Map<string, ReturnType<GLTFLoader["loadAsync"]>>();
+function source(path: string) {
+  let promise = models.get(path);
+  if (!promise) { promise = loader.loadAsync(publicUrl(path)); models.set(path, promise); }
+  return promise;
+}
+export function fit(model: Object3D, size: number, axis: "height" | "width" = "height"): Group {
+  const wrapper = new Group();
+  const bounds = new Box3().setFromObject(model);
+  const dimensions = bounds.getSize(new Vector3());
+  model.scale.multiplyScalar(size / (axis === "height" ? dimensions.y : Math.max(dimensions.x, dimensions.z)));
+  bounds.setFromObject(model);
+  const center = bounds.getCenter(new Vector3());
+  model.position.add(new Vector3(-center.x, -bounds.min.y, -center.z));
+  wrapper.add(model);
+  return wrapper;
+}
+export interface ForestActor {
+  root: Group; model: Object3D; mixer: AnimationMixer; action: AnimationAction | null;
+  play(name: string, loop?: boolean, duration?: number, fade?: number): AnimationAction;
+  dispose(): void;
+}
+export async function actor(name: string, height: number, player = false): Promise<ForestActor> {
+  const gltf = await source(player ? "assets/quaternius/rig/wayfarer/Knight_Golden_Female.gltf" : `${root}actors/${name}.gltf`);
+  const model = clone(gltf.scene);
+  const wrapper = fit(model, height);
+  const shadowCanvas = document.createElement("canvas"); shadowCanvas.width=shadowCanvas.height=64;
+  const context=shadowCanvas.getContext("2d")!;
+  const gradient=context.createRadialGradient(32,32,4,32,32,32); gradient.addColorStop(0,"#17251565"); gradient.addColorStop(1,"#17251500"); context.fillStyle=gradient; context.fillRect(0,0,64,64);
+  const shadow=new Mesh(new CircleGeometry(height*0.5,24),new MeshBasicMaterial({map:new CanvasTexture(shadowCanvas),transparent:true,depthWrite:false})); shadow.rotation.x=-Math.PI/2; shadow.position.y=0.035; wrapper.add(shadow);
+  const mixer = new AnimationMixer(model);
+  const result: ForestActor = {
+    root: wrapper, model, mixer, action: null,
+    play(name, loop = true, duration, fade = 0.12) {
+      const clip = gltf.animations.find(c => c.name === name);
+      if (!clip) throw Error(`${name} is missing from ${model.name}`);
+      const next = mixer.clipAction(clip);
+      if (result.action === next && next.isRunning()) return next;
+      result.action?.fadeOut(fade);
+      next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).setLoop(loop ? LoopRepeat : LoopOnce, loop ? Infinity : 1);
+      if (duration) next.setDuration(duration);
+      next.clampWhenFinished = !loop;
+      next.fadeIn(fade).play(); result.action = next;
+      return next;
+    },
+    dispose() { mixer.stopAllAction(); mixer.uncacheRoot(model); },
+  };
+  return result;
+}
+const props = new Map<string, Promise<Object3D>>();
+export async function prop(name: string, size: number, axis: "height" | "width" = "height"): Promise<Group> {
+  let promise = props.get(name);
+  if (!promise) {
+    promise = name.startsWith("nature/") ? source(`${root}${name}.gltf`).then(g => g.scene) : (async () => {
+      const base = publicUrl(`${root}village/${name}`);
+      const materials = await new MTLLoader().loadAsync(`${base}.mtl`);
+      const mesh = await new OBJLoader().setMaterials(materials).loadAsync(`${base}.obj`);
+      const lines: Object3D[] = [];
+      mesh.traverse(o => {
+        if (o.type === "LineSegments" || o.type === "Line") lines.push(o);
+        if (!(o instanceof Mesh)) return;
+        o.material = (Array.isArray(o.material) ? o.material : [o.material]).map(m => {
+          const color = "color" in m ? (m as MeshStandardMaterial).color.clone().convertLinearToSRGB() : 0xffffff;
+          return new MeshStandardMaterial({ color, roughness: 0.95 });
+        });
+      });
+      for (const line of lines) line.removeFromParent();
+      return mesh;
+    })();
+    props.set(name, promise);
+  }
+  return fit((await promise).clone(true), size, axis);
+}

@@ -1,3 +1,4 @@
+const frostwoodFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/frostwood",onlyFiles:true}));
 const iconFiles = await Array.fromAsync(
   new Bun.Glob("**/*.png").scan({ cwd: "assets/ui/icons", onlyFiles: true }),
 );
@@ -16,12 +17,12 @@ export const files: readonly (readonly [string, string])[] = [
   ["build/host/play.js", "dist/app/greywrought/play.js"],
   ["node_modules/three/build/three.module.js", "dist/vendor/three.module.js"],
   ["node_modules/three/build/three.core.js", "dist/vendor/three.core.js"],
+  ["node_modules/three/examples/jsm/loaders/OBJLoader.js", "dist/vendor/three-addons/loaders/OBJLoader.js"],
+  ["node_modules/three/examples/jsm/loaders/MTLLoader.js", "dist/vendor/three-addons/loaders/MTLLoader.js"],
   ["node_modules/three/examples/jsm/loaders/GLTFLoader.js", "dist/vendor/three-addons/loaders/GLTFLoader.js"],
   ["node_modules/three/examples/jsm/utils/BufferGeometryUtils.js", "dist/vendor/three-addons/utils/BufferGeometryUtils.js"],
   ["node_modules/three/examples/jsm/utils/SkeletonUtils.js", "dist/vendor/three-addons/utils/SkeletonUtils.js"],
-  ["assets/external/opengameart/teh-bucket-boar/boar.glb", "dist/assets/opengameart/teh-bucket-boar/boar.glb"],
   ["assets/external/quaternius/rig-socket-prototype/wayfarer/Knight_Golden_Female.gltf", "dist/assets/quaternius/rig/wayfarer/Knight_Golden_Female.gltf"],
-  ["assets/external/opengameart/teh-bucket-boar/SOURCE.md", "dist/licenses/boar-SOURCE.md"],
   ["assets/external/quaternius/rig-socket-prototype/SOURCE.md", "dist/licenses/wayfarer-SOURCE.md"],
   ["assets/ui/icons/SOURCE.md", "dist/assets/ui/icons/SOURCE.md"],
   ["assets/ui/icons/manifest.json", "dist/assets/ui/icons/manifest.json"],
@@ -39,29 +40,7 @@ export const files: readonly (readonly [string, string])[] = [
     `assets/ui/${name}`,
     `dist/assets/ui/${name}`,
   ]),
-  ...[
-    "CommonTree_2.gltf",
-    "CommonTree_2.bin",
-    "CommonTree_5.gltf",
-    "CommonTree_5.bin",
-    "Pine_5.gltf",
-    "Pine_5.bin",
-    "Bush_Common.gltf",
-    "Bush_Common.bin",
-    "Grass_Common_Short.gltf",
-    "Grass_Common_Short.bin",
-    "Rock_Medium_3.gltf",
-    "Rock_Medium_3.bin",
-    "Bark_NormalTree.png",
-    "Bark_NormalTree_Normal.png",
-    "Leaves_NormalTree_C.png",
-    "Leaf_Pine_C.png",
-    "Leaves_TwistedTree_C.png",
-    "Grass.png",
-    "Rocks_Diffuse.png",
-  ].map((name): readonly [string, string] => [
-    `assets/external/quaternius/stylized-nature-field/glTF/${name}`,
-    `dist/assets/quaternius/nature/${name}`,
+  ...frostwoodFiles.map((name): readonly [string, string] => [
+    `assets/external/quaternius/frostwood/${name}`, `dist/assets/quaternius/frostwood/${name}`,
   ]),
 ];
-
