@@ -2090,6 +2090,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-enemy-move[data-status=active] {border-color:#ffb272;box-shadow:0 0 7px #ed8b5360;}
 .combat-plan-enemy-move:hover,.combat-plan-enemy-move:focus-visible {z-index:4;border-color:#f8d693;}
 .combat-plan-move[aria-pressed=true] {outline:2px solid #e9d68d;outline-offset:1px;}
+.combat-plan-move[data-replacing=true] {outline:2px solid #fff3b2;outline-offset:2px;box-shadow:0 0 9px #efc85f;}
 .combat-plan-move[data-status=executed] {filter:saturate(.4);opacity:.5;}
 .combat-plan-move[data-status=failed] {border-color:#ff7770;opacity:.65;}
 .combat-plan-move-time,.combat-plan-damage {position:absolute;bottom:-1px;right:0;background:#071010e8;color:#fff;font:bold 11px/13px system-ui,sans-serif;padding:0 2px;text-shadow:0 1px 2px #000;}

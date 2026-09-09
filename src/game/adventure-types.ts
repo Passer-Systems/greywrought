@@ -161,6 +161,7 @@ export interface AdventureGame {
   selectTarget(id: string): void;
   setQueuedDelay(id: number, seconds: number): void;
   moveQueuedAction(id: number, offsetSeconds: number): void;
+  replaceQueuedAction(id: number, action: CombatAction): boolean;
   removeQueuedAction(id: number): void;
   clearQueuedActions(): void;
   openLoot(sourceId: string): void;

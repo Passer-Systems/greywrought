@@ -394,6 +394,22 @@ describe("queued beats, reservations and editing",()=>{
     game.selectTarget("warder");expect(pending(game)).toHaveLength(0);
     tap(game,"guard");game.clearQueuedActions();expect(game.snapshot.combat.queued).toHaveLength(0);
   });
+  test("replacing a pending move preserves its slot and reservations, while invalid replacements are atomic",()=>{
+    const game=positioned(-3,8.1);tap(game,"brace");tap(game,"strike");
+    const block = game.snapshot.combat.queued[0]!;
+    const strike = game.snapshot.combat.queued[1]!;
+    expect(game.replaceQueuedAction(block!.id,"bloodRage")).toBe(false);
+    expect(game.snapshot.combat.queued).toEqual([block, strike]);
+    expect(game.snapshot.combat.reservedStamina).toBe(3);
+    expect(game.replaceQueuedAction(block!.id,"jab")).toBe(true);
+    expect(game.snapshot.combat.queued.map(e=>[e.id,e.action,e.offsetSeconds,e.cost])).toEqual([
+      [block!.id,"jab",block!.offsetSeconds,0],[strike!.id,"strike",strike!.offsetSeconds,1],
+    ]);
+    expect(game.snapshot.combat.reservedStamina).toBe(1);
+    game.advance(0.01);
+    expect(game.replaceQueuedAction(block!.id,"guard")).toBe(false);
+    expect(game.snapshot.combat.queued[0]?.action).toBe("jab");
+  });
   test("target death cancels its pending moves; new enemies do not cancel the current plan",()=>{
     const data=JSON.parse(positioned(-3,8.1).save());data.state.threats[0].health=3;
     const game=createAdventure({save:JSON.stringify(data)});tap(game,"strike");tap(game,"brace");game.advance(0.01);game.advance(0.25);

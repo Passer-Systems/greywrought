@@ -318,6 +318,40 @@ class Adventure implements AdventureGame {
     this.report(`${actionName(entry.action, this.state.archetype)} placed at ${offsetSeconds.toFixed(1)} seconds.`, "combat");
     if (c.phase === "active") this.executeQueue();
   }
+  replaceQueuedAction(id: number, action: CombatAction): boolean {
+    const s = this.state, c = s.combat;
+    const index = c.queued.findIndex(e => e.id === id), entry = c.queued[index];
+    if (!entry || entry.status !== "pending") {
+      this.report("Only a pending move can be replaced.", "combat"); return false;
+    }
+    const cost = COMBAT_RULES[action].cost;
+    const reservedWithoutEntry = this.reservedStamina() - entry.cost;
+    if (s.stamina - reservedWithoutEntry < cost) {
+      this.report(`${actionName(action, s.archetype)} needs ${cost} stamina; ${s.stamina - reservedWithoutEntry} free.`, "combat"); return false;
+    }
+    const pendingPotions = c.queued.filter(e => e.status === "pending" && e.action === "drinkPotion" && e.id !== id).length;
+    if (action === "drinkPotion" && pendingPotions >= s.potions) {
+      this.report("No unreserved health potion is available.", "combat"); return false;
+    }
+    const replacement: QueuedCombatAction = {
+      ...entry,
+      action,
+      targetId: action === "strike" || action === "disengage" || action === "jab" ? s.selectedThreat : null,
+      cost,
+    };
+    const candidate = c.queued.map(e => e.id === id ? replacement : { ...e }).sort((a, b) => a.offsetSeconds - b.offsetSeconds);
+    const now = c.phase === "active" ? c.elapsedSeconds + s.actionCooldown : 0;
+    const invalid = candidate.some((e, i) =>
+      (e.status === "pending" && e.offsetSeconds < now - EPSILON) ||
+      (i > 0 && e.offsetSeconds < candidate[i - 1]!.offsetSeconds + this.recoveryFor(candidate[i - 1]!.action) - EPSILON));
+    if (invalid) {
+      this.report("That move cannot be replaced at this timing.", "combat"); return false;
+    }
+    c.queued = candidate;
+    this.report(`${actionName(action, s.archetype)} replaced the queued move.`, "combat");
+    if (c.phase === "active") this.executeQueue();
+    return true;
+  }
   removeQueuedAction(id: number): void {
     const c = this.state.combat, entry = c.queued.find(e => e.id === id);
     if (!entry || entry.status !== "pending") { this.report("Only a pending move can be cancelled.", "combat"); return; }

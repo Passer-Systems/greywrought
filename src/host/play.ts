@@ -38,6 +38,13 @@ const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => u
 const chatLog = createChatLog(element("adventure-hud"));
 const unitFrames = createUnitFrames(element("adventure-hud"));
 const combatPlan = createCombatPlan(element("combat-plan-mount"), {
+  onSelect: () => { if (running?.ready) renderHud(running.game.snapshot); },
+  onReplace: (id, action) => {
+    if (!running?.ready || paused) return false;
+    const replaced = running.game.replaceQueuedAction(id, action);
+    combatPlan.update(running.game.snapshot);
+    return replaced;
+  },
   onRemove: id => { if (running?.ready && !paused) { running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
   onClear: () => { if (running?.ready && !paused) { running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
   onMove: (id, seconds) => { if (running?.ready && !paused) { running.game.moveQueuedAction(id, seconds); combatPlan.update(running.game.snapshot); } },
@@ -132,9 +139,16 @@ function listen(target: EventTarget, type: string, handler: EventListener, local
   local.push(() => target.removeEventListener(type, handler));
 }
 function click(id: string, handler: () => void): void { listen(element(id), "click", handler); }
+function pressAction(action: AdventureAction): void {
+  switch (action) {
+    case "strike": case "brace": case "disengage": case "bloodRage": case "jab": case "guard": case "drinkPotion":
+      if (combatPlan.replaceSelected(action)) return;
+  }
+  running?.game.setAction(action, true);
+}
 function pulse(action: AdventureAction): void {
   if (!running?.ready || (paused && action !== "closeLoot" && action !== "closeShop")) return;
-  running.game.setAction(action, true);
+  pressAction(action);
   running.game.setAction(action, false);
   combatPlan.update(running.game.snapshot);
 }
@@ -403,19 +417,21 @@ function renderHud(snapshot: AdventureSnapshot): void {
   ] as const) {
     const cost = COMBAT_RULES[action].cost;
     const available = snapshot.phase === "expedition" && selected?.active && selected.health > 0;
-      const full = snapshot.combat.queued.length >= 3;
+    const replacing = snapshot.combat.queued.find(move => move.id === combatPlan.replacementId && move.status === "pending");
+    const full = !replacing && snapshot.combat.queued.length >= 3;
+    const availableStamina = snapshot.combat.availableStamina + (replacing?.cost ?? 0);
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]');
     if (control) {
-      control.disabled = !available || full || snapshot.combat.availableStamina < cost;
+      control.disabled = !available || full || availableStamina < cost;
       control.style.setProperty("--recovery", "0");
-      control.dataset.affordable = String(snapshot.combat.availableStamina >= cost);
+      control.dataset.affordable = String(availableStamina >= cost);
       if (!control.querySelector(".action-cost")) {
         const badge = document.createElement("span"); badge.className = "action-cost";
         badge.textContent = cost === 0 ? "Free" : String(cost); badge.title = cost + " stamina";
         control.append(badge);
       }
     }
-    const detail = !available ? "Select a living enemy in the forest" : full ? "Three moves already planned" : snapshot.combat.availableStamina < cost ? "Need " + cost + " free stamina" : "Queue · " + cost + " stamina";
+    const detail = !available ? "Select a living enemy in the forest" : full ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " free stamina" : (replacing ? "Replace · " : "Queue · ") + cost + " stamina";
     text(label, detail);
   }
   const recovery = element("player-action-bar");
@@ -650,7 +666,7 @@ listen(window, "keydown", (event) => {
   event.preventDefault();
   if (keys.has(event.code)) return;
   keys.add(event.code);
-  running.game.setAction(action, true);
+  pressAction(action);
   combatPlan.update(running.game.snapshot);
 });
 listen(window, "keyup", (event) => {

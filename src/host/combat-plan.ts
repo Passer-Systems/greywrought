@@ -24,6 +24,8 @@ function art(parent: HTMLElement, icon: string): void {
 }
 
 export function createCombatPlan(host: HTMLElement, callbacks: {
+  onSelect: () => void;
+  onReplace: (id: number, action: CombatAction) => boolean;
   onRemove: (id: number) => void;
   onClear: () => void;
   onMove: (id: number, offsetSeconds: number) => void;
@@ -67,11 +69,12 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     });
   });
   const help = node("p", "combat-plan-help", root);
-  help.textContent = "1–3 choose slot · Drag onto another move to swap · Backspace removes";
+  help.textContent = "Click a move, then an ability to replace · Right-click removes · Drag to swap · 1–3 choose slot";
   const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
   feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();
   let selectedId: number | null = null, lastId: number | null = null;
+  let replacementId: number | null = null;
   let snapshot: AdventureSnapshot | null = null;
   const enemyTiles = new Map<string, { tile: HTMLSpanElement; damage: HTMLSpanElement; source: HTMLSpanElement; health: HTMLSpanElement; fill: HTMLSpanElement; tooltip: HTMLSpanElement }>();
   function actionLabel(action: CombatAction): string {
@@ -106,7 +109,14 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   }
   return {
     removeSelected, moveSelected,
-    reset(): void { selectedId = lastId = null; snapshot = null; for (const view of enemyTiles.values()) view.tile.remove(); enemyTiles.clear(); },
+    get replacementId(): number | null { return replacementId; },
+    replaceSelected(action: CombatAction): boolean {
+      if (replacementId === null) return false;
+      if (callbacks.onReplace(replacementId, action)) replacementId = null;
+      if (snapshot) this.update(snapshot);
+      return true;
+    },
+    reset(): void { selectedId = lastId = replacementId = null; snapshot = null; for (const view of enemyTiles.values()) view.tile.remove(); enemyTiles.clear(); },
     update(next: AdventureSnapshot): void {
       snapshot = next;
       const combat = next.combat;
@@ -132,6 +142,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       const newest = combat.queued.reduce<QueuedCombatAction | undefined>((latest, move) => !latest || move.id > latest.id ? move : latest, undefined);
       if (newest && newest.id !== lastId) { selectedId = lastId = newest.id; }
       if (!combat.queued.some(entry => entry.id === selectedId)) selectedId = newest?.id ?? null;
+      if (!combat.queued.some(entry => entry.id === replacementId && entry.status === "pending")) replacementId = null;
+      root.dataset.replacementId = String(replacementId ?? "");
       root.dataset.selectedId = String(selectedId ?? "");
       for (const [id, button] of buttons) if (!combat.queued.some(entry => entry.id === id)) { button.remove(); buttons.delete(id); }
       for (const move of combat.queued) {
@@ -145,11 +157,17 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           const cost = node("span", "combat-plan-move-cost", button);
           cost.textContent = String(move.cost); cost.title = move.cost + " stamina";
           button.addEventListener("click", () => {
-            selectedId = move.id; root.dataset.selectedId = String(move.id);
-            for (const [id, control] of buttons) control.setAttribute("aria-pressed", String(id === selectedId));
+            if (!snapshot?.combat.queued.some(entry => entry.id === move.id && entry.status === "pending")) return;
+            selectedId = move.id; replacementId = replacementId === move.id ? null : move.id;
+            if (snapshot) this.update(snapshot);
+            callbacks.onSelect();
+          });
+          button.addEventListener("contextmenu", event => {
+            event.preventDefault(); callbacks.onRemove(move.id);
           });
           button.addEventListener("dragstart", event => {
             if (!snapshot?.combat.queued.some(entry => entry.id === move.id && entry.status === "pending")) { event.preventDefault(); return; }
+            replacementId = null;
             selectedId = move.id; root.dataset.selectedId = String(move.id);
             event.dataTransfer?.setData("application/x-greywrought-move", String(move.id));
             if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
@@ -165,10 +183,13 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         if (button.parentElement !== cell) cell.append(button);
         button.dataset.status = move.status; button.dataset.queuedAction = move.action; button.dataset.offset = String(move.offsetSeconds);
         button.draggable = move.status === "pending";
+        button.dataset.replacing = String(move.id === replacementId);
+        const costLabel = button.querySelector<HTMLElement>(".combat-plan-move-cost")!;
+        write(costLabel, String(move.cost)); costLabel.title = move.cost + " stamina";
         button.setAttribute("aria-pressed", String(move.id === selectedId));
         const target = next.threats.find(threat => threat.id === move.targetId)?.name;
         const label = moveName + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina" + (target ? " · " + target : "") + " · " + move.status + (move.reason ? ": " + move.reason : "");
-        button.title = label; button.setAttribute("aria-label", label);
+        button.title = label + (move.status === "pending" ? " · Click to replace · Right-click to remove" : ""); button.setAttribute("aria-label", label);
         write(button.querySelector<HTMLElement>(".combat-plan-move-time")!, move.status === "executed" ? "✓" : move.status === "failed" ? "×" : move.offsetSeconds.toFixed(1) + "s");
       }
       const visibleEnemies = combat.phase === "idle" ? enemy ? [enemy] : [] : attackers;
