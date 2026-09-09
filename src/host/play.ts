@@ -11,6 +11,10 @@ import { createEnemyNameplates } from "./enemy-nameplates.js";
 import { createEquipmentPanel } from "./equipment-panel.js";
 import { createCorpseLoot } from "./corpse-loot.js";
 import { createBagPanel } from "./bag-panel.js";
+import { createChatLog } from "./chat-log.js";
+import { createUnitFrames } from "./unit-frames.js";
+import { createInnPanel } from "./inn-panel.js";
+import { createShopPanel } from "./shop-panel.js";
 import { publicUrl } from "./public-url.js";
 
 declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
@@ -26,6 +30,18 @@ const bags = createBagPanel(element("adventure-hud"), {
   onUsePotion: () => pulse("drinkPotion"),
   onClose: closeBags,
 });
+const chatLog = createChatLog(element("adventure-hud"));
+const unitFrames = createUnitFrames(element("adventure-hud"));
+const inn = createInnPanel(element("adventure-hud"), {
+  onRest: () => pulse("rest"),
+  onClose: () => { pulse("closeInn"); running?.world.canvas.focus(); },
+});
+void unitFrames.ready.catch(cause => console.error("Unit portraits failed to load", cause));
+const shop = createShopPanel(element("adventure-hud"), {
+  onBuyPotion: () => pulse("buyPotion"),
+  onClose: () => { pulse("closeShop"); running?.world.canvas.focus(); },
+});
+void shop.ready.catch(cause => console.error("Merchant portrait failed to load", cause));
 
 function element(id: string): HTMLElement {
   const found = document.getElementById(id);
@@ -182,6 +198,7 @@ function returnToRoster(): void {
   save(true);
   equipment.close();
   closeBags();
+  chatLog.reset();
   if (running) audio.update(running.game.snapshot, true);
   audio.reset();
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
@@ -266,24 +283,24 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gameBankedRelics = String(snapshot.bankedRelics); data.gameSelectedThreat = snapshot.selectedThreat;
   data.gameActionCooldown = String(player.actionCooldown); data.gameGuardSeconds = String(player.guardSeconds);
   data.archetype = player.archetype;
-  text("adventure-character", running?.character.name ?? "Wayfarer");
   text("adventure-zone", snapshot.phase === "town" ? "Hearthstead · safe haven" : snapshot.phase === "lost" ? "Journey ended" : "Frostwood");
-  element("health-fill").style.width = `${100 * player.health / player.maximumHealth}%`;
-  text("health-value", `${Math.ceil(player.health)} / ${player.maximumHealth} health`);
-  text("guard-status", player.guardSeconds > 0 ? `BRACED · ${player.guardSeconds.toFixed(1)}s · incoming damage halved` : "Read the danger. Choose your moment.");
+  if (running) unitFrames.update(running.character, snapshot);
+  chatLog.update(snapshot.log);
+  inn.update(snapshot, snapshot.innOpen);
+  shop.update(snapshot);
   text("strike-ready", player.actionCooldown > 0 ? `${player.actionCooldown.toFixed(1)}s` : "Ready");
   text("potion-count", `${snapshot.potions} carried · heals ${snapshot.potionHealing}`);
   text("cargo-summary", `Carried: ${snapshot.cargo} cores · ${snapshot.carriedSalvage} salvage · ${snapshot.carriedRelics} relics\nSecured: ${snapshot.supplies} supplies · ${snapshot.bankedRelics} relics`);
   const nearbyLoot = snapshot.loot.some(item => item.available && item.reachable);
+  const nearbyInn = snapshot.phase === "town" && snapshot.places.some(place => place.kind === "inn" && Math.hypot(place.position.x-player.position.x,place.position.z-player.position.z) <= 2.5);
   text("interact-label", nearbyLoot ? "Loot" : "Talk");
-  text("interact-detail", nearbyLoot ? "Search remains" : "Mara's shop");
+  text("interact-detail", nearbyLoot ? "Search remains" : nearbyInn ? "Rowan · Innkeeper" : "Mara's shop");
   corpseLoot.update(snapshot);
   bags.update(snapshot);
   if (equipment.isOpen && running) equipment.update(running.character, snapshot);
   text("route-objective", snapshot.phase === "town" ? "Prepare, then follow the road north" : snapshot.carriedRelics > 0 ? "Bring the grove relic home" : snapshot.cargo > 0 ? "Return with your cores, or press deeper" : "Find frost cores in the first clearing");
-  text("route-detail", snapshot.phase === "town" ? "Mara sells potions. Rest here before crossing the north gate." : `Follow the road south to Hearthstead to secure what you carry. Forest alertness: ${snapshot.presence.toFixed(0)}.`);
-  text("adventure-report", snapshot.report);
-  element("rest-button").hidden = snapshot.phase !== "town";
+  text("route-detail", snapshot.phase === "town" ? "Mara sells potions. Rowan offers rest at the inn beside the square." : `Follow the road south to Hearthstead to secure what you carry. Forest alertness: ${snapshot.presence.toFixed(0)}.`);
+  element("rest-button").hidden = !nearbyInn;
   mapPosition(element("map-player"), player.position.x, player.position.z);
   element("map-player").style.transform = `translate(-50%, -50%) rotate(${-Math.atan2(player.cameraForward.x, player.cameraForward.z)}rad)`;
   for (const threat of snapshot.threats) {
@@ -296,10 +313,6 @@ function renderHud(snapshot: AdventureSnapshot): void {
     marker.classList.toggle("dormant", !threat.active);
   }
   if (running) nameplates?.render(snapshot, running.world);
-  element("shop-panel").hidden = !snapshot.shopOpen || paused;
-  text("shop-offer", `One potion restores ${snapshot.potionHealing} health. Price: ${snapshot.potionPrice} supplies. You have ${snapshot.supplies}.`);
-  button("shop-buy-potion").disabled = snapshot.supplies < snapshot.potionPrice;
-  text("shop-buy-potion", `Buy potion · ${snapshot.potionPrice} supplies`);
   element("death-panel").hidden = snapshot.phase !== "lost";
 }
 function bindWorld(app: RunningAdventure): void {
@@ -421,8 +434,6 @@ listen(element("entry-roster-list"), "click", (event) => {
 click("entry-creator-back", () => { route = profile?.characters.length ? "roster" : "account"; renderEntry(); });
 click("entry-change-character", () => { if (!entering) { route = "creator"; renderEntry(); } });
 click("entry-enter-world", () => { const character = selectedCharacter(); if (character) void enterWorld(character); });
-click("shop-buy-potion", () => pulse("buyPotion"));
-click("shop-close", () => { pulse("closeShop"); running?.world.canvas.focus(); });
 click("pause-open", () => setMenuOpen(element("pause-panel").hidden));
 click("equipment-open", toggleEquipment);
 click("bag-open", toggleBags);
@@ -460,6 +471,7 @@ listen(window, "keydown", (event) => {
       if (!element("pause-panel").hidden) setMenuOpen(false);
       else if (running?.game.snapshot.lootOpenId) pulse("closeLoot");
       else if (running?.game.snapshot.shopOpen) pulse("closeShop");
+      else if (running?.game.snapshot.innOpen) pulse("closeInn");
       else setMenuOpen(true);
     }
     return;
@@ -507,6 +519,10 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   equipment.dispose();
   corpseLoot.dispose();
   bags.dispose();
+  chatLog.dispose();
+  unitFrames.dispose();
+  inn.dispose();
+  shop.dispose();
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
 };
 try {

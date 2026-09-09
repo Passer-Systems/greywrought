@@ -1,10 +1,12 @@
 import type { AdventureSnapshot, ThreatView } from "../game/adventure-types.js";
 import type { AdventureWorld } from "./adventure-world.js";
+import { publicUrl } from "./public-url.js";
 
 interface Plate {
   root: HTMLButtonElement; name: HTMLElement; health: HTMLElement; healthFill: HTMLElement;
   action: HTMLElement; amount: HTMLElement; status: HTMLElement; clock: HTMLElement; fill: HTMLElement; queue: HTMLElement; response: HTMLElement;
   tether: HTMLElement;
+  opening: HTMLElement; openingClock: HTMLElement;
 }
 interface Box { x: number; y: number; width: number; height: number; }
 const overlaps = (a: Box, b: Box) => a.x < b.x + b.width + 8 && a.x + a.width + 8 > b.x && a.y < b.y + b.height + 8 && a.y + a.height + 8 > b.y;
@@ -26,19 +28,24 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
     const status = span("nameplate-status", heading);
     const healthTrack = span("nameplate-health", root);
     const healthFill = span("nameplate-health-fill", healthTrack), health = span("nameplate-health-value", healthTrack);
+    root.insertBefore(healthTrack, heading);
+    const opening = span("nameplate-opening", root); opening.hidden = true;
+    const openingIcon = document.createElement("img"); openingIcon.src = publicUrl("assets/ui/icons/spells/sword-strike.png"); openingIcon.alt = "Strike opening"; opening.append(openingIcon);
+    const openingClock = span("nameplate-opening-clock", opening);
+    const effects = span("nameplate-effects", root); effects.setAttribute("aria-label", "Active enemy effects");
     const row = span("nameplate-intents", root);
     const current = span("nameplate-current", row);
     const action = span("nameplate-action", current), amount = span("nameplate-amount", current), clock = span("nameplate-clock", current);
     const queue = span("nameplate-queue", row);
     const track = span("nameplate-cast", root), fill = span("nameplate-cast-fill", track);
     const response = span("nameplate-tooltip", root); response.setAttribute("role", "tooltip");
-    plates.set(threat.id, { root, name, health, healthFill, action, amount, status, clock, fill, queue, response, tether });
+    plates.set(threat.id, { root, name, health, healthFill, action, amount, status, clock, fill, queue, response, tether, opening, openingClock });
   });
   return {
     render(snapshot: AdventureSnapshot, world: AdventureWorld) {
       const bounds = host.getBoundingClientRect();
       const occupied: Box[] = [];
-      for (const node of document.querySelectorAll<HTMLElement>(".adventure-vitals, .adventure-objective, .adventure-map, .adventure-bottom, .adventure-menu-button, .equipment-open")) {
+      for (const node of document.querySelectorAll<HTMLElement>(".unit-frame, #chat-log, .adventure-objective, .adventure-map, .adventure-bottom, .adventure-menu-button, .equipment-open")) {
         const box = node.getBoundingClientRect();
         if (box.width) occupied.push({ x: box.left - bounds.left, y: box.top - bounds.top, width: box.width, height: box.height });
       }
@@ -59,7 +66,15 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         root.hidden = false;
         Object.assign(root.dataset, { phase: threat.phase, selected: String(threat.selected), disposition: threat.disposition, aggro: String(threat.aggro), hostile: String(threat.disposition === "hostile" || threat.aggro) });
         root.setAttribute("aria-pressed", String(threat.selected));
-        write(plate.health, `${Math.ceil(threat.health)} / ${threat.maximumHealth}`);
+        write(plate.health, `${Math.ceil(threat.health)} (${Math.round(100*threat.health/threat.maximumHealth)}%)`);
+        const opening = snapshot.phase === "expedition" && threat.phase === "recovery" && snapshot.player.actionCooldown <= 0.001 && Math.hypot(threat.position.x-snapshot.player.position.x,threat.position.z-snapshot.player.position.z) <= 3.5;
+        plate.opening.hidden = !opening;
+        root.dataset.strikeOpening = String(opening);
+        if (opening) {
+          const seconds = threat.remainingSeconds.toFixed(1);
+          write(plate.openingClock, seconds);
+          plate.opening.title = `Strike now — enemy recovering for ${seconds}s. ${threat.selected ? "Press 1." : "Select this enemy, then press 1."}`;
+        }
         plate.healthFill.style.width = `${100 * threat.health / threat.maximumHealth}%`;
         const copy = intention(threat);
         const alarm = threat.id === "scout";

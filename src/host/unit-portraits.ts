@@ -7,7 +7,7 @@ const appearances = [
 ] as const;
 
 /** One portrait pass; model geometry and textures remain owned by the shared asset cache. */
-export async function createUnitPortraits(): Promise<ReadonlyMap<string, string>> {
+export async function createUnitPortraits(models: readonly (readonly [string, string])[] = appearances): Promise<ReadonlyMap<string, string>> {
   const portraits = new Map<string, string>();
   const renderer = new WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
   renderer.setSize(128, 128, false);
@@ -19,7 +19,7 @@ export async function createUnitPortraits(): Promise<ReadonlyMap<string, string>
   const camera = new OrthographicCamera(-1.03, 1.03, 1.03, -1.03, 0.1, 20);
   camera.position.set(1.4, 1.65, 4); camera.lookAt(0, 1.3, 0);
   try {
-    for (const [id, model] of appearances) {
+    for (const [id, model] of models) {
       const creature = await actor(model, 2);
       try {
         creature.model.removeFromParent();

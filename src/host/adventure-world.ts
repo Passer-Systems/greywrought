@@ -129,7 +129,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   terrain.add(mara);
   const maraName = label("MARA · F to talk", "#ffe4b4", 2.4);
   maraName.position.set(3.4, 2.45, -7.5); terrain.add(maraName);
-  const innPosition = initial.places.find(place => place.id === "inn")?.position ?? { x: 5, y: 0, z: -11 };
+  const innPlace = initial.places.find(place => place.id === "inn");
+  if (!innPlace) throw new Error("Inn service position is missing");
+  const innPosition = innPlace.position;
   const rowan = new Group(); rowan.position.set(innPosition.x, innPosition.y, innPosition.z); rowan.rotation.y = -Math.PI / 3;
   terrain.add(rowan);
   const innSign = label("THE WAYFARER’S REST · INN", "#ffe0a4", 3.2);

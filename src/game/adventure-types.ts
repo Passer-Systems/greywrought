@@ -9,7 +9,7 @@ export interface AdventureLogEntry {
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
   | "strike" | "brace" | "gather" | "ritual" | "interact"
-  | "buyPotion" | "drinkPotion" | "rest" | "target" | "closeShop" | "takeLoot" | "closeLoot";
+  | "buyPotion" | "drinkPotion" | "rest" | "target" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn";
 export interface CorpseLootView {
   readonly sourceId: string;
   readonly sourceName: string;
@@ -49,7 +49,7 @@ export interface PlaceView {
   readonly id: string;
   readonly name: string;
   readonly position: Position;
-  readonly kind: "town" | "gate" | "resource" | "ritual" | "shop";
+  readonly kind: "town" | "gate" | "resource" | "ritual" | "shop" | "inn";
 }
 export interface AdventureSnapshot {
   readonly phase: "town" | "expedition" | "lost";
@@ -81,6 +81,8 @@ export interface AdventureSnapshot {
   readonly presence: number;
   readonly ritualCalled: boolean;
   readonly shopOpen: boolean;
+  readonly innOpen: boolean;
+  readonly log: readonly AdventureLogEntry[];
   readonly potionPrice: number;
   readonly potionHealing: number;
   readonly report: string;

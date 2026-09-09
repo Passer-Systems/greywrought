@@ -114,3 +114,77 @@ The first playtest must demonstrate navigation, readable combat, a meaningful
 risk decision and a useful return; the player wanting another run is the human
 judgment that determines whether the loop works.
 
+## Town and interface visual language
+
+Use the supplied Classic WoW references for structure and information hierarchy:
+compact dark panels, restrained metal edging, warm gold titles, square item
+icons, legible stack counts, and red close buttons. Author Greywrought's own art.
+All window headers share a layout: the title and close button occupy one grid
+row, with the close button flush against the inside top-right frame edge.
+An optional portrait overlaps the left corner without moving those alignment
+lines. Content has its own padding beneath the header; don't position controls
+relative to an independently inset title box.
+
+Player and target frames sit near the lower center with room between them for
+the character. Show the target's target beneath its frame when it is actually
+attacking someone. Enemy health sits above its name and compact intent queue.
+Offensive opportunities appear on the left only while actionable; actual
+control effects and debuffs belong on the right. The current recovery opening
+indicates that Strike is ready and the enemy is in range; it promises no bonus
+damage. No enemy debuff or crowd-control mechanic exists yet.
+
+The bottom-left Chat and Combat Log tabs show actual events. The log must retain
+simultaneous outcomes and let the player read older entries without snapping
+back to the newest line. Windows preserve movement, including already-held
+WASD; Escape and the visible close button both work.
+
+Hearthstead includes Mara's merchant window and Rowan's inn service. The inn
+has a recognizable building, animated innkeeper and free healing. The merchant
+shows actual stock, prices and available supplies. The backpack uses a compact
+slot grid, with item details in a floating tooltip and a real potion action.
+Corpse loot remains a small vertical list of available items.
+
+### Captured references for later systems
+
+These references guide later features; they do not imply the systems are
+implemented in the current solo expedition.
+
+- **Party loot roll:** a compact horizontal rare-drop prompt, separate from
+  corpse loot. Item icon/name and quality color on the left, Need/Greed/Pass
+  choices on the right, time remaining below, and full details on hover.
+  Disenchant needs its own real eligibility rule before showing that option.
+- **Loot-roll history:** expandable item rows showing participants, their
+  choices and rolls, and the winner. Hover reuses the item tooltip. Developer
+  IDs visible in an addon reference are not part of the player tooltip.
+- **Trade:** mirrored participant offers with item slots and money, Trade and
+  Cancel actions. Acceptance highlights that participant's side green; changing
+  an offer clears acceptance. This requires actual party/player state.
+- **Mail:** parchment inbox rows and letter view, attachment slots, clear red
+  actions. The town prop is a wooden post with a sheltered letter box and
+  hanging cloth. Delivery and attachments require real ownership rules.
+- **Bank:** dense item grid, a separate bag row, readable stack counts and an
+  expansion-purchase footer. The existing secured-supplies total is not a
+  functioning item bank.
+
+### UI rendering decision
+
+Keep browser HTML/CSS above the Three.js world for this desktop HUD, using
+shared window, slot and tooltip layouts. The current implementation is ordinary
+TypeScript DOM components. A renderer replacement does not resolve the observed
+inconsistent frame offsets. React DOM could be adopted for component authoring
+without replacing Three.js; no development-speed comparison has established a
+benefit that warrants a migration during this delivery.
+
+Current upstream references checked in September 2026:
+
+- [Drei Html](https://drei.docs.pmnd.rs/misc/html) projects browser HTML onto
+  scene objects; DOM overlays remain supported in the Three.js ecosystem.
+- [UIKit](https://github.com/pmndrs/uikit) renders UI within the 3D scene and
+  supports vanilla Three.js as well as React Three Fiber. Its vanilla setup
+  adds pointer-event integration, layout updates and rendering configuration.
+  Reconsider for a spatial/XR interface or a measured DOM limitation.
+- [React DOM incremental adoption](https://react.dev/learn/add-react-to-an-existing-project)
+  permits introducing components in an existing page without a scene rewrite.
+- [Floating UI](https://floating-ui.com/docs/getting-started) supplies anchored
+  positioning and viewport collision handling for more involved tooltips and
+  popovers. Add it when those interactions exceed the current simple tooltip.

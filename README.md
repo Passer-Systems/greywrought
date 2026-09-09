@@ -20,6 +20,9 @@ Characters and expeditions are saved in the browser; defeat is permanent.
 Animated Quaternius creatures and village scenery bring the route to life.
 Music and sampled combat sounds begin after interaction; open the game menu to adjust
 music and effects volume or mute them.
+Rowan offers free healing at The Wayfarer’s Rest beside the town square.
+Centered player, target and target-of-target frames track the fight; the Chat
+and Combat Log tabs preserve recent dialogue, damage, mitigation and loot.
 
 ## Develop
 
@@ -46,12 +49,13 @@ to move forward, including while S is held. Drag either mouse button to turn
 the view, and use the wheel to zoom.
 
 Tab selects a target. 1 strikes; E braces. G gathers frost cores and R
-calls the grove guardian. F talks to Mara or opens nearby corpse loot; click an
+calls the grove guardian. F talks to Mara or Rowan, or opens nearby corpse loot; click an
 item to take it. You can also click a lootable body. H drinks a potion. Return through the
-gate to secure carried rewards. Rest in town to recover health.
+gate to secure carried rewards. Visit Rowan at the inn to recover health.
 C opens the character paper doll with all 19 Classic equipment slots. Select
 a slot to inspect it; gear changes are not yet implemented. B opens your backpack
-to inspect carried items and use potions. Escape closes a window or opens the
+to inspect carried items; click an item for its tooltip and potion action.
+Escape closes a window or opens the
 game menu. Movement continues while windows are open.
 
 ## Versions and archives

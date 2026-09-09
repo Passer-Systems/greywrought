@@ -7,14 +7,18 @@ const root = resolve(import.meta.dir, "..");
 let publicFiles = new Map(files.map(([source, target]) => [target.slice("dist/".length), source]));
 const manifestPath = resolve(root, "scripts/public-files.ts");
 let manifestChangedAt = (await stat(manifestPath)).mtimeMs;
+let assetRevision = 0;
+let loadedAssetRevision = 0;
 let manifestRefresh: Promise<void> | undefined;
 async function refreshPublicFiles(): Promise<void> {
   const changedAt = (await stat(manifestPath)).mtimeMs;
-  if (changedAt === manifestChangedAt) return;
+  const refreshingAssets = assetRevision;
+  if (changedAt === manifestChangedAt && refreshingAssets === loadedAssetRevision) return;
   manifestRefresh ??= (async () => {
-    const updated: typeof import("./public-files.js") = await import(`./public-files.ts?revision=${changedAt}`);
+    const updated: typeof import("./public-files.js") = await import(`./public-files.ts?revision=${changedAt}-${refreshingAssets}`);
     publicFiles = new Map(updated.files.map(([source, target]) => [target.slice("dist/".length), source]));
     manifestChangedAt = changedAt;
+    loadedAssetRevision = refreshingAssets;
   })().finally(() => { manifestRefresh = undefined; });
   await manifestRefresh;
 }
@@ -40,6 +44,10 @@ const watcher = watch(resolve(root, "src"), { recursive: true }, (_event, filena
 });
 const manifestWatcher = watch(resolve(root, "scripts"), (_event, filename) => {
   if (filename === "public-files.ts") changed();
+});
+const assetWatcher = watch(resolve(root, "assets"), { recursive: true }, () => {
+  assetRevision++;
+  changed();
 });
 
 async function buildClient(): Promise<void> {
@@ -102,6 +110,6 @@ const server = Bun.serve({
   },
 });
 console.log(`Greywrought development: http://${server.hostname}:${server.port}/`);
-function stop() { watcher.close(); manifestWatcher.close(); clearTimeout(reloadTimer); server.stop(true); }
+function stop() { watcher.close(); manifestWatcher.close(); assetWatcher.close(); clearTimeout(reloadTimer); server.stop(true); }
 process.on("SIGTERM", () => { stop(); process.exit(0); });
 process.on("SIGINT", () => { stop(); process.exit(0); });

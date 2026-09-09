@@ -1,6 +1,6 @@
 import type { CharacterArchetype } from "../host/character-profile.js";
 import type {
-  AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot,
+  AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot, AdventureLogEntry,
   CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView,
 } from "./adventure-types.js";
 
@@ -48,6 +48,7 @@ const PLACES: readonly PlaceView[] = [
   { id: "frost-cores", name: "Frost cores", position: point(-2, 12), kind: "resource" },
   { id: "ritual-site", name: "Deep grove", position: point(2, 40), kind: "ritual" },
   { id: "mara", name: "Mara / Apothecary", position: point(3.4, -7.5), kind: "shop" },
+  { id: "inn", name: "Rowan / The Wayfarer's Rest", position: point(5, -11), kind: "inn" },
 ];
 const PHASE_SECONDS: Record<ThreatPhase, number> = {
   dormant: 0, approach: 0, preparation: 3, action: 0.35, recovery: 2.65, returning: 0, cleared: 0,
@@ -87,6 +88,9 @@ class Adventure implements AdventureGame {
   private moving = false;
   private backpedaling = false;
   private shopOpen = false;
+  private innOpen = false;
+  private readonly events: AdventureLogEntry[] = [];
+  private eventId = 0;
   private lootOpenId: string | null = null;
 
   constructor(options: AdventureOptions) {
@@ -94,6 +98,7 @@ class Adventure implements AdventureGame {
     if (options.archetype !== undefined && options.archetype !== this.state.archetype) {
       throw new Error("The saved character has a different calling.");
     }
+    this.appendLog(options.save === undefined ? "Welcome to Hearthstead. Visit Mara for potions or Rowan at the inn to rest." : "Welcome back. Your journey has been restored.");
   }
 
   get snapshot(): AdventureSnapshot {
@@ -127,11 +132,19 @@ class Adventure implements AdventureGame {
       selectedThreat: s.selectedThreat, supplies: s.supplies, cargo: s.cargo,
       resourceRemaining: s.resourceRemaining, potions: s.potions, carriedRelics: s.carriedRelics,
       bankedRelics: s.bankedRelics, presence: s.presence, ritualCalled: s.ritualCalled,
-      shopOpen: this.shopOpen, potionPrice: 3, potionHealing: 30, report: s.report,
+      shopOpen: this.shopOpen, innOpen: this.innOpen, log: this.events.map(entry => ({ ...entry })), potionPrice: 3, potionHealing: 30, report: s.report,
     };
   }
 
   save(): string { return JSON.stringify({ version: 3, state: this.state }); }
+  private report(text: string, channel: AdventureLogEntry["channel"] = "chat"): void {
+    this.state.report = text;
+    this.appendLog(text, channel);
+  }
+  private appendLog(text: string, channel: AdventureLogEntry["channel"] = "chat"): void {
+    this.events.push({ id: ++this.eventId, channel, text });
+    if (this.events.length > 200) this.events.shift();
+  }
 
   setCameraForward(x: number, z: number): void {
     if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error("Camera direction must be finite.");
@@ -150,7 +163,7 @@ class Adventure implements AdventureGame {
   openLoot(sourceId: string): void {
     const corpse = this.state.threats.find(t => t.id === sourceId);
     this.lootOpenId = corpse && this.canLoot(corpse) ? corpse.id : null;
-    if (this.lootOpenId) this.shopOpen = false;
+    if (this.lootOpenId) { this.shopOpen = false; this.innOpen = false; }
   }
   private takeLoot(): void {
     const s = this.state;
@@ -160,10 +173,10 @@ class Adventure implements AdventureGame {
     corpse.lootClaimed = true;
     if (corpse.id === "ritual-guardian") {
       s.carriedRelics += 1;
-      s.report = "The frost relic is in your pack. Reach Hearthstead alive to keep it.";
+      this.report("You receive loot: Frost relic × 1. Reach Hearthstead alive to keep it.");
     } else {
       s.carriedSalvage += 1;
-      s.report = "Forest salvage collected. Return alive to exchange it for one supply.";
+      this.report("You receive loot: Forest salvage × 1. Return alive to exchange it for one supply.");
     }
   }
   setAction(action: AdventureAction, pressed: boolean): void {
@@ -183,6 +196,7 @@ class Adventure implements AdventureGame {
   private act(action: AdventureAction): void {
     const s = this.state;
     if (action === "closeShop") { this.shopOpen = false; return; }
+    if (action === "closeInn") { this.innOpen = false; return; }
     if (action === "closeLoot") { this.lootOpenId = null; return; }
     if (s.phase === "lost") return;
     switch (action) {
@@ -197,40 +211,48 @@ class Adventure implements AdventureGame {
       }
       case "strike": this.strike(); break;
       case "brace":
-        if (this.ready()) { s.guardSeconds = 3; s.actionCooldown = 1; s.report = "Braced for three seconds. Incoming hits deal half damage."; }
+        if (this.ready()) { s.guardSeconds = 3; s.actionCooldown = 1; this.report("You brace for three seconds. Incoming hits deal half damage.", "combat"); }
         break;
       case "gather": this.gather(); break;
       case "ritual": this.ritual(); break;
       case "takeLoot": this.takeLoot(); break;
       case "interact": {
         this.lootOpenId = null;
-        this.shopOpen = s.phase === "town" && this.near("mara", 2.5);
-        if (this.shopOpen) s.report = "Mara: A little preparation goes a long way.";
+        const service = s.phase === "town" ? PLACES.filter(p => (p.kind === "shop" || p.kind === "inn") && this.near(p.id, 2.5))
+          .sort((a,b) => distance(s.position,a.position) - distance(s.position,b.position))[0] : undefined;
+        this.shopOpen = service?.kind === "shop";
+        this.innOpen = service?.kind === "inn";
+        if (this.innOpen) this.report("Rowan says: Welcome to The Wayfarer's Rest. Come warm yourself by the hearth; rest is on the house.");
+        else if (this.shopOpen) this.report("Mara says: A little preparation goes a long way.");
         else {
           const corpse = s.threats.filter(t => this.canLoot(t))
             .sort((a, b) => distance(s.position, a.position) - distance(s.position, b.position))[0];
           if (corpse) this.openLoot(corpse.id);
-          else s.report = s.phase === "town" ? "Approach Mara beside the Hearthstead road to trade." : "Move beside a glinting body to search it.";
+          else this.report(s.phase === "town" ? "Approach Mara to trade or Rowan at the inn to rest." : "Move beside a glinting body to search it.");
         }
         break;
       }
       case "buyPotion":
         if (!this.shopOpen || !this.near("mara", 2.5) || s.phase !== "town") {
-          s.report = "Talk to Mara in Hearthstead to buy a potion.";
+          this.report("Talk to Mara in Hearthstead to buy a potion.");
         } else if (s.supplies < 3) {
-          s.report = "Not enough supplies for a health potion.";
+          this.report("Not enough supplies for a health potion.");
         } else {
           s.supplies -= 3; s.potions += 1;
-          s.report = "Health potion purchased. Drink it when hurt.";
+          this.report("You buy a health potion for 3 supplies.");
         }
         break;
       case "drinkPotion":
-        if (s.health >= 100) s.report = "Your health is already full. Potion kept.";
-        else if (s.potions < 1) s.report = "No health potions. Visit Mara in Hearthstead.";
-        else { s.potions -= 1; s.health = Math.min(100, s.health + 30); s.report = "You drink a health potion and recover health."; }
+        if (s.health >= 100) this.report("Your health is already full. Potion kept.");
+        else if (s.potions < 1) this.report("No health potions. Visit Mara in Hearthstead.");
+        else { const healing = Math.min(30, 100 - s.health); s.potions -= 1; s.health += healing; this.report(`Your health potion restores ${healing} health.`, "combat"); }
         break;
       case "rest":
-        if (s.phase === "town") { s.health = 100; s.report = "Rested in Hearthstead. Health restored."; }
+        if (s.phase === "town" && this.near("inn", 2.5)) {
+          const healing = 100 - s.health;
+          s.health = 100;
+          this.report(healing > 0 ? `You rest at The Wayfarer's Rest and recover ${healing} health.` : "Rowan says: You're already rested. May the road bring you safely home.");
+        } else this.report("Visit Rowan at The Wayfarer's Rest in Hearthstead to rest.");
         break;
     }
   }
@@ -238,45 +260,45 @@ class Adventure implements AdventureGame {
     const s = this.state;
     if (!this.ready()) return;
     const t = s.threats.find(t => t.id === s.selectedThreat);
-    if (!t || !t.active || t.health <= 0) { s.report = "Choose a living threat to strike."; return; }
+    if (!t || !t.active || t.health <= 0) { this.report("Choose a living threat to strike.", "combat"); return; }
     if (distance(s.position, t.position) > 3.5 + EPSILON) {
-      s.report = "Move closer to strike your chosen threat."; return;
+      this.report("Move closer to strike your chosen threat.", "combat"); return;
     }
-    t.health = Math.max(0, t.health - 9);
+    const dealt = Math.min(9, t.health);
+    t.health -= dealt;
     if (t.health > 0 && !t.aggro) { t.aggro = true; this.prepareOrApproach(t); }
     s.attackSequence += 1; s.actionCooldown = 2; s.presence += 1;
-    s.report = `${definition(t.id).name} struck for 9 damage.`;
+    this.report(`You strike ${definition(t.id).name} for ${dealt} damage.`, "combat");
     if (t.health === 0) {
       t.phase = "cleared"; t.remainingSeconds = 0; t.lastActionHit = false; t.aggro = false;
-      s.report = definition(t.id).benefit;
+      this.report(`${definition(t.id).name} dies. ${definition(t.id).benefit}`, "combat");
       if (t.id === "ritual-guardian") {
-        s.report = "The guardian falls. Search its body for the frost relic, then carry it home.";
+        this.report("The guardian falls. Search its body for the frost relic, then carry it home.");
       }
     }
   }
   private gather(): void {
     const s = this.state;
     if (!this.ready()) return;
-    if (!this.near("frost-cores", 3)) { s.report = "Approach the frost cores near the lookout to gather."; return; }
-    if (s.resourceRemaining < 3) { s.report = "No frost cores remain here this trip."; return; }
+    if (!this.near("frost-cores", 3)) { this.report("Approach the frost cores near the lookout to gather."); return; }
+    if (s.resourceRemaining < 3) { this.report("No frost cores remain here this trip."); return; }
     s.resourceRemaining -= 3; s.cargo += 3; s.presence += 4; s.actionCooldown = 2;
-    s.report = "Three frost cores gathered. Return alive to keep them.";
+    this.report("You gather Frost cores × 3. Return alive to keep them.");
     if (s.threats.some(t => t.id === "warder" && t.health > 0)) {
-      s.report += " The warder's thorns cut you; clear it to gather safely.";
-      this.hurt(8);
+      this.hurt(8, "The warder's thorns");
     }
   }
   private ritual(): void {
     const s = this.state;
     if (!this.ready()) return;
-    if (!this.near("ritual-site", 3)) { s.report = "Reach the deep grove to offer six frost cores."; return; }
-    if (s.ritualCalled) { s.report = "The guardian has already been called this trip."; return; }
-    if (s.cargo < 6) { s.report = "The offering needs six carried frost cores."; return; }
+    if (!this.near("ritual-site", 3)) { this.report("Reach the deep grove to offer six frost cores."); return; }
+    if (s.ritualCalled) { this.report("The guardian has already been called this trip."); return; }
+    if (s.cargo < 6) { this.report("The offering needs six carried frost cores."); return; }
     const guardian = s.threats.find(t => t.id === "ritual-guardian");
     if (!guardian) throw new Error("Missing frost guardian.");
     s.cargo -= 6; s.ritualCalled = true; s.presence += 12; s.actionCooldown = 1;
     guardian.active = true; guardian.aggro = true; this.beginPreparation(guardian);
-    s.report = "Six cores offered. The frost guardian answers; carry its relic home.";
+    this.report("Six cores offered. The frost guardian answers; carry its relic home.");
   }
 
   advance(seconds: number): void {
@@ -337,16 +359,17 @@ class Adventure implements AdventureGame {
     this.move(dt);
     if (this.lootOpenId !== null && !s.threats.some(t => t.id === this.lootOpenId && this.canLoot(t))) this.lootOpenId = null;
     if (this.shopOpen && !this.near("mara", 2.5)) this.shopOpen = false;
+    if (this.innOpen && !this.near("inn", 2.5)) this.innOpen = false;
     if (s.phase === "town" && s.position.z >= 2) {
       s.phase = "expedition"; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.presence = 0;
       s.resourceRemaining = 12; s.ritualCalled = false; s.threats = newThreats();
-      s.actionCooldown = 0; s.guardSeconds = 0; this.shopOpen = false;
-      s.report = "The forest is listening. Frost cores wait near the lookout; Hearthstead lies behind you.";
+      s.actionCooldown = 0; s.guardSeconds = 0; this.shopOpen = false; this.innOpen = false;
+      this.report("You enter Frostwood. The forest is listening; Hearthstead lies behind you.");
     } else if (s.phase === "expedition" && s.position.z <= 0) {
       s.phase = "town"; s.supplies += s.cargo + s.carriedSalvage; s.bankedRelics += s.carriedRelics;
       s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.guardSeconds = 0; this.lootOpenId = null;
       for (const t of s.threats) if (t.health > 0) this.disengage(t);
-      s.report = "Safe at Hearthstead. Cores, salvage and relics are secured. Rest before your next trip.";
+      this.report("You return to Hearthstead. Cores, salvage and relics are secured. Visit the inn before your next trip.");
     }
     if (s.phase === "expedition") {
       s.presence += (this.moving ? 0.5 : 0.1) * dt;
@@ -436,26 +459,28 @@ class Adventure implements AdventureGame {
       if (t.lastActionHit) {
         if (t.id === "scout") {
           this.state.presence += 3;
-          this.state.report = "The lookout sounds an alarm. Rising presence strengthens future enemy attacks.";
+          this.report("Briar lookout sounds an alarm. Forest alertness rises by 3.", "combat");
         } else {
-          this.state.report = `${d.name}: ${d.intention}. ${t.damage * (this.state.guardSeconds > EPSILON ? 0.5 : 1)} damage${this.state.guardSeconds > EPSILON ? " while braced" : ""}.`;
-          this.hurt(t.damage);
+          this.hurt(t.damage, `${d.name} — ${d.intention}`);
         }
-      }
+      } else this.report(`${d.name} — ${d.intention} misses you.`, "combat");
     } else if (t.phase === "action") {
       t.phase = "recovery"; t.remainingSeconds = 2.65 - overrun;
     } else {
       if (this.prepareOrApproach(t)) t.remainingSeconds -= overrun;
     }
   }
-  private hurt(damage: number): void {
+  private hurt(damage: number, source: string): void {
     const s = this.state;
-    s.health = Math.max(0, s.health - damage * (s.guardSeconds > EPSILON ? 0.5 : 1));
+    const blocked = s.guardSeconds > EPSILON ? damage / 2 : 0;
+    const taken = Math.min(s.health, damage - blocked);
+    s.health -= taken;
+    this.report(`${source} hits you for ${taken} damage${blocked > 0 ? ` (${blocked} blocked by Brace)` : ""}.`, "combat");
     if (s.health > 0) return;
     s.phase = "lost"; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.supplies = 0; s.bankedRelics = 0;
     this.lootOpenId = null;
-    s.potions = 0; this.shopOpen = false; this.moving = false; this.backpedaling = false;
-    s.report = "The wayfarer is lost. Carried rewards and personal stores are gone. Create a new character to try again.";
+    s.potions = 0; this.shopOpen = false; this.innOpen = false; this.moving = false; this.backpedaling = false;
+    this.report("You fall. Your journey ends; carried rewards and personal stores are lost.", "combat");
   }
 }
 

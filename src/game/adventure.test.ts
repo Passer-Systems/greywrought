@@ -168,7 +168,7 @@ describe("Frostwood expedition", () => {
     expect(game.snapshot.threats.every(t => t.health === t.maximumHealth)).toBe(true);
   });
 
-  test("clearing the warder removes harvest damage; town rest restores health", () => {
+  test("clearing the warder removes harvest damage; inn rest restores health", () => {
     const game = approachWarder();
     finish(game, "warder");
     walk(game, -8, 26.6); walk(game, -8, 12); walk(game, -2, 12);
@@ -176,7 +176,45 @@ describe("Frostwood expedition", () => {
     expect(health).toBeLessThan(100);
     tap(game, "gather"); expect(game.snapshot.player.health).toBe(health);
     walk(game, 0, 5); walk(game, 0, -1); tap(game, "rest");
+    expect(game.snapshot.player.health).toBe(health);
+    walk(game, 5, -11); tap(game, "interact");
+    expect(game.snapshot.innOpen).toBe(true);
+    expect(game.snapshot.shopOpen).toBe(false);
+    expect(game.snapshot.log.at(-1)?.text).toContain("Rowan says:");
+    tap(game, "rest");
     expect(game.snapshot.player.health).toBe(100);
+    expect(game.snapshot.log.at(-1)?.text).toContain(`recover ${100-health} health`);
+    tap(game, "closeInn");
+    expect(game.snapshot.innOpen).toBe(false);
+    tap(game, "interact"); walk(game, 0, -8);
+    expect(game.snapshot.innOpen).toBe(false);
+  });
+
+  test("combat history preserves a strike, mitigated damage, miss, and repeat messages exactly once", () => {
+    const game = approachWarder();
+    game.selectTarget("warder");
+    tap(game, "strike");
+    expect(game.snapshot.log.at(-1)).toMatchObject({channel:"combat",text:"You strike Root warder for 9 damage."});
+    game.advance(2);
+    tap(game, "brace");
+    const damage = threat(game,"warder").damage;
+    const health = game.snapshot.player.health;
+    game.advance(threat(game,"warder").remainingSeconds + 0.01);
+    expect(game.snapshot.player.health).toBe(health-damage/2);
+    expect(game.snapshot.log.at(-1)?.text).toContain(`${damage/2} damage (${damage/2} blocked by Brace)`);
+    game.advance(3);
+    const warning=threat(game,"warder");
+    walk(game,warning.targetPosition.x,warning.targetPosition.z-warning.reach-1);
+    const beforeMiss=game.snapshot.player.health;
+    game.advance(threat(game,"warder").remainingSeconds+0.01);
+    expect(game.snapshot.player.health).toBe(beforeMiss);
+    expect(game.snapshot.log.at(-1)?.text).toContain("misses you");
+    tap(game,"drinkPotion"); tap(game,"drinkPotion");
+    expect(game.snapshot.log.slice(-2).map(e=>e.text)).toEqual(["No health potions. Visit Mara in Hearthstead.","No health potions. Visit Mara in Hearthstead."]);
+    const count=game.snapshot.log.length;
+    game.advance(0.01);
+    expect(game.snapshot.log.length).toBe(count);
+    expect(new Set(game.snapshot.log.map(e=>e.id)).size).toBe(count);
   });
 
   test("six cores call the guardian; six strikes claim a relic; return banks it and remaining cores", () => {
