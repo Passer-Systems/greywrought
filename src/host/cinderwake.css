@@ -2145,15 +2145,15 @@ body[data-game-combat-plan=true] .unit-frames {top:auto;bottom:calc(var(--combat
   #route-objective { font-size: 16px; }
 }
 
-.adventure-actions {gap:8px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;}
-.adventure-actions button {width:49px;height:64px;border:0;background:none;}
-.adventure-actions button kbd {height:15px;color:#eee3c9;font:700 13px/15px Georgia,serif;text-shadow:0 1px 3px #000;}
-.adventure-actions .action-art {inset:17px 0 0;border:1px solid #b6aa87;border-radius:0;}
+.adventure-actions {gap:4px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;}
+.adventure-actions button {width:35px;height:51px;border:0;background:none;}
+.adventure-actions button kbd {height:14px;color:#eee3c9;font:700 11px/14px Georgia,serif;text-shadow:0 1px 3px #000;}
+.adventure-actions .action-art {inset:16px 0 0;border:1px solid #b6aa87;border-radius:0;}
+.adventure-actions .action-recovery-shade {height:calc(var(--recovery,0) * 31px);}
 .adventure-actions button:hover {background:none;border-color:transparent;}
 .adventure-actions button:hover .action-art {border-color:#ffe5a8;}
 .adventure-actions .action-empty .action-art {background:#10191542;border-color:#adaf9d8c;}
 .adventure-actions .action-empty:disabled {cursor:default;}
-@media(max-width:850px) {.adventure-actions {gap:4px;} .adventure-actions button {width:43px;height:58px;}}
-@media(max-width:600px) {.adventure-actions {gap:3px;} .adventure-actions button {width:calc((100vw - 55px) / 12);height:calc((100vw - 55px) / 12 + 17px);}}
-.adventure-actions button[data-action=strike],.adventure-actions button[data-action=brace] {margin-bottom:14px;}
-.adventure-actions button[data-action=strike] .action-cost,.adventure-actions button[data-action=brace] .action-cost {top:calc(100% + 2px);bottom:auto;left:-3px;right:-3px;padding:0;background:none;text-align:center;white-space:nowrap;font:10px/12px system-ui;color:#f1dfb2;text-shadow:0 1px 3px #000;}
+@media(max-width:480px) {.adventure-actions {gap:3px;} .adventure-actions button {width:calc((100vw - 55px) / 12);height:calc((100vw - 55px) / 12 + 16px);}}
+.adventure-actions button[data-action=strike],.adventure-actions button[data-action=brace] {margin-bottom:24px;}
+.adventure-actions button[data-action=strike] .action-cost,.adventure-actions button[data-action=brace] .action-cost {top:calc(100% + 2px);bottom:auto;left:0;right:0;padding:0;background:none;text-align:center;white-space:normal;font:9px/11px system-ui;color:#f1dfb2;text-shadow:0 1px 3px #000;}
