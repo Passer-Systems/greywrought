@@ -4,7 +4,12 @@ import { prop } from "./frostwood-assets.js";
 export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }): Promise<void> {
   const jobs: Promise<void>[] = [];
   function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0) {
-    jobs.push(prop(name, size, axis).then(model => { model.position.set(x, y, z); model.rotation.y = rotation; parent.add(model); }));
+    jobs.push(prop(name, size, axis).then(model => {
+      model.position.set(x, y, z); model.rotation.y = rotation; parent.add(model);
+      model.updateWorldMatrix(true, true);
+      // Scenery never moves; actors and effects retain their animated transforms.
+      model.traverse(object => { object.matrixAutoUpdate = false; object.matrixWorldAutoUpdate = false; });
+    }));
   }
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
   const ctx = canvas.getContext("2d")!;

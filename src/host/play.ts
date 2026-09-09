@@ -116,6 +116,9 @@ let running: RunningAdventure | null = null;
 let alive = true;
 let frame = 0;
 let lastTime = 0;
+let nextFrameTime = 0;
+let nextHudTime = 0;
+const frameInterval = 1000 / 60;
 let paused = false;
 let entering = false;
 let profile: LocalProfile | null = null;
@@ -255,6 +258,7 @@ function deletePendingCharacter(): void {
   renderEntry();
 }
 function returnToRoster(): void {
+  stopFrames();
   release();
   save(true);
   equipment.close();
@@ -274,12 +278,14 @@ function returnToRoster(): void {
   renderEntry();
 }
 function setPaused(value: boolean): void {
-  if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
+  if (!running?.ready || route !== "world" || paused === value) return;
   if (value) release();
   paused = value;
-  lastTime = 0;
+  stopFrames();
   document.body.dataset.gamePaused = String(paused);
+  audio.update(running.game.snapshot, paused);
   save(true);
+  scheduleFrame();
 }
 function setMenuOpen(value: boolean): void {
   if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
@@ -450,7 +456,6 @@ function renderHud(snapshot: AdventureSnapshot): void {
     marker.classList.toggle("cleared", threat.phase === "cleared");
     marker.classList.toggle("dormant", !threat.active);
   }
-  if (running) nameplates?.render(snapshot, running.world);
   element("death-panel").hidden = snapshot.phase !== "lost";
 }
 function bindWorld(app: RunningAdventure): void {
@@ -519,7 +524,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     const forward = world.forward(); game.setCameraForward(forward.x, forward.z);
     makeEnemyInterface(game.snapshot);
     route = "world";
-    paused = false;
+    paused = document.hidden || !document.hasFocus();
     renderEntry();
     renderHud(game.snapshot);
     text("entry-roster-feedback", "");
@@ -527,6 +532,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     try { sessionStorage.setItem(resumeKey, character.id); } catch { /* Manual entry remains available without session storage. */ }
     world.canvas.focus();
     save(true);
+    scheduleFrame();
   } catch (cause: unknown) {
     if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
     text("entry-roster-feedback", "Your journey could not be opened. Existing saved progress has been kept. Reload to try again.");
@@ -660,20 +666,36 @@ listen(window, "pagehide", () => { release(); save(true); });
 listen(window, "beforeunload", () => { release(); save(true); });
 listen(window, "pointerdown", (event) => { if (event.isTrusted) void audio.unlock(); });
 
+function stopFrames(): void {
+  cancelAnimationFrame(frame);
+  frame = 0;
+  lastTime = 0;
+  nextFrameTime = 0;
+  nextHudTime = 0;
+}
+function scheduleFrame(): void {
+  if (!frame && alive && running?.ready && !paused && !document.hidden) frame = requestAnimationFrame(tick);
+}
 function tick(now: number): void {
-  if (!alive) return;
+  frame = 0;
+  if (!alive || !running?.ready || paused || document.hidden) return;
+  // Keep a deadline separate from elapsed simulation time so 60 Hz jitter does not halve the frame rate.
+  if (now + 0.5 < nextFrameTime) { scheduleFrame(); return; }
+  nextFrameTime = Math.max(nextFrameTime + frameInterval, now);
   const delta = lastTime === 0 ? 0 : (now - lastTime) / 1000;
   lastTime = now;
-  if (running?.ready) {
-    if (!paused && !document.hidden) running.game.advance(delta);
-    const snapshot = running.game.snapshot;
-    audio.update(snapshot, paused || route !== "world");
-    running.world.render(snapshot, paused ? 0 : delta);
+  running.game.advance(delta);
+  const snapshot = running.game.snapshot;
+  audio.update(snapshot, route !== "world");
+  running.world.render(snapshot, delta);
+  if (now + 0.5 >= nextHudTime) {
     renderHud(snapshot);
-    running.saveClock += delta;
-    if (running.saveClock >= 1) { running.saveClock = 0; save(); }
+    nextHudTime = Math.max(nextHudTime + 50, now);
   }
-  frame = requestAnimationFrame(tick);
+  nameplates?.render(snapshot, running.world);
+  running.saveClock += delta;
+  if (running.saveClock >= 1) { running.saveClock = 0; save(); }
+  scheduleFrame();
 }
 window.__GREYWROUGHT_TEARDOWN__ = () => {
   if (!alive) return;
@@ -703,7 +725,6 @@ try {
   }
 } catch (cause: unknown) { text("entry-account-feedback", "Browser storage is unavailable. Enable local storage to keep your journey."); console.error("Profile storage unavailable", cause); }
 renderEntry();
-frame = requestAnimationFrame(tick);
 try {
   const resumeId = sessionStorage.getItem(resumeKey);
   const character = profile?.characters.find((candidate) => candidate.id === resumeId);

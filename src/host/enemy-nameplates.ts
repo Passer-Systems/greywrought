@@ -6,6 +6,7 @@ interface AbilityIcon {
   button: HTMLButtonElement; icon: HTMLElement; amount: HTMLElement; clock: HTMLElement; tooltip: HTMLElement; name: HTMLElement;
 }
 interface Plate {
+  width: number; height: number;
   root: HTMLDivElement; target: HTMLButtonElement; health: HTMLElement; healthFill: HTMLElement;
   status: HTMLElement; fill: HTMLElement; castLabel: HTMLElement; current: AbilityIcon; next: AbilityIcon; later: AbilityIcon; gap: HTMLElement; nextArrow: HTMLElement; laterArrow: HTMLElement; shield: HTMLElement;
   opening: HTMLElement; openingClock: HTMLElement; effect: HTMLElement; effectClock: HTMLElement;
@@ -85,15 +86,19 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
     const effect = span("nameplate-rooted", root); effect.hidden = true; effect.title = "Rooted until you land";
     span("nameplate-effect-icon", effect).textContent = "\u2744";
     const effectClock = span("nameplate-effect-clock", effect);
-    plates.set(threat.id, { root, target, health, healthFill, status, fill, castLabel, current, next, later, gap, nextArrow, laterArrow, shield, opening, openingClock, effect, effectClock });
+    plates.set(threat.id, { width: 0, height: 0, root, target, health, healthFill, status, fill, castLabel, current, next, later, gap, nextArrow, laterArrow, shield, opening, openingClock, effect, effectClock });
   });
+  let nextContentTime = 0;
+  let bounds = { width: 0, height: 0 };
   return {
     render(snapshot: AdventureSnapshot, world: AdventureWorld) {
-      const bounds = host.getBoundingClientRect();
+      const now = performance.now();
+      const refresh = now >= nextContentTime;
+      if (refresh) { nextContentTime = now + 50; bounds = host.getBoundingClientRect(); }
       const visible = snapshot.threats.map(threat => ({ threat, anchor: world.projectThreat(threat.id) })).filter(({ threat, anchor }) =>
         anchor && threat.active && threat.health > 0 && Math.hypot(threat.position.x - snapshot.player.position.x, threat.position.z - snapshot.player.position.z) < 18);
       const visibleIds = new Set(visible.map(({ threat }) => threat.id));
-      for (const threat of snapshot.threats) {
+      if (refresh) for (const threat of snapshot.threats) {
         const plate = plates.get(threat.id); if (!plate) continue;
         plate.root.hidden = !visibleIds.has(threat.id);
         Object.assign(plate.root.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), damage: String(threat.damage), actionSequence: String(threat.actionSequence), disposition: threat.disposition, aggro: String(threat.aggro), worldX: String(threat.position.x), worldZ: String(threat.position.z), rootedSeconds: String(threat.rootedSeconds), moving: String(threat.moving), currentAbility: threat.currentAbility.id, nextAbility: threat.nextAbility.id, lastActionHit: String(threat.lastActionHit), movementMode: threat.movementMode, motionProgress: String(threat.motionProgress), nextAttackSeconds: String(threat.nextAttackSeconds), worldY: String(threat.position.y), targetX: String(threat.targetPosition.x), targetZ: String(threat.targetPosition.z), originX: String(threat.attackOrigin.x), originZ: String(threat.attackOrigin.z), block: String(threat.block), volley: String(threat.volley), projectileCount: String(threat.fireballs.length), forecast: JSON.stringify(threat.forecast.map(move => ({id:move.ability.id, seconds:move.remainingSeconds, status:move.status}))) });
@@ -101,63 +106,67 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
       for (const { threat, anchor } of visible) {
         const plate = plates.get(threat.id); if (!plate || !anchor) continue;
         const { root } = plate;
-        root.hidden = false;
-        Object.assign(root.dataset, { phase: threat.phase, selected: String(threat.selected), disposition: threat.disposition, aggro: String(threat.aggro), hostile: String(threat.disposition === "hostile" || threat.aggro) });
-        plate.target.setAttribute("aria-pressed", String(threat.selected));
-        plate.target.setAttribute("aria-label", "Target " + threat.name + ". " + Math.ceil(threat.health) + " of " + threat.maximumHealth + " health. " + threat.benefit);
-        write(plate.health, Math.ceil(threat.health) + " (" + Math.round(100*threat.health/threat.maximumHealth) + "%)");
-        const opening = snapshot.combat.phase === "active" && (threat.phase === "recovery" || threat.currentAbility.id === "kindle") && threat.block === 0 && threat.canStrike;
-        plate.opening.hidden = !opening;
-        root.dataset.strikeOpening = String(opening);
-        if (opening) {
-          const seconds = threat.remainingSeconds.toFixed(1);
-          write(plate.openingClock, seconds);
-          plate.opening.title = "Enemy open for " + seconds + "s. " + (threat.selected ? "Q queues Lunge at your next free beat." : "Select this enemy, then Q queues Lunge.");
-        }
-        plate.shield.hidden = threat.block <= 0;
-        write(plate.shield, "⛨ " + threat.block); plate.shield.title = threat.block + " block · " + threat.blockSeconds.toFixed(1) + "s";
-        plate.effect.hidden = threat.rootedSeconds <= 0;
-        write(plate.effectClock, threat.rootedSeconds.toFixed(1));
-        plate.healthFill.style.width = (100 * threat.health / threat.maximumHealth) + "%";
-        const [first, second] = threat.forecast;
-        const active = threat.currentActivity;
-        plate.current.button.hidden = false;
-        if (active) renderAbility(plate.current, active.ability, threat, false, active);
-        else {
-          const recovering = threat.phase === "recovery";
-          const seconds = recovering ? threat.remainingSeconds : first?.remainingSeconds ?? 0;
-          if (plate.current.button.dataset.abilityId !== "pause") {
-            plate.current.button.dataset.abilityId = "pause";
-            const symbol = document.createElement("span"); symbol.className = "nameplate-pause-symbol"; symbol.textContent = "Ⅱ"; plate.current.icon.replaceChildren(symbol);
+        const updateContent = refresh || root.hidden;
+        if (root.hidden) root.hidden = false;
+        if (updateContent) {
+          Object.assign(root.dataset, { phase: threat.phase, selected: String(threat.selected), disposition: threat.disposition, aggro: String(threat.aggro), hostile: String(threat.disposition === "hostile" || threat.aggro) });
+          plate.target.setAttribute("aria-pressed", String(threat.selected));
+          plate.target.setAttribute("aria-label", "Target " + threat.name + ". " + Math.ceil(threat.health) + " of " + threat.maximumHealth + " health. " + threat.benefit);
+          write(plate.health, Math.ceil(threat.health) + " (" + Math.round(100*threat.health/threat.maximumHealth) + "%)");
+          const opening = snapshot.combat.phase === "active" && (threat.phase === "recovery" || threat.currentAbility.id === "kindle") && threat.block === 0 && threat.canStrike;
+          plate.opening.hidden = !opening;
+          root.dataset.strikeOpening = String(opening);
+          if (opening) {
+            const seconds = threat.remainingSeconds.toFixed(1);
+            write(plate.openingClock, seconds);
+            plate.opening.title = "Enemy open for " + seconds + "s. " + (threat.selected ? "Q queues Lunge at your next free beat." : "Select this enemy, then Q queues Lunge.");
           }
-          plate.current.button.dataset.state = "waiting";
-          write(plate.current.button.querySelector<HTMLElement>(".nameplate-ability-label")!, "Active");
-          write(plate.current.name, !threat.aggro ? "Watching" : recovering ? "Recover" : "Pause");
-          write(plate.current.amount, ""); write(plate.current.clock, !threat.aggro ? "—" : seconds.toFixed(1) + "s");
-          const detail = !threat.aggro ? "Watching. The stored opener fires when you engage and enter range." : threat.joinsNextWindow ? "Approaching. Joins the next shared active window without resetting the fight." : recovering ? "Recovering for " + seconds.toFixed(1) + " seconds. Attacks happen during the shared active window." : "Pause before the next special: " + seconds.toFixed(1) + " seconds. Prepare your next moves.";
-          write(plate.current.tooltip, detail); plate.current.button.setAttribute("aria-label", detail);
+          plate.shield.hidden = threat.block <= 0;
+          write(plate.shield, "⛨ " + threat.block); plate.shield.title = threat.block + " block · " + threat.blockSeconds.toFixed(1) + "s";
+          plate.effect.hidden = threat.rootedSeconds <= 0;
+          write(plate.effectClock, threat.rootedSeconds.toFixed(1));
+          plate.healthFill.style.width = (100 * threat.health / threat.maximumHealth) + "%";
+          const [first, second] = threat.forecast;
+          const active = threat.currentActivity;
+          plate.current.button.hidden = false;
+          if (active) renderAbility(plate.current, active.ability, threat, false, active);
+          else {
+            const recovering = threat.phase === "recovery";
+            const seconds = recovering ? threat.remainingSeconds : first?.remainingSeconds ?? 0;
+            if (plate.current.button.dataset.abilityId !== "pause") {
+              plate.current.button.dataset.abilityId = "pause";
+              const symbol = document.createElement("span"); symbol.className = "nameplate-pause-symbol"; symbol.textContent = "Ⅱ"; plate.current.icon.replaceChildren(symbol);
+            }
+            plate.current.button.dataset.state = "waiting";
+            write(plate.current.button.querySelector<HTMLElement>(".nameplate-ability-label")!, "Active");
+            write(plate.current.name, !threat.aggro ? "Watching" : recovering ? "Recover" : "Pause");
+            write(plate.current.amount, ""); write(plate.current.clock, !threat.aggro ? "—" : seconds.toFixed(1) + "s");
+            const detail = !threat.aggro ? "Watching. The stored opener fires when you engage and enter range." : threat.joinsNextWindow ? "Approaching. Joins the next shared active window without resetting the fight." : recovering ? "Recovering for " + seconds.toFixed(1) + " seconds. Attacks happen during the shared active window." : "Pause before the next special: " + seconds.toFixed(1) + " seconds. Prepare your next moves.";
+            write(plate.current.tooltip, detail); plate.current.button.setAttribute("aria-label", detail);
+          }
+          plate.next.button.hidden = !first; plate.nextArrow.hidden = !first;
+          plate.later.button.hidden = !second; plate.laterArrow.hidden = !second;
+          plate.gap.hidden = !second || !first || second.remainingSeconds - first.remainingSeconds < .05;
+          if (first) {
+            renderAbility(plate.next, first.ability, threat, false, first);
+            if (first.status !== "stored") write(plate.next.clock, active ? "in " + first.remainingSeconds.toFixed(1) + "s" : first.ability.damage > 0 ? "Hit" : first.ability.id === "ember-ward" ? "2s" : "Instant");
+          }
+          if (second && first) {
+            renderAbility(plate.later, second.ability, threat, true, second);
+            write(plate.later.clock, second.status === "stored" ? "In range" : second.ability.damage > 0 ? "Hit" : second.ability.id === "ember-ward" ? "2s" : "Instant");
+            const delay = Math.max(0, second.remainingSeconds-first.remainingSeconds);
+            write(plate.gap, "Ⅱ " + delay.toFixed(1) + "s ›");
+            plate.gap.title = delay.toFixed(1) + " seconds after " + first.ability.name;
+            if (delay < .05) { write(plate.laterArrow, "+"); plate.laterArrow.title = "Together"; }
+            else { write(plate.laterArrow, "›"); plate.laterArrow.title = "Then"; }
+          }
+          write(plate.status, threat.disposition === "neutral" && !threat.aggro ? "\u25C7" : "\u25C6");
+          plate.status.title = threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
+          write(plate.castLabel, threat.currentAbility.id === "ember-ward" ? "Ember Ward · " + threat.block + " block · " + threat.remainingSeconds.toFixed(1) + "s" : threat.phase === "preparation" ? threat.intention + " \u00B7 " + threat.remainingSeconds.toFixed(1) + "s" : threat.phase === "action" ? threat.intention + " \u00B7 Active" : threat.phase === "recovery" ? "Ⅱ Recovering \u00B7 " + threat.remainingSeconds.toFixed(1) + "s" : threat.phase === "approach" ? "Closing in" : threat.phase === "returning" ? "Returning home" : "");
+          plate.fill.style.width = Math.max(0, Math.min(100, threat.remainingSeconds / Math.max(0.01, threat.phaseDuration) * 100)) + "%";
+          plate.width = root.offsetWidth; plate.height = root.offsetHeight;
         }
-        plate.next.button.hidden = !first; plate.nextArrow.hidden = !first;
-        plate.later.button.hidden = !second; plate.laterArrow.hidden = !second;
-        plate.gap.hidden = !second || !first || second.remainingSeconds - first.remainingSeconds < .05;
-        if (first) {
-          renderAbility(plate.next, first.ability, threat, false, first);
-          if (first.status !== "stored") write(plate.next.clock, active ? "in " + first.remainingSeconds.toFixed(1) + "s" : first.ability.damage > 0 ? "Hit" : first.ability.id === "ember-ward" ? "2s" : "Instant");
-        }
-        if (second && first) {
-          renderAbility(plate.later, second.ability, threat, true, second);
-          write(plate.later.clock, second.status === "stored" ? "In range" : second.ability.damage > 0 ? "Hit" : second.ability.id === "ember-ward" ? "2s" : "Instant");
-          const delay = Math.max(0, second.remainingSeconds-first.remainingSeconds);
-          write(plate.gap, "Ⅱ " + delay.toFixed(1) + "s ›");
-          plate.gap.title = delay.toFixed(1) + " seconds after " + first.ability.name;
-          if (delay < .05) { write(plate.laterArrow, "+"); plate.laterArrow.title = "Together"; }
-          else { write(plate.laterArrow, "›"); plate.laterArrow.title = "Then"; }
-        }
-        write(plate.status, threat.disposition === "neutral" && !threat.aggro ? "\u25C7" : "\u25C6");
-        plate.status.title = threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
-        write(plate.castLabel, threat.currentAbility.id === "ember-ward" ? "Ember Ward · " + threat.block + " block · " + threat.remainingSeconds.toFixed(1) + "s" : threat.phase === "preparation" ? threat.intention + " \u00B7 " + threat.remainingSeconds.toFixed(1) + "s" : threat.phase === "action" ? threat.intention + " \u00B7 Active" : threat.phase === "recovery" ? "Ⅱ Recovering \u00B7 " + threat.remainingSeconds.toFixed(1) + "s" : threat.phase === "approach" ? "Closing in" : threat.phase === "returning" ? "Returning home" : "");
-        plate.fill.style.width = Math.max(0, Math.min(100, threat.remainingSeconds / Math.max(0.01, threat.phaseDuration) * 100)) + "%";
-        const width = root.offsetWidth, height = root.offsetHeight;
+        const { width, height } = plate;
         const x = Math.max(8, Math.min(bounds.width - width - 8, anchor.x - width / 2));
         const y = Math.max(8, Math.min(bounds.height - height - 8, anchor.y - height - 10));
         root.style.transform = `translate(${x}px, ${y}px)`;

@@ -122,7 +122,9 @@ export async function openBrowser(label: string) {
     }
     await call("Runtime.enable");
     await call("Page.enable");
+    await call("Emulation.setFocusEmulationEnabled", { enabled: true });
     await call("Page.navigate", { url });
+    await call("Page.bringToFront");
     await waitFor('document.body !== null && location.href !== "about:blank"');
     return { url, output, errors, call, evaluate, waitFor, key, press, click, shot, enter, read, reload,
       async close() { socket?.close(); chrome.kill(); await chrome.exited; },
