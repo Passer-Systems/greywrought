@@ -3,7 +3,7 @@ import type { AdventureWorld } from "./adventure-world.js";
 
 interface Plate {
   root: HTMLButtonElement; name: HTMLElement; health: HTMLElement; healthFill: HTMLElement;
-  action: HTMLElement; clock: HTMLElement; fill: HTMLElement; queue: HTMLElement; response: HTMLElement;
+  action: HTMLElement; amount: HTMLElement; status: HTMLElement; clock: HTMLElement; fill: HTMLElement; queue: HTMLElement; response: HTMLElement;
   tether: HTMLElement;
 }
 interface Box { x: number; y: number; width: number; height: number; }
@@ -23,13 +23,16 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
     const heading = span("nameplate-heading", root);
     span("nameplate-number", heading).textContent = String(index + 1);
     const name = span("nameplate-name", heading); name.textContent = threat.name;
+    const status = span("nameplate-status", heading);
     const healthTrack = span("nameplate-health", root);
     const healthFill = span("nameplate-health-fill", healthTrack), health = span("nameplate-health-value", healthTrack);
-    const current = span("nameplate-current", root);
-    const action = span("nameplate-action", current), clock = span("nameplate-clock", current);
+    const row = span("nameplate-intents", root);
+    const current = span("nameplate-current", row);
+    const action = span("nameplate-action", current), amount = span("nameplate-amount", current), clock = span("nameplate-clock", current);
+    const queue = span("nameplate-queue", row);
     const track = span("nameplate-cast", root), fill = span("nameplate-cast-fill", track);
-    const queue = span("nameplate-queue", root), response = span("nameplate-response", root);
-    plates.set(threat.id, { root, name, health, healthFill, action, clock, fill, queue, response, tether });
+    const response = span("nameplate-tooltip", root); response.setAttribute("role", "tooltip");
+    plates.set(threat.id, { root, name, health, healthFill, action, amount, status, clock, fill, queue, response, tether });
   });
   return {
     render(snapshot: AdventureSnapshot, world: AdventureWorld) {
@@ -59,17 +62,26 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         write(plate.health, `${Math.ceil(threat.health)} / ${threat.maximumHealth}`);
         plate.healthFill.style.width = `${100 * threat.health / threat.maximumHealth}%`;
         const copy = intention(threat);
-        write(plate.action, copy.action); write(plate.clock, copy.clock); write(plate.response, copy.response);
-        if (plate.queue.dataset.copy !== copy.queue) {
-          plate.queue.dataset.copy = copy.queue; plate.queue.replaceChildren();
-          const steps = copy.queue.split(" → ");
-          const lead = steps.shift() ?? "";
-          steps.forEach((step, index) => {
+        const alarm = threat.id === "scout";
+        const attackIcon = alarm ? "♩" : threat.id === "nest" ? "✦" : "⚔";
+        const icon = threat.phase === "recovery" ? "Ⅱ" : threat.phase === "approach" ? "»" : threat.phase === "returning" ? "↶" : attackIcon;
+        write(plate.action, icon); plate.action.title = copy.action;
+        write(plate.amount, threat.phase === "preparation" && !alarm ? String(threat.damage) : "");
+        write(plate.clock, copy.clock === "DANGER ↑" ? "!" : copy.clock === "AVOIDED" ? "MISS" : copy.clock);
+        write(plate.status, threat.disposition === "neutral" && !threat.aggro ? "◇" : "◆");
+        plate.status.title = threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
+        const detail = [threat.name + ": " + Math.ceil(threat.health) + " / " + threat.maximumHealth + " health", copy.action + (copy.clock ? " · " + copy.clock : ""), copy.queue, copy.response, threat.benefit].filter(Boolean).join("\n");
+        write(plate.response, detail);
+        const nextSteps = threat.phase === "preparation" || threat.phase === "action"
+          ? [{ icon: "Ⅱ", text: "Next: recover" }, { icon: attackIcon, text: "Then: " + threat.intention }]
+          : [{ icon: attackIcon, text: "Next: prepare " + threat.intention }];
+        const queueKey = threat.phase + ":" + attackIcon;
+        if (plate.queue.dataset.copy !== queueKey) {
+          plate.queue.dataset.copy = queueKey; plate.queue.replaceChildren();
+          for (const step of nextSteps) {
             const chip = span("nameplate-step", plate.queue);
-            span("nameplate-step-label", chip).textContent = index === 0 ? lead : "THEN";
-            span("nameplate-step-title", chip).textContent = step;
-          });
-          if (!steps.length) write(plate.queue, lead);
+            chip.textContent = step.icon; chip.title = step.text; chip.setAttribute("aria-label", step.text);
+          }
         }
         root.setAttribute("aria-label", `Target ${threat.name}. ${copy.action}. ${copy.clock}. ${copy.queue}. ${copy.response}`);
         plate.fill.style.width = `${Math.max(0, Math.min(100, threat.remainingSeconds / Math.max(0.01, threat.phaseDuration) * 100))}%`;
@@ -77,7 +89,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         let chosen: Box | undefined;
         const candidates: Box[] = [];
         for (const rise of [0, height + 12, 2 * (height + 12)]) for (const shift of [0, -width - 14, width + 14, -width / 2 - 14, width / 2 + 14]) {
-          const box = { x: Math.max(8, Math.min(bounds.width - width - 8, anchor.x - width / 2 + shift)), y: Math.max(8, Math.min(bounds.height - height - 8, anchor.y - height - 18 - rise)), width, height };
+          const box = { x: Math.max(8, Math.min(bounds.width - width - 8, anchor.x - width / 2 + shift)), y: Math.max(8, Math.min(bounds.height - height - 8, anchor.y - height - 10 - rise)), width, height };
           candidates.push(box);
           if (!chosen && !occupied.some(other => overlaps(box, other))) chosen = box;
         }
@@ -85,6 +97,8 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         if (!chosen) continue;
         occupied.push(chosen);
         root.style.transform = `translate(${Math.round(chosen.x)}px, ${Math.round(chosen.y)}px)`;
+        root.dataset.tooltipBelow = String(chosen.y < 140);
+        plate.response.style.left = `${Math.max(8 - chosen.x, Math.min(width / 2 - 120, bounds.width - 248 - chosen.x))}px`;
         const startX = Math.max(chosen.x + 12, Math.min(chosen.x + width - 12, anchor.x)), startY = chosen.y + height;
         const dx = anchor.x - startX, dy = anchor.y - 5 - startY;
         plate.tether.hidden = false;
