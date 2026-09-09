@@ -50,6 +50,7 @@ interface ThreatDefinition {
 }
 interface ThreatState {
   id: string; health: number; active: boolean; phase: ThreatPhase;
+  rng: number;
   joinCycle: number; windowCycle: number; specialOffset: number; specialLaunched: boolean; specialResolved: boolean;
   remainingSeconds: number; actionSequence: number; lastActionHit: boolean; damage: number;
   position: Vector; targetPosition: Vector; aggro: boolean; lootClaimed: boolean;
@@ -116,12 +117,22 @@ const newWolf = (): WolfState => ({ rng: 0x6d2b79f5, facing: point(0, 1), motion
 const newHead = (): HeadState => ({ opened: false, rotationIndex: 0, events: [], block: 0, blockSeconds: 0, volley: 1, projectileSequence: 0, fireballs: [] });
 const newThreats = (): ThreatState[] => DEFINITIONS.map(t => ({
   id: t.id, health: t.health, active: t.id !== "ritual-guardian", phase: t.patrol ? "patrol" : "dormant",
+  rng: seedForThreat(t.id),
   joinCycle: 0, windowCycle: 0, specialOffset: 0, specialLaunched: false, specialResolved: false,
   remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: t.behavior === "wolf" ? 9 : t.damage,
   position: { ...t.position }, targetPosition: { ...t.position }, aggro: false,
   lootClaimed: false, patrolIndex: 1, moving: false, abilityIndex: 0,
   wolf: t.behavior === "wolf" ? newWolf() : null, head: t.behavior === "head" ? newHead() : null,
 }));
+function seedForThreat(id: string): number {
+  let seed = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) seed = Math.imul(seed ^ id.charCodeAt(i), 0x01000193) >>> 0;
+  return seed || 1;
+}
+function nextThreatRandom(t: ThreatState): number {
+  t.rng = (Math.imul(t.rng, 1664525) + 1013904223) >>> 0;
+  return t.rng / 0x100000000;
+}
 function initialState(archetype: CharacterArchetype): State {
   return {
     phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, health: 100,
@@ -713,7 +724,12 @@ class Adventure implements AdventureGame {
   }
   private planWindow(t: ThreatState, cycle: number, initial = false): void {
     if (t.windowCycle === cycle) return;
-    t.windowCycle = cycle; t.specialOffset = t.wolf ? initial ? 4.65 : COMBAT_RULES.enemy.action : OTHER_PHASE_SECONDS.action;
+    t.windowCycle = cycle;
+    // Commit one of the five active beats up front. The PRNG lives in the save,
+    // so a reload cannot silently move an already announced attack.
+    t.specialOffset = initial
+      ? t.wolf ? 4.65 : OTHER_PHASE_SECONDS.action
+      : Math.floor(nextThreatRandom(t) * COMBAT_RULES.window.active);
     t.specialLaunched = false; t.specialResolved = false;
     t.phase = "preparation"; t.lastActionHit = false;
     t.damage = t.wolf ? 9 : Math.ceil(definition(t.id).damage * (1 + this.state.presence / 100));
@@ -721,7 +737,8 @@ class Adventure implements AdventureGame {
     if (t.wolf) { t.wolf.motion = null; t.position.y = 0; }
     if (t.head) {
       const h = t.head, ability = h.opened ? HEAD_ROTATION[h.rotationIndex]! : "ember-beam";
-      h.events = [{ offsetSeconds: 0, spacing: volleySpacing(h.volley, 0), ability, remainingSeconds: 0, status: "pending", volley: h.volley, launched: 0 }];
+      const eventOffset = initial ? 0 : t.specialOffset;
+      h.events = [{ offsetSeconds: eventOffset, spacing: volleySpacing(h.volley, eventOffset), ability, remainingSeconds: 0, status: "pending", volley: h.volley, launched: 0 }];
       if (h.opened) h.rotationIndex = (h.rotationIndex + 1) % HEAD_ROTATION.length;
       h.fireballs = [];
     }
@@ -873,7 +890,7 @@ class Adventure implements AdventureGame {
       }
       return future;
     }
-    return [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialResolved ? 10 - at + (t.wolf ? 0.65 : 0.35) : t.specialOffset - at), status: "pending" }];
+    return [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialResolved ? this.nextWindowSeconds() : t.specialOffset - at), status: "pending" }];
   }
   private headAbility(t: ThreatState, next: boolean): ThreatAbilityView {
     const h = t.head!;
@@ -1108,6 +1125,7 @@ function readSave(serialized: string): State {
     const head = headVersion && id === "scout" ? readHead(t.head, v7, v8) : null;
     const maxDuration = v8 ? 10 : v7 && id === "scout" ? 10 : headVersion ? id === "scout" ? phase === "action" ? 0.6 + ((head?.volley ?? 1)-1)*0.2 : phase === "preparation" || phase === "recovery" ? 5 : 0 : (id === "patrol" ? PHASE_SECONDS : OTHER_PHASE_SECONDS)[phase] : (current && id === "scout" ? PHASE_SECONDS : OTHER_PHASE_SECONDS)[phase];
     const result: ThreatState = { id, health, active, phase,
+      rng: v8 && t.rng !== undefined ? number(t.rng, 0, 0xffffffff, true) : seedForThreat(id),
       joinCycle: v8 ? number(t.joinCycle, 0, Number.MAX_SAFE_INTEGER, true) : 0,
       windowCycle: v8 ? number(t.windowCycle, 0, Number.MAX_SAFE_INTEGER, true) : 0,
       specialOffset: v8 ? number(t.specialOffset, 0, 4.99) : 0,
