@@ -1950,9 +1950,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 
 .map-inn { color:#ffe4a8; } .map-inn > span { top:0; right:14px; }
 .adventure-menu-button { bottom:184px; left:190px; }
-.adventure-bottom { width:min(680px,calc(100vw - 390px)); left:auto; right:14px; transform:none; }
-@media(min-width:1400px) { .adventure-bottom { left:50%;right:auto;transform:translateX(-50%); } }
-@media(max-width:850px) { .adventure-bottom { bottom:158px; width:calc(100vw - 20px); left:10px;right:auto; } .adventure-menu-button {bottom:278px;} .bag-open {bottom:276px;} }
+@media(max-width:850px) { .adventure-bottom { bottom:158px; width:calc(100vw - 20px); } .adventure-menu-button {bottom:278px;} .bag-open {bottom:276px;} }
 
 .nameplate-opening { position:absolute;left:0;top:58px;width:26px;height:26px;border:1px solid #dec979;border-radius:3px;background:#342f16;box-shadow:0 0 6px #edc55a88; }
 .nameplate-opening[hidden], .nameplate-effects:empty {display:none;}
