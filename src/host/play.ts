@@ -8,12 +8,14 @@ import {
 import { createAdventureWorld, type AdventureWorld } from "./adventure-world.js";
 import { createAdventureAudio } from "./adventure-audio.js";
 import { createEnemyNameplates } from "./enemy-nameplates.js";
+import { createEquipmentPanel } from "./equipment-panel.js";
 import { publicUrl } from "./public-url.js";
 
 declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
 
 window.__GREYWROUGHT_TEARDOWN__?.();
 const audio = createAdventureAudio();
+const equipment = createEquipmentPanel(element("equipment-panel"), closeEquipment);
 
 function element(id: string): HTMLElement {
   const found = document.getElementById(id);
@@ -64,6 +66,7 @@ let alive = true;
 let frame = 0;
 let lastTime = 0;
 let paused = false;
+let equipmentWasPaused = false;
 let entering = false;
 let profile: LocalProfile | null = null;
 let profileBlocked = false;
@@ -168,6 +171,7 @@ function renderEntry(): void {
 function returnToRoster(): void {
   release();
   save(true);
+  equipment.close();
   if (running) audio.update(running.game.snapshot, true);
   audio.reset();
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
@@ -188,6 +192,20 @@ function setPaused(value: boolean): void {
   element("pause-panel").hidden = !paused;
   document.body.dataset.gamePaused = String(paused);
   save(true);
+}
+function closeEquipment(): void {
+  if (!equipment.isOpen) return;
+  equipment.close();
+  setPaused(equipmentWasPaused);
+  running?.world.canvas.focus();
+}
+function toggleEquipment(): void {
+  if (equipment.isOpen) { closeEquipment(); return; }
+  if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
+  equipmentWasPaused = paused;
+  setPaused(true);
+  element("pause-panel").hidden = true;
+  equipment.open(running.character, running.game.snapshot);
 }
 function mapPosition(target: HTMLElement, x: number, z: number): void {
   target.style.left = `${50 - x * 2.5}%`;
@@ -376,6 +394,7 @@ click("entry-enter-world", () => { const character = selectedCharacter(); if (ch
 click("shop-buy-potion", () => pulse("buyPotion"));
 click("shop-close", () => { pulse("closeShop"); running?.world.canvas.focus(); });
 click("pause-open", () => setPaused(true));
+click("equipment-open", toggleEquipment);
 click("pause-resume", () => setPaused(false));
 click("return-roster", returnToRoster);
 click("death-roster", returnToRoster);
@@ -392,6 +411,12 @@ listen(window, "keydown", (event) => {
   if (event.isTrusted) void audio.unlock();
   if (!(event instanceof KeyboardEvent) || route !== "world") return;
   if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+  if (event.code === "KeyC") {
+    event.preventDefault();
+    if (!event.repeat) toggleEquipment();
+    return;
+  }
+  if (event.code === "Escape" && equipment.isOpen) { event.preventDefault(); closeEquipment(); return; }
   if (event.code === "Escape") {
     event.preventDefault();
     if (!event.repeat) {
@@ -439,6 +464,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   release(); save(true); alive = false; cancelAnimationFrame(frame);
   for (const remove of removers) remove();
   audio.dispose();
+  equipment.dispose();
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
 };
 try {

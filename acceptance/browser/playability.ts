@@ -28,6 +28,26 @@ try {
   check(Number(afterRelease.gamePlayerZ) < Number(afterMouse.gamePlayerZ) - 0.3, "Releasing the mouse chord did not restore held backpedaling");
   await page.call("Input.dispatchMouseEvent", { type: "mouseReleased", x: 650, y: 410, button: "left", buttons: 0, clickCount: 1 });
   await page.key("KeyS", false);
+  await page.press("KeyC");
+  await page.waitFor('document.getElementById("equipment-panel").open && document.body.dataset.gamePaused === "true"');
+  const slots = await page.evaluate<string[]>('[...document.querySelectorAll("[data-equipment-slot]")].map(node => node.dataset.equipmentSlot)');
+  check(slots.length === 19 && new Set(slots).size === 19, "Character screen does not contain all 19 equipment slots");
+  for (const slot of ["shirt", "tabard", "ring1", "ring2", "trinket1", "trinket2", "mainhand", "offhand", "ranged"]) check(slots.includes(slot), `Missing Classic slot: ${slot}`);
+  await page.evaluate('document.querySelector(\'[data-equipment-slot="tabard"]\').click()');
+  await page.waitFor('document.getElementById("equipment-panel").dataset.selectedSlot === "tabard"');
+  const whileInspecting = await page.read();
+  await page.key("KeyW", true);
+  await Bun.sleep(250);
+  await page.key("KeyW", false);
+  const afterInspecting = await page.read();
+  check(whileInspecting.gamePlayerZ === afterInspecting.gamePlayerZ, "Movement continued while inspecting equipment");
+  await page.shot("equipment");
+  await page.press("Escape");
+  await page.waitFor('!document.getElementById("equipment-panel").open && document.body.dataset.gamePaused === "false"');
+  await page.evaluate('document.getElementById("equipment-open").click()');
+  await page.waitFor('document.getElementById("equipment-panel").open');
+  await page.evaluate('document.getElementById("equipment-close").click()');
+  await page.waitFor('!document.getElementById("equipment-panel").open');
   await page.shot("town");
   await page.call("Page.reload");
   await page.waitFor('["roster", "world"].includes(document.body.dataset.entryRoute)');
@@ -36,5 +56,5 @@ try {
   await page.waitFor('document.body.dataset.entryRoute === "world"');
   check(page.errors.length === 0, "Browser exceptions occurred");
   await Bun.write(`${page.output}/result.json`, JSON.stringify({ initial, strafe, beforeMouse, afterMouse, errors: page.errors }, null, 2));
-  console.log(`PASS: character entry, strafe, jump, mouse priority, reload. Evidence: ${page.output}`);
+  console.log(`PASS: character entry, strafe, jump, mouse priority, equipment slots and input pause, reload. Evidence: ${page.output}`);
 } finally { await page.close(); }

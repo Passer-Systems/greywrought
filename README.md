@@ -47,6 +47,8 @@ the view, and use the wheel to zoom.
 Tab selects a target. 1 strikes; B or E braces. G gathers frost cores and R
 calls the grove guardian. F talks to Mara; H drinks a potion. Return through the
 gate to secure carried rewards. Rest in town to recover health.
+C opens the character paper doll with all 19 Classic equipment slots. Select
+a slot to inspect it; gear changes are not yet implemented.
 
 ## Versions and archives
 
