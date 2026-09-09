@@ -229,6 +229,8 @@ on its chosen beat and permits attacking on the next beat without dropping it. A
 five moves fit in an active window; stamina and longer commitments constrain
 that further. Queued stamina is reserved, then spent when a move executes.
 
+Press 5 to place the selected pending move in the fifth slot (4 seconds),
+swapping with another pending move there when their recovery times allow it.
 Numbers 1–4 change the selected move's delay relative to the preceding move
 (or the opening beat for the first). QE means Lunge at 0s and Block at 1s;
 QE3 means Block at 3s. The last queued move stays selected indefinitely,

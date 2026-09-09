@@ -39,7 +39,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
   const grid = node("div", "combat-plan-grid", root);
   node("span", "combat-plan-axis", grid).textContent = "Beat";
-  for (let i = 0; i < 5; i++) node("span", "combat-plan-tick", grid).textContent = i + "s · ⇧" + (i + 1);
+  for (let i = 0; i < 5; i++) node("span", "combat-plan-tick", grid).textContent = i + "s · " + (i === 4 ? "5" : "⇧" + (i + 1));
   const enemyLabel = node("span", "combat-plan-row-label", grid);
   const enemyCells = Array.from({ length: 5 }, () => node("div", "combat-plan-cell combat-plan-enemy", grid));
   node("span", "combat-plan-row-label", grid).textContent = "You";
@@ -67,7 +67,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const remove = node("button", "combat-plan-remove", editor); remove.type = "button"; remove.textContent = "Remove";
   remove.addEventListener("click", removeSelected);
   const help = node("p", "combat-plan-help", root);
-  help.textContent = "Drag to move / swap · 1–4 delay · Shift+1–5 place / swap · Backspace removes";
+  help.textContent = "Drag to move / swap · 1–4 delay · 5 last slot · Shift+1–5 place / swap · Backspace removes";
   const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
   feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();

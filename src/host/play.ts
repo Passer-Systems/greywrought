@@ -606,7 +606,8 @@ listen(window, "keydown", (event) => {
     if (!event.repeat && running?.ready && !paused) {
       if (event.code === "Backspace") combatPlan.removeSelected();
       else if (event.shiftKey) combatPlan.moveSelected(Number(event.code.slice(-1)) - 1);
-      else if (event.code !== "Digit5") combatPlan.adjustDelay(Number(event.code.slice(-1)));
+      else if (event.code === "Digit5") combatPlan.moveSelected(4);
+      else combatPlan.adjustDelay(Number(event.code.slice(-1)));
     }
     return;
   }
