@@ -1,11 +1,13 @@
 # Greywrought
 
-The supported game is the original Three.js action RPG, with ordinary TypeScript
+The supported game is the Three.js Frostwood expedition, with ordinary TypeScript
 owning gameplay and Bun owning package management, development, builds, and tests.
 This language and engine choice is explicitly authorized by Tom.
 
-Preserve the existing art, animations, controls, character profiles, and campaign
-progress while replacing the retired rules engine with direct typed game logic.
+Use the expedition design in `greywrought:docs/design.md`. Preserve the original
+art, animations, controls, and character profiles while developing the readable
+forest adventure with direct typed game logic. Existing native and older browser
+saves stay untouched; the adventure has per-character browser saves.
 Do not introduce another language, compiler, interpreter, or runtime dependency.
 
 Keep product interface copy in player language. Keep build output under ignored
