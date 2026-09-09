@@ -221,6 +221,7 @@ fn spawn_enemy(
     commands
         .spawn((
             IntentCard(threat.id.clone()),
+            Visibility::Hidden,
             Node {
                 position_type: PositionType::Absolute,
                 width: px(248),
@@ -286,7 +287,18 @@ pub(crate) fn sync(
         (&EnemyOrnament, &mut Visibility),
         (Without<EnemyVisual>, Without<IntentRing>),
     >,
-    mut cards: Query<(&IntentCard, &mut Node)>,
+    mut cards: Query<
+        (&IntentCard, &ComputedNode, &mut Node, &mut Visibility),
+        (
+            Without<EnemyVisual>,
+            Without<IntentRing>,
+            Without<EnemyOrnament>,
+        ),
+    >,
+    hud_surfaces: Query<
+        (&ComputedNode, &UiGlobalTransform, &InheritedVisibility),
+        With<super::hud::Surface>,
+    >,
     mut texts: Query<(&IntentText, &mut Text, &mut TextColor)>,
     mut progress: Query<(&IntentProgress, &mut Node, &mut BackgroundColor), Without<IntentCard>>,
     camera: Query<(&Camera, &GlobalTransform), With<ForestCamera>>,
@@ -357,28 +369,74 @@ pub(crate) fn sync(
             };
         }
     }
-    if let Ok((camera, camera_transform)) = camera.single() {
-        for (card, mut node) in &mut cards {
-            let Some(threat) = view.threats.iter().find(|t| t.id == card.0) else {
-                continue;
-            };
-            let distance = (point(view.position) - point(threat.position)).length();
-            let anchor = point(threat.position)
-                + Vec3::Y
-                    * if threat.id == "nest" || threat.id == "patrol" {
-                        2.2
-                    } else {
-                        3.3
-                    };
-            if (threat.active || threat.selected)
-                && (distance < 24. || threat.selected)
-                && let Ok(screen) = camera.world_to_viewport(camera_transform, anchor)
-            {
-                node.display = Display::Flex;
-                node.left = px(screen.x - 124.);
-                node.top = px(screen.y - 135.);
-            } else {
-                node.display = Display::None;
+    for (_, _, _, mut visibility) in &mut cards {
+        *visibility = Visibility::Hidden;
+    }
+    if view.position[1] > 0.
+        && let Ok((camera, camera_transform)) = camera.single()
+        && let Some(viewport) = camera.logical_viewport_rect()
+    {
+        let focus = view
+            .threats
+            .iter()
+            .filter_map(|threat| {
+                let distance = (point(view.position) - point(threat.position)).length();
+                if !threat.active || threat.health <= 0. || distance > 14. {
+                    return None;
+                }
+                let anchor = point(threat.position) + Vec3::Y * 1.2;
+                let screen = camera.world_to_viewport(camera_transform, anchor).ok()?;
+                viewport
+                    .contains(screen)
+                    .then_some((threat, distance, screen))
+            })
+            .min_by(|(a, da, _), (b, db, _)| {
+                b.selected.cmp(&a.selected).then_with(|| da.total_cmp(db))
+            });
+        if let Some((threat, _, screen)) = focus {
+            let occupied: Vec<Rect> = hud_surfaces
+                .iter()
+                .filter(|(computed, _, visible)| visible.get() && !computed.is_empty())
+                .map(|(computed, transform, _)| {
+                    Rect::from_center_size(
+                        transform.translation * computed.inverse_scale_factor(),
+                        computed.size() * computed.inverse_scale_factor(),
+                    )
+                    .inflate(8.)
+                })
+                .collect();
+            for (card, computed, mut node, mut visibility) in &mut cards {
+                if card.0 != threat.id || computed.is_empty() {
+                    continue;
+                }
+                let size = computed.size() * computed.inverse_scale_factor();
+                let minimum = viewport.min + Vec2::splat(8.);
+                let maximum = viewport.max - size - Vec2::splat(8.);
+                if maximum.x < minimum.x || maximum.y < minimum.y {
+                    continue;
+                }
+                // Use the laid-out HUD and card bounds, including text wrapping.
+                // Hidden cards retain layout so they can be placed before appearing.
+                let placements = [
+                    screen + Vec2::new(24., -size.y * 0.5),
+                    screen - Vec2::new(size.x + 24., size.y * 0.5),
+                    screen + Vec2::new(-size.x * 0.5, 24.),
+                    screen - Vec2::new(size.x * 0.5, size.y + 24.),
+                ];
+                if let Some(position) = placements
+                    .into_iter()
+                    .map(|position| position.clamp(minimum, maximum))
+                    .find(|position| {
+                        let bounds = Rect::from_corners(*position, *position + size);
+                        occupied
+                            .iter()
+                            .all(|panel| bounds.intersect(*panel).is_empty())
+                    })
+                {
+                    node.left = px(position.x);
+                    node.top = px(position.y);
+                    *visibility = Visibility::Inherited;
+                }
             }
         }
     }
