@@ -28,9 +28,6 @@ pub(super) enum Control {
     Action(Command),
     Target(usize),
     Outfit,
-    Gear(usize),
-    Fit(usize),
-    Wire(usize),
     Save,
     Help,
     Journal(bool),
@@ -317,22 +314,6 @@ pub(super) fn controls(
                 .threats
                 .get(i)
                 .map(|t| Command::TargetThreat(t.target.clone())),
-            Control::Gear(i) => view
-                .equipment
-                .components
-                .get(i)
-                .map(|c| Command::PickComponent(c.pick.clone())),
-            Control::Fit(i) => view
-                .equipment
-                .body_parts
-                .get(i)
-                .map(|c| Command::FitComponent(c.fit.clone())),
-            Control::Wire(i) => view
-                .equipment
-                .components
-                .get(i)
-                .and_then(|c| c.wire.clone())
-                .map(Command::WireComponent),
         };
         if let Some(command) = command {
             pending.push(command);
@@ -415,24 +396,33 @@ pub(super) fn present(
         }
         for entity in &equipment_controls {
             commands.entity(entity).with_children(|p| {
-                for (i, component) in view.equipment.components.iter().enumerate() {
+                for component in &view.equipment.components {
                     p.spawn((Node {
                         column_gap: px(8),
                         ..default()
                     },))
                         .with_children(|p| {
-                            p.spawn(button(Control::Gear(i))).with_children(|p| {
+                            p.spawn(button(Control::Action(Command::PickComponent(
+                                component.pick.clone(),
+                            ))))
+                            .with_children(|p| {
                                 p.spawn(label(format!("Choose {}", component.label), 14.));
                             });
-                            if component.wire.is_some() {
-                                p.spawn(button(Control::Wire(i))).with_children(|p| {
+                            if let Some(wire) = &component.wire {
+                                p.spawn(button(Control::Action(Command::WireComponent(
+                                    wire.clone(),
+                                ))))
+                                .with_children(|p| {
                                     p.spawn(label(format!("Power from {}", component.label), 14.));
                                 });
                             }
                         });
                 }
-                for (i, part) in view.equipment.body_parts.iter().enumerate() {
-                    p.spawn(button(Control::Fit(i))).with_children(|p| {
+                for part in &view.equipment.body_parts {
+                    p.spawn(button(Control::Action(Command::FitComponent(
+                        part.fit.clone(),
+                    ))))
+                    .with_children(|p| {
                         p.spawn(label(format!("Fit selected gear on {}", part.label), 14.));
                     });
                 }
