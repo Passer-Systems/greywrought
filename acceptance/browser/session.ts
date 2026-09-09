@@ -81,10 +81,24 @@ export async function openBrowser(label: string) {
     async function key(code: string, down: boolean) {
       await call("Input.dispatchKeyEvent", {
         type: down ? "keyDown" : "keyUp", code,
+        windowsVirtualKeyCode: code === "Escape" ? 27 : code === "Tab" ? 9 : code === "Space" ? 32 : code.startsWith("Key") ? code.charCodeAt(3) : code.startsWith("Digit") ? code.charCodeAt(5) : 0,
         key: code === "Space" ? " " : code === "Tab" ? "Tab" : code.startsWith("Key") ? code.slice(3).toLowerCase() : code.startsWith("Digit") ? code.slice(5) : code,
       });
     }
     async function press(code: string) { await key(code, true); await key(code, false); }
+    async function click(selector: string) {
+      const point = await evaluate<{ x: number; y: number; blocked: string | null }>(`(() => {
+        const target = document.querySelector(${JSON.stringify(selector)});
+        if (!target) throw new Error("Click target missing");
+        const box = target.getBoundingClientRect(), x = box.left + box.width / 2, y = box.top + box.height / 2;
+        const top = document.elementFromPoint(x, y);
+        return {x, y, blocked: top === target || target.contains(top) ? null : top?.tagName + "#" + top?.id};
+      })()`);
+      check(point.blocked === null, `${selector} cannot receive a mouse click: ${point.blocked}`);
+      await call("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y, buttons: 0 });
+      await call("Input.dispatchMouseEvent", { type: "mousePressed", x: point.x, y: point.y, button: "left", buttons: 1, clickCount: 1 });
+      await call("Input.dispatchMouseEvent", { type: "mouseReleased", x: point.x, y: point.y, button: "left", buttons: 0, clickCount: 1 });
+    }
     async function shot(name: string) {
       const reply = await call("Page.captureScreenshot", { format: "png" });
       if (reply.result?.data) await Bun.write(`${output}/${name}.png`, Buffer.from(reply.result.data, "base64"));
@@ -101,10 +115,15 @@ export async function openBrowser(label: string) {
       await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     }
     const read = () => evaluate<Record<string, string>>('({...document.body.dataset})');
+    async function reload(): Promise<void> {
+      const origin = await evaluate<number>("performance.timeOrigin");
+      await call("Page.reload");
+      await waitFor(`performance.timeOrigin > ${origin} && document.readyState !== "loading"`);
+    }
     await call("Runtime.enable");
     await call("Page.enable");
     await call("Page.navigate", { url });
-    return { url, output, errors, call, evaluate, waitFor, key, press, shot, enter, read,
+    return { url, output, errors, call, evaluate, waitFor, key, press, click, shot, enter, read, reload,
       async close() { socket?.close(); chrome.kill(); await chrome.exited; },
     };
   } catch (error) { socket?.close(); chrome.kill(); await chrome.exited; throw error; }

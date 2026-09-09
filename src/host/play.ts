@@ -9,6 +9,8 @@ import { createAdventureWorld, type AdventureWorld } from "./adventure-world.js"
 import { createAdventureAudio } from "./adventure-audio.js";
 import { createEnemyNameplates } from "./enemy-nameplates.js";
 import { createEquipmentPanel } from "./equipment-panel.js";
+import { createCorpseLoot } from "./corpse-loot.js";
+import { createBagPanel } from "./bag-panel.js";
 import { publicUrl } from "./public-url.js";
 
 declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
@@ -16,6 +18,14 @@ declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
 window.__GREYWROUGHT_TEARDOWN__?.();
 const audio = createAdventureAudio();
 const equipment = createEquipmentPanel(element("equipment-panel"), closeEquipment);
+const corpseLoot = createCorpseLoot(element("adventure-hud"), {
+  onTake: () => { pulse("takeLoot"); running?.world.canvas.focus(); },
+  onClose: () => { pulse("closeLoot"); running?.world.canvas.focus(); },
+});
+const bags = createBagPanel(element("adventure-hud"), {
+  onUsePotion: () => pulse("drinkPotion"),
+  onClose: closeBags,
+});
 
 function element(id: string): HTMLElement {
   const found = document.getElementById(id);
@@ -43,7 +53,7 @@ const classes: Record<CharacterArchetype, { name: string; copy: string }> = {
 };
 const keyActions: Readonly<Record<string, AdventureAction>> = {
   KeyW: "forward", KeyS: "backward", KeyA: "left", KeyD: "right", Space: "jump",
-  Digit1: "strike", KeyB: "brace", KeyE: "brace", KeyG: "gather", KeyR: "ritual",
+  Digit1: "strike", KeyE: "brace", KeyG: "gather", KeyR: "ritual",
   KeyF: "interact", KeyH: "drinkPotion", KeyT: "rest", Tab: "target",
 };
 const resumeKey = "greywrought/adventure-active-character";
@@ -66,7 +76,6 @@ let alive = true;
 let frame = 0;
 let lastTime = 0;
 let paused = false;
-let equipmentWasPaused = false;
 let entering = false;
 let profile: LocalProfile | null = null;
 let profileBlocked = false;
@@ -79,7 +88,7 @@ function listen(target: EventTarget, type: string, handler: EventListener, local
 }
 function click(id: string, handler: () => void): void { listen(element(id), "click", handler); }
 function pulse(action: AdventureAction): void {
-  if (!running?.ready || paused) return;
+  if (!running?.ready || (paused && action !== "closeLoot" && action !== "closeShop")) return;
   running.game.setAction(action, true);
   running.game.setAction(action, false);
 }
@@ -172,6 +181,7 @@ function returnToRoster(): void {
   release();
   save(true);
   equipment.close();
+  closeBags();
   if (running) audio.update(running.game.snapshot, true);
   audio.reset();
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
@@ -185,27 +195,38 @@ function returnToRoster(): void {
 }
 function setPaused(value: boolean): void {
   if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
-  release();
-  if (running.game.snapshot.shopOpen) pulse("closeShop");
+  if (value) release();
   paused = value;
   lastTime = 0;
-  element("pause-panel").hidden = !paused;
   document.body.dataset.gamePaused = String(paused);
+  save(true);
+}
+function setMenuOpen(value: boolean): void {
+  if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
+  element("pause-panel").hidden = !value;
+  if (!value) running.world.canvas.focus();
   save(true);
 }
 function closeEquipment(): void {
   if (!equipment.isOpen) return;
   equipment.close();
-  setPaused(equipmentWasPaused);
   running?.world.canvas.focus();
 }
 function toggleEquipment(): void {
   if (equipment.isOpen) { closeEquipment(); return; }
   if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
-  equipmentWasPaused = paused;
-  setPaused(true);
-  element("pause-panel").hidden = true;
   equipment.open(running.character, running.game.snapshot);
+}
+function closeBags(): void {
+  bags.close();
+  button("bag-open").setAttribute("aria-expanded", "false");
+  running?.world.canvas.focus();
+}
+function toggleBags(): void {
+  if (bags.isOpen) { closeBags(); return; }
+  if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
+  bags.open(running.game.snapshot);
+  button("bag-open").setAttribute("aria-expanded", "true");
 }
 function mapPosition(target: HTMLElement, x: number, z: number): void {
   target.style.left = `${50 - x * 2.5}%`;
@@ -240,6 +261,8 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gamePlayerX = String(player.position.x); data.gamePlayerY = String(player.position.y); data.gamePlayerZ = String(player.position.z);
   data.gamePlayerVitality = String(player.health); data.gameSupplies = String(snapshot.supplies);
   data.gameCargo = String(snapshot.cargo); data.gamePotions = String(snapshot.potions);
+  data.gameCarriedSalvage = String(snapshot.carriedSalvage);
+  data.gamePaused = String(paused);
   data.gameBankedRelics = String(snapshot.bankedRelics); data.gameSelectedThreat = snapshot.selectedThreat;
   data.gameActionCooldown = String(player.actionCooldown); data.gameGuardSeconds = String(player.guardSeconds);
   data.archetype = player.archetype;
@@ -250,7 +273,13 @@ function renderHud(snapshot: AdventureSnapshot): void {
   text("guard-status", player.guardSeconds > 0 ? `BRACED · ${player.guardSeconds.toFixed(1)}s · incoming damage halved` : "Read the danger. Choose your moment.");
   text("strike-ready", player.actionCooldown > 0 ? `${player.actionCooldown.toFixed(1)}s` : "Ready");
   text("potion-count", `${snapshot.potions} carried · heals ${snapshot.potionHealing}`);
-  text("cargo-summary", `Carried: ${snapshot.cargo} cores · ${snapshot.carriedRelics} relics\nSecured: ${snapshot.supplies} supplies · ${snapshot.bankedRelics} relics`);
+  text("cargo-summary", `Carried: ${snapshot.cargo} cores · ${snapshot.carriedSalvage} salvage · ${snapshot.carriedRelics} relics\nSecured: ${snapshot.supplies} supplies · ${snapshot.bankedRelics} relics`);
+  const nearbyLoot = snapshot.loot.some(item => item.available && item.reachable);
+  text("interact-label", nearbyLoot ? "Loot" : "Talk");
+  text("interact-detail", nearbyLoot ? "Search remains" : "Mara's shop");
+  corpseLoot.update(snapshot);
+  bags.update(snapshot);
+  if (equipment.isOpen && running) equipment.update(running.character, snapshot);
   text("route-objective", snapshot.phase === "town" ? "Prepare, then follow the road north" : snapshot.carriedRelics > 0 ? "Bring the grove relic home" : snapshot.cargo > 0 ? "Return with your cores, or press deeper" : "Find frost cores in the first clearing");
   text("route-detail", snapshot.phase === "town" ? "Mara sells potions. Rest here before crossing the north gate." : `Follow the road south to Hearthstead to secure what you carry. Forest alertness: ${snapshot.presence.toFixed(0)}.`);
   text("adventure-report", snapshot.report);
@@ -302,9 +331,10 @@ function bindWorld(app: RunningAdventure): void {
     if (!(event instanceof PointerEvent)) return;
     buttons = event.buttons;
     app.game.setMouseForward((buttons & 3) === 3 && !paused);
-    if (event.button === 0 && dragDistance < 5 && !paused && app.ready) {
+    if ((event.button === 0 || event.button === 2) && buttons === 0 && dragDistance < 5 && !paused && app.ready) {
       const selected = app.world.pick(event.clientX, event.clientY);
-      if (selected) app.game.selectTarget(selected);
+      if (selected && app.game.snapshot.loot.some(item => item.sourceId === selected && item.available)) app.game.openLoot(selected);
+      else if (selected && event.button === 0) app.game.selectTarget(selected);
     }
     if (buttons === 0 && canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   }, app.unbind);
@@ -393,9 +423,10 @@ click("entry-change-character", () => { if (!entering) { route = "creator"; rend
 click("entry-enter-world", () => { const character = selectedCharacter(); if (character) void enterWorld(character); });
 click("shop-buy-potion", () => pulse("buyPotion"));
 click("shop-close", () => { pulse("closeShop"); running?.world.canvas.focus(); });
-click("pause-open", () => setPaused(true));
+click("pause-open", () => setMenuOpen(element("pause-panel").hidden));
 click("equipment-open", toggleEquipment);
-click("pause-resume", () => setPaused(false));
+click("bag-open", toggleBags);
+click("pause-resume", () => setMenuOpen(false));
 click("return-roster", returnToRoster);
 click("death-roster", returnToRoster);
 for (const target of [element("map-threats"), element("enemy-intents")]) listen(target, "click", (event) => {
@@ -410,18 +441,26 @@ for (const control of document.querySelectorAll<HTMLElement>("[data-action]")) l
 listen(window, "keydown", (event) => {
   if (event.isTrusted) void audio.unlock();
   if (!(event instanceof KeyboardEvent) || route !== "world") return;
-  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+  if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
   if (event.code === "KeyC") {
     event.preventDefault();
     if (!event.repeat) toggleEquipment();
     return;
   }
+  if (event.code === "KeyB") {
+    event.preventDefault();
+    if (!event.repeat) toggleBags();
+    return;
+  }
   if (event.code === "Escape" && equipment.isOpen) { event.preventDefault(); closeEquipment(); return; }
+  if (event.code === "Escape" && bags.isOpen) { event.preventDefault(); closeBags(); return; }
   if (event.code === "Escape") {
     event.preventDefault();
     if (!event.repeat) {
-      if (running?.game.snapshot.shopOpen) { release(); pulse("closeShop"); }
-      else setPaused(!paused);
+      if (!element("pause-panel").hidden) setMenuOpen(false);
+      else if (running?.game.snapshot.lootOpenId) pulse("closeLoot");
+      else if (running?.game.snapshot.shopOpen) pulse("closeShop");
+      else setMenuOpen(true);
     }
     return;
   }
@@ -439,7 +478,8 @@ listen(window, "keyup", (event) => {
   if (action && ![...keys].some((key) => keyActions[key] === action)) running?.game.setAction(action, false);
 });
 listen(window, "blur", () => { release(); if (running?.ready) setPaused(true); });
-listen(document, "visibilitychange", () => { if (document.hidden) { release(); save(true); if (running?.ready) setPaused(true); } });
+listen(window, "focus", () => { if (!document.hidden) setPaused(false); });
+listen(document, "visibilitychange", () => { setPaused(document.hidden || !document.hasFocus()); });
 listen(window, "pagehide", () => { release(); save(true); });
 listen(window, "beforeunload", () => { release(); save(true); });
 listen(window, "pointerdown", (event) => { if (event.isTrusted) void audio.unlock(); });
@@ -465,6 +505,8 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   for (const remove of removers) remove();
   audio.dispose();
   equipment.dispose();
+  corpseLoot.dispose();
+  bags.dispose();
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
 };
 try {

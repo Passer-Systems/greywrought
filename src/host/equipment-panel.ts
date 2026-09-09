@@ -108,7 +108,7 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void) 
       update(character, snapshot);
       if (root.open) return;
       previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      root.showModal();
+      root.show();
       document.getElementById("equipment-open")?.setAttribute("aria-expanded", "true");
       buttons.get(selected)?.focus({ preventScroll: true });
     },

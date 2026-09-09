@@ -1,4 +1,5 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
+import { publicUrl } from "./public-url.js";
 
 const cueNames = ["strike", "hit", "brace", "potion", "gather", "purchase", "windup", "alarm", "defeat", "extraction"] as const;
 type Cue = typeof cueNames[number];
@@ -27,7 +28,7 @@ export function createAdventureAudio(): AdventureAudio {
   const prefs = preferences();
   const music = document.createElement("audio");
   music.id = "adventure-music";
-  music.src = "/assets/audio/frost-waltz.mp3";
+  music.src = publicUrl("assets/audio/frost-waltz.mp3");
   music.loop = true;
   music.preload = "metadata";
   music.hidden = true;
@@ -111,7 +112,7 @@ export function createAdventureAudio(): AdventureAudio {
       await resumed;
       document.body.dataset.adventureAudioUnlocked = String(context.state === "running");
       loaded ??= Promise.all(cueNames.map(async cue => {
-        const response = await fetch(`/assets/audio/${cue}.ogg`);
+        const response = await fetch(publicUrl(`assets/audio/${cue}.ogg`));
         if (!response.ok) throw new Error(`${cue}: HTTP ${response.status}`);
         const buffer = await context!.decodeAudioData(await response.arrayBuffer());
         if (!disposed) buffers.set(cue, buffer);
@@ -150,6 +151,7 @@ export function createAdventureAudio(): AdventureAudio {
     if (snapshot.potions < before.potions) play("potion");
     if (snapshot.potions > before.potions && snapshot.supplies < before.supplies) play("purchase");
     if (snapshot.resourceRemaining < before.resourceRemaining && snapshot.cargo > before.cargo) play("gather");
+    if (snapshot.carriedSalvage > before.carriedSalvage || snapshot.carriedRelics > before.carriedRelics) play("gather");
     if (snapshot.player.health < before.player.health || snapshot.threats.some(t => t.health < (before.threats.find(old => old.id === t.id)?.health ?? t.health))) play("hit");
     const alarm = snapshot.threats.some(t => t.damage === 0 && t.actionSequence > (before.threats.find(old => old.id === t.id)?.actionSequence ?? t.actionSequence));
     const warning = snapshot.threats.some(t => t.active && t.phase === "preparation" && before.threats.find(old => old.id === t.id)?.phase !== "preparation" && Math.hypot(t.position.x - snapshot.player.position.x, t.position.z - snapshot.player.position.z) < Math.max(12, t.reach));

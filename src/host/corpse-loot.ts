@@ -1,4 +1,5 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
+import { publicUrl } from "./public-url.js";
 
 export interface CorpseLoot {
   update(snapshot: AdventureSnapshot): void;
@@ -8,16 +9,22 @@ export interface CorpseLoot {
 export function createCorpseLoot(host: HTMLElement, callbacks: { onTake(): void; onClose(): void }): CorpseLoot {
   const style = document.createElement("style");
   style.textContent = `
-    #loot-window { position:absolute; z-index:24; left:50%; top:56%; transform:translate(-50%,-50%); width:min(284px,calc(100% - 28px)); padding:12px; border:1px solid #b99a5e; border-radius:6px; color:#f9ecd2; background:#16201ef5; box-shadow:0 8px 24px #0008; font:14px Georgia,serif; }
+    #loot-window { position:absolute; z-index:24; left:50%; top:52%; transform:translate(-50%,-50%); width:min(236px,calc(100% - 28px)); min-height:282px; padding:48px 10px 12px; border:5px ridge #78796b; border-radius:9px; color:#e5e0d1; background:repeating-linear-gradient(115deg,#171a19 0px,#171a19 2px,#191c1b 3px,#191c1b 5px); box-shadow:0 0 0 1px #171912,0 8px 28px #000b,inset 0 0 14px #000; font:14px Georgia,serif; pointer-events:auto; }
     #loot-window[hidden], #corpse-loot-prompt[hidden] { display:none; }
-    #loot-window header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
-    #loot-close { border:0; background:transparent; color:#efddb5; padding:0 5px; font-size:23px; cursor:pointer; }
-    #loot-item { display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:1px solid #8d774c; border-radius:4px; padding:10px; background:#354638; color:#fff0cb; cursor:pointer; }
-    #loot-item:hover, #loot-item:focus-visible { background:#4d624a; outline:2px solid #dbc289; }
-    #loot-item-icon { font-size:28px; color:#ffe09a; }
+    #loot-source-name { position:absolute; bottom:calc(100% + 9px); left:0; max-width:100%; color:#ddd6bc; text-shadow:0 2px 3px #000,1px 0 #000; font:16px Georgia,serif; white-space:nowrap; }
+    #loot-window header { position:absolute; top:7px; left:58px; right:7px; height:28px; display:flex; align-items:center; justify-content:center; border:3px ridge #6b6e66; border-radius:5px; background:linear-gradient(#252724,#090c0b); color:#e4ce7a; text-shadow:0 1px #000; font-weight:bold; }
+    #loot-skull { position:absolute; left:-69px; top:-22px; width:68px; height:68px; display:grid; place-items:center; border:5px ridge #9b9265; border-radius:50%; background:radial-gradient(#252c24,#020503); color:#cbcbb8; font:47px/1 Georgia,serif; text-shadow:2px 2px #000; box-shadow:0 2px 6px #000; }
+    #loot-close { position:absolute; right:-5px; top:-5px; width:27px; height:27px; display:grid; place-items:center; padding:0; border:3px ridge #aca374; border-radius:5px; background:linear-gradient(#9c281b,#4c0b06); color:#e7c864; font:bold 25px/1 Georgia,serif; cursor:pointer; text-shadow:1px 2px #300; }
+    #loot-close:hover { background:#b53c25; }
+    #loot-item { display:flex; align-items:center; gap:9px; width:100%; min-height:49px; text-align:left; border:1px solid #666c62; border-radius:3px; padding:3px; background:linear-gradient(90deg,#31383199,#101412bb); color:#e1dfd5; cursor:pointer; }
+    #loot-item:hover, #loot-item:focus-visible { background:#3a423799; outline:1px solid #c2ad69; }
+    #loot-item-icon { position:relative; width:42px; height:42px; flex:0 0 42px; border:2px ridge #8695ab; background:#10151c; }
+    #loot-item-icon img { display:block; width:100%; height:100%; object-fit:cover; }
+    #loot-item-quantity { position:absolute; right:1px; bottom:-2px; color:white; font:bold 14px system-ui; text-shadow:-1px -1px #000,1px 1px #000,0 0 3px #000; }
     #loot-item strong, #loot-item small { display:block; }
-    #loot-item small { margin-top:4px; color:#cfddc8; font-size:12px; }
-    #loot-window p { margin:10px 0 0; font:12px/1.45 system-ui,sans-serif; color:#d0c8b8; }
+    #loot-item strong { font:14px/1.25 Georgia,serif; }
+    #loot-item small { margin-top:4px; color:#9eaaa0; font:10px system-ui; }
+    #loot-window p { position:absolute; bottom:10px; left:10px; right:10px; margin:0; text-align:center; font:10px/1.45 system-ui,sans-serif; color:#8b9288; }
     #corpse-loot-prompt { position:absolute; z-index:18; bottom:160px; left:50%; transform:translateX(-50%); border:1px solid #b99a5e; border-radius:4px; padding:7px 12px; color:#ffe8ae; background:#15211ded; font:14px Georgia,serif; pointer-events:none; white-space:nowrap; }
   `;
   const panel = document.createElement("section");
@@ -26,21 +33,28 @@ export function createCorpseLoot(host: HTMLElement, callbacks: { onTake(): void;
   panel.hidden = true;
   const header = document.createElement("header");
   const title = document.createElement("strong");
+  title.id = "loot-source-name";
+  const skull = document.createElement("span");
+  skull.id = "loot-skull"; skull.textContent = "☠"; skull.setAttribute("aria-hidden", "true");
+  const heading = document.createElement("span"); heading.textContent = "Items";
   const close = document.createElement("button");
   close.id = "loot-close"; close.type = "button"; close.textContent = "×";
   close.setAttribute("aria-label", "Close loot window");
-  header.append(title, close);
+  header.append(skull, heading, close);
   const take = document.createElement("button");
   take.id = "loot-item"; take.type = "button";
   const icon = document.createElement("span");
   icon.id = "loot-item-icon"; icon.setAttribute("aria-hidden", "true");
+  const itemImage = document.createElement("img"); itemImage.alt = "";
+  const quantity = document.createElement("span"); quantity.id = "loot-item-quantity";
+  icon.append(itemImage, quantity);
   const copy = document.createElement("span");
   const name = document.createElement("strong"); name.id = "loot-item-name";
   const category = document.createElement("small"); category.id = "loot-item-category";
   copy.append(name, category); take.append(icon, copy);
   const hint = document.createElement("p");
-  hint.textContent = "Click the item to take it. Return alive to keep it.";
-  panel.append(header, take, hint);
+  hint.textContent = "Click to take · Return alive to keep";
+  panel.append(title, header, take, hint);
   const prompt = document.createElement("div");
   prompt.id = "corpse-loot-prompt"; prompt.hidden = true;
   const stopPointer = (event: Event): void => event.stopPropagation();
@@ -57,8 +71,10 @@ export function createCorpseLoot(host: HTMLElement, callbacks: { onTake(): void;
         panel.dataset.lootSource = loot.sourceId;
         panel.dataset.lootQuantity = String(loot.quantity);
         title.textContent = loot.sourceName;
-        name.textContent = `${loot.itemName} ×${loot.quantity}`;
-        icon.textContent = loot.kind === "relic" ? "✧" : "◈";
+        name.textContent = loot.itemName;
+        quantity.textContent = String(loot.quantity);
+        const itemSrc = publicUrl(`assets/ui/icons/items/${loot.kind === "relic" ? "blue-gem" : "leather-satchel"}.png`);
+        if (itemImage.getAttribute("src") !== itemSrc) itemImage.src = itemSrc;
         category.textContent = loot.kind === "relic" ? "Relic · carry home" : `${loot.quantity} supply on safe return`;
       } else {
         delete panel.dataset.lootSource; delete panel.dataset.lootQuantity;

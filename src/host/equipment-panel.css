@@ -8,13 +8,13 @@
 .equipment-open kbd { padding: 2px 5px; border: 1px solid #a4916266; border-radius: 3px; font: 11px system-ui; }
 .equipment-open:hover { background: #3b4947; }
 .equipment-panel {
+  position: fixed; inset: 0; margin: auto; height: fit-content; z-index: 55;
   width: min(780px, calc(100vw - 28px)); max-height: calc(100dvh - 28px);
   padding: 20px 24px 15px; overflow: auto; color: #efe4cf;
   border: 1px solid #ae9565; border-radius: 7px;
   background: radial-gradient(ellipse at 50% 35%, #344039, transparent 65%), #15201f;
   box-shadow: 0 12px 80px #000b, inset 0 0 0 4px #bc9b5020;
 }
-.equipment-panel::backdrop { background: #06100eca; }
 .equipment-panel, .equipment-panel button { cursor: auto !important; }
 .equipment-panel button { cursor: pointer !important; }
 .equipment-panel button:focus-visible, .equipment-open:focus-visible { outline: 2px solid #f0d29b; outline-offset: 3px; }

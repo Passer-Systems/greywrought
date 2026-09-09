@@ -115,7 +115,7 @@ function intention(threat: ThreatView): { action: string; clock: string; queue: 
     case "preparation": return {
       action: alarm ? "Preparing alarm" : attack, clock: `${threat.remainingSeconds.toFixed(1)}s`,
       queue: `NOW → ${alarm ? "Alarm" : `${threat.damage} damage`} → Recover → ${attack}`,
-      response: alarm ? "Defeat the lookout to stop its alarms" : "Step outside amber · B / E: halve damage",
+      response: alarm ? "Defeat the lookout to stop its alarms" : "Step outside amber · E: halve damage",
     };
     case "action": return { action: alarm ? "Alarm sounded" : attack, clock: alarm ? "DANGER ↑" : threat.lastActionHit ? "HIT" : "AVOIDED",
       queue: `NOW → Recover → ${attack}`, response: alarm ? "The forest grows more dangerous" : threat.lastActionHit ? "Brace halves damage; leaving the area avoids it" : "You were outside the attack" };

@@ -1,9 +1,23 @@
 import { watch } from "node:fs";
+import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { files } from "./public-files.js";
 
 const root = resolve(import.meta.dir, "..");
-const publicFiles = new Map(files.map(([source, target]) => [target.slice("dist/".length), source]));
+let publicFiles = new Map(files.map(([source, target]) => [target.slice("dist/".length), source]));
+const manifestPath = resolve(root, "scripts/public-files.ts");
+let manifestChangedAt = (await stat(manifestPath)).mtimeMs;
+let manifestRefresh: Promise<void> | undefined;
+async function refreshPublicFiles(): Promise<void> {
+  const changedAt = (await stat(manifestPath)).mtimeMs;
+  if (changedAt === manifestChangedAt) return;
+  manifestRefresh ??= (async () => {
+    const updated: typeof import("./public-files.js") = await import(`./public-files.ts?revision=${changedAt}`);
+    publicFiles = new Map(updated.files.map(([source, target]) => [target.slice("dist/".length), source]));
+    manifestChangedAt = changedAt;
+  })().finally(() => { manifestRefresh = undefined; });
+  await manifestRefresh;
+}
 let revision = 1;
 let builtRevision = 0;
 let bundle: Blob | undefined;
@@ -11,8 +25,7 @@ let buildInFlight: Promise<void> | undefined;
 const clients = new Set<ReadableStreamDefaultController<Uint8Array>>();
 const encoder = new TextEncoder();
 let reloadTimer: ReturnType<typeof setTimeout> | undefined;
-const watcher = watch(resolve(root, "src"), { recursive: true }, (_event, filename) => {
-  if (!filename || !/\.(ts|css|html)$/.test(filename)) return;
+function changed(): void {
   revision++;
   clearTimeout(reloadTimer);
   reloadTimer = setTimeout(() => {
@@ -21,6 +34,12 @@ const watcher = watch(resolve(root, "src"), { recursive: true }, (_event, filena
       catch { clients.delete(client); }
     }
   }, 70);
+}
+const watcher = watch(resolve(root, "src"), { recursive: true }, (_event, filename) => {
+  if (filename && /\.(ts|css|html)$/.test(filename)) changed();
+});
+const manifestWatcher = watch(resolve(root, "scripts"), (_event, filename) => {
+  if (filename === "public-files.ts") changed();
 });
 
 async function buildClient(): Promise<void> {
@@ -60,6 +79,7 @@ const server = Bun.serve({
       return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-store" } });
     }
     const relative = pathname === "/" ? "index.html" : pathname.slice(1);
+    await refreshPublicFiles();
     const headers = { "Cache-Control": "no-store" };
     if (relative === "app/greywrought/play.js") {
       try {
@@ -82,6 +102,6 @@ const server = Bun.serve({
   },
 });
 console.log(`Greywrought development: http://${server.hostname}:${server.port}/`);
-function stop() { watcher.close(); clearTimeout(reloadTimer); server.stop(true); }
+function stop() { watcher.close(); manifestWatcher.close(); clearTimeout(reloadTimer); server.stop(true); }
 process.on("SIGTERM", () => { stop(); process.exit(0); });
 process.on("SIGINT", () => { stop(); process.exit(0); });

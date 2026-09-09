@@ -9,6 +9,9 @@
 - Added territorial pursuit for close-range enemies while keeping committed attack warnings fixed and avoidable.
 - Added a recorded soundtrack, sampled effects, and separate persisted volume controls.
 - Restored the character paper doll with all 19 Classic equipment slots and a C shortcut.
+- Restored corpse-loot windows and glints, manual salvage and relic collection, saved unclaimed loot, and extraction of carried salvage.
+- Added a Classic-style backpack on B with carried stacks and potion use; brace remains on E.
+- Kept WASD movement active while character, backpack, loot, shop, and game menus are open.
 
 ## 0.2.0 — 2026-09-02
 

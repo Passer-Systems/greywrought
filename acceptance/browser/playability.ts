@@ -1,6 +1,15 @@
 import { check, openBrowser } from "./session.js";
 
 const page = await openBrowser("playability");
+async function moveWithWindow(visible: string): Promise<void> {
+  for (const [code, axis, direction] of [["KeyW", "gamePlayerZ", 1], ["KeyS", "gamePlayerZ", -1], ["KeyA", "gamePlayerX", 1], ["KeyD", "gamePlayerX", -1]] as const) {
+    const start = Number((await page.read())[axis]);
+    await page.key(code, true);
+    await page.waitFor(`(Number(document.body.dataset.${axis}) - ${start}) * ${direction} > 0.25`, 5_000);
+    await page.key(code, false);
+    check(await page.evaluate<boolean>(visible), `${code} closed the window`);
+  }
+}
 try {
   await page.enter();
   const initial = await page.read();
@@ -28,33 +37,63 @@ try {
   check(Number(afterRelease.gamePlayerZ) < Number(afterMouse.gamePlayerZ) - 0.3, "Releasing the mouse chord did not restore held backpedaling");
   await page.call("Input.dispatchMouseEvent", { type: "mouseReleased", x: 650, y: 410, button: "left", buttons: 0, clickCount: 1 });
   await page.key("KeyS", false);
+  await page.key("KeyW", true);
   await page.press("KeyC");
-  await page.waitFor('document.getElementById("equipment-panel").open && document.body.dataset.gamePaused === "true"');
+  await page.waitFor('document.getElementById("equipment-panel").open && document.body.dataset.gamePaused === "false"');
+  const openedMoving = await page.read();
+  await page.waitFor(`Number(document.body.dataset.gamePlayerZ) > ${Number(openedMoving.gamePlayerZ) + 0.25}`, 5_000);
+  await page.key("KeyW", false);
   const slots = await page.evaluate<string[]>('[...document.querySelectorAll("[data-equipment-slot]")].map(node => node.dataset.equipmentSlot)');
   check(slots.length === 19 && new Set(slots).size === 19, "Character screen does not contain all 19 equipment slots");
   for (const slot of ["shirt", "tabard", "ring1", "ring2", "trinket1", "trinket2", "mainhand", "offhand", "ranged"]) check(slots.includes(slot), `Missing Classic slot: ${slot}`);
-  await page.evaluate('document.querySelector(\'[data-equipment-slot="tabard"]\').click()');
+  await page.click('[data-equipment-slot="tabard"]');
   await page.waitFor('document.getElementById("equipment-panel").dataset.selectedSlot === "tabard"');
-  const whileInspecting = await page.read();
-  await page.key("KeyW", true);
-  await Bun.sleep(250);
-  await page.key("KeyW", false);
-  const afterInspecting = await page.read();
-  check(whileInspecting.gamePlayerZ === afterInspecting.gamePlayerZ, "Movement continued while inspecting equipment");
+  await moveWithWindow('document.getElementById("equipment-panel").open');
   await page.shot("equipment");
+  await page.key("KeyW", true);
   await page.press("Escape");
   await page.waitFor('!document.getElementById("equipment-panel").open && document.body.dataset.gamePaused === "false"');
-  await page.evaluate('document.getElementById("equipment-open").click()');
+  const closedMoving = await page.read();
+  await page.waitFor(`Number(document.body.dataset.gamePlayerZ) > ${Number(closedMoving.gamePlayerZ) + 0.25}`, 5_000);
+  await page.key("KeyW", false);
+  await page.click('#equipment-open');
   await page.waitFor('document.getElementById("equipment-panel").open');
-  await page.evaluate('document.getElementById("equipment-close").click()');
+  await page.click('#equipment-close');
   await page.waitFor('!document.getElementById("equipment-panel").open');
+  await page.key("KeyW", true);
+  await page.press("KeyB");
+  await page.waitFor('!document.getElementById("bag-panel").hidden');
+  const openedBagsMoving = await page.read();
+  await page.waitFor(`Number(document.body.dataset.gamePlayerZ) > ${Number(openedBagsMoving.gamePlayerZ) + 0.25}`);
+  await page.key("KeyW", false);
+  check(await page.evaluate<number>('document.querySelectorAll("[data-bag-slot]").length') === 16, "Backpack needs 16 visible slots");
+  check(await page.evaluate<number>('document.querySelectorAll("[data-bag-item]").length') === 0, "Fresh backpack should be empty");
+  check(Number((await page.read()).gameGuardSeconds) === 0, "B still braces instead of opening bags");
+  await moveWithWindow('!document.getElementById("bag-panel").hidden');
+  await page.shot("backpack");
+  await page.press("Escape");
+  await page.waitFor('document.getElementById("bag-panel").hidden');
+  await page.click('#bag-open');
+  await page.waitFor('!document.getElementById("bag-panel").hidden');
+  await page.click('#bag-close');
+  await page.waitFor('document.getElementById("bag-panel").hidden');
+  await page.press("KeyB");
+  await page.waitFor('!document.getElementById("bag-panel").hidden');
+  await page.press("KeyB");
+  await page.waitFor('document.getElementById("bag-panel").hidden');
+  await page.press("Escape");
+  await page.waitFor('!document.getElementById("pause-panel").hidden');
+  await page.click('[data-volume="music"]');
+  await moveWithWindow('!document.getElementById("pause-panel").hidden');
+  await page.press("Escape");
+  await page.waitFor('document.getElementById("pause-panel").hidden');
   await page.shot("town");
-  await page.call("Page.reload");
+  await page.reload();
   await page.waitFor('["roster", "world"].includes(document.body.dataset.entryRoute)');
   check(await page.evaluate<boolean>('localStorage.getItem("greywrought/local-profile-v1") !== null'), "Character profile missing after reload");
   await page.evaluate('if(document.body.dataset.entryRoute === "roster") document.getElementById("entry-enter-world").click()');
   await page.waitFor('document.body.dataset.entryRoute === "world"');
   check(page.errors.length === 0, "Browser exceptions occurred");
   await Bun.write(`${page.output}/result.json`, JSON.stringify({ initial, strafe, beforeMouse, afterMouse, errors: page.errors }, null, 2));
-  console.log(`PASS: character entry, strafe, jump, mouse priority, equipment slots and input pause, reload. Evidence: ${page.output}`);
+  console.log(`PASS: character entry, strafe, jump, mouse priority, equipment slots, backpack, WASD through menus, reload. Evidence: ${page.output}`);
 } finally { await page.close(); }

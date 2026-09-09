@@ -1956,8 +1956,17 @@ button { cursor: pointer !important; }
 .adventure-menu-button { position: absolute; left: 22px; bottom: 22px; pointer-events: auto; border: 1px solid #b89a62; color: #f6dfad; background: #233439; border-radius: 4px; width: 40px; height: 38px; font-size: 20px; }
 .adventure-modal { position: absolute; inset: 0; z-index: 50; background: #091419b5; display: flex; justify-content: center; align-items: center; }
 .adventure-modal > div { max-width: 440px; padding: 30px; box-shadow: 0 8px 60px #000a; }
+#shop-panel, #pause-panel { background: none; pointer-events: none; }
+#shop-panel > div, #pause-panel > div { pointer-events: auto; }
 .adventure-modal h2 { font: 700 30px Georgia; color: #f8deac; margin: 12px 0; }.adventure-modal p { font-size: 14px; line-height: 1.7; color: #d2dada; }
 .adventure-modal button { border: 1px solid #c0a16c; padding: 11px 14px; margin: 8px 5px 0 0; background: #584830; color: #ffeac8; border-radius: 3px; font: 600 13px system-ui; }.adventure-modal button:hover { background: #736044; }.adventure-modal button:disabled { opacity: .4; }
 @media (max-width: 1000px) { .adventure-map { width: 210px; right: 12px; }#map-field { height: 270px; }.adventure-vitals,.adventure-objective { left: 12px; width: 240px; }.adventure-objective { top: 182px; }.adventure-actions small { font-size: 8px; } }
 @media (max-width: 700px) { .adventure-vitals { width: 190px; padding: 10px; }.adventure-objective { display: none; }.adventure-map { width: 155px; top: 12px; padding: 7px; }#map-field { height: 215px; }.map-enemy span { display: none; }.map-landmark { font-size: 8px; }.adventure-map footer { font-size: 8px; }.adventure-actions { gap: 2px; }.adventure-actions strong { font-size: 12px; }.adventure-actions small { display: none; }.adventure-controls { font-size: 8px; }.adventure-bottom { bottom: 6px; width: calc(100vw - 20px); }.adventure-menu-button { bottom: 140px; left: 12px; } }.enemy-nameplate:hover:not(:disabled) { background: none; border-color: transparent; }
 .nameplate-amount:not(:empty) + .nameplate-clock::before { content: "·"; margin-right: 3px; color: #dacaa8; }
+body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
+.bag-open { position: absolute; right: 22px; bottom: 70px; pointer-events: auto; display: flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid #b89a62; border-radius: 4px; background: #233439; color: #f6dfad; font: 600 13px system-ui; }
+.bag-open img { width: 24px; height: 24px; object-fit: contain; }
+.bag-open kbd { padding: 2px 5px; border: 1px solid #a4916266; border-radius: 3px; font: 11px system-ui; }
+.bag-open:hover { background: #3b4947; }
+.bag-open:focus-visible { outline: 2px solid #f0d29b; outline-offset: 3px; }
+@media (max-width: 700px) { .bag-open { right: 12px; bottom: 187px; } }
