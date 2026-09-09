@@ -4,7 +4,17 @@ export interface Position { readonly x: number; readonly y: number; readonly z: 
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
   | "strike" | "brace" | "gather" | "ritual" | "interact"
-  | "buyPotion" | "drinkPotion" | "rest" | "target" | "closeShop";
+  | "buyPotion" | "drinkPotion" | "rest" | "target" | "closeShop" | "takeLoot" | "closeLoot";
+export interface CorpseLootView {
+  readonly sourceId: string;
+  readonly sourceName: string;
+  readonly position: Position;
+  readonly itemName: string;
+  readonly kind: "salvage" | "relic";
+  readonly quantity: number;
+  readonly available: boolean;
+  readonly reachable: boolean;
+}
 export type ThreatPhase = "dormant" | "approach" | "preparation" | "action" | "recovery" | "returning" | "cleared";
 export interface ThreatView {
   readonly id: string;
@@ -52,6 +62,9 @@ export interface AdventureSnapshot {
     readonly guardSeconds: number;
   };
   readonly threats: readonly ThreatView[];
+  readonly loot: readonly CorpseLootView[];
+  readonly lootOpenId: string | null;
+  readonly carriedSalvage: number;
   readonly places: readonly PlaceView[];
   readonly selectedThreat: string;
   readonly supplies: number;
@@ -78,5 +91,6 @@ export interface AdventureGame {
   setMouseForward(active: boolean): void;
   setCameraForward(x: number, z: number): void;
   selectTarget(id: string): void;
+  openLoot(sourceId: string): void;
   save(): string;
 }
