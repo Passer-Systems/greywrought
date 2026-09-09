@@ -1,73 +1,49 @@
 # Greywrought
 
-Greywrought is a native Bevy game with Clause-authored gameplay. Its direction
-is a third-person MMORPG with WASD movement, an orbit camera, walkable hubs
-and physical routes into dangerous territories. The first expedition is a
-forest: enter with a plan, read enemy intentions, choose what is worth fighting,
-gather something valuable and get home alive.
+Greywrought is a native Rust/Bevy game. Leave Hearthstead for the forest, read
+enemy intentions, gather frost cores, call the grove guardian and return alive.
 Equipment and extracted resources carry lasting power; kills grant no XP.
-
-Clause owns world rules and checked gameplay changes. Bevy handles presentation,
-assets, input and UI. The native window keeps its world while supported checked
-edits are applied. Web delivery is a later Bevy export.
 
 ## Play and develop
 
-On this Linux machine, initialize the immutable compiler and build once:
+From your Greywrought checkout on Linux:
 
 ```sh
-git submodule update --init --recursive
-nix develop '.?submodules=1'
-bun install --frozen-lockfile
+nix develop
 bun run build:play
 bun run play
 ```
 
-The project development shell supplies Rust and native window libraries.
-Its source is `greywrought:flake.clause`; the pinned Clause compiler generates
-`greywrought:flake.nix`. Run the build again after changing Rust or the compiler
-pin. Gameplay tuning inside the open window does not rebuild or restart it.
-The Git flake includes the pinned submodule and excludes ignored build output.
-Regenerate an environment change with the pinned workbench's `project-nix`
-command, keeping compiler builds in `greywrought:build/authoring-target/` and
-game builds in `greywrought:build/desktop-target/`.
+The project-local Nix shell supplies the pinned Rust toolchain and native window
+libraries. Its definition is `greywrought:flake.nix`, using
+`greywrought:rust-toolchain.toml`. No submodule or package installation is needed.
+Rebuild after changing Rust. Build output stays under `greywrought:build/`.
 
-Start inside Hearthstead and walk north through its gate into the forest.
-W/S walks forward/back, A/D turns, and Q/E strafes. Left-drag orbits the camera;
-right-drag steers and makes A/D strafe. The mouse wheel zooms. Click a threat
-card or press 1–5 to target; Space strikes and B braces. G gathers near the
-frost cores, while R offers six cores at the deep grove to call the guardian.
-Walk back through the gate to secure carried rewards. O opens equipment.
-F5 saves, F6 opens checked tuning and F7 opens developer inspection.
+Start in Hearthstead and walk north through the gate. W/S walks forward/back,
+A/D strafes, and Space jumps. Left-drag orbits the camera; right-drag steers;
+holding both mouse buttons walks forward. The wheel zooms. Tab selects a threat,
+1 strikes, and B braces. G gathers nearby cores. R offers six carried cores at
+the deep grove. Return through the gate alive to secure cargo.
 
-The spatial playtest uses `~/.local/share/greywrought/spatial.save`, respecting
-`XDG_DATA_HOME`. Earlier `~/.local/share/greywrought/forest.save` journeys remain
-with the earlier game; no automatic map conversion is performed. See
-`greywrought:docs/native-desktop.md` for saves and the edit/inspection loop.
+Approach Mara and press F to trade. H drinks a potion. O opens equipment;
+change equipment in town. F5 saves, and normal close saves too. See
+`greywrought:docs/native-desktop.md` for controls and save locations.
 
-Current and upcoming enemy intentions, rising presence, useful clearing
-benefits, predictable resources, ritual rewards and permanent loss all come
-from the running Clause world. Living extraction and checked-edit save/reopen
-have been exercised in the native window, along with movement and mouse camera
-control. This is a small local playtest with placeholder enemies and decorative
-buildings; scenery collision, networked companions and multiplayer remain
-unfinished. Older prototypes remain available with `--company` and `--workshop`.
+This is a local forest playtest. Buildings and trees are decorative; shared
+hubs, networked companions and multiplayer remain unfinished.
 
 ## Source and checks
 
-- `greywrought:src/world/forest-expedition.clause`: new expedition rules.
-- `greywrought:src/bin/desktop.rs`: passive Bevy window and input transport.
-- `greywrought:src/native.rs`: resident Clause session, projection and saves.
-- `greywrought:tests/forest_expedition.rs`: native expedition journeys.
-- `greywrought:tests/native_inspection.rs`: explanations, prediction and continuity.
-- `greywrought:tests/native_forest_view.rs`: forest input, inspection and edit/save continuity.
-- `greywrought:acceptance/performance/README.md`: measured limits and targets.
+- `greywrought:src/game.rs`: typed gameplay state and commands.
+- `greywrought:src/persistence.rs`: character saves.
+- `greywrought:src/bin/desktop.rs`: Bevy window, input and fixed update.
+- `greywrought:tests/forest_expedition.rs`: expedition journeys.
+- `greywrought:tests/native_forest_view.rs`: movement and forest projection.
+- `greywrought:acceptance/performance/README.md`: scaling measurement criteria.
 
-Run `bun run test:forest`, `bun run test:inspection`, or the full
-`bun run test:native`. Keep the full native gate intact; focused passing tests
-do not imply the older formation tests or performance targets pass.
+Run `bun run test:forest` for the expedition checks or `bun run test:native`
+for the native suite. The equivalent direct command is
+`nix develop --command cargo test --locked` from the checkout.
 
-The former browser implementation is preserved at Git tag
-`browser-snapshot-20260908`. Assets and attribution remain under
-`greywrought:assets/`. Generated artifacts and private test saves belong under
-`greywrought:build/`.
+Assets and attribution remain under `greywrought:assets/`. Private test saves
+and measurement output belong under `greywrought:build/`.

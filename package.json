@@ -1,20 +1,10 @@
 {
-  "name": "greywrought-clause",
+  "name": "greywrought",
   "private": true,
-  "type": "module",
-  "packageManager": "bun@1.3.13",
   "scripts": {
-    "check:attack": "bun scripts/check-attack.ts",
-    "verify:clause-source": "bun scripts/verify-clause-source.ts",
-    "typecheck:tools": "bun ./node_modules/typescript/bin/tsc --noEmit",
-    "build:play": "nix develop '.?submodules=1' --command bash scripts/native-dev.sh build",
-    "play": "nix develop '.?submodules=1' --command bash scripts/native-dev.sh play",
-    "test:native": "nix develop '.?submodules=1' --command cargo test --locked --target-dir build/desktop-target -j 2",
-    "test:forest": "nix develop '.?submodules=1' --command cargo test --locked --target-dir build/desktop-target -j 2 --test forest_expedition",
-    "test:inspection": "nix develop '.?submodules=1' --command cargo test --locked --target-dir build/desktop-target -j 2 --test native_inspection"
-  },
-  "devDependencies": {
-    "@types/bun": "1.3.13",
-    "typescript": "^5.9.2"
+    "build:play": "nix develop --command bash scripts/native-dev.sh build",
+    "play": "nix develop --command bash scripts/native-dev.sh play",
+    "test:native": "nix develop --command cargo test --locked --target-dir build/desktop-target -j 2",
+    "test:forest": "nix develop --command cargo test --locked --target-dir build/desktop-target -j 2 --test forest_expedition"
   }
 }
