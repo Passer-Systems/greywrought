@@ -40,6 +40,7 @@ pub fn load(path: &Path) -> Result<Game> {
         )
         .into());
     }
+    saved.game.validate()?;
     Ok(saved.game)
 }
 
@@ -87,6 +88,7 @@ pub fn save(game: &Game, path: &Path) -> Result<()> {
 }
 
 fn encode(game: &Game) -> Result<Vec<u8>> {
+    game.validate()?;
     #[derive(Serialize)]
     struct SavedGameRef<'a> {
         version: u32,

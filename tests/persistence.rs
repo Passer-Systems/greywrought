@@ -125,3 +125,29 @@ fn new_journey_archives_the_ended_character_and_preserves_legacy_save() {
     assert!(persistence::start_new_journey(&fresh, &dir.save()).is_err());
     assert_eq!(persistence::load(&dir.save()).unwrap(), fresh);
 }
+
+#[test]
+fn structurally_readable_but_broken_journeys_are_rejected_before_use() {
+    let dir = SaveDirectory::new();
+    let game = Game::new();
+    persistence::save(&game, &dir.save()).unwrap();
+    let original = fs::read(dir.save()).unwrap();
+    let mut broken = game.clone();
+    broken.body_parts.retain(|part| part.id != "torso");
+    assert!(persistence::save(&broken, &dir.save()).is_err());
+    assert_eq!(fs::read(dir.save()).unwrap(), original);
+    fs::write(
+        &dir.save(),
+        serde_json::to_vec(&serde_json::json!({"version":1,"game":broken})).unwrap(),
+    )
+    .unwrap();
+    assert!(persistence::load(&dir.save()).is_err());
+    let mut broken = game;
+    broken.components[0].upstream = "missing-equipment".into();
+    fs::write(
+        &dir.save(),
+        serde_json::to_vec(&serde_json::json!({"version":1,"game":broken})).unwrap(),
+    )
+    .unwrap();
+    assert!(persistence::load(&dir.save()).is_err());
+}
