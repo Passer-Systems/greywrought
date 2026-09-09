@@ -1,7 +1,7 @@
 {
   "name": "Greywrought",
   "short_name": "Greywrought",
-  "description": "An action RPG expedition through the Ashen Verge.",
+  "description": "Explore Frostwood, read enemy intentions, and bring your discoveries home.",
   "start_url": "./",
   "display": "fullscreen",
   "background_color": "#050306",
