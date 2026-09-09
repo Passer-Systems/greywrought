@@ -15,11 +15,13 @@ interface ThreatRig {
   readonly body: Group;
   readonly actor: ForestActor;
   readonly idle: string;
+  readonly walk: string;
+  readonly selection: Mesh<RingGeometry, MeshBasicMaterial>;
   readonly attack: string;
   readonly hit: string;
   readonly warning: Mesh<CircleGeometry, MeshBasicMaterial>;
   readonly ring: Mesh<RingGeometry, MeshBasicMaterial>;
-  readonly label: Sprite;
+  readonly height: number;
   health: number;
   sequence: number;
   phase: ThreatView["phase"];
@@ -34,6 +36,7 @@ export interface AdventureWorld {
   zoom(delta: number): void;
   forward(): { x: number; z: number };
   pick(x: number, y: number): string | null;
+  projectThreat(id: string): { x: number; y: number; feetY: number } | null;
   dispose(): void;
 }
 
@@ -168,12 +171,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (disposed) { mounted.dispose(); return; }
     merchant = mounted; mara.add(mounted.root); mounted.play("Idle");
   });
-  const appearances: Record<string, {model: string; height: number; idle: string; attack: string; hit: string}> = {
-    scout: {model:"Birb",height:1.35,idle:"Idle",attack:"Bite_Front",hit:"HitRecieve"},
-    nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",attack:"Headbutt",hit:"HitReact"},
-    warder: {model:"MushroomKing",height:2.4,idle:"Idle",attack:"Punch",hit:"HitReact"},
-    patrol: {model:"Wolf",height:1.6,idle:"Idle",attack:"Attack",hit:"Idle_HitReact1"},
-    "ritual-guardian": {model:"Yeti",height:3.0,idle:"Idle",attack:"Punch",hit:"HitReact"},
+  const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string}> = {
+    scout: {model:"Birb",height:1.35,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
+    nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
+    warder: {model:"MushroomKing",height:2.4,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact"},
+    patrol: {model:"Wolf",height:1.6,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1"},
+    "ritual-guardian": {model:"Yeti",height:3.0,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact"},
   };
   const creaturesReady = Promise.all(initial.threats.map(async threat => {
     const look = appearances[threat.id]; if(!look) throw Error(`No appearance for ${threat.id}`);
@@ -184,10 +187,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     creature.play(threat.health <= 0 ? "Death" : look.idle, threat.health > 0);
     const warning = new Mesh(new CircleGeometry(1, 64), new MeshBasicMaterial({ color: 0xf49a43, transparent: true, opacity: 0.23, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
     warning.rotation.x = -Math.PI/2; warning.visible = false; warning.renderOrder = 2; scene.add(warning);
-    const ring = new Mesh(new RingGeometry(0.97, 1.04, 48), new MeshBasicMaterial({ color: 0xffd278, side: 2 }));
+    const ring = new Mesh(new RingGeometry(0.93, 1.03, 48), new MeshBasicMaterial({ color: 0xffd278, side: 2 }));
     ring.rotation.x = -Math.PI/2; ring.position.y=0.05; root.add(ring);
-    const name = label(threat.name, "#ffd6ac", 2.6); name.position.y=look.height+0.35; root.add(name);
-    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,attack:look.attack,hit:look.hit,warning,ring,label:name,
+    const selection = new Mesh(new RingGeometry(1.09, 1.14, 48), new MeshBasicMaterial({ color: 0xfff6df, side: 2 }));
+    selection.rotation.x = -Math.PI/2; selection.position.y=0.06; root.add(selection);
+    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,warning,ring,height:look.height,
       health:threat.health,sequence:threat.actionSequence,phase:threat.phase,hitTime:0});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const natureReady = buildFrostwood(terrain, thicket).then(()=>{document.body.dataset.environmentState="ready";});
@@ -199,6 +203,13 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     canvas, ready, forward,
     orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.22, pitch + dy * 0.004)); },
     zoom(delta) { distance = Math.max(6, Math.min(18, distance * Math.exp(delta * 0.001))); },
+    projectThreat(id) {
+      const rig = rigs.get(id); if (!rig || !rig.root.visible) return null;
+      const head = rig.root.position.clone().add(new Vector3(0, rig.height + 0.25, 0)).project(camera);
+      const feet = rig.root.position.clone().project(camera);
+      if (head.z < -1 || head.z > 1 || Math.abs(head.x) > 1 || Math.abs(head.y) > 1) return null;
+      return { x: (head.x + 1) * host.clientWidth / 2, y: (1 - head.y) * host.clientHeight / 2, feetY: (1 - feet.y) * host.clientHeight / 2 };
+    },
     pick(x, y) {
       const rect = canvas.getBoundingClientRect();
       point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
@@ -245,11 +256,13 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         const rig = rigs.get(threat.id);
         if (!rig) continue;
         rig.root.visible = threat.active || threat.phase === "cleared";
+        const dx = threat.position.x - rig.root.position.x, dz = threat.position.z - rig.root.position.z;
         rig.root.position.set(threat.position.x, threat.position.y, threat.position.z);
-        const nearby = Math.hypot(threat.position.x - position.x, threat.position.z - position.z) < 15;
-        rig.label.visible = threat.health > 0 && nearby;
-        rig.ring.visible = threat.selected && threat.health > 0;
-        if (threat.health > 0) rig.root.rotation.y = Math.atan2(position.x - threat.position.x, position.z - threat.position.z);
+        rig.ring.visible = threat.health > 0;
+        rig.ring.material.color.setHex(threat.disposition === "hostile" || threat.aggro ? 0xf04d4d : 0xf1d34f);
+        rig.selection.visible = threat.selected && threat.health > 0;
+        if (threat.moving && Math.hypot(dx, dz) > 0.001) rig.root.rotation.y = Math.atan2(dx, dz);
+        else if (threat.aggro && threat.health > 0) rig.root.rotation.y = Math.atan2(position.x - threat.position.x, position.z - threat.position.z);
         const changed = threat.phase !== rig.phase;
         if (threat.phase === "cleared") {
           if(rig.health>0) rig.actor.play("Death",false,undefined,0.08);
@@ -264,7 +277,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           action.paused = true;
           action.time = action.getClip().duration * 0.3 * Math.max(0,1-threat.remainingSeconds/3);
         } else if(rig.hitTime<=delta || changed) {
-          rig.actor.play(rig.idle);
+          rig.actor.play(threat.moving ? rig.walk : rig.idle);
         }
         rig.hitTime=Math.max(0,rig.hitTime-delta);
         // Authored motion supplies the pose; a restrained lean makes the full windup visible.

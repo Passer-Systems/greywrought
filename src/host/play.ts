@@ -1,11 +1,12 @@
 import { createAdventure } from "../game/adventure.js";
-import type { AdventureAction, AdventureGame, AdventureSnapshot, ThreatView } from "../game/adventure-types.js";
+import type { AdventureAction, AdventureGame, AdventureSnapshot } from "../game/adventure-types.js";
 import {
   characterProfileStorageKey, decodeCharacterProfile, encodeCharacterProfile,
   normalizedCharacterName, normalizedDisplayName,
   type CharacterArchetype, type LocalCharacter, type LocalProfile,
 } from "./character-profile.js";
 import { createAdventureWorld, type AdventureWorld } from "./adventure-world.js";
+import { createEnemyNameplates } from "./enemy-nameplates.js";
 import { publicUrl } from "./public-url.js";
 
 declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
@@ -50,16 +51,9 @@ interface RunningAdventure {
   saveClock: number;
   ready: boolean;
 }
-interface EnemyCard {
-  readonly root: HTMLElement;
-  readonly name: HTMLElement;
-  readonly detail: HTMLElement;
-  readonly countdown: HTMLElement;
-  readonly progress: HTMLElement;
-}
 const removers: Array<() => void> = [];
 const keys = new Set<string>();
-const cards = new Map<string, EnemyCard>();
+let nameplates: ReturnType<typeof createEnemyNameplates> | null = null;
 const markers = new Map<string, HTMLButtonElement>();
 let running: RunningAdventure | null = null;
 let alive = true;
@@ -199,8 +193,8 @@ function makeEnemyInterface(snapshot: AdventureSnapshot): void {
     if (marker) mapPosition(marker, place.position.x, place.position.z);
   }
   element("map-threats").replaceChildren();
-  element("enemy-intents").replaceChildren();
-  markers.clear(); cards.clear();
+  nameplates = createEnemyNameplates(element("enemy-intents"), snapshot);
+  markers.clear();
   snapshot.threats.forEach((threat, index) => {
     const marker = document.createElement("button");
     marker.className = "map-enemy";
@@ -213,31 +207,7 @@ function makeEnemyInterface(snapshot: AdventureSnapshot): void {
     marker.append(caption);
     element("map-threats").append(marker);
     markers.set(threat.id, marker);
-    const root = document.createElement("article");
-    root.className = "enemy-intent parchment";
-    const name = document.createElement("strong");
-    const detail = document.createElement("p");
-    const countdown = document.createElement("div");
-    countdown.className = "intent-countdown";
-    const track = document.createElement("div");
-    track.className = "intent-track";
-    const progress = document.createElement("div");
-    track.append(progress);
-    root.append(name, detail, countdown, track);
-    element("enemy-intents").append(root);
-    cards.set(threat.id, { root, name, detail, countdown, progress });
   });
-}
-function intentText(threat: ThreatView): string {
-  switch (threat.phase) {
-    case "preparation": return threat.damage === 0
-      ? `Alarm in ${threat.remainingSeconds.toFixed(1)}s · forest alertness will rise`
-      : `${threat.damage} damage in ${threat.remainingSeconds.toFixed(1)}s · step outside the amber circle or brace`;
-    case "action": return `${threat.intention} · ${threat.lastActionHit ? "Hit" : "Avoided"}`;
-    case "recovery": return `Recovering ${threat.remainingSeconds.toFixed(1)}s · next: ${threat.intention} (${threat.damage} damage)`;
-    case "dormant": return threat.active ? `Next: ${threat.intention} · ${threat.damage} damage` : "Waiting in the grove";
-    case "cleared": return "Defeated";
-  }
 }
 function renderHud(snapshot: AdventureSnapshot): void {
   const { player } = snapshot;
@@ -265,22 +235,14 @@ function renderHud(snapshot: AdventureSnapshot): void {
   element("map-player").style.transform = `translate(-50%, -50%) rotate(${-Math.atan2(player.cameraForward.x, player.cameraForward.z)}rad)`;
   for (const threat of snapshot.threats) {
     const marker = markers.get(threat.id);
-    const card = cards.get(threat.id);
-    if (!marker || !card) continue;
-    Object.assign(marker.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), x: String(threat.position.x), z: String(threat.position.z), damage: String(threat.damage), reach: String(threat.reach) });
+    if (!marker) continue;
+    Object.assign(marker.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), x: String(threat.position.x), z: String(threat.position.z), damage: String(threat.damage), reach: String(threat.reach), actionSequence: String(threat.actionSequence), disposition: threat.disposition, aggro: String(threat.aggro), hostile: String(threat.disposition === "hostile" || threat.aggro), worldX: String(threat.position.x), worldZ: String(threat.position.z) });
     mapPosition(marker, threat.position.x, threat.position.z);
     marker.classList.toggle("selected", threat.selected);
     marker.classList.toggle("cleared", threat.phase === "cleared");
     marker.classList.toggle("dormant", !threat.active);
-    const nearby = Math.hypot(player.position.x - threat.position.x, player.position.z - threat.position.z) < (threat.selected ? 14 : 7);
-    card.root.hidden = !nearby || !threat.active || threat.health <= 0;
-    card.root.dataset.phase = threat.phase;
-    card.root.classList.toggle("selected", threat.selected);
-    card.name.textContent = `${snapshot.threats.indexOf(threat) + 1}. ${threat.name} · ${Math.ceil(threat.health)} / ${threat.maximumHealth}`;
-    card.detail.textContent = threat.phase === "preparation" ? threat.preparation : threat.benefit;
-    card.countdown.textContent = intentText(threat);
-    card.progress.style.width = `${Math.max(0, Math.min(100, threat.remainingSeconds / Math.max(0.01, threat.phaseDuration) * 100))}%`;
   }
+  if (running) nameplates?.render(snapshot, running.world);
   element("shop-panel").hidden = !snapshot.shopOpen || paused;
   text("shop-offer", `One potion restores ${snapshot.potionHealing} health. Price: ${snapshot.potionPrice} supplies. You have ${snapshot.supplies}.`);
   button("shop-buy-potion").disabled = snapshot.supplies < snapshot.potionPrice;
@@ -410,7 +372,7 @@ click("pause-open", () => setPaused(true));
 click("pause-resume", () => setPaused(false));
 click("return-roster", returnToRoster);
 click("death-roster", returnToRoster);
-listen(element("map-threats"), "click", (event) => {
+for (const target of [element("map-threats"), element("enemy-intents")]) listen(target, "click", (event) => {
   if (!(event.target instanceof Element) || !running?.ready || paused) return;
   const id = event.target.closest<HTMLElement>("[data-enemy-id]")?.dataset.enemyId;
   if (id) { running.game.selectTarget(id); running.world.canvas.focus(); }

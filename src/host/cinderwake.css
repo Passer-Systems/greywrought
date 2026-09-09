@@ -1909,14 +1909,38 @@ button { cursor: pointer !important; }
 .map-enemy.selected { outline: 2px solid #ffedac; outline-offset: 2px; }.map-enemy.cleared { background: #41695a; opacity: .6; }.map-enemy.dormant { background: #384254; border-style: dashed; }
 #map-player { position: absolute; z-index: 4; color: #fff; font-size: 22px; line-height: 1; text-shadow: 0 0 3px #000, 0 0 6px #000; pointer-events: none; }
 .adventure-map footer { font-size: 10px; line-height: 1.6; color: #c9d5d6; }
-#enemy-intents { position: absolute; top: 25px; left: 50%; transform: translateX(-50%); width: min(380px, 30vw); display: grid; gap: 8px; }
-.enemy-intent { padding: 10px 14px; }
-.enemy-intent strong { font: 700 16px Georgia, serif; color: #ffe0a2; }
-.enemy-intent p { margin: 6px 0; font-size: 12px; line-height: 1.4; }
-.intent-countdown { font-size: 13px; line-height: 1.4; font-weight: 600; color: #d1e8ee; }
-.enemy-intent[data-phase="preparation"] { border-color: #ffb954; background: #34281cef; }.enemy-intent[data-phase="preparation"] .intent-countdown { color: #ffd68e; }
-.enemy-intent[data-phase="action"] { border-color: #ff7666; background: #4b2625ef; }.enemy-intent[data-phase="recovery"] .intent-countdown { color: #bfe9d6; }
-.intent-track { height: 5px; background: #091619; margin-top: 9px; }.intent-track > div { height: 100%; background: #e4b46d; }
+#enemy-intents { position: absolute; inset: 0; pointer-events: none; }
+.enemy-nameplate { position: absolute; left: 0; top: 0; width: 250px; padding: 7px 9px; border: 1px solid #ada280; border-radius: 4px; background: #121d24f5; color: #fff0d5; box-shadow: 0 3px 9px #0008; font: 13px/1.3 system-ui, sans-serif; text-align: left; pointer-events: auto; cursor: pointer; }
+.enemy-nameplate[data-selected="true"] { outline: 2px solid #fff5df; outline-offset: 2px; box-shadow: 0 4px 12px #000a; }
+.enemy-nameplate[data-hostile="true"] { border-color: #f36969; }
+.enemy-nameplate[data-hostile="false"] { border-color: #ecd451; }
+.enemy-nameplate[data-hostile="false"] .nameplate-health-fill { background: linear-gradient(#d6bc43, #958023); }
+.enemy-nameplate[data-hostile="false"] .nameplate-number { background: #51471d; border-color: #ecd451; }
+.enemy-nameplate[data-hostile="true"] .nameplate-number { background: #621e27; border-color: #f36969; }
+.map-enemy[data-hostile="true"] { background: #9e2832; border-color: #f87b78; }
+.map-enemy[data-hostile="false"] { background: #796719; border-color: #ead655; }
+.enemy-nameplate:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+.nameplate-heading { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-weight: 750; }
+.nameplate-number { border: 1px solid #cdb57a; background: #48351d; color: #ffebbd; border-radius: 50%; width: 20px; height: 20px; flex-shrink: 0; text-align: center; line-height: 18px; }
+.nameplate-name { font-size: 14px; }
+.nameplate-health { position: relative; display: block; height: 15px; background: #310f16; border: 1px solid #956861; }
+.nameplate-health-fill { display: block; height: 100%; background: linear-gradient(#bf5454, #882f3e); }
+.nameplate-health-value { position: absolute; inset: 0; text-align: center; font-size: 10px; font-weight: 750; text-shadow: 0 1px 2px black; }
+.nameplate-current { display: flex; justify-content: space-between; gap: 8px; margin-top: 7px; font-weight: 750; color: #ffc974; }
+.nameplate-clock { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 15px; }
+.nameplate-cast { display: block; height: 4px; background: #060c10; margin: 4px 0 6px; }
+.nameplate-cast-fill { display: block; height: 100%; background: #ffc974; }
+.nameplate-queue { display: block; border-left: 2px solid #bda171; padding-left: 6px; color: #e8d9bc; font-size: 11px; line-height: 1.5; }
+.nameplate-response { display: block; margin-top: 5px; font-size: 12px; color: #fff; }
+.nameplate-response:empty { display: none; }
+.enemy-nameplate[data-phase="action"] .nameplate-current { color: #ff9284; }
+.enemy-nameplate[data-phase="recovery"] .nameplate-current { color: #a4e4c8; }
+.enemy-nameplate[data-phase="recovery"] .nameplate-cast-fill { background: #a4e4c8; }
+.enemy-nameplate[data-phase="dormant"] .nameplate-current { color: #c0cfda; }
+.enemy-nameplate[data-phase="dormant"] .nameplate-cast, .enemy-nameplate[data-phase="approach"] .nameplate-cast, .enemy-nameplate[data-phase="returning"] .nameplate-cast { display: none; }
+.nameplate-tether { position: absolute; height: 1px; background: #e0c892c0; transform-origin: 0 50%; pointer-events: none; }
+.nameplate-tether::after { content: ""; position: absolute; right: -2px; top: -2px; width: 5px; height: 5px; border-radius: 50%; background: #f5dda4; }
+.nameplate-tether[data-selected="true"] { height: 2px; background: #ffe2a0; }
 .adventure-bottom { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); width: min(860px, calc(100vw - 40px)); }
 #adventure-report { text-align: center; padding: 9px 14px; margin: 0 auto 8px; width: fit-content; max-width: 100%; color: #f4e2b9; font-size: 13px; min-height: 36px; }
 .adventure-actions { padding: 6px; display: flex; gap: 6px; justify-content: center; pointer-events: auto; }
@@ -1928,5 +1952,11 @@ button { cursor: pointer !important; }
 .adventure-modal > div { max-width: 440px; padding: 30px; box-shadow: 0 8px 60px #000a; }
 .adventure-modal h2 { font: 700 30px Georgia; color: #f8deac; margin: 12px 0; }.adventure-modal p { font-size: 14px; line-height: 1.7; color: #d2dada; }
 .adventure-modal button { border: 1px solid #c0a16c; padding: 11px 14px; margin: 8px 5px 0 0; background: #584830; color: #ffeac8; border-radius: 3px; font: 600 13px system-ui; }.adventure-modal button:hover { background: #736044; }.adventure-modal button:disabled { opacity: .4; }
-@media (max-width: 1000px) { .adventure-map { width: 210px; right: 12px; }#map-field { height: 270px; }.adventure-vitals,.adventure-objective { left: 12px; width: 240px; }#enemy-intents { top: 210px; width: 290px; }.adventure-objective { top: 182px; }.adventure-actions small { font-size: 8px; } }
-@media (max-width: 700px) { .adventure-vitals { width: 190px; padding: 10px; }.adventure-objective { display: none; }.adventure-map { width: 155px; top: 12px; padding: 7px; }#map-field { height: 215px; }.map-enemy span { display: none; }.map-landmark { font-size: 8px; }.adventure-map footer { font-size: 8px; }#enemy-intents { top: 190px; left: 12px; transform: none; width: 200px; }.adventure-actions { gap: 2px; }.adventure-actions strong { font-size: 12px; }.adventure-actions small { display: none; }.adventure-controls { font-size: 8px; }.adventure-bottom { bottom: 6px; width: calc(100vw - 20px); }.adventure-menu-button { bottom: 140px; left: 12px; } }
+@media (max-width: 1000px) { .adventure-map { width: 210px; right: 12px; }#map-field { height: 270px; }.adventure-vitals,.adventure-objective { left: 12px; width: 240px; }.adventure-objective { top: 182px; }.adventure-actions small { font-size: 8px; } }
+@media (max-width: 700px) { .adventure-vitals { width: 190px; padding: 10px; }.adventure-objective { display: none; }.adventure-map { width: 155px; top: 12px; padding: 7px; }#map-field { height: 215px; }.map-enemy span { display: none; }.map-landmark { font-size: 8px; }.adventure-map footer { font-size: 8px; }.adventure-actions { gap: 2px; }.adventure-actions strong { font-size: 12px; }.adventure-actions small { display: none; }.adventure-controls { font-size: 8px; }.adventure-bottom { bottom: 6px; width: calc(100vw - 20px); }.adventure-menu-button { bottom: 140px; left: 12px; } }
+.nameplate-queue { display: flex; gap: 10px; border: 0; padding: 0; }
+.nameplate-step { position: relative; flex: 1; min-width: 0; padding: 4px 5px; background: #34404a; border: 1px solid #6d776d; border-radius: 2px; font-size: 11px; line-height: 1.25; }
+.nameplate-step:first-child { border-color: #d6b77e; background: #4b3d2b; }
+.nameplate-step + .nameplate-step::before { content: "›"; position: absolute; left: -10px; top: 50%; transform: translateY(-50%); color: #ffe6b4; font-size: 17px; }
+.nameplate-step-label { display: block; font-size: 8px; letter-spacing: .06em; margin-bottom: 2px; color: #d8c397; }
+.nameplate-step-title { display: block; font-weight: 650; }
