@@ -244,7 +244,7 @@ The last queued move stays selected indefinitely,
 so numbers also allow last-second adjustments during the active window until
 it fires. Clicking another pending icon selects it. Drag to an empty beat to
 move it, or onto a pending move to swap them; Shift+1–3 does the same by
-column. Pointer buttons use the same slot numbers 1–3. Backspace removes
+column. Backspace removes
 the selected pending move. Already-used moves cannot be moved or swapped.
 Past times, recovery conflicts, and moves outside the window are rejected
 without changing the existing plan. Movement and jump remain immediate.
@@ -347,7 +347,8 @@ an instant action is still casting or can be interrupted.
 
 The animated Ash hound patrols the deeper western forest. On engagement it
 approaches through forward diagonal hops, choosing left or right at 45 degrees
-independently with equal probability while facing the player. Nearby it circles
+independently with equal probability. During a hop or lunge it faces its
+committed travel direction; on the ground it resumes facing the player. Nearby it circles
 and commits Maul toward a fixed landing point. It recovers for 2 seconds after
 landing. After the first encounter, Maul starts on a randomly chosen beat
 after the visible preparation.
@@ -505,7 +506,10 @@ Whether its deaths feel fair remains a player-playtest judgment.
 
 The approved mockup groups all incoming actions by beat beside the player
 response. The centered desktop panel is 360px wide, half the previous 720px, with
-the action bar retaining its own width. Exactly three rows remain visible. Caster health updates in place,
+the action bar retaining its own width. Exactly three rows remain visible.
+The header says Combat plus its short state; available stamina stays compact.
+Redundant column headings and footer editing controls are removed, with no
+space reserved below the third row. Queue edits use dragging, 1–3 and Backspace. Caster health updates in place,
 so hovered tiles remain stable. During Choosing, the next decisions stay hidden.
 Enemies arriving during active combat are named as joining the next window,
 then appear alongside the others during preparation. The selected enemy’s

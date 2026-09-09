@@ -1046,7 +1046,7 @@ class Adventure implements AdventureGame {
     const height = motion.kind === "hop" ? COMBAT_RULES.wolf.hopHeight : COMBAT_RULES.wolf.lungeHeight;
     t.position.y = 4 * height * progress * (1 - progress);
     t.moving = Math.hypot(t.position.x - old.x, t.position.y - old.y, t.position.z - old.z) > EPSILON;
-    if (motion.kind === "hop") w.facing = this.direction(t.position, this.state.position);
+    if (distance(motion.start, motion.destination) > EPSILON) w.facing = this.direction(motion.start, motion.destination);
     if (motion.remainingSeconds > EPSILON) return;
     t.position.y = 0; w.motion = null;
   }

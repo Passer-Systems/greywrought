@@ -570,6 +570,10 @@ describe("physical attacks within the shared plan",()=>{
     const fixture=JSON.parse(hopping.save());fixture.state.position={x:-3,y:0,z:22};const hound=fixture.state.threats.find((t:{id:string})=>t.id==="patrol");
     hound.position={x:-3,y:0,z:12};hound.wolf.motion=null;hound.wolf.rng=0;
     const first=createAdventure({save:JSON.stringify(fixture)});first.advance(0.35);expect(threat(first,"patrol").movementMode).toBe("hop");expect(threat(first,"patrol").position.y).toBeCloseTo(0.6);
+    const airborne=threat(first,"patrol");
+    expect(airborne.facing.x).toBeCloseTo(Math.SQRT1_2);expect(airborne.facing.z).toBeCloseTo(Math.SQRT1_2);
+    const sidestepping=createAdventure({save:first.save()});sidestepping.setAction("right",true);sidestepping.advance(0.1);
+    expect(threat(sidestepping,"patrol").facing).toEqual(airborne.facing);
     const saved=first.save(),reopened=createAdventure({save:saved});first.advance(0.35);reopened.advance(0.35);expect(reopened.save()).toBe(first.save());
     const landing=threat(first,"patrol").position;expect(landing.x+3).toBeCloseTo(landing.z-12);
     first.advance(0.01);expect(JSON.parse(first.save()).state.threats.find((t:{id:string})=>t.id==="patrol").wolf.rng).toBe(1196435762);

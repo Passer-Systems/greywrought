@@ -42,8 +42,6 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   danger.setAttribute("role", "status");
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
   const grid = node("div", "combat-plan-grid", root);
-  const axis = node("div", "combat-plan-axis", grid);
-  for (const label of ["You", "Beat", "Incoming"]) node("span", "", axis).textContent = label;
   const rows = Array.from({ length: 3 }, (_, beat) => {
     const row = node("div", "combat-plan-beat-row", grid); row.dataset.beat = String(beat);
     const player = node("div", "combat-plan-cell combat-plan-player", row);
@@ -68,16 +66,6 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       if (raw && Number.isInteger(Number(raw))) callbacks.onMove(Number(raw), offset);
     });
   });
-  const editor = node("div", "combat-plan-editor", root);
-  const selection = node("span", "combat-plan-selection", editor);
-  const delayButtons = Array.from({ length: 3 }, (_, seconds) => {
-    const button = node("button", "combat-plan-delay", editor); button.type = "button";
-    button.dataset.slot = String(seconds + 1); button.textContent = String(seconds + 1);
-    button.title = "Place in slot " + (seconds + 1) + " · " + seconds + " seconds";
-    button.addEventListener("click", () => moveSelected(seconds)); return button;
-  });
-  const remove = node("button", "combat-plan-remove", editor); remove.type = "button"; remove.textContent = "Remove";
-  remove.addEventListener("click", removeSelected);
   const help = node("p", "combat-plan-help", root);
   help.textContent = "1–3 choose slot · Drag onto another move to swap · Backspace removes";
   const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
@@ -90,20 +78,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     return action === "strike" && snapshot?.player.archetype !== "warrior"
       ? snapshot?.player.archetype === "mage" ? "Arcane Bolt" : "Aimed Shot" : actions[action].name;
   }
-  function selected(): QueuedCombatAction | undefined { return snapshot?.combat.queued.find(entry => entry.id === selectedId); }
   function removeSelected(): void { if (selectedId !== null) callbacks.onRemove(selectedId); }
   function moveSelected(offsetSeconds: number): void { if (selectedId !== null) callbacks.onMove(selectedId, offsetSeconds); }
-  function updateEditor(): void {
-    const move = selected();
-    editor.dataset.empty = String(!move); editor.inert = !move;
-    if (!move || !snapshot) return;
-    write(selection, actionLabel(move.action) + (move.status === "pending" ? " · choose slot" : move.status === "executed" ? " · used" : " · failed"));
-    for (const button of delayButtons) {
-      button.disabled = move.status !== "pending";
-      button.setAttribute("aria-pressed", String(Number(button.dataset.slot) === move.offsetSeconds + 1));
-    }
-    remove.disabled = move.status !== "pending";
-  }
   function enemyMove(cell: HTMLElement, enemy: ThreatView, ability: ThreatAbilityView, seconds: number, status: string): void {
     const id = enemy.id + ":" + ability.id;
     let view = enemyTiles.get(id);
@@ -144,8 +120,12 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       root.hidden = next.phase !== "expedition" || (!enemy && combat.phase === "idle");
       Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
       const choosing = combat.phase === "choosing";
-      write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Choosing · " + combat.remainingSeconds.toFixed(1) + "s" : combat.phase === "preparation" ? "Ⅱ Prepare · " + combat.remainingSeconds.toFixed(1) + "s" : "Active · " + combat.remainingSeconds.toFixed(1) + "s left");
-      write(resources, combat.queued.length + "/3 slots · " + combat.availableStamina + " stamina free · " + combat.reservedStamina + " reserved");
+      const phaseLabel = combat.phase === "idle" ? enemy?.canStrike ? "Ready" : "Out of range" : choosing ? "Choosing" : combat.phase === "preparation" ? "Prepare " + combat.remainingSeconds.toFixed(1) + "s" : "Active";
+      write(phase, "Combat · " + phaseLabel);
+      write(resources, combat.availableStamina + " stamina");
+      resources.title = combat.availableStamina + " stamina free · " + combat.reservedStamina + " reserved · " + combat.queued.length + "/3 moves queued";
+      clock.title = phaseLabel + " · " + combat.remainingSeconds.toFixed(1) + "s remaining";
+
       staminaHint.hidden = combat.availableStamina > 0 || combat.queued.length >= 3;
       clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / (combat.elapsedSeconds + combat.remainingSeconds)) + "%";
       clear.disabled = !combat.queued.some(entry => entry.status === "pending");
@@ -167,11 +147,10 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           button.addEventListener("click", () => {
             selectedId = move.id; root.dataset.selectedId = String(move.id);
             for (const [id, control] of buttons) control.setAttribute("aria-pressed", String(id === selectedId));
-            updateEditor();
           });
           button.addEventListener("dragstart", event => {
             if (!snapshot?.combat.queued.some(entry => entry.id === move.id && entry.status === "pending")) { event.preventDefault(); return; }
-            selectedId = move.id; updateEditor();
+            selectedId = move.id; root.dataset.selectedId = String(move.id);
             event.dataTransfer?.setData("application/x-greywrought-move", String(move.id));
             if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
           });
@@ -212,7 +191,6 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         const current = String(combat.phase === "active" && Math.floor(combat.elapsedSeconds) === i);
         rows[i]!.row.dataset.current = current; cells[i]!.dataset.current = current;
       }
-      updateEditor();
       write(feedback, next.report);
       feedback.hidden = !/cannot|failed|needs|too little|already fill|out of reach|no .*available|no .*left/i.test(next.report);
     },

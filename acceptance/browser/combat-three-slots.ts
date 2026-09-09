@@ -25,9 +25,9 @@ try {
   await page.press("KeyE");
   await page.press("KeyQ"); await page.press("KeyQ");
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued).length === 3');
-  check(await page.evaluate<boolean>('document.querySelector(".combat-plan-resources").textContent.includes("3/3 slots")'), "The plan reports its three action slots");
+  check(await page.evaluate<boolean>('document.querySelector(".combat-plan-resources").title.includes("3/3 moves queued")'), "The plan reports its three action slots");
   check(await page.evaluate<boolean>('document.querySelector("[data-action=brace] .action-cost").textContent === "2" && document.querySelector("[data-action=jab] .action-cost").textContent === "Free"'), "Paid and free moves must show their costs without hovering");
-  check(await page.evaluate<boolean>('document.querySelectorAll(".combat-plan-player").length === 3 && document.querySelectorAll(".combat-plan-delay").length === 3'), "Exactly three action slots and placement controls are shown");
+  check(await page.evaluate<boolean>('document.querySelectorAll(".combat-plan-player").length === 3'), "Exactly three action slots are shown");
   await page.shot("block-first-full-plan");
   await page.press("KeyV");
   await page.waitFor('document.getElementById("combat-plan-feedback").textContent.includes("Three moves already fill this plan")');

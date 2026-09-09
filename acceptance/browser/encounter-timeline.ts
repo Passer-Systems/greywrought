@@ -49,6 +49,8 @@ try {
  check(rows.length===3&&rows[0]!.y<rows[1]!.y&&rows[1]!.y<rows[2]!.y,'Beats must be three vertical rows');
  check(rows.every(r=>r.playerX<r.enemyX),'Player moves must be left of incoming moves');
  check(await page.evaluate<number>('document.getElementById("combat-plan").getBoundingClientRect().width')===360,'The desktop timeline must use half its former 720px width');
+ check(await page.evaluate<boolean>('document.getElementById("combat-plan-phase").textContent.startsWith("Combat · ") && !document.querySelector(".combat-plan-axis,.combat-plan-editor")'),'The compact timeline must omit redundant headings and footer controls');
+ check(await page.evaluate<number>('document.getElementById("combat-plan").getBoundingClientRect().height')<220,'The compact timeline must save vertical space');
  await page.shot('vertical-opening-plan');
  const source=timelineFixture().save();
  await restore(source);

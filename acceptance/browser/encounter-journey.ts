@@ -107,7 +107,7 @@ try {
   check(moves[0]?.offsetSeconds === 0 && moves[1]?.offsetSeconds === 1, "QE must queue at zero and one seconds");
   await page.press("Digit3");
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued)[1]?.offsetSeconds === 2');
-  await page.click('.combat-plan-delay[data-slot="2"]');
+  await page.press('Digit2');
   await page.waitFor('JSON.parse(document.getElementById("combat-plan").dataset.queued)[1]?.offsetSeconds === 1');
   const upcomingCycle = Number((await page.read()).gameCombatCycle) + 1;
   const fireballBeat = await page.evaluate<number>('Number(document.querySelector(".combat-plan-enemy-move[data-ability-id=fireball]")?.dataset.offset)');
