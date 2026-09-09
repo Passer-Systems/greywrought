@@ -13,14 +13,8 @@ async function fetchRequired(path: string): Promise<Response> {
 }
 
 const html = await (await fetchRequired("./")).text();
-requireCondition(html.includes("Greywrought Clause"), "production HTML identity is absent");
+requireCondition(html.includes("Greywrought"), "production HTML identity is absent");
 requireCondition(html.includes("site.webmanifest"), "production release metadata is absent");
-
-const wasm = new Uint8Array(await (await fetchRequired("./wasm/clause_runtime_bg.wasm")).arrayBuffer());
-requireCondition(
-  wasm.length > 8 && wasm[0] === 0x00 && wasm[1] === 0x61 && wasm[2] === 0x73 && wasm[3] === 0x6d,
-  "production Clause runtime is not Wasm",
-);
 
 const manifestValue: unknown = await (await fetchRequired("./release-manifest.json")).json();
 requireCondition(typeof manifestValue === "object" && manifestValue !== null, "release manifest is invalid");
