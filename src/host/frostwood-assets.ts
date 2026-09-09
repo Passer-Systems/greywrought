@@ -63,17 +63,18 @@ export async function prop(name: string, size: number, axis: "height" | "width" 
     promise = name.startsWith("nature/") ? source(`${root}${name}.gltf`).then(g => g.scene) : (async () => {
       const base = publicUrl(`${root}village/${name}`);
       const materials = await new MTLLoader().loadAsync(`${base}.mtl`);
-      const mesh = await new OBJLoader().setMaterials(materials).loadAsync(`${base}.obj`);
-      const lines: Object3D[] = [];
+      const response = await fetch(`${base}.obj`);
+      if (!response.ok) throw Error(`Unable to load ${base}.obj: ${response.status}`);
+      // Mixed OBJ face/edge objects become LineSegments in OBJLoader; retain their surfaces.
+      const surfaces = (await response.text()).replace(/^l[ \t].*$/gm, "");
+      const mesh = new OBJLoader().setMaterials(materials).parse(surfaces);
       mesh.traverse(o => {
-        if (o.type === "LineSegments" || o.type === "Line") lines.push(o);
         if (!(o instanceof Mesh)) return;
         o.material = (Array.isArray(o.material) ? o.material : [o.material]).map(m => {
           const color = "color" in m ? (m as MeshStandardMaterial).color.clone().convertLinearToSRGB() : 0xffffff;
           return new MeshStandardMaterial({ color, roughness: 0.95 });
         });
       });
-      for (const line of lines) line.removeFromParent();
       return mesh;
     })();
     props.set(name, promise);

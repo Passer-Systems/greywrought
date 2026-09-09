@@ -1,7 +1,7 @@
 import { Group, Mesh, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace } from "three";
 import { prop } from "./frostwood-assets.js";
 
-export async function buildFrostwood(terrain: Group, thicket: Group): Promise<void> {
+export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }): Promise<void> {
   const jobs: Promise<void>[] = [];
   function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0) {
     jobs.push(prop(name, size, axis).then(model => { model.position.set(x, y, z); model.rotation.y = rotation; parent.add(model); }));
@@ -25,7 +25,9 @@ export async function buildFrostwood(terrain: Group, thicket: Group): Promise<vo
   const road=new Mesh(new PlaneGeometry(4.2,58),new MeshStandardMaterial({map:roadMap,color:0xb0b49a,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,22); terrain.add(road);
   // Houses frame the square; their doors and stalls face the walkable center.
   place("House_1",-8,-7,5.2,-Math.PI/2);
-  place("Inn",8,-13,6.4,Math.PI/2);
+  place("Inn",innPosition.x+3,innPosition.z,4.6,Math.PI/2);
+  place("Bench_1",innPosition.x-0.2,innPosition.z-2,0.7,Math.PI/2);
+  place("Barrel",innPosition.x-0.2,innPosition.z-1.1,0.8);
   place("House_3",-7.8,-15,4.7,-Math.PI/2);
   place("Bell_Tower",-9.5,-1.7,6.7);
   place("House_3",10,-4,4.6,Math.PI/2);

@@ -129,6 +129,13 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   terrain.add(mara);
   const maraName = label("MARA · F to talk", "#ffe4b4", 2.4);
   maraName.position.set(3.4, 2.45, -7.5); terrain.add(maraName);
+  const innPosition = initial.places.find(place => place.id === "inn")?.position ?? { x: 5, y: 0, z: -11 };
+  const rowan = new Group(); rowan.position.set(innPosition.x, innPosition.y, innPosition.z); rowan.rotation.y = -Math.PI / 3;
+  terrain.add(rowan);
+  const innSign = label("THE WAYFARER’S REST · INN", "#ffe0a4", 3.2);
+  innSign.position.set(innPosition.x - 2.3, 2.9, innPosition.z - 1.8); terrain.add(innSign);
+  const rowanName = label("ROWAN · F to talk", "#ffe4b4", 2.3);
+  rowanName.position.set(innPosition.x, 2.45, innPosition.z); terrain.add(rowanName);
   const coreRoot = new Group();
   coreRoot.position.set(-2, 0, 12);
   const coreMaterial = new MeshStandardMaterial({ color: 0x86ebff, emissive: 0x2090ae, emissiveIntensity: 0.55 });
@@ -163,6 +170,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const rigs = new Map<string, ThreatRig>();
   let knight: ForestActor | null = null;
   let merchant: ForestActor | null = null;
+  let innkeeper: ForestActor | null = null;
   let playerAttackRemaining = 0;
   let disposed = false;
   let elapsed = 0;
@@ -190,6 +198,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (disposed) { mounted.dispose(); return; }
     merchant = mounted; mara.add(mounted.root); mounted.play("Idle");
   });
+  const innkeeperReady = actor("Chef_Male", 1.95).then(mounted => {
+    if (disposed) { mounted.dispose(); return; }
+    innkeeper = mounted; rowan.add(mounted.root); mounted.play("Idle");
+    document.body.dataset.innkeeperState = "ready";
+  });
   const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string}> = {
     scout: {model:"Birb",height:1.35,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
     nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
@@ -214,8 +227,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,warning,ring,lootGlint:glint,height:look.height,
       health:threat.health,sequence:threat.actionSequence,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
-  const natureReady = buildFrostwood(terrain, thicket).then(()=>{document.body.dataset.environmentState="ready";});
-  const ready = Promise.all([knightReady, merchantReady, creaturesReady, natureReady]).then(()=>undefined);
+  const natureReady = buildFrostwood(terrain, thicket, innPosition).then(()=>{document.body.dataset.environmentState="ready";});
+  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, creaturesReady, natureReady]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
   const forward = () => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
@@ -267,6 +280,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         document.body.dataset.rigAnimationMode=playerDead?"death":playerHitRemaining>0?"hit":playerAttackRemaining>0?"attack":snapshot.player.moving?"locomotion":"idle";
       }
       if(merchant) { merchant.play(snapshot.shopOpen?"Idle_Weapon":"Idle"); merchant.mixer.update(delta); }
+      if (innkeeper) {
+        const nearInn = Math.hypot(position.x - innPosition.x, position.z - innPosition.z) < 4;
+        if (nearInn) rowan.rotation.y = Math.atan2(position.x - innPosition.x, position.z - innPosition.z);
+        innkeeper.mixer.update(delta);
+      }
+      innSign.visible = rowanName.visible = Math.hypot(position.x - innPosition.x, position.z - innPosition.z) < 17;
       lastHealth = snapshot.player.health;
       shield.visible = snapshot.player.guardSeconds > 0;
       shield.rotation.y = elapsed;
@@ -335,7 +354,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     dispose() {
       if (disposed) return;
       disposed = true;
-      knight?.dispose(); merchant?.dispose();
+      knight?.dispose(); merchant?.dispose(); innkeeper?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();
       disposeObjects(scene);
       scene.clear();
