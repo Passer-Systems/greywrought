@@ -10,7 +10,7 @@ export const COMBAT_RULES = {
   actionCooldown: 1,
   window: { active: 3, choosing: 1, preparation: 5, actionSlots: 3, maximumActions: 3 },
   stamina: { maximum: 5, recoverySeconds: 5 },
-  bloodRage: { cost: 1, maximum: 3, damagePerStack: 2, drainPerStack: 1, drainSeconds: 5, decaySeconds: 2, recovery: 2 },
+  bloodRage: { cost: 1, maximum: 3, damagePerStack: 4, drainPerStack: 1, drainSeconds: 5, decaySeconds: 2, recovery: 2 },
   strike: { damage: 9, range: 6.5, rangedRange: 10, stopDistance: 1.5, duration: 0.25, cost: 1 },
   disengage: { damage: 6, range: 3.5, distance: 5, duration: 0.8, cost: 1 },
   brace: { block: 24, duration: 2, cost: 2 },
@@ -354,11 +354,11 @@ class Adventure implements AdventureGame {
           const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--;
           this.report(`Your health potion restores ${healing} health.`, "combat");
         } else if (e.action === "jab") {
-          this.hit(target!, COMBAT_RULES.jab.damage + s.bloodRage * 2, "jab");
+          this.hit(target!, COMBAT_RULES.jab.damage + s.bloodRage * COMBAT_RULES.bloodRage.damagePerStack, "jab");
         } else {
           if (s.bloodRage === 0) s.rageDrainSeconds = COMBAT_RULES.bloodRage.drainSeconds;
           s.bloodRage++; s.rageDecaySeconds = 0;
-          this.report(`Blood Rage rises to ${s.bloodRage}. Melee attacks gain ${s.bloodRage * 2} damage.`, "combat");
+          this.report(`Blood Rage rises to ${s.bloodRage}. Melee attacks gain ${s.bloodRage * COMBAT_RULES.bloodRage.damagePerStack} damage.`, "combat");
         }
       }
     }

@@ -147,9 +147,8 @@ relative to an independently inset title box.
 Player and target frames sit near the lower center with room between them for
 the character. Show the target's target beneath its frame when it is actually
 attacking someone. Painted ability icons sit below enemy health and name. Read the current action
-or pause, then the next two special moves, with explicit pause durations between
-them. Each enemy commits only one ability per active window; following icons
-preview following windows. The stored opener is visible
+or pause, then the one committed move for this window. Each enemy commits only
+one ability per active window; no following window is previewed. The stored opener is visible
 before engagement. Each ability has its own hover tooltip.
 Each tooltip names the attack, damage, range, timing and positional response.
 Offensive opportunities appear on the left only while actionable; actual
@@ -216,7 +215,8 @@ Current upstream references checked in September 2026:
 ## Shared combat beat
 
 Target a creature and queue your response before entering its engagement range.
-Combat begins with three active seconds, followed by five preparation seconds.
+Combat begins with three active seconds, followed by one Choosing second and
+five preparation seconds.
 Both sides use the same clock. The player may use up to three moves, but each
 enemy commits only one announced ability per window. There are no separate
 enemy auto-attacks. Additional enemies approach and show their plan
@@ -324,7 +324,7 @@ Free fillers are manual and still occupy one beat. There is no automatic
 filling. Potions remain immediate outside combat; a queued potion is only
 consumed when it fires.
 
-Each Rage stack adds 2 damage to melee attacks and drains 1 health every
+Each Rage stack adds 4 damage to melee attacks and drains 1 health every
 5 seconds, bypassing Block. It can kill you. Outside combat lose one stack
 every 2 seconds; re-engaging in time preserves momentum. The cap and health
 cost bound farming on a weak enemy. Stamina and Rage, including their timers,
@@ -351,14 +351,14 @@ Maul is the hound’s sole combat action in each window. It does not home.
 Block can absorb it; movement can avoid its committed landing.
 The other forest creatures retain their distinct attacks, previewed during
 shared preparation before a short windup on their announced random beat.
-Their single repeating special is shown truthfully; future icons preview their next windows.
+Their single committed special is shown truthfully, without previewing later windows.
 
 ## In-game lorebook
 
 L toggles the lorebook. Every current monster has a page with its portrait,
 disposition, health, engagement behavior, opener, all abilities,
 move sequences and useful responses. These entries consume the same ability
-and sequence definitions as combat. The head's ability order is fixed, but each enemy independently chooses
+and sequence definitions as combat. The head chooses its ability from resolved fight state; each enemy independently chooses
 its next beat with a one-third chance for each of the three player slots. Choices are preserved
 when reopening a journey. The wolf's left/right approach hops each have a 50% chance. Explain actual randomness rather than inventing it.
 Opening the book does not pause movement or combat. Escape and its flush
@@ -423,8 +423,9 @@ strike radius and follows the caster until the windup commits its ground.
 A countdown and beat number sit at the far edge of the area.
 
 Homing fireballs and beams mark the player in red and say Tracks you / Block;
-they do not pretend to be dodgeable splash areas. Shield and power-up cues sit
-under their caster and identify an enemy buff. Existing damage attacks do not
+they do not pretend to be dodgeable splash areas. Shield and power-up circles sit
+under their caster; the nameplate and sequence identify the buff. They have no
+second ground-level text card overlapping the player frames. Existing damage attacks do not
 acquire poison-over-time or freeze effects merely from their warning color.
 
 Each subsequent enemy window independently selects one of three player beats.
@@ -447,10 +448,45 @@ attention. Maul starts at 18 and gains 2 per attack to 36. Preparation commits
 the displayed damage; impact never secretly changes it. Block absorbs 24
 within two seconds for two stamina.
 
-The seeded committed-melee comparison begins at 100 health without potions:
-solo warder 82 health attacking / 98 with timed Block; warder plus hound 22 / 42;
-adding the guardian kills both strategies. The controller pursues its target,
-uses five attacks or one timed Block plus three attacks and Jab, and retargets
-on defeat. This bounds the tested claim: movement, potions, different random
-beats and player choices can change the result; it is not a guaranteed death
-rule or a substitute for playtesting.
+The three-slot committed-melee regression starts with the enemies already
+engaged in the deep forest and 100 player health. Solo warder ends at 35 health
+attacking / 99 with timed Block; warder plus hound kills attack spam / leaves
+1 health with timed Block; adding the guardian kills both. This artificial
+close-range start differs from the natural acquisition comparison below. It
+checks ordinary three-slot input and targets the strongest damage overlap;
+movement, potions, attack timing and target selection can change the result.
+
+
+## Measured first-encounter balance — 0.7.11
+
+Run `bun scripts/ember-balance.ts` from the active checkout. The comparison
+uses the actual game and ordinary queue/movement calls, starts at 100 health
+without potions, and tests seeds 2000, 500, 1500, 9844, 3000 and 4000. Other
+creatures are removed only to isolate solo comparisons. The pair keeps the
+warder and hound at their normal starting positions. It prequeues the stored
+opener, reads only committed intentions afterward, follows the selected target
+in the deeper fights, and retargets after a kill at the next preparation.
+Time stops at defeat, sampled every 0.05 seconds.
+
+| Encounter and plan | Health remaining | Fight time |
+| --- | --- | --- |
+| Ember head: QQQ every window | 74 | 29.3s |
+| Ember head: Block on damaging beat, attack safe windows | 88–100 | 37.3–38.3s |
+| Ember head: Block → Blood Rage opener, then timed Block and attacks | 95 | 29.3s |
+| Solo warder: attack / timed Block | 34–59 / 95–99 | 19.3s / 28.3–29.3s |
+| Warder + hound: attack | Dead, enemies remain | 18.7–29.7s |
+| Warder + hound: Block selected enemy's beat | 25–35 | 64.3–65.3s |
+
+Rage now gives +4 melee damage per stack, retaining its two-second commitment,
+three-stack cap and health drain. At +2, the same early-Rage plan took
+37.3–38.3s and left 81–93 health: the commitment failed to save a window.
+At +4, investing early pays back before escalating fireballs arrive. Raising
+Rage late, during the first Kindle, still does not beat ordinary timed blocking
+in this short fight: 87–99 health in 37.3–38.3s. That is a reason to consider
+the time left in a fight before powering up, not a recommendation to always
+press X on a buff window.
+
+These are bounded warrior comparisons, not an optimal-play proof. They do not
+establish balance for capped Rage, chained fights, potions or ranged classes.
+The first head remains a teaching fight; the second pull creates real danger.
+Whether its deaths feel fair remains a player-playtest judgment.

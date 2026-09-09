@@ -1,4 +1,4 @@
-import { createAdventure } from './adventure.js';
+import { COMBAT_RULES, createAdventure } from './adventure.js';
 import {test,expect} from 'bun:test';
 import type {AdventureGame, AdventureAction} from './adventure-types.js';
 function tap(g:AdventureGame,a:AdventureAction){g.setAction(a,true);g.setAction(a,false);}
@@ -28,14 +28,14 @@ test('summon guarantees five seconds, preserves its plan on reload and leaves a 
  for(const phase of ['idle','active','preparation'] as const){
   const data=JSON.parse(createAdventure().save());data.state.phase='expedition';data.state.position={x:2,y:0,z:42};data.state.cargo=6;
   if(phase!=='idle'){
-   Object.assign(data.state.combat,{phase,cycle:1,elapsedSeconds:4.8});
+   Object.assign(data.state.combat,{phase,cycle:1,elapsedSeconds:COMBAT_RULES.window[phase]-.2});
    const warder=data.state.threats.find((t:{id:string})=>t.id==='warder');
    Object.assign(warder,{aggro:true,phase:'preparation',joinCycle:1,windowCycle:1,position:{x:-2,y:0,z:38}});
   }
   const g=createAdventure({save:JSON.stringify(data)});tap(g,'ritual');
   const boss=g.snapshot.threats.find(t=>t.id==='ritual-guardian')!;
   expect(boss.forecast[0]!.remainingSeconds).toBeGreaterThanOrEqual(5);
-  if(phase!=='idle'){expect(g.snapshot.combat.phase).toBe(phase);expect(g.snapshot.combat.elapsedSeconds).toBe(4.8);}
+  if(phase!=='idle'){expect(g.snapshot.combat.phase).toBe(phase);expect(g.snapshot.combat.elapsedSeconds).toBe(COMBAT_RULES.window[phase]-.2);}
   const restored=createAdventure({save:g.save()});expect(restored.save()).toBe(g.save());
   const sequence=boss.actionSequence;g.advance(4.99);
   expect(g.snapshot.threats.find(t=>t.id==='ritual-guardian')!.actionSequence).toBe(sequence);
@@ -57,22 +57,21 @@ function fight(factory:typeof createAdventure,count:number,defend:boolean,seed=2
   g.setCameraForward(dx,dz);g.setAction('forward',Math.hypot(dx,dz)>2.5);
   if(s.combat.phase==='preparation'&&planned!==s.combat.cycle){
    planned=s.combat.cycle;let block=-1;
-   if(defend){let best=0;for(let beat=0;beat<5;beat++){const damage=s.threats.filter(t=>t.aggro&&t.health>0&&t.windowAction&&t.windowAction.offsetSeconds>=beat&&t.windowAction.offsetSeconds<beat+2).reduce((n,t)=>n+t.windowAction!.ability.damage,0);if(damage>best){best=damage;block=beat;}}}
-   let strikes=0;for(let beat=0;beat<5;beat++){
-    const action=beat===block?'brace':block>=0&&strikes>=3?'jab':'strike';if(action==='strike')strikes++;
-    tap(g,action);
+   if(defend){let best=0;for(let beat=0;beat<COMBAT_RULES.window.actionSlots;beat++){const damage=s.threats.filter(t=>t.aggro&&t.health>0&&t.windowAction&&t.windowAction.offsetSeconds>=beat&&t.windowAction.offsetSeconds<beat+COMBAT_RULES.brace.duration).reduce((n,t)=>n+t.windowAction!.ability.damage,0);if(damage>best){best=damage;block=beat;}}}
+   for(let beat=0;beat<COMBAT_RULES.window.actionSlots;beat++){
+    tap(g,beat===block?'brace':'strike');
    }
-  } else if(s.combat.phase==='active'&&!s.combat.queued.some(e=>e.status==='pending')&&s.combat.queued.length<5&&s.player.stamina>=1) tap(g,'strike');
+  } else if(s.combat.phase==='active'&&!s.combat.queued.some(e=>e.status==='pending')&&s.combat.queued.length<COMBAT_RULES.window.maximumActions&&s.player.stamina>=1) tap(g,'strike');
   g.advance(.05);
  }
  return {count,defend,seed,hp:g.snapshot.player.health,seconds:Math.round(elapsed),remaining:g.snapshot.threats.filter(t=>ids.includes(t.id)).map(t=>[t.id,t.health]),lost:g.snapshot.phase==='lost'};
 }
-test('committed single, double and triple pulls reward defense and punish attack spam',()=>{
+test('three-slot committed pulls reward defense; attack spam loses against two or three',()=>{
  const solo=fight(createAdventure,1,false),soloDefense=fight(createAdventure,1,true);
  const pair=fight(createAdventure,2,false),pairDefense=fight(createAdventure,2,true);
  const triple=fight(createAdventure,3,false),tripleDefense=fight(createAdventure,3,true);
- for(const result of [solo,soloDefense,pair,pairDefense]){expect(result.lost).toBe(false);expect(result.remaining.every(([,hp])=>hp===0)).toBe(true);}
- expect(solo.hp).toBeGreaterThan(60);expect(soloDefense.hp).toBeGreaterThan(solo.hp);
- expect(pair.hp).toBeLessThanOrEqual(30);expect(pairDefense.hp).toBeGreaterThan(pair.hp);expect(pairDefense.hp).toBeLessThan(60);
+ for(const result of [solo,soloDefense,pairDefense]){expect(result.lost).toBe(false);expect(result.remaining.every(([,hp])=>hp===0)).toBe(true);}
+ expect(solo.hp).toBe(35);expect(soloDefense.hp).toBe(99);
+ expect(pair.lost).toBe(true);expect(pair.hp).toBe(0);expect(pairDefense.hp).toBe(1);
  expect(triple.lost).toBe(true);expect(tripleDefense.lost).toBe(true);
 });

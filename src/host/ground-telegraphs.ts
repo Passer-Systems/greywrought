@@ -62,6 +62,8 @@ export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElemen
         warning.fill.scale.setScalar(radius); warning.edge.scale.setScalar(radius);
         warning.fill.material.color.setHex(style.color); warning.edge.material.color.setHex(style.color);
         warning.fill.material.opacity = state.committed ? 0.30 : 0.16;
+        // Self buffs are already named on the caster's plate and combat plan.
+        warning.badge.visible = style.kind !== "self";
         // The far edge keeps area icons above the lower combat HUD at the normal camera angle.
         warning.badge.position.set(facing.x * radius * 0.7, style.kind === "target" ? 2.7 : 0.25, facing.z * radius * 0.7);
         const time = seconds > 0 ? `${seconds.toFixed(1)}s` : "NOW";

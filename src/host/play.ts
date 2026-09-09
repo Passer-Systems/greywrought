@@ -382,7 +382,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
       const tooltip = strikeControl.querySelector<HTMLElement>(".action-tooltip span:last-child");
       if (tooltip) tooltip.textContent = ranged
         ? `1 stamina · 1 second recovery. ${name} strikes a target up to 10m away for 9 damage. You remain in place.`
-        : "1 stamina · 1 second recovery. Lunge into reach and strike for 9 damage, plus 2 per Rage stack.";
+        : "1 stamina · 1 second recovery. Lunge into reach and strike for 9 damage, plus 4 per Rage stack.";
       const title = strikeControl.querySelector<HTMLElement>(".action-tooltip strong");
       if (title) title.textContent = name;
     }

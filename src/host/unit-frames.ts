@@ -97,7 +97,7 @@ export function createUnitFrames(host: HTMLElement) {
       resources.title = "Five stamina per active window. Queued moves reserve shaded pips. Refill when preparation begins.";
       write(rage, "Rage " + stats.bloodRage + "/3" + (stats.bloodRage > 0 ? stats.inCombat ? " · −" + stats.bloodRage + " HP in " + stats.rageDrainSeconds.toFixed(1) + "s" : " · fades in " + stats.rageDecaySeconds.toFixed(1) + "s" : " · Power up with X"));
       rage.dataset.active = String(stats.bloodRage > 0);
-      rage.title = "Each Rage stack adds 2 melee damage and costs 1 health every 5 seconds. Outside combat, lose 1 stack every 2 seconds.";
+      rage.title = "Each Rage stack adds 4 melee damage and costs 1 health every 5 seconds. Outside combat, lose 1 stack every 2 seconds.";
       const enemy = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat && threat.active);
       targetGroup.hidden = !enemy;
       if (!enemy) { selectedId = ""; targetOfTarget.root.hidden = true; return; }

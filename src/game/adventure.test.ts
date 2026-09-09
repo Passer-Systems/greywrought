@@ -661,7 +661,7 @@ describe("saved plans, attrition and services",()=>{
     fixture.state.combat.elapsedSeconds=0;fixture.state.combat.queued=[];
     Object.assign(fixture.state,{actionCooldown:0,currentAction:null,actionDuration:0,rageDrainSeconds:0.1,block:24,guardSeconds:2});
     const guarded=createAdventure({save:JSON.stringify(fixture)});
-    tap(guarded,"jab");expect(threat(guarded,"scout").health).toBe(87);
+    tap(guarded,"jab");expect(threat(guarded,"scout").health).toBe(81);
     tap(guarded,"bloodRage");guarded.advance(0.1);
     expect(guarded.snapshot.player.health).toBe(hp-3);expect(guarded.snapshot.player.block).toBe(24);
     expect(guarded.snapshot.player.rageDrainSeconds).toBeCloseTo(5);
