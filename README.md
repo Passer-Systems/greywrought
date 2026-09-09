@@ -9,10 +9,16 @@ Frostwood. Gather frost cores, clear threats, and return alive to bank your haul
 Offer six carried cores in the deep grove to call a guardian whose relic must
 also be brought home. Kills grant no experience points.
 
-Enemies show their next move, damage, reach, and a three-second warning. Move
-clear or brace before the strike, then use their recovery window. The world map,
+Enemies carry health bars and intention queues above their heads, with a
+three-second warning before a committed attack. Hostile enemies are red;
+neutral creatures are yellow until provoked. Close-range enemies approach
+and pursue within their territory. Move clear or brace before the strike,
+then use their recovery window. The world map,
 road, and landmarks keep the outward route and return to safety visible.
 Characters and expeditions are saved in the browser; defeat is permanent.
+Animated Quaternius creatures and village scenery bring the route to life.
+Music and sampled combat sounds begin after interaction; pause to adjust
+music and effects volume or mute them.
 
 ## Develop
 

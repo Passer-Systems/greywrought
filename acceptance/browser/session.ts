@@ -23,7 +23,8 @@ export async function openBrowser(label: string) {
   const chrome = Bun.spawn([
     Bun.env.CHROME_PATH ?? "google-chrome", "--headless=new", "--no-sandbox",
     "--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check",
-    "--password-store=basic", "--enable-unsafe-swiftshader", "--use-angle=swiftshader",
+    "--password-store=basic", "--enable-unsafe-swiftshader",
+    ...(Bun.env.GREYWROUGHT_SOFTWARE_RENDERING === "1" ? ["--use-angle=swiftshader"] : []),
     `--remote-debugging-port=${port}`, `--user-data-dir=${output}/profile`,
     "--window-size=1440,900", "about:blank",
   ], { stdout: Bun.file(`${output}/chrome.log`), stderr: Bun.file(`${output}/chrome-errors.log`) });

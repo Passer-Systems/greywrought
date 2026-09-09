@@ -6,10 +6,14 @@ import {
   type CharacterArchetype, type LocalCharacter, type LocalProfile,
 } from "./character-profile.js";
 import { createAdventureWorld, type AdventureWorld } from "./adventure-world.js";
+import { createAdventureAudio } from "./adventure-audio.js";
 import { createEnemyNameplates } from "./enemy-nameplates.js";
 import { publicUrl } from "./public-url.js";
 
 declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
+
+window.__GREYWROUGHT_TEARDOWN__?.();
+const audio = createAdventureAudio();
 
 function element(id: string): HTMLElement {
   const found = document.getElementById(id);
@@ -164,6 +168,8 @@ function renderEntry(): void {
 function returnToRoster(): void {
   release();
   save(true);
+  if (running) audio.update(running.game.snapshot, true);
+  audio.reset();
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
   paused = false;
@@ -301,6 +307,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
   try {
     const stored = localStorage.getItem(saveKey);
     const game: AdventureGame = createAdventure(stored === null ? { archetype: character.archetype } : { archetype: character.archetype, save: stored });
+    audio.reset();
     const world = createAdventureWorld(element("world-wrap"), game.snapshot);
     const app: RunningAdventure = { character, game, world, unbind: [], saveKey, lastSave: stored ?? "", saveClock: 0, ready: false };
     running = app;
@@ -382,6 +389,7 @@ for (const control of document.querySelectorAll<HTMLElement>("[data-action]")) l
   if (action && ["strike", "brace", "drinkPotion", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
 });
 listen(window, "keydown", (event) => {
+  if (event.isTrusted) void audio.unlock();
   if (!(event instanceof KeyboardEvent) || route !== "world") return;
   if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
   if (event.code === "Escape") {
@@ -409,6 +417,7 @@ listen(window, "blur", () => { release(); if (running?.ready) setPaused(true); }
 listen(document, "visibilitychange", () => { if (document.hidden) { release(); save(true); if (running?.ready) setPaused(true); } });
 listen(window, "pagehide", () => { release(); save(true); });
 listen(window, "beforeunload", () => { release(); save(true); });
+listen(window, "pointerdown", (event) => { if (event.isTrusted) void audio.unlock(); });
 
 function tick(now: number): void {
   if (!alive) return;
@@ -417,6 +426,7 @@ function tick(now: number): void {
   if (running?.ready) {
     if (!paused && !document.hidden) running.game.advance(delta);
     const snapshot = running.game.snapshot;
+    audio.update(snapshot, paused || route !== "world");
     running.world.render(snapshot, paused ? 0 : delta);
     renderHud(snapshot);
     running.saveClock += delta;
@@ -424,11 +434,11 @@ function tick(now: number): void {
   }
   frame = requestAnimationFrame(tick);
 }
-window.__GREYWROUGHT_TEARDOWN__?.();
 window.__GREYWROUGHT_TEARDOWN__ = () => {
   if (!alive) return;
   release(); save(true); alive = false; cancelAnimationFrame(frame);
   for (const remove of removers) remove();
+  audio.dispose();
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
 };
 try {

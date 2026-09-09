@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-09-09
+
+- Made ordinary TypeScript, Three.js, and Bun the supported game, with source-save browser reload and named archives of the previous experiments.
+- Built the Hearthstead–Frostwood expedition: potions, gathering, deliberate combat, a guardian ritual, extraction, and saved characters.
+- Added authored Quaternius creatures, animation, village scenery, and forest landmarks.
+- Attached health bars and readable intention queues to enemies; hostile mobs are red and neutral mobs yellow until provoked.
+- Added territorial pursuit for close-range enemies while keeping committed attack warnings fixed and avoidable.
+- Added a recorded soundtrack, sampled effects, and separate persisted volume controls.
+
 ## 0.2.0 — 2026-09-02
 
 - Reduced the static release from roughly 51 MiB to 19.3 MiB by publishing only
@@ -16,8 +25,3 @@
 
 - Published the first Greywrought browser expedition with persistence and
   GitHub Pages delivery.
-
-## 0.3.0 — 2026-09-08
-
-- Pivoted the live game to ordinary TypeScript, Three.js, and Bun.
-- Added a fast development server with automatic browser reload on source saves.

@@ -8,7 +8,7 @@
     "dev": "bun scripts/dev-server.ts",
     "play": "bun run dev",
     "typecheck": "bun ./node_modules/typescript/bin/tsc --noEmit",
-    "test": "bun test src/game && bun scripts/character-profile-check.ts && bun scripts/input-preferences-check.ts",
+    "test": "bun test ./src/game && bun scripts/character-profile-check.ts && bun scripts/input-preferences-check.ts",
     "build": "bun scripts/build-host.ts && bun scripts/build-static.ts && bun scripts/release-budget.ts",
     "preview": "bun scripts/static-server.ts",
     "test:browser-playability": "bun acceptance/browser/playability.ts",

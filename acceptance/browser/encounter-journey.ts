@@ -25,6 +25,9 @@ async function moveTo(x: number, z: number, tolerance = 0.5) {
 try {
   await page.enter();
   await moveTo(3.4, -7.5, 0.6);
+  await page.waitFor('document.body.dataset.adventureAudioUnlocked === "true" && Number(document.body.dataset.adventureAudioSamples) === 10');
+  const musicTime = await page.evaluate<number>('document.getElementById("adventure-music").currentTime');
+  await page.waitFor(`document.getElementById("adventure-music").currentTime > ${musicTime + 0.2}`);
   await page.press("KeyF");
   await page.waitFor('Boolean(document.getElementById("shop-buy-potion")?.getClientRects().length)');
   await page.evaluate('document.getElementById("shop-buy-potion").click()');
@@ -41,7 +44,7 @@ try {
   await page.press("KeyH");
   await page.waitFor('Number(document.body.dataset.gamePotions) === 0 && Number(document.body.dataset.gamePlayerVitality) === 100');
   await page.waitFor('Number(document.body.dataset.gameActionCooldown) === 0');
-  const lookout = '[data-enemy-id="scout"]';
+  const lookout = '.enemy-nameplate[data-enemy-id="scout"]';
   await page.evaluate(`document.querySelector('${lookout}')?.click()`);
   await page.press("Digit1");
   await page.waitFor(`Number(document.querySelector('${lookout}')?.dataset.health) < 18`);
@@ -50,20 +53,28 @@ try {
   await page.waitFor(`document.querySelector('${lookout}')?.dataset.phase === "cleared"`);
   await moveTo(0, 16);
   await moveTo(4.2, 17.65, 0.25);
-  await page.evaluate('document.querySelector(\'[data-enemy-id="nest"]\')?.click()');
-  await page.waitFor('document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.phase === "preparation" && Number(document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.remaining) > 2.2');
+  const nest = '.enemy-nameplate[data-enemy-id="nest"]';
+  await page.evaluate(`document.querySelector('${nest}')?.click()`);
+  await page.waitFor(`document.querySelector('${nest}')?.dataset.disposition === "neutral" && document.querySelector('${nest}')?.dataset.aggro === "false"`);
+  await page.shot("neutral-nest");
+  await page.press("Digit1");
+  await page.waitFor(`document.querySelector('${nest}')?.dataset.aggro === "true"`);
+  await page.waitFor('Number(document.body.dataset.gameActionCooldown) === 0');
+  await page.waitFor(`document.querySelector('${nest}')?.dataset.phase === "preparation" && Number(document.querySelector('${nest}')?.dataset.remaining) > 0.7`);
   const beforeBrace = await page.read();
-  const predictedDamage = await page.evaluate<number>('Number(document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.damage)');
-  await page.shot("forecast");
+  const predictedDamage = await page.evaluate<number>(`Number(document.querySelector('${nest}')?.dataset.damage)`);
+  const firstSequence = await page.evaluate<number>(`Number(document.querySelector('${nest}')?.dataset.actionSequence)`);
   await page.press("KeyB");
   await page.waitFor('Number(document.body.dataset.gameGuardSeconds) > 0');
-  await page.waitFor('document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.phase === "action"', 8_000);
+  await page.shot("forecast");
+  await page.waitFor(`Number(document.querySelector('${nest}')?.dataset.actionSequence) > ${firstSequence}`, 8_000);
   const braced = await page.read();
   check(Number(beforeBrace.gamePlayerVitality) - Number(braced.gamePlayerVitality) === predictedDamage / 2, "Brace did not halve the forecast hit");
   await page.shot("braced-hit");
+  await page.waitFor(`document.querySelector('${nest}')?.dataset.phase === "preparation" && Number(document.querySelector('${nest}')?.dataset.remaining) > 2.2`);
+  const secondSequence = await page.evaluate<number>(`Number(document.querySelector('${nest}')?.dataset.actionSequence)`);
   await moveTo(0, 16);
-  await page.waitFor('document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.phase === "preparation"');
-  await page.waitFor('document.querySelector(\'[data-enemy-id="nest"]\')?.dataset.phase === "action"', 8_000);
+  await page.waitFor(`Number(document.querySelector('${nest}')?.dataset.actionSequence) > ${secondSequence}`, 8_000);
   const avoided = await page.read();
   check(Number(avoided.gamePlayerVitality) === Number(braced.gamePlayerVitality), "Stepping outside the warning failed to avoid damage");
   await page.shot("avoided-hit");
@@ -79,5 +90,5 @@ try {
   await page.waitFor('document.body.dataset.entryRoute === "world" && Number(document.body.dataset.gameSupplies) === 15');
   check(page.errors.length === 0, "Browser exceptions occurred");
   await Bun.write(`${page.output}/result.json`, JSON.stringify({ gathered, beforeBrace, predictedDamage, braced, avoided, returned, reopened: await page.read(), errors: page.errors }, null, 2));
-  console.log(`PASS: buy, gather, heal, strike, forecast, halve a hit, avoid a hit, return, reload. Evidence: ${page.output}`);
+  console.log(`PASS: music, buy, gather, heal, strike, provoke neutral enemy, forecast, halve a hit, avoid a hit, return, reload. Evidence: ${page.output}`);
 } finally { await hold([]).catch(() => {}); await page.close(); }
