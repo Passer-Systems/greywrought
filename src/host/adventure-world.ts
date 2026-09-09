@@ -351,7 +351,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           if(rig.health>0) rig.actor.play("Death",false,undefined,0.08);
         } else if (threat.movementMode === "hop" || threat.movementMode === "lunge") {
           const action = rig.actor.action?.getClip().name === "Gallop_Jump" ? rig.actor.action : rig.actor.play("Gallop_Jump",false,undefined,0.04);
-          action.paused = true; action.time = action.getClip().duration * threat.motionProgress;
+          action.paused = true; action.time = action.getClip().duration * (threat.movementMode === "hop" ? 0.5 : threat.motionProgress);
         } else if (rig.attackTime > 0) {
           const action = rig.actor.action?.getClip().name === rig.attack ? rig.actor.action : rig.actor.play(rig.attack,false,0.3,0.03);
           action.paused = true; action.time = action.getClip().duration * (1 - rig.attackTime/0.3);

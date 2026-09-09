@@ -566,8 +566,8 @@ describe("physical attacks within the shared plan",()=>{
     const hopping=createAdventure({save:JSON.stringify(data)});hopping.advance(0.01);hopping.advance(3);
     const fixture=JSON.parse(hopping.save());fixture.state.position={x:-3,y:0,z:22};const hound=fixture.state.threats.find((t:{id:string})=>t.id==="patrol");
     hound.position={x:-3,y:0,z:12};hound.wolf.motion=null;hound.wolf.rng=0;
-    const first=createAdventure({save:JSON.stringify(fixture)});first.advance(0.25);expect(threat(first,"patrol").movementMode).toBe("hop");expect(threat(first,"patrol").position.y).toBeCloseTo(0.6);
-    const saved=first.save(),reopened=createAdventure({save:saved});first.advance(0.25);reopened.advance(0.25);expect(reopened.save()).toBe(first.save());
+    const first=createAdventure({save:JSON.stringify(fixture)});first.advance(0.35);expect(threat(first,"patrol").movementMode).toBe("hop");expect(threat(first,"patrol").position.y).toBeCloseTo(0.6);
+    const saved=first.save(),reopened=createAdventure({save:saved});first.advance(0.35);reopened.advance(0.35);expect(reopened.save()).toBe(first.save());
     const landing=threat(first,"patrol").position;expect(landing.x+3).toBeCloseTo(landing.z-12);
     first.advance(0.01);expect(JSON.parse(first.save()).state.threats.find((t:{id:string})=>t.id==="patrol").wolf.rng).toBe(1196435762);
   });
@@ -581,6 +581,13 @@ describe("physical attacks within the shared plan",()=>{
 });
 
 describe("saved plans, attrition and services",()=>{
+  test("returning to town keeps the unsummoned guardian dormant and the journey reopenable",()=>{
+    const game=createAdventure();walk(game,0,3);walk(game,0,-1);
+    expect(threat(game,"ritual-guardian")).toMatchObject({active:false,phase:"dormant"});
+    const saved=game.save();expect(createAdventure({save:saved}).save()).toBe(saved);
+    const affected=JSON.parse(saved);affected.state.threats.find((t:{id:string})=>t.id==="ritual-guardian").phase="patrol";
+    expect(createAdventure({save:JSON.stringify(affected)}).save()).toBe(saved);
+  });
   test("five-slot saves retain character progress and restart old encounters with a full preparation window",()=>{
     const opening=JSON.parse(positioned(-3,8.1).save());opening.version=8;
     Object.assign(opening.state,{health:73,supplies:27,potions:2,cargo:3,resourceRemaining:9});

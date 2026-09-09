@@ -19,7 +19,7 @@ export const COMBAT_RULES = {
   drinkPotion: { cost: 1, recovery: 1 },
   enemy: { preparation: 5, action: 0.65, recovery: 2 },
   head: { beamDamage: 8, fireballDamage: 18, fireballTravel: 0.9, fireballSpacing: 0.2, warning: 5, ward: 6, wardDuration: 2, kindleDuration: 5 },
-  wolf: { hopDuration: 0.5, hopDistance: 2.8, hopHeight: 0.6, circleRange: 5.5, circleRadius: 4.5, circleSpeed: 1.5, lungeDistance: 8, lungeHeight: 0.9 },
+  wolf: { hopDuration: 0.7, hopDistance: 2.8, hopHeight: 0.6, circleRange: 5.5, circleRadius: 4.5, circleSpeed: 1.5, lungeDistance: 8, lungeHeight: 0.9 },
 } as const;
 export const MARA_TRADE_RULES = { suppliesPerPotion: 3, suppliesPerPotionSold: 2 } as const;
 interface Maneuver {
@@ -832,7 +832,7 @@ class Adventure implements AdventureGame {
     }
     if (t.head) t.head = newHead();
     const d = definition(t.id);
-    t.phase = distance(t.position, d.position) > EPSILON ? "returning" : d.patrol ? "patrol" : "dormant";
+    t.phase = !t.active ? "dormant" : distance(t.position, d.position) > EPSILON ? "returning" : d.patrol ? "patrol" : "dormant";
   }
   private returnHome(t: ThreatState, dt: number): void {
     this.moveThreat(t, definition(t.id).position, dt);
@@ -1168,12 +1168,14 @@ function readSave(serialized: string): State {
   const threats: ThreatState[] = s.threats.map((value: unknown) => {
     const t = record(value);
     const id = choice(t.id, DEFINITIONS.map(d => d.id));
-    const phase = choice(t.phase, root.version === 1
+    let phase = choice(t.phase, root.version === 1
       ? ["dormant", "preparation", "action", "recovery", "cleared"] as const
       : current ? ["dormant", "patrol", "approach", "preparation", "action", "recovery", "returning", "cleared"] as const
       : ["dormant", "approach", "preparation", "action", "recovery", "returning", "cleared"] as const);
     const health = number(t.health, 0, definition(id).health);
     const active = boolean(t.active);
+    // Town return previously set the unsummoned guardian to patrol.
+    if (id === "ritual-guardian" && !active && phase === "patrol" && t.aggro === false && s.ritualCalled === false && health === definition(id).health) phase = "dormant";
     if ((health === 0) !== (phase === "cleared") || (!active && phase !== "dormant") || (id !== "ritual-guardian" && !active)) {
       throw new Error(`Invalid adventure save: inconsistent threat ${id}.`);
     }
@@ -1309,7 +1311,8 @@ function readWolf(value: unknown, v8 = false): WolfState {
   let motion: WolfMotion | null = null;
   if (w.motion !== null) {
     const m = record(w.motion), kind = choice(m.kind, ["hop", "lunge"] as const);
-    const duration = kind === "hop" ? COMBAT_RULES.wolf.hopDuration : COMBAT_RULES.enemy.action;
+    const savedDuration = number(m.duration, 0, 1);
+    const duration = kind === "hop" && savedDuration === 0.5 ? 0.5 : kind === "hop" ? COMBAT_RULES.wolf.hopDuration : COMBAT_RULES.enemy.action;
     motion = { kind, start: groundPosition(m.start), destination: groundPosition(m.destination),
       remainingSeconds: number(m.remainingSeconds, 0, duration), duration: number(m.duration, duration, duration) };
   }
@@ -1376,7 +1379,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
       description: "Patrols the deeper western trail; nearby hostile allies within 9 metres join its fight across clear ground. Notices you within 6 metres and pursues within 30 metres of its home. Beyond 5.5 metres it approaches in diagonal hops; nearby it circles at about 4.5 metres.",
       opener: "On first engagement, its sole Maul lands at active offset 2.65. A joining hound approaches immediately and chooses a beat in the next shared active window; Maul lands 0.65 seconds after that beat.",
-      abilities: [maulAbility(), { id: "hop-left", name: "Left diagonal hop", description: "Approaches diagonally left by up to 2.8 metres over 0.5 seconds when farther than 5.5 metres. Faces you and respects obstacles.", damage: 0, range: 0, noticeSeconds: 0 }, { id: "hop-right", name: "Right diagonal hop", description: "Approaches diagonally right by up to 2.8 metres over 0.5 seconds when farther than 5.5 metres. Faces you and respects obstacles.", damage: 0, range: 0, noticeSeconds: 0 }],
+      abilities: [maulAbility(), { id: "hop-left", name: "Left diagonal hop", description: "Approaches diagonally left by up to 2.8 metres over 0.7 seconds when farther than 5.5 metres. Faces you and respects obstacles.", damage: 0, range: 0, noticeSeconds: 0 }, { id: "hop-right", name: "Right diagonal hop", description: "Approaches diagonally right by up to 2.8 metres over 0.7 seconds when farther than 5.5 metres. Faces you and respects obstacles.", damage: 0, range: 0, noticeSeconds: 0 }],
       sequences: [
         { name: "Repeated Maul", abilityIds: ["maul"], offsetsSeconds: [], description: "Each preparation commits Maul to one of three active beats (33% each); its leap starts on that beat and lands 0.65 seconds later. All enemies share 3 seconds active, then 5 seconds preparation." },
         { name: "Left approach", abilityIds: ["hop-left"], offsetsSeconds: [0], probability: 0.5, description: "Each new approach hop independently chooses left or right with equal probability; the saved choice resumes unchanged." },
