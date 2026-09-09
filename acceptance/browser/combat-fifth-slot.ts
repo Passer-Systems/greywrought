@@ -21,6 +21,9 @@ try {
   await page.waitFor('document.querySelector(".combat-plan-player[data-beat=\\"4\\"] .combat-plan-move")?.dataset.queuedAction === "brace"');
   check(await page.evaluate<boolean>('document.querySelector(".combat-plan-move[data-queued-action=strike]")?.dataset.offset === "0"'), "Placing Block in slot five moved Lunge");
   await page.shot("block-fifth-slot");
+  for (let i = 0; i < 3; i++) await page.press("KeyV");
+  await page.waitFor('document.querySelectorAll(".combat-plan-move").length === 5');
+  check(await page.evaluate<boolean>('JSON.parse(document.getElementById("combat-plan").dataset.queued).map(move=>move.offsetSeconds).join() === "0,1,2,3,4"'), "Scheduling Block in slot five must leave earlier slots available");
   await page.click(".combat-plan-clear");
   for (let i = 0; i < 5; i++) await page.press("KeyQ");
   await page.waitFor('document.querySelectorAll(".combat-plan-move").length === 5');

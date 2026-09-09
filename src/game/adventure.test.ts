@@ -294,6 +294,26 @@ describe("Frostwood world and persistent rewards",()=>{
 });
 
 describe("queued beats, reservations and editing",()=>{
+  test("placing a move in slot five leaves earlier slots available for new moves",()=>{
+    const game=positioned(-3,8.1);tap(game,"brace");
+    const block=latestId(game);game.moveQueuedAction(block,4);
+    tap(game,"strike");tap(game,"jab");tap(game,"guard");tap(game,"jab");
+    expect(game.snapshot.combat.queued.map(e=>[e.action,e.offsetSeconds])).toEqual([
+      ["strike",0],["jab",1],["guard",2],["jab",3],["brace",4],
+    ]);
+    expect(game.snapshot.combat.reservedStamina).toBe(3);
+    game.advance(0.01);game.advance(4);
+    expect(game.snapshot.combat.queued.find(e=>e.id===block)?.status).toBe("executed");
+  });
+  test("filling gaps respects Blood Rage recovery on both sides",()=>{
+    const game=positioned(-3,8.1);tap(game,"bloodRage");
+    game.moveQueuedAction(latestId(game),1);
+    tap(game,"bloodRage");
+    expect(game.snapshot.combat.queued.map(e=>e.offsetSeconds)).toEqual([1,3]);
+    tap(game,"jab");
+    expect(game.snapshot.combat.queued.map(e=>e.offsetSeconds)).toEqual([0,1,3]);
+    tap(game,"guard");expect(game.snapshot.combat.queued).toHaveLength(3);
+  });
   test("prequeued Block resolves before the opening Beam and reserves without spending",()=>{
     const game=positioned(-3,8.1);tap(game,"brace");
     expect(game.snapshot.combat).toMatchObject({phase:"idle",reservedStamina:2,availableStamina:3});

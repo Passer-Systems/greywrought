@@ -271,12 +271,18 @@ class Adventure implements AdventureGame {
     if (c.queued.length >= COMBAT_RULES.window.maximumActions) { this.report("Five moves already fill this plan.", "combat"); return; }
     if (s.stamina - this.reservedStamina() < cost) { this.report("Not enough unreserved stamina for that move.", "combat"); return; }
     if (action === "drinkPotion" && c.queued.filter(e => e.action === "drinkPotion" && e.status === "pending").length >= s.potions) { this.report("No unreserved health potion is available.", "combat"); return; }
-    const previous = c.queued.at(-1);
     const earliest = c.phase === "active" ? c.elapsedSeconds + s.actionCooldown : 0;
-    const offsetSeconds = Math.max(0, Math.ceil(Math.max(earliest, previous ? previous.offsetSeconds + this.recoveryFor(previous.action) : 0) - EPSILON));
+    let offsetSeconds = Math.max(0, Math.ceil(earliest - EPSILON));
+    for (; offsetSeconds < 5; offsetSeconds++) {
+      const fits = c.queued.every(entry => entry.offsetSeconds < offsetSeconds
+        ? entry.offsetSeconds + this.recoveryFor(entry.action) <= offsetSeconds + EPSILON
+        : offsetSeconds + this.recoveryFor(action) <= entry.offsetSeconds + EPSILON);
+      if (fits) break;
+    }
     if (offsetSeconds >= 5 - EPSILON) { this.report("That move cannot fit before preparation begins.", "combat"); return; }
     c.queued.push({ id: c.nextId++, action, targetId: action === "strike" || action === "disengage" || action === "jab" ? s.selectedThreat : null,
       offsetSeconds, cost, status: "pending", reason: null });
+    c.queued.sort((a, b) => a.offsetSeconds - b.offsetSeconds);
     this.report(`${actionName(action, this.state.archetype)} queued at ${offsetSeconds.toFixed(1)} seconds.`, "combat");
     if (c.phase === "active") this.executeQueue();
   }
