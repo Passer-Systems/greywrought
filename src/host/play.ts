@@ -193,6 +193,10 @@ function mapPosition(target: HTMLElement, x: number, z: number): void {
   target.style.top = `${94 - (z + 12) * 1.53}%`;
 }
 function makeEnemyInterface(snapshot: AdventureSnapshot): void {
+  for (const place of snapshot.places) {
+    const marker = document.querySelector<HTMLElement>(`[data-map-place="${place.id}"]`);
+    if (marker) mapPosition(marker, place.position.x, place.position.z);
+  }
   element("map-threats").replaceChildren();
   element("enemy-intents").replaceChildren();
   markers.clear(); cards.clear();
@@ -271,7 +275,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
     card.root.hidden = !nearby || !threat.active || threat.health <= 0;
     card.root.dataset.phase = threat.phase;
     card.root.classList.toggle("selected", threat.selected);
-    card.name.textContent = `${threat.name} · ${Math.ceil(threat.health)} / ${threat.maximumHealth}`;
+    card.name.textContent = `${snapshot.threats.indexOf(threat) + 1}. ${threat.name} · ${Math.ceil(threat.health)} / ${threat.maximumHealth}`;
     card.detail.textContent = threat.phase === "preparation" ? threat.preparation : threat.benefit;
     card.countdown.textContent = intentText(threat);
     card.progress.style.width = `${Math.max(0, Math.min(100, threat.remainingSeconds / Math.max(0.01, threat.phaseDuration) * 100))}%`;

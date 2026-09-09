@@ -1899,8 +1899,10 @@ button { cursor: pointer !important; }
 .adventure-map header span { float: right; color: #c4e8e8; }
 #map-field { height: 330px; position: relative; overflow: hidden; background: linear-gradient(to top, #927849 0%, #927849 25%, #36544c 25%, #294b47 70%, #344755); margin: 8px -4px; border: 1px solid #8d916f; }
 .map-road { position: absolute; top: 5%; bottom: 5%; left: 46%; width: 8%; background: #b3aa825e; border-inline: 1px dashed #d5d2a283; }
-.map-landmark { position: absolute; z-index: 1; font-size: 10px; text-shadow: 0 1px 2px #000; background: #192a30ac; padding: 3px 5px; border-radius: 2px; }
-.map-town { bottom: 2%; left: 20%; color: #ffe4a8; }.map-gate { bottom: 25%; left: 3%; }.map-cores { top: 58%; left: 5%; color: #b9f0ff; }.map-grove { top: 2%; left: 24%; color: #d3d9ff; }
+.map-landmark { position: absolute; z-index: 3; transform: translate(-50%, -50%); font-size: 15px; line-height: 1; text-shadow: 0 1px 2px #000; }
+.map-landmark > span { position: absolute; right: 21px; top: -1px; white-space: nowrap; font-size: 10px; line-height: 1.4; background: #192a30ed; padding: 2px 5px; border-radius: 2px; }
+.map-town { color: #ffe4a8; }.map-town > span { top: 20px; left: 50%; right: auto; transform: translateX(-50%); }
+.map-cores { color: #b9f0ff; }.map-grove { color: #d3d9ff; }.map-grove > span { top: -31px; left: 50%; right: auto; transform: translateX(-50%); }
 .map-enemy { position: absolute; z-index: 2; padding: 0; transform: translate(-50%, -50%); border: 1px solid #f1c782; border-radius: 50%; width: 21px; height: 21px; background: #762f23; font-size: 11px; color: #fff5d7; }
 .map-enemy span { position: absolute; top: 0; left: 25px; width: 78px; text-align: left; font-size: 9px; font-family: system-ui, sans-serif; line-height: 12px; background: #1c2c2bc9; padding: 2px; pointer-events: none; }
 .map-enemy:nth-child(even) span { left: auto; right: 25px; text-align: right; }

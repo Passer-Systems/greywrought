@@ -29,7 +29,7 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     benefit: "Clear the lookout to stop its repeated alarms." },
   { id: "nest", name: "Thorn nest", position: point(5, 20), health: 24,
     preparation: "Rousing the swarm", intention: "Swarm rush", damage: 7, reach: 3,
-    benefit: "Clear the nest to open the east path through the thicket." },
+    benefit: "Clear the nest to open the passage through the thicket." },
   { id: "warder", name: "Root warder", position: point(-3, 30), health: 30,
     preparation: "Raising thorn wards", intention: "Thorn lash", damage: 8, reach: 5,
     benefit: "Clear the warder to gather frost cores without cutting thorns." },
