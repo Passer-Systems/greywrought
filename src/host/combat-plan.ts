@@ -1,4 +1,4 @@
-import type { AdventureSnapshot, CombatAction, QueuedCombatAction, ThreatAbilityView } from "../game/adventure-types.js";
+import type { AdventureSnapshot, CombatAction, QueuedCombatAction, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
 
 const actions: Record<CombatAction, { name: string; icon: string }> = {
@@ -38,16 +38,23 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const staminaHint = node("p", "combat-plan-stamina-hint", root);
   staminaHint.setAttribute("role", "status");
   staminaHint.textContent = "No stamina left. Fill open slots with V: Jab or N: Guard — both cost 0.";
-  const danger = node("p", "combat-plan-danger", root); danger.id = "combat-plan-danger";
+  const danger = node("span", "combat-plan-danger", header); danger.id = "combat-plan-danger";
   danger.setAttribute("role", "status");
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
   const grid = node("div", "combat-plan-grid", root);
-  node("span", "combat-plan-axis", grid).textContent = "Beat";
-  for (let i = 0; i < 3; i++) node("span", "combat-plan-tick", grid).textContent = "Slot " + (i + 1) + " · " + i + "s";
-  const enemyLabel = node("span", "combat-plan-row-label", grid);
-  const enemyCells = Array.from({ length: 3 }, () => node("div", "combat-plan-cell combat-plan-enemy", grid));
-  node("span", "combat-plan-row-label", grid).textContent = "You";
-  const cells = Array.from({ length: 3 }, () => node("div", "combat-plan-cell combat-plan-player", grid));
+  const axis = node("div", "combat-plan-axis", grid);
+  for (const label of ["You", "Beat", "Incoming"]) node("span", "", axis).textContent = label;
+  const rows = Array.from({ length: 3 }, (_, beat) => {
+    const row = node("div", "combat-plan-beat-row", grid); row.dataset.beat = String(beat);
+    const player = node("div", "combat-plan-cell combat-plan-player", row);
+    const tick = node("div", "combat-plan-tick", row);
+    node("strong", "", tick).textContent = "Beat " + (beat + 1);
+    node("span", "", tick).textContent = beat + "s";
+    const enemy = node("div", "combat-plan-cell combat-plan-enemy", row); enemy.dataset.beat = String(beat);
+    return { row, player, enemy };
+  });
+  const cells = rows.map(row => row.player), enemyCells = rows.map(row => row.enemy);
+  const joining = node("p", "combat-plan-joining", root); joining.hidden = true;
   cells.forEach((cell, offset) => {
     cell.dataset.beat = String(offset);
     cell.addEventListener("dragover", event => {
@@ -77,7 +84,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();
   let selectedId: number | null = null, lastId: number | null = null;
-  let snapshot: AdventureSnapshot | null = null, enemyKey = "";
+  let snapshot: AdventureSnapshot | null = null;
+  const enemyTiles = new Map<string, { tile: HTMLSpanElement; damage: HTMLSpanElement; source: HTMLSpanElement; health: HTMLSpanElement; fill: HTMLSpanElement; tooltip: HTMLSpanElement }>();
   function actionLabel(action: CombatAction): string {
     return action === "strike" && snapshot?.player.archetype !== "warrior"
       ? snapshot?.player.archetype === "mage" ? "Arcane Bolt" : "Aimed Shot" : actions[action].name;
@@ -87,7 +95,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   function moveSelected(offsetSeconds: number): void { if (selectedId !== null) callbacks.onMove(selectedId, offsetSeconds); }
   function updateEditor(): void {
     const move = selected();
-    editor.hidden = !move;
+    editor.dataset.empty = String(!move); editor.inert = !move;
     if (!move || !snapshot) return;
     write(selection, actionLabel(move.action) + (move.status === "pending" ? " · choose slot" : move.status === "executed" ? " · used" : " · failed"));
     for (const button of delayButtons) {
@@ -96,17 +104,33 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     }
     remove.disabled = move.status !== "pending";
   }
-  function enemyMove(cell: HTMLElement, ability: ThreatAbilityView, seconds: number, status: string): void {
-    const icon = node("span", "combat-plan-enemy-move", cell); art(icon, enemyArt[ability.id] ?? "sword-strike");
-    const detail = ability.name + " · " + seconds.toFixed(1) + "s · " + status + "\n" + ability.description;
-    icon.title = detail; icon.setAttribute("aria-label", detail);
-    icon.dataset.abilityId = ability.id; icon.dataset.offset = String(seconds);
-    icon.dataset.status = status;
-    node("span", "combat-plan-damage", icon).textContent = status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "";
+  function enemyMove(cell: HTMLElement, enemy: ThreatView, ability: ThreatAbilityView, seconds: number, status: string): void {
+    const id = enemy.id + ":" + ability.id;
+    let view = enemyTiles.get(id);
+    if (!view) {
+      const tile = node("span", "combat-plan-enemy-move", cell); tile.tabIndex = 0;
+      const picture = node("span", "combat-plan-enemy-art", tile); art(picture, enemyArt[ability.id] ?? "sword-strike");
+      const damage = node("span", "combat-plan-damage", picture);
+      const source = node("span", "combat-plan-enemy-source", tile);
+      const health = node("span", "combat-plan-enemy-health", tile), fill = node("span", "", health);
+      const tooltip = node("span", "combat-plan-tooltip", tile); tooltip.setAttribute("role", "tooltip");
+      view = { tile, damage, source, health, fill, tooltip }; enemyTiles.set(id, view);
+    }
+    if (view.tile.parentElement !== cell) cell.append(view.tile);
+    const beat = Math.min(2, Math.max(0, Math.floor(seconds)));
+    const state = status === "stored" ? "Stored opener" : status === "pending" ? "Planned" : status === "active" ? "In progress" : "Resolved";
+    const detail = enemy.name + " · " + ability.name + "\n" + ability.damage + " damage · Beat " + (beat + 1) + " · " + seconds.toFixed(2).replace(/0$/, "") + "s · " + state + "\n" + ability.description;
+    view.tile.title = detail; view.tile.setAttribute("aria-label", detail);
+    Object.assign(view.tile.dataset, { enemyId: enemy.id, abilityId: ability.id, offset: String(seconds), status });
+    write(view.damage, status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "");
+    write(view.source, enemy.name); write(view.tooltip, detail);
+    view.health.title = enemy.name + " · " + enemy.health + "/" + enemy.maximumHealth + " health";
+    view.health.setAttribute("aria-label", view.health.title);
+    view.fill.style.width = Math.max(0, Math.min(100, 100 * enemy.health / enemy.maximumHealth)) + "%";
   }
   return {
     removeSelected, moveSelected,
-    reset(): void { selectedId = lastId = null; snapshot = null; enemyKey = ""; },
+    reset(): void { selectedId = lastId = null; snapshot = null; for (const view of enemyTiles.values()) view.tile.remove(); enemyTiles.clear(); },
     update(next: AdventureSnapshot): void {
       snapshot = next;
       const combat = next.combat;
@@ -115,7 +139,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       root.dataset.enemies = String(attackers.length);
       danger.hidden = attackers.length < 2;
       danger.dataset.severity = attackers.length >= 3 ? "critical" : "danger";
-      write(danger, attackers.length >= 3 ? `${attackers.length} enemies · Overwhelmed — retreat!` : "2 enemies · Dangerous pull — defend or retreat");
+      write(danger, `${attackers.length} enemies`);
       danger.title = attackers.map(threat => threat.name + (threat.joinsNextWindow ? " · joining next window" : "")).join("\n");
       root.hidden = next.phase !== "expedition" || (!enemy && combat.phase === "idle");
       Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
@@ -168,22 +192,29 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         button.title = label; button.setAttribute("aria-label", label);
         write(button.querySelector<HTMLElement>(".combat-plan-move-time")!, move.status === "executed" ? "✓" : move.status === "failed" ? "×" : move.offsetSeconds.toFixed(1) + "s");
       }
-      const shown = choosing ? [] : enemy?.joinsNextWindow && combat.phase === "active" ? [] : enemy?.windowAction
-        ? [{ ability: enemy.windowAction.ability, seconds: enemy.windowAction.offsetSeconds, status: enemy.windowAction.status }]
-        : enemy?.forecast.slice(0, 1).map(move => ({ ability: move.ability, seconds: 0, status: move.status })) ?? [];
-      const key = JSON.stringify([enemy?.id, enemy?.joinsNextWindow, shown.map(move => [move.ability.id, move.seconds, move.ability.damage, move.status])]);
-      if (key !== enemyKey) {
-        enemyKey = key;
-        for (const cell of enemyCells) cell.replaceChildren();
-        for (const move of shown) {
-          const cell = enemyCells[Math.min(2, Math.max(0, Math.floor(move.seconds + .02)))];
-          if (cell) enemyMove(cell, move.ability, Math.max(0, move.seconds), move.status);
-        }
+      const visibleEnemies = combat.phase === "idle" ? enemy ? [enemy] : [] : attackers;
+      const shown = choosing ? [] : visibleEnemies.flatMap<{ source: ThreatView; ability: ThreatAbilityView; seconds: number; status: "stored" | "pending" | "active" | "resolved" }>(source => {
+        if (combat.phase === "active" && source.joinsNextWindow) return [];
+        if (source.windowAction) return [{ source, ability: source.windowAction.ability, seconds: source.windowAction.offsetSeconds, status: source.windowAction.status }];
+        if (combat.phase === "idle") return source.forecast.slice(0, 1).map(move => ({ source, ability: move.ability, seconds: 0, status: move.status }));
+        return [];
+      });
+      const visibleIds = new Set(shown.map(move => move.source.id + ":" + move.ability.id));
+      for (const [id, view] of enemyTiles) if (!visibleIds.has(id)) { view.tile.remove(); enemyTiles.delete(id); }
+      for (const move of shown) {
+        const cell = enemyCells[Math.min(2, Math.max(0, Math.floor(move.seconds)))];
+        if (cell) enemyMove(cell, move.source, move.ability, Math.max(0, move.seconds), move.status);
       }
-      write(enemyLabel, choosing ? "Enemy · choosing next move" : (enemy?.name ?? "No target") + (enemy?.joinsNextWindow ? " · next window" : "")); enemyLabel.title = choosing ? "The enemy is choosing its next move" : enemy?.joinsNextWindow ? "Joins the next active window" : "Selected enemy’s announced moves";
-      for (let i = 0; i < cells.length; i++) cells[i]!.dataset.current = String(combat.phase === "active" && Math.floor(combat.elapsedSeconds) === i);
+      const arriving = attackers.filter(source => source.joinsNextWindow);
+      joining.hidden = !(combat.phase === "active" && arriving.length > 0);
+      write(joining, arriving.map(source => source.name).join(", ") + " · joining next window");
+      for (let i = 0; i < rows.length; i++) {
+        const current = String(combat.phase === "active" && Math.floor(combat.elapsedSeconds) === i);
+        rows[i]!.row.dataset.current = current; cells[i]!.dataset.current = current;
+      }
       updateEditor();
       write(feedback, next.report);
+      feedback.hidden = !/cannot|failed|needs|too little|already fill|out of reach|no .*available|no .*left/i.test(next.report);
     },
     dispose(): void { root.remove(); },
   };

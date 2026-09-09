@@ -40,12 +40,12 @@ export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElemen
     fill.rotation.x = -Math.PI / 2; fill.renderOrder = 2; root.add(fill);
     const edge = new Mesh(new RingGeometry(0.975, 1, 64), new MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false }));
     edge.rotation.x = -Math.PI / 2; edge.position.y = 0.015; edge.renderOrder = 3; root.add(edge);
-    const card = document.createElement("canvas"); card.width = 384; card.height = 120;
+    const card = document.createElement("canvas"); card.width = 80; card.height = 88;
     const context = card.getContext("2d");
     if (!context) throw new Error("Attack warning artwork is unavailable");
     const texture = new CanvasTexture(card); texture.colorSpace = SRGBColorSpace;
     const badge = new Sprite(new SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false }));
-    badge.scale.set(0.20, 0.20 * card.height / card.width, 1); badge.renderOrder = 4; root.add(badge);
+    badge.scale.set(0.055, 0.055 * card.height / card.width, 1); badge.renderOrder = 4; root.add(badge);
     return { root, fill, edge, badge, context, texture, text: "" };
   }
   return {
@@ -71,16 +71,12 @@ export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElemen
         if (warning.text !== text) {
           warning.text = text;
           const ctx = warning.context, color = `#${style.color.toString(16).padStart(6, "0")}`;
-          ctx.clearRect(0, 0, 384, 120);
-          ctx.fillStyle = "#101820ef"; ctx.fillRect(0, 0, 384, 120);
-          ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.strokeRect(3, 3, 378, 114);
-          const icon = images.get(style.icon); if (icon) ctx.drawImage(icon, 10, 12, 94, 94);
-          ctx.fillStyle = "#fff4df"; ctx.font = "bold 30px system-ui";
-          ctx.fillText(style.label, 116, 40);
-          ctx.textAlign = "right"; ctx.fillStyle = color; ctx.fillText(time, 371, 40); ctx.textAlign = "left";
-          ctx.font = "23px system-ui"; ctx.fillText(`Beat ${beat}${damage > 0 ? ` · ${damage} damage` : ""}`, 116, 74);
-          ctx.fillStyle = "#ecede8"; ctx.font = "bold 20px system-ui";
-          ctx.fillText(style.kind === "target" ? "TRACKS YOU · BLOCK" : style.kind === "self" ? "ENEMY BUFF" : state.committed ? "LOCKED AREA · MOVE" : "AREA · MOVE OR BLOCK", 116, 103);
+          ctx.clearRect(0, 0, 80, 88);
+          ctx.fillStyle = "#101820ef"; ctx.fillRect(0, 0, 80, 88);
+          ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.strokeRect(2, 2, 76, 84);
+          const icon = images.get(style.icon); if (icon) ctx.drawImage(icon, 5, 4, 70, 64);
+          ctx.fillStyle = "#fff4df"; ctx.font = "bold 20px system-ui"; ctx.textAlign = "center";
+          ctx.fillText(time, 40, 82);
           warning.texture.needsUpdate = true;
         }
         diagnostics.push({ enemy: threat.id, ability: state.ability, kind: style.kind, color: style.color, radius, x: position.x, z: position.z, seconds: Number(seconds.toFixed(1)), beat, committed: state.committed });

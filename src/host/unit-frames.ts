@@ -5,7 +5,7 @@ import { createUnitPortraits } from "./unit-portraits.js";
 
 interface Frame {
   root: HTMLElement; portrait: HTMLImageElement; name: HTMLElement;
-  fill: HTMLElement; value: HTMLElement; status: HTMLElement;
+  fill: HTMLElement; value: HTMLElement;
 }
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, host: HTMLElement): HTMLElementTagNameMap[K] {
   const element = document.createElement(tag); element.className = className; host.append(element); return element;
@@ -19,8 +19,7 @@ function makeFrame(host: HTMLElement, id: string, kind: string): Frame {
   const name = node("strong", "unit-frame-name", bars);
   const health = node("div", "unit-frame-health", bars);
   const fill = node("span", "unit-frame-fill", health), value = node("span", "unit-frame-value", health);
-  const status = node("span", "unit-frame-status", bars);
-  return { root, portrait, name, fill, value, status };
+  return { root, portrait, name, fill, value };
 }
 function health(frame: Frame, name: string, current: number, maximum: number, targetId: string): void {
   write(frame.name, name);
@@ -30,7 +29,7 @@ function health(frame: Frame, name: string, current: number, maximum: number, ta
   frame.root.setAttribute("aria-label", `${name}, ${current <= 0 ? "dead" : `${Math.ceil(current)} of ${maximum} health`}`);
 }
 const styles = `
-.unit-frames { position:absolute; top:min(68%, calc(100% - 205px)); left:50%; transform:translateX(-50%); width:min(640px, calc(100% - 28px)); display:grid; grid-template-columns:minmax(0,250px) minmax(60px,140px) minmax(0,250px); align-items:start; pointer-events:none; color:#f4e5ba; font:11px/1.2 system-ui,sans-serif; filter:drop-shadow(0 2px 2px #000b); }
+.unit-frames { position:absolute; top:min(68%, calc(100% - 205px)); left:50%; transform:translateX(-50%); width:min(820px, calc(100% - 28px)); display:grid; grid-template-columns:minmax(0,250px) minmax(160px,320px) minmax(0,250px); align-items:start; pointer-events:none; color:#f4e5ba; font:11px/1.2 system-ui,sans-serif; filter:drop-shadow(0 2px 2px #000b); }
 .unit-frame { position:relative; display:flex; align-items:center; height:66px; min-width:0; }
 .unit-frame-player { grid-column:1; }
 .unit-frame-target-group { grid-column:3; min-width:0; }
@@ -42,7 +41,6 @@ const styles = `
 .unit-frame-health { position:relative; height:14px; margin-top:1px; background:#14201a; border:1px solid #121612; box-shadow:0 0 0 1px #90855a; overflow:hidden; }
 .unit-frame-fill { display:block; height:100%; background:linear-gradient(#72c650,#3d912b 50%,#256d27); }
 .unit-frame-value { position:absolute; inset:0; text-align:center; color:#fff; text-shadow:0 1px 2px #000,1px 0 2px #000; font:600 10px/12px system-ui,sans-serif; }
-.unit-frame-status { display:block; height:12px; margin-top:3px; text-align:center; font-size:9px; color:#c5c8b5; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .unit-frame-target { flex-direction:row-reverse; }
 .unit-frame-target .unit-frame-bars { margin-left:0; margin-right:-5px; padding-left:4px; padding-right:8px; }
 .unit-frame-target[data-hostile=true] .unit-frame-name { background:linear-gradient(#9f2927,#651a1e); color:#ffe0c2; }
@@ -55,20 +53,14 @@ const styles = `
 .unit-frame-tot .unit-frame-name { font-size:10px; line-height:12px; height:12px; }
 .unit-frame-tot .unit-frame-health { height:10px; }
 .unit-frame-tot .unit-frame-value { font-size:8px; line-height:8px; }
-.unit-frame-tot .unit-frame-status { display:none; }
 .unit-frame[hidden],.unit-frame-target-group[hidden] { display:none; }
-@media(max-width:700px) { .unit-frames { width:calc(100% - 20px); grid-template-columns:minmax(0,1fr) 36px minmax(0,1fr); top:min(66%,calc(100% - 190px)); } .unit-frame-portrait { flex-basis:48px; width:48px; height:48px; } .unit-frame { height:52px; } .unit-frame-name { font-size:10px; } .unit-frame-tot { width:130px; height:37px; } }
+@media(max-width:700px) { .unit-frames { width:calc(100% - 20px); grid-template-columns:minmax(0,1fr) minmax(70px,20vw) minmax(0,1fr); top:min(66%,calc(100% - 190px)); } .unit-frame-portrait { flex-basis:48px; width:48px; height:48px; } .unit-frame { height:52px; } .unit-frame-name { font-size:10px; } .unit-frame-tot { width:130px; height:37px; } }
 `;
 
 export function createUnitFrames(host: HTMLElement) {
   const style = node("style", "", host); style.textContent = styles;
   const root = node("div", "unit-frames", host);
   const player = makeFrame(root, "player-frame", "player");
-  const resources = node("div", "unit-frame-stamina", player.root.querySelector<HTMLElement>(".unit-frame-bars")!);
-  resources.id = "player-stamina"; resources.setAttribute("role", "meter"); resources.setAttribute("aria-label", "Stamina");
-  const pips = Array.from({length:5}, () => node("span", "stamina-pip", resources));
-  const staminaText = node("span", "stamina-value", resources);
-  const rage = node("span", "unit-frame-rage", player.root.querySelector<HTMLElement>(".unit-frame-bars")!); rage.id = "player-rage";
   const targetGroup = node("div", "unit-frame-target-group", root); targetGroup.hidden = true;
   const target = makeFrame(targetGroup, "target-frame", "target");
   const targetOfTarget = makeFrame(targetGroup, "target-of-target-frame", "tot"); targetOfTarget.root.hidden = true;
@@ -89,15 +81,6 @@ export function createUnitFrames(host: HTMLElement) {
         player.portrait.src = targetOfTarget.portrait.src = publicUrl(`assets/ui/characters/${archetype}.webp`);
       }
       health(player, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id);
-      write(player.status, snapshot.player.health <= 0 ? "Journey ended" : snapshot.player.block > 0 ? `${snapshot.player.block} block · ${snapshot.player.guardSeconds.toFixed(1)}s` : snapshot.phase === "town" ? "Hearthstead" : "Frostwood");
-      const stats = snapshot.player;
-      for (let i=0;i<pips.length;i++) { pips[i]!.dataset.filled = String(i < stats.stamina); pips[i]!.dataset.reserved = String(i < stats.stamina && i >= snapshot.combat.availableStamina); }
-      resources.setAttribute("aria-valuenow", String(stats.stamina)); resources.setAttribute("aria-valuemin", "0"); resources.setAttribute("aria-valuemax", String(stats.maximumStamina));
-      write(staminaText, snapshot.combat.availableStamina + " free · " + snapshot.combat.reservedStamina + " queued");
-      resources.title = "Five stamina per active window. Queued moves reserve shaded pips. Refill when preparation begins.";
-      write(rage, "Rage " + stats.bloodRage + "/3" + (stats.bloodRage > 0 ? stats.inCombat ? " · −" + stats.bloodRage + " HP in " + stats.rageDrainSeconds.toFixed(1) + "s" : " · fades in " + stats.rageDecaySeconds.toFixed(1) + "s" : " · Power up with X"));
-      rage.dataset.active = String(stats.bloodRage > 0);
-      rage.title = "Each Rage stack adds 4 melee damage and costs 1 health every 5 seconds. Outside combat, lose 1 stack every 2 seconds.";
       const enemy = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat && threat.active);
       targetGroup.hidden = !enemy;
       if (!enemy) { selectedId = ""; targetOfTarget.root.hidden = true; return; }
@@ -108,7 +91,6 @@ export function createUnitFrames(host: HTMLElement) {
       }
       health(target, enemy.name, enemy.health, enemy.maximumHealth, enemy.id);
       Object.assign(target.root.dataset, { hostile: String(enemy.disposition === "hostile" || enemy.aggro), aggro: String(enemy.aggro), disposition: enemy.disposition });
-      write(target.status, enemy.health <= 0 ? "Defeated" : enemy.aggro ? "Attacking you" : enemy.disposition === "neutral" ? "Neutral" : "Hostile");
       const attackingPlayer = enemy.aggro && enemy.health > 0 && snapshot.player.health > 0;
       targetOfTarget.root.hidden = !attackingPlayer;
       if (attackingPlayer) health(targetOfTarget, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id);

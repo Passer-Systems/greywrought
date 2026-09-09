@@ -144,8 +144,8 @@ An optional portrait overlaps the left corner without moving those alignment
 lines. Content has its own padding beneath the header; don't position controls
 relative to an independently inset title box.
 
-Player and target frames sit near the lower center with room between them for
-the character. Show the target's target beneath its frame when it is actually
+Player and target frames flank a clear central viewing area around the character
+and nearby enemies. The larger encounter timeline stays below that area. Show the target's target beneath its frame when it is actually
 attacking someone. Painted ability icons sit below enemy health and name. Read the current action
 or pause, then the one committed move for this window. Each enemy commits only
 one ability per active window; no following window is previewed. The stored opener is visible
@@ -249,9 +249,15 @@ the selected pending move. Already-used moves cannot be moved or swapped.
 Past times, recovery conflicts, and moves outside the window are rejected
 without changing the existing plan. Movement and jump remain immediate.
 
-A compact three-column timeline aligns your plan with the selected enemy's
-announced moves. It shows the shared phase, remaining time, selected move,
-and reserved stamina. Target changes cancel stale moves. Defeat, return to
+An encounter-wide timeline sits below the character. Its three vertical rows
+are beats 1, 2 and 3: the player move sits on the left, a beat label and vertical
+divider separate it from all incoming enemy moves on the right. Multiple enemy
+actions on the same beat extend horizontally, making overlaps visible at a
+glance. Each tile shows painted ability art, damage, caster name and a small
+health bar; hovering or focusing explains the ability and its committed timing.
+Changing the selected target does not remove other engaged enemies from this
+view. It shows the shared phase, remaining time, selected move and reserved
+stamina. Target changes cancel stale moves. Defeat, return to
 town, and losing the encounter clear the plan. Saved journeys retain the clock
 and pending plan. Older five-slot journeys keep character and world progress;
 unused slots four and five are removed, and an ongoing encounter resumes with
@@ -331,8 +337,9 @@ cost bound farming on a weak enemy. Stamina and Rage, including their timers,
 are saved. Older adventure saves initialize these resources without erasing
 characters, health, loot or secured rewards.
 
-Player frames show five stamina pips and the current Rage count, drain or
-fade timer. The compact painted-icon hotbar has key labels and full hover
+Player and enemy frames have matching dimensions and contain only portrait,
+name and health. The player frame has no stamina, Rage or location/status
+section. Available and reserved stamina stay in the encounter timeline. The compact painted-icon hotbar has key labels and full hover
 explanations. A separate bar shows successful action recovery; it never claims
 an instant action is still casting or can be interrupted.
 
@@ -420,9 +427,12 @@ Every engaged enemy shows its announced attack independently of target selection
 Highlighted areas use a bright effect-colored boundary and matching painted icon:
 green for swarm/thorns, blue for frost, amber for Maul. The area matches the actual
 strike radius and follows the caster until the windup commits its ground.
-A countdown and beat number sit at the far edge of the area.
+A small painted icon and countdown sit at the far edge of the area. Detailed
+damage, caster and beat information lives in the encounter timeline below
+the character; large warning cards do not cover the central fighting area.
 
-Homing fireballs and beams mark the player in red and say Tracks you / Block;
+Homing fireballs and beams mark the player in red; their ability details explain
+that they track you and can be blocked;
 they do not pretend to be dodgeable splash areas. Shield and power-up circles sit
 under their caster; the nameplate and sequence identify the buff. They have no
 second ground-level text card overlapping the player frames. Existing damage attacks do not
@@ -490,3 +500,17 @@ These are bounded warrior comparisons, not an optimal-play proof. They do not
 establish balance for capped Rage, chained fights, potions or ranged classes.
 The first head remains a teaching fight; the second pull creates real danger.
 Whether its deaths feel fair remains a player-playtest judgment.
+
+## Encounter timeline layout — 0.7.12
+
+The approved mockup groups all incoming actions by beat beside the player
+response. Exactly three rows remain visible. Caster health updates in place,
+so hovered tiles remain stable. During Choosing, the next decisions stay hidden.
+Enemies arriving during active combat are named as joining the next window,
+then appear alongside the others during preparation. The selected enemy’s
+stored opener remains available before combat.
+
+At smaller desktop sizes, the quest tracker keeps its current objective and
+carried resources while collapsing its longer explanation during combat; the
+map also contracts so neither covers the flanking unit frames. Full quest
+details return outside combat. Cast-time changes remain a separate design idea.
