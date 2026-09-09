@@ -253,8 +253,10 @@ fn advance(
     for command in input.commands.drain(..) {
         if let Err(error) = game.command(command) {
             eprintln!("journey command failed: {error}");
-            display.status =
-                "That action could not be completed. Try again or check the game log.".into();
+            if !display.alert {
+                display.status =
+                    "That action could not be completed. Try again or check the game log.".into();
+            }
         }
     }
     if let Err(error) = game.tick() {
@@ -268,10 +270,11 @@ fn advance(
     let runtime = started.elapsed();
     let publish = Instant::now();
     let snapshot = game.snapshot();
-    if display
-        .snapshot
-        .as_ref()
-        .is_none_or(|old| old.status != snapshot.status)
+    if !display.alert
+        && display
+            .snapshot
+            .as_ref()
+            .is_none_or(|old| old.status != snapshot.status)
     {
         display.status.clone_from(&snapshot.status);
     }
