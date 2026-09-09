@@ -192,8 +192,23 @@ describe("Frostwood expedition", () => {
     expect(threat(game, "ritual-guardian").remainingSeconds).toBe(3);
     walk(game, 2, 43.4);
     finish(game, "ritual-guardian");
+    expect(game.snapshot.carriedRelics).toBe(0);
+    const corpse = threat(game, "ritual-guardian").position;
+    walk(game, corpse.x, corpse.z);
+    tap(game, "interact");
+    expect(game.snapshot.lootOpenId).toBe("ritual-guardian");
+    tap(game, "takeLoot");
+    expect(game.snapshot.carriedRelics).toBe(1);
+    game.openLoot("ritual-guardian"); tap(game, "takeLoot");
     expect(game.snapshot.carriedRelics).toBe(1);
     expect(game.snapshot.bankedRelics).toBe(0);
+    const v2 = game.save().replace('"version":3', '"version":2')
+      .replace(/,"lootClaimed":(?:true|false)/g, "").replace(/,"carriedSalvage":\d+/g, "");
+    const migrated = createAdventure({ save: v2 });
+    expect(migrated.snapshot.carriedRelics).toBe(1);
+    expect(migrated.snapshot.loot.find(item => item.sourceId === "ritual-guardian")?.available).toBe(false);
+    migrated.openLoot("ritual-guardian"); tap(migrated, "takeLoot");
+    expect(migrated.snapshot.carriedRelics).toBe(1);
     walk(game, -10, 43.4); walk(game, -10, 5); walk(game, 0, 5); walk(game, 0, -1);
     expect(game.snapshot.bankedRelics).toBe(1);
     expect(game.snapshot.carriedRelics).toBe(0);
@@ -217,7 +232,7 @@ describe("Frostwood expedition", () => {
     expect(loaded.snapshot.player.position.z).toBe(position.z);
     expect(loaded.snapshot.player.position.y).not.toBe(position.y);
     expect(createAdventure({ archetype: "hunter" }).snapshot.player.archetype).toBe("hunter");
-    for (const bad of ["broken", "{}", saved.replace('"version":2', '"version":99'),
+    for (const bad of ["broken", "{}", saved.replace('"version":3', '"version":99'),
       saved.replace('"selectedThreat":"scout"', '"selectedThreat":"missing"'),
       saved.replace('"health":100', '"health":null')]) {
       expect(() => createAdventure({ save: bad })).toThrow();
@@ -346,5 +361,83 @@ describe("Frostwood expedition", () => {
     dead.advance(20); tap(dead, "rest");
     expect(dead.snapshot.phase).toBe("lost");
     expect(dead.snapshot.player.health).toBe(0);
+    legacy.state.ritualCalled = true;
+    legacy.state.carriedRelics = 1;
+    const guardian = legacy.state.threats.find(t => t.id === "ritual-guardian")!;
+    guardian.active = true; guardian.health = 0; guardian.phase = "cleared";
+    const oldRelic = createAdventure({ save: JSON.stringify(legacy) });
+    expect(oldRelic.snapshot.carriedRelics).toBe(1);
+    expect(oldRelic.snapshot.loot.find(item => item.sourceId === "ritual-guardian")?.available).toBe(false);
+    expect(oldRelic.snapshot.loot.find(item => item.sourceId === "scout")?.available).toBe(true);
+  });
+
+  test("corpse loot is manual, nearby and claimed once; salvage persists then banks on extraction", () => {
+    const game = createAdventure();
+    enter(game); walk(game, -3, 8);
+    game.openLoot("scout"); tap(game, "takeLoot");
+    expect(game.snapshot.lootOpenId).toBe(null);
+    expect(game.snapshot.carriedSalvage).toBe(0);
+    finish(game, "scout");
+    expect(game.snapshot.carriedSalvage).toBe(0);
+    expect(game.snapshot.supplies).toBe(15);
+    const loot = game.snapshot.loot.find(item => item.sourceId === "scout")!;
+    expect(loot.available).toBe(true);
+    expect(loot.reachable).toBe(true);
+    expect(loot.position).toEqual(threat(game, "scout").position);
+    const reopened = createAdventure({ save: game.save() });
+    expect(reopened.snapshot.loot).toEqual(game.snapshot.loot);
+    game.selectTarget("warder");
+    tap(game, "interact");
+    expect(game.snapshot.lootOpenId).toBe("scout");
+    walk(game, -3, 6);
+    expect(game.snapshot.lootOpenId).toBe(null);
+    game.openLoot("scout"); tap(game, "takeLoot");
+    expect(game.snapshot.carriedSalvage).toBe(0);
+    walk(game, -3, 8); tap(game, "interact"); tap(game, "closeLoot");
+    expect(game.snapshot.lootOpenId).toBe(null);
+    game.openLoot("scout"); tap(game, "takeLoot");
+    expect(game.snapshot.carriedSalvage).toBe(1);
+    expect(game.snapshot.cargo).toBe(0);
+    expect(game.snapshot.supplies).toBe(15);
+    expect(game.snapshot.lootOpenId).toBe(null);
+    expect(game.snapshot.loot[0]?.available).toBe(false);
+    const claimed = createAdventure({ save: game.save() });
+    claimed.openLoot("scout"); tap(claimed, "takeLoot");
+    expect(claimed.snapshot.carriedSalvage).toBe(1);
+    expect(claimed.snapshot.lootOpenId).toBe(null);
+    walk(claimed, 0, 5); walk(claimed, 0, -1);
+    expect(claimed.snapshot.supplies).toBe(16);
+    expect(claimed.snapshot.carriedSalvage).toBe(0);
+    enter(claimed);
+    expect(claimed.snapshot.loot).toEqual([]);
+    expect(claimed.snapshot.carriedSalvage).toBe(0);
+    expect(claimed.snapshot.supplies).toBe(16);
+    walk(game, -8, 8); walk(game, -8, 24); walk(game, -3, 26.6);
+    game.advance(120);
+    expect(game.snapshot.phase).toBe("lost");
+    expect(game.snapshot.carriedSalvage).toBe(0);
+    expect(game.snapshot.supplies).toBe(0);
+    game.openLoot("scout"); tap(game, "takeLoot");
+    expect(game.snapshot.lootOpenId).toBe(null);
+    expect(createAdventure({ save: game.save() }).snapshot.carriedSalvage).toBe(0);
+  });
+
+  test("moving creatures leave their loot where they died and current saves require claim flags", () => {
+    const game = approachWarder();
+    finish(game, "warder");
+    const corpse = threat(game, "warder").position;
+    expect(corpse).not.toEqual(threat(game, "warder").homePosition);
+    expect(game.snapshot.loot.find(item => item.sourceId === "warder")?.position).toEqual(corpse);
+    game.advance(8);
+    expect(threat(game, "warder").position).toEqual(corpse);
+    const v2 = game.save().replace('"version":3', '"version":2')
+      .replace(/,"lootClaimed":(?:true|false)/g, "").replace(/,"carriedSalvage":\d+/g, "");
+    const migrated = createAdventure({ save: v2 });
+    expect(migrated.snapshot.player.health).toBe(game.snapshot.player.health);
+    expect(migrated.snapshot.player.position).toEqual(game.snapshot.player.position);
+    expect(migrated.snapshot.loot.find(item => item.sourceId === "warder")?.position).toEqual(corpse);
+    expect(migrated.snapshot.loot.find(item => item.sourceId === "warder")?.available).toBe(true);
+    const broken = game.save().replace('"lootClaimed":false', '"lootClaimed":null');
+    expect(() => createAdventure({ save: broken })).toThrow();
   });
 });

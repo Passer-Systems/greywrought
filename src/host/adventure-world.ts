@@ -21,11 +21,13 @@ interface ThreatRig {
   readonly hit: string;
   readonly warning: Mesh<CircleGeometry, MeshBasicMaterial>;
   readonly ring: Mesh<RingGeometry, MeshBasicMaterial>;
+  readonly lootGlint: Sprite;
   readonly height: number;
   health: number;
   sequence: number;
   phase: ThreatView["phase"];
   hitTime: number;
+  lootable: boolean;
 }
 
 export interface AdventureWorld {
@@ -78,6 +80,23 @@ function label(text: string, color = "#fff1ce", scale = 3): Sprite {
   sprite.scale.set(scale * 0.055, scale * 0.055 * 96 / 512, 1);
   sprite.renderOrder = 5;
   return sprite;
+}
+
+function lootGlint(): Sprite {
+  const canvas = document.createElement("canvas");
+  canvas.width = 64; canvas.height = 64;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas drawing is unavailable");
+  const glow = context.createRadialGradient(32, 32, 0, 32, 32, 28);
+  glow.addColorStop(0, "#fff9d8"); glow.addColorStop(0.25, "#ffe8a6c0"); glow.addColorStop(1, "#ffe8a600");
+  context.fillStyle = glow; context.fillRect(0, 0, 64, 64);
+  context.fillStyle = "#fff6d7";
+  context.beginPath();
+  context.moveTo(32, 4); context.lineTo(37, 27); context.lineTo(60, 32); context.lineTo(37, 37);
+  context.lineTo(32, 60); context.lineTo(27, 37); context.lineTo(4, 32); context.lineTo(27, 27);
+  context.closePath(); context.fill();
+  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
+  return new Sprite(new SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
 }
 
 export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot): AdventureWorld {
@@ -191,8 +210,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     ring.rotation.x = -Math.PI/2; ring.position.y=0.05; root.add(ring);
     const selection = new Mesh(new RingGeometry(1.09, 1.14, 48), new MeshBasicMaterial({ color: 0xfff6df, side: 2 }));
     selection.rotation.x = -Math.PI/2; selection.position.y=0.06; root.add(selection);
-    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,warning,ring,height:look.height,
-      health:threat.health,sequence:threat.actionSequence,phase:threat.phase,hitTime:0});
+    const glint = lootGlint(); glint.visible = false; root.add(glint);
+    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,warning,ring,lootGlint:glint,height:look.height,
+      health:threat.health,sequence:threat.actionSequence,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const natureReady = buildFrostwood(terrain, thicket).then(()=>{document.body.dataset.environmentState="ready";});
   const ready = Promise.all([knightReady, merchantReady, creaturesReady, natureReady]).then(()=>undefined);
@@ -214,7 +234,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       const rect = canvas.getBoundingClientRect();
       point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
       raycaster.setFromCamera(point, camera);
-      const targets = [...rigs.values()].filter((rig) => rig.health > 0 && rig.root.visible).map((rig) => rig.root);
+      const targets = [...rigs.values()].filter((rig) => (rig.health > 0 || rig.lootable) && rig.root.visible).map((rig) => rig.root);
       for (const hit of raycaster.intersectObjects(targets, true)) {
         let object: Object3D | null = hit.object;
         while (object) {
@@ -258,6 +278,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.root.visible = threat.active || threat.phase === "cleared";
         const dx = threat.position.x - rig.root.position.x, dz = threat.position.z - rig.root.position.z;
         rig.root.position.set(threat.position.x, threat.position.y, threat.position.z);
+        rig.lootable = snapshot.loot.some(item => item.sourceId === threat.id && item.available);
+        rig.lootGlint.visible = rig.lootable;
+        rig.lootGlint.position.set(0, 0.8 + 0.08 * Math.sin(elapsed * 2), 0);
+        rig.lootGlint.scale.setScalar(0.55 + 0.08 * Math.sin(elapsed * 3));
+        rig.lootGlint.material.opacity = 0.75 + 0.2 * Math.sin(elapsed * 2);
         rig.ring.visible = threat.health > 0;
         rig.ring.material.color.setHex(threat.disposition === "hostile" || threat.aggro ? 0xf04d4d : 0xf1d34f);
         rig.selection.visible = threat.selected && threat.health > 0;

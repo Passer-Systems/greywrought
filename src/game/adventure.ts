@@ -1,7 +1,7 @@
 import type { CharacterArchetype } from "../host/character-profile.js";
 import type {
   AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot,
-  PlaceView, Position, ThreatPhase, ThreatView,
+  CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView,
 } from "./adventure-types.js";
 
 type Vector = { x: number; y: number; z: number };
@@ -14,12 +14,12 @@ interface ThreatDefinition {
 interface ThreatState {
   id: string; health: number; active: boolean; phase: ThreatPhase;
   remainingSeconds: number; actionSequence: number; lastActionHit: boolean; damage: number;
-  position: Vector; targetPosition: Vector; aggro: boolean;
+  position: Vector; targetPosition: Vector; aggro: boolean; lootClaimed: boolean;
 }
 interface State {
   phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number;
   health: number; supplies: number; cargo: number; resourceRemaining: number;
-  potions: number; carriedRelics: number; bankedRelics: number; presence: number;
+  potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
   ritualCalled: boolean; actionCooldown: number; guardSeconds: number;
   attackSequence: number; selectedThreat: string; report: string; threats: ThreatState[];
 }
@@ -66,12 +66,13 @@ const newThreats = (): ThreatState[] => DEFINITIONS.map(t => ({
   id: t.id, health: t.health, active: t.id !== "ritual-guardian", phase: "dormant",
   remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: t.damage,
   position: { ...t.position }, targetPosition: { ...t.position }, aggro: false,
+  lootClaimed: false,
 }));
 function initialState(archetype: CharacterArchetype): State {
   return {
     phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, health: 100,
     supplies: 15, cargo: 0, resourceRemaining: 12, potions: 0, carriedRelics: 0,
-    bankedRelics: 0, presence: 0, ritualCalled: false, actionCooldown: 0,
+    bankedRelics: 0, carriedSalvage: 0, presence: 0, ritualCalled: false, actionCooldown: 0,
     guardSeconds: 0, attackSequence: 0, selectedThreat: "scout",
     report: "Visit Mara for potions, then take the north gate. Gather frost cores and return alive.",
     threats: newThreats(),
@@ -86,6 +87,7 @@ class Adventure implements AdventureGame {
   private moving = false;
   private backpedaling = false;
   private shopOpen = false;
+  private lootOpenId: string | null = null;
 
   constructor(options: AdventureOptions) {
     this.state = options.save === undefined ? initialState(options.archetype ?? "warrior") : readSave(options.save);
@@ -114,6 +116,13 @@ class Adventure implements AdventureGame {
           benefit: d.benefit, targetPosition: { ...t.targetPosition },
         };
       }),
+      loot: s.threats.filter(t => t.health === 0).map((t): CorpseLootView => ({
+        sourceId: t.id, sourceName: definition(t.id).name, position: { ...t.position },
+        itemName: t.id === "ritual-guardian" ? "Frost relic" : "Forest salvage",
+        kind: t.id === "ritual-guardian" ? "relic" : "salvage", quantity: 1,
+        available: !t.lootClaimed, reachable: this.canLoot(t),
+      })),
+      lootOpenId: this.lootOpenId, carriedSalvage: s.carriedSalvage,
       places: PLACES.map(p => ({ ...p, position: { ...p.position } })),
       selectedThreat: s.selectedThreat, supplies: s.supplies, cargo: s.cargo,
       resourceRemaining: s.resourceRemaining, potions: s.potions, carriedRelics: s.carriedRelics,
@@ -122,7 +131,7 @@ class Adventure implements AdventureGame {
     };
   }
 
-  save(): string { return JSON.stringify({ version: 2, state: this.state }); }
+  save(): string { return JSON.stringify({ version: 3, state: this.state }); }
 
   setCameraForward(x: number, z: number): void {
     if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error("Camera direction must be finite.");
@@ -133,6 +142,29 @@ class Adventure implements AdventureGame {
   selectTarget(id: string): void {
     definition(id);
     this.state.selectedThreat = id;
+  }
+  private canLoot(t: ThreatState): boolean {
+    return this.state.phase === "expedition" && t.health === 0 && !t.lootClaimed &&
+      distance(this.state.position, t.position) <= 3 + EPSILON && this.clearPath(this.state.position, t.position);
+  }
+  openLoot(sourceId: string): void {
+    const corpse = this.state.threats.find(t => t.id === sourceId);
+    this.lootOpenId = corpse && this.canLoot(corpse) ? corpse.id : null;
+    if (this.lootOpenId) this.shopOpen = false;
+  }
+  private takeLoot(): void {
+    const s = this.state;
+    const corpse = s.threats.find(t => t.id === this.lootOpenId);
+    this.lootOpenId = null;
+    if (!corpse || !this.canLoot(corpse)) return;
+    corpse.lootClaimed = true;
+    if (corpse.id === "ritual-guardian") {
+      s.carriedRelics += 1;
+      s.report = "The frost relic is in your pack. Reach Hearthstead alive to keep it.";
+    } else {
+      s.carriedSalvage += 1;
+      s.report = "Forest salvage collected. Return alive to exchange it for one supply.";
+    }
   }
   setAction(action: AdventureAction, pressed: boolean): void {
     if (!pressed) { this.held.delete(action); return; }
@@ -151,6 +183,7 @@ class Adventure implements AdventureGame {
   private act(action: AdventureAction): void {
     const s = this.state;
     if (action === "closeShop") { this.shopOpen = false; return; }
+    if (action === "closeLoot") { this.lootOpenId = null; return; }
     if (s.phase === "lost") return;
     switch (action) {
       case "jump":
@@ -168,10 +201,19 @@ class Adventure implements AdventureGame {
         break;
       case "gather": this.gather(); break;
       case "ritual": this.ritual(); break;
-      case "interact":
+      case "takeLoot": this.takeLoot(); break;
+      case "interact": {
+        this.lootOpenId = null;
         this.shopOpen = s.phase === "town" && this.near("mara", 2.5);
-        s.report = this.shopOpen ? "Mara: A little preparation goes a long way." : "Approach Mara beside the Hearthstead road to trade.";
+        if (this.shopOpen) s.report = "Mara: A little preparation goes a long way.";
+        else {
+          const corpse = s.threats.filter(t => this.canLoot(t))
+            .sort((a, b) => distance(s.position, a.position) - distance(s.position, b.position))[0];
+          if (corpse) this.openLoot(corpse.id);
+          else s.report = s.phase === "town" ? "Approach Mara beside the Hearthstead road to trade." : "Move beside a glinting body to search it.";
+        }
         break;
+      }
       case "buyPotion":
         if (!this.shopOpen || !this.near("mara", 2.5) || s.phase !== "town") {
           s.report = "Talk to Mara in Hearthstead to buy a potion.";
@@ -208,8 +250,7 @@ class Adventure implements AdventureGame {
       t.phase = "cleared"; t.remainingSeconds = 0; t.lastActionHit = false; t.aggro = false;
       s.report = definition(t.id).benefit;
       if (t.id === "ritual-guardian") {
-        s.carriedRelics = 1;
-        s.report = "The frost relic is in your pack. Reach Hearthstead alive to keep it.";
+        s.report = "The guardian falls. Search its body for the frost relic, then carry it home.";
       }
     }
   }
@@ -275,21 +316,37 @@ class Adventure implements AdventureGame {
   private barriers(): readonly Barrier[] {
     return this.state.threats.some(t => t.id === "nest" && t.health > 0) ? [...GATE_WALLS, THICKET] : GATE_WALLS;
   }
+  private clearPath(a: Position, b: Position): boolean {
+    return !this.barriers().some(([left, right, bottom, top]) => {
+      let enter = 0, exit = 1;
+      for (const [start, end, min, max] of [[a.x, b.x, left, right], [a.z, b.z, bottom, top]] as const) {
+        const delta = end - start;
+        if (Math.abs(delta) <= EPSILON) { if (start < min || start > max) return false; }
+        else {
+          const first = (min - start) / delta, last = (max - start) / delta;
+          enter = Math.max(enter, Math.min(first, last));
+          exit = Math.min(exit, Math.max(first, last));
+        }
+      }
+      return enter <= exit;
+    });
+  }
   private step(dt: number): void {
     const s = this.state;
     if (s.phase === "lost") { this.moving = false; this.backpedaling = false; return; }
     this.move(dt);
+    if (this.lootOpenId !== null && !s.threats.some(t => t.id === this.lootOpenId && this.canLoot(t))) this.lootOpenId = null;
     if (this.shopOpen && !this.near("mara", 2.5)) this.shopOpen = false;
     if (s.phase === "town" && s.position.z >= 2) {
-      s.phase = "expedition"; s.cargo = 0; s.carriedRelics = 0; s.presence = 0;
+      s.phase = "expedition"; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.presence = 0;
       s.resourceRemaining = 12; s.ritualCalled = false; s.threats = newThreats();
       s.actionCooldown = 0; s.guardSeconds = 0; this.shopOpen = false;
       s.report = "The forest is listening. Frost cores wait near the lookout; Hearthstead lies behind you.";
     } else if (s.phase === "expedition" && s.position.z <= 0) {
-      s.phase = "town"; s.supplies += s.cargo; s.bankedRelics += s.carriedRelics;
-      s.cargo = 0; s.carriedRelics = 0; s.guardSeconds = 0;
+      s.phase = "town"; s.supplies += s.cargo + s.carriedSalvage; s.bankedRelics += s.carriedRelics;
+      s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.guardSeconds = 0; this.lootOpenId = null;
       for (const t of s.threats) if (t.health > 0) this.disengage(t);
-      s.report = "Safe at Hearthstead. Extracted cores and relics are secured. Rest before your next trip.";
+      s.report = "Safe at Hearthstead. Cores, salvage and relics are secured. Rest before your next trip.";
     }
     if (s.phase === "expedition") {
       s.presence += (this.moving ? 0.5 : 0.1) * dt;
@@ -330,23 +387,8 @@ class Adventure implements AdventureGame {
   private moveThreat(t: ThreatState, destination: Position, dt: number): void {
     const speed = definition(t.id).speed;
     if (speed === 0) return;
-    const visible = (a: Position, b: Position): boolean => {
-      return !this.barriers().some(([left, right, bottom, top]) => {
-        let enter = 0, exit = 1;
-        for (const [start, end, min, max] of [[a.x, b.x, left, right], [a.z, b.z, bottom, top]] as const) {
-          const delta = end - start;
-          if (Math.abs(delta) <= EPSILON) { if (start < min || start > max) return false; }
-          else {
-            const first = (min - start) / delta, last = (max - start) / delta;
-            enter = Math.max(enter, Math.min(first, last));
-            exit = Math.min(exit, Math.max(first, last));
-          }
-        }
-        return enter <= exit;
-      });
-    };
     let next = destination;
-    if (!visible(t.position, destination)) {
+    if (!this.clearPath(t.position, destination)) {
       // The eastern thicket reaches the world edge; its western corners form the passage.
       const south = point(THICKET[0] - 0.05, THICKET[2] - 0.05), north = point(THICKET[0] - 0.05, THICKET[3] + 0.05);
       const routes = [[south], [north], [south, north], [north, south]];
@@ -355,7 +397,7 @@ class Adventure implements AdventureGame {
         const points = [t.position, ...route, destination];
         let length = 0;
         for (let i = 1; i < points.length; i++) {
-          if (!visible(points[i - 1]!, points[i]!)) { length = Infinity; break; }
+          if (!this.clearPath(points[i - 1]!, points[i]!)) { length = Infinity; break; }
           length += distance(points[i - 1]!, points[i]!);
         }
         if (length < shortest) { shortest = length; next = points[1]!; }
@@ -410,7 +452,8 @@ class Adventure implements AdventureGame {
     const s = this.state;
     s.health = Math.max(0, s.health - damage * (s.guardSeconds > EPSILON ? 0.5 : 1));
     if (s.health > 0) return;
-    s.phase = "lost"; s.cargo = 0; s.carriedRelics = 0; s.supplies = 0; s.bankedRelics = 0;
+    s.phase = "lost"; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.supplies = 0; s.bankedRelics = 0;
+    this.lootOpenId = null;
     s.potions = 0; this.shopOpen = false; this.moving = false; this.backpedaling = false;
     s.report = "The wayfarer is lost. Carried rewards and personal stores are gone. Create a new character to try again.";
   }
@@ -448,7 +491,7 @@ function readSave(serialized: string): State {
   try { parsed = JSON.parse(serialized); }
   catch { throw new Error("Invalid adventure save: unreadable saved data."); }
   const root = record(parsed);
-  if (root.version !== 1 && root.version !== 2) throw new Error("Unsupported adventure save version.");
+  if (root.version !== 1 && root.version !== 2 && root.version !== 3) throw new Error("Unsupported adventure save version.");
   const s = record(root.state), p = record(s.position);
   if (!Array.isArray(s.threats) || s.threats.length !== DEFINITIONS.length) throw new Error("Invalid adventure save: missing threats.");
   const threats: ThreatState[] = s.threats.map((value: unknown) => {
@@ -468,6 +511,7 @@ function readSave(serialized: string): State {
       position: root.version === 1 ? { ...definition(id).position } : groundPosition(t.position),
       targetPosition: root.version === 1 ? { ...definition(id).position } : groundPosition(t.targetPosition),
       aggro: root.version === 1 ? phase !== "dormant" && phase !== "cleared" : boolean(t.aggro),
+      lootClaimed: root.version === 3 ? boolean(t.lootClaimed) : id === "ritual-guardian" && health === 0,
     };
     if (root.version === 1 && id === "nest" && health === definition(id).health) {
       result.aggro = false; result.phase = "dormant"; result.remainingSeconds = 0; result.lastActionHit = false;
@@ -475,6 +519,7 @@ function readSave(serialized: string): State {
     if (result.aggro !== ["approach", "preparation", "action", "recovery"].includes(result.phase)) {
       throw new Error("Invalid adventure save: inconsistent aggression.");
     }
+    if (result.lootClaimed && health > 0) throw new Error("Invalid adventure save: living creature already looted.");
     return result;
   });
   if (new Set(threats.map(t => t.id)).size !== DEFINITIONS.length) throw new Error("Invalid adventure save: duplicate threat.");
@@ -486,6 +531,7 @@ function readSave(serialized: string): State {
     supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, 12, true),
     resourceRemaining: number(s.resourceRemaining, 0, 12, true), potions: number(s.potions, 0, Number.MAX_SAFE_INTEGER, true),
     carriedRelics: number(s.carriedRelics, 0, 1, true), bankedRelics: number(s.bankedRelics, 0, Number.MAX_SAFE_INTEGER, true),
+    carriedSalvage: root.version === 3 ? number(s.carriedSalvage, 0, DEFINITIONS.length - 1, true) : 0,
     presence: number(s.presence), ritualCalled: boolean(s.ritualCalled), actionCooldown: number(s.actionCooldown, 0, 2),
     guardSeconds: number(s.guardSeconds, 0, 3), attackSequence: number(s.attackSequence, 0, Number.MAX_SAFE_INTEGER, true),
     selectedThreat: choice(s.selectedThreat, DEFINITIONS.map(t => t.id)), report: text(s.report), threats,
