@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "greywrought-clause",
+      "name": "greywrought",
       "dependencies": {
         "three": "^0.185.1",
       },
