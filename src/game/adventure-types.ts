@@ -1,0 +1,79 @@
+import type { CharacterArchetype } from "../host/character-profile.js";
+
+export interface Position { readonly x: number; readonly y: number; readonly z: number; }
+export type AdventureAction =
+  | "forward" | "backward" | "left" | "right" | "jump"
+  | "strike" | "brace" | "gather" | "ritual" | "interact"
+  | "buyPotion" | "drinkPotion" | "rest" | "target" | "closeShop";
+export type ThreatPhase = "dormant" | "preparation" | "action" | "recovery" | "cleared";
+export interface ThreatView {
+  readonly id: string;
+  readonly name: string;
+  readonly position: Position;
+  readonly health: number;
+  readonly maximumHealth: number;
+  readonly active: boolean;
+  readonly selected: boolean;
+  readonly phase: ThreatPhase;
+  readonly remainingSeconds: number;
+  readonly phaseDuration: number;
+  readonly preparation: string;
+  readonly intention: string;
+  readonly damage: number;
+  readonly reach: number;
+  readonly benefit: string;
+  readonly actionSequence: number;
+  readonly lastActionHit: boolean;
+  readonly targetPosition: Position;
+}
+export interface PlaceView {
+  readonly id: string;
+  readonly name: string;
+  readonly position: Position;
+  readonly kind: "town" | "gate" | "resource" | "ritual" | "shop";
+}
+export interface AdventureSnapshot {
+  readonly phase: "town" | "expedition" | "lost";
+  readonly player: {
+    readonly position: Position;
+    readonly cameraForward: Position;
+    readonly archetype: CharacterArchetype;
+    readonly health: number;
+    readonly maximumHealth: number;
+    readonly grounded: boolean;
+    readonly moving: boolean;
+    readonly backpedaling: boolean;
+    readonly attackSequence: number;
+    readonly actionCooldown: number;
+    readonly guardSeconds: number;
+  };
+  readonly threats: readonly ThreatView[];
+  readonly places: readonly PlaceView[];
+  readonly selectedThreat: string;
+  readonly supplies: number;
+  readonly cargo: number;
+  readonly resourceRemaining: number;
+  readonly potions: number;
+  readonly carriedRelics: number;
+  readonly bankedRelics: number;
+  readonly presence: number;
+  readonly ritualCalled: boolean;
+  readonly shopOpen: boolean;
+  readonly potionPrice: number;
+  readonly potionHealing: number;
+  readonly report: string;
+}
+export interface AdventureOptions {
+  readonly archetype?: CharacterArchetype;
+  readonly save?: string;
+}
+export interface AdventureGame {
+  readonly snapshot: AdventureSnapshot;
+  start(): void;
+  advance(seconds: number): void;
+  setAction(action: AdventureAction, pressed: boolean): void;
+  setMouseForward(active: boolean): void;
+  setCameraForward(x: number, z: number): void;
+  selectTarget(id: string): void;
+  save(): string;
+}
