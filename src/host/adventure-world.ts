@@ -366,9 +366,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         if (threat.actionSequence > rig.sequence && threat.currentAbility.id === "ember-beam") { rig.attackTime = 0.3; rig.beamTime = 0.18; }
         if (threat.phase === "cleared") {
           if(rig.health>0) rig.actor.play("Death",false,undefined,0.08);
-        } else if (threat.movementMode === "hop" || threat.movementMode === "lunge") {
+        } else if (threat.movementMode === "lunge") {
           const action = rig.actor.action?.getClip().name === "Gallop_Jump" ? rig.actor.action : rig.actor.play("Gallop_Jump",false,undefined,0.04);
-          action.paused = true; action.time = action.getClip().duration * (threat.movementMode === "hop" ? 0.5 : threat.motionProgress);
+          action.paused = true; action.time = action.getClip().duration * threat.motionProgress;
         } else if (rig.attackTime > 0) {
           const action = rig.actor.action?.getClip().name === rig.attack ? rig.actor.action : rig.actor.play(rig.attack,false,0.3,0.03);
           action.paused = true; action.time = action.getClip().duration * (1 - rig.attackTime/0.3);

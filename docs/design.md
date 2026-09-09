@@ -343,8 +343,7 @@ an instant action is still casting or can be interrupted.
 ## Later encounter: Ash hound
 
 The animated Ash hound patrols the deeper western forest. On engagement it
-approaches through forward diagonal hops, choosing left or right at 45 degrees
-independently with equal probability. During a hop or lunge it faces its
+runs toward the player on the ground. During a lunge it faces its
 committed travel direction; on the ground it resumes facing the player. Nearby it circles
 and commits Maul toward a fixed landing point. It recovers for 2 seconds after
 landing. After the first encounter, Maul starts on a randomly chosen beat
@@ -365,7 +364,7 @@ disposition, health, engagement behavior, opener, all abilities,
 move sequences and useful responses. These entries consume the same ability
 and sequence definitions as combat. The head chooses its ability from resolved fight state; each enemy independently chooses
 its next beat with a one-third chance for each of the three player slots. Choices are preserved
-when reopening a journey. The wolf's left/right approach hops each have a 50% chance. Explain actual randomness rather than inventing it.
+when reopening a journey. Explain actual randomness rather than inventing it.
 Opening the book does not pause movement or combat. Escape and its flush
 header close button both close it.
 

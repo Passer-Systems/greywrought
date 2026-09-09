@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { COMBAT_RULES, createAdventure, getMonsterLore } from "./adventure.js";
+import { COMBAT_RULES, createAdventure, createSharedAdventure, getMonsterLore } from "./adventure.js";
 import type { AdventureAction, AdventureGame, ThreatView } from "./adventure-types.js";
 
 function tap(game: AdventureGame, action: AdventureAction): void {
@@ -579,20 +579,65 @@ describe("physical attacks within the shared plan",()=>{
     expect(threat(dodge,"patrol").position.x).toBeCloseTo(at.x);expect(threat(dodge,"patrol").position.z).toBeCloseTo(at.z);
     expect(threat(dodge,"patrol").lastActionHit).toBe(false);expect(dodge.snapshot.player.health).toBe(hp);
   });
-  test("diagonal hop randomness and saved airborne motion remain deterministic",()=>{
-    const game=wolfGame(-3,22);const data=JSON.parse(game.save());const wolf=data.state.threats.find((t:{id:string})=>t.id==="patrol");
-    wolf.position={x:-3,y:0,z:16.5};wolf.wolf.rng=0;
-    const hopping=createAdventure({save:JSON.stringify(data)});hopping.advance(0.01);hopping.advance(3);
-    const fixture=JSON.parse(hopping.save());fixture.state.position={x:-3,y:0,z:22};const hound=fixture.state.threats.find((t:{id:string})=>t.id==="patrol");
-    hound.position={x:-3,y:0,z:12};hound.wolf.motion=null;hound.wolf.rng=0;
-    const first=createAdventure({save:JSON.stringify(fixture)});first.advance(0.35);expect(threat(first,"patrol").movementMode).toBe("hop");expect(threat(first,"patrol").position.y).toBeCloseTo(0.6);
-    const airborne=threat(first,"patrol");
-    expect(airborne.facing.x).toBeCloseTo(Math.SQRT1_2);expect(airborne.facing.z).toBeCloseTo(Math.SQRT1_2);
-    const sidestepping=createAdventure({save:first.save()});sidestepping.setAction("right",true);sidestepping.advance(0.1);
-    expect(threat(sidestepping,"patrol").facing).toEqual(airborne.facing);
-    const saved=first.save(),reopened=createAdventure({save:saved});first.advance(0.35);reopened.advance(0.35);expect(reopened.save()).toBe(first.save());
-    const landing=threat(first,"patrol").position;expect(landing.x+3).toBeCloseTo(landing.z-12);
-    first.advance(0.01);expect(JSON.parse(first.save()).state.threats.find((t:{id:string})=>t.id==="patrol").wolf.rng).toBe(1196435762);
+  test("the hound pursues on the ground at normal speed, then circles nearby",()=>{
+    const game=wolfGame();game.advance(0.01);game.advance(5);
+    const fixture=JSON.parse(game.save());fixture.state.position={x:-3,y:0,z:22};
+    const hound=fixture.state.threats.find((t:{id:string})=>t.id==="patrol");
+    hound.position={x:-3,y:0,z:12};hound.wolf.motion=null;
+    const pursuit=createAdventure({save:JSON.stringify(fixture)});pursuit.advance(0.35);
+    expect(threat(pursuit,"patrol").movementMode).toBe("walk");
+    expect(threat(pursuit,"patrol").position.x).toBe(-3);expect(threat(pursuit,"patrol").position.y).toBe(0);
+    expect(threat(pursuit,"patrol").position.z).toBeCloseTo(12+4.2*0.35,10);
+    const saved=pursuit.save(),reopened=createAdventure({save:saved});pursuit.advance(0.35);reopened.advance(0.35);
+    expect(reopened.save()).toBe(pursuit.save());
+    hound.position={x:-3,y:0,z:17.5};
+    const circling=createAdventure({save:JSON.stringify(fixture)});circling.advance(0.1);
+    expect(threat(circling,"patrol").movementMode).toBe("circle");
+    expect(threat(circling,"patrol").position.y).toBe(0);
+    expect(threat(circling,"patrol").position.x).toBeLessThan(-3);
+    fixture.state.position={x:5,y:0,z:26};hound.position={x:5,y:0,z:16};
+    const aroundCover=createAdventure({save:JSON.stringify(fixture)});aroundCover.advance(0.35);
+    expect(threat(aroundCover,"patrol").movementMode).toBe("walk");
+    expect(threat(aroundCover,"patrol").position.x).toBeLessThan(5);
+    expect(threat(aroundCover,"patrol").position.z).toBeLessThan(18);
+    expect(threat(aroundCover,"patrol").position.y).toBe(0);
+  });
+  test("saved approach hops ground in place without resetting the journey or combat",()=>{
+    const game=wolfGame();game.advance(0.01);game.advance(5);
+    for(const duration of [0.5,0.7]) {
+      const fixture=JSON.parse(game.save());fixture.state.position={x:-3,y:0,z:22};
+      const hound=fixture.state.threats.find((t:{id:string})=>t.id==="patrol");
+      hound.position={x:-3,y:0.6,z:12};hound.wolf.rng=1196435762;
+      hound.wolf.motion={kind:"hop",start:{x:-4,y:0,z:11},destination:{x:-2,y:0,z:13},duration,remainingSeconds:duration/2};
+      const loaded=createAdventure({save:JSON.stringify(fixture)}), migrated=JSON.parse(loaded.save());
+      const restored=migrated.state.threats.find((t:{id:string})=>t.id==="patrol");
+      expect(restored.position).toEqual({x:-3,y:0,z:12});expect(restored.wolf.motion).toBe(null);
+      expect(restored.wolf.rng).toBeUndefined();
+      expect(migrated.state.combat).toEqual(fixture.state.combat);
+      expect(migrated.state.health).toBe(fixture.state.health);
+      expect(migrated.state.threats.filter((t:{id:string})=>t.id!=="patrol")).toEqual(fixture.state.threats.filter((t:{id:string})=>t.id!=="patrol"));
+      expect(restored.actionSequence).toBe(hound.actionSequence);expect(restored.damage).toBe(hound.damage);
+      const world=createSharedAdventure();world.join("keeper","Keeper","warrior");
+      const shared=JSON.parse(world.save());shared.world.threats=fixture.state.threats;
+      const {queued,nextId,...clock}=fixture.state.combat;shared.clock=clock;
+      const reopened=createSharedAdventure({save:JSON.stringify(shared)}),restoredWorld=JSON.parse(reopened.save());
+      expect(restoredWorld.characters).toEqual(shared.characters);expect(restoredWorld.clock).toEqual(shared.clock);
+      expect(restoredWorld.world.threats).toEqual(migrated.state.threats);
+      loaded.advance(0.1);expect(threat(loaded,"patrol").movementMode).toBe("walk");
+      expect(threat(loaded,"patrol").position.y).toBe(0);
+    }
+  });
+  test("saved Maul stays airborne and resumes its committed landing and recovery",()=>{
+    const game=wolfGame();game.advance(0.01);game.advance(2.325);
+    expect(threat(game,"patrol").movementMode).toBe("lunge");
+    expect(threat(game,"patrol").position.y).toBeGreaterThan(0);
+    const saved=game.save(),loaded=createAdventure({save:saved});expect(loaded.save()).toBe(saved);
+    const landing=threat(game,"patrol").targetPosition;
+    game.advance(0.325);loaded.advance(0.325);expect(loaded.save()).toBe(game.save());
+    expect(threat(loaded,"patrol").position).toEqual(landing);
+    expect(threat(loaded,"patrol").phase).toBe("recovery");
+    expect(threat(loaded,"patrol").actionSequence).toBe(1);
+    game.advance(1);loaded.advance(1);expect(loaded.save()).toBe(game.save());
   });
   test("maneuvers respect gate walls, and a queued attack while airborne fails without spending",()=>{
     const game=wolfGame(4,5),data=JSON.parse(game.save());data.state.threats.find((t:{id:string})=>t.id==="patrol").position={x:4,y:0,z:7};
@@ -716,7 +761,7 @@ describe("saved plans, attrition and services",()=>{
     const lore=getMonsterLore();expect(lore.map(e=>e.id)).toEqual(createAdventure().snapshot.threats.map(t=>t.id));
     const head=lore.find(e=>e.id==="scout")!;expect(head.sequences.map(e=>e.abilityIds)).toEqual([["fireball"],["ember-ward"],["kindle"]]);
     expect(head.sequences.every(e=>e.offsetsSeconds.length===0 && e.description.includes("33% each"))).toBe(true);expect(head.abilities.map(a=>a.id)).toEqual(["ember-beam","fireball","ember-ward","kindle"]);
-    const wolf=lore.find(e=>e.id==="patrol")!;expect(wolf.abilities.some(a=>a.id==="bite")).toBe(false);expect(wolf.sequences.filter(e=>e.probability!==undefined).map(e=>e.probability)).toEqual([0.5,0.5]);
+    const wolf=lore.find(e=>e.id==="patrol")!;expect(wolf.abilities.map(a=>a.id)).toEqual(["maul"]);expect(wolf.sequences.map(e=>e.abilityIds)).toEqual([["maul"]]);
   });
 });
 

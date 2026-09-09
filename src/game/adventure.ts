@@ -20,7 +20,7 @@ export const COMBAT_RULES = {
   drinkPotion: { cost: 1, recovery: 1 },
   enemy: { preparation: 5, action: 0.65, recovery: 2 },
   head: { beamDamage: 8, fireballDamage: 18, fireballTravel: 0.9, fireballSpacing: 0.2, warning: 5, ward: 6, wardDuration: 2, kindleDuration: 5 },
-  wolf: { hopDuration: 0.7, hopDistance: 2.8, hopHeight: 0.6, circleRange: 5.5, circleRadius: 4.5, circleSpeed: 1.5, lungeDistance: 8, lungeHeight: 0.9 },
+  wolf: { circleRange: 5.5, circleRadius: 4.5, circleSpeed: 1.5, lungeDistance: 8, lungeHeight: 0.9 },
 } as const;
 export const MARA_TRADE_RULES = { suppliesPerPotion: 3, suppliesPerPotionSold: 2 } as const;
 interface Maneuver {
@@ -28,11 +28,11 @@ interface Maneuver {
   start: Vector; destination: Vector; facing: Vector;
 }
 interface WolfMotion {
-  kind: "hop" | "lunge"; start: Vector; destination: Vector;
+  kind: "lunge"; start: Vector; destination: Vector;
   remainingSeconds: number; duration: number;
 }
 interface WolfState {
-  rng: number; facing: Vector; motion: WolfMotion | null;
+  facing: Vector; motion: WolfMotion | null;
   nextAttackSeconds: number; circling: boolean; attackOrigin: Vector;
 }
 type HeadAbilityId = "ember-beam" | "fireball" | "ember-ward" | "kindle";
@@ -127,7 +127,7 @@ const definition = (id: string): ThreatDefinition => {
   if (!found) throw new Error(`Unknown threat: ${id}`);
   return found;
 };
-const newWolf = (): WolfState => ({ rng: 0x6d2b79f5, facing: point(0, 1), motion: null,
+const newWolf = (): WolfState => ({ facing: point(0, 1), motion: null,
   nextAttackSeconds: COMBAT_RULES.enemy.preparation, circling: false, attackOrigin: point(-3, 10),
 });
 const newHead = (): HeadState => ({ opened: false, events: [], block: 0, blockSeconds: 0, volley: 1, projectileSequence: 0, fireballs: [] });
@@ -1214,7 +1214,7 @@ class Adventure implements AdventureGame {
     const motion = t.wolf?.motion;
     if (!motion) return;
     motion.start = point(t.position.x, t.position.z); motion.destination = { ...motion.start };
-    if (motion.kind === "lunge") t.targetPosition = { ...motion.destination };
+    t.targetPosition = { ...motion.destination };
   }
   private moveWolfMotion(t: ThreatState, dt: number): void {
     const w = t.wolf, motion = w?.motion;
@@ -1224,8 +1224,7 @@ class Adventure implements AdventureGame {
     const progress = 1 - motion.remainingSeconds / motion.duration;
     t.position.x = motion.start.x + (motion.destination.x - motion.start.x) * progress;
     t.position.z = motion.start.z + (motion.destination.z - motion.start.z) * progress;
-    const height = motion.kind === "hop" ? COMBAT_RULES.wolf.hopHeight : COMBAT_RULES.wolf.lungeHeight;
-    t.position.y = 4 * height * progress * (1 - progress);
+    t.position.y = 4 * COMBAT_RULES.wolf.lungeHeight * progress * (1 - progress);
     t.moving = Math.hypot(t.position.x - old.x, t.position.y - old.y, t.position.z - old.z) > EPSILON;
     if (distance(motion.start, motion.destination) > EPSILON) w.facing = this.direction(motion.start, motion.destination);
     if (motion.remainingSeconds > EPSILON) return;
@@ -1239,15 +1238,8 @@ class Adventure implements AdventureGame {
     if (this.rootedSeconds(t) > EPSILON) return;
     const gap = distance(t.position, this.state.position);
     if (gap > COMBAT_RULES.wolf.circleRange) {
-      w.rng = (Math.imul(w.rng, 1664525) + 1013904223) >>> 0;
-      const side = w.rng >= 0x80000000 ? 1 : -1, facing = w.facing;
-      const length = COMBAT_RULES.wolf.hopDistance / Math.SQRT2;
-      const destination = this.reachableEndpoint(t.position, point(
-        t.position.x + (facing.x - side * facing.z) * length,
-        t.position.z + (facing.z + side * facing.x) * length));
-      w.motion = { kind: "hop", start: point(t.position.x, t.position.z), destination,
-        remainingSeconds: COMBAT_RULES.wolf.hopDuration, duration: COMBAT_RULES.wolf.hopDuration };
-      this.moveWolfMotion(t, dt);
+      this.moveThreat(t, this.state.position, dt);
+      w.facing = this.direction(t.position, this.state.position);
     } else {
       const radial = Math.max(-1, Math.min(1, gap - COMBAT_RULES.wolf.circleRadius));
       const tangentX = -w.facing.z, tangentZ = w.facing.x;
@@ -1380,6 +1372,10 @@ function readSave(serialized: string): State {
       abilityIndex: current ? number(t.abilityIndex, 0, headVersion ? id === "scout" ? 2 : id === "patrol" ? 1 : 0 : id === "scout" ? 1 : 0, true) : 0,
       wolf: latest ? id === (headVersion ? "patrol" : "scout") ? readWolf(t.wolf, v8) : null : id === "scout" ? newWolf() : null, head,
     };
+    // Retired approach-hop migration: retain the ground location and shared combat clock.
+    if (result.wolf && latest && record(t.wolf).motion !== null && record(record(t.wolf).motion).kind === "hop") {
+      result.position.y = 0; result.wolf.circling = false;
+    }
     // Earlier journeys placed the bee inside the briars that its defeat removed.
     // Keep that creature and any unclaimed loot reachable beside the permanent hedge.
     if (id === "nest" && result.position.x > THICKET[0] && result.position.z >= THICKET[2] && result.position.z <= THICKET[3]) {
@@ -1491,12 +1487,12 @@ function readWolf(value: unknown, v8 = false): WolfState {
   if (w.motion !== null) {
     const m = record(w.motion), kind = choice(m.kind, ["hop", "lunge"] as const);
     const savedDuration = number(m.duration, 0, 1);
-    const duration = kind === "hop" && savedDuration === 0.5 ? 0.5 : kind === "hop" ? COMBAT_RULES.wolf.hopDuration : COMBAT_RULES.enemy.action;
-    motion = { kind, start: groundPosition(m.start), destination: groundPosition(m.destination),
+    const duration = kind === "hop" ? savedDuration === 0.5 ? 0.5 : 0.7 : COMBAT_RULES.enemy.action;
+    const savedMotion = { start: groundPosition(m.start), destination: groundPosition(m.destination),
       remainingSeconds: number(m.remainingSeconds, 0, duration), duration: number(m.duration, duration, duration) };
+    if (kind === "lunge") motion = { kind, ...savedMotion };
   }
-  return { rng: number(w.rng, 0, 0xffffffff, true),
-    facing: { x: number(f.x, -1, 1), y: number(f.y, 0, 0), z: number(f.z, -1, 1) }, motion,
+  return { facing: { x: number(f.x, -1, 1), y: number(f.y, 0, 0), z: number(f.z, -1, 1) }, motion,
     nextAttackSeconds: number(w.nextAttackSeconds, 0, v8 ? 10 : COMBAT_RULES.enemy.preparation), circling: boolean(w.circling),
     attackOrigin: groundPosition(w.attackOrigin) };
 }
@@ -1564,13 +1560,11 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
     };
     if (d.behavior === "wolf") return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
-      description: "Patrols the deeper western trail; nearby hostile allies within 9 metres join its fight across clear ground. Notices you within 6 metres and pursues within 30 metres of its home. Beyond 5.5 metres it approaches in diagonal hops; nearby it circles at about 4.5 metres.",
+      description: "Patrols the deeper western trail; nearby hostile allies within 9 metres join its fight across clear ground. Notices you within 6 metres and pursues within 30 metres of its home. Beyond 5.5 metres it runs toward you around obstacles; nearby it circles at about 4.5 metres.",
       opener: "On first engagement, its sole Maul lands at active offset 2.65. A joining hound approaches immediately and chooses a turn in the next shared active window; Maul lands 0.65 seconds after that turn.",
-      abilities: [maulAbility(), { id: "hop-left", name: "Left diagonal hop", description: "Approaches diagonally left by up to 2.8 metres over 0.7 seconds when farther than 5.5 metres. Faces you and respects obstacles.", damage: 0, range: 0, noticeSeconds: 0 }, { id: "hop-right", name: "Right diagonal hop", description: "Approaches diagonally right by up to 2.8 metres over 0.7 seconds when farther than 5.5 metres. Faces you and respects obstacles.", damage: 0, range: 0, noticeSeconds: 0 }],
+      abilities: [maulAbility()],
       sequences: [
         { name: "Repeated Maul", abilityIds: ["maul"], offsetsSeconds: [], description: "Each preparation commits Maul to one of three active turns (33% each); its leap starts on that turn and lands 0.65 seconds later. All enemies share 3 seconds active, 1 second choosing, then 5 seconds preparation." },
-        { name: "Left approach", abilityIds: ["hop-left"], offsetsSeconds: [0], probability: 0.5, description: "Each new approach hop independently chooses left or right with equal probability; the saved choice resumes unchanged." },
-        { name: "Right approach", abilityIds: ["hop-right"], offsetsSeconds: [0], probability: 0.5, description: "Each new approach hop independently chooses left or right with equal probability; any sequence of left and right hops is possible." },
       ],
       strategy: "Disengage roots the hound while you leap away. Leave the committed landing before impact, then strike during recovery.",
     };

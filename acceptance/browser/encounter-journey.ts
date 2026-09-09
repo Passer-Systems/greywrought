@@ -33,7 +33,7 @@ try {
     await page.waitFor('document.getElementById("lorebook-panel").dataset.monsterId === ' + JSON.stringify(id) + ' && document.querySelectorAll("#lorebook-entry [data-lore-ability]").length > 0 && document.querySelectorAll("#lorebook-entry [data-lore-sequence]").length > 0');
   }
   await page.click('#lorebook-panel button[data-monster-id="patrol"]');
-  check(await page.evaluate<boolean>('document.getElementById("lorebook-entry").textContent.includes("50%")'), "Wolf lore must expose the actual coin-flip variations");
+  check(await page.evaluate<boolean>('document.querySelectorAll("#lorebook-entry [data-lore-ability]").length === 1 && document.getElementById("lorebook-entry").textContent.includes("Maul")'), "Hound lore must describe its sole attack, Maul");
   await page.shot("wolf-lore");
   await page.click('#lorebook-panel button[data-monster-id="scout"]');
   await page.shot("head-lore");

@@ -70,7 +70,7 @@ export interface ThreatView {
   readonly targetPlayerId?: string | null;
   readonly aggro: boolean; readonly joinsNextWindow: boolean;
   readonly moving: boolean;
-  readonly movementMode: "idle" | "walk" | "hop" | "circle" | "lunge";
+  readonly movementMode: "idle" | "walk" | "circle" | "lunge";
   readonly motionProgress: number;
   readonly facing: Position;
   readonly nextAttackSeconds: number;
