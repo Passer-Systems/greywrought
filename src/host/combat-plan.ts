@@ -99,12 +99,11 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const beat = Math.min(2, Math.max(0, Math.floor(seconds)));
     const state = status === "stored" ? "Stored opener" : status === "pending" ? "Planned" : status === "active" ? "In progress" : "Resolved";
     const detail = enemy.name + " · " + ability.name + "\n" + ability.damage + " damage · Turn " + (beat + 1) + " · " + seconds.toFixed(2).replace(/0$/, "") + "s · " + state + "\n" + ability.description;
-    view.tile.title = detail; view.tile.setAttribute("aria-label", detail);
+    view.tile.setAttribute("aria-label", detail);
     Object.assign(view.tile.dataset, { enemyId: enemy.id, abilityId: ability.id, offset: String(seconds), status });
     write(view.damage, status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "");
     write(view.source, enemy.name); write(view.tooltip, detail);
-    view.health.title = enemy.name + " · " + enemy.health + "/" + enemy.maximumHealth + " health";
-    view.health.setAttribute("aria-label", view.health.title);
+    view.health.setAttribute("aria-label", enemy.name + " · " + enemy.health + "/" + enemy.maximumHealth + " health");
     view.fill.style.width = Math.max(0, Math.min(100, 100 * enemy.health / enemy.maximumHealth)) + "%";
   }
   return {

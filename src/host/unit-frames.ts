@@ -53,10 +53,8 @@ const styles = `
 .unit-frame-target { flex-direction:row-reverse; }
 .unit-frame-target .unit-frame-bars { border-left:2px solid #888579; border-right:0; border-radius:2px 0 0 2px; }
 .unit-frame-target .unit-frame-portrait { border-radius:0 2px 2px 0; }
-.unit-frame-target[data-hostile=true] .unit-frame-name { background:linear-gradient(#9f2927,#651a1e); color:#ffe0c2; }
 .unit-frame-target[data-hostile=true] .unit-frame-fill { background:linear-gradient(#da5353,#ac3338 50%,#80202b); }
 .unit-frame-target[data-hostile=false] .unit-frame-fill { background:linear-gradient(#e0ce51,#b19a2a 50%,#8e791d); }
-.unit-frame-target[data-hostile=false] .unit-frame-name { color:#f8df73; }
 .unit-frame-tot { margin-top:2px; margin-left:auto; width:150px; height:39px; }
 .unit-frame-tot .unit-frame-portrait { flex-basis:37px; width:37px; height:37px; border-width:2px; }
 .unit-frame-tot .unit-frame-bars { height:37px; padding:2px 3px; border-width:1px; }
