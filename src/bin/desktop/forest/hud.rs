@@ -1,5 +1,6 @@
 //! Parchment frames and a local journal of observed expedition changes.
 use super::*;
+use greywrought::game::Command;
 use std::collections::VecDeque;
 
 const INK: Color = Color::srgb(0.22, 0.17, 0.12);
@@ -326,19 +327,27 @@ pub(super) fn setup(commands: &mut Commands, assets: &AssetServer) {
             .with_children(|p| {
                 for (binding, path, caption) in [
                     (
-                        "StrikeThreat",
+                        Command::Strike,
                         "ui/icons/spells/sword-strike.png",
                         "1 · Strike",
                     ),
-                    ("Brace", "ui/icons/spells/defensive-shield.png", "B · Brace"),
                     (
-                        "GatherResource",
+                        Command::Brace,
+                        "ui/icons/spells/defensive-shield.png",
+                        "B · Brace",
+                    ),
+                    (
+                        Command::Gather,
                         "ui/icons/spells/nature-leaf.png",
                         "G · Gather",
                     ),
-                    ("CallRitual", "ui/icons/spells/holy-light.png", "R · Ritual"),
+                    (
+                        Command::Ritual,
+                        "ui/icons/spells/holy-light.png",
+                        "R · Ritual",
+                    ),
                 ] {
-                    slot(p, assets, Control::Key(binding), path, caption, false);
+                    slot(p, assets, Control::Action(binding), path, caption, false);
                 }
             });
             p.spawn(paper(
@@ -354,7 +363,7 @@ pub(super) fn setup(commands: &mut Commands, assets: &AssetServer) {
                 slot(
                     p,
                     assets,
-                    Control::Key("RestCreature"),
+                    Control::Action(Command::Rest),
                     "ui/icons/spells/healing-cross.png",
                     "Rest",
                     true,
@@ -475,11 +484,11 @@ pub(super) fn setup(commands: &mut Commands, assets: &AssetServer) {
         .with_children(|p| {
             p.spawn(text(assets, "Mara’s Apothecary", 26.));
             p.spawn((text(assets, "", 18.), Copy(Field::Shop)));
-            p.spawn(button(Control::Key("BuyPotion")))
+            p.spawn(button(Control::Action(Command::BuyPotion)))
                 .with_children(|p| {
                     p.spawn(text(assets, "Buy health potion", 19.));
                 });
-            p.spawn(button(Control::Key("CloseShop")))
+            p.spawn(button(Control::Action(Command::CloseShop)))
                 .with_children(|p| {
                     p.spawn(text(assets, "Back to the road · Esc", 17.));
                 });
