@@ -1,4 +1,4 @@
-import { createAdventure } from "../game/adventure.js";
+import { COMBAT_RULES, createAdventure } from "../game/adventure.js";
 import type { AdventureAction, AdventureGame, AdventureSnapshot } from "../game/adventure-types.js";
 import {
   characterProfileStorageKey, decodeCharacterProfile, encodeCharacterProfile,
@@ -14,6 +14,7 @@ import { createBagPanel } from "./bag-panel.js";
 import { createChatLog } from "./chat-log.js";
 import { createUnitFrames } from "./unit-frames.js";
 import { createInnPanel } from "./inn-panel.js";
+import { createLorebook } from "./lorebook.js";
 import { createShopPanel } from "./shop-panel.js";
 import { publicUrl } from "./public-url.js";
 
@@ -30,6 +31,7 @@ const bags = createBagPanel(element("adventure-hud"), {
   onUsePotion: () => pulse("drinkPotion"),
   onClose: closeBags,
 });
+const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => unitFrames.portrait(id));
 const chatLog = createChatLog(element("adventure-hud"));
 const unitFrames = createUnitFrames(element("adventure-hud"));
 const inn = createInnPanel(element("adventure-hud"), {
@@ -69,7 +71,7 @@ const classes: Record<CharacterArchetype, { name: string; copy: string }> = {
 };
 const keyActions: Readonly<Record<string, AdventureAction>> = {
   KeyW: "forward", KeyS: "backward", KeyA: "left", KeyD: "right", Space: "jump",
-  Digit1: "strike", KeyE: "brace", KeyG: "gather", KeyR: "ritual",
+  Digit1: "strike", Digit2: "disengage", Digit3: "brace", Digit4: "bloodRage", KeyE: "brace", KeyG: "gather", KeyR: "ritual",
   KeyF: "interact", KeyH: "drinkPotion", KeyT: "rest", Tab: "target",
 };
 const resumeKey = "greywrought/adventure-active-character";
@@ -157,7 +159,7 @@ function renderEntry(): void {
   text("entry-creator-class", classes[draft].name);
   text("entry-lore-title", classes[draft].name);
   text("entry-lore-copy", classes[draft].copy);
-  text("entry-lore-kit", "Strike · Brace · Explore");
+  text("entry-lore-kit", "Lunge · Disengage · Block");
   text("entry-creator-preview-name", normalizedCharacterName(input("entry-character-name").value) ?? "Unnamed Adventurer");
   avatar("entry-creator", draft);
   for (const choice of document.querySelectorAll<HTMLElement>("[data-entry-archetype]")) choice.setAttribute("aria-pressed", String(choice.dataset.entryArchetype === draft));
@@ -198,6 +200,7 @@ function returnToRoster(): void {
   save(true);
   equipment.close();
   closeBags();
+  closeLorebook();
   chatLog.reset();
   if (running) audio.update(running.game.snapshot, true);
   audio.reset();
@@ -245,6 +248,17 @@ function toggleBags(): void {
   bags.open(running.game.snapshot);
   button("bag-open").setAttribute("aria-expanded", "true");
 }
+function closeLorebook(): void {
+  lorebook.close();
+  button("lorebook-open").setAttribute("aria-expanded", "false");
+  running?.world.canvas.focus();
+}
+function toggleLorebook(): void {
+  if (lorebook.isOpen) { closeLorebook(); return; }
+  if (!running?.ready || route !== "world") return;
+  lorebook.open(running.game.snapshot.selectedThreat);
+  button("lorebook-open").setAttribute("aria-expanded", "true");
+}
 function mapPosition(target: HTMLElement, x: number, z: number): void {
   target.style.left = `${50 - x * 2.5}%`;
   target.style.top = `${94 - (z + 12) * 1.53}%`;
@@ -282,13 +296,41 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gamePaused = String(paused);
   data.gameBankedRelics = String(snapshot.bankedRelics); data.gameSelectedThreat = snapshot.selectedThreat;
   data.gameActionCooldown = String(player.actionCooldown); data.gameGuardSeconds = String(player.guardSeconds);
+  data.gameBlock = String(player.block); data.gameManeuver = player.maneuver;
+  data.gameManeuverSeconds = String(player.maneuverSeconds);
+  data.gameStamina = String(player.stamina); data.gameBloodRage = String(player.bloodRage); data.gameInCombat = String(player.inCombat);
   data.archetype = player.archetype;
   text("adventure-zone", snapshot.phase === "town" ? "Hearthstead · safe haven" : snapshot.phase === "lost" ? "Journey ended" : "Frostwood");
   if (running) unitFrames.update(running.character, snapshot);
   chatLog.update(snapshot.log);
   inn.update(snapshot, snapshot.innOpen);
   shop.update(snapshot);
-  text("strike-ready", player.actionCooldown > 0 ? `${player.actionCooldown.toFixed(1)}s` : "Ready");
+  const selected = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat);
+  for (const [action, label, available] of [
+    ["strike", "strike-ready", selected?.canStrike], ["disengage", "disengage-ready", selected?.canDisengage],
+    ["brace", "block-ready", snapshot.phase === "expedition" && player.maneuver === "none"],
+    ["bloodRage", "rage-ready", player.inCombat && player.bloodRage < 3 && player.maneuver === "none"],
+  ] as const) {
+    const cost = COMBAT_RULES[action].cost;
+    const recovering = player.actionCooldown > 0.001;
+    const control = document.querySelector<HTMLButtonElement>('[data-action="' + action + '"]');
+    if (control) { control.disabled = !available || recovering || player.stamina < cost; control.style.setProperty("--recovery", String(player.actionDuration > 0 ? player.actionCooldown / player.actionDuration : 0)); }
+    const detail = player.stamina < cost ? "Need " + cost + " stamina" : recovering ? "Recover " + player.actionCooldown.toFixed(1) + "s" : action === "bloodRage" ? player.bloodRage >= 3 ? "Maximum rage" : !player.inCombat ? "Combat only" : "1 stamina · +1 Rage" : action === "brace" ? cost + " stamina · 10 block" : available ? cost + " stamina" : "Out of reach";
+    text(label, detail);
+  }
+  const recovery = element("player-action-bar");
+  recovery.hidden = player.actionCooldown <= 0.001;
+  if (!recovery.hidden) {
+    const actionControl = player.currentAction ? document.querySelector<HTMLButtonElement>('[data-action="' + player.currentAction + '"]') : null;
+    const art = actionControl?.querySelector<HTMLImageElement>(".action-art img");
+    const icon = element("player-action-icon") as HTMLImageElement;
+    const source = art?.src ?? publicUrl("assets/ui/icons/spells/sword-strike.png");
+    if (icon.src !== source) icon.src = source;
+    text("player-action-name", (actionControl?.getAttribute("aria-label") ?? "Action") + " · Recovery");
+    text("player-action-time", player.actionCooldown.toFixed(1) + " / " + player.actionDuration.toFixed(1));
+    element("player-action-fill").style.width = (100 * player.actionCooldown / Math.max(.001, player.actionDuration)) + "%";
+    recovery.setAttribute("aria-valuenow", String(player.actionCooldown)); recovery.setAttribute("aria-valuemin", "0"); recovery.setAttribute("aria-valuemax", String(player.actionDuration));
+  }
   text("potion-count", `${snapshot.potions} carried · heals ${snapshot.potionHealing}`);
   text("cargo-summary", `Carried: ${snapshot.cargo} cores · ${snapshot.carriedSalvage} salvage · ${snapshot.carriedRelics} relics\nSecured: ${snapshot.supplies} supplies · ${snapshot.bankedRelics} relics`);
   const nearbyLoot = snapshot.loot.some(item => item.available && item.reachable);
@@ -437,6 +479,7 @@ click("entry-enter-world", () => { const character = selectedCharacter(); if (ch
 click("pause-open", () => setMenuOpen(element("pause-panel").hidden));
 click("equipment-open", toggleEquipment);
 click("bag-open", toggleBags);
+click("lorebook-open", toggleLorebook);
 click("pause-resume", () => setMenuOpen(false));
 click("return-roster", returnToRoster);
 click("death-roster", returnToRoster);
@@ -447,7 +490,7 @@ for (const target of [element("map-threats"), element("enemy-intents")]) listen(
 });
 for (const control of document.querySelectorAll<HTMLElement>("[data-action]")) listen(control, "click", () => {
   const action = control.dataset.action;
-  if (action && ["strike", "brace", "drinkPotion", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
+  if (action && ["strike", "disengage", "brace", "bloodRage", "drinkPotion", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
 });
 listen(window, "keydown", (event) => {
   if (event.isTrusted) void audio.unlock();
@@ -458,11 +501,17 @@ listen(window, "keydown", (event) => {
     if (!event.repeat) toggleEquipment();
     return;
   }
+  if (event.code === "KeyL") {
+    event.preventDefault();
+    if (!event.repeat) toggleLorebook();
+    return;
+  }
   if (event.code === "KeyB") {
     event.preventDefault();
     if (!event.repeat) toggleBags();
     return;
   }
+  if (event.code === "Escape" && lorebook.isOpen) { event.preventDefault(); closeLorebook(); return; }
   if (event.code === "Escape" && equipment.isOpen) { event.preventDefault(); closeEquipment(); return; }
   if (event.code === "Escape" && bags.isOpen) { event.preventDefault(); closeBags(); return; }
   if (event.code === "Escape") {
@@ -523,6 +572,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   unitFrames.dispose();
   inn.dispose();
   shop.dispose();
+  lorebook.dispose();
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
 };
 try {

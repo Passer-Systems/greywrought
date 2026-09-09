@@ -73,3 +73,6 @@ Additional equipment: Medieval/Ultimate RPG Items Pack - Aug 2019/OBJ/Sword.obj 
 Art adaptation: Leaves_TwistedTree_C.png hue shifted toward moss green to suit Frostwood. Exported village material colors interpreted as Blender linear color; modeling-only OBJ edges are excluded. Animals pack has no separate license member; archive root CC0 applies.
 
 Rowan the innkeeper: Characters and Animals/Ultimate Animated Character Pack - Nov 2019/glTF/Chef_Male.gltf, selectively extracted from the same user-owned archive. Model, embedded geometry, and native Idle animation retained unchanged. This pack contains no separate license file; the retained archive root CC0 1.0 license applies.
+- `Characters and Animals/Cute Animated Monsters - Aug 2020/glTF/Skull.gltf`
+  supplies the Ember head, with native Idle, Walk, Bite_Front, Bite_InPlace,
+  HitRecieve and Death clips. Mesh, embedded textures and clips retained.

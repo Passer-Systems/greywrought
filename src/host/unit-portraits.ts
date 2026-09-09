@@ -2,7 +2,7 @@ import { Color, DirectionalLight, HemisphereLight, Mesh, OrthographicCamera, Sce
 import { actor } from "./frostwood-assets.js";
 
 const appearances = [
-  ["scout", "Birb"], ["nest", "Armabee"], ["warder", "MushroomKing"],
+  ["scout", "Skull"], ["nest", "Armabee"], ["warder", "MushroomKing"],
   ["patrol", "Wolf"], ["ritual-guardian", "Yeti"],
 ] as const;
 

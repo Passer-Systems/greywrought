@@ -64,7 +64,7 @@ recovery, hit reaction and defeat as appropriate. Prefer suitable existing
 Greywrought assets. Pick the first encounter around a coherent set of usable
 animations; visual variety can grow after that encounter works.
 
-Current and upcoming intentions must be attached to the enemy they describe.
+Auto-attacks and special intentions must be attached to the enemy they describe.
 Show a compact action icon and concise description, with damage, target or
 area when that information is actually determined. Selection can reveal more
 detail. Several enemies must remain distinguishable without stacking large
@@ -82,11 +82,10 @@ presentation. Presentation must not invent attacks, damage, defensive windows,
 interruptibility or enemy decisions. If an attack cannot be interrupted, its
 cue must not imply otherwise.
 
-Start with one complete encounter and then a two-enemy combination. The
-lookout can make a strategic cost visible by preparing an alarm that increases
-danger; another enemy can make the strike-versus-brace decision legible. Use
-existing mechanics where they fit, then adjust authored rules to make the
-choices meaningful. Any added interrupt or movement mechanic needs its own
+Start with one complete encounter: the Ember head teaches independent beam
+and fireball clocks, shielding, and growing volleys. The later Ash hound adds
+movement through a five-second warned, dodgeable Lunging Maul. Establish a readable
+offense-versus-defense decision here before building a two-enemy combination. Any added interrupt or movement mechanic needs its own
 real rule and visible result.
 
 Acceptance: in roughly thirty seconds of play, the player can tell what each
@@ -127,11 +126,16 @@ relative to an independently inset title box.
 
 Player and target frames sit near the lower center with room between them for
 the character. Show the target's target beneath its frame when it is actually
-attacking someone. Enemy health sits above its name and compact intent queue.
+attacking someone. Painted ability icons sit below enemy health and name. Read the current action
+or pause, then the next two special moves, with explicit pause durations between
+them. Adjacent moves with a plus sign happen together. Auto-attacks have a
+separate icon and clock beside that sequence. The stored opener is visible
+before engagement. Each ability has its own hover tooltip.
+Each tooltip names the attack, damage, range, timing and positional response.
 Offensive opportunities appear on the left only while actionable; actual
 control effects and debuffs belong on the right. The current recovery opening
 indicates that Strike is ready and the enemy is in range; it promises no bonus
-damage. No enemy debuff or crowd-control mechanic exists yet.
+damage. Disengage roots its struck enemy only until the player lands; display that actual effect and remaining time on the right.
 
 The bottom-left Chat and Combat Log tabs show actual events. The log must retain
 simultaneous outcomes and let the player read older entries without snapping
@@ -188,3 +192,131 @@ Current upstream references checked in September 2026:
 - [Floating UI](https://floating-ui.com/docs/getting-started) supplies anchored
   positioning and viewport collision handling for more involved tooltips and
   popovers. Add it when those interactions exceed the current simple tooltip.
+
+## First encounter: Ember head
+
+The first clearing holds an animated floating skull with 72 health. On
+engagement in range it immediately raises Ember Ward (6 block for 5 seconds)
+and fires Ember Beam (1 targeted damage). The stored opener and auto-attack
+are visible before pulling. Beam repeats on its own 3-second clock.
+
+The head follows three repeating pairs. Times are measured from each pair's
+start; a new pair starts after the previous pair's final projectile or ward
+finishes. Its first move happens at +5 seconds and the second at +5 through
++10 seconds. No input synchronization is needed.
+
+| Pair | First move | Second move | Gap |
+| --- | --- | --- | --- |
+| 1 | Fireball at +5s | Ember Ward at +5s | Together |
+| 2 | Kindle at +5s | Fireball at +10s | 5 seconds |
+| 3 | Kindle at +5s | Fireball at +8s | 3 seconds |
+
+Fireball timing advertises impact, with release 0.9 seconds earlier. Each
+projectile deals 3 targeted damage and successive impacts are spaced 0.2 seconds
+apart. Kindle adds one projectile to later volleys. The head's ward is down
+during Kindle preparation: attack before the increase resolves. Defeating the
+head or leaving its territory extinguishes remaining fireballs. In-flight
+projectiles and enemy block survive reopening the encounter.
+
+The queue shows current activity and two actual upcoming moves, previewing
+across the fixed pair boundary when necessary to keep both future slots useful.
+A pause is a visible time gap, not an unnamed ability. For example: pause 5s →
+Fireball → pause 3s → Fireball. This example illustrates the display; the table
+above defines the head's actual sequence. Auto-attacks remain independent and
+can overlap a spell. Actual shields and roots appear beside the health bar.
+
+## Player stamina and Blood Rage
+
+The starting kit is available to existing characters; distinct class kits come
+later. Active stamina is capped at 3 and recovers by 1 every 2 seconds. There
+is no backup resource or per-ability cooldown in this prototype. Actions share
+recovery time; movement remains available while recovering and reading menus.
+
+| Key | Ability | Stamina | Effect | Action recovery |
+| --- | --- | --- | --- | --- |
+| 1 | Lunge | 1 | Move into reach; deal 9 melee damage | 1s |
+| 2 | Disengage | 1 | Deal 6 melee damage, leap backward; root target until landing | 1s |
+| 3 / E | Block | 2 | Absorb 10 damage over at most 2s | 1s |
+| 4 | Blood Rage | 1 | Gain one stack, up to 3; combat only | 2s |
+
+Each Rage stack adds 2 damage to Lunge and Disengage and drains 1 health every
+5 seconds, bypassing Block. It can kill you. Outside combat lose one stack
+every 2 seconds; re-engaging in time preserves momentum. The cap and health
+cost bound farming on a weak enemy. Stamina and Rage, including their timers,
+are saved. Older adventure saves initialize these resources without erasing
+characters, health, loot or secured rewards.
+
+Player frames show three stamina pips and the current Rage count, drain or
+fade timer. The compact painted-icon hotbar has key labels and full hover
+explanations. A separate bar shows successful action recovery; it never claims
+an instant action is still casting or can be interrupted.
+
+## Later encounter: Ash hound
+
+The animated Ash hound patrols the deeper western forest. On engagement it
+approaches through forward diagonal hops, choosing left or right at 45 degrees
+independently with equal probability while facing the player. Nearby it circles
+and commits Maul toward a fixed landing point. It recovers for 2 seconds after
+landing; the next 5-second Maul preparation starts at that landing and includes
+recovery. A lunge takes 0.65 seconds and deals 9 damage within 3 metres of its
+committed landing. Disengage provides a deliberate escape and punishment loop.
+
+Bite is independent: 4 targeted damage, ready every 4 seconds. The hound pursues
+for real contact rather than dealing phantom ranged damage. Maul does not home.
+Block can absorb either source; coincident attacks compete for the same pool.
+The other forest creatures retain their distinct attacks and 3-second warnings.
+Their single repeating special is shown truthfully; the head is the full paired
+forecast encounter in this prototype.
+
+## In-game lorebook
+
+L toggles the lorebook. Every current monster has a page with its portrait,
+disposition, health, engagement behavior, opener, auto-attack, all abilities,
+move sequences and useful responses. These entries consume the same ability
+and sequence definitions as combat. The head's order is fixed; the wolf's
+left/right approach hops each have a 50% chance; ordinary repeated moves have
+no random permutations. Explain actual randomness rather than inventing it.
+Opening the book does not pause movement or combat. Escape and its flush
+header close button both close it.
+
+## Next playable test: an expedition that can defeat you
+
+The first head is a teaching fight, not the final difficulty bar. The next
+milestone is one legible failed expedition: a player can identify the decisions
+that killed them and want to try those decisions differently. Keep attack on 1.
+
+Health and limited potions remain expedition attrition. Active stamina governs
+short combat choices; it is not a persistent expedition wound resource. Damage and potion use carry between
+encounters. Returning to the inn ends an attempt and secures modest salvage,
+but the main reward requires reaching the deeper grove. A reset must not let
+players keep expedition progress while erasing its cost. This attempt boundary
+and reset behavior are proposed work, not a claim about the current save rules.
+
+The second clearing should pair two creatures with different, readable attacks.
+One pursues into melee; the other forces a positional decision. Pulling both
+saves time but risks overlapping intentions and spending the escape at the
+wrong moment. Telegraph incoming reinforcements and escalating danger before
+activating them. Difficulty should come from readable combinations and resource
+costs, not hidden damage changes, surprise spawns or shorter warning windows.
+
+Measure whether a player can retreat to safety for free indefinitely. If that
+removes the decision, test an explicit expedition danger clock: recovery and
+travel consume time, and the next danger level is announced before it arrives.
+Health recovery speed, persistent wounds and reduced maximum health are possible
+later experiments only if the first attrition test needs them. Choose the actual
+clock and recovery values through the short playable route, not a larger economy.
+
+Acceptance: demonstrate a safe single pull, a costly double pull, an early
+extraction with salvage but no main reward, and a death whose log and visible
+intentions explain the fatal sequence. The player should be able to name a
+plausible better choice. Fairness and the desire to retry require Tom's playtest.
+
+
+### Next balance question
+
+The implemented head and Rage mechanics test whether damage overlap and enemy
+power-ups make stamina spending interesting. Endless defense must eventually
+lose to growing volleys; spending everything on offense should expose the
+player to predictable damage. A passing rules test establishes those mechanics,
+not the fairness or enjoyment of the final balance. The next playtest decides
+whether the timings, health and pressure produce decisions Tom wants to repeat.

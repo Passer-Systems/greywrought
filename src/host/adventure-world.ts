@@ -1,8 +1,8 @@
 import {
   CanvasTexture, CircleGeometry, Color,
-  ConeGeometry, DirectionalLight, Fog, Group, HemisphereLight,
+  ConeGeometry, CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
   Material, Mesh, MeshBasicMaterial, MeshStandardMaterial,
-  Object3D, PerspectiveCamera, RingGeometry, Scene, SphereGeometry,
+  Object3D, PerspectiveCamera, PlaneGeometry, RingGeometry, Scene, SphereGeometry,
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
   Raycaster, type BufferGeometry,
 } from "three";
@@ -22,9 +22,17 @@ interface ThreatRig {
   readonly warning: Mesh<CircleGeometry, MeshBasicMaterial>;
   readonly ring: Mesh<RingGeometry, MeshBasicMaterial>;
   readonly lootGlint: Sprite;
+  readonly beam: Mesh<CylinderGeometry, MeshBasicMaterial>;
+  readonly ward: Mesh<SphereGeometry, MeshBasicMaterial>;
+  readonly fireballs: Map<number, Mesh<SphereGeometry, MeshBasicMaterial>>;
+  beamTime: number;
+  readonly lungePath: Mesh<PlaneGeometry, MeshBasicMaterial>;
+  readonly rootEffect: Mesh<RingGeometry, MeshBasicMaterial>;
   readonly height: number;
   health: number;
   sequence: number;
+  autoSequence: number;
+  biteTime: number;
   phase: ThreatView["phase"];
   hitTime: number;
   lootable: boolean;
@@ -206,7 +214,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     document.body.dataset.innkeeperState = "ready";
   });
   const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string}> = {
-    scout: {model:"Birb",height:1.35,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
+    scout: {model:"Skull",height:1.6,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
     nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
     warder: {model:"MushroomKing",height:2.4,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact"},
     patrol: {model:"Wolf",height:1.6,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1"},
@@ -226,8 +234,14 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const selection = new Mesh(new RingGeometry(1.09, 1.14, 48), new MeshBasicMaterial({ color: 0xfff6df, side: 2 }));
     selection.rotation.x = -Math.PI/2; selection.position.y=0.06; root.add(selection);
     const glint = lootGlint(); glint.visible = false; root.add(glint);
-    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,warning,ring,lootGlint:glint,height:look.height,
-      health:threat.health,sequence:threat.actionSequence,phase:threat.phase,hitTime:0,lootable:false});
+    const rootEffect = new Mesh(new RingGeometry(0.75, 0.92, 6), new MeshBasicMaterial({color:0x77dfc4,transparent:true,opacity:0.9,side:2,depthWrite:false}));
+    rootEffect.rotation.x = -Math.PI/2; rootEffect.position.y = 0.12; rootEffect.visible = false; root.add(rootEffect);
+    const lungePath = new Mesh(new PlaneGeometry(0.12, 1), new MeshBasicMaterial({color:0xffcf7c,transparent:true,opacity:0.9,depthWrite:false}));
+    lungePath.visible = false; lungePath.renderOrder = 3; scene.add(lungePath);
+    const beam = new Mesh(new CylinderGeometry(0.045,0.045,1,8),new MeshBasicMaterial({color:0xffbc71,transparent:true,opacity:0.85,depthWrite:false})); beam.visible=false;scene.add(beam);
+    const ward = new Mesh(new SphereGeometry(1.05,20,12),new MeshBasicMaterial({color:0x80c6ff,transparent:true,opacity:0.2,depthWrite:false}));ward.position.y=look.height*0.55;ward.visible=false;root.add(ward);
+    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,warning,ring,lootGlint:glint,lungePath,rootEffect,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
+      health:threat.health,sequence:threat.actionSequence,autoSequence:threat.autoAttackSequence,biteTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const natureReady = buildFrostwood(terrain, thicket, innPosition).then(()=>{document.body.dataset.environmentState="ready";});
   const ready = Promise.all([knightReady, merchantReady, innkeeperReady, creaturesReady, natureReady]).then(()=>undefined);
@@ -240,7 +254,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     zoom(delta) { distance = Math.max(6, Math.min(18, distance * Math.exp(delta * 0.001))); },
     projectThreat(id) {
       const rig = rigs.get(id); if (!rig || !rig.root.visible) return null;
-      const head = rig.root.position.clone().add(new Vector3(0, rig.height + 0.25, 0)).project(camera);
+      const head = rig.root.position.clone().add(new Vector3(0, rig.height + rig.body.position.y + 0.25, 0)).project(camera);
       const feet = rig.root.position.clone().project(camera);
       if (head.z < -1 || head.z > 1 || Math.abs(head.x) > 1 || Math.abs(head.y) > 1) return null;
       return { x: (head.x + 1) * host.clientWidth / 2, y: (1 - head.y) * host.clientHeight / 2, feetY: (1 - feet.y) * host.clientHeight / 2 };
@@ -264,19 +278,20 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       elapsed += delta;
       const { position } = snapshot.player;
       player.position.set(position.x, position.y, position.z);
-      const face = snapshot.player.cameraForward;
-      if (snapshot.player.moving) player.rotation.y = Math.atan2(face.x, face.z);
+      const face = snapshot.player.facing;
+      if (snapshot.player.moving || snapshot.player.maneuver !== "none") player.rotation.y = Math.atan2(face.x, face.z);
       const selected = snapshot.threats.find((threat) => threat.id === snapshot.selectedThreat);
       if (snapshot.player.attackSequence !== lastAttack && knight) {
         if (selected) player.rotation.y = Math.atan2(selected.position.x-position.x,selected.position.z-position.z);
-        knight.play("SwordSlash",false,0.5); playerAttackRemaining=0.5; lastAttack=snapshot.player.attackSequence;
+        const swing = snapshot.player.maneuver === "disengage" ? 0.18 : 0.4;
+        knight.play("SwordSlash",false,swing); playerAttackRemaining=swing; lastAttack=snapshot.player.attackSequence;
       }
       if (knight) {
         if(snapshot.player.health<=0 && !playerDead) { playerDead=true; knight.play("Death",false); }
         else if(snapshot.player.health<lastHealth && snapshot.player.health>0) { playerHitRemaining=0.4; knight.play("RecieveHit",false,0.4); }
         if(!playerDead) {
           playerHitRemaining=Math.max(0,playerHitRemaining-delta); playerAttackRemaining=Math.max(0,playerAttackRemaining-delta);
-          if(playerHitRemaining===0&&playerAttackRemaining===0) knight.play(!snapshot.player.grounded?"Jump":snapshot.player.moving?"Run":"Idle");
+          if(playerHitRemaining===0&&playerAttackRemaining===0) knight.play(snapshot.player.maneuver === "disengage" || !snapshot.player.grounded ? "Jump" : snapshot.player.moving ? "Run" : "Idle");
         }
         knight.mixer.update(delta);
         document.body.dataset.rigAnimationMode=playerDead?"death":playerHitRemaining>0?"hit":playerAttackRemaining>0?"attack":snapshot.player.moving?"locomotion":"idle";
@@ -289,7 +304,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       }
       innSign.visible = rowanName.visible = Math.hypot(position.x - innPosition.x, position.z - innPosition.z) < 17;
       lastHealth = snapshot.player.health;
-      shield.visible = snapshot.player.guardSeconds > 0;
+      shield.visible = snapshot.player.block > 0;
       shield.rotation.y = elapsed;
       coreRoot.visible = snapshot.resourceRemaining > 0;
       thicket.visible = snapshot.threats.some((threat) => threat.id === "nest" && threat.health > 0);
@@ -297,7 +312,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         const rig = rigs.get(threat.id);
         if (!rig) continue;
         rig.root.visible = threat.active || threat.phase === "cleared";
-        const dx = threat.position.x - rig.root.position.x, dz = threat.position.z - rig.root.position.z;
         rig.root.position.set(threat.position.x, threat.position.y, threat.position.z);
         rig.lootable = snapshot.loot.some(item => item.sourceId === threat.id && item.available);
         rig.lootGlint.visible = rig.lootable;
@@ -307,34 +321,83 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.ring.visible = threat.health > 0;
         rig.ring.material.color.setHex(threat.disposition === "hostile" || threat.aggro ? 0xf04d4d : 0xf1d34f);
         rig.selection.visible = threat.selected && threat.health > 0;
-        if (threat.moving && Math.hypot(dx, dz) > 0.001) rig.root.rotation.y = Math.atan2(dx, dz);
-        else if (threat.aggro && threat.health > 0) rig.root.rotation.y = Math.atan2(position.x - threat.position.x, position.z - threat.position.z);
+        if (threat.health > 0) rig.root.rotation.y = Math.atan2(threat.facing.x, threat.facing.z);
+        rig.ring.position.y = 0.05 - threat.position.y;
+        rig.selection.position.y = 0.06 - threat.position.y;
+        rig.rootEffect.position.y = 0.12 - threat.position.y;
+        rig.rootEffect.visible = threat.rootedSeconds > 0;
+        const attackClip = threat.currentAbility.id === "maul" ? "Gallop_Jump" : rig.attack;
         const changed = threat.phase !== rig.phase;
+        if (threat.autoAttackSequence > rig.autoSequence) { rig.biteTime = 0.3; if (threat.autoAttack?.id === "ember-beam") rig.beamTime = 0.18; }
+        rig.autoSequence = threat.autoAttackSequence;
         if (threat.phase === "cleared") {
           if(rig.health>0) rig.actor.play("Death",false,undefined,0.08);
+        } else if (threat.movementMode === "hop" || threat.movementMode === "lunge") {
+          const action = rig.actor.action?.getClip().name === "Gallop_Jump" ? rig.actor.action : rig.actor.play("Gallop_Jump",false,undefined,0.04);
+          action.paused = true; action.time = action.getClip().duration * threat.motionProgress;
+        } else if (rig.biteTime > 0) {
+          const action = rig.actor.action?.getClip().name === rig.attack ? rig.actor.action : rig.actor.play(rig.attack,false,0.3,0.03);
+          action.paused = true; action.time = action.getClip().duration * (1 - rig.biteTime/0.3);
         } else if(threat.phase === "action") {
-          const action = changed ? rig.actor.play(rig.attack,false,undefined,0.035) : rig.actor.action!;
+          const action = changed ? rig.actor.play(attackClip,false,undefined,0.035) : rig.actor.action!;
           action.paused = true;
-          action.time = action.getClip().duration * (0.3 + 0.7 * Math.max(0, 1-threat.remainingSeconds/0.35));
+          const impactStart = threat.currentAbility.id === "bite" ? 0.5 : 0.3;
+          action.time = action.getClip().duration * (impactStart + (1-impactStart) * Math.max(0, 1-threat.remainingSeconds/threat.phaseDuration));
         } else if(threat.health < rig.health && threat.health>0) {
           rig.hitTime=0.3; rig.actor.play(rig.hit,false,0.3,0.04);
-        } else if(threat.phase === "preparation" && rig.hitTime<=delta) {
-          const action = changed || rig.actor.action?.getClip().name !== rig.attack ? rig.actor.play(rig.attack,false,undefined,0.12) : rig.actor.action;
+        } else if(threat.phase === "preparation" && !threat.moving && rig.hitTime<=delta) {
+          const action = changed || rig.actor.action?.getClip().name !== attackClip ? rig.actor.play(attackClip,false,undefined,0.12) : rig.actor.action;
           action.paused = true;
-          action.time = action.getClip().duration * 0.3 * Math.max(0,1-threat.remainingSeconds/3);
+          action.time = action.getClip().duration * 0.3 * Math.max(0,1-threat.remainingSeconds/threat.phaseDuration);
         } else if(rig.hitTime<=delta || changed) {
-          rig.actor.play(threat.moving ? rig.walk : rig.idle);
+          rig.actor.play(threat.movementMode === "circle" ? "Walk" : threat.moving ? rig.walk : rig.idle);
         }
         rig.hitTime=Math.max(0,rig.hitTime-delta);
+        rig.biteTime=Math.max(0,rig.biteTime-delta);
         // Authored motion supplies the pose; a restrained lean makes the full windup visible.
-        const preparation = threat.phase === "preparation" ? Math.max(0,1-threat.remainingSeconds/3) : 0;
+        const preparation = threat.phase === "preparation" && !threat.moving ? Math.max(0,1-threat.remainingSeconds/threat.phaseDuration) : 0;
+        rig.body.position.y = threat.autoAttack?.id === "ember-beam" ? 1.25 : 0;
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;
-        rig.warning.visible = threat.active && (threat.phase === "preparation" || threat.phase === "action");
+        rig.warning.visible = threat.active && ["maul","nest","warder","ritual-guardian"].includes(threat.currentAbility.id) && threat.currentAbility.noticeSeconds > 0 && (threat.phase === "preparation" || threat.phase === "action");
         rig.warning.position.set(threat.targetPosition.x, 0.1, threat.targetPosition.z);
         rig.warning.scale.setScalar(threat.reach);
         rig.warning.material.color.setHex(threat.damage === 0 ? 0x8badd4 : threat.phase === "action" ? 0xff4936 : 0xf5a43e);
-        rig.warning.material.opacity = threat.damage === 0 ? 0.025 : threat.phase === "action" ? 0.55 : 0.2 + 0.13 * (1 - threat.remainingSeconds / 3);
+        rig.warning.material.opacity = threat.damage === 0 ? 0.025 : threat.phase === "action" ? 0.55 : 0.2 + 0.13 * (1 - threat.remainingSeconds / threat.phaseDuration);
+        rig.lungePath.visible = threat.currentAbility.id === "maul" && (threat.phase === "preparation" || threat.movementMode === "lunge");
+        if (rig.lungePath.visible) {
+          const from = threat.attackOrigin, to = threat.targetPosition;
+          const dx = to.x - from.x, dz = to.z - from.z;
+          rig.lungePath.position.set((from.x+to.x)/2, 0.11, (from.z+to.z)/2);
+          rig.lungePath.rotation.set(-Math.PI/2, 0, Math.atan2(dx,dz));
+          rig.lungePath.scale.y = Math.hypot(dx,dz);
+          rig.lungePath.material.color.setHex(threat.movementMode === "lunge" ? 0xff5947 : 0xffcf7c);
+        }
+        rig.ward.position.y = rig.height*0.55 + rig.body.position.y;
+        rig.ward.visible = threat.block > 0;
+        rig.beamTime=Math.max(0,rig.beamTime-delta);rig.beam.visible=rig.beamTime>0;
+        if (rig.beam.visible) {
+          const mouth=new Vector3(threat.position.x,threat.position.y+rig.body.position.y+rig.height*0.65,threat.position.z);
+          const end=new Vector3(position.x,position.y+1.2,position.z),direction=end.clone().sub(mouth);
+          rig.beam.position.copy(mouth).add(end).multiplyScalar(0.5);
+          rig.beam.scale.y=direction.length();rig.beam.quaternion.setFromUnitVectors(new Vector3(0,1,0),direction.normalize());
+          rig.beam.material.opacity=rig.beamTime/0.18;
+        }
+        const activeProjectiles=new Set(threat.fireballs.map(ball=>ball.id));
+        for (const [id,ball] of rig.fireballs) if(!activeProjectiles.has(id)) {scene.remove(ball);ball.geometry.dispose();ball.material.dispose();rig.fireballs.delete(id);}
+        for (const projectile of threat.fireballs) {
+          let ball=rig.fireballs.get(projectile.id);
+          if (!ball) {ball=new Mesh(new SphereGeometry(0.23,12,8),new MeshBasicMaterial({color:0xff7c2a}));rig.fireballs.set(projectile.id,ball);scene.add(ball);}
+          ball.visible=projectile.remainingSeconds<=projectile.duration;
+          const progress=Math.max(0,Math.min(1,1-projectile.remainingSeconds/projectile.duration));
+          ball.position.set(projectile.origin.x+(position.x-projectile.origin.x)*progress,
+            (projectile.origin.y+rig.body.position.y+rig.height*0.65)*(1-progress)+(position.y+1.2)*progress+Math.sin(progress*Math.PI)*0.35,
+            projectile.origin.z+(position.z-projectile.origin.z)*progress);
+          const lateral=Math.sin(progress*Math.PI)*0.55*((projectile.id%3)-1);
+          const dx=position.x-projectile.origin.x,dz=position.z-projectile.origin.z,length=Math.hypot(dx,dz)||1;
+          ball.position.x+=-dz/length*lateral;ball.position.z+=dx/length*lateral;
+          ball.scale.setScalar(1+Math.sin(elapsed*28+projectile.id)*0.12);
+        }
         rig.actor.mixer.update(delta);
         rig.phase = threat.phase;
         rig.sequence = threat.actionSequence;

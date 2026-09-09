@@ -64,6 +64,11 @@ export function createUnitFrames(host: HTMLElement) {
   const style = node("style", "", host); style.textContent = styles;
   const root = node("div", "unit-frames", host);
   const player = makeFrame(root, "player-frame", "player");
+  const resources = node("div", "unit-frame-stamina", player.root.querySelector<HTMLElement>(".unit-frame-bars")!);
+  resources.id = "player-stamina"; resources.setAttribute("role", "meter"); resources.setAttribute("aria-label", "Stamina");
+  const pips = Array.from({length:3}, () => node("span", "stamina-pip", resources));
+  const staminaText = node("span", "stamina-value", resources);
+  const rage = node("span", "unit-frame-rage", player.root.querySelector<HTMLElement>(".unit-frame-bars")!); rage.id = "player-rage";
   const targetGroup = node("div", "unit-frame-target-group", root); targetGroup.hidden = true;
   const target = makeFrame(targetGroup, "target-frame", "target");
   const targetOfTarget = makeFrame(targetGroup, "target-of-target-frame", "tot"); targetOfTarget.root.hidden = true;
@@ -76,6 +81,7 @@ export function createUnitFrames(host: HTMLElement) {
   });
   return {
     ready,
+    portrait(id: string) { return portraits.get(id); },
     update(character: LocalCharacter, snapshot: AdventureSnapshot): void {
       if (disposed) return;
       if (archetype !== character.archetype) {
@@ -83,7 +89,15 @@ export function createUnitFrames(host: HTMLElement) {
         player.portrait.src = targetOfTarget.portrait.src = publicUrl(`assets/ui/characters/${archetype}.webp`);
       }
       health(player, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id);
-      write(player.status, snapshot.player.health <= 0 ? "Journey ended" : snapshot.player.guardSeconds > 0 ? `Braced · ${snapshot.player.guardSeconds.toFixed(1)}s` : snapshot.phase === "town" ? "Hearthstead" : "Frostwood");
+      write(player.status, snapshot.player.health <= 0 ? "Journey ended" : snapshot.player.block > 0 ? `${snapshot.player.block} block · ${snapshot.player.guardSeconds.toFixed(1)}s` : snapshot.phase === "town" ? "Hearthstead" : "Frostwood");
+      const stats = snapshot.player;
+      for (let i=0;i<pips.length;i++) pips[i]!.dataset.filled = String(i < stats.stamina);
+      resources.setAttribute("aria-valuenow", String(stats.stamina)); resources.setAttribute("aria-valuemin", "0"); resources.setAttribute("aria-valuemax", String(stats.maximumStamina));
+      write(staminaText, stats.stamina + "/" + stats.maximumStamina + (stats.stamina < stats.maximumStamina ? " · +1 in " + stats.staminaRecoverySeconds.toFixed(1) + "s" : " stamina"));
+      resources.title = "Stamina powers your actions. Recover 1 every 2 seconds.";
+      write(rage, "Rage " + stats.bloodRage + "/3" + (stats.bloodRage > 0 ? stats.inCombat ? " · −" + stats.bloodRage + " HP in " + stats.rageDrainSeconds.toFixed(1) + "s" : " · fades in " + stats.rageDecaySeconds.toFixed(1) + "s" : " · Power up with 4"));
+      rage.dataset.active = String(stats.bloodRage > 0);
+      rage.title = "Each Rage stack adds 2 melee damage and costs 1 health every 5 seconds. Outside combat, lose 1 stack every 2 seconds.";
       const enemy = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat && threat.active);
       targetGroup.hidden = !enemy;
       if (!enemy) { selectedId = ""; targetOfTarget.root.hidden = true; return; }

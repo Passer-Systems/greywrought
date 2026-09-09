@@ -10,12 +10,24 @@ Search defeated enemies for salvage, then return alive to exchange it for
 supplies. Offer six carried cores in the deep grove to call a guardian whose
 relic must be looted and brought home. Kills grant no experience points.
 
-Enemies carry health bars and intention queues above their heads, with a
-three-second warning before a committed attack. Hostile enemies are red;
-neutral creatures are yellow until provoked. Close-range enemies approach
-and pursue within their territory. Move clear or brace before the strike,
-then use their recovery window. The world map,
-road, and landmarks keep the outward route and return to safety visible.
+The first enemy is an animated Ember head with 72 health. It opens with a
+6-point ward and a targeted beam. Its beam repeats every three seconds;
+separate announced pairs alternate fireballs, wards and Kindle power-ups.
+Kindle adds another homing fireball to subsequent volleys. The nameplate shows
+painted ability icons below its health: active action, then two future moves,
+with explicit pauses between them. Auto-attacks have a separate timer.
+Hover icons for damage, timing and responses; press L for every monster's
+abilities, move patterns and random variations.
+
+You have 3 stamina, recovering 1 every 2 seconds. Spend it on attacks, a brief
+10-point Block, or Blood Rage. Rage adds melee damage but drains health, caps
+at three stacks and fades rapidly outside combat. Time Block around overlapping
+impacts, power up during enemy wards, and attack before Kindle strengthens it.
+
+Deeper in the forest, the Ash hound approaches with diagonal hops, circles,
+then commits to a dodgeable Maul. Its targeted Bite pursues for contact on a
+separate clock. Hostile creatures are red; neutral creatures are yellow until
+provoked. The map, road and landmarks keep the route home visible.
 Characters and expeditions are saved in the browser; defeat is permanent.
 Animated Quaternius creatures and village scenery bring the route to life.
 Music and sampled combat sounds begin after interaction; open the game menu to adjust
@@ -48,15 +60,18 @@ W/S move forward and backward; A/D strafe. Space jumps. Hold both mouse buttons
 to move forward, including while S is held. Drag either mouse button to turn
 the view, and use the wheel to zoom.
 
-Tab selects a target. 1 strikes; E braces. G gathers frost cores and R
+Tab selects a target. 1 lunges and strikes; 2 strikes and leaps back, rooting the
+enemy until you land; 3 (or E) spends 2 stamina for 10 block lasting 2 seconds. 4 gains a Blood Rage
+stack at the cost of 1 stamina and 2 seconds of action recovery. G gathers frost cores and R
 calls the grove guardian. F talks to Mara or Rowan, or opens nearby corpse loot; click an
 item to take it. You can also click a lootable body. H drinks a potion. Return through the
 gate to secure carried rewards. Visit Rowan at the inn to recover health.
 C opens the character paper doll with all 19 Classic equipment slots. Select
 a slot to inspect it; gear changes are not yet implemented. B opens your backpack
 to inspect carried items; click an item for its tooltip and potion action.
-Escape closes a window or opens the
-game menu. Movement continues while windows are open.
+L opens the monster lorebook. The icon hotbar shows ability keys and hover
+tooltips; the separate recovery bar shows your current commitment. Escape
+closes a window or opens the game menu. Movement continues while windows are open.
 
 ## Versions and archives
 

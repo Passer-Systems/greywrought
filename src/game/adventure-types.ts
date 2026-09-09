@@ -8,7 +8,7 @@ export interface AdventureLogEntry {
 }
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
-  | "strike" | "disengage" | "brace" | "gather" | "ritual" | "interact"
+  | "strike" | "disengage" | "brace" | "bloodRage" | "gather" | "ritual" | "interact"
   | "buyPotion" | "drinkPotion" | "rest" | "target" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn";
 export interface CorpseLootView {
   readonly sourceId: string;
@@ -29,6 +29,21 @@ export interface ThreatAbilityView {
   readonly range: number;
   readonly noticeSeconds: number;
 }
+export interface MonsterLoreEntry {
+  readonly id: string; readonly name: string; readonly health: number;
+  readonly disposition: "hostile" | "neutral"; readonly description: string;
+  readonly autoAttack: ThreatAbilityView | null; readonly opener: string;
+  readonly abilities: readonly ThreatAbilityView[];
+  readonly sequences: readonly { readonly name: string; readonly abilityIds: readonly string[]; readonly offsetsSeconds: readonly number[]; readonly description: string; readonly probability?: number }[];
+  readonly strategy: string;
+}
+export interface FireballView {
+  readonly id: number; readonly origin: Position; readonly remainingSeconds: number;
+  readonly duration: number; readonly damage: number;
+}
+export interface ThreatForecastEntry {
+  readonly ability: ThreatAbilityView; readonly remainingSeconds: number; readonly status: "stored" | "pending" | "active";
+}
 export interface ThreatView {
   readonly id: string;
   readonly name: string;
@@ -45,9 +60,13 @@ export interface ThreatView {
   readonly autoAttack: ThreatAbilityView | null;
   readonly autoAttackSeconds: number;
   readonly autoAttackSequence: number;
+  readonly block: number; readonly blockSeconds: number; readonly volley: number;
+  readonly fireballs: readonly FireballView[];
   readonly rootedSeconds: number;
   readonly canStrike: boolean;
   readonly canDisengage: boolean;
+  readonly currentActivity: ThreatForecastEntry | null;
+  readonly forecast: readonly ThreatForecastEntry[];
   readonly currentAbility: ThreatAbilityView;
   readonly nextAbility: ThreatAbilityView;
   readonly health: number;
@@ -84,10 +103,11 @@ export interface AdventureSnapshot {
     readonly moving: boolean;
     readonly backpedaling: boolean;
     readonly attackSequence: number;
-    readonly actionCooldown: number;
+    readonly actionCooldown: number; readonly currentAction: AdventureAction | null; readonly actionDuration: number;
     readonly guardSeconds: number;
     readonly block: number;
-    readonly cooldowns: { readonly strike: number; readonly disengage: number; readonly brace: number };
+    readonly stamina: number; readonly maximumStamina: number; readonly staminaRecoverySeconds: number;
+    readonly bloodRage: number; readonly rageDrainSeconds: number; readonly rageDecaySeconds: number; readonly inCombat: boolean;
     readonly maneuver: "none" | "lunge" | "disengage";
     readonly maneuverSeconds: number;
     readonly facing: Position;
