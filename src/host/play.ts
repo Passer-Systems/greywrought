@@ -1,5 +1,6 @@
 import { Vector3 } from "three";
-import { createGame, type GameEngine } from "../game/game.js";
+import { createGame } from "../game/game.js";
+import type { GameEngine } from "../game/types.js";
 import type { GameProjection, Vector3Projection, LootProjection } from "../game/types.js";
 import {
   applyAdmittedFrame,
@@ -91,6 +92,7 @@ interface LootInteraction { readonly loot:LootProjection; readonly presentationS
 interface PlayApp { readonly game:GameEngine; readonly scene:SceneShell; readonly listeners:Array<()=>void>; readonly playerInput:PlayerInputState; readonly presentationAudio:PresentationAudio; }
 interface PhysicalKey { readonly code:string; readonly repeat:boolean; }
 interface PlayerInputState { preferences:InputPreferences; captureAction:GameAction|null; gamepadFrame:number; readonly gamepadHeld:Set<GameAction>; readonly gamepadPressed:Set<GameAction>; }
+type BrowserCampaignRead = CampaignRead | Readonly<{ kind: "unavailable" }>;
 const ARCHETYPE_HUD = {
   unselected: {
     name: "Wayfarer",
@@ -253,6 +255,146 @@ function clearPersistedFoothold(): void {
   } finally {
     location.reload();
   }
+}
+
+function objectiveLabel(state: number): "completed" | "failed" | "playing" {
+  if (state === 1) return "completed";
+  if (state === -1) return "failed";
+  return "playing";
+}
+
+function lootById(projection: GameProjection, id: string): LootProjection {
+  return requireValue(
+    projection.loots.find((loot) => loot.id === id),
+    `loot projection ${id}`,
+  );
+}
+
+function lootPresentationSubject(loot: LootProjection): string {
+  return loot.source === "cinder-wraith" ? "magitek-boar" : loot.id;
+}
+
+function setVitalityBar(
+  barId: string,
+  valueId: string,
+  vitality: number,
+  maximum: number,
+): void {
+  const ratio = Math.max(0, Math.min(1, vitality / Math.max(0.001, maximum)));
+  element(barId).style.transform = `scaleX(${ratio})`;
+  element(valueId).textContent = `${vitality} / ${maximum}`;
+}
+
+function placeMinimapMarker(
+  id: string,
+  player: Vector3Projection,
+  destination: Vector3Projection,
+  visible: boolean,
+): void {
+  const marker = element(id);
+  marker.hidden = !visible;
+  if (!visible) return;
+  const maximumWorldOffset = 20;
+  const maximumMapOffset = 38;
+  const offsetX = destination.x - player.x;
+  const offsetZ = destination.z - player.z;
+  const distance = Math.hypot(offsetX, offsetZ);
+  const scale = distance > maximumWorldOffset ? maximumWorldOffset / distance : 1;
+  marker.style.left = `${50 + (offsetX * scale / maximumWorldOffset) * maximumMapOffset}%`;
+  marker.style.top = `${50 + (offsetZ * scale / maximumWorldOffset) * maximumMapOffset}%`;
+}
+
+function setQuestStep(id: string, complete: boolean, label: string): void {
+  const step = element(id);
+  step.classList.toggle("complete", complete);
+  step.textContent = `${complete ? "✓" : "—"} ${label}: ${complete ? "1/1" : "0/1"}`;
+}
+
+function renderMinimapAndQuest(
+  projection: GameProjection,
+  objectiveStatus: "completed" | "failed" | "playing",
+): void {
+  const { player, enemy, enemies, objective } = projection;
+  const boss = requireValue(
+    enemies.find(({ id }) => id === "ashen-colossus"),
+    "Ashen Colossus projection",
+  );
+  const ashenKey = lootById(projection, "ashen-key");
+  const cephorium = lootById(projection, "cephorium-cache");
+  const playerMarker = element("minimap-player");
+  playerMarker.style.left = "50%";
+  playerMarker.style.top = "50%";
+  playerMarker.style.rotate = `${Math.atan2(player.cameraForward.x, -player.cameraForward.z)}rad`;
+  placeMinimapMarker(
+    "minimap-target",
+    player.position,
+    enemy.position,
+    enemy.bodyVisible && enemy.combatStatus !== "dead" && enemy.combatStatus !== "dormant",
+  );
+  const nextObjective =
+    ashenKey.state === "available"
+      ? ashenKey.position
+      : boss.combatStatus === "alive"
+        ? boss.position
+        : cephorium.state === "available" || cephorium.custody === "player-1"
+          ? cephorium.position
+          : objective.position;
+  placeMinimapMarker(
+    "minimap-objective",
+    player.position,
+    nextObjective,
+    objectiveStatus !== "completed",
+  );
+
+  const gateComplete = ashenKey.state === "acquired";
+  const bossComplete = boss.combatStatus === "dead";
+  const coreComplete = cephorium.custody === "player-1" || objectiveStatus === "completed";
+  const completed = Number(gateComplete) + Number(bossComplete) + Number(coreComplete);
+  element("quest-tracker-heading").textContent = `Quest Tracker · ${completed}/3`;
+  setQuestStep("quest-step-gate", gateComplete, "Breach key");
+  setQuestStep("quest-step-boss", bossComplete, "Ashen Colossus");
+  setQuestStep("quest-step-core", coreComplete, "Cephorium Core");
+  document.body.dataset.questProgress = `${completed}/3`;
+}
+
+function setAbilitySlot(
+  app: PlayApp,
+  action: "ability1" | "ability2" | "ability3" | "ability4" | "ability5",
+  label: string,
+  cooldown: number,
+): void {
+  const code = app.playerInput.preferences.bindings[action];
+  const match = /^Digit([1-5])$/.exec(code);
+  if (match === null) return;
+  const slot = document.querySelector<HTMLElement>(
+    `[data-combat-slot="${Number(match[1]) - 1}"]`,
+  );
+  if (slot === null) throw new Error(`combat slot for ${action} is missing`);
+  const caption = slot.querySelector("small");
+  if (caption === null) throw new Error(`combat slot for ${action} is missing its ability caption`);
+  caption.textContent = label;
+  slot.dataset.cooldown = cooldown > 0 ? String(Math.ceil(cooldown / 60)) : "";
+  slot.classList.toggle("cooling", cooldown > 0);
+}
+
+function showDamageNumber(amount: number, kind: string, critical: boolean): void {
+  const damageNumber = element("enemy-damage-number");
+  const kindClass =
+    kind === "auto-attack"
+      ? "damage-auto-attack"
+      : kind === "pet"
+        ? "damage-pet"
+        : "damage-special";
+  damageNumber.textContent = String(amount);
+  damageNumber.className = `enemy-damage-number ${kindClass}${critical ? " critical" : ""}`;
+  damageNumber.getBoundingClientRect();
+  damageNumber.classList.add("active");
+}
+
+function boundedGameEvent(event: Record<string, unknown>): void {
+  const events = window.__GREYWROUGHT_GAME_EVENTS__;
+  events.push({ atMillis: Math.round(performance.now()), ...event });
+  if (events.length > 512) events.shift();
 }
 
 function renderGameProjection(app: PlayApp, projection: GameProjection): void {
