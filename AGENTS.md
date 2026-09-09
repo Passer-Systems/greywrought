@@ -1,24 +1,13 @@
-# Greywrought Clause application
+# Greywrought
 
-`src/world/*.clause` is the sole authority for Greywrought world meaning.
-TypeScript is explicitly admitted only for the passive Three.js, DOM, Bun, and
-foreign-system shell. Rust remains limited to exact Clause ABI and native host
-boundaries. Do not put world rules, reconciliation policy, gameplay dispatch,
-AI decisions, authority rules, or CandidateDelta merging in either host.
+The supported game is the original Three.js action RPG, with ordinary TypeScript
+owning gameplay and Bun owning package management, development, builds, and tests.
+This language and engine choice is explicitly authorized by Tom.
 
-Beagle is forbidden from Greywrought build, test, play, hot-edit, and runtime
-paths. Greywrought must not contain `.bjs` source, invoke a Beagle compiler, or
-load Beagle runtime modules or generated Beagle dependencies.
+Preserve the existing art, animations, controls, character profiles, and campaign
+progress while replacing the retired rules engine with direct typed game logic.
+Do not introduce another language, compiler, interpreter, or runtime dependency.
 
-Generated CPP1, CWR1, Wasm, JavaScript, and native artifacts belong only in
-ignored `build/`. Clause is consumed through an immutable pin; never import its
-live `main/` checkout.
-
-The disconnect, bounded combat, and ongoing-effect journeys are complete. The
-current delivery boundary is exactly one process-resident source compiler and
-one already-open browser installing each fresh checked generation. A save to
-`src/world/ember-reconnection.clause` must not rebuild Cargo or restart
-the server or page. Preserve the exact random input, the hidden CandidateDelta,
-the separate Admission, stale-generation fencing, and source-owned world rules.
-Do not broaden this tranche into a watcher framework, editor infrastructure,
-general networking, deployment, distribution, or unrelated systems vocabulary.
+Keep product interface copy in player language. Keep build output under ignored
+`build/`. Preserve assets and their attribution. Use the nearest relevant Bun
+checks and a real browser journey for changes affecting play.
