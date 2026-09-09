@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createAdventure } from "./adventure.js";
+import { COMBAT_RULES, createAdventure } from "./adventure.js";
 import type { AdventureAction, AdventureGame, ThreatView } from "./adventure-types.js";
 
 function tap(game: AdventureGame, action: AdventureAction): void {
@@ -25,23 +25,27 @@ function enter(game: AdventureGame): void {
   walk(game, 0, 5);
   expect(game.snapshot.phase).toBe("expedition");
 }
+function positioned(x: number, z: number): AdventureGame {
+  const saved = JSON.parse(createAdventure().save());
+  saved.state.phase = "expedition"; saved.state.position = {x,y:0,z};
+  return createAdventure({save:JSON.stringify(saved)});
+}
 function approachWarder(): AdventureGame {
-  const game = createAdventure();
-  enter(game);
-  walk(game, -8, 5);
-  walk(game, -8, 24);
-  walk(game, -3, 26.6);
+  const game = positioned(-8,24);
+  game.advance(1.5);
   expect(game.snapshot.player.health).toBe(100);
-  expect(threat(game, "warder").phase).toBe("preparation");
+  expect(threat(game,"warder").phase).toBe("preparation");
   return game;
 }
 function finish(game: AdventureGame, id: string): void {
   game.selectTarget(id);
-  while (threat(game, id).health > 0) {
-    game.advance(game.snapshot.player.actionCooldown);
+  for (let attempts=0; threat(game,id).health>0 && attempts<20; attempts++) {
+    game.advance(Math.max(game.snapshot.player.actionCooldown, game.snapshot.player.cooldowns.strike));
     tap(game, "strike");
+    game.advance(COMBAT_RULES.strike.duration);
     expect(game.snapshot.phase).toBe("expedition");
   }
+  expect(threat(game,id).health).toBe(0);
 }
 
 describe("Frostwood expedition", () => {
@@ -88,57 +92,51 @@ describe("Frostwood expedition", () => {
     enter(game);
   });
 
-  test("forecast waits its full preparation; fixed damage lands once; brace halves it and retreat evades", () => {
+  test("forecast commits before damage; block absorbs five; leaving the committed area evades", () => {
     const normal = approachWarder();
-    const braced = createAdventure({ save: normal.save() });
-    const retreat = createAdventure({ save: normal.save() });
-    const forecast = threat(normal, "warder");
-    tap(braced, "brace");
-    walk(retreat, -3, 23);
-    normal.advance(forecast.remainingSeconds - 0.01);
-    braced.advance(forecast.remainingSeconds - 0.01);
+    const braced = createAdventure({save:normal.save()});
+    const forecast = threat(normal,"warder");
+    tap(braced,"brace");
+    normal.advance(forecast.remainingSeconds); braced.advance(forecast.remainingSeconds);
     expect(normal.snapshot.player.health).toBe(100);
-    expect(threat(normal, "warder").damage).toBe(forecast.damage);
-    normal.advance(0.011); braced.advance(0.011);
-    retreat.advance(3);
-    expect(normal.snapshot.player.health).toBe(100 - forecast.damage);
-    expect(braced.snapshot.player.health).toBe(100 - forecast.damage / 2);
+    expect(threat(normal,"warder").damage).toBe(forecast.damage);
+    expect(threat(normal,"warder").phase).toBe("action");
+    const retreat=createAdventure({save:normal.save()});
+    const area=threat(normal,"warder").targetPosition;
+    const from=retreat.snapshot.player.position;
+    const dx=from.x-area.x,dz=from.z-area.z,length=Math.hypot(dx,dz);
+    walk(retreat,from.x+dx/length,from.z+dz/length);
+    retreat.advance(0.35);
+    normal.advance(0.35); braced.advance(0.35);
+    expect(normal.snapshot.player.health).toBe(100-forecast.damage);
+    expect(braced.snapshot.player.health).toBe(100-forecast.damage+5);
+    expect(braced.snapshot.player.block).toBe(0);
     expect(retreat.snapshot.player.health).toBe(100);
-    expect(threat(normal, "warder").phase).toBe("action");
-    expect(threat(normal, "warder").targetPosition).toEqual(forecast.position);
-    normal.advance(0.36);
-    expect(threat(normal, "warder").phase).toBe("recovery");
-    expect(normal.snapshot.player.health).toBe(100 - forecast.damage);
+    expect(threat(normal,"warder").phase).toBe("recovery");
+    expect(threat(normal,"warder").actionSequence).toBe(1);
+    normal.advance(0.1);
+    expect(normal.snapshot.player.health).toBe(100-forecast.damage);
   });
 
-  test("lookout alarms increase presence, kills give no supplies or stats, and nest opens the east path", () => {
-    const game = createAdventure();
-    enter(game); walk(game, -3, 8);
-    const before = game.snapshot.presence;
-    game.advance(3.1);
-    expect(game.snapshot.presence - before).toBeGreaterThan(3);
-    expect(game.snapshot.player.health).toBe(100);
-    expect(threat(game, "scout").damage).toBe(0);
+  test("first hound has an immediate bite; kills give no supplies or stats; nest opens the east path", () => {
+    const game=positioned(-3,8);
+    game.advance(0.02);
+    expect(game.snapshot.player.health).toBe(96);
+    expect(threat(game,"scout").currentAbility.name).toBe("Bite");
+    expect(threat(game,"scout").nextAbility.name).toBe("Lunging Maul");
     game.selectTarget("scout");
-    game.setAction("strike", true);
-    game.advance(2.1);
-    game.setAction("strike", true);
-    expect(threat(game, "scout").health).toBe(9);
-    game.setAction("strike", false); tap(game, "strike");
-    expect(threat(game, "scout").phase).toBe("cleared");
-    const clearedSequence = threat(game, "scout").actionSequence;
-    game.advance(8);
-    expect(threat(game, "scout").actionSequence).toBe(clearedSequence);
+    game.setAction("strike",true); game.advance(2.1); game.setAction("strike",true);
+    expect(threat(game,"scout").health).toBe(45);
+    game.setAction("strike",false); finish(game,"scout");
+    const sequence=threat(game,"scout").actionSequence;
+    game.advance(8); expect(threat(game,"scout").actionSequence).toBe(sequence);
     expect(game.snapshot.supplies).toBe(15);
     expect(game.snapshot.player.maximumHealth).toBe(100);
-    walk(game, 1.9, 17);
-    walk(game, 1.9, 20);
-    game.setCameraForward(1, 0); game.setAction("forward", true); game.advance(1);
-    game.setAction("forward", false);
+    walk(game,1.9,17); walk(game,1.9,20);
+    game.setCameraForward(1,0); game.setAction("forward",true); game.advance(1); game.setAction("forward",false);
     expect(game.snapshot.player.position.x).toBeLessThanOrEqual(2);
-    finish(game, "nest");
-    walk(game, 5, 20);
-    expect(threat(game, "nest").phase).toBe("cleared");
+    finish(game,"nest"); walk(game,5,20);
+    expect(threat(game,"nest").phase).toBe("cleared");
     expect(game.snapshot.supplies).toBe(15);
   });
 
@@ -153,10 +151,10 @@ describe("Frostwood expedition", () => {
     tap(game, "drinkPotion"); expect(game.snapshot.potions).toBe(1);
     walk(game, 0, -3); enter(game);
     expect(game.snapshot.shopOpen).toBe(false);
-    walk(game, -2, 12); tap(game, "gather");
+    walk(game, -2, 12); const beforeHarvest=game.snapshot.player.health; tap(game, "gather");
     expect(game.snapshot.cargo).toBe(3);
     expect(game.snapshot.resourceRemaining).toBe(9);
-    expect(game.snapshot.player.health).toBe(92);
+    expect(game.snapshot.player.health).toBe(beforeHarvest-8);
     tap(game, "drinkPotion"); expect(game.snapshot.player.health).toBe(100);
     expect(game.snapshot.potions).toBe(0);
     walk(game, 0, 5); walk(game, 0, -1);
@@ -190,40 +188,34 @@ describe("Frostwood expedition", () => {
     expect(game.snapshot.innOpen).toBe(false);
   });
 
-  test("combat history preserves a strike, mitigated damage, miss, and repeat messages exactly once", () => {
-    const game = approachWarder();
-    game.selectTarget("warder");
-    tap(game, "strike");
-    expect(game.snapshot.log.at(-1)).toMatchObject({channel:"combat",text:"You strike Root warder for 9 damage."});
-    game.advance(2);
-    tap(game, "brace");
-    const damage = threat(game,"warder").damage;
-    const health = game.snapshot.player.health;
-    game.advance(threat(game,"warder").remainingSeconds + 0.01);
-    expect(game.snapshot.player.health).toBe(health-damage/2);
-    expect(game.snapshot.log.at(-1)?.text).toContain(`${damage/2} damage (${damage/2} blocked by Brace)`);
-    game.advance(3);
-    const warning=threat(game,"warder");
-    walk(game,warning.targetPosition.x,warning.targetPosition.z-warning.reach-1);
-    const beforeMiss=game.snapshot.player.health;
-    game.advance(threat(game,"warder").remainingSeconds+0.01);
-    expect(game.snapshot.player.health).toBe(beforeMiss);
-    expect(game.snapshot.log.at(-1)?.text).toContain("misses you");
-    tap(game,"drinkPotion"); tap(game,"drinkPotion");
-    expect(game.snapshot.log.slice(-2).map(e=>e.text)).toEqual(["No health potions. Visit Mara in Hearthstead.","No health potions. Visit Mara in Hearthstead."]);
-    const count=game.snapshot.log.length;
-    game.advance(0.01);
-    expect(game.snapshot.log.length).toBe(count);
-    expect(new Set(game.snapshot.log.map(e=>e.id)).size).toBe(count);
+  test("combat history preserves arrival damage, consumed block, a miss and repeated messages", () => {
+    const game=approachWarder(); game.selectTarget("warder");
+    tap(game,"strike"); game.advance(COMBAT_RULES.strike.duration);
+    expect(game.snapshot.log.at(-1)?.text).toBe("You lunge at Root warder for 9 damage.");
+    game.advance(0.75); tap(game,"brace");
+    const damage=threat(game,"warder").damage,health=game.snapshot.player.health;
+    game.advance(threat(game,"warder").remainingSeconds+0.35);
+    expect(game.snapshot.player.health).toBe(health-damage+5);
+    expect(game.snapshot.log.at(-1)?.text).toContain((damage-5)+" damage (5 blocked by Brace)");
+    game.advance(threat(game,"warder").remainingSeconds);
+    game.advance(threat(game,"warder").remainingSeconds);
+    const area=threat(game,"warder").targetPosition;
+    const saved=JSON.parse(game.save()); saved.state.position={x:area.x-6,y:0,z:area.z};
+    const miss=createAdventure({save:JSON.stringify(saved)}),before=miss.snapshot.player.health;
+    miss.advance(0.35);
+    expect(miss.snapshot.player.health).toBe(before);
+    expect(miss.snapshot.log.at(-1)?.text).toContain("misses you");
+    tap(miss,"drinkPotion"); tap(miss,"drinkPotion");
+    expect(miss.snapshot.log.slice(-2).map(e=>e.text)).toEqual(["No health potions. Visit Mara in Hearthstead.","No health potions. Visit Mara in Hearthstead."]);
+    const count=miss.snapshot.log.length; miss.advance(0.01);
+    expect(miss.snapshot.log.length).toBe(count);
+    expect(new Set(miss.snapshot.log.map(e=>e.id)).size).toBe(count);
   });
 
   test("six cores call the guardian; six strikes claim a relic; return banks it and remaining cores", () => {
-    const game = createAdventure();
-    enter(game); walk(game, -2, 12);
-    for (let i = 0; i < 4; i += 1) { tap(game, "gather"); game.advance(2); }
-    expect(game.snapshot.cargo).toBe(12);
-    expect(game.snapshot.resourceRemaining).toBe(0);
-    walk(game, -10, 12); walk(game, -10, 43); walk(game, 2, 43);
+    const prepared=JSON.parse(positioned(2,43).save());
+    prepared.state.cargo=12; prepared.state.resourceRemaining=0;
+    const game=createAdventure({save:JSON.stringify(prepared)});
     tap(game, "ritual");
     expect(game.snapshot.ritualCalled).toBe(true);
     expect(game.snapshot.cargo).toBe(6);
@@ -240,7 +232,7 @@ describe("Frostwood expedition", () => {
     game.openLoot("ritual-guardian"); tap(game, "takeLoot");
     expect(game.snapshot.carriedRelics).toBe(1);
     expect(game.snapshot.bankedRelics).toBe(0);
-    const v2 = game.save().replace('"version":3', '"version":2')
+    const v2 = game.save().replace('"version":4', '"version":2').replaceAll('"phase":"patrol"','"phase":"dormant"')
       .replace(/,"lootClaimed":(?:true|false)/g, "").replace(/,"carriedSalvage":\d+/g, "");
     const migrated = createAdventure({ save: v2 });
     expect(migrated.snapshot.carriedRelics).toBe(1);
@@ -270,7 +262,7 @@ describe("Frostwood expedition", () => {
     expect(loaded.snapshot.player.position.z).toBe(position.z);
     expect(loaded.snapshot.player.position.y).not.toBe(position.y);
     expect(createAdventure({ archetype: "hunter" }).snapshot.player.archetype).toBe("hunter");
-    for (const bad of ["broken", "{}", saved.replace('"version":3', '"version":99'),
+    for (const bad of ["broken", "{}", saved.replace('"version":4', '"version":99'),
       saved.replace('"selectedThreat":"scout"', '"selectedThreat":"missing"'),
       saved.replace('"health":100', '"health":null')]) {
       expect(() => createAdventure({ save: bad })).toThrow();
@@ -291,7 +283,7 @@ describe("Frostwood expedition", () => {
     expect(lost.snapshot.phase).toBe("lost");
   });
 
-  test("hostiles acquire in range, approach, then hold the committed attack position", () => {
+  test("hostiles acquire in range, approach and pursue during preparation", () => {
     const game = createAdventure();
     enter(game); walk(game, -8, 5); walk(game, -8, 22);
     expect(threat(game, "warder").disposition).toBe("hostile");
@@ -309,31 +301,32 @@ describe("Frostwood expedition", () => {
     expect(committed.targetPosition).toEqual(committed.position);
     expect(committed.moving).toBe(false);
     walk(game, -10, 24);
-    expect(threat(game, "warder").position).toEqual(committed.position);
-    expect(threat(game, "warder").targetPosition).toEqual(committed.targetPosition);
+    expect(threat(game, "warder").position).not.toEqual(committed.position);
+    expect(threat(game, "warder").targetPosition).toEqual(threat(game,"warder").position);
     expect(threat(game, "warder").damage).toBe(committed.damage);
     const reopened = createAdventure({ save: game.save() });
     expect(reopened.snapshot.threats).toEqual(game.snapshot.threats);
-    reopened.advance(threat(reopened, "warder").remainingSeconds + 0.01);
-    expect(reopened.snapshot.player.health).toBe(100);
+    const healthBefore=reopened.snapshot.player.health;
+    reopened.advance(threat(reopened, "warder").remainingSeconds);
+    expect(reopened.snapshot.player.health).toBe(healthBefore);
+    expect(threat(reopened,"warder").phase).toBe("action");
   });
 
   test("neutral nest ignores proximity, retaliates when hit, and disengages beyond its territory", () => {
-    const game = createAdventure();
-    enter(game); walk(game, 0, 17); walk(game, 4.2, 17.65);
+    const game = positioned(4.2,17.65);
     game.advance(10);
     expect(threat(game, "nest").disposition).toBe("neutral");
     expect(threat(game, "nest").aggro).toBe(false);
     expect(threat(game, "nest").actionSequence).toBe(0);
     expect(game.snapshot.player.health).toBe(100);
-    game.selectTarget("nest"); tap(game, "strike");
+    game.selectTarget("nest"); tap(game, "strike"); game.advance(COMBAT_RULES.strike.duration);
     expect(threat(game, "nest").aggro).toBe(true);
     expect(threat(game, "nest").phase).toBe("preparation");
-    expect(threat(game, "nest").remainingSeconds).toBe(3);
+    expect(threat(game, "nest").remainingSeconds).toBeCloseTo(3,1);
     const reopened = createAdventure({ save: game.save() });
     expect(threat(reopened, "nest").aggro).toBe(true);
     const damage = threat(reopened, "nest").damage;
-    reopened.advance(3.02);
+    reopened.advance(3.35);
     expect(reopened.snapshot.player.health).toBe(100 - damage);
     walk(game, 0, 12);
     expect(threat(game, "nest").aggro).toBe(false);
@@ -357,8 +350,9 @@ describe("Frostwood expedition", () => {
     expect(threat(reloaded, "warder").phase).toBe("dormant");
     expect(threat(reloaded, "warder").position).toEqual(returning.homePosition);
     walk(reloaded, 0, 5); walk(reloaded, 0, -1);
+    const returnedHealth=reloaded.snapshot.player.health;
     reloaded.advance(10);
-    expect(reloaded.snapshot.player.health).toBe(100);
+    expect(reloaded.snapshot.player.health).toBe(returnedHealth);
     expect(reloaded.snapshot.threats.every(t => !t.aggro)).toBe(true);
   });
 
@@ -468,7 +462,7 @@ describe("Frostwood expedition", () => {
     expect(game.snapshot.loot.find(item => item.sourceId === "warder")?.position).toEqual(corpse);
     game.advance(8);
     expect(threat(game, "warder").position).toEqual(corpse);
-    const v2 = game.save().replace('"version":3', '"version":2')
+    const v2 = game.save().replace('"version":4', '"version":2').replaceAll('"phase":"patrol"','"phase":"dormant"')
       .replace(/,"lootClaimed":(?:true|false)/g, "").replace(/,"carriedSalvage":\d+/g, "");
     const migrated = createAdventure({ save: v2 });
     expect(migrated.snapshot.player.health).toBe(game.snapshot.player.health);
@@ -477,5 +471,229 @@ describe("Frostwood expedition", () => {
     expect(migrated.snapshot.loot.find(item => item.sourceId === "warder")?.available).toBe(true);
     const broken = game.save().replace('"lootClaimed":false', '"lootClaimed":null');
     expect(() => createAdventure({ save: broken })).toThrow();
+  });
+});
+
+function houndMaul(): AdventureGame {
+  const game=positioned(-3,8);
+  game.advance(0.02);
+  expect(game.snapshot.player.health).toBe(96);
+  expect(threat(game,"scout").actionSequence).toBe(1);
+  game.advance(threat(game,"scout").remainingSeconds);
+  expect(threat(game,"scout").phase).toBe("preparation");
+  expect(threat(game,"scout").remainingSeconds).toBeCloseTo(5);
+  return game;
+}
+
+describe("first hound and three combat choices",()=>{
+  test("patrols move in town, keep their moving positions on entry, and acquire from that position",()=>{
+    const game=createAdventure();
+    const start=threat(game,"scout");
+    expect(start.phase).toBe("patrol");
+    expect(start.currentAbility).toMatchObject({id:"bite",damage:4,range:2,noticeSeconds:0});
+    expect(start.nextAbility).toMatchObject({id:"maul",damage:9,range:3,noticeSeconds:5});
+    game.advance(1);
+    expect(threat(game,"scout").position).not.toEqual(start.position);
+    expect(threat(game,"scout").moving).toBe(true);
+    expect(threat(game,"scout").aggro).toBe(false);
+    const saved=JSON.parse(game.save()); saved.state.position={x:0,y:0,z:1.99};
+    const gate=createAdventure({save:JSON.stringify(saved)});
+    const before=threat(gate,"scout").position;
+    gate.setAction("forward",true); gate.advance(0.01);
+    expect(gate.snapshot.phase).toBe("expedition");
+    expect(Math.hypot(threat(gate,"scout").position.x-before.x,threat(gate,"scout").position.z-before.z)).toBeLessThan(0.05);
+    const moved=JSON.parse(game.save()); moved.state.phase="expedition";
+    moved.state.threats.find((t:{id:string})=>t.id==="scout").position={x:-6,y:0,z:14};
+    moved.state.position={x:-6,y:0,z:19};
+    const acquire=createAdventure({save:JSON.stringify(moved)}); acquire.advance(0.01);
+    expect(threat(acquire,"scout").aggro).toBe(true);
+    expect(threat(acquire,"scout").phase).toBe("approach");
+  });
+
+  test("one immediate Bite is followed by five full seconds of notice, then one committed Maul",()=>{
+    const game=houndMaul();
+    const warning=threat(game,"scout");
+    expect(warning.currentAbility.id).toBe("maul");
+    expect(warning.nextAbility.id).toBe("bite");
+    expect(warning.phaseDuration).toBe(5);
+    game.advance(4.99);
+    expect(game.snapshot.player.health).toBe(96);
+    expect(threat(game,"scout").actionSequence).toBe(1);
+    game.advance(0.01);
+    expect(threat(game,"scout").phase).toBe("action");
+    expect(threat(game,"scout").phaseDuration).toBe(0.65);
+    const area=threat(game,"scout").targetPosition;
+    game.advance(0.64);
+    expect(game.snapshot.player.health).toBe(96);
+    expect(threat(game,"scout").targetPosition).toEqual(area);
+    game.advance(0.01);
+    expect(game.snapshot.player.health).toBe(87);
+    expect(threat(game,"scout").actionSequence).toBe(2);
+    expect(threat(game,"scout").phase).toBe("recovery");
+    game.advance(1.99);
+    expect(game.snapshot.player.health).toBe(87);
+    game.advance(0.01);
+    expect(game.snapshot.player.health).toBe(83);
+    expect(threat(game,"scout").actionSequence).toBe(3);
+  });
+
+  test("the warning follows a moving player without resetting its clock or announced damage",()=>{
+    const game=houndMaul(),before=threat(game,"scout");
+    walk(game,-3,4.5);
+    const after=threat(game,"scout");
+    expect(after.position).not.toEqual(before.position);
+    expect(after.moving).toBe(true);
+    expect(after.targetPosition).toEqual(after.position);
+    expect(after.remainingSeconds).toBeCloseTo(before.remainingSeconds-3.5/4.5);
+    expect(after.damage).toBe(before.damage);
+    const saved=JSON.parse(game.save());
+    saved.state.threats.find((t:{id:string})=>t.id==="scout").phase="recovery";
+    saved.state.threats.find((t:{id:string})=>t.id==="scout").remainingSeconds=2;
+    const recovery=createAdventure({save:JSON.stringify(saved)});
+    recovery.setCameraForward(1,0); recovery.setAction("forward",true); recovery.advance(0.5);
+    expect(threat(recovery,"scout").moving).toBe(true);
+  });
+
+  test("Lunge owns smooth movement, hits on arrival, preserves held controls, and rejects invalid range",()=>{
+    const game=positioned(-3,4.5); game.selectTarget("scout");
+    expect(threat(game,"scout").canStrike).toBe(true);
+    tap(game,"strike");
+    expect(threat(game,"scout").health).toBe(54);
+    expect(game.snapshot.player.maneuver).toBe("lunge");
+    expect(game.snapshot.player.cooldowns.strike).toBe(2);
+    expect(game.snapshot.player.actionCooldown).toBe(1);
+    game.setCameraForward(1,0); game.setAction("forward",true);
+    game.advance(0.125);
+    expect(game.snapshot.player.position.z).toBeGreaterThan(4.5);
+    expect(game.snapshot.player.position.z).toBeLessThan(8.5);
+    expect(game.snapshot.player.facing).toEqual({x:0,y:0,z:1});
+    expect(threat(game,"scout").health).toBe(54);
+    game.advance(0.125);
+    expect(threat(game,"scout").health).toBe(45);
+    expect(game.snapshot.player.attackSequence).toBe(1);
+    expect(game.snapshot.player.maneuver).toBe("none");
+    const landed=game.snapshot.player.position; game.advance(0.1);
+    expect(game.snapshot.player.position.x).toBeCloseTo(landed.x+0.45);
+    const far=positioned(10,6); far.selectTarget("scout");
+    tap(far,"strike"); tap(far,"disengage");
+    expect(far.snapshot.player.cooldowns).toEqual({strike:0,disengage:0,brace:0});
+    expect(far.snapshot.player.attackSequence).toBe(0);
+    expect(threat(far,"scout").health).toBe(54);
+  });
+
+  test("Disengage hits then roots until landing, evades committed ground, and saves coherently midair",()=>{
+    const game=houndMaul(); game.advance(5); game.selectTarget("scout");
+    const enemy=threat(game,"scout").position;
+    expect(threat(game,"scout").canDisengage).toBe(true);
+    tap(game,"disengage");
+    expect(threat(game,"scout").health).toBe(48);
+    expect(threat(game,"scout").rootedSeconds).toBe(0.8);
+    game.advance(0.4);
+    expect(game.snapshot.player.position.y).toBeCloseTo(1.2);
+    expect(threat(game,"scout").position).toEqual(enemy);
+    expect(threat(game,"scout").rootedSeconds).toBeCloseTo(0.4);
+    const saved=game.save(),reopened=createAdventure({save:saved});
+    expect(reopened.save()).toBe(saved);
+    game.advance(0.39); reopened.advance(0.39);
+    expect(reopened.save()).toBe(game.save());
+    expect(threat(game,"scout").rootedSeconds).toBeGreaterThan(0);
+    expect(threat(game,"scout").position).toEqual(enemy);
+    expect(game.snapshot.player.health).toBe(96);
+    game.advance(0.01); reopened.advance(0.01);
+    expect(reopened.save()).toBe(game.save());
+    expect(game.snapshot.player.grounded).toBe(true);
+    expect(threat(game,"scout").rootedSeconds).toBe(0);
+    game.advance(0.5);
+    expect(threat(game,"scout").position).not.toEqual(enemy);
+    expect(threat(game,"scout").aggro).toBe(true);
+  });
+
+  test("root pauses pursuit without pausing Maul notice",()=>{
+    const game=houndMaul(); game.selectTarget("scout");
+    tap(game,"disengage");
+    const enemy=threat(game,"scout"); game.advance(0.4);
+    expect(threat(game,"scout").position).toEqual(enemy.position);
+    expect(threat(game,"scout").remainingSeconds).toBeCloseTo(4.6);
+    expect(threat(game,"scout").moving).toBe(false);
+  });
+
+  test("block is consumed across hits, expires at five seconds and cannot stack",()=>{
+    const game=positioned(-3,8); tap(game,"brace");
+    expect(game.snapshot.player.block).toBe(5);
+    tap(game,"brace"); expect(game.snapshot.player.block).toBe(5);
+    game.advance(0.02);
+    expect(game.snapshot.player.health).toBe(100);
+    expect(game.snapshot.player.block).toBe(1);
+    const saved=JSON.parse(game.save());
+    const h=saved.state.threats.find((t:{id:string})=>t.id==="scout");
+    h.abilityIndex=1; h.damage=9; h.phase="action"; h.remainingSeconds=0.1;
+    const second=createAdventure({save:JSON.stringify(saved)}); second.advance(0.1);
+    expect(second.snapshot.player.health).toBe(92);
+    expect(second.snapshot.player.block).toBe(0);
+    expect(second.snapshot.player.guardSeconds).toBe(0);
+    const expiry=positioned(10,6); tap(expiry,"brace"); expiry.advance(4.99);
+    expect(expiry.snapshot.player.block).toBe(5);
+    expiry.advance(0.01); expect(expiry.snapshot.player.block).toBe(0);
+    tap(expiry,"brace"); expect(expiry.snapshot.player.block).toBe(0);
+    expiry.advance(2); tap(expiry,"brace"); expect(expiry.snapshot.player.block).toBe(5);
+  });
+
+  test("maneuvers respect gate walls and thicket, and ordinary jumps cannot cast them",()=>{
+    const gate=positioned(4,5); const saved=JSON.parse(gate.save());
+    saved.state.threats.find((t:{id:string})=>t.id==="scout").position={x:4,y:0,z:7};
+    const leap=createAdventure({save:JSON.stringify(saved)}); leap.selectTarget("scout"); tap(leap,"disengage"); leap.advance(0.8);
+    expect(leap.snapshot.player.position.z).toBeGreaterThan(4);
+    expect(leap.snapshot.player.grounded).toBe(true);
+    expect(threat(leap,"scout").rootedSeconds).toBe(0);
+    const nest=positioned(1.9,20); nest.selectTarget("nest"); tap(nest,"strike"); nest.advance(0.25);
+    expect(nest.snapshot.player.position.x).toBeLessThanOrEqual(2);
+    expect(threat(nest,"nest").health).toBe(15);
+    tap(nest,"jump"); nest.advance(0.1); tap(nest,"disengage");
+    expect(nest.snapshot.player.cooldowns.disengage).toBe(0);
+    const blocked=JSON.parse(positioned(1.9,20).save());
+    blocked.state.threats.find((t:{id:string})=>t.id==="scout").position={x:5,y:0,z:20};
+    const wall=createAdventure({save:JSON.stringify(blocked)}); wall.selectTarget("scout");
+    expect(threat(wall,"scout").canStrike).toBe(false); tap(wall,"strike");
+    expect(wall.snapshot.player.cooldowns.strike).toBe(0);
+  });
+
+  test("v3 keeps character, loot and already-resolved hits while converting old guard and scout warnings",()=>{
+    const legacy=JSON.parse(positioned(-3,8).save()); legacy.version=3;
+    Object.assign(legacy.state,{health:73,supplies:27,cargo:6,resourceRemaining:6,potions:2,carriedSalvage:1,guardSeconds:2,bankedRelics:1});
+    for(const t of legacy.state.threats){
+      delete t.patrolIndex;delete t.moving;delete t.abilityIndex;
+      if(t.phase==="patrol")t.phase="dormant";
+      if(t.id==="scout")Object.assign(t,{health:12,damage:0,phase:"action",remainingSeconds:0.2,actionSequence:3,aggro:true});
+      if(t.id==="nest")Object.assign(t,{health:0,phase:"cleared",lootClaimed:true});
+    }
+    delete legacy.state.block;delete legacy.state.cooldowns;delete legacy.state.maneuver;
+    const game=createAdventure({save:JSON.stringify(legacy)});
+    expect(game.snapshot.player).toMatchObject({health:73,block:5,guardSeconds:2,maneuver:"none"});
+    expect(game.snapshot).toMatchObject({supplies:27,cargo:6,resourceRemaining:6,potions:2,carriedSalvage:1,bankedRelics:1});
+    expect(threat(game,"scout")).toMatchObject({health:12,phase:"recovery",actionSequence:3});
+    expect(game.snapshot.loot.find(t=>t.sourceId==="nest")?.available).toBe(false);
+    game.advance(0.2);
+    expect(game.snapshot.player.health).toBe(73);
+    expect(threat(game,"scout").actionSequence).toBe(3);
+    expect(createAdventure({save:game.save()}).save()).toBe(game.save());
+    const warned=structuredClone(legacy);
+    Object.assign(warned.state.threats[0],{phase:"preparation",remainingSeconds:1.25});
+    const warning=createAdventure({save:JSON.stringify(warned)});
+    expect(threat(warning,"scout")).toMatchObject({remainingSeconds:1.25,damage:9,currentAbility:{id:"maul"}});
+  });
+
+  test("save/reopen during Bite follow-through, Lunge and patrol never grants an extra hit",()=>{
+    const bite=positioned(-3,8); bite.advance(0.02);
+    const reopened=createAdventure({save:bite.save()}); reopened.advance(0.3);
+    expect(reopened.snapshot.player.health).toBe(96);
+    expect(threat(reopened,"scout").actionSequence).toBe(1);
+    const lunge=positioned(-3,4.5); lunge.selectTarget("scout"); tap(lunge,"strike"); lunge.advance(0.1);
+    const loaded=createAdventure({save:lunge.save()}); loaded.advance(0.15); lunge.advance(0.15);
+    expect(loaded.save()).toBe(lunge.save());
+    expect(threat(loaded,"scout").health).toBe(45);
+    loaded.advance(0.1); expect(threat(loaded,"scout").health).toBe(45);
+    const patrol=createAdventure(); patrol.advance(1);
+    const restored=createAdventure({save:patrol.save()}); patrol.advance(1); restored.advance(1);
+    expect(restored.save()).toBe(patrol.save());
   });
 });

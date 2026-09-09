@@ -1,34 +1,48 @@
 import type { CharacterArchetype } from "../host/character-profile.js";
 import type {
   AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot, AdventureLogEntry,
-  CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView,
+  CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView, ThreatAbilityView,
 } from "./adventure-types.js";
 
 type Vector = { x: number; y: number; z: number };
 type Phase = AdventureSnapshot["phase"];
+export const COMBAT_RULES = {
+  actionCooldown: 1,
+  strike: { damage: 9, range: 6.5, stopDistance: 1.5, duration: 0.25, cooldown: 2 },
+  disengage: { damage: 6, range: 3.5, distance: 5, duration: 0.8, cooldown: 6 },
+  brace: { block: 5, duration: 5, cooldown: 7 },
+  enemy: { preparation: 5, action: 0.65, recovery: 2 },
+} as const;
+interface Maneuver {
+  kind: "lunge" | "disengage"; targetId: string; remainingSeconds: number;
+  start: Vector; destination: Vector; facing: Vector;
+}
 interface ThreatDefinition {
   id: string; name: string; position: Position; health: number;
   preparation: string; intention: string; damage: number; reach: number; benefit: string;
-  disposition: ThreatView["disposition"]; aggroRange: number; leash: number; speed: number;
+  disposition: ThreatView["disposition"]; aggroRange: number; leash: number; speed: number; patrol?: readonly Position[];
 }
 interface ThreatState {
   id: string; health: number; active: boolean; phase: ThreatPhase;
   remainingSeconds: number; actionSequence: number; lastActionHit: boolean; damage: number;
   position: Vector; targetPosition: Vector; aggro: boolean; lootClaimed: boolean;
+  patrolIndex: number; moving: boolean; abilityIndex: number;
 }
 interface State {
   phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number;
   health: number; supplies: number; cargo: number; resourceRemaining: number;
   potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
   ritualCalled: boolean; actionCooldown: number; guardSeconds: number;
+  block: number; cooldowns: { strike: number; disengage: number; brace: number }; maneuver: Maneuver | null;
   attackSequence: number; selectedThreat: string; report: string; threats: ThreatState[];
 }
 
 const point = (x: number, z: number): Vector => ({ x, y: 0, z });
 const DEFINITIONS: readonly ThreatDefinition[] = [
-  { id: "scout", disposition: "hostile", aggroRange: 10, leash: 14, speed: 0, name: "Briar lookout", position: point(-3, 10), health: 18,
-    preparation: "Listening for footsteps", intention: "Sounding the alarm", damage: 0, reach: 35,
-    benefit: "Clear the lookout to stop its repeated alarms." },
+  { id: "scout", disposition: "hostile", aggroRange: 6, leash: 14, speed: 4.2, name: "Ash hound", position: point(-3, 10), health: 54,
+    patrol: [point(-3,10), point(-6,10), point(-6,14), point(-3,14)],
+    preparation: "Drawing back to pounce", intention: "Bite", damage: 4, reach: 2,
+    benefit: "Clear the hound to make the first clearing safer." },
   { id: "nest", disposition: "neutral", aggroRange: 0, leash: 7, speed: 0, name: "Thorn nest", position: point(5, 20), health: 24,
     preparation: "Rousing the swarm", intention: "Swarm rush", damage: 7, reach: 3,
     benefit: "Clear the nest to open the passage through the thicket." },
@@ -36,6 +50,7 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     preparation: "Raising thorn wards", intention: "Thorn lash", damage: 8, reach: 5,
     benefit: "Clear the warder to gather frost cores without cutting thorns." },
   { id: "patrol", disposition: "hostile", aggroRange: 10, leash: 13, speed: 3.2, name: "Ash hound patrol", position: point(3, 35), health: 36,
+    patrol: [point(3,35), point(6,35), point(6,38), point(3,38)],
     preparation: "Sweeping the trail", intention: "Charging the company", damage: 10, reach: 7,
     benefit: "Clear the patrol to prevent ambushes during retreat." },
   { id: "ritual-guardian", disposition: "hostile", aggroRange: 8, leash: 11, speed: 2.2, name: "Called frost guardian", position: point(2, 40), health: 48,
@@ -51,8 +66,9 @@ const PLACES: readonly PlaceView[] = [
   { id: "inn", name: "Rowan / The Wayfarer's Rest", position: point(5, -11), kind: "inn" },
 ];
 const PHASE_SECONDS: Record<ThreatPhase, number> = {
-  dormant: 0, approach: 0, preparation: 3, action: 0.35, recovery: 2.65, returning: 0, cleared: 0,
+  dormant: 0, patrol: 0, approach: 0, ...COMBAT_RULES.enemy, returning: 0, cleared: 0,
 };
+const OTHER_PHASE_SECONDS: Record<ThreatPhase, number> = { ...PHASE_SECONDS, preparation: 3, action: 0.35, recovery: 2.65 };
 const EPSILON = 1e-9;
 type Barrier = readonly [left: number, right: number, bottom: number, top: number];
 const THICKET: Barrier = [2, Infinity, 18, 24];
@@ -64,17 +80,18 @@ const definition = (id: string): ThreatDefinition => {
   return found;
 };
 const newThreats = (): ThreatState[] => DEFINITIONS.map(t => ({
-  id: t.id, health: t.health, active: t.id !== "ritual-guardian", phase: "dormant",
+  id: t.id, health: t.health, active: t.id !== "ritual-guardian", phase: t.patrol ? "patrol" : "dormant",
   remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: t.damage,
   position: { ...t.position }, targetPosition: { ...t.position }, aggro: false,
-  lootClaimed: false,
+  lootClaimed: false, patrolIndex: 1, moving: false, abilityIndex: 0,
 }));
 function initialState(archetype: CharacterArchetype): State {
   return {
     phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, health: 100,
     supplies: 15, cargo: 0, resourceRemaining: 12, potions: 0, carriedRelics: 0,
     bankedRelics: 0, carriedSalvage: 0, presence: 0, ritualCalled: false, actionCooldown: 0,
-    guardSeconds: 0, attackSequence: 0, selectedThreat: "scout",
+    guardSeconds: 0, block: 0, cooldowns: { strike: 0, disengage: 0, brace: 0 }, maneuver: null,
+    attackSequence: 0, selectedThreat: "scout",
     report: "Visit Mara for potions, then take the north gate. Gather frost cores and return alive.",
     threats: newThreats(),
   };
@@ -110,14 +127,18 @@ class Adventure implements AdventureGame {
         health: s.health, maximumHealth: 100, grounded: s.position.y === 0,
         moving: this.moving, backpedaling: this.backpedaling, attackSequence: s.attackSequence,
         actionCooldown: s.actionCooldown, guardSeconds: s.guardSeconds,
+        block: s.block, cooldowns: { ...s.cooldowns }, maneuver: s.maneuver?.kind ?? "none",
+        maneuverSeconds: s.maneuver?.remainingSeconds ?? 0, facing: { ...(s.maneuver?.facing ?? this.cameraForward) },
       },
       threats: s.threats.map((t): ThreatView => {
         const d = definition(t.id);
         return {
           ...t, name: d.name, position: { ...t.position }, homePosition: { ...d.position },
-          disposition: d.disposition, moving: s.phase !== "lost" && (t.phase === "approach" || t.phase === "returning") && d.speed > 0, maximumHealth: d.health,
-          selected: t.id === s.selectedThreat, phaseDuration: PHASE_SECONDS[t.phase],
-          preparation: d.preparation, intention: d.intention, damage: t.damage, reach: d.reach,
+          disposition: d.disposition, moving: s.phase !== "lost" && t.moving, maximumHealth: d.health,
+          rootedSeconds: this.rootedSeconds(t), canStrike: this.canUseAttack(t, "strike"), canDisengage: this.canUseAttack(t, "disengage"),
+          selected: t.id === s.selectedThreat, phaseDuration: this.phaseDuration(t),
+          preparation: d.preparation, currentAbility: this.ability(t), nextAbility: this.ability(t, true),
+          intention: this.intention(t), damage: t.damage, reach: this.ability(t).range,
           benefit: d.benefit, targetPosition: { ...t.targetPosition },
         };
       }),
@@ -136,7 +157,7 @@ class Adventure implements AdventureGame {
     };
   }
 
-  save(): string { return JSON.stringify({ version: 3, state: this.state }); }
+  save(): string { return JSON.stringify({ version: 4, state: this.state }); }
   private report(text: string, channel: AdventureLogEntry["channel"] = "chat"): void {
     this.state.report = text;
     this.appendLog(text, channel);
@@ -191,7 +212,7 @@ class Adventure implements AdventureGame {
     return place !== undefined && distance(this.state.position, place.position) <= range + EPSILON;
   }
   private ready(): boolean {
-    return this.state.phase === "expedition" && this.state.actionCooldown <= EPSILON;
+    return this.state.phase === "expedition" && this.state.actionCooldown <= EPSILON && this.state.maneuver === null;
   }
   private act(action: AdventureAction): void {
     const s = this.state;
@@ -201,7 +222,7 @@ class Adventure implements AdventureGame {
     if (s.phase === "lost") return;
     switch (action) {
       case "jump":
-        if (s.position.y === 0 && s.verticalSpeed === 0) s.verticalSpeed = 5.5;
+        if (s.maneuver === null && s.position.y === 0 && s.verticalSpeed === 0) s.verticalSpeed = 5.5;
         break;
       case "target": {
         const nearby = s.threats.filter(t => t.active && t.health > 0 && distance(s.position, t.position) <= 15);
@@ -209,9 +230,14 @@ class Adventure implements AdventureGame {
         if (next) s.selectedThreat = next.id;
         break;
       }
-      case "strike": this.strike(); break;
+      case "strike": this.attack("strike"); break;
+      case "disengage": this.attack("disengage"); break;
       case "brace":
-        if (this.ready()) { s.guardSeconds = 3; s.actionCooldown = 1; this.report("You brace for three seconds. Incoming hits deal half damage.", "combat"); }
+        if (this.ready() && s.cooldowns.brace <= EPSILON) {
+          s.guardSeconds = COMBAT_RULES.brace.duration; s.block = COMBAT_RULES.brace.block;
+          s.cooldowns.brace = COMBAT_RULES.brace.cooldown; s.actionCooldown = COMBAT_RULES.actionCooldown;
+          this.report("You gain 5 block for 5 seconds.", "combat");
+        }
         break;
       case "gather": this.gather(); break;
       case "ritual": this.ritual(); break;
@@ -256,21 +282,61 @@ class Adventure implements AdventureGame {
         break;
     }
   }
-  private strike(): void {
-    const s = this.state;
-    if (!this.ready()) return;
-    const t = s.threats.find(t => t.id === s.selectedThreat);
-    if (!t || !t.active || t.health <= 0) { this.report("Choose a living threat to strike.", "combat"); return; }
-    if (distance(s.position, t.position) > 3.5 + EPSILON) {
-      this.report("Move closer to strike your chosen threat.", "combat"); return;
+  private intention(t: ThreatState): string {
+    return this.ability(t).name;
+  }
+  private ability(t: ThreatState, next = false): ThreatAbilityView {
+    if (t.id === "scout") {
+      const maul = next ? t.abilityIndex === 0 : t.abilityIndex === 1;
+      return maul
+        ? { id: "maul", name: "Lunging Maul", description: "Pursues you for 5 seconds, then commits to the marked ground. Leap clear before it lands.", damage: 9, range: 3, noticeSeconds: 5 }
+        : { id: "bite", name: "Bite", description: "Bites immediately within 2 metres. Follows with Lunging Maul.", damage: 4, range: 2, noticeSeconds: 0 };
     }
-    const dealt = Math.min(9, t.health);
+    const d = definition(t.id);
+    return { id: t.id, name: d.intention, description: `${d.preparation}. Strikes the marked ground after 3 seconds.`, damage: t.damage, range: d.reach, noticeSeconds: 3 };
+  }
+  private phaseDuration(t: ThreatState): number {
+    return (t.id === "scout" ? PHASE_SECONDS : OTHER_PHASE_SECONDS)[t.phase];
+  }
+  private rootedSeconds(t: ThreatState): number {
+    const m = this.state.maneuver;
+    return t.health > 0 && t.aggro && m?.kind === "disengage" && m.targetId === t.id ? m.remainingSeconds : 0;
+  }
+  private attackPath(t: ThreatState): boolean {
+    if (this.clearPath(this.state.position, t.position)) return true;
+    // The nest occupies its own thicket; a melee hit can reach it from the edge.
+    return t.id === "nest" && !this.blocked(this.state.position.x, this.state.position.z) &&
+      this.state.position.z > 4 && distance(this.state.position, t.position) <= COMBAT_RULES.disengage.range + EPSILON;
+  }
+  private canUseAttack(t: ThreatState, action: "strike" | "disengage"): boolean {
+    const s = this.state;
+    return this.ready() && s.cooldowns[action] <= EPSILON && s.position.y === 0 && s.verticalSpeed === 0 &&
+      t.active && t.health > 0 && distance(s.position, t.position) <= COMBAT_RULES[action].range + EPSILON && this.attackPath(t);
+  }
+  private attack(action: "strike" | "disengage"): void {
+    const s = this.state;
+    const t = s.threats.find(t => t.id === s.selectedThreat);
+    if (!t || !this.canUseAttack(t, action)) {
+      if (this.ready()) this.report("Choose a living threat within reach from clear ground.", "combat");
+      return;
+    }
+    const length = distance(s.position, t.position);
+    const facing = length > EPSILON ? point((t.position.x - s.position.x) / length, (t.position.z - s.position.z) / length) : { ...this.cameraForward };
+    const amount = action === "strike" ? Math.max(0, length - COMBAT_RULES.strike.stopDistance) : -COMBAT_RULES.disengage.distance;
+    const destination = point(Math.max(-12, Math.min(12, s.position.x + facing.x * amount)), Math.max(-14, Math.min(45, s.position.z + facing.z * amount)));
+    s.cooldowns[action] = COMBAT_RULES[action].cooldown; s.actionCooldown = COMBAT_RULES.actionCooldown;
+    s.maneuver = { kind: action === "strike" ? "lunge" : "disengage", targetId: t.id,
+      start: { ...s.position }, destination, facing, remainingSeconds: COMBAT_RULES[action].duration };
+    if (action === "disengage") this.hit(t, COMBAT_RULES.disengage.damage, "strike");
+  }
+  private hit(t: ThreatState, damage: number, verb: string): void {
+    const s = this.state, dealt = Math.min(damage, t.health);
     t.health -= dealt;
     if (t.health > 0 && !t.aggro) { t.aggro = true; this.prepareOrApproach(t); }
-    s.attackSequence += 1; s.actionCooldown = 2; s.presence += 1;
-    this.report(`You strike ${definition(t.id).name} for ${dealt} damage.`, "combat");
+    s.attackSequence += 1; s.presence += 1;
+    this.report(`You ${verb} ${definition(t.id).name} for ${dealt} damage.`, "combat");
     if (t.health === 0) {
-      t.phase = "cleared"; t.remainingSeconds = 0; t.lastActionHit = false; t.aggro = false;
+      t.phase = "cleared"; t.remainingSeconds = 0; t.lastActionHit = false; t.aggro = false; t.moving = false;
       this.report(`${definition(t.id).name} dies. ${definition(t.id).benefit}`, "combat");
       if (t.id === "ritual-guardian") {
         this.report("The guardian falls. Search its body for the frost relic, then carry it home.");
@@ -280,7 +346,7 @@ class Adventure implements AdventureGame {
   private gather(): void {
     const s = this.state;
     if (!this.ready()) return;
-    if (!this.near("frost-cores", 3)) { this.report("Approach the frost cores near the lookout to gather."); return; }
+    if (!this.near("frost-cores", 3)) { this.report("Approach the frost cores in the first clearing to gather."); return; }
     if (s.resourceRemaining < 3) { this.report("No frost cores remain here this trip."); return; }
     s.resourceRemaining -= 3; s.cargo += 3; s.presence += 4; s.actionCooldown = 2;
     this.report("You gather Frost cores × 3. Return alive to keep them.");
@@ -317,19 +383,40 @@ class Adventure implements AdventureGame {
     const length = Math.max(1, Math.hypot(forward, strafe));
     const x = (this.cameraForward.x * forward - this.cameraForward.z * strafe) / length;
     const z = (this.cameraForward.z * forward + this.cameraForward.x * strafe) / length;
-    const nextX = Math.max(-12, Math.min(12, s.position.x + x * 4.5 * dt));
-    const nextZ = Math.max(-14, Math.min(45, s.position.z + z * 4.5 * dt));
     const oldX = s.position.x, oldZ = s.position.z;
-    if (!this.blocked(nextX, nextZ)) { s.position.x = nextX; s.position.z = nextZ; }
-    else {
-      if (!this.blocked(nextX, s.position.z)) s.position.x = nextX;
-      if (!this.blocked(s.position.x, nextZ)) s.position.z = nextZ;
-    }
+    this.movePlayer(x * 4.5 * dt, z * 4.5 * dt);
     this.moving = Math.hypot(s.position.x - oldX, s.position.z - oldZ) > EPSILON;
     this.backpedaling = this.moving && forward < 0;
     if (s.position.y > 0 || s.verticalSpeed > 0) {
       s.position.y = Math.max(0, s.position.y + s.verticalSpeed * dt - 7 * dt * dt);
       s.verticalSpeed = s.position.y > 0 ? s.verticalSpeed - 14 * dt : 0;
+    }
+  }
+  private movePlayer(dx: number, dz: number): void {
+    const p = this.state.position;
+    const nextX = Math.max(-12, Math.min(12, p.x + dx)), nextZ = Math.max(-14, Math.min(45, p.z + dz));
+    if (!this.blocked(nextX, nextZ)) { p.x = nextX; p.z = nextZ; }
+    else {
+      if (!this.blocked(nextX, p.z)) p.x = nextX;
+      if (!this.blocked(p.x, nextZ)) p.z = nextZ;
+    }
+  }
+  private moveManeuver(dt: number): void {
+    const s = this.state, m = s.maneuver;
+    if (!m) return;
+    const duration = m.kind === "lunge" ? COMBAT_RULES.strike.duration : COMBAT_RULES.disengage.duration;
+    const elapsed = Math.min(dt, m.remainingSeconds), old = { ...s.position };
+    this.movePlayer((m.destination.x - m.start.x) * elapsed / duration, (m.destination.z - m.start.z) * elapsed / duration);
+    m.remainingSeconds = Math.max(0, m.remainingSeconds - dt);
+    const progress = 1 - m.remainingSeconds / duration;
+    s.position.y = m.kind === "disengage" ? 4 * 1.2 * progress * (1 - progress) : 0;
+    this.moving = distance(old, s.position) > EPSILON; this.backpedaling = m.kind === "disengage" && this.moving;
+    if (m.remainingSeconds > EPSILON) return;
+    s.position.y = 0; s.verticalSpeed = 0; s.maneuver = null;
+    if (m.kind === "lunge") {
+      const t = s.threats.find(t => t.id === m.targetId);
+      if (t && t.active && t.health > 0 && distance(s.position, t.position) <= COMBAT_RULES.disengage.range + EPSILON && this.attackPath(t)) this.hit(t, COMBAT_RULES.strike.damage, "lunge at");
+      else this.report("Your lunge falls short.", "combat");
     }
   }
   private blocked(x: number, z: number): boolean {
@@ -356,60 +443,85 @@ class Adventure implements AdventureGame {
   private step(dt: number): void {
     const s = this.state;
     if (s.phase === "lost") { this.moving = false; this.backpedaling = false; return; }
-    this.move(dt);
+    if (s.maneuver) this.moveManeuver(dt); else this.move(dt);
     if (this.lootOpenId !== null && !s.threats.some(t => t.id === this.lootOpenId && this.canLoot(t))) this.lootOpenId = null;
     if (this.shopOpen && !this.near("mara", 2.5)) this.shopOpen = false;
     if (this.innOpen && !this.near("inn", 2.5)) this.innOpen = false;
     if (s.phase === "town" && s.position.z >= 2) {
       s.phase = "expedition"; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.presence = 0;
-      s.resourceRemaining = 12; s.ritualCalled = false; s.threats = newThreats();
-      s.actionCooldown = 0; s.guardSeconds = 0; this.shopOpen = false; this.innOpen = false;
+      s.resourceRemaining = 12; s.ritualCalled = false;
+      const fresh = newThreats();
+      for (const t of fresh) {
+        const previous = s.threats.find(old => old.id === t.id);
+        if (previous && previous.health > 0) { t.position = { ...previous.position }; t.patrolIndex = previous.patrolIndex; t.targetPosition = { ...t.position }; }
+      }
+      s.threats = fresh;
+      s.actionCooldown = 0; s.guardSeconds = 0; s.block = 0; this.shopOpen = false; this.innOpen = false;
       this.report("You enter Frostwood. The forest is listening; Hearthstead lies behind you.");
     } else if (s.phase === "expedition" && s.position.z <= 0) {
       s.phase = "town"; s.supplies += s.cargo + s.carriedSalvage; s.bankedRelics += s.carriedRelics;
-      s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.guardSeconds = 0; this.lootOpenId = null;
-      for (const t of s.threats) if (t.health > 0) this.disengage(t);
+      s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.guardSeconds = 0; s.block = 0;
+      s.maneuver = null; s.position.y = 0; s.verticalSpeed = 0; this.lootOpenId = null;
+      for (const t of s.threats) if (t.health > 0) this.releaseThreat(t);
       this.report("You return to Hearthstead. Cores, salvage and relics are secured. Visit the inn before your next trip.");
     }
-    if (s.phase === "expedition") {
-      s.presence += (this.moving ? 0.5 : 0.1) * dt;
-      for (const t of s.threats) {
-        if (s.health <= 0) break;
-        this.advanceThreat(t, dt);
-      }
-    }
-    if (s.phase === "town") {
-      for (const t of s.threats) if (t.phase === "returning") this.returnHome(t, dt);
+    if (s.phase === "expedition") s.presence += (this.moving ? 0.5 : 0.1) * dt;
+    s.guardSeconds = Math.max(0, s.guardSeconds - dt);
+    if (s.guardSeconds <= EPSILON) { s.guardSeconds = 0; s.block = 0; }
+    for (const t of s.threats) {
+      t.moving = false;
+      if (s.health > 0) this.advanceThreat(t, dt);
     }
     s.actionCooldown = Math.max(0, s.actionCooldown - dt);
-    s.guardSeconds = Math.max(0, s.guardSeconds - dt);
+    for (const action of ["strike", "disengage", "brace"] as const) s.cooldowns[action] = Math.max(0, s.cooldowns[action] - dt);
   }
   private beginPreparation(t: ThreatState): void {
-    t.phase = "preparation"; t.remainingSeconds = 3; t.lastActionHit = false;
+    t.phase = "preparation"; t.remainingSeconds = this.ability(t).noticeSeconds; t.lastActionHit = false;
     t.targetPosition = { ...t.position };
-    t.damage = Math.ceil(definition(t.id).damage * (1 + this.state.presence / 100));
+    t.damage = t.id === "scout" ? this.ability(t).damage : Math.ceil(definition(t.id).damage * (1 + this.state.presence / 100));
+    if (t.remainingSeconds === 0) {
+      t.phase = "action"; t.remainingSeconds = this.phaseDuration(t);
+      this.resolveAttack(t);
+    }
   }
   private prepareOrApproach(t: ThreatState): boolean {
     const d = definition(t.id);
-    if (d.speed === 0 || distance(this.state.position, t.position) <= d.reach + EPSILON) {
+    if (t.id === "scout") t.damage = this.ability(t).damage;
+    if (d.speed === 0 || distance(this.state.position, t.position) <= this.ability(t).range + EPSILON) {
       this.beginPreparation(t); return true;
     }
     t.phase = "approach"; t.remainingSeconds = 0; t.lastActionHit = false;
     return false;
   }
-  private disengage(t: ThreatState): void {
-    t.aggro = false; t.remainingSeconds = 0; t.lastActionHit = false;
-    t.phase = distance(t.position, definition(t.id).position) > EPSILON ? "returning" : "dormant";
+  private releaseThreat(t: ThreatState): void {
+    t.aggro = false; t.remainingSeconds = 0; t.lastActionHit = false; t.moving = false; t.abilityIndex = 0;
+    t.damage = definition(t.id).damage;
+    const d = definition(t.id);
+    t.phase = distance(t.position, d.position) > EPSILON ? "returning" : d.patrol ? "patrol" : "dormant";
   }
   private returnHome(t: ThreatState, dt: number): void {
     this.moveThreat(t, definition(t.id).position, dt);
     if (distance(t.position, definition(t.id).position) <= EPSILON) {
-      t.phase = "dormant"; t.targetPosition = { ...t.position };
+      t.phase = definition(t.id).patrol ? "patrol" : "dormant"; t.patrolIndex = 1; t.targetPosition = { ...t.position };
     }
+  }
+  private patrol(t: ThreatState, dt: number): void {
+    const route = definition(t.id).patrol;
+    if (!route) return;
+    t.phase = "patrol";
+    const destination = route[t.patrolIndex % route.length]!;
+    this.moveThreat(t, destination, dt);
+    if (distance(t.position, destination) <= EPSILON) t.patrolIndex = (t.patrolIndex + 1) % route.length;
+    t.targetPosition = { ...t.position };
+  }
+  private pursue(t: ThreatState, dt: number): void {
+    const d = definition(t.id), gap = distance(t.position, this.state.position) - this.ability(t).range;
+    if (gap > EPSILON && d.speed > 0) this.moveThreat(t, this.state.position, Math.min(dt, gap / d.speed));
+    t.targetPosition = { ...t.position };
   }
   private moveThreat(t: ThreatState, destination: Position, dt: number): void {
     const speed = definition(t.id).speed;
-    if (speed === 0) return;
+    if (speed === 0 || this.rootedSeconds(t) > EPSILON) return;
     let next = destination;
     if (!this.clearPath(t.position, destination)) {
       // The eastern thicket reaches the world edge; its western corners form the passage.
@@ -432,51 +544,63 @@ class Adventure implements AdventureGame {
     const amount = Math.min(length, speed * dt) / length;
     t.position.x += (next.x - t.position.x) * amount;
     t.position.z += (next.z - t.position.z) * amount;
+    t.moving = true;
   }
   private advanceThreat(t: ThreatState, dt: number): void {
     if (!t.active || t.health <= 0) return;
     const d = definition(t.id);
     if (t.phase === "returning") { this.returnHome(t, dt); return; }
     if (!t.aggro) {
-      if (d.disposition !== "hostile" || distance(this.state.position, t.position) > d.aggroRange) return;
+      this.patrol(t, dt);
+      if (this.state.phase !== "expedition" || this.state.position.z <= 2 || d.disposition !== "hostile" ||
+        distance(this.state.position, t.position) > d.aggroRange || !this.clearPath(t.position, this.state.position)) return;
       t.aggro = true; this.prepareOrApproach(t);
       return;
     }
-    if (this.state.position.z <= 2 || distance(this.state.position, d.position) > d.leash || distance(t.position, d.position) > d.leash) {
-      this.disengage(t); return;
+    if (this.state.phase !== "expedition" || this.state.position.z <= 2 || distance(this.state.position, d.position) > d.leash || distance(t.position, d.position) > d.leash) {
+      this.releaseThreat(t); return;
     }
     if (t.phase === "approach") {
-      this.moveThreat(t, this.state.position, dt);
-      if (distance(this.state.position, t.position) <= d.reach + EPSILON) this.beginPreparation(t);
+      this.pursue(t, dt);
+      if (distance(this.state.position, t.position) <= this.ability(t).range + EPSILON) this.beginPreparation(t);
       return;
     }
+    if (t.phase === "preparation" || t.phase === "recovery") this.pursue(t, dt);
     t.remainingSeconds -= dt;
     if (t.remainingSeconds > EPSILON) return;
     const overrun = Math.max(0, -t.remainingSeconds);
     if (t.phase === "preparation") {
-      t.phase = "action"; t.remainingSeconds = 0.35 - overrun; t.actionSequence += 1;
-      t.lastActionHit = distance(this.state.position, t.targetPosition) <= d.reach + EPSILON;
-      if (t.lastActionHit) {
-        if (t.id === "scout") {
-          this.state.presence += 3;
-          this.report("Briar lookout sounds an alarm. Forest alertness rises by 3.", "combat");
-        } else {
-          this.hurt(t.damage, `${d.name} — ${d.intention}`);
-        }
-      } else this.report(`${d.name} — ${d.intention} misses you.`, "combat");
+      t.phase = "action"; t.remainingSeconds = this.phaseDuration(t) - overrun;
+      t.targetPosition = { ...t.position };
     } else if (t.phase === "action") {
-      t.phase = "recovery"; t.remainingSeconds = 2.65 - overrun;
+      if (t.id === "scout" && t.abilityIndex === 0) {
+        t.abilityIndex = 1; this.beginPreparation(t); t.remainingSeconds -= overrun;
+      } else {
+        this.resolveAttack(t);
+        t.phase = "recovery"; t.remainingSeconds = this.phaseDuration(t) - overrun;
+      }
     } else {
+      t.abilityIndex = 0;
       if (this.prepareOrApproach(t)) t.remainingSeconds -= overrun;
     }
   }
+  private resolveAttack(t: ThreatState): void {
+    t.lastActionHit = distance(this.state.position, t.targetPosition) <= this.ability(t).range + EPSILON &&
+      (t.id === "nest" || this.clearPath(t.targetPosition, this.state.position));
+    t.actionSequence += 1;
+    if (t.lastActionHit) this.hurt(t.damage, `${definition(t.id).name} — ${this.intention(t)}`);
+    else this.report(`${definition(t.id).name} — ${this.intention(t)} misses you.`, "combat");
+  }
   private hurt(damage: number, source: string): void {
     const s = this.state;
-    const blocked = s.guardSeconds > EPSILON ? damage / 2 : 0;
+    const blocked = s.guardSeconds > EPSILON ? Math.min(damage, s.block) : 0;
+    s.block -= blocked;
+    if (s.block === 0) s.guardSeconds = 0;
     const taken = Math.min(s.health, damage - blocked);
     s.health -= taken;
     this.report(`${source} hits you for ${taken} damage${blocked > 0 ? ` (${blocked} blocked by Brace)` : ""}.`, "combat");
     if (s.health > 0) return;
+    s.maneuver = null; s.block = 0; s.guardSeconds = 0;
     s.phase = "lost"; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.supplies = 0; s.bankedRelics = 0;
     this.lootOpenId = null;
     s.potions = 0; this.shopOpen = false; this.innOpen = false; this.moving = false; this.backpedaling = false;
@@ -516,7 +640,8 @@ function readSave(serialized: string): State {
   try { parsed = JSON.parse(serialized); }
   catch { throw new Error("Invalid adventure save: unreadable saved data."); }
   const root = record(parsed);
-  if (root.version !== 1 && root.version !== 2 && root.version !== 3) throw new Error("Unsupported adventure save version.");
+  if (root.version !== 1 && root.version !== 2 && root.version !== 3 && root.version !== 4) throw new Error("Unsupported adventure save version.");
+  const current = root.version === 4;
   const s = record(root.state), p = record(s.position);
   if (!Array.isArray(s.threats) || s.threats.length !== DEFINITIONS.length) throw new Error("Invalid adventure save: missing threats.");
   const threats: ThreatState[] = s.threats.map((value: unknown) => {
@@ -524,20 +649,35 @@ function readSave(serialized: string): State {
     const id = choice(t.id, DEFINITIONS.map(d => d.id));
     const phase = choice(t.phase, root.version === 1
       ? ["dormant", "preparation", "action", "recovery", "cleared"] as const
+      : current ? ["dormant", "patrol", "approach", "preparation", "action", "recovery", "returning", "cleared"] as const
       : ["dormant", "approach", "preparation", "action", "recovery", "returning", "cleared"] as const);
     const health = number(t.health, 0, definition(id).health);
     const active = boolean(t.active);
     if ((health === 0) !== (phase === "cleared") || (!active && phase !== "dormant") || (id !== "ritual-guardian" && !active)) {
       throw new Error("Invalid adventure save: inconsistent threat.");
     }
-    const result: ThreatState = { id, health, active, phase, remainingSeconds: number(t.remainingSeconds, 0, PHASE_SECONDS[phase]),
+    const maxDuration = (current && id === "scout" ? PHASE_SECONDS : OTHER_PHASE_SECONDS)[phase];
+    const result: ThreatState = { id, health, active, phase, remainingSeconds: number(t.remainingSeconds, 0, maxDuration),
       actionSequence: number(t.actionSequence, 0, Number.MAX_SAFE_INTEGER, true), lastActionHit: boolean(t.lastActionHit),
-      damage: number(t.damage, definition(id).damage, Number.MAX_SAFE_INTEGER, true),
+      damage: number(t.damage, !current && id === "scout" ? 0 : definition(id).damage, Number.MAX_SAFE_INTEGER, true),
       position: root.version === 1 ? { ...definition(id).position } : groundPosition(t.position),
       targetPosition: root.version === 1 ? { ...definition(id).position } : groundPosition(t.targetPosition),
       aggro: root.version === 1 ? phase !== "dormant" && phase !== "cleared" : boolean(t.aggro),
-      lootClaimed: root.version === 3 ? boolean(t.lootClaimed) : id === "ritual-guardian" && health === 0,
+      lootClaimed: root.version === 3 || current ? boolean(t.lootClaimed) : id === "ritual-guardian" && health === 0,
+      patrolIndex: current ? number(t.patrolIndex, 0, definition(id).patrol?.length ?? 1, true) : 1,
+      moving: current ? boolean(t.moving) : false,
+      abilityIndex: current ? number(t.abilityIndex, 0, id === "scout" ? 1 : 0, true) : 0,
     };
+    if (!current) {
+      // Old action saves already applied damage at commitment; never replay that hit.
+      if (phase === "action") { result.phase = "recovery"; result.remainingSeconds = id === "scout" ? 2 : 2.65; }
+      if (id === "scout") {
+        result.abilityIndex = ["preparation", "action", "recovery"].includes(phase) ? 1 : 0;
+        result.damage = result.abilityIndex === 1 ? 9 : 4;
+        if (result.phase === "recovery") result.remainingSeconds = Math.min(result.remainingSeconds, 2);
+      }
+      if (phase === "dormant" && definition(id).patrol) result.phase = "patrol";
+    }
     if (root.version === 1 && id === "nest" && health === definition(id).health) {
       result.aggro = false; result.phase = "dormant"; result.remainingSeconds = 0; result.lastActionHit = false;
     }
@@ -556,15 +696,35 @@ function readSave(serialized: string): State {
     supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, 12, true),
     resourceRemaining: number(s.resourceRemaining, 0, 12, true), potions: number(s.potions, 0, Number.MAX_SAFE_INTEGER, true),
     carriedRelics: number(s.carriedRelics, 0, 1, true), bankedRelics: number(s.bankedRelics, 0, Number.MAX_SAFE_INTEGER, true),
-    carriedSalvage: root.version === 3 ? number(s.carriedSalvage, 0, DEFINITIONS.length - 1, true) : 0,
+    carriedSalvage: root.version === 3 || current ? number(s.carriedSalvage, 0, DEFINITIONS.length - 1, true) : 0,
     presence: number(s.presence), ritualCalled: boolean(s.ritualCalled), actionCooldown: number(s.actionCooldown, 0, 2),
-    guardSeconds: number(s.guardSeconds, 0, 3), attackSequence: number(s.attackSequence, 0, Number.MAX_SAFE_INTEGER, true),
+    guardSeconds: number(s.guardSeconds, 0, current ? COMBAT_RULES.brace.duration : 3),
+    block: current ? number(s.block, 0, COMBAT_RULES.brace.block) : number(s.guardSeconds, 0, 3) > 0 ? COMBAT_RULES.brace.block : 0,
+    cooldowns: current ? readCooldowns(s.cooldowns) : { strike: number(s.actionCooldown, 0, 2), disengage: 0, brace: 0 },
+    maneuver: current ? readManeuver(s.maneuver) : null,
+    attackSequence: number(s.attackSequence, 0, Number.MAX_SAFE_INTEGER, true),
     selectedThreat: choice(s.selectedThreat, DEFINITIONS.map(t => t.id)), report: text(s.report), threats,
   };
   if ((state.phase === "lost") !== (state.health === 0) || threats.find(t => t.id === "ritual-guardian")?.active !== state.ritualCalled) {
     throw new Error("Invalid adventure save: inconsistent expedition.");
   }
+  if ((state.block === 0) !== (state.guardSeconds === 0) || (state.maneuver !== null && state.phase !== "expedition")) {
+    throw new Error("Invalid adventure save: inconsistent combat state.");
+  }
   return state;
+}
+
+function readCooldowns(value: unknown): State["cooldowns"] {
+  const c = record(value);
+  return { strike: number(c.strike, 0, COMBAT_RULES.strike.cooldown), disengage: number(c.disengage, 0, COMBAT_RULES.disengage.cooldown), brace: number(c.brace, 0, COMBAT_RULES.brace.cooldown) };
+}
+function readManeuver(value: unknown): Maneuver | null {
+  if (value === null) return null;
+  const m = record(value), kind = choice(m.kind, ["lunge", "disengage"] as const), f = record(m.facing);
+  return { kind, targetId: choice(m.targetId, DEFINITIONS.map(t => t.id)),
+    start: groundPosition(m.start), destination: groundPosition(m.destination),
+    facing: { x: number(f.x, -1, 1), y: number(f.y, 0, 0), z: number(f.z, -1, 1) },
+    remainingSeconds: number(m.remainingSeconds, 0, kind === "lunge" ? COMBAT_RULES.strike.duration : COMBAT_RULES.disengage.duration) };
 }
 
 export function createAdventure(options: AdventureOptions = {}): AdventureGame {

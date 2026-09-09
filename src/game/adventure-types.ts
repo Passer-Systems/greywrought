@@ -8,7 +8,7 @@ export interface AdventureLogEntry {
 }
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
-  | "strike" | "brace" | "gather" | "ritual" | "interact"
+  | "strike" | "disengage" | "brace" | "gather" | "ritual" | "interact"
   | "buyPotion" | "drinkPotion" | "rest" | "target" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn";
 export interface CorpseLootView {
   readonly sourceId: string;
@@ -20,7 +20,15 @@ export interface CorpseLootView {
   readonly available: boolean;
   readonly reachable: boolean;
 }
-export type ThreatPhase = "dormant" | "approach" | "preparation" | "action" | "recovery" | "returning" | "cleared";
+export type ThreatPhase = "dormant" | "patrol" | "approach" | "preparation" | "action" | "recovery" | "returning" | "cleared";
+export interface ThreatAbilityView {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly damage: number;
+  readonly range: number;
+  readonly noticeSeconds: number;
+}
 export interface ThreatView {
   readonly id: string;
   readonly name: string;
@@ -29,6 +37,11 @@ export interface ThreatView {
   readonly disposition: "hostile" | "neutral";
   readonly aggro: boolean;
   readonly moving: boolean;
+  readonly rootedSeconds: number;
+  readonly canStrike: boolean;
+  readonly canDisengage: boolean;
+  readonly currentAbility: ThreatAbilityView;
+  readonly nextAbility: ThreatAbilityView;
   readonly health: number;
   readonly maximumHealth: number;
   readonly active: boolean;
@@ -65,6 +78,11 @@ export interface AdventureSnapshot {
     readonly attackSequence: number;
     readonly actionCooldown: number;
     readonly guardSeconds: number;
+    readonly block: number;
+    readonly cooldowns: { readonly strike: number; readonly disengage: number; readonly brace: number };
+    readonly maneuver: "none" | "lunge" | "disengage";
+    readonly maneuverSeconds: number;
+    readonly facing: Position;
   };
   readonly threats: readonly ThreatView[];
   readonly loot: readonly CorpseLootView[];
