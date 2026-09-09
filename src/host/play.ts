@@ -1372,7 +1372,7 @@ function bindClick(
 }
 
 function queueGameInput(app: PlayApp, action: GameAction, pressed:boolean):void { app.game.setAction(action,pressed); }
-function observeGameKey(app:PlayApp,event:PhysicalKey,phase:"down"|"up"):void { const action=actionDefinitions.find(d=>d.semanticCode===event.code)?.action; if(action) queueGameInput(app,action,phase==="down"); }
+function observeGameKey(app:PlayApp,event:PhysicalKey,phase:"down"|"up"):void { const action=actionDefinitions.find(d=>d.semanticCode===event.code)?.action; if(action) { if (phase === "down") app.game.start(); queueGameInput(app,action,phase==="down"); } }
 function observeCameraBasis(app:PlayApp):void { const yaw=app.scene.presentation.cameraOrbitYaw; app.game.setCameraForward(-Math.sin(yaw),-Math.cos(yaw)); }
 
 function inputElement(id: string): HTMLInputElement {
@@ -1965,9 +1965,8 @@ function bindEntryFlow(app: PlayApp, listeners: Array<() => void>): void {
     button("entry-enter-world").disabled = true;
     button("entry-enter-world").textContent = "Entering World…";
     resumePresentationAudio(app);
-    const code = ENTRY_ARCHETYPES[selected.archetype].code;
+    app.game.selectArchetype(selected.archetype);
     boundedGameEvent({ phase: "local-character-enter", characterId: selected.id, archetype: selected.archetype });
-    observeGameKey(app, { code, repeat: false }, "down");
     app.scene.canvas.focus();
   };
 
