@@ -25,6 +25,7 @@ export async function openBrowser(label: string) {
     "--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check",
     "--password-store=basic", "--enable-unsafe-swiftshader",
     ...(Bun.env.GREYWROUGHT_SOFTWARE_RENDERING === "1" ? ["--use-angle=swiftshader"] : []),
+    ...(Bun.env.GREYWROUGHT_VULKAN === "1" ? ["--use-angle=vulkan", "--enable-features=Vulkan", "--disable-vulkan-surface"] : []),
     `--remote-debugging-port=${port}`, `--user-data-dir=${output}/profile`,
     "--window-size=1440,900", "about:blank",
   ], { stdout: Bun.file(`${output}/chrome.log`), stderr: Bun.file(`${output}/chrome-errors.log`) });
