@@ -47,16 +47,17 @@ pub(super) fn smoke(
         }
         return;
     }
-    let Some(snapshot) = &display.snapshot else {
+    if display.snapshot.is_none() {
         return;
-    };
+    }
     let now = Instant::now();
     let opened = *smoke.opened.get_or_insert(now);
     // Let initial assets settle before the warm interval. Startup is not timed as warm play.
     if now.duration_since(opened) < Duration::from_secs(1) {
         return;
     }
-    let (started, first_tick) = *smoke.observation.get_or_insert((now, snapshot.ticks));
+    let ticks = timings.samples.len() as u64;
+    let (started, first_tick) = *smoke.observation.get_or_insert((now, ticks));
     if let Some(previous) = smoke.previous_frame.replace(now) {
         smoke
             .intervals
@@ -77,8 +78,8 @@ pub(super) fn smoke(
     eprintln!(
         "native window measurement: frame_intervals={frames}; actual_seconds={elapsed:.6}; mean_fps={:.3}; p95_frame_ms={p95:.3}; max_frame_ms={max:.3}; observed_game_ticks={}; simulated_seconds={:.6}",
         frames as f64 / elapsed,
-        snapshot.ticks - first_tick,
-        (snapshot.ticks - first_tick) as f64 * 0.016,
+        ticks - first_tick,
+        (ticks - first_tick) as f64 * 0.016,
     );
     commands
         .spawn(Screenshot::primary_window())
