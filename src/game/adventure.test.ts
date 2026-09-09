@@ -217,7 +217,7 @@ describe("Frostwood expedition", () => {
     expect(loaded.snapshot.player.position.z).toBe(position.z);
     expect(loaded.snapshot.player.position.y).not.toBe(position.y);
     expect(createAdventure({ archetype: "hunter" }).snapshot.player.archetype).toBe("hunter");
-    for (const bad of ["broken", "{}", saved.replace('"version":1', '"version":99'),
+    for (const bad of ["broken", "{}", saved.replace('"version":2', '"version":99'),
       saved.replace('"selectedThreat":"scout"', '"selectedThreat":"missing"'),
       saved.replace('"health":100', '"health":null')]) {
       expect(() => createAdventure({ save: bad })).toThrow();
@@ -236,5 +236,115 @@ describe("Frostwood expedition", () => {
     tap(lost, "rest"); tap(lost, "drinkPotion"); lost.setAction("forward", true); lost.advance(1);
     expect(lost.snapshot.player.position).toEqual(position);
     expect(lost.snapshot.phase).toBe("lost");
+  });
+
+  test("hostiles acquire in range, approach, then hold the committed attack position", () => {
+    const game = createAdventure();
+    enter(game); walk(game, -8, 5); walk(game, -8, 22);
+    expect(threat(game, "warder").disposition).toBe("hostile");
+    expect(threat(game, "warder").aggro).toBe(false);
+    expect(threat(game, "warder").position).toEqual(threat(game, "warder").homePosition);
+    walk(game, -8, 24);
+    const approaching = threat(game, "warder");
+    expect(approaching.aggro).toBe(true);
+    expect(approaching.phase).toBe("approach");
+    expect(approaching.moving).toBe(true);
+    game.advance(1.5);
+    const committed = threat(game, "warder");
+    expect(committed.phase).toBe("preparation");
+    expect(committed.position).not.toEqual(committed.homePosition);
+    expect(committed.targetPosition).toEqual(committed.position);
+    expect(committed.moving).toBe(false);
+    walk(game, -10, 24);
+    expect(threat(game, "warder").position).toEqual(committed.position);
+    expect(threat(game, "warder").targetPosition).toEqual(committed.targetPosition);
+    expect(threat(game, "warder").damage).toBe(committed.damage);
+    const reopened = createAdventure({ save: game.save() });
+    expect(reopened.snapshot.threats).toEqual(game.snapshot.threats);
+    reopened.advance(threat(reopened, "warder").remainingSeconds + 0.01);
+    expect(reopened.snapshot.player.health).toBe(100);
+  });
+
+  test("neutral nest ignores proximity, retaliates when hit, and disengages beyond its territory", () => {
+    const game = createAdventure();
+    enter(game); walk(game, 0, 17); walk(game, 4.2, 17.65);
+    game.advance(10);
+    expect(threat(game, "nest").disposition).toBe("neutral");
+    expect(threat(game, "nest").aggro).toBe(false);
+    expect(threat(game, "nest").actionSequence).toBe(0);
+    expect(game.snapshot.player.health).toBe(100);
+    game.selectTarget("nest"); tap(game, "strike");
+    expect(threat(game, "nest").aggro).toBe(true);
+    expect(threat(game, "nest").phase).toBe("preparation");
+    expect(threat(game, "nest").remainingSeconds).toBe(3);
+    const reopened = createAdventure({ save: game.save() });
+    expect(threat(reopened, "nest").aggro).toBe(true);
+    const damage = threat(reopened, "nest").damage;
+    reopened.advance(3.02);
+    expect(reopened.snapshot.player.health).toBe(100 - damage);
+    walk(game, 0, 12);
+    expect(threat(game, "nest").aggro).toBe(false);
+    expect(threat(game, "nest").phase).toBe("dormant");
+  });
+
+  test("leash releases a pursuing hostile and it walks home without following into town", () => {
+    const game = createAdventure();
+    enter(game); walk(game, -8, 5); walk(game, -8, 24);
+    game.advance(1);
+    const moved = threat(game, "warder").position;
+    expect(moved).not.toEqual(threat(game, "warder").homePosition);
+    walk(game, -8, 20);
+    const returning = threat(game, "warder");
+    expect(returning.aggro).toBe(false);
+    expect(returning.phase).toBe("returning");
+    expect(returning.moving).toBe(true);
+    expect(returning.position).not.toEqual(returning.homePosition);
+    const reloaded = createAdventure({ save: game.save() });
+    reloaded.advance(3);
+    expect(threat(reloaded, "warder").phase).toBe("dormant");
+    expect(threat(reloaded, "warder").position).toEqual(returning.homePosition);
+    walk(reloaded, 0, 5); walk(reloaded, 0, -1);
+    reloaded.advance(10);
+    expect(reloaded.snapshot.player.health).toBe(100);
+    expect(reloaded.snapshot.threats.every(t => !t.aggro)).toBe(true);
+  });
+
+  test("live v1 journeys migrate progress and committed warnings; undamaged nests become neutral", () => {
+    const legacy = { version: 1, state: {
+      phase: "expedition", archetype: "hunter", position: { x: -2, y: 0, z: 12 }, verticalSpeed: 0,
+      health: 73, supplies: 21, cargo: 6, resourceRemaining: 6, potions: 2, carriedRelics: 0,
+      bankedRelics: 1, presence: 20, ritualCalled: false, actionCooldown: 1, guardSeconds: 2,
+      attackSequence: 3, selectedThreat: "warder", report: "Three frost cores gathered.",
+      threats: [
+        { id: "scout", health: 0, active: true, phase: "cleared", remainingSeconds: 0, actionSequence: 2, lastActionHit: false, damage: 0 },
+        { id: "nest", health: 24, active: true, phase: "preparation", remainingSeconds: 2, actionSequence: 0, lastActionHit: false, damage: 8 },
+        { id: "warder", health: 21, active: true, phase: "preparation", remainingSeconds: 1.25, actionSequence: 1, lastActionHit: false, damage: 10 },
+        { id: "patrol", health: 36, active: true, phase: "dormant", remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: 10 },
+        { id: "ritual-guardian", health: 48, active: false, phase: "dormant", remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: 20 },
+      ],
+    } };
+    const game = createAdventure({ save: JSON.stringify(legacy) });
+    expect(game.snapshot.player.position).toEqual(legacy.state.position);
+    expect(game.snapshot.player.archetype).toBe("hunter");
+    expect(game.snapshot.player.health).toBe(73);
+    expect(game.snapshot.supplies).toBe(21);
+    expect(game.snapshot.cargo).toBe(6);
+    expect(game.snapshot.resourceRemaining).toBe(6);
+    expect(game.snapshot.potions).toBe(2);
+    expect(game.snapshot.bankedRelics).toBe(1);
+    expect(threat(game, "scout").phase).toBe("cleared");
+    expect(threat(game, "warder").health).toBe(21);
+    expect(threat(game, "warder").remainingSeconds).toBe(1.25);
+    expect(threat(game, "warder").damage).toBe(10);
+    expect(threat(game, "warder").targetPosition).toEqual({ x: -3, y: 0, z: 30 });
+    expect(threat(game, "nest").aggro).toBe(false);
+    expect(threat(game, "nest").phase).toBe("dormant");
+    expect(createAdventure({ save: game.save() }).save()).toBe(game.save());
+    const dead = createAdventure({ save: JSON.stringify({ ...legacy, state: { ...legacy.state,
+      phase: "lost", health: 0, supplies: 0, cargo: 0, potions: 0, carriedRelics: 0, bankedRelics: 0,
+    } }) });
+    dead.advance(20); tap(dead, "rest");
+    expect(dead.snapshot.phase).toBe("lost");
+    expect(dead.snapshot.player.health).toBe(0);
   });
 });
