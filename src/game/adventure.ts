@@ -848,7 +848,7 @@ class Adventure implements AdventureGame {
     const at = this.windowTime(t), eligible = this.state.combat.phase === "active" && t.windowCycle === this.state.combat.cycle;
     if (!t.specialLaunched) {
       this.pursue(t, dt); t.phase = "preparation"; t.remainingSeconds = Math.max(0, t.specialOffset - at);
-      if (eligible && at >= -EPSILON) {
+      if (eligible && at >= t.specialOffset - OTHER_PHASE_SECONDS.action - EPSILON) {
         t.specialLaunched = true; t.phase = "action"; t.targetPosition = { ...t.position };
       }
     }
@@ -883,14 +883,24 @@ class Adventure implements AdventureGame {
       const future: ThreatForecastEntry[] = h.events.filter(e => e.status === "pending").map(e => ({ ability: headAbility(e.ability, e.volley), remainingSeconds: Math.max(0, e.offsetSeconds - at), status: !h.opened && at >= 0 ? "stored" : "pending" }));
       if (future.length === 2) return future;
       let volley = h.volley + h.events.filter(e => e.ability === "kindle" && e.status === "pending").length;
+      const nextActive = this.secondsUntilNextActive(t), nextOffset = this.peekOffset(t, 1);
       for (let index = 0; future.length < 2; index++) {
         const ability = HEAD_ROTATION[(h.rotationIndex + index) % HEAD_ROTATION.length]!;
-        future.push({ ability: headAbility(ability, volley), remainingSeconds: (index + 1) * 10 - at, status: "pending" });
+        future.push({ ability: headAbility(ability, volley), remainingSeconds: nextActive + nextOffset, status: "pending" });
         if (ability === "kindle") volley++;
       }
       return future;
     }
-    return [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialResolved ? this.nextWindowSeconds() : t.specialOffset - at), status: "pending" }];
+    return [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialResolved ? this.secondsUntilNextActive(t) + this.peekOffset(t, 1) : t.specialOffset - at), status: "pending" }];
+  }
+  private secondsUntilNextActive(t: ThreatState): number {
+    const c = this.state.combat;
+    return c.phase === "active" ? 10 - this.windowTime(t) : 5 - c.elapsedSeconds;
+  }
+  private peekOffset(t: ThreatState, windows: number): number {
+    let seed = t.rng;
+    for (let i = 0; i < windows; i++) seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return Math.floor((seed / 0x100000000) * COMBAT_RULES.window.active);
   }
   private headAbility(t: ThreatState, next: boolean): ThreatAbilityView {
     const h = t.head!;
@@ -1276,10 +1286,10 @@ function headAbility(id: HeadAbilityId, volley: number): ThreatAbilityView {
   return { id, name: `Fireball ×${volley}`, description: `${volley} homing fireball${volley === 1 ? "" : "s"}, 3 damage each. First impact lands at the announced time; further impacts follow up to 0.2 seconds apart, closer when needed to finish before preparation. Brace around impact. Cover or leaving 10-metre reach prevents damage; defeating the head extinguishes its fireballs.`, damage: COMBAT_RULES.head.fireballDamage * volley, range: 10, noticeSeconds: 5 };
 }
 function maulAbility(): ThreatAbilityView {
-  return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres; landing is fixed at takeoff and impact follows 0.65 seconds later within 3 metres. First engagement warns for 4 seconds, then lands at 4.65. Later leaps start at the shared active opening and land at 0.65. Recovers for 2 seconds. Additional hounds join the next opening.", damage: 9, range: 3, noticeSeconds: 5 };
+  return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres; each preparation commits its landing to one of five active beats (20% each). The leap starts 0.65 seconds before that beat, then recovers for 2 seconds. Additional hounds join the next opening.", damage: 9, range: 3, noticeSeconds: 5 };
 }
 function ordinaryAbility(d: ThreatDefinition, damage = d.damage): ThreatAbilityView {
-  return { id: d.id, name: d.intention, description: `${d.preparation}. Previews its strike during shared preparation. At each active opening, commits the marked ground and strikes 0.35 seconds later; recovers for 2.65 seconds. Additional enemies join the next active opening. Damage grows with the forest's attention and is fixed when preparation starts.`, damage, range: d.reach, noticeSeconds: 3 };
+  return { id: d.id, name: d.intention, description: `${d.preparation}. During preparation it commits the marked ground to one of five active beats (20% each), then strikes 0.35 seconds after that beat and recovers for 2.65 seconds. Additional enemies join the next active opening. Damage grows with the forest's attention and is fixed when preparation starts.`, damage, range: d.reach, noticeSeconds: 5 };
 }
 export function getMonsterLore(): readonly MonsterLoreEntry[] {
   return DEFINITIONS.map(d => {
@@ -1288,7 +1298,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       description: "A floating fire spirit guarding the first clearing. Notices you within 6 metres and pursues while you remain within 14 metres of its home.",
       opener: "Stored Ember Beam: 1 damage at its first active opening within 10 metres. A joining head waits for the next shared opening. This is its only action in that window.",
       abilities: [headAbility("ember-beam", 1), headAbility("fireball", 1), headAbility("ember-ward", 1), headAbility("kindle", 1)],
-      sequences: HEAD_ROTATION.map((ability, index) => ({ name: `Window ${index + 1}`, abilityIds: [ability], offsetsSeconds: [0], description: "After its opening Beam, repeats Fireball, then Ember Ward, then Kindle: one ability per active window. All enemies share 5 seconds active and 5 seconds preparation. Kindle adds one projectile to every later Fireball. Volley impacts stay within the active window, at most 0.2 seconds apart." })),
+      sequences: HEAD_ROTATION.map((ability, index) => ({ name: `Window ${index + 1}`, abilityIds: [ability], offsetsSeconds: [0, 1, 2, 3, 4], description: "After its opening Beam, repeats Fireball, then Ember Ward, then Kindle: one ability per active window. Each window chooses one of five beats (20% each) during preparation and commits it for the full window. Kindle adds one projectile to every later Fireball. Volley impacts stay within the active window, at most 0.2 seconds apart." })),
       strategy: "Wait out the 2-second ward, or use its shielded beats to heal or gain Blood Rage. Attack during the remaining active beats. Time Brace for fireball impacts. Endless defense loses as volleys grow; Blood Rage speeds the kill but drains your health.",
     };
     if (d.behavior === "wolf") return {
@@ -1297,7 +1307,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       opener: "On first engagement, its sole Maul lands at active offset 4.65. A joining hound approaches immediately and waits for the next shared active opening; Maul then lands at offset 0.65.",
       abilities: [maulAbility(), { id: "hop-left", name: "Left diagonal hop", description: "Approaches diagonally left by up to 2.8 metres over 0.5 seconds when farther than 5.5 metres. Faces you and respects obstacles.", damage: 0, range: 0, noticeSeconds: 0 }, { id: "hop-right", name: "Right diagonal hop", description: "Approaches diagonally right by up to 2.8 metres over 0.5 seconds when farther than 5.5 metres. Faces you and respects obstacles.", damage: 0, range: 0, noticeSeconds: 0 }],
       sequences: [
-        { name: "Repeated Maul", abilityIds: ["maul"], offsetsSeconds: [0.65], description: "After the first encounter window, each shared active opening starts Maul, landing 0.65 seconds later. All enemies share 5 seconds active, then 5 seconds preparation." },
+        { name: "Repeated Maul", abilityIds: ["maul"], offsetsSeconds: [0, 1, 2, 3, 4], description: "Each preparation commits Maul to one of five active beats (20% each); its leap starts 0.65 seconds before that beat and lands on it. All enemies share 5 seconds active, then 5 seconds preparation." },
         { name: "Left approach", abilityIds: ["hop-left"], offsetsSeconds: [0], probability: 0.5, description: "Each new approach hop independently chooses left or right with equal probability; the saved choice resumes unchanged." },
         { name: "Right approach", abilityIds: ["hop-right"], offsetsSeconds: [0], probability: 0.5, description: "Each new approach hop independently chooses left or right with equal probability; any sequence of left and right hops is possible." },
       ],
@@ -1308,7 +1318,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       description: d.id === "nest" ? "A neutral thicket nest. Attacks only when disturbed; defeating it opens the eastern passage." : d.id === "warder" ? "Guards the frost cores. Its living thorns deal 8 damage whenever you gather; defeating it removes this hazard." : "Appears when six frost cores are offered in the deep grove. Defeat it and search the body for its relic, then return home alive.",
       opener: `Shows ${d.intention} immediately on engagement; commits at its first shared active opening${d.speed === 0 ? "; remains rooted" : "; approaches first when farther away"}.`,
       abilities: [ordinaryAbility(d), ...(d.id === "warder" ? [{ id: "harvest-thorns", name: "Gathering thorns", description: "While the warder lives, gathering frost cores deals 8 damage. Brace can absorb it. This happens only when you gather.", damage: 8, range: 0, noticeSeconds: 0 }] : [])],
-      sequences: [{ name: `Repeated ${d.intention}`, abilityIds: [d.id], offsetsSeconds: [0.35], description: "Always the same move: previews during the shared 5-second preparation, commits at the next active opening, strikes 0.35 seconds later, then recovers for 2.65 seconds. No random permutations." }],
+      sequences: [{ name: `Repeated ${d.intention}`, abilityIds: [d.id], offsetsSeconds: [0, 1, 2, 3, 4], description: "During preparation it commits to one of five active beats (20% each), then marks the ground and strikes 0.35 seconds after that beat. The choice stays fixed through the window; it recovers for 2.65 seconds." }],
       strategy: `Leave the marked ground before the strike lands, or Brace shortly before impact. Attack during recovery.${d.id === "warder" ? " Clear it before gathering to avoid the thorns." : ""}`,
     };
   });
