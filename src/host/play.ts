@@ -1839,28 +1839,24 @@ type EntryRoute = "account" | "creator" | "roster";
 
 const ENTRY_ARCHETYPES: Readonly<Record<CharacterArchetype, Readonly<{
   label: string;
-  code: "F1" | "F2" | "F3";
   copy: string;
   kit: string;
   portrait: string;
 }>>> = {
   warrior: {
     label: "Warrior",
-    code: "F1",
     copy: "Break the breach at close range, turning every impact into the rage for your next charge.",
     kit: "Attack · Charge · Whirlwind · Block",
     portrait: publicUrl("assets/ui/characters/warrior.webp"),
   },
   mage: {
     label: "Mage",
-    code: "F2",
     copy: "Shape frost and cinder through deliberate casts, then blink clear before the enemy closes.",
     kit: "Cinderbolt · Frost Nova · Blink · Mana Shield",
     portrait: publicUrl("assets/ui/characters/mage.webp"),
   },
   hunter: {
     label: "Hunter",
-    code: "F3",
     copy: "Control the hunt from range with careful shots, slowing traps, and sudden evasive movement.",
     kit: "Ranged Attack · Aimed Shot · Trap · Disengage",
     portrait: publicUrl("assets/ui/characters/hunter.webp"),
