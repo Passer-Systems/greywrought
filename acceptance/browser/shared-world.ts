@@ -19,7 +19,7 @@ try {
   check(await first.evaluate<number>(`document.querySelectorAll('.adventure-actions [data-action]').length`)===3,'Starting bar must contain attack, block and the potion on equals');
   check(await first.evaluate<boolean>(`document.querySelector('[data-action="strike"] img').src.endsWith('sword-strike.png')`),'Warrior must retain sword');
   check(await second.evaluate<boolean>(`document.querySelector('[data-action="strike"] img').src.endsWith('wand-bolt.svg')`),'Mage must retain wand');
-  check(await first.evaluate<string>(`document.querySelector('[data-action="brace"] .action-cost').textContent`)==='2 stamina','Stamina cost must be explicit, not a consumable count');
+  check(await first.evaluate<boolean>(`document.querySelector('[data-action="brace"] .action-cost')===null`),'Ability icons must not have stamina badges');
   check(await first.evaluate<string>(`document.querySelector('[data-action="drinkPotion"] kbd').textContent`)==='=','Potion must be on equals');
   await first.press('Enter');
   const greeting='Hello shared world '+Date.now();

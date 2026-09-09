@@ -413,12 +413,6 @@ function renderHud(snapshot: AdventureSnapshot): void {
     if (control) {
       control.disabled = !available || full || availableStamina < cost;
       control.style.setProperty("--recovery", "0");
-      control.dataset.affordable = String(availableStamina >= cost);
-      if (!control.querySelector(".action-cost")) {
-        const badge = document.createElement("span"); badge.className = "action-cost";
-        badge.textContent = cost + " stamina"; badge.title = cost + " stamina · 1 turn";
-        control.append(badge);
-      }
     }
     const detail = !available ? "Select a living enemy in the forest" : full ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " free stamina" : (replacing ? "Replace · " : "Queue · ") + cost + " stamina";
     text(label, detail);
