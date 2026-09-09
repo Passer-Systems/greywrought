@@ -23,7 +23,7 @@ equal(
 equal(
   decodeCampaignStorage(encodeCampaignStorage(-500, 1234), null),
   { kind: "ready", progress: -500 },
-  "host must pass finite observations to Clause without assigning meaning",
+  "finite campaign progress round trips without loss",
 );
 equal(decodeCampaignStorage("not json", null), { kind: "corrupt" }, "invalid JSON");
 equal(
