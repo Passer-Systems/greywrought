@@ -1856,7 +1856,7 @@ button { cursor: pointer !important; }
 .adventure-objective p { font-size: var(--ui-font-body); line-height: 1.5; color: #c8d3d3; }
 #cargo-summary { border-top: 1px solid #b79a674f; padding-top: 10px; white-space: pre-line; line-height: 1.8; font-size: var(--ui-font-body); color: #f3d59d; }
 .adventure-map { position:absolute; right:8px; top:8px; width:175px; display:flex; flex-direction:column; gap:3px; pointer-events:auto; }
-.adventure-map header { color:#a7dfe4; text-align:center; font:600 var(--ui-font-body)/16px system-ui,sans-serif; text-shadow:0 1px 2px #000,1px 0 2px #000,-1px 0 2px #000; }
+.adventure-map header { align-self:center; max-width:100%; box-sizing:border-box; padding:2px 7px; background:#000c; color:#a7dfe4; text-align:center; font:600 var(--ui-font-body)/16px system-ui,sans-serif; text-shadow:0 1px 2px #000,1px 0 2px #000,-1px 0 2px #000; }
 #map-field { width:100%; aspect-ratio:1; box-sizing:border-box; position:relative; overflow:hidden; background:linear-gradient(to top,#927849 0%,#927849 25%,#36544c 25%,#294b47 70%,#344755); border:1px solid #080e12; box-shadow:0 1px 3px #0009; }
 .map-road { position: absolute; top: 5%; bottom: 5%; left: 46%; width: 8%; background: #b3aa825e; border-inline: 1px dashed #d5d2a283; }
 .map-landmark { position:absolute; z-index:3; display:grid; place-items:center; width:16px; height:16px; transform:translate(-50%,-50%); font-size:var(--ui-font-prominent); line-height:1; text-shadow:0 1px 2px #000; }
