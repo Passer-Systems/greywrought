@@ -21,7 +21,7 @@ export interface QueuedCombatAction {
   readonly status: "pending" | "executed" | "failed"; readonly reason: string | null;
 }
 export interface CombatView {
-  readonly phase: "idle" | "active" | "preparation"; readonly remainingSeconds: number;
+  readonly phase: "idle" | "active" | "choosing" | "preparation"; readonly remainingSeconds: number;
   readonly elapsedSeconds: number; readonly cycle: number; readonly queued: readonly QueuedCombatAction[];
   readonly reservedStamina: number; readonly availableStamina: number;
 }

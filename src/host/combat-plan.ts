@@ -119,7 +119,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       danger.title = attackers.map(threat => threat.name + (threat.joinsNextWindow ? " · joining next window" : "")).join("\n");
       root.hidden = next.phase !== "expedition" || (!enemy && combat.phase === "idle");
       Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
-      write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : combat.phase === "preparation" ? "Ⅱ Prepare · " + combat.remainingSeconds.toFixed(1) + "s" : "Active · " + combat.remainingSeconds.toFixed(1) + "s left");
+      const choosing = combat.phase === "choosing";
+      write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Choosing · " + combat.remainingSeconds.toFixed(1) + "s" : combat.phase === "preparation" ? "Ⅱ Prepare · " + combat.remainingSeconds.toFixed(1) + "s" : "Active · " + combat.remainingSeconds.toFixed(1) + "s left");
       write(resources, combat.queued.length + "/3 slots · " + combat.availableStamina + " stamina free · " + combat.reservedStamina + " reserved");
       staminaHint.hidden = combat.availableStamina > 0 || combat.queued.length >= 3;
       clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / (combat.elapsedSeconds + combat.remainingSeconds)) + "%";
@@ -167,7 +168,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         button.title = label; button.setAttribute("aria-label", label);
         write(button.querySelector<HTMLElement>(".combat-plan-move-time")!, move.status === "executed" ? "✓" : move.status === "failed" ? "×" : move.offsetSeconds.toFixed(1) + "s");
       }
-      const shown = enemy?.joinsNextWindow && combat.phase === "active" ? [] : enemy?.windowAction
+      const shown = choosing ? [] : enemy?.joinsNextWindow && combat.phase === "active" ? [] : enemy?.windowAction
         ? [{ ability: enemy.windowAction.ability, seconds: enemy.windowAction.offsetSeconds, status: enemy.windowAction.status }]
         : enemy?.forecast.slice(0, 1).map(move => ({ ability: move.ability, seconds: 0, status: move.status })) ?? [];
       const key = JSON.stringify([enemy?.id, enemy?.joinsNextWindow, shown.map(move => [move.ability.id, move.seconds, move.ability.damage, move.status])]);
@@ -179,7 +180,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           if (cell) enemyMove(cell, move.ability, Math.max(0, move.seconds), move.status);
         }
       }
-      write(enemyLabel, (enemy?.name ?? "No target") + (enemy?.joinsNextWindow ? " · next window" : "")); enemyLabel.title = enemy?.joinsNextWindow ? "Joins the next active window" : "Selected enemy’s announced moves";
+      write(enemyLabel, choosing ? "Enemy · choosing next move" : (enemy?.name ?? "No target") + (enemy?.joinsNextWindow ? " · next window" : "")); enemyLabel.title = choosing ? "The enemy is choosing its next move" : enemy?.joinsNextWindow ? "Joins the next active window" : "Selected enemy’s announced moves";
       for (let i = 0; i < cells.length; i++) cells[i]!.dataset.current = String(combat.phase === "active" && Math.floor(combat.elapsedSeconds) === i);
       updateEditor();
       write(feedback, next.report);

@@ -234,7 +234,7 @@ Activation and effect duration are separate: Block raises a two-second shield
 on its chosen beat and permits attacking on the next beat without dropping it. At most
 three moves fit in an active window; stamina and longer commitments constrain
 that further. The active window is three seconds, with player beats at
-0s, 1s, and 2s, followed by the five-second preparation phase. Queued stamina
+0s, 1s, and 2s, followed by one second of choosing and five seconds of preparation. Queued stamina
 is reserved, then spent when a move executes.
 
 Press 1–3 to place the selected pending move in slots 1–3 (0–2 seconds),
@@ -262,9 +262,24 @@ Attack range and paths are checked when the move actually fires.
 
 The first clearing holds an animated floating skull with 96 health. Its sole
 opening move is Ember Beam (8 targeted damage). Queue Block before pulling to
-absorb it. Subsequent windows cycle through one Fireball volley, one Ember Ward
-(6 block for 2 seconds), and one Kindle power-up. After its stored opener, each window chooses one of three beats with equal probability.
-The preceding preparation announces the chosen beat and it stays fixed.
+absorb it. After all three active beats resolve, enemies choose from the resulting
+health, positions and resources. A fixed one-second Choosing phase reserves time
+for this decision; finishing early does not shorten it. No next move is shown
+during Choosing. Five full seconds of preparation then reveal one committed move
+on one of three equally likely beats. The move stays fixed despite subsequent
+movement or resource changes. The rhythm is always 3 active → 1 choosing → 5
+preparation; the announced move lands 5, 6 or 7 seconds after preparation starts
+(plus the creature's visible attack animation where applicable).
+
+The Ember head normally chooses Fireball. At half health, or against Blood Rage,
+it may choose Ember Ward (6 block for 2 seconds) when the player is within strike
+range and has stamina left. It favours Fireball if a volley can finish the player,
+and never wards twice consecutively. After every third action, or when the player
+is out of reach or has enough block to absorb its volley, it chooses Kindle.
+Kindle always leads to Fireball, so staying out of reach cannot produce endless
+power-ups without an attack window. Each choice uses the state at the end of
+the active sequence, before stamina replenishes. Existing committed saved moves
+resume unchanged; subsequent choices use these rules.
 
 During Ward, power up or heal, then attack after the shield expires. During
 Kindle, choose whether to exploit the opening or defend against another
@@ -278,8 +293,11 @@ territory extinguishes remaining fireballs. Projectiles and enemy block survive
 reopening the encounter.
 
 The whole nameplate stays above the creature: level, name and disposition above
-health, then a compact icon sequence for current activity and two upcoming moves.
-Pause durations remain visible; ability names, damage and engagement conditions
+health, then a compact sequence containing only a pause and the one committed
+move. During the move, show its active icon; once it finishes, show only the
+remaining pause until the next decision. Never preview later windows. The fixed
+Choosing phase shows a pause and explains "Choosing next move" on hover.
+Pause durations remain visible; ability names, damage, beat and engagement conditions
 are explained on hover or focus. Avoid redundant labels and unexplained numbers
 on the icons. Level marks encounter progression (head 1, bee/hound 2, warder 3,
 guardian 4); it does not multiply damage. Actual shields and roots appear beside
@@ -287,7 +305,7 @@ the plate. The lorebook describes the same moves.
 
 ## Player stamina and Blood Rage
 
-The class basic attacks differ; the remaining starting kit is shared. Each active window has five stamina, replenished when preparation begins
+The class basic attacks differ; the remaining starting kit is shared. Each active window has five stamina, replenished after the active sequence resolves
 and when combat ends. There is no midwindow stamina regeneration. There
 is no backup resource or per-ability cooldown in this prototype. Actions share
 recovery time; movement remains available while recovering and reading menus.

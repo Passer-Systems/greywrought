@@ -6,14 +6,14 @@ interface AbilityIcon { button: HTMLButtonElement; icon: HTMLElement; clock: HTM
 interface Plate {
   width: number; height: number;
   root: HTMLDivElement; target: HTMLButtonElement; health: HTMLElement; healthFill: HTMLElement;
-  status: HTMLElement; level: HTMLElement; fill: HTMLElement; current: AbilityIcon; next: AbilityIcon; later: AbilityIcon; gap: HTMLElement; nextArrow: HTMLElement; laterArrow: HTMLElement; shield: HTMLElement;
+  status: HTMLElement; level: HTMLElement; fill: HTMLElement; current: AbilityIcon; next: AbilityIcon; nextArrow: HTMLElement; shield: HTMLElement;
   opening: HTMLElement; openingClock: HTMLElement; effect: HTMLElement; effectClock: HTMLElement;
 }
 function span(className: string, parent: HTMLElement): HTMLSpanElement {
   const node = document.createElement("span"); node.className = className; parent.append(node); return node;
 }
 function write(node: HTMLElement, value: string): void { if (node.textContent !== value) node.textContent = value; }
-function abilityIcon(parent: HTMLElement, enemyId: string, slot: "current" | "next" | "later"): AbilityIcon {
+function abilityIcon(parent: HTMLElement, enemyId: string, slot: "current" | "next"): AbilityIcon {
   const button = document.createElement("button"); button.type = "button"; button.className = "nameplate-ability";
   button.dataset.abilitySlot = slot; parent.append(button);
   const square = span("nameplate-ability-square", button);
@@ -41,9 +41,12 @@ function renderAbility(view: AbilityIcon, ability: ThreatAbilityView, threat: Th
   view.button.dataset.remaining = String(seconds);
   view.button.dataset.forecastStatus = forecast?.status ?? (stored ? "stored" : "pending");
   write(view.clock, stored ? "" : active ? seconds > 0 ? seconds.toFixed(1) + "s" : "NOW" : seconds <= 0 ? "Ready" : seconds.toFixed(1) + "s");
+  const windowAction = threat.windowAction;
+  const sameWindowAction = windowAction && windowAction.ability.id === ability.id;
+  const beat = sameWindowAction ? " Beat " + (Math.round(windowAction.offsetSeconds) + 1) + "." : "";
   const timing = stored ? "Stored opener: used on engagement as soon as you are in range." : active ? "Resolving now." : "Happens in " + seconds.toFixed(1) + " seconds. This move is already committed.";
   const facts = [ability.damage > 0 ? ability.damage + " damage" : "Power / defense", ability.range > 0 ? ability.range + " m range" : "Self"];
-  const detail = [ability.name, facts.join(" · "), ability.description, timing].join("\n");
+  const detail = [ability.name, facts.join(" · "), ability.description, timing + beat].join("\n");
   write(view.tooltip, detail);
   view.button.setAttribute("aria-label", (active ? "Active" : stored ? "Opener" : next ? "Then" : "Next") + ": " + ability.name + ". " + timing);
 
@@ -58,9 +61,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
     const current = abilityIcon(row, threat.id, "current");
     const nextArrow = span("nameplate-queue-arrow", row); nextArrow.textContent = "›";
     const next = abilityIcon(row, threat.id, "next");
-    const laterArrow = span("nameplate-queue-arrow", row); laterArrow.textContent = "›";
-    const gap = span("nameplate-wait", row);
-    const later = abilityIcon(row, threat.id, "later");
+
     const target = document.createElement("button"); target.type = "button"; target.className = "nameplate-target";
     // The identity line leads the health bar, matching the compact nameplate
     // convention used by the rest of the game UI.
@@ -79,7 +80,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
     const effect = span("nameplate-rooted", root); effect.hidden = true; effect.title = "Rooted until you land";
     span("nameplate-effect-icon", effect).textContent = "\u2744";
     const effectClock = span("nameplate-effect-clock", effect);
-    plates.set(threat.id, { width: 0, height: 0, root, target, health, healthFill, status, level, fill, current, next, later, gap, nextArrow, laterArrow, shield, opening, openingClock, effect, effectClock });
+    plates.set(threat.id, { width: 0, height: 0, root, target, health, healthFill, status, level, fill, current, next, nextArrow, shield, opening, openingClock, effect, effectClock });
   });
   let nextContentTime = 0;
   let bounds = { width: 0, height: 0 };
@@ -94,7 +95,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
       if (refresh) for (const threat of snapshot.threats) {
         const plate = plates.get(threat.id); if (!plate) continue;
         plate.root.hidden = !visibleIds.has(threat.id);
-        Object.assign(plate.root.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), damage: String(threat.damage), actionSequence: String(threat.actionSequence), disposition: threat.disposition, aggro: String(threat.aggro), worldX: String(threat.position.x), worldZ: String(threat.position.z), rootedSeconds: String(threat.rootedSeconds), moving: String(threat.moving), currentAbility: threat.currentAbility.id, nextAbility: threat.nextAbility.id, lastActionHit: String(threat.lastActionHit), movementMode: threat.movementMode, motionProgress: String(threat.motionProgress), nextAttackSeconds: String(threat.nextAttackSeconds), worldY: String(threat.position.y), targetX: String(threat.targetPosition.x), targetZ: String(threat.targetPosition.z), originX: String(threat.attackOrigin.x), originZ: String(threat.attackOrigin.z), block: String(threat.block), volley: String(threat.volley), projectileCount: String(threat.fireballs.length), forecast: JSON.stringify(threat.forecast.map(move => ({id:move.ability.id, seconds:move.remainingSeconds, status:move.status}))) });
+        Object.assign(plate.root.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), damage: String(threat.damage), actionSequence: String(threat.actionSequence), disposition: threat.disposition, aggro: String(threat.aggro), worldX: String(threat.position.x), worldZ: String(threat.position.z), rootedSeconds: String(threat.rootedSeconds), moving: String(threat.moving), currentAbility: threat.currentAbility.id, nextAbility: threat.nextAbility.id, lastActionHit: String(threat.lastActionHit), movementMode: threat.movementMode, motionProgress: String(threat.motionProgress), nextAttackSeconds: String(threat.nextAttackSeconds), worldY: String(threat.position.y), targetX: String(threat.targetPosition.x), targetZ: String(threat.targetPosition.z), originX: String(threat.attackOrigin.x), originZ: String(threat.attackOrigin.z), block: String(threat.block), volley: String(threat.volley), projectileCount: String(threat.fireballs.length), forecast: JSON.stringify(threat.forecast.slice(0, 1).map(move => ({id:move.ability.id, seconds:move.remainingSeconds, status:move.status}))) });
       }
       for (const { threat, anchor } of visible) {
         const plate = plates.get(threat.id); if (!plate || !anchor) continue;
@@ -120,35 +121,28 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
           plate.effect.hidden = threat.rootedSeconds <= 0;
           write(plate.effectClock, threat.rootedSeconds.toFixed(1));
           plate.healthFill.style.width = (100 * threat.health / threat.maximumHealth) + "%";
-          const [first, second] = threat.forecast;
-          const active = threat.currentActivity;
+          const choosing = threat.aggro && snapshot.combat.phase === "choosing";
+          const first = choosing ? undefined : threat.forecast[0];
+          const active = choosing ? null : threat.currentActivity;
           plate.current.button.hidden = false;
-          if (active) renderAbility(plate.current, active.ability, threat, false, active);
+          if (active) {
+            renderAbility(plate.current, active.ability, threat, false, active);
+            plate.next.button.hidden = true;
+            plate.nextArrow.hidden = true;
+          }
           else {
-            const recovering = threat.phase === "recovery";
-            const seconds = recovering ? threat.remainingSeconds : first?.remainingSeconds ?? 0;
+            const seconds = first?.remainingSeconds ?? (threat.aggro ? snapshot.combat.remainingSeconds : 0);
             if (plate.current.button.dataset.abilityId !== "pause") {
               plate.current.button.dataset.abilityId = "pause";
               const symbol = document.createElement("span"); symbol.className = "nameplate-pause-symbol"; symbol.textContent = "Ⅱ"; plate.current.icon.replaceChildren(symbol);
             }
             plate.current.button.dataset.state = "waiting";
             write(plate.current.clock, !threat.aggro ? "" : seconds.toFixed(1) + "s");
-            const detail = !threat.aggro ? "Watching. The stored opener fires when you engage and enter range." : threat.joinsNextWindow ? "Approaching. Joins the next shared active window without resetting the fight." : recovering ? "Recovering for " + seconds.toFixed(1) + " seconds. Attacks happen during the shared active window." : "Pause before the next special: " + seconds.toFixed(1) + " seconds. Prepare your next moves.";
+            const detail = choosing ? "Choosing next move. The enemy will announce its commitment when the decision window ends." : !threat.aggro ? "Watching. The stored opener fires when you engage and enter range." : !first ? "Finishing this sequence. The next move has not been chosen." : "Pause before " + first.ability.name + ": " + seconds.toFixed(1) + " seconds. Prepare your next moves.";
             write(plate.current.tooltip, detail); plate.current.button.setAttribute("aria-label", detail);
-          }
-          plate.next.button.hidden = !first; plate.nextArrow.hidden = !first;
-          plate.later.button.hidden = !second; plate.laterArrow.hidden = !second;
-          plate.gap.hidden = !second || !first || second.remainingSeconds - first.remainingSeconds < .05;
-          if (first) {
-            renderAbility(plate.next, first.ability, threat, false, first);
-          }
-          if (second && first) {
-            renderAbility(plate.later, second.ability, threat, true, second);
-            const delay = Math.max(0, second.remainingSeconds-first.remainingSeconds);
-            write(plate.gap, "Ⅱ " + delay.toFixed(1) + "s ›");
-            plate.gap.title = delay.toFixed(1) + " seconds after " + first.ability.name;
-            if (delay < .05) { write(plate.laterArrow, "+"); plate.laterArrow.title = "Together"; }
-            else { write(plate.laterArrow, "›"); plate.laterArrow.title = "Then"; }
+            plate.next.button.hidden = !first;
+            plate.nextArrow.hidden = !first;
+            if (first) renderAbility(plate.next, first.ability, threat, true, first);
           }
           write(plate.status, threat.disposition === "neutral" && !threat.aggro ? "\u25C7" : "\u25C6");
           plate.status.title = threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
@@ -162,7 +156,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         root.style.visibility = fitsViewport ? "visible" : "hidden";
         root.style.transform = `translate(${x}px, ${y}px)`;
         root.dataset.tooltipBelow = String(y < 140);
-        for (const ability of [plate.current, plate.next, plate.later]) ability.tooltip.style.left = `${Math.max(8 - x, Math.min(width / 2 - 120, bounds.width - 248 - x))}px`;
+        for (const ability of [plate.current, plate.next]) ability.tooltip.style.left = `${Math.max(8 - x, Math.min(width / 2 - 120, bounds.width - 248 - x))}px`;
       }
     },
   };

@@ -43,10 +43,10 @@ function finish(game: AdventureGame, id: string): void {
     const c=game.snapshot.combat;
     if(c.phase==="preparation") {
       const hit=threat(game,id).windowAction;const block=hit&&hit.ability.damage>0?Math.floor(hit.offsetSeconds):-1;
-      let attacks=0;
-      for(let beat=0;beat<5;beat++){const action=beat===block?"brace":block>=0&&attacks>=3?"jab":"strike";if(action==="strike")attacks++;tap(game,action);}
-      game.advance(c.remainingSeconds+5); continue;
+      for(let beat=0;beat<3;beat++) tap(game,beat===block?"brace":"strike");
+      game.advance(c.remainingSeconds+3); continue;
     }
+    if(c.phase==="choosing") { game.advance(c.remainingSeconds); continue; }
     if(c.phase==="active" && (game.snapshot.player.stamina<1 || c.queued.length>=5 || c.elapsedSeconds>3)) {game.advance(c.remainingSeconds);continue;}
     tap(game,"strike");game.advance(c.phase==="idle"?1.02:2);
     expect(game.snapshot.phase).toBe("expedition");
@@ -129,7 +129,9 @@ describe("Frostwood world and persistent rewards",()=>{
   });
 
   test("the neutral bee wanders, retaliates when attacked, and leaves the briars intact",()=>{
-    const game=positioned(1,17);game.advance(1);
+    const fixture=JSON.parse(positioned(1,17).save());
+    Object.assign(fixture.state.threats.find((t:{id:string})=>t.id==="patrol"),{health:0,phase:"cleared",lootClaimed:true});
+    const game=createAdventure({save:JSON.stringify(fixture)});game.advance(1);
     expect(threat(game,"nest")).toMatchObject({disposition:"neutral",aggro:false,health:72,actionSequence:0});
     expect(threat(game,"nest").position).not.toEqual(threat(game,"nest").homePosition);
     expect(game.snapshot.player.health).toBe(100);
@@ -402,7 +404,7 @@ describe("queued beats, reservations and editing",()=>{
     const game=headFight();tap(game,"bloodRage");const from=game.snapshot.player.position;
     game.setCameraForward(1,0);game.setAction("forward",true);game.advance(0.4);game.setAction("forward",false);
     expect(game.snapshot.player.position.x).toBeCloseTo(from.x+1.8);expect(game.snapshot.player.actionCooldown).toBeGreaterThan(1);
-    game.advance(2.6);expect(game.snapshot.combat.phase).toBe("preparation");tap(game,"guard");
+    game.advance(3.6);expect(game.snapshot.combat.phase).toBe("preparation");tap(game,"guard");
     const before=game.snapshot.player.position;game.setAction("backward",true);game.advance(0.2);game.setAction("backward",false);
     expect(game.snapshot.player.position.x).toBeCloseTo(before.x-0.9);expect(pending(game)).toHaveLength(1);expect(game.snapshot.player.block).toBe(0);
   });
@@ -416,14 +418,14 @@ describe("five energy, fillers and healing",()=>{
     tap(game,"guard");expect(game.snapshot.combat.queued).toHaveLength(3);
     game.advance(0.01);game.advance(2.3);expect(game.snapshot.player.stamina).toBe(2);
     expect(game.snapshot.combat.queued.every(e=>e.status==="executed")).toBe(true);
-    game.advance(0.7);expect(game.snapshot.combat.phase).toBe("preparation");expect(game.snapshot.player.stamina).toBe(5);
+    game.advance(0.7);expect(game.snapshot.combat.phase).toBe("choosing");expect(game.snapshot.player.stamina).toBe(5);
     expect(game.snapshot.combat.queued).toHaveLength(0);
   });
   test("energy does not regenerate within an active window and replenishes once at preparation",()=>{
     const game=positioned(-3,8.1);tap(game,"brace");game.advance(0.01);game.advance(2.99);
     expect(game.snapshot.player.stamina).toBe(3);expect(game.snapshot.player.staminaRecoverySeconds).toBeCloseTo(0.01);
     game.advance(0.01);expect(game.snapshot.player.stamina).toBe(5);tap(game,"brace");tap(game,"brace");tap(game,"strike");
-    expect(game.snapshot.combat.reservedStamina).toBe(5);game.advance(5);
+    expect(game.snapshot.combat.reservedStamina).toBe(5);game.advance(6);
     expect(game.snapshot.player.stamina).toBe(3);expect(game.snapshot.combat.reservedStamina).toBe(3);
   });
   test("zero-cost Jab and Guard are manual, occupy beats, and Guard stays raised during the next attack",()=>{
@@ -456,7 +458,7 @@ describe("five energy, fillers and healing",()=>{
 describe("one encounter clock and truthful enemy timing",()=>{
   test("all active damage pauses for preparation and the next opening resolves queued defense first",()=>{
     const game=headFight();expect(game.snapshot.player.health).toBe(100-COMBAT_RULES.head.beamDamage);game.advance(3);expect(game.snapshot.player.health).toBe(100-COMBAT_RULES.head.beamDamage);
-    expect(game.snapshot.combat.phase).toBe("preparation");const hp=game.snapshot.player.health;
+    expect(game.snapshot.combat.phase).toBe("choosing");game.advance(1);expect(game.snapshot.combat.phase).toBe("preparation");const hp=game.snapshot.player.health;
     tap(game,"brace");game.advance(4.1);expect(threat(game,"scout").fireballs).toHaveLength(1);expect(game.snapshot.player.health).toBe(hp);
     expect(threat(game,"scout").currentActivity?.remainingSeconds).toBeCloseTo(0.9);
     game.advance(0.89);expect(game.snapshot.player.health).toBe(hp);game.advance(0.01);
@@ -472,31 +474,32 @@ describe("one encounter clock and truthful enemy timing",()=>{
     expect(joined.snapshot.combat.cycle).toBe(1);expect(joined.snapshot.combat.elapsedSeconds).toBeCloseTo(1.01);
     expect(joined.snapshot.combat.queued.map(e=>e.id)).toEqual(plan.map(e=>e.id));
     expect(threat(joined,"patrol").actionSequence).toBe(0);
-    expect(threat(joined,"patrol").forecast[0]?.remainingSeconds).toBeCloseTo(7.64);
-    joined.advance(1.99);expect(joined.snapshot.combat.phase).toBe("preparation");
+    expect(threat(joined,"patrol").forecast).toEqual([]);
+    joined.advance(1.99);expect(joined.snapshot.combat.phase).toBe("choosing");joined.advance(1);expect(joined.snapshot.combat.phase).toBe("preparation");
     const hp=joined.snapshot.player.health;joined.advance(4.99);expect(joined.snapshot.player.health).toBe(hp);
     joined.advance(0.01);expect(threat(joined,"patrol").joinsNextWindow).toBe(false);
     joined.advance(0.65);expect(threat(joined,"patrol").actionSequence).toBe(1);
   });
   test("the head ward is its only action, expires at two seconds and leaves later beats open",()=>{
-    const game=headFight();game.advance(11);tap(game,"strike");game.setQueuedDelay(latestId(game),2);game.advance(5);
+    const base=headFight(),fixture=JSON.parse(base.save());fixture.state.threats[0].health=48;
+    const game=createAdventure({save:JSON.stringify(fixture)});game.advance(4);expect(threat(game,"scout").windowAction!.ability.id).toBe("ember-ward");tap(game,"strike");game.setQueuedDelay(latestId(game),2);game.advance(5);
     expect(threat(game,"scout").block).toBe(6);const hp=game.snapshot.player.health;game.advance(1.99);expect(threat(game,"scout").block).toBe(6);
-    game.advance(0.01);expect(threat(game,"scout").block).toBe(0);game.advance(0.25);expect(threat(game,"scout").health).toBe(87);
+    game.advance(0.01);expect(threat(game,"scout").block).toBe(0);game.advance(0.25);expect(threat(game,"scout").health).toBe(39);
     expect(game.snapshot.player.health).toBe(hp);
   });
   test("the head uses only Beam, then one Fireball, Ward or Kindle per shared window",()=>{
-    const game=headFight();expect(threat(game,"scout").actionSequence).toBe(1);game.advance(3);
-    expect(threat(game,"scout").forecast.map(e=>e.ability.id)).toEqual(["fireball","ember-ward"]);
-    expect(threat(game,"scout").forecast[0]?.remainingSeconds).toBeCloseTo(5);expect(threat(game,"scout").forecast[1]?.remainingSeconds).toBeCloseTo(13);
+    const game=headFight();expect(threat(game,"scout").actionSequence).toBe(1);game.advance(4);
+    expect(threat(game,"scout").forecast.map(e=>e.ability.id)).toEqual(["fireball"]);
+    expect(threat(game,"scout").forecast[0]?.remainingSeconds).toBeCloseTo(5);
     game.advance(5);expect(threat(game,"scout").actionSequence).toBe(2);const hp=game.snapshot.player.health;
-    game.advance(3);expect(game.snapshot.player.health).toBe(hp);expect(threat(game,"scout").forecast.map(e=>e.ability.id)).toEqual(["ember-ward","kindle"]);
-    game.advance(8);expect(threat(game,"scout").forecast.map(e=>e.ability.id)).toEqual(["kindle","fireball"]);
-    expect(threat(game,"scout").forecast[1]?.ability.damage).toBe(2*COMBAT_RULES.head.fireballDamage);
+    game.advance(3);expect(game.snapshot.player.health).toBe(hp);expect(threat(game,"scout").forecast).toEqual([]);
+    game.advance(1);expect(threat(game,"scout").forecast.map(e=>e.ability.id)).toEqual(["fireball"]);
+    game.advance(9);expect(threat(game,"scout").forecast.map(e=>e.ability.id)).toEqual(["kindle"]);
     game.advance(5);expect(threat(game,"scout").volley).toBe(2);expect(threat(game,"scout").actionSequence).toBe(4);
-    expect(game.snapshot.player.health).toBe(hp);
+    expect(game.snapshot.player.health).toBe(hp-COMBAT_RULES.head.fireballDamage);
   });
   test("large volleys keep every projectile inside active time and never deal preparation damage",()=>{
-    const game=headFight();game.advance(3);const data=JSON.parse(game.save());
+    const game=headFight();game.advance(4);const data=JSON.parse(game.save());
     const head=data.state.threats[0];head.head.volley=30;head.head.events[0].volley=30;head.head.events[0].spacing=2.99/29;
     const volley=createAdventure({save:JSON.stringify(data)}),hp=volley.snapshot.player.health;volley.advance(4.1);
     expect(threat(volley,"scout").fireballs).toHaveLength(1);expect(volley.snapshot.player.health).toBe(hp);
@@ -504,7 +507,7 @@ describe("one encounter clock and truthful enemy timing",()=>{
     volley.advance(0.01);const safe=volley.snapshot.player.health;volley.advance(4.9);expect(volley.snapshot.player.health).toBe(safe);
   });
   test("cover and range prevent head impacts, and killing its caster extinguishes projectiles",()=>{
-    const game=headFight();game.advance(7.2);expect(threat(game,"scout").fireballs).toHaveLength(1);
+    const game=headFight();game.advance(8.2);expect(threat(game,"scout").fireballs).toHaveLength(1);
     const data=JSON.parse(game.save());data.state.threats[0].health=3;
     const kill=createAdventure({save:JSON.stringify(data)});tap(kill,"jab");kill.advance(0.8);
     expect(threat(kill,"scout").health).toBe(0);expect(threat(kill,"scout").fireballs).toHaveLength(0);
@@ -545,15 +548,15 @@ describe("physical attacks within the shared plan",()=>{
     game.setCameraForward(0,-1);game.setAction("forward",true);game.advance(0.3);
     expect(threat(game,"patrol").targetPosition).toEqual(launched.targetPosition);expect(threat(game,"patrol").facing).toEqual(launched.facing);
     game.advance(0.35);game.setAction("forward",false);expect(threat(game,"patrol").actionSequence).toBe(1);
-    game.advance(0.35);expect(game.snapshot.combat.phase).toBe("preparation");const hp=game.snapshot.player.health;
+    game.advance(1.35);expect(game.snapshot.combat.phase).toBe("preparation");const hp=game.snapshot.player.health;
     game.advance(5);expect(game.snapshot.player.health).toBe(hp);expect(threat(game,"patrol").movementMode).toBe("lunge");
     game.advance(0.65);expect(threat(game,"patrol").actionSequence).toBe(2);
   });
   test("a queued Disengage on the Maul launch beat roots its landing and avoids the hit",()=>{
-    const game=wolfGame();game.advance(0.01);game.advance(7.99);game.selectTarget("patrol");
+    const game=wolfGame();game.advance(0.01);game.advance(8.99);game.selectTarget("patrol");
     // Move the next engagement to contact; the same shared active opening remains authoritative.
     const saved=JSON.parse(game.save());const wolf=saved.state.threats.find((t:{id:string})=>t.id==="patrol");
-    saved.state.position={x:wolf.position.x-1.5,y:0,z:wolf.position.z};
+    saved.state.position={x:wolf.position.x,y:0,z:wolf.position.z+1.5};
     const dodge=createAdventure({save:JSON.stringify(saved)});tap(dodge,"disengage");dodge.advance(0.01);
     expect(dodge.snapshot.combat.queued[0]?.status).toBe("executed");
     const at=threat(dodge,"patrol").position,hp=dodge.snapshot.player.health;dodge.advance(0.65);
@@ -616,11 +619,11 @@ describe("saved plans, attrition and services",()=>{
     }
   });
   test("v9 preserves queued reservations, active recovery, projectiles and the encounter clock exactly",()=>{
-    const game=positioned(-3,8.1);tap(game,"strike");tap(game,"brace");game.setQueuedDelay(latestId(game),2);
+    const game=positioned(-3,8.1);tap(game,"strike");tap(game,"guard");game.setQueuedDelay(latestId(game),2);
     const initial=game.save();expect(createAdventure({save:initial}).save()).toBe(initial);
     game.advance(0.01);game.advance(0.125);const saved=game.save(),restored=createAdventure({save:saved});expect(restored.save()).toBe(saved);
     game.advance(0.5);restored.advance(0.5);expect(restored.save()).toBe(game.save());
-    game.advance(6.6);const airborne=game.save(),loaded=createAdventure({save:airborne});expect(threat(loaded,"scout").fireballs).toHaveLength(1);
+    game.advance(7.6);const airborne=game.save(),loaded=createAdventure({save:airborne});expect(threat(loaded,"scout").fireballs).toHaveLength(1);
     game.advance(1);loaded.advance(1);expect(loaded.save()).toBe(game.save());
   });
   test("all seven legacy versions preserve health, inventory, loot and shields; active encounters resume in preparation",()=>{
@@ -652,15 +655,19 @@ describe("saved plans, attrition and services",()=>{
   test("Rage caps at three, strengthens Jab, drains through Block and can kill",()=>{
     const game=positioned(-3,8.1);tap(game,"bloodRage");tap(game,"bloodRage");game.advance(0.01);game.advance(3);
     expect(game.snapshot.player.bloodRage).toBe(2);
-    tap(game,"brace");tap(game,"bloodRage");game.advance(6);
+    tap(game,"brace");tap(game,"bloodRage");game.advance(7);
     expect(game.snapshot.player.bloodRage).toBe(3);expect(game.snapshot.player.stamina).toBe(2);const hp=game.snapshot.player.health;
-    game.advance(1);expect(game.snapshot.player.health).toBe(hp-3);
-    game.advance(1);tap(game,"brace");tap(game,"bloodRage");game.advance(5);
-    expect(game.snapshot.player.block).toBe(COMBAT_RULES.brace.block);
-    game.advance(1);expect(game.snapshot.player.bloodRage).toBe(3);
-    game.advance(2);tap(game,"jab");game.advance(5);
-    expect(threat(game,"scout").health).toBe(87);expect(game.snapshot.player.health).toBe(hp-9);
-    const saved=JSON.parse(game.save());Object.assign(saved.state,{health:1,rageDrainSeconds:0.1,block:24,guardSeconds:1});
+    const fixture=JSON.parse(game.save());
+    fixture.state.combat.elapsedSeconds=0;fixture.state.combat.queued=[];
+    Object.assign(fixture.state,{actionCooldown:0,currentAction:null,actionDuration:0,rageDrainSeconds:0.1,block:24,guardSeconds:2});
+    const guarded=createAdventure({save:JSON.stringify(fixture)});
+    tap(guarded,"jab");expect(threat(guarded,"scout").health).toBe(87);
+    tap(guarded,"bloodRage");guarded.advance(0.1);
+    expect(guarded.snapshot.player.health).toBe(hp-3);expect(guarded.snapshot.player.block).toBe(24);
+    expect(guarded.snapshot.player.rageDrainSeconds).toBeCloseTo(5);
+    guarded.advance(0.9);expect(guarded.snapshot.player.bloodRage).toBe(3);
+    expect(guarded.snapshot.combat.queued.at(-1)?.status).toBe("failed");expect(guarded.snapshot.player.stamina).toBe(2);
+    const saved=JSON.parse(guarded.save());Object.assign(saved.state,{health:1,rageDrainSeconds:0.1,block:24,guardSeconds:1});
     const dying=createAdventure({save:JSON.stringify(saved)});dying.advance(0.1);expect(dying.snapshot.phase).toBe("lost");expect(dying.snapshot.player.health).toBe(0);
   });
   test("Rage cannot execute before a fight and decays every two seconds after leaving",()=>{
@@ -705,7 +712,7 @@ describe("announced random enemy beats", () => {
   test("every beat is reachable, announced for full preparation, fixed while counting down, and retained on reload", () => {
     for (const { seed, beat } of beatCases) {
       const game = withTimingSeed(headFight(), "scout", seed);
-      game.advance(game.snapshot.combat.remainingSeconds);
+      game.advance(game.snapshot.combat.remainingSeconds + 1);
       const move = threat(game, "scout").windowAction!;
       expect(move.offsetSeconds).toBe(beat);
       expect(threat(game, "scout").forecast[0]!.remainingSeconds).toBeCloseTo(5 + beat);
@@ -726,27 +733,67 @@ describe("announced random enemy beats", () => {
       expect(game.snapshot.player.health).toBe(100-COMBAT_RULES.head.beamDamage-COMBAT_RULES.head.fireballDamage);
     }
   });
-  test("both future head forecasts resolve at their promised times without consuming random draws", () => {
+  test("choosing lasts one second with no preview, then reveals one stable move for five full seconds", () => {
     const game = withTimingSeed(headFight(), "scout", 1500);
+    expect(threat(game,"scout").forecast).toEqual([]);
+    game.advance(2.99);expect(game.snapshot.combat.phase).toBe("active");expect(threat(game,"scout").forecast).toEqual([]);
+    game.advance(.01);expect(game.snapshot.combat).toMatchObject({phase:"choosing",remainingSeconds:1});
+    expect(threat(game,"scout").forecast).toEqual([]);expect(threat(game,"scout").windowAction).toBeNull();
+    game.advance(.4);const savedChoice=game.save(),reopened=createAdventure({save:savedChoice});expect(reopened.save()).toBe(savedChoice);
+    game.advance(.599);reopened.advance(.599);expect(reopened.save()).toBe(game.save());expect(game.snapshot.combat.phase).toBe("choosing");
+    expect(threat(game,"scout").forecast).toEqual([]);
+    game.advance(.001);reopened.advance(.001);expect(reopened.save()).toBe(game.save());
+    expect(game.snapshot.combat).toMatchObject({phase:"preparation",remainingSeconds:5});
     const announced = threat(game, "scout").forecast;
-    expect(announced.map(f => f.ability.id)).toEqual(["fireball", "ember-ward"]);
+    expect(announced.map(f => f.ability.id)).toEqual(["fireball"]);expect(announced[0]!.remainingSeconds).toBeCloseTo(7);
     const saved = game.save();
     for (let i = 0; i < 5; i++) expect(threat(game, "scout").forecast).toEqual(announced);
     expect(game.save()).toBe(saved);
     game.advance(announced[0]!.remainingSeconds);
     expect(threat(game, "scout").actionSequence).toBe(2);
     expect(game.snapshot.player.health).toBe(100-COMBAT_RULES.head.beamDamage-COMBAT_RULES.head.fireballDamage);
-    game.advance(announced[1]!.remainingSeconds - announced[0]!.remainingSeconds - .001);
-    expect(threat(game, "scout").block).toBe(0);
-    game.advance(.001);
-    expect(threat(game, "scout").block).toBe(6);
-    expect(threat(game, "scout").actionSequence).toBe(3);
+    expect(threat(game,"scout").forecast).toEqual([]);
+    game.advance(.999);expect(game.snapshot.combat.phase).toBe("active");expect(threat(game,"scout").forecast).toEqual([]);
+    game.advance(.001);expect(game.snapshot.combat.phase).toBe("choosing");expect(threat(game,"scout").forecast).toEqual([]);
+  });
+  test("third-beat damage determines the next choice, which stays fixed through choosing and preparation",()=>{
+    const fixture=JSON.parse(headFight().save());fixture.state.threats[0].health=57;
+    const untouched=createAdventure({save:JSON.stringify(fixture)}),struck=createAdventure({save:JSON.stringify(fixture)});
+    tap(struck,"strike");struck.setQueuedDelay(latestId(struck),2);
+    untouched.advance(2.99);struck.advance(2.99);
+    expect(threat(struck,"scout").health).toBe(48);expect(threat(struck,"scout").forecast).toEqual([]);
+    untouched.advance(.01);struck.advance(.01);
+    expect(threat(struck,"scout").windowAction).toBeNull();
+    const changing=JSON.parse(struck.save());changing.state.health=10;
+    const moved=createAdventure({save:JSON.stringify(changing)});moved.setCameraForward(-1,0);moved.setAction("forward",true);
+    untouched.advance(1);struck.advance(1);moved.advance(1);moved.setAction("forward",false);
+    expect(threat(untouched,"scout").windowAction!.ability.id).toBe("fireball");
+    expect(threat(struck,"scout").windowAction!.ability.id).toBe("ember-ward");
+    const committed=threat(struck,"scout").windowAction;
+    expect(threat(moved,"scout").windowAction).toEqual(committed);
+    moved.advance(2);expect(threat(moved,"scout").windowAction).toEqual(committed);
+  });
+  test("the head reacts to health, reach, block, rage and spent stamina at the decision boundary",()=>{
+    const base=JSON.parse(headFight().save());base.state.combat.elapsedSeconds=2.99;
+    const cases=[
+      {change:{},headHealth:96,ability:"fireball"},
+      {change:{health:10},headHealth:48,ability:"fireball"},
+      {change:{},headHealth:48,ability:"ember-ward"},
+      {change:{stamina:0},headHealth:48,ability:"fireball"},
+      {change:{bloodRage:1,rageDrainSeconds:5},headHealth:96,ability:"ember-ward"},
+      {change:{block:24,guardSeconds:2},headHealth:96,ability:"kindle"},
+      {change:{position:{x:-10,y:0,z:3}},headHealth:96,ability:"kindle"},
+    ];
+    for(const {change,headHealth,ability} of cases){const fixture=structuredClone(base);Object.assign(fixture.state,change);fixture.state.threats[0].health=headHealth;
+      const game=createAdventure({save:JSON.stringify(fixture)});game.advance(1.01);
+      expect(threat(game,"scout").windowAction!.ability.id).toBe(ability);
+    }
   });
   test("a third-beat 30-fireball volley finishes before preparation", () => {
     const game = withTimingSeed(headFight(), "scout", 1500), data = JSON.parse(game.save());
     data.state.threats[0].head.volley = 30;
     const volley = createAdventure({ save: JSON.stringify(data) });
-    volley.advance(volley.snapshot.combat.remainingSeconds);
+    volley.advance(volley.snapshot.combat.remainingSeconds + 1);
     expect(threat(volley, "scout").windowAction!.offsetSeconds).toBe(2);
     volley.advance(5);
     expect(volley.snapshot.player.health).toBe(100-COMBAT_RULES.head.beamDamage);
@@ -761,7 +808,7 @@ describe("announced random enemy beats", () => {
   test("Maul keeps its complete leap on both the first and third beats", () => {
     for (const { seed, beat } of [beatCases[0]!, beatCases[2]!]) {
       const game = withTimingSeed(wolfGame(), "patrol", seed);
-      game.advance(.01); game.advance(game.snapshot.combat.remainingSeconds);
+      game.advance(.01); game.advance(game.snapshot.combat.remainingSeconds + 1);
       expect(threat(game, "patrol").actionSequence).toBe(1);
       expect(threat(game, "patrol").windowAction!.offsetSeconds).toBeCloseTo(beat + .65);
       game.advance(5 + beat);

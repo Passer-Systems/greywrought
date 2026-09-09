@@ -8,7 +8,7 @@ type Vector = { x: number; y: number; z: number };
 type Phase = AdventureSnapshot["phase"];
 export const COMBAT_RULES = {
   actionCooldown: 1,
-  window: { active: 3, preparation: 5, actionSlots: 3, maximumActions: 3 },
+  window: { active: 3, choosing: 1, preparation: 5, actionSlots: 3, maximumActions: 3 },
   stamina: { maximum: 5, recoverySeconds: 5 },
   bloodRage: { cost: 1, maximum: 3, damagePerStack: 2, drainPerStack: 1, drainSeconds: 5, decaySeconds: 2, recovery: 2 },
   strike: { damage: 9, range: 6.5, rangedRange: 10, stopDistance: 1.5, duration: 0.25, cost: 1 },
@@ -35,10 +35,9 @@ interface WolfState {
   nextAttackSeconds: number; circling: boolean; attackOrigin: Vector;
 }
 type HeadAbilityId = "ember-beam" | "fireball" | "ember-ward" | "kindle";
-const HEAD_ROTATION: readonly HeadAbilityId[] = ["fireball", "ember-ward", "kindle"];
 interface HeadEvent { offsetSeconds: number; spacing: number; ability: HeadAbilityId; remainingSeconds: number; status: "pending" | "active" | "done"; volley: number; launched: number; }
 interface HeadState {
-  opened: boolean; rotationIndex: number; events: HeadEvent[];
+  opened: boolean; events: HeadEvent[];
   block: number; blockSeconds: number;
   volley: number; projectileSequence: number;
   fireballs: { impactOffset: number; id: number; origin: Vector; remainingSeconds: number; duration: number; damage: number }[];
@@ -118,7 +117,7 @@ const definition = (id: string): ThreatDefinition => {
 const newWolf = (): WolfState => ({ rng: 0x6d2b79f5, facing: point(0, 1), motion: null,
   nextAttackSeconds: COMBAT_RULES.enemy.preparation, circling: false, attackOrigin: point(-3, 10),
 });
-const newHead = (): HeadState => ({ opened: false, rotationIndex: 0, events: [], block: 0, blockSeconds: 0, volley: 1, projectileSequence: 0, fireballs: [] });
+const newHead = (): HeadState => ({ opened: false, events: [], block: 0, blockSeconds: 0, volley: 1, projectileSequence: 0, fireballs: [] });
 const newThreats = (): ThreatState[] => DEFINITIONS.map(t => ({
   id: t.id, health: t.health, active: t.id !== "ritual-guardian", phase: t.patrol && t.id !== "ritual-guardian" ? "patrol" : "dormant",
   rng: crypto.getRandomValues(new Uint32Array(1))[0]!,
@@ -168,7 +167,7 @@ class Adventure implements AdventureGame {
     if (options.archetype !== undefined && options.archetype !== this.state.archetype) {
       throw new Error("The saved character has a different calling.");
     }
-    if (this.state.combat.phase !== "idle") for (const t of this.state.threats) if (t.aggro && t.windowCycle === 0) this.planWindow(t, this.state.combat.cycle + 1);
+    if (this.state.combat.phase === "preparation") for (const t of this.state.threats) if (t.aggro && t.windowCycle === 0) this.planWindow(t, this.state.combat.cycle + 1);
     this.appendLog(options.save === undefined ? "Welcome to Hearthstead. Visit Mara for potions or Rowan at the inn to rest." : "Welcome back. Your journey has been restored.");
   }
 
@@ -176,7 +175,7 @@ class Adventure implements AdventureGame {
     const s = this.state;
     return {
       phase: s.phase, combat: { phase: s.combat.phase, elapsedSeconds: s.combat.elapsedSeconds, cycle: s.combat.cycle,
-        remainingSeconds: s.combat.phase === "idle" ? 0 : (s.combat.phase === "active" ? COMBAT_RULES.window.active : COMBAT_RULES.window.preparation) - s.combat.elapsedSeconds, queued: s.combat.queued.map(e => ({ ...e })),
+        remainingSeconds: this.nextWindowSeconds(), queued: s.combat.queued.map(e => ({ ...e })),
         reservedStamina: this.reservedStamina(), availableStamina: s.stamina - this.reservedStamina() },
       player: {
         position: { ...s.position }, cameraForward: { ...this.cameraForward }, archetype: s.archetype,
@@ -200,7 +199,7 @@ class Adventure implements AdventureGame {
           rootedSeconds: this.rootedSeconds(t), canStrike: this.canUseAttack(t, "strike"), canDisengage: this.canUseAttack(t, "disengage"),
           selected: t.id === s.selectedThreat, phaseDuration: this.phaseDuration(t),
           preparation: d.preparation, currentActivity: this.currentActivity(t),
-          windowAction: !t.aggro ? null : t.head ? t.head.events[0] ? {
+          windowAction: !t.aggro || s.combat.phase === "choosing" || t.windowCycle < t.joinCycle ? null : t.head ? t.head.events[0] ? {
             ability: headAbility(t.head.events[0].ability, t.head.events[0].volley), offsetSeconds: t.head.events[0].offsetSeconds,
             status: t.head.events[0].status === "done" ? "resolved" : t.head.events[0].status,
           } : null : { ability: this.ability(t), offsetSeconds: t.specialOffset, status: t.specialResolved ? "resolved" : t.specialLaunched ? "active" : "pending" },
@@ -584,7 +583,7 @@ class Adventure implements AdventureGame {
     if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Elapsed time must be finite and nonnegative.");
     let remaining = seconds;
     while (remaining > EPSILON) {
-      const phaseLength = this.state.combat.phase === "active" ? COMBAT_RULES.window.active : COMBAT_RULES.window.preparation;
+      const phaseLength = this.state.combat.phase === "idle" ? Infinity : COMBAT_RULES.window[this.state.combat.phase];
       const dt = Math.min(remaining, 1 / 60, this.nextEventDelay(), this.state.combat.phase === "idle" ? Infinity : phaseLength - this.state.combat.elapsedSeconds);
       this.step(dt);
       remaining -= dt;
@@ -722,14 +721,17 @@ class Adventure implements AdventureGame {
   private advanceClock(dt: number): void {
     const c = this.state.combat;
     c.elapsedSeconds += dt;
-    const phaseLength = c.phase === "active" ? COMBAT_RULES.window.active : COMBAT_RULES.window.preparation;
+    const phaseLength = c.phase === "idle" ? Infinity : COMBAT_RULES.window[c.phase];
     if (c.elapsedSeconds < phaseLength - EPSILON) return;
     c.elapsedSeconds = 0;
     if (c.phase === "active") {
-      c.phase = "preparation";
+      c.phase = "choosing";
       for (const e of c.queued) if (e.status === "pending") this.report(`${actionName(e.action, this.state.archetype)} did not fit in the active window.`, "combat");
-      c.queued = []; this.state.stamina = COMBAT_RULES.stamina.maximum;
+      c.queued = [];
       for (const t of this.state.threats) if (t.aggro && t.health > 0) this.planWindow(t, c.cycle + 1);
+      this.state.stamina = COMBAT_RULES.stamina.maximum;
+    } else if (c.phase === "choosing") {
+      c.phase = "preparation";
     } else {
       c.phase = "active"; c.cycle++;
       for (const t of this.state.threats) if (t.aggro && t.health > 0) {
@@ -743,11 +745,15 @@ class Adventure implements AdventureGame {
     if (c.phase === "idle") {
       c.phase = "active"; c.elapsedSeconds = 0; c.cycle++;
       t.joinCycle = c.cycle; this.planWindow(t, c.cycle, true);
-    } else { t.joinCycle = c.cycle + 1; this.planWindow(t, t.joinCycle); }
+    } else {
+      t.joinCycle = c.cycle + 1; t.phase = "preparation";
+      if (c.phase === "preparation" || c.phase === "choosing") this.planWindow(t, t.joinCycle);
+    }
   }
   private windowTime(t: ThreatState): number {
     const c = this.state.combat;
-    return (c.cycle - t.windowCycle) * (COMBAT_RULES.window.active + COMBAT_RULES.window.preparation) + c.elapsedSeconds + (c.phase === "preparation" ? COMBAT_RULES.window.active : 0);
+    return (c.cycle - t.windowCycle) * (COMBAT_RULES.window.active + COMBAT_RULES.window.choosing + COMBAT_RULES.window.preparation) + c.elapsedSeconds +
+      (c.phase === "preparation" ? COMBAT_RULES.window.active + COMBAT_RULES.window.choosing : c.phase === "choosing" ? COMBAT_RULES.window.active : 0);
   }
   private planWindow(t: ThreatState, cycle: number, initial = false): void {
     if (cycle < t.joinCycle) return;
@@ -768,12 +774,22 @@ class Adventure implements AdventureGame {
     t.targetPosition = { ...t.position };
     if (t.wolf) { t.wolf.motion = null; t.position.y = 0; }
     if (t.head) {
-      const h = t.head, ability = h.opened ? HEAD_ROTATION[h.rotationIndex]! : "ember-beam";
+      const h = t.head, ability = this.chooseHeadAbility(t);
       const eventOffset = initial ? 0 : t.specialOffset;
       h.events = [{ offsetSeconds: eventOffset, spacing: volleySpacing(h.volley, eventOffset), ability, remainingSeconds: 0, status: "pending", volley: h.volley, launched: 0 }];
-      if (h.opened) h.rotationIndex = (h.rotationIndex + 1) % HEAD_ROTATION.length;
       h.fireballs = [];
     }
+  }
+  private chooseHeadAbility(t: ThreatState): HeadAbilityId {
+    const h = t.head!, s = this.state;
+    if (!h.opened) return "ember-beam";
+    const previous = h.events[0]?.ability;
+    if (previous === "kindle") return "fireball";
+    const fireDamage = COMBAT_RULES.head.fireballDamage * h.volley;
+    if (t.actionSequence % 3 === 0 || !this.headInRange(t) || s.block >= fireDamage) return "kindle";
+    if (previous !== "ember-ward" && (t.health <= definition(t.id).health / 2 || s.bloodRage > 0) &&
+      this.canUseAttack(t, "strike") && s.stamina > 0 && s.health > fireDamage) return "ember-ward";
+    return "fireball";
   }
   private acquireOrRelease(t: ThreatState, dt: number): void {
     if (!t.active || t.health <= 0) return;
@@ -906,10 +922,10 @@ class Adventure implements AdventureGame {
   }
   private nextWindowSeconds(): number {
     const c = this.state.combat;
-    return c.phase === "idle" ? 0 : (c.phase === "preparation" ? COMBAT_RULES.window.preparation : COMBAT_RULES.window.active) - c.elapsedSeconds;
+    return c.phase === "idle" ? 0 : COMBAT_RULES.window[c.phase] - c.elapsedSeconds;
   }
   private currentActivity(t: ThreatState): ThreatForecastEntry | null {
-    if (t.health <= 0 || !t.active || !t.aggro) return null;
+    if (t.health <= 0 || !t.active || !t.aggro || this.state.combat.phase === "choosing") return null;
     if (t.head) {
       const h = t.head, at = this.windowTime(t), fireball = h.events.find(e => e.ability === "fireball" && e.status === "active");
       if (fireball) return { ability: headAbility("fireball", fireball.volley), remainingSeconds: Math.max(0, fireball.offsetSeconds + (fireball.volley - 1) * fireball.spacing - at), status: "active" };
@@ -921,29 +937,12 @@ class Adventure implements AdventureGame {
   private forecast(t: ThreatState): ThreatView["forecast"] {
     if (t.health <= 0 || !t.active) return [];
     if (!t.aggro) return [{ ability: t.head ? headAbility("ember-beam", 1) : this.ability(t), remainingSeconds: 0, status: "stored" }];
+    if (this.state.combat.phase === "choosing" || t.windowCycle < t.joinCycle) return [];
     const at = this.windowTime(t);
     if (t.head) {
-      const h = t.head;
-      const future: ThreatForecastEntry[] = h.events.filter(e => e.status === "pending").map(e => ({ ability: headAbility(e.ability, e.volley), remainingSeconds: Math.max(0, e.offsetSeconds - at), status: !h.opened && at >= 0 ? "stored" : "pending" }));
-      if (future.length === 2) return future;
-      let volley = h.volley + h.events.filter(e => e.ability === "kindle" && e.status === "pending").length;
-      const nextActive = this.secondsUntilNextActive(t);
-      for (let index = 0; future.length < 2; index++) {
-        const ability = HEAD_ROTATION[(h.rotationIndex + index) % HEAD_ROTATION.length]!;
-        future.push({ ability: headAbility(ability, volley), remainingSeconds: nextActive + index * (COMBAT_RULES.window.active + COMBAT_RULES.window.preparation) + this.peekOffset(t, index + 1), status: "pending" });
-        if (ability === "kindle") volley++;
-      }
-      return future;
+      return t.head.events.filter(e => e.status === "pending").map(e => ({ ability: headAbility(e.ability, e.volley), remainingSeconds: Math.max(0, e.offsetSeconds - at), status: "pending" }));
     }
-    return [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialResolved ? this.secondsUntilNextActive(t) + this.peekOffset(t, 1) : t.specialOffset - at), status: "pending" }];
-  }
-  private secondsUntilNextActive(t: ThreatState): number {
-    return COMBAT_RULES.window.active + COMBAT_RULES.window.preparation - this.windowTime(t);
-  }
-  private peekOffset(t: ThreatState, windows: number): number {
-    let seed = t.rng;
-    for (let i = 0; i < windows; i++) seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    return Math.floor((seed / 0x100000000) * COMBAT_RULES.window.actionSlots) + (t.head ? 0 : t.wolf ? COMBAT_RULES.enemy.action : OTHER_PHASE_SECONDS.action);
+    return t.specialLaunched || t.specialResolved ? [] : [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialOffset - at), status: "pending" }];
   }
   private headAbility(t: ThreatState, next: boolean): ThreatAbilityView {
     const h = t.head!;
@@ -1236,7 +1235,7 @@ function readSave(serialized: string): State {
     }
     if (!v7 && id === "scout" && result.head && result.health > 0) {
       const h = result.head;
-      h.fireballs = []; h.opened = result.aggro; h.rotationIndex = 0;
+      h.fireballs = []; h.opened = result.aggro;
       h.events = [];
       result.abilityIndex = result.aggro ? 0 : 1; result.damage = result.aggro ? h.volley * 3 : 0;
       if (result.aggro) { result.phase = "preparation"; result.remainingSeconds = 5; }
@@ -1292,10 +1291,6 @@ function readSave(serialized: string): State {
       t.phase = "preparation"; t.remainingSeconds = COMBAT_RULES.window.preparation;
       if (t.wolf) { t.wolf.motion = null; t.position.y = 0; }
       if (t.head) {
-        const announced = t.head.events[0];
-        if (wasPreparing && announced && announced.ability !== "ember-beam") {
-          t.head.rotationIndex = HEAD_ROTATION.indexOf(announced.ability);
-        }
         t.head.events = []; t.head.fireballs = [];
       }
     }
@@ -1347,7 +1342,7 @@ function readHead(value: unknown, v7: boolean, v8 = false, legacyFiveSlotWindow 
         status: choice(e.status, ["pending", "active", "done"] as const), volley, launched: number(e.launched, 0, volley, true) });
     }
   }
-  return { opened: v7 ? boolean(h.opened) : false, rotationIndex: v8 ? number(h.rotationIndex, 0, HEAD_ROTATION.length - 1, true) : 0, events,
+  return { opened: v7 ? boolean(h.opened) : false, events,
     block: number(h.block,0,6), blockSeconds: number(h.blockSeconds,0,5), volley: number(h.volley,1,Number.MAX_SAFE_INTEGER,true),
     projectileSequence: number(h.projectileSequence,0,Number.MAX_SAFE_INTEGER,true),
     fireballs: h.fireballs.map(value => { const p=record(value); return {impactOffset:v8?number(p.impactOffset,0,legacyFiveSlotWindow ? 4.99 : COMBAT_RULES.window.active - 0.01):0,id:number(p.id,1,Number.MAX_SAFE_INTEGER,true),origin:groundPosition(p.origin),remainingSeconds:number(p.remainingSeconds,0,Number.MAX_SAFE_INTEGER),duration:number(p.duration,0.9,0.9),damage:number(p.damage,3,COMBAT_RULES.head.fireballDamage)}; }) };
@@ -1372,7 +1367,11 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       description: "A floating fire spirit wandering around the first clearing. Notices you within 6 metres and pursues while you remain within 14 metres of its home.",
       opener: "Stored Ember Beam: 8 damage at its first active opening within 10 metres. A joining head waits for the next shared opening. This is its only action in that window.",
       abilities: [headAbility("ember-beam", 1), headAbility("fireball", 1), headAbility("ember-ward", 1), headAbility("kindle", 1)],
-      sequences: HEAD_ROTATION.map((ability, index) => ({ name: `Window ${index + 1}`, abilityIds: [ability], offsetsSeconds: [], description: "After its opening Beam, repeats Fireball, then Ember Ward, then Kindle: one ability per active window. Each window chooses one of three beats (33% each) during preparation and commits it for the full window. Kindle adds one projectile to every later Fireball. Volley impacts stay within the active window, at most 0.2 seconds apart." })),
+      sequences: [
+        { name: "Fireball", abilityIds: ["fireball"], offsetsSeconds: [], description: "The usual attack, and always follows Kindle. Favours finishing a wounded opponent over shielding itself." },
+        { name: "Ember Ward", abilityIds: ["ember-ward"], offsetsSeconds: [], description: "Shields when at half health or threatened by Blood Rage, if you have stamina and are close enough to strike. Never shields twice in a row." },
+        { name: "Kindle", abilityIds: ["kindle"], offsetsSeconds: [], description: "Powers up after every third action, or when you are out of reach or have enough block to absorb its volley. Never powers up twice in a row." },
+      ].map(sequence => ({ ...sequence, description: sequence.description + " Chooses after all three active beats resolve, during a fixed one-second Choosing period. Commits one of three beats (33% each) for the full five-second preparation. Later moves are not announced." })),
       strategy: "Wait out the 2-second ward, or use its shielded beats to heal or gain Blood Rage. Attack during the remaining active beats. Time Brace for fireball impacts. Endless defense loses as volleys grow; Blood Rage speeds the kill but drains your health.",
     };
     if (d.behavior === "wolf") return {
@@ -1381,7 +1380,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       opener: "On first engagement, its sole Maul lands at active offset 2.65. A joining hound approaches immediately and chooses a beat in the next shared active window; Maul lands 0.65 seconds after that beat.",
       abilities: [maulAbility(), { id: "hop-left", name: "Left diagonal hop", description: "Approaches diagonally left by up to 2.8 metres over 0.7 seconds when farther than 5.5 metres. Faces you and respects obstacles.", damage: 0, range: 0, noticeSeconds: 0 }, { id: "hop-right", name: "Right diagonal hop", description: "Approaches diagonally right by up to 2.8 metres over 0.7 seconds when farther than 5.5 metres. Faces you and respects obstacles.", damage: 0, range: 0, noticeSeconds: 0 }],
       sequences: [
-        { name: "Repeated Maul", abilityIds: ["maul"], offsetsSeconds: [], description: "Each preparation commits Maul to one of three active beats (33% each); its leap starts on that beat and lands 0.65 seconds later. All enemies share 3 seconds active, then 5 seconds preparation." },
+        { name: "Repeated Maul", abilityIds: ["maul"], offsetsSeconds: [], description: "Each preparation commits Maul to one of three active beats (33% each); its leap starts on that beat and lands 0.65 seconds later. All enemies share 3 seconds active, 1 second choosing, then 5 seconds preparation." },
         { name: "Left approach", abilityIds: ["hop-left"], offsetsSeconds: [0], probability: 0.5, description: "Each new approach hop independently chooses left or right with equal probability; the saved choice resumes unchanged." },
         { name: "Right approach", abilityIds: ["hop-right"], offsetsSeconds: [0], probability: 0.5, description: "Each new approach hop independently chooses left or right with equal probability; any sequence of left and right hops is possible." },
       ],
@@ -1415,7 +1414,7 @@ function readCombat(value: unknown, legacyFiveSlotWindow = false): CombatState {
   if (new Set(queued.map(e => e.id)).size !== queued.length || queued.some((e,i) => i > 0 && e.offsetSeconds < queued[i-1]!.offsetSeconds + (queued[i-1]!.action === "bloodRage" ? 2 : 1) - EPSILON)) throw new Error("Invalid adventure save: overlapping queued moves.");
   const nextId = number(c.nextId, 1, Number.MAX_SAFE_INTEGER, true);
   if (queued.some(e => e.id >= nextId)) throw new Error("Invalid adventure save: invalid move identity.");
-  const phase = choice(c.phase, ["idle", "active", "preparation"] as const);
-  const elapsedSeconds = number(c.elapsedSeconds, 0, legacyFiveSlotWindow ? 5 - EPSILON : (phase === "active" ? COMBAT_RULES.window.active : COMBAT_RULES.window.preparation) - EPSILON);
+  const phase = choice(c.phase, ["idle", "active", "choosing", "preparation"] as const);
+  const elapsedSeconds = number(c.elapsedSeconds, 0, legacyFiveSlotWindow ? 5 - EPSILON : (phase === "idle" ? COMBAT_RULES.window.preparation : COMBAT_RULES.window[phase]) - EPSILON);
   return { phase, elapsedSeconds, cycle: number(c.cycle, 0, Number.MAX_SAFE_INTEGER, true), queued, nextId };
 }

@@ -2043,8 +2043,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .nameplate-intents {gap:3px;justify-content:center;}
 .nameplate-ability {width:32px;flex-shrink:0;}
 .nameplate-queue-arrow {padding-top:0;flex-shrink:0;font-size:18px;}
-.nameplate-queue-arrow[hidden],.nameplate-wait[hidden] {display:none;}
-.nameplate-wait {color:#d9d5bb;white-space:nowrap;font:600 10px/1 system-ui;}
+.nameplate-queue-arrow[hidden] {display:none;}
 .nameplate-pause-symbol {display:grid;place-items:center;height:100%;font:700 25px/1 Georgia;color:#e6d8a0;}
 .nameplate-ability[data-ability-id=pause] .nameplate-ability-square {background:linear-gradient(#35423b,#141d1b);border-color:#959179;}
 .nameplate-opening {left:0;}
