@@ -688,7 +688,7 @@ function tick(now: number): void {
   const snapshot = running.game.snapshot;
   audio.update(snapshot, route !== "world");
   running.world.updatePlayers(running.game.players.filter(player => player.id !== running!.character.id));
-  running.world.render(snapshot, delta);
+  running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime);
   if (now + 0.5 >= nextHudTime) {
     renderHud(snapshot);
     nextHudTime = Math.max(nextHudTime + 50, now);

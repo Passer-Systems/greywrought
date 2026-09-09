@@ -11,6 +11,7 @@ import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
 import { createGroundTelegraphs } from "./ground-telegraphs.js";
 import { createRemotePlayers, type RemotePlayerView } from "./remote-player.js";
+import { createSnapshotInterpolation } from "./snapshot-interpolation.js";
 
 interface ThreatRig {
   readonly root: Group;
@@ -41,7 +42,7 @@ interface ThreatRig {
 export interface AdventureWorld {
   readonly canvas: HTMLCanvasElement;
   readonly ready: Promise<void>;
-  render(snapshot: AdventureSnapshot, delta: number): void;
+  render(snapshot: AdventureSnapshot, delta: number, localPlayer?: AdventureSnapshot['player'], serverTime?: number): void;
   updatePlayers(players: readonly RemotePlayerView[]): void;
   orbit(dx: number, dy: number): void;
   zoom(delta: number): void;
@@ -111,6 +112,7 @@ function lootGlint(): Sprite {
 export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
+  const interpolation = createSnapshotInterpolation();
   scene.background = new Color(0x9cbbbd);
   scene.fog = new Fog(0x9cbbbd, 28, 72);
   const camera = new PerspectiveCamera(48, 1, 0.1, 110);
@@ -171,6 +173,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   groveLabel.position.set(ritualPosition.x, 3, ritualPosition.z);
   terrain.add(groveLabel);
   const player = new Group();
+  player.userData.localPlayer = true;
   scene.add(player);
   const playerArchetype = initial.player.archetype;
   const shield = new Mesh(new SphereGeometry(0.95, 20, 12), new MeshBasicMaterial({ color: 0x9bdfff, transparent: true, opacity: 0.22, wireframe: true, depthWrite: false }));
@@ -189,7 +192,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let innkeeper: ForestActor | null = null;
   let playerAttackRemaining = 0;
   let disposed = false;
-  const visualTarget = new Vector3();
   let otherPlayers: readonly RemotePlayerView[] = [];
   let elapsed = 0;
   let yaw = 0;
@@ -256,7 +258,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const forward = () => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
   return {
     canvas, ready, forward,
-    updatePlayers(players) { if (!disposed) { otherPlayers = players; remotePlayers.update(players); } },
+    updatePlayers(players) { if (!disposed) otherPlayers = players; },
     orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.22, pitch + dy * 0.004)); },
     zoom(delta) { distance = Math.max(6, Math.min(18, distance * Math.exp(delta * 0.001))); },
     projectThreat(id) {
@@ -280,13 +282,19 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       }
       return null;
     },
-    render(snapshot, delta) {
+    render(snapshot, delta, localPlayer = snapshot.player, serverTime) {
       if (disposed) return;
       elapsed += delta;
+      let visiblePlayers = otherPlayers;
+      if (serverTime !== undefined) {
+        interpolation.push(snapshot, otherPlayers, serverTime);
+        const visible = interpolation.sample(delta);
+        visiblePlayers = visible.players;
+        snapshot = {...snapshot, threats: visible.threats, player: localPlayer};
+      } else snapshot = {...snapshot, player: localPlayer};
+      remotePlayers.update(visiblePlayers);
       remotePlayers.render(delta);
-      visualTarget.set(snapshot.player.position.x, snapshot.player.position.y, snapshot.player.position.z);
-      const blend = delta === 0 || player.position.distanceToSquared(visualTarget) > 100 ? 1 : 1 - Math.exp(-delta * 30);
-      player.position.lerp(visualTarget, blend);
+      player.position.set(localPlayer.position.x, localPlayer.position.y, localPlayer.position.z);
       const position = player.position;
       const face = snapshot.player.facing;
       if (snapshot.player.moving || snapshot.player.maneuver !== "none") player.rotation.y = Math.atan2(face.x, face.z);
@@ -339,8 +347,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         const rig = rigs.get(threat.id);
         if (!rig) continue;
         rig.root.visible = threat.active || threat.phase === "cleared";
-        visualTarget.set(threat.position.x, threat.position.y, threat.position.z);
-        rig.root.position.lerp(visualTarget, delta === 0 || rig.root.position.distanceToSquared(visualTarget) > 100 ? 1 : 1 - Math.exp(-delta * 30));
+        rig.root.position.set(threat.position.x, threat.position.y, threat.position.z);
         rig.lootable = snapshot.loot.some(item => item.sourceId === threat.id && item.available);
         rig.lootGlint.visible = rig.lootable;
         rig.lootGlint.position.set(0, 0.8 + 0.08 * Math.sin(elapsed * 2), 0);
@@ -400,7 +407,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.beamTime=Math.max(0,rig.beamTime-delta);rig.beam.visible=rig.beamTime>0;
         if (rig.beam.visible) {
           const mouth=new Vector3(threat.position.x,threat.position.y+rig.body.position.y+rig.height*0.65,threat.position.z);
-          const recipient = otherPlayers.find(other => other.id === threat.targetPlayerId)?.player.position ?? position;
+          const recipient = visiblePlayers.find(other => other.id === threat.targetPlayerId)?.player.position ?? position;
           const end=new Vector3(recipient.x,recipient.y+1.2,recipient.z),direction=end.clone().sub(mouth);
           rig.beam.position.copy(mouth).add(end).multiplyScalar(0.5);
           rig.beam.scale.y=direction.length();rig.beam.quaternion.setFromUnitVectors(new Vector3(0,1,0),direction.normalize());
@@ -433,7 +440,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
       }
-      cameraTarget.lerp(new Vector3(position.x, position.y, position.z), 1 - Math.exp(-delta * 12));
+      if (delta === 0 || cameraTarget.distanceToSquared(position) > 100) cameraTarget.copy(position);
+      else cameraTarget.lerp(position, 1 - Math.exp(-delta * 12));
       const facing = forward();
       telegraphs.update(snapshot, facing);
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);

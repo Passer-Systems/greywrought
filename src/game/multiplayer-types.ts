@@ -1,5 +1,6 @@
 import type { AdventureAction, AdventureSnapshot, CombatAction } from './adventure-types.js';
 import type { LocalCharacter } from '../host/character-profile.js';
+import type { MovementFrame, MovementCheckpoint } from './movement.js';
 
 export interface RemotePlayerView {
   readonly id: string;
@@ -8,6 +9,7 @@ export interface RemotePlayerView {
 }
 export interface SharedChatMessage { readonly id: number; readonly name: string; readonly text: string; }
 export type WorldCommand =
+  | { type: 'movement'; frames: readonly MovementFrame[] }
   | { type: 'action'; action: AdventureAction; pressed: boolean }
   | { type: 'mouseForward'; active: boolean }
   | { type: 'camera'; x: number; z: number }
@@ -23,6 +25,6 @@ export type ClientWorldMessage =
   | { type: 'join'; token: string; character: LocalCharacter }
   | { type: 'command'; sequence: number; command: WorldCommand };
 export type ServerWorldMessage =
-  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[] }
+  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; movement: MovementCheckpoint }
   | { type: 'result'; sequence: number; accepted: boolean }
   | { type: 'error'; text: string };

@@ -1,3 +1,4 @@
+import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
 import type {
   AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot, AdventureLogEntry, SharedAdventure,
@@ -120,9 +121,6 @@ const PHASE_SECONDS: Record<ThreatPhase, number> = {
 };
 const OTHER_PHASE_SECONDS: Record<ThreatPhase, number> = { ...PHASE_SECONDS, preparation: 3, action: 0.35, recovery: 2.65 };
 const EPSILON = 1e-9;
-type Barrier = readonly [left: number, right: number, bottom: number, top: number];
-const THICKET: Barrier = [2, Infinity, 18, 24];
-const GATE_WALLS: readonly Barrier[] = [[-Infinity, -3, -0.5, 4], [3, Infinity, -0.5, 4]];
 const distance = (a: Position, b: Position): number => Math.hypot(a.x - b.x, a.z - b.z);
 const definition = (id: string): ThreatDefinition => {
   const found = DEFINITIONS.find(t => t.id === id);
@@ -167,6 +165,21 @@ class Adventure implements AdventureGame {
   private state: State;
   private held = new Set<AdventureAction>();
   private mouseForward = false;
+  private movementFrames: MovementFrame[] | null = null;
+  private movementSequence = 0;
+  private movementElapsed = 0;
+  get movementCheckpoint(): MovementCheckpoint {
+    const maneuver = this.state.maneuver;
+    return { sequence: this.movementSequence, elapsed: this.movementElapsed, verticalSpeed: this.state.verticalSpeed,
+      maneuver: maneuver ? { ...maneuver, duration: maneuver.kind === 'lunge' ? COMBAT_RULES.strike.duration : COMBAT_RULES.disengage.duration } : null };
+  }
+  enableNetworkMovement(enabled = true): void { this.movementFrames = enabled ? [] : null; this.movementSequence = 0; this.movementElapsed = 0; }
+  enqueueMovement(frames: readonly MovementFrame[]): boolean {
+    if (!this.movementFrames) this.enableNetworkMovement();
+    if (this.movementFrames!.reduce((sum, frame) => sum + frame.seconds, 0) + frames.reduce((sum, frame) => sum + frame.seconds, 0) > 2) return false;
+    for (const frame of frames) if (frame.sequence > (this.movementFrames!.at(-1)?.sequence ?? this.movementSequence)) this.movementFrames!.push(frame);
+    return true;
+  }
   private cameraForward = point(0, 1);
   private moving = false;
   private backpedaling = false;
@@ -554,7 +567,7 @@ class Adventure implements AdventureGame {
     if (s.phase === "lost") return;
     switch (action) {
       case "jump":
-        if (s.maneuver === null && s.position.y === 0 && s.verticalSpeed === 0) s.verticalSpeed = 5.5;
+        if (s.maneuver === null) startJump(s);
         break;
       case "target": {
         const nearby = s.world.threats.filter(t => t.active && t.health > 0 && distance(s.position, t.position) <= 15);
@@ -751,40 +764,34 @@ class Adventure implements AdventureGame {
     return Math.min(Infinity, ...delays.filter(value => value > EPSILON));
   }
   private move(dt: number): void {
-    const s = this.state;
-    const forward = this.mouseForward ? 1 : Number(this.held.has("forward")) - Number(this.held.has("backward"));
-    const strafe = Number(this.held.has("right")) - Number(this.held.has("left"));
-    const length = Math.max(1, Math.hypot(forward, strafe));
-    const x = (this.cameraForward.x * forward - this.cameraForward.z * strafe) / length;
-    const z = (this.cameraForward.z * forward + this.cameraForward.x * strafe) / length;
-    const oldX = s.position.x, oldZ = s.position.z;
-    this.movePlayer(x * 4.5 * dt, z * 4.5 * dt);
-    this.moving = Math.hypot(s.position.x - oldX, s.position.z - oldZ) > EPSILON;
-    this.backpedaling = this.moving && forward < 0;
-    if (s.position.y > 0 || s.verticalSpeed > 0) {
-      s.position.y = Math.max(0, s.position.y + s.verticalSpeed * dt - 7 * dt * dt);
-      s.verticalSpeed = s.position.y > 0 ? s.verticalSpeed - 14 * dt : 0;
-    }
+    const result = moveLocomotion(this.state, { forward: this.mouseForward ? 1 : Number(this.held.has("forward")) - Number(this.held.has("backward")),
+      strafe: Number(this.held.has("right")) - Number(this.held.has("left")), cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt);
+    this.moving = result.moving; this.backpedaling = result.backpedaling;
   }
-  private movePlayer(dx: number, dz: number): void {
-    const p = this.state.position;
-    const nextX = Math.max(-12, Math.min(12, p.x + dx)), nextZ = Math.max(-14, Math.min(45, p.z + dz));
-    if (!this.blocked(nextX, nextZ)) { p.x = nextX; p.z = nextZ; }
-    else {
-      if (!this.blocked(nextX, p.z)) p.x = nextX;
-      if (!this.blocked(p.x, nextZ)) p.z = nextZ;
+  private consumeMovement(dt: number, blocked: boolean): void {
+    this.moving = false; this.backpedaling = false;
+    let remaining = dt;
+    while (remaining > EPSILON && this.movementFrames!.length) {
+      const frame = this.movementFrames![0]!;
+      if (this.movementSequence !== frame.sequence) { this.movementSequence = frame.sequence; this.movementElapsed = 0; }
+      const elapsed = Math.min(remaining, frame.seconds - this.movementElapsed);
+      if (!blocked) {
+        this.setCameraForward(frame.input.cameraX, frame.input.cameraZ);
+        const result = moveLocomotion(this.state, { ...frame.input, jump: frame.input.jump && this.movementElapsed === 0 }, elapsed);
+        this.moving = result.moving; this.backpedaling = result.backpedaling;
+      }
+      this.movementElapsed += elapsed; remaining -= elapsed;
+      if (this.movementElapsed >= frame.seconds - EPSILON) this.movementFrames!.shift();
     }
   }
   private moveManeuver(dt: number): void {
     const s = this.state, m = s.maneuver;
     if (!m) return;
     const duration = m.kind === "lunge" ? COMBAT_RULES.strike.duration : COMBAT_RULES.disengage.duration;
-    const elapsed = Math.min(dt, m.remainingSeconds), old = { ...s.position };
-    this.movePlayer((m.destination.x - m.start.x) * elapsed / duration, (m.destination.z - m.start.z) * elapsed / duration);
-    m.remainingSeconds = Math.max(0, m.remainingSeconds - dt);
-    const progress = 1 - m.remainingSeconds / duration;
-    s.position.y = m.kind === "disengage" ? 4 * 1.2 * progress * (1 - progress) : 0;
-    this.moving = distance(old, s.position) > EPSILON; this.backpedaling = m.kind === "disengage" && this.moving;
+    const motion = { ...m, duration };
+    this.moving = moveManeuverPosition(s, motion, dt);
+    m.remainingSeconds = motion.remainingSeconds;
+    this.backpedaling = m.kind === "disengage" && this.moving;
     if (m.remainingSeconds > EPSILON) return;
     s.position.y = 0; s.verticalSpeed = 0; s.maneuver = null;
     if (m.kind === "lunge") {
@@ -794,10 +801,10 @@ class Adventure implements AdventureGame {
     }
   }
   private blocked(x: number, z: number): boolean {
-    return this.barriers().some(([left, right, bottom, top]) => x > left && x < right && z >= bottom && z <= top);
+    return blockedPosition(x, z);
   }
   private barriers(): readonly Barrier[] {
-    return [...GATE_WALLS, THICKET];
+    return MOVEMENT_BARRIERS;
   }
   private clearPath(a: Position, b: Position): boolean {
     return !this.barriers().some(([left, right, bottom, top]) => {
@@ -816,8 +823,10 @@ class Adventure implements AdventureGame {
   }
   private stepPlayer(dt: number): void {
     const s = this.state;
-    if (s.phase === "lost") { this.moving = false; this.backpedaling = false; return; }
-    if (s.maneuver) this.moveManeuver(dt); else this.move(dt);
+    if (s.phase === "lost") { if (this.movementFrames) this.consumeMovement(dt, true); this.moving = false; this.backpedaling = false; return; }
+    if (s.maneuver) { if (this.movementFrames) this.consumeMovement(dt, true); this.moveManeuver(dt); }
+    else if (this.movementFrames) this.consumeMovement(dt, false);
+    else this.move(dt);
     if (this.lootOpenId !== null && !s.world.threats.some(t => t.id === this.lootOpenId && this.canLoot(t))) this.lootOpenId = null;
     if (this.shopOpen && !this.near("mara", 2.5)) { this.shopOpen = false; this.trade = null; }
     if (this.innOpen && !this.near("inn", 2.5)) this.innOpen = false;

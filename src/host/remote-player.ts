@@ -44,11 +44,9 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
       update(next: RemotePlayerView) { current = next; target.set(next.player.position.x, next.player.position.y, next.player.position.z); },
       render(delta: number) {
         const player = current.player;
-        if (root.position.distanceToSquared(target) > 100) root.position.copy(target);
-        else root.position.lerp(target, 1 - Math.exp(-delta * 22));
+        root.position.copy(target);
         const facing = Math.atan2(player.facing.x, player.facing.z);
-        const turn = Math.atan2(Math.sin(facing - root.rotation.y), Math.cos(facing - root.rotation.y));
-        root.rotation.y += turn * (1 - Math.exp(-delta * 22));
+        root.rotation.y = facing;
         const nextText = `${current.name} · ${Math.ceil(player.health)}/${player.maximumHealth}`;
         if (plateText !== nextText) {
           plateText = nextText;

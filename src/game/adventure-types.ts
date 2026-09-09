@@ -1,4 +1,5 @@
 import type { CharacterArchetype } from "../host/character-profile.js";
+import type { MovementFrame, MovementCheckpoint } from "./movement.js";
 
 export interface Position { readonly x: number; readonly y: number; readonly z: number; }
 export interface AdventureLogEntry {
@@ -154,6 +155,9 @@ export interface AdventureOptions {
   readonly save?: string;
 }
 export interface AdventureGame {
+  readonly movementCheckpoint?: MovementCheckpoint;
+  enableNetworkMovement?(enabled?: boolean): void;
+  enqueueMovement?(frames: readonly MovementFrame[]): boolean;
   readonly snapshot: AdventureSnapshot;
   advance(seconds: number): void;
   setAction(action: AdventureAction, pressed: boolean): void;

@@ -42,6 +42,14 @@ function character(value: unknown): value is LocalCharacter {
 function command(value: unknown): value is WorldCommand {
   if (!record(value)) return false;
   switch (value.type) {
+    case 'movement': return keys(value, ['type', 'frames']) && Array.isArray(value.frames) && value.frames.length > 0 && value.frames.length <= 30 && value.frames.every((frame, index, frames) => {
+      if (!record(frame) || !keys(frame, ['sequence', 'seconds', 'input']) || !finite(frame.sequence, 1, Number.MAX_SAFE_INTEGER, true)
+        || !finite(frame.seconds, Number.MIN_VALUE, 0.05) || !record(frame.input)) return false;
+      const input = frame.input;
+      return keys(input, ['forward', 'strafe', 'cameraX', 'cameraZ', 'jump']) && finite(input.forward, -1, 1, true) && finite(input.strafe, -1, 1, true)
+        && finite(input.cameraX, -1, 1) && finite(input.cameraZ, -1, 1) && Math.abs(Math.hypot(input.cameraX, input.cameraZ) - 1) < 0.000001
+        && typeof input.jump === 'boolean' && (index === 0 || frame.sequence > frames[index - 1].sequence);
+    });
     case 'action': return keys(value, ['type', 'action', 'pressed']) && member(value.action, ACTIONS) && typeof value.pressed === 'boolean';
     case 'mouseForward': return keys(value, ['type', 'active']) && typeof value.active === 'boolean';
     case 'camera': return keys(value, ['type', 'x', 'z']) && finite(value.x, -1, 1) && finite(value.z, -1, 1) && Math.hypot(value.x, value.z) > 0.001;
@@ -102,6 +110,7 @@ export async function createWorldService(options: WorldServiceOptions) {
   const accounts = new Map((saved?.accounts ?? []).map(account => [account.character.id, account]));
   const chat = saved?.chat ?? [];
   let nextChatId = saved?.nextChatId ?? 1;
+  let serverTime = 0;
   const clients = new Set<ServerWebSocket<WorldSocketData>>();
   const online = new Map<string, ServerWebSocket<WorldSocketData>>();
   let closed = false;
@@ -128,7 +137,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     const players = world.players();
     for (const [id, socket] of online) {
       const player = world.getPlayer(id);
-      if (player) send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat });
+      if (player) send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat, serverTime, movement: player.movementCheckpoint! });
     }
   }
   function disconnect(socket: ServerWebSocket<WorldSocketData>): void {
@@ -159,7 +168,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     if (online.has(selected.id)) { error(socket, 'This character is already playing in another window.'); socket.close(4001, 'Character already playing'); return; }
     if (online.size >= MAX_PLAYERS) { error(socket, 'The world is full. Please try again shortly.'); socket.close(4002, 'World full'); return; }
     const account = existing ?? { character: selected, tokenHash: hash };
-    world.join(selected.id, account.character.name, account.character.archetype);
+    world.join(selected.id, account.character.name, account.character.archetype).enableNetworkMovement?.(false);
     accounts.set(selected.id, account);
     socket.data.id = selected.id;
     online.set(selected.id, socket);
@@ -168,6 +177,7 @@ export async function createWorldService(options: WorldServiceOptions) {
   }
   function apply(player: AdventureGame, value: WorldCommand, socket: ServerWebSocket<WorldSocketData>): boolean {
     switch (value.type) {
+      case 'movement': return player.enqueueMovement!(value.frames);
       case 'action': player.setAction(value.action, value.pressed); break;
       case 'mouseForward': player.setMouseForward(value.active); break;
       case 'camera': player.setCameraForward(value.x, value.z); break;
@@ -231,7 +241,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     const now = performance.now();
     const elapsed = Math.min((now - previousTick) / 1000, 0.25);
     previousTick = now;
-    if (online.size > 0) { world.advance(elapsed); broadcast(); }
+    if (online.size > 0) { world.advance(elapsed); serverTime += elapsed; broadcast(); }
     for (const socket of clients) if (socket.data.id === null && now - socket.data.openedAt > 10_000) socket.close(4003, 'Choose a character');
   }, 50);
   const saves = setInterval(() => { if (online.size > 0) void persist().catch(onPersistenceError); }, 5000);

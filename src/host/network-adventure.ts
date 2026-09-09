@@ -1,8 +1,11 @@
 import type { AdventureGame, AdventureSnapshot } from '../game/adventure-types.js';
 import type { LocalCharacter } from './character-profile.js';
 import type { ClientWorldMessage, RemotePlayerView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
+import { LocalMovement, isLocomotionAction } from './local-movement.js';
 
 export interface NetworkAdventure extends AdventureGame {
+  readonly renderPlayer: AdventureSnapshot['player'];
+  readonly serverTime: number;
   readonly online: boolean;
   readonly players: readonly RemotePlayerView[];
   readonly chat: readonly SharedChatMessage[];
@@ -19,6 +22,8 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   else if (url.protocol === 'http:') url.protocol = 'ws:';
   let socket: WebSocket;
   let snapshot: AdventureSnapshot;
+  let prediction: LocalMovement;
+  let serverTime = 0, lastMovementAt = 0;
   let players: readonly RemotePlayerView[] = [], chat: readonly SharedChatMessage[] = [];
   let sequence = 0, closed = false, online = false;
   let reconnect: ReturnType<typeof setTimeout> | undefined;
@@ -48,6 +53,9 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       const message = JSON.parse(String(event.data)) as ServerWorldMessage;
       if (message.type === 'state') {
         snapshot = message.snapshot; players = message.players; chat = message.chat;
+        serverTime = message.serverTime;
+        if (!online) prediction = new LocalMovement(snapshot, message.movement);
+        prediction.reconcile(snapshot, message.movement, serverTime);
         online = true; clearTimeout(timeout); readyResolve();
       } else if (message.type === 'error') {
         if (!snapshot) { close(); readyReject(new Error(message.text)); }
@@ -62,13 +70,28 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   open(); await ready;
   return {
     get snapshot() { return snapshot; },
+    get renderPlayer() { return prediction.player; },
+    get serverTime() { return serverTime; },
     get online() { return online; },
     get players() { return players; },
     get chat() { return chat; },
-    advance() { if (performance.now() - lastCameraAt >= 50) flushCamera(); },
-    setAction(action, pressed) { if (pressed) flushCamera(); send({type:'action',action,pressed}); },
-    setMouseForward(active) { send({type:'mouseForward',active}); },
-    setCameraForward(x,z) { if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
+    advance(seconds) {
+      if (!online) return;
+      prediction.advance(seconds);
+      const now = performance.now();
+      if (now - lastMovementAt >= 50) {
+        const frames = prediction.takeOutgoing();
+        if (frames.length) send({type:'movement',frames});
+        lastMovementAt = now;
+      }
+      if (now - lastCameraAt >= 50) flushCamera();
+    },
+    setAction(action, pressed) {
+      if (isLocomotionAction(action)) { prediction.setAction(action, pressed); return; }
+      if (pressed) flushCamera(); send({type:'action',action,pressed});
+    },
+    setMouseForward(active) { prediction.setMouseForward(active); },
+    setCameraForward(x,z) { prediction.setCameraForward(x,z); if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
     selectTarget(id) { send({type:'target',id}); },
     setQueuedDelay(id, seconds) { send({type:'delay',id,seconds}); },
     moveQueuedAction(id, seconds) { send({type:'move',id,seconds}); },
