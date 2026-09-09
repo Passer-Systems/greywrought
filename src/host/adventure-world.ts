@@ -41,6 +41,17 @@ interface ThreatRig {
   lootable: boolean;
 }
 
+export type WorldPick = { readonly kind: "threat"; readonly id: string }
+  | { readonly kind: "resource"; readonly id: "frost-cores" }
+  | { readonly kind: "place"; readonly id: string };
+
+interface HoverTarget {
+  readonly root: Object3D;
+  readonly pick: WorldPick;
+  readonly name: string;
+  readonly anchor: Vector3;
+}
+
 export interface AdventureWorld {
   readonly canvas: HTMLCanvasElement;
   readonly ready: Promise<void>;
@@ -50,7 +61,9 @@ export interface AdventureWorld {
   orbit(dx: number, dy: number): void;
   zoom(delta: number): void;
   forward(): { x: number; z: number };
-  pick(x: number, y: number): string | null;
+  pick(x: number, y: number): WorldPick | null;
+  hover(x: number, y: number): void;
+  clearHover(): void;
   projectThreat(id: string): { x: number; y: number; feetY: number } | null;
   dispose(): void;
 }
@@ -70,29 +83,6 @@ function disposeObjects(root: Object3D): void {
   for (const item of textures) item.dispose();
   for (const item of materials) item.dispose();
   for (const item of geometries) item.dispose();
-}
-
-function label(text: string, color = "#fff1ce", scale = 3): Sprite {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 96;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas text is unavailable");
-  ctx.fillStyle = "#101b26d9";
-  ctx.fillRect(0, 4, 512, 84);
-  ctx.strokeStyle = "#b9975e";
-  ctx.strokeRect(2, 6, 508, 80);
-  ctx.font = "bold 32px Georgia";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = color;
-  ctx.fillText(text, 256, 48, 495);
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  const sprite = new Sprite(new SpriteMaterial({ map: texture, depthTest: false, transparent: true, sizeAttenuation: false }));
-  sprite.scale.set(scale * 0.055, scale * 0.055 * 96 / 512, 1);
-  sprite.renderOrder = 5;
-  return sprite;
 }
 
 function lootGlint(): Sprite {
@@ -133,26 +123,14 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   scene.add(sun);
   const terrain = new Group();
   scene.add(terrain);
-  const gateSign = label("NORTH GATE · FROSTWOOD", "#daefff", 3.3);
-  gateSign.position.set(-3.5, 2.5, 0);
-  terrain.add(gateSign);
   const thicket = new Group(); terrain.add(thicket);
-  const townSign = label("HEARTHSTEAD", "#ffe1a2", 3.4);
-  townSign.position.set(-7.5, 5.7, -7);
-  terrain.add(townSign);
   const mara = new Group(); mara.position.set(3.4, 0, -7.5); mara.rotation.y = -Math.PI/2;
   terrain.add(mara);
-  const maraName = label("MARA · F to talk", "#ffe4b4", 2.4);
-  maraName.position.set(3.4, 2.45, -7.5); terrain.add(maraName);
   const innPlace = initial.places.find(place => place.id === "inn");
   if (!innPlace) throw new Error("Inn service position is missing");
   const innPosition = innPlace.position;
   const rowan = new Group(); rowan.position.set(innPosition.x, innPosition.y, innPosition.z); rowan.rotation.y = -Math.PI / 3;
   terrain.add(rowan);
-  const innSign = label("THE WAYFARER’S REST · INN", "#ffe0a4", 3.2);
-  innSign.position.set(innPosition.x - 2.3, 2.9, innPosition.z - 1.8); terrain.add(innSign);
-  const rowanName = label("ROWAN · F to talk", "#ffe4b4", 2.3);
-  rowanName.position.set(innPosition.x, 2.45, innPosition.z); terrain.add(rowanName);
   const coreRoot = new Group();
   coreRoot.position.set(-2, 0, 12);
   const coreMaterial = new MeshStandardMaterial({ color: 0x86ebff, emissive: 0x2090ae, emissiveIntensity: 0.55 });
@@ -161,9 +139,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     core.position.set(Math.sin(index * 2) * 0.6, 0.5, Math.cos(index * 2) * 0.6);
     coreRoot.add(core);
   }
-  const coreLabel = label("FROST CORES · G to gather", "#a2edff", 3.7);
-  coreLabel.position.y = 1.9;
-  coreRoot.add(coreLabel);
   terrain.add(coreRoot);
   const ritualPlace = initial.places.find((place) => place.kind === "ritual");
   const ritualPosition = ritualPlace?.position ?? { x: 0, y: 0, z: 43 };
@@ -172,9 +147,28 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   ritual.position.set(ritualPosition.x, 0.08, ritualPosition.z);
   terrain.add(ritual);
 
-  const groveLabel = label("DEEP GROVE · R · 6 CORES", "#c8d8ff", 4.2);
-  groveLabel.position.set(ritualPosition.x, 3, ritualPosition.z);
-  terrain.add(groveLabel);
+  const hoverTargets: HoverTarget[] = [
+    { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: "Frost Cores", anchor: new Vector3(-2, 1.4, 12) },
+    { root: mara, pick: { kind: "place", id: "shop" }, name: "Mara · Supplies", anchor: new Vector3(3.4, 2.45, -7.5) },
+    { root: rowan, pick: { kind: "place", id: "innkeeper" }, name: "Rowan · Innkeeper", anchor: new Vector3(innPosition.x, 2.45, innPosition.z) },
+    { root: ritual, pick: { kind: "place", id: "ritual" }, name: "Deep Grove", anchor: new Vector3(ritualPosition.x, 0.4, ritualPosition.z) },
+  ];
+  const tooltip = document.createElement("div");
+  tooltip.id = "world-hover-tooltip";
+  tooltip.setAttribute("role", "tooltip");
+  tooltip.hidden = true;
+  tooltip.style.cssText = "position:absolute;z-index:15;pointer-events:none;max-width:calc(100% - 16px);padding:7px 11px;border:1px solid #ad9160;border-radius:4px;background:#111b28ed;color:#fff0cb;font:var(--ui-font-body)/1.4 Georgia,serif;text-align:center;box-shadow:0 2px 8px #0008;transform:translate(-50%,-100%)";
+  host.append(tooltip);
+  const gatherCursor = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M5 28L22 10" stroke="#15212b" stroke-width="7"/><path d="M5 28L22 10" stroke="#b48649" stroke-width="4"/><path d="M9 5Q22 1 29 17L21 11Z" fill="#bceeff" stroke="#15212b" stroke-width="2"/></svg>')}") 9 5, pointer`;
+  let hoverPointer: { x: number; y: number } | null = null;
+  let hoverSnapshot = initial;
+  const clearHover = () => {
+    hoverPointer = null;
+    tooltip.hidden = true;
+    delete canvas.dataset.hoverKind;
+    delete canvas.dataset.hoverId;
+    canvas.style.cursor = "";
+  };
   const player = new Group();
   player.userData.localPlayer = true;
   scene.add(player);
@@ -255,14 +249,60 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,ring,lootGlint:glint,lungePath,rootEffect,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
       health:threat.health,sequence:threat.actionSequence,attackTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
-  const natureReady = buildFrostwood(terrain, thicket, innPosition).then(()=>{document.body.dataset.environmentState="ready";});
+  const natureReady = buildFrostwood(terrain, thicket, innPosition, (root, name) => {
+    const place = name === "House_1" ? { id: "town", name: "Hearthstead" }
+      : name === "Inn" ? { id: "inn", name: "The Wayfarer’s Rest" }
+      : name === "Fence" ? { id: `gate-${root.id}`, name: "North Gate · Frostwood" } : null;
+    if (place) hoverTargets.push({ root, pick: { kind: "place", id: place.id }, name: place.name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
+  }).then(()=>{document.body.dataset.environmentState="ready";});
   const telegraphs = createGroundTelegraphs(scene, canvas);
   const ready = Promise.all([knightReady, merchantReady, innkeeperReady, creaturesReady, natureReady, telegraphs.ready]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
   const forward = () => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
+  const pick = (x: number, y: number): WorldPick | null => {
+    const rect = canvas.getBoundingClientRect();
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
+    point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
+    raycaster.setFromCamera(point, camera);
+    const targets: Object3D[] = [...rigs.values()].filter(rig => (rig.health > 0 || rig.lootable) && rig.root.visible).map(rig => rig.root);
+    targets.push(...hoverTargets.filter(target => target.root.visible).map(target => target.root));
+    for (const hit of raycaster.intersectObjects(targets, true)) {
+      let object: Object3D | null = hit.object;
+      while (object) {
+        if (typeof object.userData.threatId === "string") return { kind: "threat", id: object.userData.threatId };
+        const target = hoverTargets.find(target => target.root === object);
+        if (target) return target.pick;
+        object = object.parent;
+      }
+    }
+    return null;
+  };
+  const updateHover = () => {
+    if (!hoverPointer || document.elementFromPoint(hoverPointer.x, hoverPointer.y) !== canvas) { clearHover(); return; }
+    const hit = pick(hoverPointer.x, hoverPointer.y);
+    const target = hit && hoverTargets.find(target => target.pick.kind === hit.kind && target.pick.id === hit.id);
+    tooltip.hidden = !target;
+    canvas.style.cursor = hit?.kind === "resource" ? gatherCursor : "";
+    if (hit) { canvas.dataset.hoverKind = hit.kind; canvas.dataset.hoverId = hit.id; }
+    else { delete canvas.dataset.hoverKind; delete canvas.dataset.hoverId; }
+    if (!target) return;
+    const anchor = target.anchor.clone().project(camera);
+    if (anchor.z < -1 || anchor.z > 1) { tooltip.hidden = true; return; }
+    const cores = hoverSnapshot.ritualCalled ? 6 : Math.min(hoverSnapshot.cargo, 6);
+    tooltip.textContent = target.pick.kind === "resource" ? `Frost Cores | The Frostwood Relic ${cores}/6` : target.name;
+    tooltip.dataset.worldId = target.pick.id;
+    const rect = canvas.getBoundingClientRect();
+    const hostRect = host.getBoundingClientRect();
+    const halfWidth = tooltip.offsetWidth / 2;
+    const x = rect.left - hostRect.left + (anchor.x + 1) * rect.width / 2;
+    const y = rect.top - hostRect.top + (1 - anchor.y) * rect.height / 2 - 10;
+    tooltip.style.left = `${Math.max(halfWidth + 8, Math.min(host.clientWidth - halfWidth - 8, x))}px`;
+    tooltip.style.top = `${Math.max(tooltip.offsetHeight + 8, y)}px`;
+  };
   return {
-    canvas, ready, forward,
+    canvas, ready, forward, pick, clearHover,
+    hover(x, y) { hoverPointer = { x, y }; },
     updatePlayers(players) { if (!disposed) otherPlayers = players; },
     updateChat(messages, localPlayerId) { if (!disposed) chatBubbles.update(messages, localPlayerId); },
     orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.22, pitch + dy * 0.004)); },
@@ -274,22 +314,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (head.z < -1 || head.z > 1 || Math.abs(head.x) > 1 || Math.abs(head.y) > 1) return null;
       return { x: (head.x + 1) * host.clientWidth / 2, y: (1 - head.y) * host.clientHeight / 2, feetY: (1 - feet.y) * host.clientHeight / 2 };
     },
-    pick(x, y) {
-      const rect = canvas.getBoundingClientRect();
-      point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
-      raycaster.setFromCamera(point, camera);
-      const targets = [...rigs.values()].filter((rig) => (rig.health > 0 || rig.lootable) && rig.root.visible).map((rig) => rig.root);
-      for (const hit of raycaster.intersectObjects(targets, true)) {
-        let object: Object3D | null = hit.object;
-        while (object) {
-          if (typeof object.userData.threatId === "string") return object.userData.threatId;
-          object = object.parent;
-        }
-      }
-      return null;
-    },
     render(snapshot, delta, localPlayer = snapshot.player, serverTime) {
       if (disposed) return;
+      hoverSnapshot = snapshot;
       elapsed += delta;
       let visiblePlayers = otherPlayers;
       if (serverTime !== undefined) {
@@ -347,7 +374,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rowan.rotation.y = snapshot.innOpen ? Math.atan2(position.x - innPosition.x, position.z - innPosition.z) : -Math.PI / 3;
         innkeeper.mixer.update(delta);
       }
-      innSign.visible = rowanName.visible = Math.hypot(position.x - innPosition.x, position.z - innPosition.z) < 17;
       lastHealth = snapshot.player.health;
       shield.visible = snapshot.player.block > 0;
       shield.rotation.y = elapsed;
@@ -456,11 +482,14 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
       camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
       renderer.render(scene, camera);
+      updateHover();
       chatBubbles.render();
     },
     dispose() {
       if (disposed) return;
       disposed = true;
+      clearHover();
+      tooltip.remove();
       remotePlayers.dispose();
       chatBubbles.dispose();
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose();

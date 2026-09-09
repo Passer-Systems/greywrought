@@ -10,8 +10,8 @@ export function updateQuestTracker(snapshot: AdventureSnapshot): void {
   const target = step === 2 ? relic?.position ?? guardian?.position : destination?.position;
   let title = "Gather frost cores";
   let detail = s.phase === "town"
-    ? "Follow the road north through the gate to the blue crystals. Press G twice, waiting 2 seconds between gathers."
-    : "Stand by the blue crystals in the first clearing. Press G to gather 3 cores; wait 2 seconds before gathering again.";
+    ? "Follow the road north through the gate to the blue crystals. Click the Frost Cores twice, waiting 2 seconds between gathers."
+    : "Stand by the blue crystals in the first clearing. Click the Frost Cores to gather 3; wait 2 seconds before gathering again. G also gathers.";
   let warning = s.phase === "town" || s.threats.some(t => t.id === "warder" && t.health > 0)
     ? "Each gather costs 8 health while the Root warder lives. Defeat it deeper in the forest to gather safely."
     : "The Root warder is defeated. Gathering is safe.";

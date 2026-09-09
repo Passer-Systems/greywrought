@@ -1,7 +1,7 @@
 import { COMBAT_RULES } from "../game/adventure.js";
 import type { AdventureAction, AdventureSnapshot } from "../game/adventure-types.js";
 import {
-  characterProfileStorageKey, decodeCharacterProfile, encodeCharacterProfile,
+  archiveFallenCharacter, characterProfileStorageKey, decodeCharacterProfile, encodeCharacterProfile,
   normalizedCharacterName, normalizedDisplayName,
   type CharacterArchetype, type LocalCharacter, type LocalProfile,
 } from "./character-profile.js";
@@ -132,6 +132,8 @@ let profileBlocked = false;
 let route: "account" | "creator" | "roster" | "world" = "account";
 let draft: CharacterArchetype = "warrior";
 let pendingDeleteId: string | null = null;
+let rosterTab: "active" | "rip" = "active";
+let selectedMemorialId: string | null = null;
 
 function listen(target: EventTarget, type: string, handler: EventListener, local = removers, capture = false): void {
   target.addEventListener(type, handler, capture);
@@ -170,7 +172,22 @@ function persistProfile(): void {
   catch (cause: unknown) { text("entry-roster-feedback", "Your character could not be saved in this browser."); console.error("Profile save failed", cause); }
 }
 function selectedCharacter(): LocalCharacter | null {
-  return profile?.characters.find((character) => character.id === profile?.selectedCharacterId) ?? profile?.characters[0] ?? null;
+  const characters = rosterCharacters();
+  const id = rosterTab === "rip" ? selectedMemorialId : profile?.selectedCharacterId;
+  return characters.find((character) => character.id === id) ?? characters[0] ?? null;
+}
+function rosterCharacters(): readonly LocalCharacter[] {
+  return profile?.characters.filter((character) => (character.fallenAtMillis !== undefined) === (rosterTab === "rip")) ?? [];
+}
+function showFallenCharacter(character: LocalCharacter): void {
+  if (!profile) return;
+  profile = archiveFallenCharacter(profile, character.id, Date.now());
+  rosterTab = "rip";
+  selectedMemorialId = character.id;
+  pendingDeleteId = null;
+  text("entry-roster-feedback", `${character.name} has fallen. Their memory rests here.`);
+  persistProfile();
+  returnToRoster();
 }
 function avatar(prefix: string, archetype: CharacterArchetype): void {
   element(`${prefix}-avatar`).dataset.avatarArchetype = archetype;
@@ -184,6 +201,9 @@ function renderEntry(): void {
   for (const view of ["account", "creator", "roster"]) element(`entry-${view}`).hidden = route !== view;
   if (route === "world") return;
   const selected = selectedCharacter();
+  document.body.dataset.rosterTab = rosterTab;
+  for (const tab of ["active", "rip"] as const) button(`entry-roster-${tab}`).setAttribute("aria-pressed", String(rosterTab === tab));
+  text("entry-roster-title", rosterTab === "rip" ? "Frostwood remembers" : "Choose a character");
   text("entry-creator-profile", profile?.displayName ?? "");
   text("entry-roster-profile", profile?.displayName ?? "");
   text("entry-creator-class", classes[draft].name);
@@ -195,7 +215,8 @@ function renderEntry(): void {
   for (const choice of document.querySelectorAll<HTMLElement>("[data-entry-archetype]")) choice.setAttribute("aria-pressed", String(choice.dataset.entryArchetype === draft));
   const list = element("entry-roster-list");
   list.replaceChildren();
-  for (const character of profile?.characters ?? []) {
+  const characters = rosterCharacters();
+  for (const character of characters) {
     const item = document.createElement("li");
     item.className = "entry-roster-item";
     const choose = document.createElement("button");
@@ -210,25 +231,33 @@ function renderEntry(): void {
     const name = document.createElement("strong");
     name.textContent = character.name;
     const description = document.createElement("span");
-    description.textContent = classes[character.archetype].name;
+    description.textContent = `${classes[character.archetype].name}${character.fallenAtMillis !== undefined ? " · Fallen" : ""}`;
     copy.append(name, description);
     choose.append(emblem, copy);
     item.append(choose);
     list.append(item);
   }
-  text("entry-roster-count", `${profile?.characters.length ?? 0} / 8`);
-  button("entry-enter-world").disabled = entering || selected === null;
+  element("entry-roster-empty").hidden = characters.length > 0;
+  text("entry-roster-empty", rosterTab === "rip" ? "No fallen adventurers." : "Create a character to begin a new journey.");
+  text("entry-roster-count", rosterTab === "rip" ? String(characters.length) : `${characters.length} / 8`);
+  button("entry-enter-world").hidden = rosterTab === "rip";
+  button("entry-enter-world").disabled = entering || selected === null || selected.fallenAtMillis !== undefined;
   const deleteButton = button("entry-delete-character");
   deleteButton.disabled = entering || selected === null || pendingDeleteId !== null;
   const confirm = element("entry-delete-confirm");
   confirm.hidden = pendingDeleteId === null;
   const pending = profile?.characters.find((character) => character.id === pendingDeleteId);
   text("entry-delete-copy", pending ? `Delete ${pending.name}? This removes their journey from this browser.` : "");
+  element("entry-roster-avatar").hidden = selected === null;
   if (selected) {
     avatar("entry-roster", selected.archetype);
     text("entry-roster-class", classes[selected.archetype].name);
     text("entry-roster-name", selected.name);
-    text("entry-roster-summary", "One life · One journey into Frostwood");
+    text("entry-roster-summary", selected.fallenAtMillis !== undefined ? "Rest in peace · Your journey is remembered" : "One life · One journey into Frostwood");
+  } else {
+    text("entry-roster-class", "");
+    text("entry-roster-name", rosterTab === "rip" ? "Frostwood remembers" : "A new journey awaits");
+    text("entry-roster-summary", "");
   }
 }
 function requestDeleteSelected(): void {
@@ -251,7 +280,8 @@ function deletePendingCharacter(): void {
   try { localStorage.removeItem(`greywrought/adventure-v1/${id}`); } catch (cause: unknown) { console.error("Character journey removal failed", cause); }
   try { if (sessionStorage.getItem(resumeKey) === id) sessionStorage.removeItem(resumeKey); } catch { /* Session storage may be unavailable. */ }
   const characters = profile.characters.filter((character) => character.id !== id);
-  const next = characters[0] ?? null;
+  const next = characters.find((character) => character.id === profile?.selectedCharacterId && character.fallenAtMillis === undefined)
+    ?? characters.find((character) => character.fallenAtMillis === undefined);
   profile = { ...profile, characters, selectedCharacterId: next?.id ?? null, savedAtMillis: Date.now() };
   pendingDeleteId = null;
   persistProfile();
@@ -465,6 +495,7 @@ function bindWorld(app: RunningAdventure): void {
   listen(canvas, "pointerdown", (event) => {
     if (!(event instanceof PointerEvent) || paused || !app.ready || event.button > 2) return;
     event.preventDefault();
+    app.world.clearHover();
     canvas.focus();
     buttons = event.buttons;
     lastX = event.clientX; lastY = event.clientY; dragDistance = 0;
@@ -477,7 +508,8 @@ function bindWorld(app: RunningAdventure): void {
     // A mouse chord changes buttons through pointermove, without another pointerdown.
     buttons = event.buttons;
     app.game.setMouseForward((buttons & 3) === 3);
-    if (buttons === 0) return;
+    if (buttons === 0) { app.world.hover(event.clientX, event.clientY); return; }
+    app.world.clearHover();
     const dx = event.clientX - lastX; const dy = event.clientY - lastY;
     lastX = event.clientX; lastY = event.clientY;
     dragDistance += Math.abs(dx) + Math.abs(dy);
@@ -489,14 +521,22 @@ function bindWorld(app: RunningAdventure): void {
     buttons = event.buttons;
     app.game.setMouseForward((buttons & 3) === 3 && !paused);
     if ((event.button === 0 || event.button === 2) && buttons === 0 && dragDistance < 5 && !paused && app.ready) {
-      const selected = app.world.pick(event.clientX, event.clientY);
-      if (selected && app.game.snapshot.loot.some(item => item.sourceId === selected && item.available)) app.game.openLoot(selected);
-      else if (selected && event.button === 0) app.game.selectTarget(selected);
+      const picked = app.world.pick(event.clientX, event.clientY);
+      if (picked?.kind === "resource" && event.button === 0) pulse("gather");
+      else if (picked?.kind === "threat") {
+        if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
+        else if (event.button === 0) app.game.selectTarget(picked.id);
+      }
     }
     if (buttons === 0 && canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    if (buttons === 0 && !paused) app.world.hover(event.clientX, event.clientY);
   }, app.unbind);
-  const resetMouse = () => { buttons = 0; app.game.setMouseForward(false); };
-  listen(canvas, "lostpointercapture", resetMouse, app.unbind);
+  const resetMouse = () => { buttons = 0; app.game.setMouseForward(false); app.world.clearHover(); };
+  listen(canvas, "pointerleave", () => app.world.clearHover(), app.unbind);
+  listen(canvas, "lostpointercapture", (event) => {
+    resetMouse();
+    if (event instanceof PointerEvent && event.buttons === 0 && !paused) app.world.hover(event.clientX, event.clientY);
+  }, app.unbind);
   listen(canvas, "pointercancel", resetMouse, app.unbind);
   listen(window, "blur", resetMouse, app.unbind);
   listen(canvas, "contextmenu", (event) => event.preventDefault(), app.unbind);
@@ -504,12 +544,14 @@ function bindWorld(app: RunningAdventure): void {
 }
 async function enterWorld(character: LocalCharacter): Promise<void> {
   if (entering || running) return;
+  if (character.fallenAtMillis !== undefined) { showFallenCharacter(character); return; }
   entering = true;
   renderEntry();
   text("entry-enter-world", "Preparing your journey…");
   text("entry-roster-feedback", "Loading the forest and your adventurer…");
   try {
     const game = await connectAdventure(character);
+    if (game.snapshot.phase === "lost") { game.close(); showFallenCharacter(character); return; }
     audio.reset();
     const world = createAdventureWorld(element("world-wrap"), game.snapshot);
     world.updateChat(game.chat, character.id);
@@ -518,6 +560,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     bindWorld(app);
     await world.ready;
     if (!alive || running !== app) { world.dispose(); return; }
+    if (app.game.snapshot.phase === "lost") { showFallenCharacter(character); return; }
     world.render(game.snapshot, 0);
     app.ready = true;
     lastTime = 0;
@@ -558,11 +601,11 @@ listen(element("entry-character-form"), "submit", (event) => {
   if (!profile) return;
   const name = normalizedCharacterName(input("entry-character-name").value);
   if (!name) { text("entry-character-feedback", "Use 2–18 letters, spaces, apostrophes, or hyphens."); return; }
-  if (profile.characters.length >= 8) { text("entry-character-feedback", "Your roster is full."); return; }
+  if (profile.characters.filter((character) => character.fallenAtMillis === undefined).length >= 8) { text("entry-character-feedback", "Your roster is full."); return; }
   if (profile.characters.some((character) => character.name.toLocaleLowerCase() === name.toLocaleLowerCase())) { text("entry-character-feedback", "Choose a different character name."); return; }
   const character: LocalCharacter = { id: crypto.randomUUID(), name, archetype: draft, createdAtMillis: Date.now() };
   profile = { ...profile, characters: [...profile.characters, character], selectedCharacterId: character.id, savedAtMillis: Date.now() };
-  persistProfile(); route = "roster"; input("entry-character-name").value = ""; renderEntry();
+  persistProfile(); rosterTab = "active"; route = "roster"; input("entry-character-name").value = ""; renderEntry();
 });
 listen(input("entry-character-name"), "input", () => renderEntry());
 for (const choice of document.querySelectorAll<HTMLElement>("[data-entry-archetype]")) listen(choice, "click", () => {
@@ -572,8 +615,18 @@ for (const choice of document.querySelectorAll<HTMLElement>("[data-entry-archety
 listen(element("entry-roster-list"), "click", (event) => {
   if (!(event.target instanceof Element) || !profile || entering) return;
   const id = event.target.closest<HTMLElement>("[data-character-id]")?.dataset.characterId;
-  if (!id || !profile.characters.some((character) => character.id === id)) return;
-  profile = { ...profile, selectedCharacterId: id, savedAtMillis: Date.now() }; persistProfile(); renderEntry();
+  if (!id || !rosterCharacters().some((character) => character.id === id)) return;
+  if (rosterTab === "rip") selectedMemorialId = id;
+  else { profile = { ...profile, selectedCharacterId: id, savedAtMillis: Date.now() }; persistProfile(); }
+  pendingDeleteId = null;
+  renderEntry();
+});
+for (const tab of ["active", "rip"] as const) click(`entry-roster-${tab}`, () => {
+  if (entering) return;
+  rosterTab = tab;
+  pendingDeleteId = null;
+  text("entry-roster-feedback", "");
+  renderEntry();
 });
 click("entry-delete-character", requestDeleteSelected);
 click("entry-delete-cancel", cancelDelete);
@@ -687,6 +740,7 @@ function tick(now: number): void {
   lastTime = now;
   running.game.advance(delta);
   const snapshot = running.game.snapshot;
+  if (snapshot.phase === "lost") { showFallenCharacter(running.character); return; }
   audio.update(snapshot, route !== "world");
   running.world.updatePlayers(running.game.players.filter(player => player.id !== running!.character.id));
   running.world.updateChat(running.game.chat, running.character.id);

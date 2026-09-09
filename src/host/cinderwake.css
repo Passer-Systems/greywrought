@@ -46,42 +46,6 @@ textarea,
   user-select: text;
 }
 
-.fantasy-cursor {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 1000;
-  width: 56px;
-  height: 56px;
-  opacity: 0;
-  pointer-events: none;
-  background: url("../../assets/ui/cursors/greywrought-cursor-normal.png") center / contain no-repeat;
-  filter: drop-shadow(0 2px 2px #000b);
-  transform: translate3d(-100px, -100px, 0);
-  transition: opacity 80ms linear, filter 90ms ease;
-  will-change: transform;
-}
-
-.fantasy-cursor[data-glow="true"] {
-  background-image: url("../../assets/ui/cursors/greywrought-cursor-glow.png");
-  filter: drop-shadow(0 0 8px #ffd856cc) drop-shadow(0 2px 2px #000b);
-}
-
-body[data-cursor-visible="true"] .fantasy-cursor {
-  opacity: 1;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  body,
-  button,
-  input,
-  label,
-  summary,
-  #world-canvas {
-    cursor: none !important;
-  }
-}
-
 main {
   width: 100%;
   height: 100dvh;
@@ -129,7 +93,7 @@ main {
   width: 100%;
   height: 100%;
   outline: none;
-  cursor: grab;
+  cursor: auto;
   touch-action: none;
   filter: saturate(.92) contrast(1.08);
 }
@@ -703,7 +667,7 @@ body[data-game-phase="completed"] .terminal-feedback-title {
 .entry-avatar { --avatar-accent: #ad5b3e; position: relative; width: min(440px, 78%); height: min(58vh, 560px); min-height: 310px; margin-bottom: 34px; filter: drop-shadow(0 26px 20px #000c); animation: entry-avatar-idle 4.8s ease-in-out infinite; }
 .entry-avatar[data-avatar-archetype="mage"] { --avatar-accent: #547fd7; }
 .entry-avatar[data-avatar-archetype="hunter"] { --avatar-accent: #769a4b; }
-.entry-avatar-portrait { position: absolute; z-index: 2; inset: 3% 8% 4%; width: 84%; height: 93%; border: 1px solid color-mix(in srgb, var(--avatar-accent) 72%, #d9bd77); border-radius: 46% 46% 18% 18%; object-fit: cover; object-position: 50% 28%; box-shadow: 0 0 0 4px #050808b5, 0 24px 70px #000d, 0 0 45px color-mix(in srgb, var(--avatar-accent) 28%, transparent); -webkit-mask-image: linear-gradient(#000 0 80%, transparent 100%); mask-image: linear-gradient(#000 0 80%, transparent 100%); }
+.entry-avatar-portrait { position: absolute; z-index: 2; inset: 3% 8% 4%; width: 84%; height: 93%; border: 1px solid color-mix(in srgb, var(--avatar-accent) 72%, #d9bd77); border-radius: 3px; object-fit: cover; object-position: 50% 28%; box-shadow: 0 0 0 4px #050808b5, 0 24px 70px #000d, 0 0 45px color-mix(in srgb, var(--avatar-accent) 28%, transparent); -webkit-mask-image: linear-gradient(#000 0 80%, transparent 100%); mask-image: linear-gradient(#000 0 80%, transparent 100%); }
 .entry-avatar-rune { position: absolute; inset: 20% 4% 4%; border: 1px solid color-mix(in srgb, var(--avatar-accent) 65%, transparent); border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--avatar-accent) 22%, transparent), transparent 66%); }
 .entry-avatar-head { position: absolute; top: 12%; left: 50%; width: 22%; aspect-ratio: .86; border: 3px solid #d9b763; border-radius: 48% 48% 42% 42%; background: linear-gradient(135deg, #d3b498, #755a4a); transform: translateX(-50%); }
 .entry-avatar-body { position: absolute; top: 29%; bottom: 8%; left: 50%; width: 44%; border: 4px solid #b8944f; border-radius: 28% 28% 14% 14%; background: linear-gradient(135deg, color-mix(in srgb, var(--avatar-accent) 80%, #292929), #171b1d 62%); transform: translateX(-50%); box-shadow: inset 0 0 38px #000a; }
@@ -738,11 +702,14 @@ body[data-game-phase="completed"] .terminal-feedback-title {
 .entry-roster-heading { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 15px; border-bottom: 1px solid #c9a85d4a; }
 .entry-roster-heading h3 { margin-top: 4px; font-size: 26px; }
 .entry-roster-heading > span { color: var(--entry-muted); font: 12px ui-monospace, monospace; }
+.entry-roster-tabs { display: flex; gap: 6px; margin-top: 12px; }
+.entry-roster-tabs button { padding: 7px 12px; border: 1px solid #504a3a; color: var(--entry-muted); background: #101617dc; font: 13px ui-sans-serif, system-ui, sans-serif; }
+.entry-roster-tabs button[aria-pressed="true"] { border-color: #e8c66d; color: #f2d584; background: #35291c; }
 .entry-roster-list { display: grid; gap: 7px; margin: 14px 0 0; padding: 0; list-style: none; }
 .entry-roster-item button,
 .entry-roster-empty { display: grid; width: 100%; min-height: 58px; grid-template-columns: 45px 1fr; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid #504a3a; color: #e7dcc4; background: #101617dc; text-align: left; }
 .entry-roster-item button[aria-pressed="true"] { border-color: #e8c66d; box-shadow: inset 4px 0 #d9ad55; background: linear-gradient(90deg, #4c3226, #111718); }
-.entry-roster-emblem { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid #a9894e; border-radius: 50%; color: #f2d584; background: #070a0b; font: 800 17px ui-sans-serif, system-ui, sans-serif; }
+.entry-roster-emblem { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid #a9894e; border-radius: 3px; color: #f2d584; background: #070a0b; font: 800 17px ui-sans-serif, system-ui, sans-serif; }
 .entry-roster-copy strong,
 .entry-roster-copy span { display: block; }
 .entry-roster-copy strong { font: 700 16px Georgia, serif; }
@@ -1876,19 +1843,19 @@ body[data-reduced-motion="true"] *::after {
 }
 
 /* Frostwood expedition interface. */
-body, button, input, label, summary, #world-canvas { cursor: auto !important; }
+body, button, input, label, summary { cursor: auto !important; }
 button { cursor: pointer !important; }
 [hidden] { display: none !important; }
 #world-wrap::before, #world-wrap::after { display: none; }
 #world-canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; outline: none; touch-action: none; }
 #adventure-hud { position: absolute; inset: 0; z-index: 5; pointer-events: none; color: #f7e8c9; font-size: var(--ui-font-body); }
 .parchment { background: linear-gradient(135deg, #253238f2, #14222bef); border: 1px solid #b69a67; box-shadow: 0 4px 16px #09111860, inset 0 0 0 3px #97835d18; border-radius: 4px; padding: 14px 17px; }
-.adventure-objective { position:absolute; left:22px; top:20px; max-height:calc(100% - 210px); min-height:0; overflow-y:auto; overscroll-behavior:contain; pointer-events:auto; }
+.adventure-objective { position:absolute; left:8px; top:8px; max-height:calc(100% - 210px); min-height:0; overflow-y:auto; overscroll-behavior:contain; pointer-events:auto; }
 .eyebrow { display: block; color: #dcc184; font-size: var(--ui-font-tiny); letter-spacing: 0.16em; margin-bottom: 8px; }
 .adventure-objective strong { display: block; font: 700 var(--ui-font-title)/1.3 Georgia, serif; }
 .adventure-objective p { font-size: var(--ui-font-body); line-height: 1.5; color: #c8d3d3; }
 #cargo-summary { border-top: 1px solid #b79a674f; padding-top: 10px; white-space: pre-line; line-height: 1.8; font-size: var(--ui-font-body); color: #f3d59d; }
-.adventure-map { position:absolute; right:22px; top:20px; width:250px; height:210px; min-height:0; padding:10px; display:flex; flex-direction:column; pointer-events:auto; }
+.adventure-map { position:absolute; right:8px; top:8px; width:175px; height:210px; min-height:0; padding:10px; display:flex; flex-direction:column; pointer-events:auto; }
 .adventure-map header { font: 700 var(--ui-font-prominent) Georgia, serif; letter-spacing: .12em; border-bottom: 1px solid #c7b07f66; padding-bottom: 9px; }
 .adventure-map header span { float: right; color: #c4e8e8; }
 #map-field { flex:1; min-height:0; position: relative; overflow: hidden; background: linear-gradient(to top, #927849 0%, #927849 25%, #36544c 25%, #294b47 70%, #344755); margin: 6px -2px; border: 1px solid #8d916f; }
@@ -1954,8 +1921,8 @@ button { cursor: pointer !important; }
 #pause-panel > div { pointer-events: auto; }
 .adventure-modal h2 { font: 700 var(--ui-font-title) Georgia; color: #f8deac; margin: 12px 0; }.adventure-modal p { font-size: var(--ui-font-prominent); line-height: 1.7; color: #d2dada; }
 .adventure-modal button { border: 1px solid #c0a16c; padding: 11px 14px; margin: 8px 5px 0 0; background: #584830; color: #ffeac8; border-radius: 3px; font: 600 var(--ui-font-body) system-ui; }.adventure-modal button:hover { background: #736044; }.adventure-modal button:disabled { opacity: .4; }
-@media (max-width: 1000px) { .adventure-objective {left:12px;}.adventure-map {width:210px;right:12px;height:180px;}.adventure-actions small { font-size: var(--ui-font-tiny); } }
-@media (max-width: 700px) { .adventure-map {width:155px;top:12px;height:150px;padding:7px;}.map-enemy span { display: none; }.map-landmark { font-size: var(--ui-font-tiny); }.adventure-actions { gap: 2px; }.adventure-actions strong { font-size: var(--ui-font-body); }.adventure-actions small { display: none; }.adventure-controls { font-size: var(--ui-font-tiny); }.adventure-bottom { bottom: 6px; width: calc(100vw - 20px); } }.enemy-nameplate:hover:not(:disabled) { background: none; border-color: transparent; }
+@media (max-width: 1000px) { .adventure-map {width:147px;height:180px;}.adventure-actions small { font-size: var(--ui-font-tiny); } }
+@media (max-width: 700px) { .adventure-map {width:108.5px;height:150px;padding:7px;}.map-enemy span { display: none; }.map-landmark { font-size: var(--ui-font-tiny); }.adventure-actions { gap: 2px; }.adventure-actions strong { font-size: var(--ui-font-body); }.adventure-actions small { display: none; }.adventure-controls { font-size: var(--ui-font-tiny); }.adventure-bottom { bottom: 6px; width: calc(100vw - 20px); } }.enemy-nameplate:hover:not(:disabled) { background: none; border-color: transparent; }
 body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 
 .map-inn { color:#ffe4a8; } .map-inn > span { top:0; right:14px; }
@@ -1971,7 +1938,8 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .nameplate-effect-icon {font-size:21px;}
 .nameplate-effect-clock {position:absolute;bottom:-4px;right:0;font-size:var(--ui-font-tiny);color:white;}
 .adventure-actions button:disabled {opacity:.55;cursor:default;}
-.rpg-window-header { position:relative; display:grid; grid-template-columns:var(--window-emblem-space,0px) minmax(0,1fr) 27px; height:27px; align-items:stretch; }
+.rpg-window-header { position:relative; display:grid; grid-template-columns:var(--window-emblem-space,0px) minmax(0,1fr) 27px; height:var(--window-header-height,27px); align-items:stretch; }
+.rpg-window-portrait { grid-column:1; grid-row:1; display:block; width:var(--window-emblem-space); height:var(--window-header-height); border:2px ridge #a4935f; border-radius:2px 0 0 2px; object-fit:cover; background:#263732; }
 .rpg-window-title { grid-column:2; display:grid; place-items:center; min-width:0; margin:0; border:2px ridge #787b70; border-radius:3px; background:linear-gradient(#292d28,#0b100d); color:#e4ce7a; text-shadow:0 1px #000; font:bold var(--ui-font-heading)/1 Georgia,serif; }
 .rpg-window-close { grid-column:3; display:grid; place-items:center; width:27px; height:27px; margin:0; padding:0; border:3px ridge #aca374; border-radius:3px; background:linear-gradient(#9c281b,#4c0b06); color:#e7c864; font:bold 22px/1 Georgia,serif; cursor:pointer; text-shadow:1px 2px #300; }
 .rpg-window-close:hover { background:#b53c25; }
@@ -2123,7 +2091,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .enemy-nameplate:has(.nameplate-ability:hover),.enemy-nameplate:has(.nameplate-ability:focus-visible) {z-index:40;}
 
 /* The expedition objective stays visible while traveling and fighting. */
-#quest-tracker { width:280px; box-sizing:border-box; background:#152329f2; padding:12px; }
+#quest-tracker { width:210px; box-sizing:border-box; background:#152329f2; padding:12px; }
 #quest-tracker .eyebrow { font-size: var(--ui-font-tiny); margin-bottom: 10px; }
 .quest-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #f5ce7e; margin-bottom: 8px; font: 700 var(--ui-font-prominent)/1.3 Georgia, serif; }
 #quest-progress { flex-shrink: 0; font: 600 var(--ui-font-tiny)/1.3 system-ui, sans-serif; }
@@ -2142,7 +2110,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
   body[data-game-in-combat=true] #quest-tracker :is(.eyebrow,.quest-steps,#route-detail,#route-warning) {display:none;}
 }
 @media (max-width: 700px) {
-  #quest-tracker {width:min(250px,calc(100vw - 190px));left:8px;top:12px;}
+  #quest-tracker {width:min(187.5px,calc(100vw - 190px));}
   #quest-tracker .eyebrow, #quest-tracker .quest-steps, #quest-tracker #cargo-summary { display: none; }
   .quest-heading { flex-wrap: wrap; font-size: var(--ui-font-body); }
   #route-objective { font-size: var(--ui-font-prominent); }

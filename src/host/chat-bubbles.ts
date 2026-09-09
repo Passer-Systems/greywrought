@@ -78,7 +78,7 @@ export function createChatBubbles(host: HTMLElement, scene: Scene, camera: Persp
         if (!actor || !actor.visible) continue;
         actor.getWorldPosition(anchor);
         if (anchor.distanceToSquared(localPosition) > 30 * 30) continue;
-        anchor.y += 3.1;
+        anchor.y += 2.35;
         anchor.project(camera);
         if (anchor.z < -1 || anchor.z > 1 || Math.abs(anchor.x) > 1 || Math.abs(anchor.y) > 1) continue;
         element.style.left = `${(anchor.x + 1) * host.clientWidth / 2}px`;

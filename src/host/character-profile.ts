@@ -7,6 +7,7 @@ export interface LocalCharacter {
   readonly name: string;
   readonly archetype: CharacterArchetype;
   readonly createdAtMillis: number;
+  readonly fallenAtMillis?: number;
 }
 
 export interface LocalProfile {
@@ -65,7 +66,6 @@ export function decodeCharacterProfile(source: string | null): CharacterProfileR
     typeof value?.displayName !== "string" ||
     normalizedDisplayName(value.displayName) !== value.displayName ||
     !Array.isArray(value.characters) ||
-    value.characters.length > 8 ||
     !(value.selectedCharacterId === null || typeof value.selectedCharacterId === "string") ||
     typeof value.savedAtMillis !== "number" ||
     !Number.isFinite(value.savedAtMillis)
@@ -86,7 +86,8 @@ export function decodeCharacterProfile(source: string | null): CharacterProfileR
       normalizedCharacterName(item.name) !== item.name ||
       !archetype(item.archetype) ||
       typeof item.createdAtMillis !== "number" ||
-      !Number.isFinite(item.createdAtMillis)
+      !Number.isFinite(item.createdAtMillis) ||
+      (item.fallenAtMillis !== undefined && (typeof item.fallenAtMillis !== "number" || !Number.isFinite(item.fallenAtMillis)))
     ) {
       return { kind: "corrupt" };
     }
@@ -96,8 +97,10 @@ export function decodeCharacterProfile(source: string | null): CharacterProfileR
       name: item.name,
       archetype: item.archetype,
       createdAtMillis: item.createdAtMillis,
+      ...(typeof item.fallenAtMillis === "number" ? { fallenAtMillis: item.fallenAtMillis } : {}),
     });
   }
+  if (characters.filter((character) => character.fallenAtMillis === undefined).length > 8) return { kind: "corrupt" };
   if (value.selectedCharacterId !== null && !ids.has(value.selectedCharacterId)) {
     return { kind: "corrupt" };
   }
@@ -111,6 +114,15 @@ export function decodeCharacterProfile(source: string | null): CharacterProfileR
       savedAtMillis: value.savedAtMillis,
     },
   };
+}
+
+export function archiveFallenCharacter(profile: LocalProfile, id: string, now: number): LocalProfile {
+  const characters = profile.characters.map((character) => character.id === id && character.fallenAtMillis === undefined
+    ? { ...character, fallenAtMillis: now }
+    : character);
+  const selected = characters.find((character) => character.id === profile.selectedCharacterId && character.fallenAtMillis === undefined)
+    ?? characters.find((character) => character.fallenAtMillis === undefined);
+  return { ...profile, characters, selectedCharacterId: selected?.id ?? null, savedAtMillis: now };
 }
 
 export function encodeCharacterProfile(profile: LocalProfile): string {

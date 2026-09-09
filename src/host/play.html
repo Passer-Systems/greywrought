@@ -25,7 +25,6 @@
     </script>
   </head>
   <body data-journey="loading" data-game-phase="loading">
-    <div id="fantasy-cursor" class="fantasy-cursor" aria-hidden="true"></div>
     <main>
       <div id="world-wrap">
         <section id="character-select" class="character-select" aria-labelledby="character-select-title">
@@ -103,7 +102,12 @@
               </div>
               <aside class="entry-roster-panel">
                 <div class="entry-roster-heading"><div><p class="entry-kicker">Character roster</p><h3>Your Characters</h3></div><span id="entry-roster-count">0 / 8</span></div>
+                <div class="entry-roster-tabs" role="group" aria-label="Character roster">
+                  <button id="entry-roster-active" type="button" aria-pressed="true" aria-controls="entry-roster-list">Characters</button>
+                  <button id="entry-roster-rip" type="button" aria-pressed="false" aria-controls="entry-roster-list">🪦 RIP</button>
+                </div>
                 <ol id="entry-roster-list" class="entry-roster-list"></ol>
+                <p id="entry-roster-empty" hidden></p>
               </aside>
             </div>
             <div class="entry-roster-actions">
@@ -154,7 +158,7 @@
           <p class="equipment-hint">Select a slot to inspect · C or Esc to return</p>
         </dialog>
         <section id="pause-panel" class="adventure-modal" role="dialog" aria-label="Game menu" hidden><div class="parchment"><h2>Game menu</h2><p>Your journey continues while this menu is open.</p><button id="pause-resume">Return to the forest</button><button id="return-roster">Choose a character</button></div></section>
-        <section id="death-panel" class="adventure-modal" role="dialog" aria-label="Expedition ended" hidden><div class="parchment"><span class="eyebrow">YOUR JOURNEY HAS ENDED</span><h2>Frostwood remembers</h2><p>This adventurer has fallen. Their journey remains saved; begin again with a new character.</p><button id="death-roster">Choose a character</button></div></section>
+        <section id="death-panel" class="adventure-modal" role="dialog" aria-label="Expedition ended" hidden><div class="parchment"><span class="eyebrow">YOUR JOURNEY HAS ENDED</span><h2>Frostwood remembers</h2><p>This adventurer has fallen. Their memory rests in the 🪦 RIP tab.</p><button id="death-roster">Choose a character</button></div></section>
       </div>
     </main>
     <script type="module" src="./app/greywrought/play.js"></script>

@@ -33,7 +33,8 @@ test('delayed and jittered acknowledgments preserve immediate speed, turns, rele
     local.advance(1 / 60); solo.advance(1 / 60);
     near(local.player.position, solo.snapshot.player.position);
     if (tick < 80 || (tick >= 110 && tick < 170)) {
-      expect(Math.hypot(local.player.position.x - before.x, local.player.position.z - before.z)).toBeCloseTo(4.5 / 60, 7);
+      const speed = tick >= 140 && tick < 170 ? 2.88 : 4.5;
+      expect(Math.hypot(local.player.position.x - before.x, local.player.position.z - before.z)).toBeCloseTo(speed / 60, 7);
     } else {
       expect(local.player.position.x).toBeCloseTo(before.x, 7);
       expect(local.player.position.z).toBeCloseTo(before.z, 7);

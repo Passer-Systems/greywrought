@@ -1,11 +1,12 @@
 import { Group, Mesh, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace } from "three";
 import { prop } from "./frostwood-assets.js";
 
-export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }): Promise<void> {
+export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onPlace?: (root: Group, name: string) => void): Promise<void> {
   const jobs: Promise<void>[] = [];
   function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0) {
     jobs.push(prop(name, size, axis).then(model => {
       model.position.set(x, y, z); model.rotation.y = rotation; parent.add(model);
+      onPlace?.(model, name);
       model.updateWorldMatrix(true, true);
       // Scenery never moves; actors and effects retain their animated transforms.
       model.traverse(object => { object.matrixAutoUpdate = false; object.matrixWorldAutoUpdate = false; });

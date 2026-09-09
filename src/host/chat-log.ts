@@ -53,6 +53,7 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
       event.preventDefault();
       const text = input.value.trim().slice(0, 280);
       if (text && onSend) { onSend(text); input.value = ""; select("chat"); }
+      input.blur();
     }
   };
   input.addEventListener("keydown", onInputKey);

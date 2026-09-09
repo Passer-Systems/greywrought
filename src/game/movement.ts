@@ -39,10 +39,11 @@ export function moveLocomotion(state: MovementState, input: MovementInput, secon
   const x = (input.cameraX * input.forward - input.cameraZ * input.strafe) / length;
   const z = (input.cameraZ * input.forward + input.cameraX * input.strafe) / length;
   const old: Position = { ...state.position };
+  const speed = 4.5 * (input.forward < 0 ? 0.64 : 1);
   let remaining = seconds;
   while (remaining > 1e-9) {
     const dt = Math.min(remaining, 1 / 60);
-    movePosition(state.position, x * 4.5 * dt, z * 4.5 * dt);
+    movePosition(state.position, x * speed * dt, z * speed * dt);
     if (state.position.y > 0 || state.verticalSpeed > 0) {
       state.position.y = Math.max(0, state.position.y + state.verticalSpeed * dt - 7 * dt * dt);
       state.verticalSpeed = state.position.y > 0 ? state.verticalSpeed - 14 * dt : 0;
