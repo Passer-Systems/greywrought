@@ -44,6 +44,7 @@ async function buildClient(): Promise<void> {
 
 const server = Bun.serve({
   hostname: "127.0.0.1", port: Number(Bun.env.GREYWROUGHT_PORT ?? 4173),
+  idleTimeout: 0,
   async fetch(request) {
     const pathname = new URL(request.url).pathname;
     if (pathname === "/__dev/events") {

@@ -184,6 +184,7 @@ function setPaused(value: boolean): void {
   release();
   if (running.game.snapshot.shopOpen) pulse("closeShop");
   paused = value;
+  lastTime = 0;
   element("pause-panel").hidden = !paused;
   document.body.dataset.gamePaused = String(paused);
   save(true);
@@ -346,6 +347,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     if (!alive || running !== app) { world.dispose(); return; }
     world.render(game.snapshot, 0);
     app.ready = true;
+    lastTime = 0;
     const forward = world.forward(); game.setCameraForward(forward.x, forward.z);
     makeEnemyInterface(game.snapshot);
     route = "world";
@@ -448,7 +450,7 @@ listen(window, "beforeunload", () => { release(); save(true); });
 
 function tick(now: number): void {
   if (!alive) return;
-  const delta = lastTime === 0 ? 0 : Math.min(0.1, (now - lastTime) / 1000);
+  const delta = lastTime === 0 ? 0 : (now - lastTime) / 1000;
   lastTime = now;
   if (running?.ready) {
     if (!paused && !document.hidden) running.game.advance(delta);

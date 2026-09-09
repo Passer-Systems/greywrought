@@ -6,7 +6,8 @@ try {
   const initial = await page.read();
   check(Number(initial.gamePlayerVitality) === 100, "New character did not enter town healthy");
   await page.key("KeyD", true);
-  await Bun.sleep(500);
+  // Software-rendered frames vary in duration; verify input through observed motion.
+  await page.waitFor(`Number(document.body.dataset.gamePlayerX) < ${Number(initial.gamePlayerX) - 0.5}`, 5_000);
   await page.key("KeyD", false);
   const strafe = await page.read();
   check(Math.abs(Number(strafe.gamePlayerX) - Number(initial.gamePlayerX)) > 0.5, "D did not strafe");
@@ -18,11 +19,11 @@ try {
   await page.key("KeyS", true);
   await page.call("Input.dispatchMouseEvent", { type: "mousePressed", x: 650, y: 410, button: "left", buttons: 1, clickCount: 1 });
   await page.call("Input.dispatchMouseEvent", { type: "mousePressed", x: 650, y: 410, button: "right", buttons: 3, clickCount: 1 });
-  await Bun.sleep(500);
+  await page.waitFor(`Number(document.body.dataset.gamePlayerZ) > ${Number(beforeMouse.gamePlayerZ) + 0.5}`, 5_000);
   const afterMouse = await page.read();
   check(Number(afterMouse.gamePlayerZ) > Number(beforeMouse.gamePlayerZ) + 0.5, "Both mouse buttons did not override backpedaling");
   await page.call("Input.dispatchMouseEvent", { type: "mouseReleased", x: 650, y: 410, button: "right", buttons: 1, clickCount: 1 });
-  await Bun.sleep(400);
+  await page.waitFor(`Number(document.body.dataset.gamePlayerZ) < ${Number(afterMouse.gamePlayerZ) - 0.3}`, 5_000);
   const afterRelease = await page.read();
   check(Number(afterRelease.gamePlayerZ) < Number(afterMouse.gamePlayerZ) - 0.3, "Releasing the mouse chord did not restore held backpedaling");
   await page.call("Input.dispatchMouseEvent", { type: "mouseReleased", x: 650, y: 410, button: "left", buttons: 0, clickCount: 1 });
