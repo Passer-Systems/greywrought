@@ -370,16 +370,12 @@ function makeEnemyInterface(snapshot: AdventureSnapshot): void {
   element("map-threats").replaceChildren();
   nameplates = createEnemyNameplates(element("enemy-intents"), snapshot);
   markers.clear();
-  snapshot.threats.forEach((threat, index) => {
+  snapshot.threats.forEach(threat => {
     const marker = document.createElement("button");
     marker.className = "map-enemy";
     marker.dataset.enemyId = threat.id;
-    marker.textContent = String(index + 1);
     marker.title = threat.name;
     marker.setAttribute("aria-label", `Target ${threat.name}`);
-    const caption = document.createElement("span");
-    caption.textContent = threat.name;
-    marker.append(caption);
     element("map-threats").append(marker);
     markers.set(threat.id, marker);
   });

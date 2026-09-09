@@ -124,7 +124,19 @@
           </section>
         </section>
         <section id="adventure-hud" hidden aria-label="Expedition">
-          <section class="adventure-map parchment" aria-label="North-up Frostwood map"><header>FROSTWOOD <span>↑ N</span></header><div id="map-field"><div class="map-road"></div><span class="map-landmark map-town" data-map-place="hearthstead">⌂<span>Hearthstead · safe</span></span><span class="map-landmark map-gate" data-map-place="forest-gate">▰<span>North gate</span></span><span class="map-landmark map-cores" data-map-place="frost-cores">◆<span>Frost cores</span></span><span class="map-landmark map-grove" data-map-place="ritual-site">◇<span>Deep Grove</span></span><span class="map-landmark map-inn" data-map-place="inn">⌂<span>Inn</span></span><div id="map-threats"></div><div id="map-player" title="You">▲</div></div></section>
+          <section class="adventure-map" aria-label="North-up Frostwood map">
+            <header>Frostwood</header>
+            <div id="map-field">
+              <div class="map-road"></div>
+              <span class="map-landmark map-town" data-map-place="hearthstead" title="Hearthstead · safe" role="img" aria-label="Hearthstead · safe">⌂</span>
+              <span class="map-landmark map-gate" data-map-place="forest-gate" title="North gate" role="img" aria-label="North gate">▰</span>
+              <span class="map-landmark map-cores" data-map-place="frost-cores" title="Frost cores" role="img" aria-label="Frost cores">◆</span>
+              <span class="map-landmark map-grove" data-map-place="ritual-site" title="Deep Grove" role="img" aria-label="Deep Grove">◇</span>
+              <span class="map-landmark map-inn" data-map-place="inn" title="Inn" role="img" aria-label="Inn">⌂</span>
+              <div id="map-threats"></div>
+              <div id="map-player" title="You">▲</div>
+            </div>
+          </section>
           <section id="quest-tracker" class="adventure-objective parchment" aria-label="Current quest">
             <span id="adventure-zone" class="eyebrow">Hearthstead · safe haven</span>
             <div class="quest-heading"><span>The Frostwood Relic</span><span id="quest-progress"></span></div>

@@ -1855,20 +1855,19 @@ button { cursor: pointer !important; }
 .adventure-objective strong { display: block; font: 700 var(--ui-font-title)/1.3 Georgia, serif; }
 .adventure-objective p { font-size: var(--ui-font-body); line-height: 1.5; color: #c8d3d3; }
 #cargo-summary { border-top: 1px solid #b79a674f; padding-top: 10px; white-space: pre-line; line-height: 1.8; font-size: var(--ui-font-body); color: #f3d59d; }
-.adventure-map { position:absolute; right:8px; top:8px; width:175px; height:210px; min-height:0; padding:10px; display:flex; flex-direction:column; pointer-events:auto; }
-.adventure-map header { font: 700 var(--ui-font-prominent) Georgia, serif; letter-spacing: .12em; border-bottom: 1px solid #c7b07f66; padding-bottom: 9px; }
-.adventure-map header span { float: right; color: #c4e8e8; }
-#map-field { flex:1; min-height:0; position: relative; overflow: hidden; background: linear-gradient(to top, #927849 0%, #927849 25%, #36544c 25%, #294b47 70%, #344755); margin: 6px -2px; border: 1px solid #8d916f; }
+.adventure-map { position:absolute; right:8px; top:8px; width:175px; display:flex; flex-direction:column; gap:3px; pointer-events:auto; }
+.adventure-map header { color:#a7dfe4; text-align:center; font:600 var(--ui-font-body)/16px system-ui,sans-serif; text-shadow:0 1px 2px #000,1px 0 2px #000,-1px 0 2px #000; }
+#map-field { width:100%; aspect-ratio:1; box-sizing:border-box; position:relative; overflow:hidden; background:linear-gradient(to top,#927849 0%,#927849 25%,#36544c 25%,#294b47 70%,#344755); border:1px solid #080e12; box-shadow:0 1px 3px #0009; }
 .map-road { position: absolute; top: 5%; bottom: 5%; left: 46%; width: 8%; background: #b3aa825e; border-inline: 1px dashed #d5d2a283; }
-.map-landmark { position: absolute; z-index: 3; transform: translate(-50%, -50%); font-size: var(--ui-font-prominent); line-height: 1; text-shadow: 0 1px 2px #000; }
-.map-landmark > span { position: absolute; right: 21px; top: -1px; white-space: nowrap; font-size: var(--ui-font-tiny); line-height: 1.4; background: #192a30ed; padding: 2px 5px; border-radius: 2px; }
-.map-town { color: #ffe4a8; }.map-town > span { top: 20px; left: 50%; right: auto; transform: translateX(-50%); }
-.map-cores { color: #b9f0ff; }.map-grove { color: #d3d9ff; }.map-grove > span { top: -31px; left: 50%; right: auto; transform: translateX(-50%); }
-.map-enemy { position: absolute; z-index: 2; padding: 0; transform: translate(-50%, -50%); border: 1px solid #f1c782; border-radius: 50%; width: 21px; height: 21px; background: #762f23; font-size: var(--ui-font-small); color: #fff5d7; }
-.map-enemy span { position: absolute; top: 0; left: 25px; width: 78px; text-align: left; font-size: var(--ui-font-tiny); font-family: system-ui, sans-serif; line-height: 12px; background: #1c2c2bc9; padding: 2px; pointer-events: none; }
-.map-enemy:nth-child(even) span { left: auto; right: 25px; text-align: right; }
-.map-enemy.selected { outline: 2px solid #ffedac; outline-offset: 2px; }.map-enemy.cleared { background: #41695a; opacity: .6; }.map-enemy.dormant { background: #384254; border-style: dashed; }
-#map-player { position: absolute; z-index: 4; color: #fff; font-size: 22px; line-height: 1; text-shadow: 0 0 3px #000, 0 0 6px #000; pointer-events: none; }
+.map-landmark { position:absolute; z-index:3; display:grid; place-items:center; width:16px; height:16px; transform:translate(-50%,-50%); font-size:var(--ui-font-prominent); line-height:1; text-shadow:0 1px 2px #000; }
+.map-town,.map-inn { color:#ffe4a8; }
+.map-cores { color:#b9f0ff; }.map-grove { color:#d3d9ff; }
+.map-enemy { position:absolute; z-index:2; display:grid; place-items:center; padding:0; margin:0; transform:translate(-50%,-50%); border:0; border-radius:0; width:16px; height:16px; background:none; box-shadow:none; }
+.map-enemy::before { content:""; width:7px; height:7px; border:1px solid #160f0a; border-radius:50%; background:var(--map-marker-color,#ee625c); box-shadow:0 1px 2px #000b; }
+.map-enemy:hover { background:none; }
+.map-enemy:is(.selected,:hover,:focus-visible)::before { outline:1px solid #ffedac; outline-offset:1px; }
+.map-enemy.cleared::before { background:#8a9b95; opacity:.6; }.map-enemy.dormant { display:none; }
+#map-player { position:absolute; z-index:4; color:#fff; font-size:15px; line-height:1; text-shadow:0 0 2px #000,0 1px 3px #000; pointer-events:none; }
 
 #enemy-intents { position: absolute; inset: 0; pointer-events: none; }
 .enemy-nameplate { --enemy-color: #f36969; position: absolute; left: 0; top: 0; box-sizing:content-box; width: 180px; padding: 0 30px; border: 0; border-radius: 0; background: none; color: #fff4dd; box-shadow: none; font: 600 var(--ui-font-small)/1.2 system-ui, sans-serif; text-align: left; pointer-events: auto; cursor: pointer; text-shadow: 0 1px 2px #000, 1px 0 2px #000; }
@@ -1907,8 +1906,8 @@ button { cursor: pointer !important; }
 .enemy-nameplate[data-tooltip-below="true"] .nameplate-tooltip { bottom:auto; top:calc(100% + 7px); }
 .enemy-nameplate:hover, .enemy-nameplate:focus-within { z-index:10; }
 .nameplate-ability:hover .nameplate-tooltip, .nameplate-ability:focus-visible .nameplate-tooltip { display:block; }
-.map-enemy[data-hostile="true"] { background: #9e2832; border-color: #f87b78; }
-.map-enemy[data-hostile="false"] { background: #796719; border-color: #ead655; }
+.map-enemy[data-hostile="true"] { --map-marker-color:#f15a56; }
+.map-enemy[data-hostile="false"] { --map-marker-color:#f5d651; }
 .adventure-bottom { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); width: min(860px, calc(100vw - 40px)); }
 .adventure-actions { padding: 6px; display: flex; gap: 6px; justify-content: center; pointer-events: auto; }
 .adventure-actions button { flex: 1; min-width: 0; padding: 7px 4px; display: flex; flex-direction: column; align-items: center; gap: 5px; border: 1px solid #a1885780; border-radius: 3px; background: linear-gradient(#455257, #263338); color: #f5e5c2; }
@@ -1921,11 +1920,9 @@ button { cursor: pointer !important; }
 #pause-panel > div { pointer-events: auto; }
 .adventure-modal h2 { font: 700 var(--ui-font-title) Georgia; color: #f8deac; margin: 12px 0; }.adventure-modal p { font-size: var(--ui-font-prominent); line-height: 1.7; color: #d2dada; }
 .adventure-modal button { border: 1px solid #c0a16c; padding: 11px 14px; margin: 8px 5px 0 0; background: #584830; color: #ffeac8; border-radius: 3px; font: 600 var(--ui-font-body) system-ui; }.adventure-modal button:hover { background: #736044; }.adventure-modal button:disabled { opacity: .4; }
-@media (max-width: 1000px) { .adventure-map {width:147px;height:180px;}.adventure-actions small { font-size: var(--ui-font-tiny); } }
-@media (max-width: 700px) { .adventure-map {width:108.5px;height:150px;padding:7px;}.map-enemy span { display: none; }.map-landmark { font-size: var(--ui-font-tiny); }.adventure-actions { gap: 2px; }.adventure-actions strong { font-size: var(--ui-font-body); }.adventure-actions small { display: none; }.adventure-controls { font-size: var(--ui-font-tiny); }.adventure-bottom { bottom: 6px; width: calc(100vw - 20px); } }.enemy-nameplate:hover:not(:disabled) { background: none; border-color: transparent; }
+@media (max-width: 1000px) { .adventure-map {width:147px;}.adventure-actions small { font-size: var(--ui-font-tiny); } }
+@media (max-width: 700px) { .adventure-map {width:108.5px;}.map-landmark { font-size: var(--ui-font-tiny); }.adventure-actions { gap: 2px; }.adventure-actions strong { font-size: var(--ui-font-body); }.adventure-actions small { display: none; }.adventure-controls { font-size: var(--ui-font-tiny); }.adventure-bottom { bottom: 6px; width: calc(100vw - 20px); } }.enemy-nameplate:hover:not(:disabled) { background: none; border-color: transparent; }
 body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
-
-.map-inn { color:#ffe4a8; } .map-inn > span { top:0; right:14px; }
 
 @media(max-width:850px) { .adventure-bottom { bottom:158px; width:calc(100vw - 20px); }   }
 
