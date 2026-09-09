@@ -79,5 +79,8 @@ for (const [source, target] of files) {
   }
 }
 await Bun.write("dist/.nojekyll", "");
+const commit = Bun.spawnSync({ cmd: ["git", "rev-parse", "--short", "HEAD"], stdout: "pipe" });
+const commitId = new TextDecoder().decode(commit.stdout).trim();
+await Bun.write("dist/release.json", JSON.stringify({ name: "greywrought", version: "0.3.0", commit: commitId }, null, 2) + "\n");
 
-console.log(`Static release contains ${files.length + 1} allowlisted files.`);
+console.log(`Static release contains ${files.length + 2} allowlisted files.`);

@@ -574,7 +574,7 @@ export function setMountedArenaLocomotion(
 
 export function playMountedArenaAttack(mounted: MountedArenaRig): void {
   // A sword action is a committed animation. Presentation must never restart
-  // the clip while the current action is still running; Clause owns whether a
+  // the clip while the current action is still running; gameplay owns whether a
   // new action is admissible, and this guard keeps a duplicate visual edge
   // from rewinding the already-admitted action.
   if (mounted.disposed || mounted.attackRemaining > 0) return;
