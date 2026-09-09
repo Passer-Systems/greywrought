@@ -1,30 +1,22 @@
-use greywrought_clause::native::{self, NativeSession};
+use greywrought::game::{Command, Game};
 
-pub fn walk(session: &mut NativeSession, destination: [f64; 2]) -> native::Result<usize> {
+pub fn walk(game: &mut Game, destination: [f64; 2]) -> greywrought::Result<usize> {
     for tick in 0..1200 {
-        let view = session
-            .snapshot(0, String::new())?
-            .forest
-            .ok_or("no forest")?;
         let delta = [
-            destination[0] - view.position[0],
-            destination[1] - view.position[1],
+            destination[0] - game.position[0],
+            destination[1] - game.position[1],
         ];
-        let distance = (delta[0] * delta[0] + delta[1] * delta[1]).sqrt();
+        let distance = delta[0].hypot(delta[1]);
         if distance <= 0.08 {
-            for (source, value) in [native::scalar("MoveX", 0.), native::scalar("MoveZ", 0.)] {
-                session.input(session.workbench.generation().handle, source, value)?;
-            }
-            session.tick()?;
+            game.command(Command::Move { x: 0.0, z: 0.0 })?;
+            game.tick()?;
             return Ok(tick);
         }
-        for (source, value) in [
-            native::scalar("MoveX", delta[0] / distance),
-            native::scalar("MoveZ", delta[1] / distance),
-        ] {
-            session.input(session.workbench.generation().handle, source, value)?;
-        }
-        session.tick()?;
+        game.command(Command::Move {
+            x: delta[0] / distance,
+            z: delta[1] / distance,
+        })?;
+        game.tick()?;
     }
     Err(format!("could not walk to {destination:?}").into())
 }
