@@ -133,9 +133,9 @@ let route: "account" | "creator" | "roster" | "world" = "account";
 let draft: CharacterArchetype = "warrior";
 let pendingDeleteId: string | null = null;
 
-function listen(target: EventTarget, type: string, handler: EventListener, local = removers): void {
-  target.addEventListener(type, handler);
-  local.push(() => target.removeEventListener(type, handler));
+function listen(target: EventTarget, type: string, handler: EventListener, local = removers, capture = false): void {
+  target.addEventListener(type, handler, capture);
+  local.push(() => target.removeEventListener(type, handler, capture));
 }
 function click(id: string, handler: () => void): void { listen(element(id), "click", handler); }
 function pressAction(action: AdventureAction): void {
@@ -657,7 +657,8 @@ listen(window, "keyup", (event) => {
   keys.delete(event.code);
   const action = keyActions[event.code];
   if (action && ![...keys].some((key) => keyActions[key] === action)) running?.game.setAction(action, false);
-});
+}, removers, true);
+listen(element("chat-log-input"), "focus", () => release());
 listen(window, "blur", () => { release(); if (running?.ready) setPaused(true); });
 listen(window, "focus", () => { if (!document.hidden) setPaused(false); });
 listen(document, "visibilitychange", () => { setPaused(document.hidden || !document.hasFocus()); });

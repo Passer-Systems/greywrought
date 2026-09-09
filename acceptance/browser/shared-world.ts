@@ -19,11 +19,17 @@ try {
   check(await first.evaluate<number>(`document.querySelectorAll('.adventure-actions [data-action]').length`)===3,'Starting bar must contain attack, block and the potion on equals');
   check(await first.evaluate<boolean>(`document.querySelector('[data-action="strike"] img').src.endsWith('sword-strike.png')`),'Warrior must retain sword');
   check(await second.evaluate<boolean>(`document.querySelector('[data-action="strike"] img').src.endsWith('wand-bolt.svg')`),'Mage must retain wand');
+  check(await first.evaluate<string>(`document.querySelector('[data-action="brace"] .action-cost').textContent`)==='2 stamina','Stamina cost must be explicit, not a consumable count');
+  check(await first.evaluate<string>(`document.querySelector('[data-action="drinkPotion"] kbd').textContent`)==='=','Potion must be on equals');
   await first.press('Enter');
-  await first.call('Input.insertText',{text:'Hello shared world'});await first.press('Enter');
-  await second.waitFor(`document.querySelector('#chat-log-messages').textContent.includes('Wayfarer: Hello shared world')`);
+  const greeting='Hello shared world '+Date.now();
+  await first.call('Input.insertText',{text:greeting});await first.press('Enter');
+  await second.waitFor(`document.querySelector('#chat-log-messages').textContent.includes(${JSON.stringify('Wayfarer: '+greeting)})`);
   await first.press('Escape');
-  await first.key('KeyD',true);await first.waitFor('Number(document.body.dataset.gamePlayerX)<-2');await first.key('KeyD',false);
+  await first.key('KeyD',true);await first.waitFor('Number(document.body.dataset.gamePlayerX)<-2');
+  await first.click('#chat-log-input');await first.key('KeyD',false);
+  await second.waitFor(`JSON.parse(document.body.dataset.gameRemotePlayers).some(p=>p.name==='Wayfarer'&&p.player.position.x<-2&&!p.player.moving)`);
+  await first.press('Escape');
   await second.waitFor(`JSON.parse(document.body.dataset.gameRemotePlayers).some(p=>p.name==='Wayfarer'&&p.player.position.x<-2)`);
   check(Number((await second.read()).gamePlayerX)===0,'One player moving must not move the other');
   await first.shot('two-players-and-chat');
@@ -31,6 +37,7 @@ try {
   await first.key('KeyW',true);await first.waitFor('Number(document.body.dataset.gamePlayerZ)>2.5');await first.key('KeyW',false);
   await first.press('Digit2');await first.press('Digit1');await first.press('Digit1');
   await first.waitFor(queue+'.length===3');
+  check(await first.evaluate<string>(`document.querySelector('.combat-plan-tick strong').textContent`)==='Turn 1','Timeline must use turns');
   check(await first.evaluate<string>(queue+'.map(e=>e.action).join()')==='brace,strike,strike','Number keys must queue in first available order');
   await first.click('.combat-plan-move[data-offset="0"]');await first.press('Digit1');
   await first.waitFor(queue+'.every(e=>e.action==="strike")');

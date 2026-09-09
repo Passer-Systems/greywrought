@@ -23,6 +23,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let sequence = 0, closed = false, online = false;
   let reconnect: ReturnType<typeof setTimeout> | undefined;
   let cameraX = NaN, cameraZ = NaN;
+  let pendingCamera = false, lastCameraAt = 0;
   let readyResolve: () => void, readyReject: (reason: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   const timeout = setTimeout(() => { if (!snapshot) { close(); readyReject(new Error('The world could not be reached.')); } }, 15000);
@@ -31,6 +32,11 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     if (!online || socket.readyState !== WebSocket.OPEN) return;
     const message: ClientWorldMessage = { type: 'command', sequence: ++sequence, command };
     socket.send(JSON.stringify(message));
+  }
+  function flushCamera(): void {
+    if (!pendingCamera || !online) return;
+    send({type:'camera',x:cameraX,z:cameraZ});
+    pendingCamera = false; lastCameraAt = performance.now();
   }
   function open(): void {
     socket = new WebSocket(url);
@@ -49,7 +55,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       }
     };
     socket.onclose = () => {
-      online = false; cameraX = cameraZ = NaN;
+      online = false; pendingCamera = Number.isFinite(cameraX) && Number.isFinite(cameraZ);
       if (!closed) reconnect = setTimeout(open, 1000);
     };
   }
@@ -59,10 +65,10 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     get online() { return online; },
     get players() { return players; },
     get chat() { return chat; },
-    advance() {},
-    setAction(action, pressed) { send({type:'action',action,pressed}); },
+    advance() { if (performance.now() - lastCameraAt >= 50) flushCamera(); },
+    setAction(action, pressed) { if (pressed) flushCamera(); send({type:'action',action,pressed}); },
     setMouseForward(active) { send({type:'mouseForward',active}); },
-    setCameraForward(x,z) { if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;send({type:'camera',x,z}); } },
+    setCameraForward(x,z) { if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
     selectTarget(id) { send({type:'target',id}); },
     setQueuedDelay(id, seconds) { send({type:'delay',id,seconds}); },
     moveQueuedAction(id, seconds) { send({type:'move',id,seconds}); },

@@ -214,10 +214,13 @@ export async function createWorldService(options: WorldServiceOptions) {
       socket.data.commandsAt = socket.data.commandsAt.filter(at => now - at < 1000);
       const player = socket.data.id === null ? undefined : world.getPlayer(socket.data.id);
       let accepted = false;
-      if (player && keys(value, ['type', 'sequence', 'command']) && sequence > socket.data.lastSequence && command(value.command) && socket.data.commandsAt.length < 120) {
-        socket.data.lastSequence = sequence;
-        socket.data.commandsAt.push(now);
-        accepted = apply(player, value.command, socket);
+      if (player && keys(value, ['type', 'sequence', 'command']) && sequence > socket.data.lastSequence && command(value.command)) {
+        const stopping = (value.command.type === 'action' && !value.command.pressed) || (value.command.type === 'mouseForward' && !value.command.active);
+        if (stopping || socket.data.commandsAt.length < 120) {
+          socket.data.lastSequence = sequence;
+          if (!stopping) socket.data.commandsAt.push(now);
+          accepted = apply(player, value.command, socket);
+        }
       }
       send(socket, { type: 'result', sequence, accepted });
     },

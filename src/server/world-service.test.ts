@@ -124,3 +124,22 @@ test('two socket clients share movement and chat; saved identity survives restar
     await rm(directory, { recursive: true });
   }
 }, 15_000);
+
+test('releasing movement survives a burst of camera input', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-release-'));
+  const service = await createWorldService({savePath:join(directory,'world.json')});
+  const server = Bun.serve({hostname:'127.0.0.1',port:0,websocket:service.websocket,fetch:(request,host)=>service.fetch(request,host)});
+  const client = new Client(`ws://127.0.0.1:${server.port}/world`);
+  try {
+    await client.connect({id:'release',name:'Release',archetype:'warrior',createdAtMillis:1},crypto.randomUUID());
+    await client.state();
+    expect(await client.command({type:'action',action:'forward',pressed:true})).toBe(true);
+    await Promise.all(Array.from({length:130},()=>client.command({type:'camera',x:0,z:1})));
+    expect(await client.command({type:'action',action:'forward',pressed:false})).toBe(true);
+    expect(await client.command({type:'mouseForward',active:false})).toBe(true);
+    client.messages.length=0;
+    const stopped=await client.state();
+    const next=await client.state(state=>state!==stopped);
+    expect(next.snapshot.player.position).toEqual(stopped.snapshot.player.position);
+  } finally {client.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true});}
+});
