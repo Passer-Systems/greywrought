@@ -15,7 +15,6 @@ enum Field {
     Target,
     TargetHealth,
     Intent,
-    Location,
     Objectives,
     Packs,
     Footer,
@@ -26,13 +25,9 @@ enum Field {
 #[derive(Component)]
 pub(crate) struct Meter(bool);
 #[derive(Component)]
-pub(crate) struct MapMark(usize);
-#[derive(Component)]
 pub(crate) struct HelpPanel;
 #[derive(Component)]
 pub(crate) struct ShopPanel;
-#[derive(Component)]
-pub(crate) struct TuningPanel;
 #[derive(Resource, Default)]
 pub(crate) struct State {
     pub help: bool,
@@ -207,104 +202,15 @@ pub(super) fn setup(commands: &mut Commands, assets: &AssetServer) {
             });
             p.spawn(icon(assets, "ui/icons/items/shield-emblem.png", 54.));
         });
-    commands
-        .spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                right: px(22),
-                top: px(14),
-                width: px(210),
-                height: px(236),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            GlobalZIndex(5),
-            Interaction::None,
-            Surface,
-        ))
-        .with_children(|p| {
-            p.spawn(paper(
-                assets,
-                Node {
-                    width: px(188),
-                    height: px(30),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-            ))
-            .with_children(|p| {
-                p.spawn((text(assets, "Hearthstead", 19.), Copy(Field::Location)));
-            });
-            p.spawn((
-                ImageNode::new(assets.load("ui/map.png")),
-                Node {
-                    width: px(200),
-                    height: px(200),
-                    ..default()
-                },
-            ))
-            .with_children(|p| {
-                p.spawn((
-                    text(assets, "N", 16.),
-                    Node {
-                        position_type: PositionType::Absolute,
-                        left: px(94),
-                        top: px(8),
-                        ..default()
-                    },
-                ));
-                p.spawn((
-                    text(assets, "▲", 20.),
-                    Node {
-                        position_type: PositionType::Absolute,
-                        left: px(91),
-                        top: px(87),
-                        ..default()
-                    },
-                ));
-                for i in 0..5 {
-                    p.spawn((
-                        Button,
-                        Control::Target(i),
-                        Node {
-                            position_type: PositionType::Absolute,
-                            width: px(18),
-                            height: px(18),
-                            ..default()
-                        },
-                        MapMark(i),
-                    ))
-                    .with_children(|p| {
-                        p.spawn(text(assets, format!("{}", i + 1), 15.));
-                    });
-                }
-                p.spawn((
-                    Button,
-                    Control::MapZoom,
-                    Node {
-                        position_type: PositionType::Absolute,
-                        right: px(-3),
-                        bottom: px(22),
-                        padding: UiRect::all(px(4)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.91, 0.83, 0.66)),
-                ))
-                .with_children(|p| {
-                    p.spawn(text(assets, "±", 20.));
-                });
-            });
-        });
+    super::map::setup(commands, assets);
     commands
         .spawn(paper(
             assets,
             Node {
                 position_type: PositionType::Absolute,
                 right: px(12),
-                top: px(256),
-                width: px(232),
+                top: px(338),
+                width: px(264),
                 padding: UiRect::all(px(13)),
                 flex_direction: FlexDirection::Column,
                 row_gap: px(5),
@@ -580,27 +486,9 @@ pub(super) fn setup(commands: &mut Commands, assets: &AssetServer) {
         });
     commands.spawn((paper(assets,Node{position_type:PositionType::Absolute,left:percent(50),margin:UiRect::left(px(-235)),top:percent(28),width:px(470),padding:UiRect::all(px(24)),flex_direction:FlexDirection::Column,row_gap:px(12),..default()}),HelpPanel,Visibility::Hidden)).insert(GlobalZIndex(25)).with_children(|p|{
         p.spawn((text(assets,"A Wayfarer’s Guide",26.),Copy(Field::Help)));
-        p.spawn(text(assets,"Walk through the north gate into Frostwood. Gather frost cores, overcome the trail’s threats and reach Hearthstead alive to secure your finds.\n\nW / S  Forward / back     A / D  Strafe\nDrag  Look around     Right-drag  Steer\nBoth mouse buttons  Walk forward\nWheel  Move the view closer or farther\nTab / click  Choose a threat     1  Strike\nSpace  Jump     F  Talk to Mara     H  Drink potion\nB  Brace     G  Gather     R  Offer a ritual\nO  Equipment     F5  Save\nF6  Developer tuning     F7  Developer inspection",17.));
+        p.spawn(text(assets,"Walk through the north gate into Frostwood. Gather frost cores, overcome the trail’s threats and reach Hearthstead alive to secure your finds.\n\nW / S  Forward / back     A / D  Strafe\nDrag  Look around     Right-drag  Steer\nBoth mouse buttons  Walk forward\nWheel  Move the view closer or farther\nTab / click  Choose a threat     1  Strike\nSpace  Jump     F  Talk to Mara     H  Drink potion\nB  Brace     G  Gather     R  Offer a ritual\nO  Equipment     F5  Save",17.));
         p.spawn((Button,Control::Help,Node{padding:UiRect::all(px(8)),..default()},BackgroundColor(Color::srgba(0.6,0.45,0.25,0.2)))).with_children(|p|{p.spawn(text(assets,"Back to the trail · Esc",18.));});
     });
-    commands
-        .spawn((
-            label("", 15.),
-            Node {
-                position_type: PositionType::Absolute,
-                left: px(16),
-                right: px(16),
-                top: px(12),
-                padding: UiRect::all(px(14)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.025, 0.035, 0.035, 0.98)),
-            Visibility::Hidden,
-            TuningPanel,
-            GlobalZIndex(90),
-            Hud,
-        ))
-        .insert(TextColor(Color::srgb(0.93, 0.91, 0.79)));
 }
 fn remember(state: &mut State, combat: bool, message: String, seconds: u64) {
     state.entries.push_back((
@@ -616,52 +504,19 @@ pub(crate) fn present(
     time: Res<Time>,
     mut state: Option<ResMut<State>>,
     mut texts: Query<(&Copy, &mut Text)>,
-    mut meters: Query<(&Meter, &mut Node), Without<MapMark>>,
-    mut marks: Query<(&MapMark, &mut Node, &mut Visibility), (Without<Meter>, Without<ShopPanel>)>,
-    mut help: Query<
-        &mut Visibility,
-        (
-            With<HelpPanel>,
-            Without<MapMark>,
-            Without<TuningPanel>,
-            Without<ShopPanel>,
-        ),
-    >,
-    mut tuning: Query<
-        &mut Visibility,
-        (
-            With<TuningPanel>,
-            Without<MapMark>,
-            Without<HelpPanel>,
-            Without<ShopPanel>,
-        ),
-    >,
-    mut shop: Query<
-        &mut Visibility,
-        (
-            With<ShopPanel>,
-            Without<MapMark>,
-            Without<HelpPanel>,
-            Without<TuningPanel>,
-        ),
-    >,
+    mut meters: Query<(&Meter, &mut Node)>,
+    mut help: Query<&mut Visibility, (With<HelpPanel>, Without<ShopPanel>)>,
+    mut shop: Query<&mut Visibility, (With<ShopPanel>, Without<HelpPanel>)>,
     mut buttons: Query<(&Interaction, &mut BackgroundColor), With<Button>>,
 ) {
     let Some(mut state) = state.take() else {
         return;
     };
-    for mut visible in &mut tuning {
-        *visible = if display.editing || display.snapshot.is_none() {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
-    }
-    let Some(view) = display.snapshot.as_ref().and_then(|s| s.forest.as_ref()) else {
+    let Some(view) = display.snapshot.as_ref().map(|s| &s.forest) else {
         return;
     };
     for mut visible in &mut shop {
-        *visible = if view.shop_open && !display.editing && !display.inspecting {
+        *visible = if view.shop_open {
             Visibility::Visible
         } else {
             Visibility::Hidden
@@ -738,7 +593,6 @@ pub(crate) fn present(
             Field::Intent => selected
                 .map(|t| format!("Now: {}  ·  Next: {}", t.current_intent, t.upcoming_intent))
                 .unwrap_or("Read the trail; choose your next move.".into()),
-            Field::Location => view.location_name().into(),
             Field::Objectives => format!(
                 "Gather frost cores\n   {:.0} carried · {:.0} in the grove\nReturn alive to Hearthstead\n   {:.0} supplies secured\nSeek the frost relic\n   {:.0} carried · {:.0} secured",
                 view.cargo,
@@ -792,24 +646,8 @@ pub(crate) fn present(
             0.
         });
     }
-    for (mark, mut node, mut visible) in &mut marks {
-        if let Some(t) = view.threats.get(mark.0) {
-            let scale = if state.zoom { 4.0 } else { 2.0 };
-            let delta = Vec2::new(
-                (t.position[0] - view.position[0]) as f32,
-                (view.position[1] - t.position[1]) as f32,
-            ) * scale;
-            *visible = if delta.length() < 81. && t.active {
-                Visibility::Inherited
-            } else {
-                Visibility::Hidden
-            };
-            node.left = px(91. + delta.x);
-            node.top = px(91. + delta.y);
-        }
-    }
     for mut visible in &mut help {
-        *visible = if state.help && !display.editing && !display.inspecting {
+        *visible = if state.help {
             Visibility::Visible
         } else {
             Visibility::Hidden
