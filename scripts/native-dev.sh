@@ -8,7 +8,7 @@ if (( $# )); then shift; fi
 
 case "$operation" in
   build)
-    exec cargo build --locked --features desktop --bin greywrought-desktop --bin native_probe --target-dir build/desktop-target -j 2 "$@"
+    exec cargo build --locked --features desktop --bin greywrought-desktop --target-dir build/desktop-target -j 2 "$@"
     ;;
   play)
     for library in x11 xcursor xi xrandr xkbcommon vulkan; do

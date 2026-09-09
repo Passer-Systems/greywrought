@@ -16,7 +16,7 @@
         inherit system;
         overlays = [ rust-overlay.overlays.default ];
       };
-      rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./vendor/clause/rust-toolchain.toml;
+      rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
     in {
       devShells.${system}.default = pkgs.mkShell {
         packages = [ rustToolchain pkgs.bun pkgs.pkg-config pkgs.libx11 pkgs.libxcursor pkgs.libxi pkgs.libxrandr pkgs.libxkbcommon pkgs.vulkan-loader ];
