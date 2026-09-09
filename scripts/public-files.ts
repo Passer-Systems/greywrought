@@ -10,6 +10,9 @@ const entryAssetFiles = await Array.fromAsync(
 );
 
 export const files: readonly (readonly [string, string])[] = [
+  ...["frost-waltz.mp3", "strike.ogg", "hit.ogg", "brace.ogg", "potion.ogg", "gather.ogg", "purchase.ogg", "windup.ogg", "alarm.ogg", "defeat.ogg", "extraction.ogg", "SOURCE.md", "Kenney-RPG-LICENSE.txt", "Kenney-Interface-LICENSE.txt"].map((name): readonly [string, string] => [
+    `assets/audio/${name}`, `dist/assets/audio/${name}`,
+  ]),
   ["src/host/play.html", "dist/index.html"],
   ["src/host/favicon.svg", "dist/favicon.svg"],
   ["src/host/site.webmanifest", "dist/site.webmanifest"],
