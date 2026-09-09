@@ -7,13 +7,17 @@
 - Added an enforced release-size manifest and CI budgets.
 - Added daily production verification with retained failure evidence.
 - Added versioned campaign-save migration, corrupt-save recovery, and safe
-  handling for unknown future saves while preserving Clause authority.
+  handling for unknown future saves.
 - Added remappable keyboard controls, standard gamepad support, reduced-motion,
   high-contrast, and larger-text preferences.
 - Added favicon, install manifest, description, theme, and social metadata.
 
 ## 0.1.0 — 2026-09-02
 
-- Published the portable three-expedition Greywrought Clause campaign.
-- Added exact Clause submodule pinning, native/Wasm/browser CI, persistence, hot
-  source editing, liveness gates, and GitHub Pages delivery.
+- Published the first Greywrought browser expedition with persistence and
+  GitHub Pages delivery.
+
+## 0.3.0 — 2026-09-08
+
+- Pivoted the live game to ordinary TypeScript, Three.js, and Bun.
+- Added a fast development server with automatic browser reload on source saves.

@@ -8,6 +8,7 @@
     "typecheck": "bun ./node_modules/typescript/bin/tsc --noEmit",
     "dev": "bun scripts/dev-server.ts",
     "build:host": "bun scripts/build-host.ts",
+    "build": "bun run build:static",
     "play": "bun run dev",
     "typecheck:host": "bun run typecheck",
     "test:host": "bun run typecheck",
