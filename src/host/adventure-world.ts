@@ -12,6 +12,8 @@ import { buildFrostwood } from "./frostwood-scenery.js";
 import { createGroundTelegraphs } from "./ground-telegraphs.js";
 import { createRemotePlayers, type RemotePlayerView } from "./remote-player.js";
 import { createSnapshotInterpolation } from "./snapshot-interpolation.js";
+import { createChatBubbles } from "./chat-bubbles.js";
+import type { SharedChatMessage } from "../game/multiplayer-types.js";
 
 interface ThreatRig {
   readonly root: Group;
@@ -44,6 +46,7 @@ export interface AdventureWorld {
   readonly ready: Promise<void>;
   render(snapshot: AdventureSnapshot, delta: number, localPlayer?: AdventureSnapshot['player'], serverTime?: number): void;
   updatePlayers(players: readonly RemotePlayerView[]): void;
+  updateChat(messages: readonly SharedChatMessage[], localPlayerId: string): void;
   orbit(dx: number, dy: number): void;
   zoom(delta: number): void;
   forward(): { x: number; z: number };
@@ -175,6 +178,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const player = new Group();
   player.userData.localPlayer = true;
   scene.add(player);
+  const chatBubbles = createChatBubbles(host, scene, camera, player);
   const playerArchetype = initial.player.archetype;
   const shield = new Mesh(new SphereGeometry(0.95, 20, 12), new MeshBasicMaterial({ color: 0x9bdfff, transparent: true, opacity: 0.22, wireframe: true, depthWrite: false }));
   shield.position.y = 0.9;
@@ -202,6 +206,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let playerProjectileFrom = new Vector3();
   let playerProjectileTo = new Vector3();
   let lastHealth = initial.player.health;
+  let lastFacing = initial.player.facing;
   let playerHitRemaining = 0;
   let playerDead = false;
   const cameraTarget = new Vector3(initial.player.position.x, 0, initial.player.position.z);
@@ -259,6 +264,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   return {
     canvas, ready, forward,
     updatePlayers(players) { if (!disposed) otherPlayers = players; },
+    updateChat(messages, localPlayerId) { if (!disposed) chatBubbles.update(messages, localPlayerId); },
     orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.22, pitch + dy * 0.004)); },
     zoom(delta) { distance = Math.max(6, Math.min(18, distance * Math.exp(delta * 0.001))); },
     projectThreat(id) {
@@ -297,7 +303,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       player.position.set(localPlayer.position.x, localPlayer.position.y, localPlayer.position.z);
       const position = player.position;
       const face = snapshot.player.facing;
-      if (snapshot.player.moving || snapshot.player.maneuver !== "none") player.rotation.y = Math.atan2(face.x, face.z);
+      if (snapshot.player.moving || snapshot.player.maneuver !== "none" || face.x !== lastFacing.x || face.z !== lastFacing.z) {
+        player.rotation.y = Math.atan2(face.x, face.z);
+      }
+      lastFacing = face;
       const selected = snapshot.threats.find((threat) => threat.id === snapshot.selectedThreat);
       if (snapshot.player.attackSequence !== lastAttack && knight) {
         if (selected) {
@@ -447,11 +456,13 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
       camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
       renderer.render(scene, camera);
+      chatBubbles.render();
     },
     dispose() {
       if (disposed) return;
       disposed = true;
       remotePlayers.dispose();
+      chatBubbles.dispose();
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();
       disposeObjects(scene);

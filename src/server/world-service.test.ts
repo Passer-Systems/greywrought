@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Server } from 'bun';
@@ -87,6 +87,8 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(await first.command({ type: 'chat', text: 'Meet at the gate.' })).toBe(true);
     const heard = await second.state(state => state.chat.some(message => message.text === 'Meet at the gate.'));
     expect(heard.chat.at(-1)?.name).toBe('Alden');
+    expect(heard.chat.at(-1)?.speakerId).toBe('first');
+    expect(await first.invalid({ type: 'chat', text: 'Forged speaker', speakerId: 'second' })).toBe(false);
     expect(await first.invalid({ type: 'action', action: 'teleport', pressed: true })).toBe(false);
     expect(await first.invalid({ type: 'camera', x: 1e100, z: 0 })).toBe(false);
     expect(await first.invalid({ type: 'action', action: 'forward', pressed: true, save: 'forged' })).toBe(false);
@@ -104,6 +106,9 @@ test('two socket clients share movement and chat; saved identity survives restar
     await service.close(); server.stop(true);
     const savedSource = await readFile(savePath, 'utf8');
     expect(savedSource.includes(firstToken)).toBe(false);
+    const legacySave = JSON.parse(savedSource);
+    delete legacySave.chat[1].speakerId;
+    await writeFile(savePath, JSON.stringify(legacySave));
     service = await createWorldService({ savePath }); listen();
     const imposter = client(); await imposter.connect(firstCharacter, crypto.randomUUID());
     expect((await imposter.wait(message => message.type === 'error')).type).toBe('error');
@@ -116,6 +121,8 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(restored.snapshot.player.position.x).toBeGreaterThan(initial.x + 0.4);
     expect(restored.snapshot.player.moving).toBe(false);
     expect(restored.chat.some(message => message.text === 'Meet at the gate.')).toBe(true);
+    expect(restored.chat.find(message => message.text === 'Meet at the gate.')?.speakerId).toBe('first');
+    expect(restored.chat.find(message => message.text === 'Two')?.speakerId).toBeNull();
     const latest = await returning.state(state => state !== restored);
     expect(latest.snapshot.player.position).toEqual(restored.snapshot.player.position);
   } finally {

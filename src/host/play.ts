@@ -458,6 +458,10 @@ function bindWorld(app: RunningAdventure): void {
   const { canvas } = app.world;
   let buttons = 0;
   let lastX = 0; let lastY = 0; let dragDistance = 0;
+  const steerCharacter = () => {
+    const direction = app.world.forward();
+    app.game.setCameraForward(direction.x, direction.z);
+  };
   listen(canvas, "pointerdown", (event) => {
     if (!(event instanceof PointerEvent) || paused || !app.ready || event.button > 2) return;
     event.preventDefault();
@@ -465,6 +469,7 @@ function bindWorld(app: RunningAdventure): void {
     buttons = event.buttons;
     lastX = event.clientX; lastY = event.clientY; dragDistance = 0;
     canvas.setPointerCapture(event.pointerId);
+    if (buttons & 2) steerCharacter();
     app.game.setMouseForward((buttons & 3) === 3);
   }, app.unbind);
   listen(canvas, "pointermove", (event) => {
@@ -477,7 +482,7 @@ function bindWorld(app: RunningAdventure): void {
     lastX = event.clientX; lastY = event.clientY;
     dragDistance += Math.abs(dx) + Math.abs(dy);
     app.world.orbit(dx, dy);
-    const direction = app.world.forward(); app.game.setCameraForward(direction.x, direction.z);
+    if (buttons & 2) steerCharacter();
   }, app.unbind);
   listen(canvas, "pointerup", (event) => {
     if (!(event instanceof PointerEvent)) return;
@@ -507,6 +512,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     const game = await connectAdventure(character);
     audio.reset();
     const world = createAdventureWorld(element("world-wrap"), game.snapshot);
+    world.updateChat(game.chat, character.id);
     const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false };
     running = app;
     bindWorld(app);
@@ -683,6 +689,7 @@ function tick(now: number): void {
   const snapshot = running.game.snapshot;
   audio.update(snapshot, route !== "world");
   running.world.updatePlayers(running.game.players.filter(player => player.id !== running!.character.id));
+  running.world.updateChat(running.game.chat, running.character.id);
   running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime);
   if (now + 0.5 >= nextHudTime) {
     renderHud(snapshot);

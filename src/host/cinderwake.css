@@ -2108,7 +2108,6 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-enemy-move:hover .combat-plan-tooltip,.combat-plan-enemy-move:focus-visible .combat-plan-tooltip {display:block;}
 .combat-plan-help {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
 .combat-plan-feedback {height:16px;margin:2px 0 0;color:#ead6ac;text-align:center;font-size:var(--ui-font-small);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-body[data-game-combat-plan=true] .unit-frames {top:auto;bottom:calc(var(--combat-hud-height,310px) + 30px);}
 @media(max-width:850px) {
   .combat-plan {padding:6px 8px;}
   .combat-plan-help {font-size:var(--ui-font-tiny);}

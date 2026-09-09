@@ -96,8 +96,9 @@ function decodeSave(source: string): SavedService {
   for (const entry of value.chat) {
     if (!record(entry) || !finite(entry.id, 1, value.nextChatId - 1, true) || typeof entry.name !== 'string'
       || normalizedCharacterName(entry.name) !== entry.name || typeof entry.text !== 'string'
-      || !command({ type: 'chat', text: entry.text }) || (chat.at(-1)?.id ?? 0) >= entry.id) throw new Error('Invalid saved shared chat');
-    chat.push({ id: entry.id, name: entry.name, text: entry.text });
+      || !command({ type: 'chat', text: entry.text }) || (chat.at(-1)?.id ?? 0) >= entry.id
+      || (entry.speakerId !== undefined && entry.speakerId !== null && (!identifier(entry.speakerId) || !ids.has(entry.speakerId)))) throw new Error('Invalid saved shared chat');
+    chat.push({ id: entry.id, speakerId: typeof entry.speakerId === 'string' ? entry.speakerId : null, name: entry.name, text: entry.text });
   }
   return { version: 1, accounts, world: value.world, chat, nextChatId: value.nextChatId };
 }
@@ -196,7 +197,7 @@ export async function createWorldService(options: WorldServiceOptions) {
         socket.data.chatsAt.push(now);
         const account = accounts.get(socket.data.id!);
         if (!account) return false;
-        chat.push({ id: nextChatId++, name: account.character.name, text: value.text.trim() });
+        chat.push({ id: nextChatId++, speakerId: account.character.id, name: account.character.name, text: value.text.trim() });
         if (chat.length > 100) chat.shift();
         broadcast();
         break;

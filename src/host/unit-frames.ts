@@ -30,7 +30,7 @@ function health(frame: Frame, name: string, current: number, maximum: number, ta
   frame.root.setAttribute("aria-label", `${name}, ${current <= 0 ? "dead" : `${Math.ceil(current)} of ${maximum} health`}`);
 }
 const styles = `
-.unit-frames { position:absolute; top:min(68%, calc(100% - 205px)); left:50%; transform:translateX(-50%); width:min(820px, calc(100% - 28px)); display:grid; grid-template-columns:minmax(0,250px) minmax(160px,320px) minmax(0,250px); align-items:start; pointer-events:none; color:#f4e5ba; font:var(--ui-font-small)/1.2 system-ui,sans-serif; filter:drop-shadow(0 2px 2px #000b); }
+.unit-frames { position:absolute; bottom:310px; height:66px; left:50%; transform:translateX(-50%); width:min(820px, calc(100% - 28px)); display:grid; grid-template-columns:minmax(0,250px) minmax(160px,320px) minmax(0,250px); align-items:start; pointer-events:none; color:#f4e5ba; font:var(--ui-font-small)/1.2 system-ui,sans-serif; filter:drop-shadow(0 2px 2px #000b); }
 .unit-frame { position:relative; display:flex; align-items:center; height:66px; min-width:0; }
 .unit-frame-player { grid-column:1; }
 .unit-frame-target-group { grid-column:3; min-width:0; }
@@ -55,7 +55,8 @@ const styles = `
 .unit-frame-tot .unit-frame-health { height:14px; }
 .unit-frame-tot .unit-frame-value { font-size:var(--ui-font-tiny); line-height:12px; }
 .unit-frame[hidden],.unit-frame-target-group[hidden] { display:none; }
-@media(max-width:700px) { .unit-frames { width:calc(100% - 20px); grid-template-columns:minmax(0,1fr) minmax(70px,20vw) minmax(0,1fr); top:min(66%,calc(100% - 190px)); } .unit-frame-portrait { flex-basis:48px; width:48px; height:48px; } .unit-frame { height:52px; } .unit-frame-name { font-size:var(--ui-font-tiny); } .unit-frame-tot { width:130px; height:37px; } }
+@media(max-width:850px) { .unit-frames {bottom:456px;} }
+@media(max-width:700px) { .unit-frames { width:calc(100% - 20px); grid-template-columns:minmax(0,1fr) minmax(70px,20vw) minmax(0,1fr); height:52px; } .unit-frame-portrait { flex-basis:48px; width:48px; height:48px; } .unit-frame { height:52px; } .unit-frame-name { font-size:var(--ui-font-tiny); } .unit-frame-tot { width:130px; height:37px; } }
 `;
 
 export function createUnitFrames(host: HTMLElement) {
