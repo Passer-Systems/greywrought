@@ -1,4 +1,4 @@
-import { CanvasTexture, Group, Mesh, MeshBasicMaterial, SkinnedMesh, Sprite, SpriteMaterial, SRGBColorSpace, Vector3 } from "three";
+import { Group, Mesh, MeshBasicMaterial, SkinnedMesh, Vector3 } from "three";
 import type { RemotePlayerView } from "../game/multiplayer-types.js";
 export type { RemotePlayerView } from "../game/multiplayer-types.js";
 import { actor, type ForestActor } from "./frostwood-assets.js";
@@ -10,13 +10,7 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
     root.userData.playerId = view.id;
     const target = new Vector3(view.player.position.x, view.player.position.y, view.player.position.z);
     root.position.copy(target);
-    const canvas = document.createElement("canvas");
-    canvas.width = 384; canvas.height = 80;
-    const context = canvas.getContext("2d")!;
-    const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
-    const plate = new Sprite(new SpriteMaterial({ map: texture, transparent: true, depthWrite: false, sizeAttenuation: false }));
-    plate.scale.set(0.14, 0.14 * 80 / 384, 1); plate.position.y = 2.65;
-    root.add(plate); scene.add(root);
+    scene.add(root);
     let mounted: ForestActor | null = null;
     let disposed = false;
     let current = view;
@@ -24,7 +18,6 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
     let lastHealth = view.player.health;
     let dead = false;
     let actionRemaining = 0;
-    let plateText = "";
     function disposeActor(value: ForestActor) {
       value.dispose();
       value.model.traverse(object => { if (object instanceof SkinnedMesh) object.skeleton.dispose(); });
@@ -40,6 +33,9 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
       root.userData.rigState = "ready";
     }).catch(error => { root.userData.rigState = "failed"; console.error("Unable to load companion character", error); });
     return {
+      root,
+      get name() { return current.name; },
+      get alive() { return current.player.health > 0; },
       archetype: view.player.archetype,
       update(next: RemotePlayerView) { current = next; target.set(next.player.position.x, next.player.position.y, next.player.position.z); },
       render(delta: number) {
@@ -47,18 +43,6 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
         root.position.copy(target);
         const facing = Math.atan2(player.facing.x, player.facing.z);
         root.rotation.y = facing;
-        const nextText = `${current.name} · ${Math.ceil(player.health)}/${player.maximumHealth}`;
-        if (plateText !== nextText) {
-          plateText = nextText;
-          context.clearRect(0, 0, 384, 80);
-          context.font = "bold 28px system-ui"; context.textAlign = "center"; context.textBaseline = "middle";
-          context.lineWidth = 5; context.strokeStyle = "#10201d"; context.fillStyle = "#c8f4e3";
-          context.strokeText(nextText, 192, 27, 375); context.fillText(nextText, 192, 27, 375);
-          context.fillStyle = "#152620dd"; context.fillRect(72, 54, 240, 10);
-          context.fillStyle = player.health > 0 ? "#72dbaa" : "#bd6c68";
-          context.fillRect(72, 54, 240 * Math.max(0, Math.min(1, player.health / player.maximumHealth)), 10);
-          texture.needsUpdate = true;
-        }
         if (!mounted) return;
         actionRemaining = Math.max(0, actionRemaining - delta);
         if (player.health <= 0) {
@@ -75,7 +59,7 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
         lastHealth = player.health; lastAttack = player.attackSequence;
         mounted.mixer.update(delta);
       },
-      dispose() { disposed = true; if (mounted) disposeActor(mounted); texture.dispose(); plate.material.dispose(); root.removeFromParent(); },
+      dispose() { disposed = true; if (mounted) disposeActor(mounted); root.removeFromParent(); },
     };
   }
   return {
@@ -89,6 +73,7 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
         rig.update(player);
       }
     },
+    entries() { return rigs.entries(); },
     render(delta: number) { for (const rig of rigs.values()) rig.render(delta); },
     dispose() { for (const rig of rigs.values()) rig.dispose(); rigs.clear(); },
   };

@@ -5,6 +5,8 @@
   --ui-font-prominent: 14px;
   --ui-font-heading: 16px;
   --ui-font-title: 18px;
+  --ui-slot-size: 35px;
+  --ui-slot-gap: 4px;
   --cinder-ink: #050306;
   --cinder-panel: #100a0dcc;
   --cinder-rim: #e76f3e42;
@@ -2117,8 +2119,8 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
   #route-objective { font-size: var(--ui-font-prominent); }
 }
 
-.adventure-actions {gap:4px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;}
-.adventure-actions button {width:35px;height:51px;border:0;background:none;}
+.adventure-actions {gap:var(--ui-slot-gap);padding:0;border:0;border-radius:0;background:none;box-shadow:none;}
+.adventure-actions button {width:var(--ui-slot-size);height:calc(var(--ui-slot-size) + 16px);border:0;background:none;}
 .adventure-actions button kbd {height:14px;color:#eee3c9;font:700 var(--ui-font-small)/14px Georgia,serif;text-shadow:0 1px 3px #000;}
 .adventure-actions .action-art {inset:16px 0 0;border:1px solid #b6aa87;border-radius:0;}
 .adventure-actions .action-recovery-shade {height:calc(var(--recovery,0) * 31px);}
@@ -2126,7 +2128,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .adventure-actions button:hover .action-art {border-color:#ffe5a8;}
 .adventure-actions .action-empty .action-art {background:#10191542;border-color:#adaf9d8c;}
 .adventure-actions .action-empty:disabled {cursor:default;}
-@media(max-width:480px) {.adventure-actions {gap:3px;} .adventure-actions button {width:calc((100vw - 55px) / 12);height:calc((100vw - 55px) / 12 + 16px);}}
+@media(max-width:480px) {:root {--ui-slot-size:calc((100vw - 55px) / 12);--ui-slot-gap:3px;}}
 
 .system-menu {position:absolute;right:12px;bottom:12px;z-index:36;display:flex;gap:5px;pointer-events:auto;}
 .system-menu > button {position:relative;display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;padding:3px;border:2px ridge #a99b79;border-radius:3px;background:linear-gradient(#d4c7a5,#8b8065);box-shadow:0 2px 5px #0008,inset 0 0 0 1px #33382c;color:#fff0c9;cursor:pointer;}
@@ -2137,3 +2139,19 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .system-menu-tooltip kbd {margin-left:10px;color:#ceb980;font:var(--ui-font-small) system-ui,sans-serif;}
 .system-menu > button:hover .system-menu-tooltip,.system-menu > button:focus-visible .system-menu-tooltip {display:block;}
 @media(max-width:560px) {.system-menu {bottom:180px;}}
+
+/* Range changes the artwork; costs, clocks, damage and names stay readable. */
+.adventure-actions [data-range=out] .action-art img,
+.combat-plan-move[data-range=out] > img,
+.combat-plan-enemy-move[data-range=out] .combat-plan-enemy-art > img,
+.nameplate-ability[data-range=out] .nameplate-ability-art {
+  filter:saturate(.12) brightness(.65);opacity:.58;
+}
+.adventure-actions [data-range=out] .action-art::after,
+.combat-plan-move[data-range=out]::after,
+.combat-plan-enemy-move[data-range=out] .combat-plan-enemy-art::after,
+.nameplate-ability[data-range=out] .nameplate-ability-square::after {
+  content:"↔";position:absolute;top:0;right:0;z-index:1;padding:0 2px;
+  color:#f1dab0;background:#101717ed;font:bold 12px/12px system-ui;
+  text-decoration:line-through;pointer-events:none;
+}

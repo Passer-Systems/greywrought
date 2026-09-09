@@ -12,6 +12,7 @@ import { buildFrostwood } from "./frostwood-scenery.js";
 import { createGroundTelegraphs } from "./ground-telegraphs.js";
 import { createRemotePlayers, type RemotePlayerView } from "./remote-player.js";
 import { createSnapshotInterpolation } from "./snapshot-interpolation.js";
+import { createOverheadNames } from "./overhead-names.js";
 import { createChatBubbles } from "./chat-bubbles.js";
 import type { SharedChatMessage } from "../game/multiplayer-types.js";
 
@@ -64,6 +65,7 @@ export interface AdventureWorld {
   pick(x: number, y: number): WorldPick | null;
   hover(x: number, y: number): void;
   clearHover(): void;
+  setThreatNameplateVisible(id: string, visible: boolean): void;
   projectThreat(id: string): { x: number; y: number; feetY: number } | null;
   dispose(): void;
 }
@@ -172,6 +174,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const player = new Group();
   player.userData.localPlayer = true;
   scene.add(player);
+  const overheadNames = createOverheadNames(host, camera);
   const chatBubbles = createChatBubbles(host, scene, camera, player);
   const playerArchetype = initial.player.archetype;
   const shield = new Mesh(new SphereGeometry(0.95, 20, 12), new MeshBasicMaterial({ color: 0x9bdfff, transparent: true, opacity: 0.22, wireframe: true, depthWrite: false }));
@@ -307,6 +310,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     updateChat(messages, localPlayerId) { if (!disposed) chatBubbles.update(messages, localPlayerId); },
     orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.22, pitch + dy * 0.004)); },
     zoom(delta) { distance = Math.max(6, Math.min(18, distance * Math.exp(delta * 0.001))); },
+    setThreatNameplateVisible(id, visible) { overheadNames.suppress(`threat:${id}`, visible); },
     projectThreat(id) {
       const rig = rigs.get(id); if (!rig || !rig.root.visible) return null;
       const head = rig.root.position.clone().add(new Vector3(0, rig.height + rig.body.position.y + 0.25, 0)).project(camera);
@@ -483,6 +487,15 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
       renderer.render(scene, camera);
       updateHover();
+      overheadNames.begin();
+      overheadNames.show("npc:mara", "Mara", mara, 2.35, "friendly");
+      overheadNames.show("npc:rowan", "Rowan", rowan, 2.35, "friendly");
+      for (const [id, rig] of remotePlayers.entries()) overheadNames.show(`player:${id}`, rig.name, rig.root, 2.35, "player", rig.alive);
+      for (const threat of snapshot.threats) {
+        const rig = rigs.get(threat.id);
+        if (rig) overheadNames.show(`threat:${threat.id}`, threat.name, rig.root, rig.height + rig.body.position.y + 0.25, threat.aggro ? "hostile" : threat.disposition, threat.active && threat.health > 0);
+      }
+      overheadNames.end();
       chatBubbles.render();
     },
     dispose() {
@@ -492,6 +505,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       tooltip.remove();
       remotePlayers.dispose();
       chatBubbles.dispose();
+      overheadNames.dispose();
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();
       disposeObjects(scene);

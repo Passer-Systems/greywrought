@@ -21,6 +21,7 @@ import { createCombatPlan } from "./combat-plan.js";
 import { updateQuestTracker } from "./quest-tracker.js";
 import { connectAdventure, type NetworkAdventure } from "./network-adventure.js";
 import { publicUrl } from "./public-url.js";
+import { playerRange } from "./combat-range.js";
 
 declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
 
@@ -39,6 +40,7 @@ const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => u
 const chatLog = createChatLog(element("adventure-hud"), text => running?.game.sendChat(text));
 const unitFrames = createUnitFrames(element("adventure-hud"));
 const combatPlan = createCombatPlan(element("combat-plan-mount"), {
+  rangeAudience: () => running ? { selfId: running.character.id, players: running.game.players } : undefined,
   onSelect: () => { if (running?.ready) renderHud(running.game.snapshot); },
   onReplace: (id, action) => {
     if (!running?.ready || paused) return false;
@@ -452,9 +454,11 @@ function renderHud(snapshot: AdventureSnapshot): void {
     if (control) {
       control.disabled = !available || full || availableStamina < cost;
       control.style.setProperty("--recovery", "0");
+      control.dataset.range = available ? playerRange(snapshot, action).state : "none";
     }
     const detail = !available ? "Select a living enemy in the forest" : full ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " free stamina" : (replacing ? "Replace · " : "Queue · ") + cost + " stamina";
-    text(label, detail);
+    const range = available ? playerRange(snapshot, action) : null;
+    text(label, detail + (range?.text ? " · " + range.text : ""));
   }
   const recovery = element("player-action-bar");
   recovery.hidden = player.actionCooldown <= 0.001;
@@ -757,7 +761,7 @@ function tick(now: number): void {
     renderHud(snapshot);
     nextHudTime = Math.max(nextHudTime + 50, now);
   }
-  nameplates?.render(snapshot, running.world);
+  nameplates?.render(snapshot, running.world, { selfId: running.character.id, players: running.game.players });
   running.saveClock += delta;
   if (running.saveClock >= 1) { running.saveClock = 0; save(); }
   scheduleFrame();

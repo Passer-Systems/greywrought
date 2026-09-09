@@ -12,12 +12,12 @@ type Item = typeof itemTypes[number];
 export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): void; onClose(): void }) {
   const style = document.createElement("style");
   style.textContent = `
-    #bag-panel { position:absolute; z-index:28; right:18px; bottom:154px; width:278px; max-width:calc(100% - 24px); max-height:calc(100% - 174px); overflow:auto; padding:0; border:3px ridge #78796b; border-radius:5px; color:#e5e0d1; background:repeating-linear-gradient(115deg,#171a19 0px,#171a19 2px,#191c1b 3px,#191c1b 5px); box-shadow:0 0 0 1px #171912,0 8px 28px #000b,inset 0 0 14px #000; font:var(--ui-font-body) Georgia,serif; pointer-events:auto; }
+    #bag-panel { position:absolute; z-index:28; right:18px; bottom:154px; width:calc(4 * var(--ui-slot-size) + 5 * var(--ui-slot-gap) + 6px); max-width:calc(100% - 24px); max-height:calc(100% - 174px); overflow:auto; padding:0; border:3px ridge #78796b; border-radius:5px; color:#e5e0d1; background:repeating-linear-gradient(115deg,#171a19 0px,#171a19 2px,#191c1b 3px,#191c1b 5px); box-shadow:0 0 0 1px #171912,0 8px 28px #000b,inset 0 0 14px #000; font:var(--ui-font-body) Georgia,serif; pointer-events:auto; }
     #bag-panel[hidden], #bag-panel [hidden] { display:none; }
     #bag-panel button { cursor:pointer; }
     #bag-panel button:focus-visible { outline:2px solid #ebcc7d; outline-offset:2px; }
-    #bag-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin:10px; padding:5px; border:2px groove #626658; background:#080c0b; }
-    #bag-panel [data-bag-slot] { position:relative; display:block; aspect-ratio:1; width:100%; min-width:0; padding:2px; border:2px ridge #747c70; border-radius:3px; background:radial-gradient(#222821,#090d0b); box-shadow:inset 0 0 6px #000; }
+    #bag-grid { display:grid; grid-template-columns:repeat(4,var(--ui-slot-size)); gap:var(--ui-slot-gap); margin:var(--ui-slot-gap); padding:0; border:0; }
+    #bag-panel [data-bag-slot] { position:relative; display:block; width:var(--ui-slot-size); height:var(--ui-slot-size); min-width:0; padding:0; border:1px solid #b6aa87; border-radius:0; background:radial-gradient(#222821,#090d0b); box-shadow:inset 0 0 6px #000; }
     #bag-panel [data-bag-slot]:disabled { border-color:#3f493d; cursor:default; }
     #bag-panel [data-bag-item]:hover, #bag-panel [data-bag-slot][aria-pressed="true"] { border-color:#e4c978; box-shadow:0 0 4px #c2ad6980,inset 0 0 5px #c2ad6940; }
     #bag-panel [data-bag-slot] img:not([hidden]) { display:block; width:100%; height:100%; object-fit:contain; }

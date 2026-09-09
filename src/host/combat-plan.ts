@@ -1,5 +1,6 @@
 import type { AdventureSnapshot, CombatAction, QueuedCombatAction, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
+import { enemyRange, playerRange, type RangeAudience } from "./combat-range.js";
 
 const actions: Record<CombatAction, { name: string; icon: string }> = {
   strike: { name: "Lunge", icon: "sword-strike" },
@@ -29,6 +30,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   onRemove: (id: number) => void;
   onClear: () => void;
   onMove: (id: number, offsetSeconds: number) => void;
+  rangeAudience?: () => RangeAudience | undefined;
 }) {
   const root = node("section", "combat-plan", host); root.id = "combat-plan"; root.hidden = true;
   root.setAttribute("aria-label", "Shared combat timing");
@@ -98,7 +100,9 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     if (view.tile.parentElement !== cell) cell.append(view.tile);
     const beat = Math.min(2, Math.max(0, Math.floor(seconds)));
     const state = status === "stored" ? "Stored opener" : status === "pending" ? "Planned" : status === "active" ? "In progress" : "Resolved";
-    const detail = enemy.name + " · " + ability.name + "\n" + ability.damage + " damage · Turn " + (beat + 1) + " · " + seconds.toFixed(2).replace(/0$/, "") + "s · " + state + "\n" + ability.description;
+    const range = status === "resolved" || !snapshot ? null : enemyRange(snapshot, enemy, ability, callbacks.rangeAudience?.());
+    view.tile.dataset.range = range?.state ?? "none";
+    const detail = enemy.name + " · " + ability.name + "\n" + ability.damage + " damage · Turn " + (beat + 1) + " · " + seconds.toFixed(2).replace(/0$/, "") + "s · " + state + "\n" + ability.description + (range?.text ? "\n" + range.text : "");
     view.tile.setAttribute("aria-label", detail);
     Object.assign(view.tile.dataset, { enemyId: enemy.id, abilityId: ability.id, offset: String(seconds), status });
     write(view.damage, status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "");
@@ -129,7 +133,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       root.hidden = next.phase !== "expedition" || (!enemy && combat.phase === "idle");
       Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
       const choosing = combat.phase === "choosing";
-      const phaseLabel = combat.phase === "idle" ? enemy?.canStrike ? "Ready" : "Out of range" : choosing ? "Choosing" : combat.phase === "preparation" ? "Prepare " + combat.remainingSeconds.toFixed(1) + "s" : "Active";
+      const phaseLabel = combat.phase === "idle" ? playerRange(next, "strike").state === "out" ? "Out of range" : "Ready" : choosing ? "Choosing" : combat.phase === "preparation" ? "Prepare " + combat.remainingSeconds.toFixed(1) + "s" : "Active";
       write(phase, "Combat · " + phaseLabel);
       phase.title = "Round " + combat.cycle + " · three action turns, then preparation";
       write(resources, combat.availableStamina + " stamina");
@@ -188,7 +192,9 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         write(costLabel, String(move.cost)); costLabel.title = move.cost + " stamina";
         button.setAttribute("aria-pressed", String(move.id === selectedId));
         const target = next.threats.find(threat => threat.id === move.targetId)?.name;
-        const label = moveName + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina" + (target ? " · " + target : "") + " · " + move.status + (move.reason ? ": " + move.reason : "");
+        const range = move.status === "pending" ? playerRange(next, move.action, move.targetId) : null;
+        button.dataset.range = range?.state ?? "none";
+        const label = moveName + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina" + (target ? " · " + target : "") + " · " + move.status + (move.reason ? ": " + move.reason : "") + (range?.text ? " · " + range.text : "");
         button.title = label + (move.status === "pending" ? " · Click to replace · Right-click to remove" : ""); button.setAttribute("aria-label", label);
         write(button.querySelector<HTMLElement>(".combat-plan-move-time")!, move.status === "executed" ? "✓" : move.status === "failed" ? "×" : move.offsetSeconds.toFixed(1) + "s");
       }

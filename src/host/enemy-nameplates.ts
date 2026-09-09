@@ -1,6 +1,7 @@
 import type { AdventureSnapshot, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
 import type { AdventureWorld } from "./adventure-world.js";
 import { publicUrl } from "./public-url.js";
+import { enemyRange, type RangeAudience } from "./combat-range.js";
 
 interface AbilityIcon { button: HTMLButtonElement; icon: HTMLElement; clock: HTMLElement; tooltip: HTMLElement; }
 interface Plate {
@@ -22,7 +23,7 @@ function abilityIcon(parent: HTMLElement, enemyId: string, slot: "current" | "ne
   button.setAttribute("aria-describedby", tooltip.id);
   return { button, icon, clock, tooltip };
 }
-function renderAbility(view: AbilityIcon, ability: ThreatAbilityView, threat: ThreatView, next: boolean, forecast?: ThreatView["forecast"][number]): void {
+function renderAbility(view: AbilityIcon, ability: ThreatAbilityView, threat: ThreatView, next: boolean, snapshot: AdventureSnapshot, audience: RangeAudience | undefined, forecast?: ThreatView["forecast"][number]): void {
   if (view.button.dataset.abilityId !== ability.id) {
     view.button.dataset.abilityId = ability.id;
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute("viewBox", "0 0 32 32"); svg.setAttribute("aria-hidden", "true");
@@ -45,10 +46,12 @@ function renderAbility(view: AbilityIcon, ability: ThreatAbilityView, threat: Th
   const sameWindowAction = windowAction && windowAction.ability.id === ability.id;
   const beat = sameWindowAction ? " Turn " + (Math.round(windowAction.offsetSeconds) + 1) + "." : "";
   const timing = stored ? "Stored opener: used on engagement as soon as you are in range." : active ? "Resolving now." : "Happens in " + seconds.toFixed(1) + " seconds. This move is already committed.";
-  const facts = [ability.damage > 0 ? ability.damage + " damage" : "Power / defense", ability.range > 0 ? ability.range + " m range" : "Self"];
-  const detail = [ability.name, facts.join(" · "), ability.description, timing + beat].join("\n");
+  const range = enemyRange(snapshot, threat, ability, audience);
+  view.button.dataset.range = range.state;
+  const facts = [ability.damage > 0 ? ability.damage + " damage" : "Power / defense", ability.damage <= 0 ? "Self" : ability.id === "maul" ? "8 m leap · " + ability.range + " m impact radius" : ability.range + " m range"];
+  const detail = [ability.name, facts.join(" · "), ability.description, timing + beat, range.text].filter(Boolean).join("\n");
   write(view.tooltip, detail);
-  view.button.setAttribute("aria-label", (active ? "Active" : stored ? "Opener" : next ? "Then" : "Next") + ": " + ability.name + ". " + timing);
+  view.button.setAttribute("aria-label", (active ? "Active" : stored ? "Opener" : next ? "Then" : "Next") + ": " + ability.name + ". " + timing + (range.text ? " " + range.text : ""));
 
 }
 export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnapshot) {
@@ -85,13 +88,14 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
   let nextContentTime = 0;
   let bounds = { width: 0, height: 0 };
   return {
-    render(snapshot: AdventureSnapshot, world: AdventureWorld) {
+    render(snapshot: AdventureSnapshot, world: AdventureWorld, audience?: RangeAudience) {
       const now = performance.now();
       const refresh = now >= nextContentTime;
       if (refresh) { nextContentTime = now + 50; bounds = host.getBoundingClientRect(); }
       const visible = snapshot.threats.map(threat => ({ threat, anchor: world.projectThreat(threat.id) })).filter(({ threat, anchor }) =>
         anchor && threat.active && threat.health > 0 && Math.hypot(threat.position.x - snapshot.player.position.x, threat.position.z - snapshot.player.position.z) < 18);
       const visibleIds = new Set(visible.map(({ threat }) => threat.id));
+      for (const threat of snapshot.threats) if (!visibleIds.has(threat.id)) world.setThreatNameplateVisible(threat.id, false);
       if (refresh) for (const threat of snapshot.threats) {
         const plate = plates.get(threat.id); if (!plate) continue;
         plate.root.hidden = !visibleIds.has(threat.id);
@@ -126,7 +130,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
           const active = choosing ? null : threat.currentActivity;
           plate.current.button.hidden = false;
           if (active) {
-            renderAbility(plate.current, active.ability, threat, false, active);
+            renderAbility(plate.current, active.ability, threat, false, snapshot, audience, active);
             plate.next.button.hidden = true;
             plate.nextArrow.hidden = true;
           }
@@ -137,12 +141,13 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
               const symbol = document.createElement("span"); symbol.className = "nameplate-pause-symbol"; symbol.textContent = "Ⅱ"; plate.current.icon.replaceChildren(symbol);
             }
             plate.current.button.dataset.state = "waiting";
+            plate.current.button.dataset.range = "none";
             write(plate.current.clock, !threat.aggro ? "" : seconds.toFixed(1) + "s");
             const detail = choosing ? "Choosing next move. The enemy will announce its commitment when the decision window ends." : !threat.aggro ? "Watching. The stored opener fires when you engage and enter range." : !first ? "Finishing this sequence. The next move has not been chosen." : "Pause before " + first.ability.name + ": " + seconds.toFixed(1) + " seconds. Prepare your next moves.";
             write(plate.current.tooltip, detail); plate.current.button.setAttribute("aria-label", detail);
             plate.next.button.hidden = !first;
             plate.nextArrow.hidden = !first;
-            if (first) renderAbility(plate.next, first.ability, threat, true, first);
+            if (first) renderAbility(plate.next, first.ability, threat, true, snapshot, audience, first);
           }
           write(plate.status, threat.disposition === "neutral" && !threat.aggro ? "\u25C7" : "\u25C6");
           plate.status.title = threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
@@ -153,6 +158,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         const x = Math.max(8, Math.min(bounds.width - width - 8, anchor.x - width / 2));
         const y = anchor.y - height - 10;
         const fitsViewport = y >= 4 && y + height <= bounds.height - 4;
+        world.setThreatNameplateVisible(threat.id, fitsViewport);
         root.style.visibility = fitsViewport ? "visible" : "hidden";
         root.style.transform = `translate(${x}px, ${y}px)`;
         root.dataset.tooltipBelow = String(y < 140);
