@@ -1,3 +1,0 @@
-[submodule "vendor/clause"]
-	path = vendor/clause
-	url = https://github.com/tompassarelli/clause.git

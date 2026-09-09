@@ -1,7 +1,7 @@
 {
-  "name": "Greywrought Clause",
+  "name": "Greywrought",
   "short_name": "Greywrought",
-  "description": "A Clause/Wasm action-RPG expedition.",
+  "description": "An action RPG expedition through the Ashen Verge.",
   "start_url": "./",
   "display": "fullscreen",
   "background_color": "#050306",
