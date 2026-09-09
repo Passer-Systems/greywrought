@@ -1,21 +1,15 @@
-import { join } from "node:path";
-
-const port = Number.parseInt(Bun.env.GREYWROUGHT_STATIC_PORT ?? "4180", 10);
-const prefix = "/greywrought/";
-const root = join(import.meta.dir, "..", "dist");
-
+import { resolve, sep } from "node:path";
+const root = resolve(import.meta.dir, "../dist");
 const server = Bun.serve({
-  hostname: "127.0.0.1",
-  port,
+  hostname: "127.0.0.1", port: Number(Bun.env.GREYWROUGHT_PORT ?? 4180),
   async fetch(request) {
-    const pathname = new URL(request.url).pathname;
-    if (!pathname.startsWith(prefix)) return new Response("Not found", { status: 404 });
-    const relative = pathname.slice(prefix.length) || "index.html";
-    if (relative.includes("..")) return new Response("Not found", { status: 404 });
-    const file = Bun.file(join(root, relative));
-    if (!(await file.exists())) return new Response("Not found", { status: 404 });
-    return new Response(file);
+    const url = new URL(request.url);
+    const relative = decodeURIComponent(url.pathname).replace(/^\/greywrought(?=\/|$)/, "");
+    const path = resolve(root, `.${relative.endsWith("/") ? relative + "index.html" : relative}`);
+    if (!path.startsWith(root + sep)) return new Response("Not found", { status: 404 });
+    const file = Bun.file(path);
+    if (!await file.exists()) return new Response("Not found", { status: 404 });
+    return new Response(file, { headers: { "Cache-Control": "no-store" } });
   },
 });
-
-console.log(`Greywrought static release at http://${server.hostname}:${server.port}${prefix}`);
+console.log(`Greywrought preview: http://${server.hostname}:${server.port}/`);

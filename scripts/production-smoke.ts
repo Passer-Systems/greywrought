@@ -1,34 +1,9 @@
-const productionUrl = Bun.env.GREYWROUGHT_GAME_URL ??
-  "https://passer-systems.github.io/greywrought/";
-const base = new URL(productionUrl);
-
-function requireCondition(condition: boolean, message: string): asserts condition {
-  if (!condition) throw new Error(message);
-}
-
-async function fetchRequired(path: string): Promise<Response> {
-  const response = await fetch(new URL(path, base), { cache: "no-store" });
-  requireCondition(response.ok, `${path} returned ${response.status}`);
-  return response;
-}
-
-const html = await (await fetchRequired("./")).text();
-requireCondition(html.includes("Greywrought"), "production HTML identity is absent");
-requireCondition(html.includes("site.webmanifest"), "production release metadata is absent");
-
-const manifestValue: unknown = await (await fetchRequired("./release-manifest.json")).json();
-requireCondition(typeof manifestValue === "object" && manifestValue !== null, "release manifest is invalid");
-const manifest = manifestValue as Readonly<Record<string, unknown>>;
-requireCondition(manifest.schemaVersion === 1, "release manifest schema changed");
-requireCondition(typeof manifest.totalBytes === "number", "release manifest omitted total bytes");
-
-const browser = Bun.spawn({
-  cmd: ["bun", "acceptance/browser/playability.ts"],
-  cwd: import.meta.dir + "/..",
-  env: { ...Bun.env, GREYWROUGHT_GAME_URL: base.href },
-  stdout: "inherit",
-  stderr: "inherit",
-});
-const exitCode = await browser.exited;
-requireCondition(exitCode === 0, `production browser smoke exited ${exitCode}`);
-console.log(`Production smoke passed at ${base.href} (${manifest.totalBytes} release bytes).`);
+export {};
+const url = Bun.env.GREYWROUGHT_GAME_URL ?? "https://play.greywrought.com/";
+const release = await fetch(new URL("release.json", url));
+if (!release.ok) throw new Error(`Release identity unavailable: ${release.status}`);
+const identity = await release.json() as { name: string; version: string; variant: string; commit: string };
+if (identity.name !== "greywrought" || identity.variant !== "threejs" || !identity.commit) throw new Error("Unexpected deployed game");
+console.log(`Greywrought ${identity.version} (${identity.commit}) at ${url}`);
+const smoke = Bun.spawn([process.execPath, "acceptance/browser/playability.ts"], { env: { ...Bun.env, GREYWROUGHT_GAME_URL: url }, stdout: "inherit", stderr: "inherit" });
+if (await smoke.exited !== 0) throw new Error("Deployed browser journey failed");

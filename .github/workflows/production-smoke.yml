@@ -31,7 +31,7 @@ jobs:
       - name: Verify deployed release
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
-          GREYWROUGHT_GAME_URL: https://passer-systems.github.io/greywrought/
+          GREYWROUGHT_GAME_URL: https://play.greywrought.com/
         run: bun run test:production 2>&1 | tee production-smoke.log
 
       - name: Retain smoke evidence

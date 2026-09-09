@@ -5,24 +5,15 @@
   "type": "module",
   "packageManager": "bun@1.3.13",
   "scripts": {
-    "typecheck": "bun ./node_modules/typescript/bin/tsc --noEmit",
     "dev": "bun scripts/dev-server.ts",
-    "build:host": "bun scripts/build-host.ts",
-    "build": "bun run build:static",
     "play": "bun run dev",
-    "typecheck:host": "bun run typecheck",
-    "test:host": "bun run typecheck",
+    "typecheck": "bun ./node_modules/typescript/bin/tsc --noEmit",
+    "test": "bun test src/game && bun scripts/character-profile-check.ts && bun scripts/input-preferences-check.ts",
+    "build": "bun scripts/build-host.ts && bun scripts/build-static.ts && bun scripts/release-budget.ts",
+    "preview": "bun scripts/static-server.ts",
     "test:browser-playability": "bun acceptance/browser/playability.ts",
-    "test:campaign-persistence": "bun scripts/campaign-persistence-check.ts",
-    "test:input-preferences": "bun scripts/input-preferences-check.ts",
-    "test:production": "bun scripts/production-smoke.ts",
-    "build:play": "bun run build:host",
-    "build:static": "bun run build:play && bun scripts/build-static.ts && bun scripts/release-budget.ts",
-    "serve:static": "bun scripts/static-server.ts",
-    "test:static-release": "GREYWROUGHT_GAME_URL=http://127.0.0.1:4180/greywrought/ bun acceptance/browser/playability.ts",
-    "check:portable": "bun run typecheck",
-    "check:release": "bun run typecheck && bun run test:campaign-persistence && bun run test:input-preferences && bun run build:static",
-    "rig": "bun run build:host && bun build/host/rig-socket-lab-server.js"
+    "test:browser-encounter": "bun acceptance/browser/encounter-journey.ts",
+    "test:production": "bun scripts/production-smoke.ts"
   },
   "dependencies": {
     "three": "^0.185.1"

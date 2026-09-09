@@ -1,56 +1,86 @@
-import { join } from "node:path";
 import { watch } from "node:fs";
+import { resolve } from "node:path";
+import { files } from "./public-files.js";
 
-const port = Number.parseInt(Bun.env.GREYWROUGHT_PORT ?? "4173", 10);
-const root = join(import.meta.dir, "..");
-const mime: Record<string, string> = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".json": "application/json" };
-let builtAt = 0;
+const root = resolve(import.meta.dir, "..");
+const publicFiles = new Map(files.map(([source, target]) => [target.slice("dist/".length), source]));
+let revision = 1;
+let builtRevision = 0;
+let bundle: Blob | undefined;
 let buildInFlight: Promise<void> | undefined;
 const clients = new Set<ReadableStreamDefaultController<Uint8Array>>();
 const encoder = new TextEncoder();
-watch(join(root, "src/host"), { recursive: true }, (_event, filename) => {
-  if (!filename) return;
-  builtAt = 0;
-  for (const client of clients) client.enqueue(encoder.encode("data: reload\n\n"));
+let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+const watcher = watch(resolve(root, "src"), { recursive: true }, (_event, filename) => {
+  if (!filename || !/\.(ts|css|html)$/.test(filename)) return;
+  revision++;
+  clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(() => {
+    for (const client of clients) {
+      try { client.enqueue(encoder.encode(`data: ${revision}\n\n`)); }
+      catch { clients.delete(client); }
+    }
+  }, 70);
 });
-async function ensureClientBuild(): Promise<void> {
-  const source = Bun.file(join(root, "src/host/play.ts"));
-  if ((await source.lastModified) <= builtAt) return;
-  if (buildInFlight) return buildInFlight;
-  buildInFlight = (async () => {
-    const result = await Bun.build({ entrypoints: ["src/host/play.ts"], outdir: "build/host", target: "browser", naming: "play.js", external: ["three", "three/addons/*"] });
-    if (!result.success) throw new Error(result.logs.map(String).join("\n"));
-    builtAt = await source.lastModified;
-  })().finally(() => { buildInFlight = undefined; });
-  return buildInFlight;
+
+async function buildClient(): Promise<void> {
+  while (builtRevision !== revision || !bundle) {
+    if (buildInFlight) { await buildInFlight; continue; }
+    const buildingRevision = revision;
+    buildInFlight = (async () => {
+      const result = await Bun.build({
+        entrypoints: [resolve(root, "src/host/play.ts")], target: "browser",
+        external: ["three", "three/addons/*"], sourcemap: "inline",
+      });
+      if (!result.success) throw new Error(result.logs.map(String).join("\n"));
+      const output = result.outputs[0];
+      if (!output) throw new Error("Client build produced no output");
+      bundle = output;
+      builtRevision = buildingRevision;
+    })().finally(() => { buildInFlight = undefined; });
+    await buildInFlight;
+  }
 }
 
 const server = Bun.serve({
-  hostname: "127.0.0.1",
-  port,
+  hostname: "127.0.0.1", port: Number(Bun.env.GREYWROUGHT_PORT ?? 4173),
   async fetch(request) {
-    const url = new URL(request.url);
-    const relative = url.pathname === "/" ? "src/host/play.html" : url.pathname.slice(1);
-    if (url.pathname === "/__dev/events") {
-      const stream = new ReadableStream<Uint8Array>({ start(controller) { clients.add(controller); }, cancel(controller) { clients.delete(controller); } });
-      return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-store", "Connection": "keep-alive" } });
+    const pathname = new URL(request.url).pathname;
+    if (pathname === "/__dev/events") {
+      let client: ReadableStreamDefaultController<Uint8Array> | undefined;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          client = controller;
+          clients.add(controller);
+          controller.enqueue(encoder.encode(": connected\n\n"));
+        },
+        cancel() { if (client) clients.delete(client); },
+      });
+      return new Response(stream, { headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-store" } });
     }
-    if (relative.includes("..")) return new Response("Not found", { status: 404 });
+    const relative = pathname === "/" ? "index.html" : pathname.slice(1);
+    const headers = { "Cache-Control": "no-store" };
     if (relative === "app/greywrought/play.js") {
-      try { await ensureClientBuild(); } catch (error) { return new Response(String(error), { status: 500 }); }
+      try {
+        await buildClient();
+        return new Response(bundle, { headers: { ...headers, "Content-Type": "text/javascript" } });
+      } catch (error) {
+        console.error(error);
+        return new Response(String(error), { status: 500, headers });
+      }
     }
-    const path = relative === "app/greywrought/play.js"
-      ? "build/host/play.js"
-      : relative.startsWith("app/") ? `build/${relative}` : relative;
-    const file = Bun.file(join(root, path));
-    if (!(await file.exists())) return new Response("Not found", { status: 404 });
-    const type = mime[path.slice(path.lastIndexOf("."))] ?? file.type;
-    if (path === "src/host/play.html") {
-      const html = await file.text();
-      const live = `<script>new EventSource('/__dev/events').onmessage=()=>location.reload()<\/script>`;
-      return new Response(html.replace("</body>", `${live}</body>`), { headers: { "Content-Type": type, "Cache-Control": "no-store" } });
+    const source = publicFiles.get(relative);
+    if (!source) return new Response("Not found", { status: 404 });
+    const file = Bun.file(resolve(root, source));
+    if (!await file.exists()) return new Response("Not found", { status: 404 });
+    if (relative === "index.html") {
+      const script = `<script>new EventSource('/__dev/events').onmessage=()=>location.reload()</script>`;
+      return new Response((await file.text()).replace("</body>", `${script}</body>`), { headers: { ...headers, "Content-Type": "text/html" } });
     }
-    return new Response(file, { headers: { "Content-Type": type, "Cache-Control": "no-store" } });
+    return new Response(file, { headers });
   },
 });
-console.log(`Greywrought development server at http://${server.hostname}:${server.port}/`);
+console.log(`Greywrought development: http://${server.hostname}:${server.port}/`);
+function stop() { watcher.close(); clearTimeout(reloadTimer); server.stop(true); }
+process.on("SIGTERM", () => { stop(); process.exit(0); });
+process.on("SIGINT", () => { stop(); process.exit(0); });

@@ -4,10 +4,15 @@ A browser action RPG built with **Three.js, ordinary TypeScript, and Bun**.
 
 Play at **https://play.greywrought.com/**.
 
-Create a character, fight through the Ashen Breach, recover a Cephorium cache,
-and return alive. Three successful expeditions establish permanent access to
-the Ashen Verge. Warrior, Mage, and Hunter have distinct abilities and resources.
-Profiles, controls, and campaign progress are saved in the browser.
+Create a character in Hearthstead, prepare at Mara’s apothecary, and explore
+Frostwood. Gather frost cores, clear threats, and return alive to bank your haul.
+Offer six carried cores in the deep grove to call a guardian whose relic must
+also be brought home. Kills grant no experience points.
+
+Enemies show their next move, damage, reach, and a three-second warning. Move
+clear or brace before the strike, then use their recovery window. The world map,
+road, and landmarks keep the outward route and return to safety visible.
+Characters and expeditions are saved in the browser; defeat is permanent.
 
 ## Develop
 
@@ -33,9 +38,9 @@ W/S move forward and backward; A/D strafe. Space jumps. Hold both mouse buttons
 to move forward, including while S is held. Left-drag looks around, right-drag
 turns with the camera, and the wheel zooms.
 
-Tab selects a target. 1–5 use class abilities; R uses the class utility.
-E raises the shield, Shift sprints, Q dashes, and F interacts or loots.
-Shift+R restarts an expedition. Escape opens controls and accessibility settings.
+Tab selects a target. 1 strikes; B or E braces. G gathers frost cores and R
+calls the grove guardian. F talks to Mara; H drinks a potion. Return through the
+gate to secure carried rewards. Rest in town to recover health.
 
 ## Versions and archives
 
@@ -59,7 +64,7 @@ An archive can be inspected with `git show TAG` or a separate Git worktree.
 
 ```sh
 bun run typecheck
-bun test
+bun run test
 bun run build
 ```
 
