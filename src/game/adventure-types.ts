@@ -66,6 +66,7 @@ export interface ThreatView {
   readonly position: Position;
   readonly homePosition: Position;
   readonly disposition: "hostile" | "neutral";
+  readonly targetPlayerId?: string | null;
   readonly aggro: boolean; readonly joinsNextWindow: boolean;
   readonly moving: boolean;
   readonly movementMode: "idle" | "walk" | "hop" | "circle" | "lunge";
@@ -166,5 +167,14 @@ export interface AdventureGame {
   clearQueuedActions(): void;
   openLoot(sourceId: string): void;
   setTradeOffer(kind: "supplies" | "potions", quantity: number): void;
+  save(): string;
+}
+
+export interface SharedAdventure {
+  join(id: string, name: string, archetype: CharacterArchetype): AdventureGame;
+  leave(id: string): void;
+  advance(seconds: number): void;
+  getPlayer(id: string): AdventureGame | undefined;
+  players(): readonly { readonly id: string; readonly name: string; readonly player: AdventureSnapshot["player"] }[];
   save(): string;
 }

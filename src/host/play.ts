@@ -1,5 +1,5 @@
-import { COMBAT_RULES, createAdventure } from "../game/adventure.js";
-import type { AdventureAction, AdventureGame, AdventureSnapshot } from "../game/adventure-types.js";
+import { COMBAT_RULES } from "../game/adventure.js";
+import type { AdventureAction, AdventureSnapshot } from "../game/adventure-types.js";
 import {
   characterProfileStorageKey, decodeCharacterProfile, encodeCharacterProfile,
   normalizedCharacterName, normalizedDisplayName,
@@ -19,6 +19,7 @@ import { createShopPanel } from "./shop-panel.js";
 import { createTradePanel } from "./trade-panel.js";
 import { createCombatPlan } from "./combat-plan.js";
 import { updateQuestTracker } from "./quest-tracker.js";
+import { connectAdventure, type NetworkAdventure } from "./network-adventure.js";
 import { publicUrl } from "./public-url.js";
 
 declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
@@ -35,7 +36,7 @@ const bags = createBagPanel(element("adventure-hud"), {
   onClose: closeBags,
 });
 const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => unitFrames.portrait(id));
-const chatLog = createChatLog(element("adventure-hud"));
+const chatLog = createChatLog(element("adventure-hud"), text => running?.game.sendChat(text));
 const unitFrames = createUnitFrames(element("adventure-hud"));
 const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   onSelect: () => { if (running?.ready) renderHud(running.game.snapshot); },
@@ -101,17 +102,15 @@ const classes: Record<CharacterArchetype, { name: string; copy: string }> = {
 };
 const keyActions: Readonly<Record<string, AdventureAction>> = {
   KeyW: "forward", KeyS: "backward", KeyA: "left", KeyD: "right", Space: "jump",
-  KeyQ: "strike", KeyE: "brace", KeyZ: "disengage", KeyX: "bloodRage", KeyV: "jab", KeyN: "guard", KeyG: "gather", KeyR: "ritual",
-  KeyF: "interact", KeyH: "drinkPotion", KeyT: "rest", Tab: "target",
+  Digit1: "strike", Digit2: "brace", KeyG: "gather", KeyR: "ritual",
+  KeyF: "interact", Equal: "drinkPotion", KeyT: "rest", Tab: "target",
 };
 const resumeKey = "greywrought/adventure-active-character";
 interface RunningAdventure {
   readonly character: LocalCharacter;
-  readonly game: AdventureGame;
+  readonly game: NetworkAdventure;
   readonly world: AdventureWorld;
   readonly unbind: Array<() => void>;
-  readonly saveKey: string;
-  lastSave: string;
   saveClock: number;
   ready: boolean;
 }
@@ -159,23 +158,12 @@ function release(): void {
   }
   keys.clear();
 }
-function save(force = false): void {
-  const app = running;
-  if (!app?.ready) return;
-  try {
-    const source = app.game.save();
-    if (source !== app.lastSave || force) {
-      localStorage.setItem(app.saveKey, source);
-      app.lastSave = source;
-      text("save-status", "Journey saved");
-      document.body.dataset.gamePersistence = "saved";
-    }
-  } catch (cause: unknown) {
-    text("save-status", "Could not save your journey in this browser");
-    document.body.dataset.gamePersistence = "unavailable";
-    console.error("Adventure save failed", cause);
-  }
+function save(_force = false): void {
+  if (!running?.ready) return;
+  text("save-status", running.game.online ? "Shared world" : "Connection lost · reconnecting…");
+  document.body.dataset.gamePersistence = running.game.online ? "server" : "disconnected";
 }
+
 function persistProfile(): void {
   if (!profile || profileBlocked) return;
   try { localStorage.setItem(characterProfileStorageKey, encodeCharacterProfile(profile)); }
@@ -283,7 +271,7 @@ function returnToRoster(): void {
   if (running) audio.update(running.game.snapshot, true);
   audio.reset();
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
-  if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
+  if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }
   paused = false;
   route = "roster";
   element("pause-panel").hidden = true;
@@ -402,18 +390,19 @@ function renderHud(snapshot: AdventureSnapshot): void {
     }
   }
   text("adventure-zone", snapshot.phase === "town" ? "Hearthstead · safe haven" : snapshot.phase === "lost" ? "Journey ended" : "Frostwood");
-  if (running) unitFrames.update(running.character, snapshot);
+  if (running) unitFrames.update(running.character, snapshot, running.game.players);
   combatPlan.update(snapshot);
   data.gameCombatPlan = String(!element("combat-plan").hidden);
-  chatLog.update(snapshot.log);
+  const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, text: entry.name + ": " + entry.text })) ?? [];
+  chatLog.update([...snapshot.log, ...sharedChat]);
+  data.gameOnline = String(running?.game.online ?? false);
+  data.gameRemotePlayers = JSON.stringify(running?.game.players ?? []);
   inn.update(snapshot, snapshot.innOpen);
   shop.update(snapshot);
   trade.update(snapshot);
   const selected = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat);
   for (const [action, label] of [
-    ["strike", "strike-ready"], ["disengage", "disengage-ready"],
-    ["brace", "block-ready"], ["bloodRage", "rage-ready"],
-    ["jab", "jab-ready"], ["guard", "guard-ready"],
+    ["strike", "strike-ready"], ["brace", "block-ready"],
   ] as const) {
     const cost = COMBAT_RULES[action].cost;
     const available = snapshot.phase === "expedition" && selected?.active && selected.health > 0;
@@ -427,7 +416,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
       control.dataset.affordable = String(availableStamina >= cost);
       if (!control.querySelector(".action-cost")) {
         const badge = document.createElement("span"); badge.className = "action-cost";
-        badge.textContent = cost === 0 ? "Free" : String(cost); badge.title = cost + " stamina";
+        badge.textContent = cost + " stamina"; badge.title = cost + " stamina · 1 turn";
         control.append(badge);
       }
     }
@@ -452,15 +441,11 @@ function renderHud(snapshot: AdventureSnapshot): void {
     recovery.setAttribute("aria-valuenow", String(progress)); recovery.setAttribute("aria-valuemin", "0"); recovery.setAttribute("aria-valuemax", String(player.actionDuration));
   }
   text("potion-count", `${snapshot.potions} carried · heals ${snapshot.potionHealing}`);
-  const nearbyLoot = snapshot.loot.some(item => item.available && item.reachable);
-  const nearbyInn = snapshot.phase === "town" && snapshot.places.some(place => place.kind === "inn" && Math.hypot(place.position.x-player.position.x,place.position.z-player.position.z) <= 2.5);
-  text("interact-label", nearbyLoot ? "Loot" : "Talk");
-  text("interact-detail", nearbyLoot ? "Search remains" : nearbyInn ? "Rowan · Innkeeper" : "Mara's shop");
+  text("potion-stack", String(snapshot.potions));
   corpseLoot.update(snapshot);
   bags.update(snapshot);
   if (equipment.isOpen && running) equipment.update(running.character, snapshot);
   updateQuestTracker(snapshot);
-  element("rest-button").hidden = !nearbyInn;
   mapPosition(element("map-player"), player.position.x, player.position.z);
   element("map-player").style.transform = `translate(-50%, -50%) rotate(${-Math.atan2(player.cameraForward.x, player.cameraForward.z)}rad)`;
   for (const threat of snapshot.threats) {
@@ -523,13 +508,11 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
   renderEntry();
   text("entry-enter-world", "Preparing your journey…");
   text("entry-roster-feedback", "Loading the forest and your adventurer…");
-  const saveKey = `greywrought/adventure-v1/${character.id}`;
   try {
-    const stored = localStorage.getItem(saveKey);
-    const game: AdventureGame = createAdventure(stored === null ? { archetype: character.archetype } : { archetype: character.archetype, save: stored });
+    const game = await connectAdventure(character);
     audio.reset();
     const world = createAdventureWorld(element("world-wrap"), game.snapshot);
-    const app: RunningAdventure = { character, game, world, unbind: [], saveKey, lastSave: stored ?? "", saveClock: 0, ready: false };
+    const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false };
     running = app;
     bindWorld(app);
     await world.ready;
@@ -550,7 +533,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     save(true);
     scheduleFrame();
   } catch (cause: unknown) {
-    if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
+    if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }
     text("entry-roster-feedback", "Your journey could not be opened. Existing saved progress has been kept. Reload to try again.");
     console.error("Adventure entry failed", cause);
     document.body.dataset.gameLoadState = "failed";
@@ -623,6 +606,7 @@ listen(window, "keydown", (event) => {
   }
   if (route !== "world") return;
   if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
+  if (event.code === "Enter") { event.preventDefault(); release(); chatLog.focusInput(); return; }
   if (event.code === "KeyC") {
     event.preventDefault();
     if (!event.repeat) toggleEquipment();
@@ -653,11 +637,10 @@ listen(window, "keydown", (event) => {
     }
     return;
   }
-  if (/^Digit[1-3]$/.test(event.code) || event.code === "Backspace") {
+  if (event.code === "Backspace") {
     event.preventDefault();
     if (!event.repeat && running?.ready && !paused) {
-      if (event.code === "Backspace") combatPlan.removeSelected();
-      else combatPlan.moveSelected(Number(event.code.slice(-1)) - 1);
+      combatPlan.removeSelected();
     }
     return;
   }
@@ -703,6 +686,7 @@ function tick(now: number): void {
   running.game.advance(delta);
   const snapshot = running.game.snapshot;
   audio.update(snapshot, route !== "world");
+  running.world.updatePlayers(running.game.players.filter(player => player.id !== running!.character.id));
   running.world.render(snapshot, delta);
   if (now + 0.5 >= nextHudTime) {
     renderHud(snapshot);
@@ -729,7 +713,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   lorebook.dispose();
   combatPlan.dispose();
   hudSize.disconnect();
-  if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running = null; }
+  if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }
 };
 try {
   const decoded = decodeCharacterProfile(localStorage.getItem(characterProfileStorageKey));

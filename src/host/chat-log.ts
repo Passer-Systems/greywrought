@@ -3,7 +3,7 @@ import type { AdventureLogEntry } from "../game/adventure-types.js";
 type Channel = AdventureLogEntry["channel"];
 interface ScrollPosition { following: boolean; entryId: string | null; offset: number; }
 
-export function createChatLog(host: HTMLElement) {
+export function createChatLog(host: HTMLElement, onSend?: (text: string) => void) {
   const style = document.createElement("style");
   style.textContent = `
     #chat-log { position:absolute; z-index:15; left:8px; bottom:8px; width:min(340px,calc(100% - 16px)); height:160px; display:flex; flex-direction:column; color:#e0d8bd; pointer-events:auto; font:12px/1.45 system-ui,sans-serif; text-shadow:0 1px 2px #000; }
@@ -16,6 +16,9 @@ export function createChatLog(host: HTMLElement) {
     #chat-log [data-log-entry] { margin:0 0 3px; overflow-wrap:anywhere; }
     #chat-log .log-chat { color:#dfd5ab; }
     #chat-log .log-combat { color:#e1b794; }
+    #chat-log-input { box-sizing:border-box; flex:0 0 30px; width:100%; border:1px solid #78806388; border-radius:3px; background:#0d1815e8; padding:5px 9px; color:#f3e6c7; font:12px system-ui,sans-serif; }
+    #chat-log-input:focus { outline:1px solid #e4c780; }
+    #chat-log-input::placeholder { color:#c1bea6; }
     @media(max-width:700px) { #chat-log { width:min(310px,calc(100% - 16px)); height:140px; } }
   `;
   const root = document.createElement("section");
@@ -37,6 +40,25 @@ export function createChatLog(host: HTMLElement) {
     combat: { following: true, entryId: null, offset: 0 },
   };
   const tabs = new Map<Channel, HTMLButtonElement>();
+  const input = document.createElement("input");
+  input.id = "chat-log-input"; input.type = "text"; input.maxLength = 280;
+  input.placeholder = "Enter to chat"; input.setAttribute("aria-label", "Message everyone");
+  input.autocomplete = "off";
+  input.hidden = !onSend;
+  const onInputKey = (event: KeyboardEvent): void => {
+    event.stopPropagation();
+    if (event.isComposing) return;
+    if (event.key === "Escape") { event.preventDefault(); input.blur(); }
+    else if (event.key === "Enter") {
+      event.preventDefault();
+      const text = input.value.trim().slice(0, 280);
+      if (text && onSend) { onSend(text); input.value = ""; select("chat"); }
+    }
+  };
+  input.addEventListener("keydown", onInputKey);
+  const stopKeys = (event: Event): void => event.stopPropagation();
+  input.addEventListener("keyup", stopKeys);
+  input.addEventListener("keypress", stopKeys);
 
   function remember(): void {
     const top = view.getBoundingClientRect().top;
@@ -93,9 +115,10 @@ export function createChatLog(host: HTMLElement) {
   root.addEventListener("click", stopPointer);
   root.addEventListener("wheel", stopPointer, { passive: true });
   tabList.addEventListener("keydown", onTabKey);
-  root.append(tabList, view); host.append(style, root);
+  root.append(tabList, view, input); host.append(style, root);
   render();
   return {
+    focusInput(): void { if (onSend) { select("chat"); input.focus(); } },
     update(next: readonly AdventureLogEntry[]): void {
       const bounded = next.slice(-200);
       if (bounded.length === entries.length && bounded.every((entry, index) => {
@@ -105,12 +128,16 @@ export function createChatLog(host: HTMLElement) {
       remember(); entries = bounded; render();
     },
     reset(): void {
+      input.value = "";
       entries = []; selected = "chat";
       positions.chat = { following: true, entryId: null, offset: 0 };
       positions.combat = { following: true, entryId: null, offset: 0 };
       render();
     },
     dispose(): void {
+      input.removeEventListener("keydown", onInputKey);
+      input.removeEventListener("keyup", stopKeys);
+      input.removeEventListener("keypress", stopKeys);
       root.removeEventListener("pointerdown", stopPointer);
       root.removeEventListener("click", stopPointer);
       root.removeEventListener("wheel", stopPointer);

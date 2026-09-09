@@ -2,6 +2,7 @@ import { watch } from "node:fs";
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { files } from "./public-files.js";
+import { createWorldService, type WorldSocketData } from "../src/server/world-service.js";
 
 const root = resolve(import.meta.dir, "..");
 let publicFiles = new Map(files.map(([source, target]) => [target.slice("dist/".length), source]));
@@ -69,11 +70,15 @@ async function buildClient(): Promise<void> {
   }
 }
 
-const server = Bun.serve({
+const worldService = Bun.env.GREYWROUGHT_LOCAL_WORLD === "1"
+  ? await createWorldService({savePath: resolve(root, Bun.env.GREYWROUGHT_WORLD_SAVE ?? "build/local-shared-world.json")})
+  : undefined;
+const serverOptions = {
   hostname: "127.0.0.1", port: Number(Bun.env.GREYWROUGHT_PORT ?? 4173),
   idleTimeout: 0,
-  async fetch(request) {
+  async fetch(request: Request, server: Bun.Server<WorldSocketData>): Promise<Response | undefined> {
     const pathname = new URL(request.url).pathname;
+    if (pathname === "/world" || pathname === "/health") return worldService ? worldService.fetch(request, server) : new Response("Use the shared world", {status:404});
     if (pathname === "/__dev/events") {
       let client: ReadableStreamDefaultController<Uint8Array> | undefined;
       const stream = new ReadableStream<Uint8Array>({
@@ -104,12 +109,18 @@ const server = Bun.serve({
     if (!await file.exists()) return new Response("Not found", { status: 404 });
     if (relative === "index.html") {
       const script = `<script>new EventSource('/__dev/events').onmessage=()=>location.reload()</script>`;
-      return new Response((await file.text()).replace("</body>", `${script}</body>`), { headers: { ...headers, "Content-Type": "text/html" } });
+      const worldMeta = worldService ? "" : '<meta name="greywrought-world" content="wss://play.greywrought.com/world">';
+      return new Response((await file.text()).replace("</head>", `${worldMeta}</head>`).replace("</body>", `${script}</body>`), { headers: { ...headers, "Content-Type": "text/html" } });
     }
     return new Response(file, { headers });
   },
-});
+};
+const server = worldService
+  ? Bun.serve({...serverOptions, websocket: worldService.websocket})
+  : Bun.serve<WorldSocketData>({...serverOptions, async fetch(request, server) {
+    return await serverOptions.fetch(request, server) ?? new Response("Not found", {status:404});
+  }});
 console.log(`Greywrought development: http://${server.hostname}:${server.port}/`);
-function stop() { watcher.close(); manifestWatcher.close(); assetWatcher.close(); clearTimeout(reloadTimer); server.stop(true); }
-process.on("SIGTERM", () => { stop(); process.exit(0); });
-process.on("SIGINT", () => { stop(); process.exit(0); });
+async function stop() { watcher.close(); manifestWatcher.close(); assetWatcher.close(); clearTimeout(reloadTimer); await worldService?.close(); server.stop(true); }
+process.on("SIGTERM", () => { void stop(); });
+process.on("SIGINT", () => { void stop(); });

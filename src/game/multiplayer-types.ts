@@ -1,0 +1,28 @@
+import type { AdventureAction, AdventureSnapshot, CombatAction } from './adventure-types.js';
+import type { LocalCharacter } from '../host/character-profile.js';
+
+export interface RemotePlayerView {
+  readonly id: string;
+  readonly name: string;
+  readonly player: AdventureSnapshot['player'];
+}
+export interface SharedChatMessage { readonly id: number; readonly name: string; readonly text: string; }
+export type WorldCommand =
+  | { type: 'action'; action: AdventureAction; pressed: boolean }
+  | { type: 'mouseForward'; active: boolean }
+  | { type: 'camera'; x: number; z: number }
+  | { type: 'target'; id: string }
+  | { type: 'delay' | 'move'; id: number; seconds: number }
+  | { type: 'replace'; id: number; action: CombatAction }
+  | { type: 'remove'; id: number }
+  | { type: 'clear' }
+  | { type: 'loot'; id: string }
+  | { type: 'trade'; kind: 'supplies' | 'potions'; quantity: number }
+  | { type: 'chat'; text: string };
+export type ClientWorldMessage =
+  | { type: 'join'; token: string; character: LocalCharacter }
+  | { type: 'command'; sequence: number; command: WorldCommand };
+export type ServerWorldMessage =
+  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[] }
+  | { type: 'result'; sequence: number; accepted: boolean }
+  | { type: 'error'; text: string };

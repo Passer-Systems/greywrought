@@ -1,0 +1,12 @@
+play.greywrought.com {
+	root * /srv/greywrought/current
+	encode zstd gzip
+	@world path /world /health
+	reverse_proxy @world 127.0.0.1:4181
+	file_server
+	header {
+		Cache-Control "no-cache"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}

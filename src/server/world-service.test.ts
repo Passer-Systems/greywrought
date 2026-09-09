@@ -1,0 +1,126 @@
+import { expect, test } from 'bun:test';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Server } from 'bun';
+import type { ServerWorldMessage, WorldCommand } from '../game/multiplayer-types.js';
+import type { LocalCharacter } from '../host/character-profile.js';
+import { createWorldService } from './world-service.js';
+import type { WorldSocketData } from './world-service.js';
+
+type State = Extract<ServerWorldMessage, { type: 'state' }>;
+class Client {
+  readonly socket: WebSocket;
+  readonly messages: ServerWorldMessage[] = [];
+  private watchers = new Set<() => void>();
+  private sequence = 0;
+  constructor(url: string) {
+    this.socket = new WebSocket(url);
+    this.socket.onmessage = event => {
+      this.messages.push(JSON.parse(String(event.data)) as ServerWorldMessage);
+      for (const watcher of this.watchers) watcher();
+    };
+  }
+  async connect(character: LocalCharacter, token: string): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      this.socket.onopen = () => resolve();
+      this.socket.onerror = () => reject(new Error('Socket failed to connect'));
+    });
+    this.socket.send(JSON.stringify({ type: 'join', token, character }));
+  }
+  wait(predicate: (message: ServerWorldMessage) => boolean): Promise<ServerWorldMessage> {
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        const found = this.messages.find(predicate);
+        if (found) { clearTimeout(timeout); this.watchers.delete(check); resolve(found); }
+      };
+      const timeout = setTimeout(() => { this.watchers.delete(check); reject(new Error('Timed out waiting for world message')); }, 3000);
+      this.watchers.add(check);
+      check();
+    });
+  }
+  async state(predicate: (message: State) => boolean = () => true): Promise<State> {
+    return await this.wait(message => message.type === 'state' && predicate(message)) as State;
+  }
+  async command(command: WorldCommand): Promise<boolean> {
+    const sequence = this.sequence++;
+    this.socket.send(JSON.stringify({ type: 'command', sequence, command }));
+    const response = await this.wait(message => message.type === 'result' && message.sequence === sequence);
+    return response.type === 'result' && response.accepted;
+  }
+  async invalid(command: unknown): Promise<boolean> {
+    const sequence = this.sequence++;
+    this.socket.send(JSON.stringify({ type: 'command', sequence, command }));
+    const response = await this.wait(message => message.type === 'result' && message.sequence === sequence);
+    return response.type === 'result' && response.accepted;
+  }
+}
+
+test('two socket clients share movement and chat; saved identity survives restart', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-world-'));
+  const savePath = join(directory, 'world.json');
+  const clients: Client[] = [];
+  let service = await createWorldService({ savePath });
+  let server!: Server<WorldSocketData>;
+  function listen() {
+    const current = service;
+    server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: current.websocket, fetch: (request, host) => current.fetch(request, host) });
+  }
+  function client() { const result = new Client(`ws://127.0.0.1:${server.port}/world`); clients.push(result); return result; }
+  const firstCharacter: LocalCharacter = { id: 'first', name: 'Alden', archetype: 'warrior', createdAtMillis: 1 };
+  const secondCharacter: LocalCharacter = { id: 'second', name: 'Briar', archetype: 'mage', createdAtMillis: 2 };
+  const firstToken = crypto.randomUUID();
+  try {
+    listen();
+    const first = client(); await first.connect(firstCharacter, firstToken);
+    const firstState = await first.state();
+    const initial = firstState.snapshot.player.position;
+    const second = client(); await second.connect(secondCharacter, crypto.randomUUID());
+    const together = await first.state(state => state.players.some(player => player.id === 'second'));
+    expect(together.players[0]?.name).toBe('Briar');
+    expect((await second.state()).snapshot.player.archetype).toBe('mage');
+    expect(await first.command({ type: 'camera', x: 1, z: 0 })).toBe(true);
+    expect(await first.command({ type: 'action', action: 'forward', pressed: true })).toBe(true);
+    const seenMove = await second.state(state => state.players.some(player => player.id === 'first' && player.player.position.x > initial.x + 0.4));
+    expect(seenMove.snapshot.player.position.x).toBe(initial.x);
+    expect(await first.command({ type: 'action', action: 'forward', pressed: false })).toBe(true);
+    expect(await first.command({ type: 'chat', text: 'Meet at the gate.' })).toBe(true);
+    const heard = await second.state(state => state.chat.some(message => message.text === 'Meet at the gate.'));
+    expect(heard.chat.at(-1)?.name).toBe('Alden');
+    expect(await first.invalid({ type: 'action', action: 'teleport', pressed: true })).toBe(false);
+    expect(await first.invalid({ type: 'camera', x: 1e100, z: 0 })).toBe(false);
+    expect(await first.invalid({ type: 'action', action: 'forward', pressed: true, save: 'forged' })).toBe(false);
+    expect(await first.command({ type: 'chat', text: 'x'.repeat(281) })).toBe(false);
+    expect(await first.command({ type: 'replace', id: 999, action: 'strike' })).toBe(false);
+    expect(await first.command({ type: 'chat', text: 'Two' })).toBe(true);
+    expect(await first.command({ type: 'chat', text: 'Three' })).toBe(true);
+    expect(await first.command({ type: 'chat', text: 'Four' })).toBe(false);
+    const duplicate = client(); await duplicate.connect(firstCharacter, firstToken);
+    expect((await duplicate.wait(message => message.type === 'error')).type).toBe('error');
+    // Disconnect while holding movement; reconnect must not keep walking.
+    expect(await first.command({ type: 'action', action: 'forward', pressed: true })).toBe(true);
+    first.socket.close();
+    await second.state(state => state.players.length === 0);
+    await service.close(); server.stop(true);
+    const savedSource = await readFile(savePath, 'utf8');
+    expect(savedSource.includes(firstToken)).toBe(false);
+    service = await createWorldService({ savePath }); listen();
+    const imposter = client(); await imposter.connect(firstCharacter, crypto.randomUUID());
+    expect((await imposter.wait(message => message.type === 'error')).type).toBe('error');
+    imposter.socket.close();
+    const changedClass = client(); await changedClass.connect({ ...firstCharacter, archetype: 'hunter' }, firstToken);
+    expect((await changedClass.wait(message => message.type === 'error')).type).toBe('error');
+    changedClass.socket.close();
+    const returning = client(); await returning.connect(firstCharacter, firstToken);
+    const restored = await returning.state();
+    expect(restored.snapshot.player.position.x).toBeGreaterThan(initial.x + 0.4);
+    expect(restored.snapshot.player.moving).toBe(false);
+    expect(restored.chat.some(message => message.text === 'Meet at the gate.')).toBe(true);
+    const latest = await returning.state(state => state !== restored);
+    expect(latest.snapshot.player.position).toEqual(restored.snapshot.player.position);
+  } finally {
+    for (const connection of clients) connection.socket.close();
+    await service.close(); server!.stop(true);
+    await rm(directory, { recursive: true });
+  }
+}, 15_000);

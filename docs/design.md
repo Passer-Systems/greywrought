@@ -318,17 +318,14 @@ recovery time; movement remains available while recovering and reading menus.
 
 | Key | Ability | Stamina | Effect | Action recovery |
 | --- | --- | --- | --- | --- |
-| Q | Lunge / Arcane Bolt / Aimed Shot | 1 | Warrior closes into melee for 9 damage; mage/ranger hit from up to 10m without moving | 1s |
-| Z | Disengage | 1 | Deal 6 melee damage, leap backward; root target until landing | 1s |
-| E | Block | 2 | Absorb 24 damage over at most 2s | 1s |
-| X | Blood Rage | 1 | Gain one stack, up to 3; combat only | 2s |
-| V | Jab | 0 | Stationary strike for 3 melee damage within 2m | 1s |
-| N | Guard | 0 | Absorb 2 damage over at most 1s | 1s |
-| H | Health potion | 1 | Drink a carried potion for 30 health during combat | 1s |
+| 1 | Lunge / Arcane Bolt / Aimed Shot | 1 | Warrior closes into melee for 9 damage; mage/ranger hit from up to 10m without moving | 1 turn |
+| 2 | Block | 2 | Absorb 24 damage over at most 2s | 1 turn |
+| = | Health potion | 1 | Drink a carried potion for 30 health during combat | 1 turn |
 
-Free fillers are manual and still occupy one beat. There is no automatic
-filling. Potions remain immediate outside combat; a queued potion is only
-consumed when it fires.
+The starting loadout contains only attack, block and potion. Other implemented
+combat moves are not on the starting bar or bound to combat keys. Each action
+fills the earliest free turn; there is no automatic filler. Potions remain
+immediate outside combat and are consumed only when they fire.
 
 Each Rage stack adds 4 damage to melee attacks and drains 1 health every
 5 seconds, bypassing Block. It can kill you. Outside combat lose one stack
@@ -509,7 +506,8 @@ response. The centered desktop panel is 360px wide, half the previous 720px, wit
 the action bar retaining its own width. Exactly three rows remain visible.
 The header says Combat plus its short state; available stamina stays compact.
 Redundant column headings and footer editing controls are removed, with no
-space reserved below the third row. Queue edits use dragging, 1–3 and Backspace. Caster health updates in place,
+space reserved below the third row. Queue edits use dragging, click then ability
+to replace, right-click to remove, and Backspace. Caster health updates in place,
 so hovered tiles remain stable. During Choosing, the next decisions stay hidden.
 Enemies arriving during active combat are named as joining the next window,
 then appear alongside the others during preparation. The selected enemy’s
@@ -519,3 +517,32 @@ At smaller desktop sizes, the quest tracker keeps its current objective and
 carried resources while collapsing its longer explanation during combat; the
 map also contracts so neither covers the flanking unit frames. Full quest
 details return outside combat. Cast-time changes remain a separate design idea.
+
+## Shared world and starting controls — 0.8.0
+
+All players share one server-owned Frostwood, including enemy health, movement,
+intentions, combat clock, gathered resources and corpse claims. Character health,
+movement, inventory and queued actions remain individual. The first nearby player
+to loot receives that corpse's reward. Returning to town never resets the shared
+forest. There is no automatic enemy/resource respawn in this iteration.
+
+The visible vocabulary is round (the full combat cycle), turn (one of the three
+one-second action slots), and seconds (countdowns). Preparation remains five
+seconds after the one-second Choosing phase. Each round resolves three turns.
+
+The action bar has individual squares labelled 1–9, 0, -, =. Attack is 1, block
+is 2, and health potion is =; the remaining slots are empty. Attack art is sword
+for warrior, wand for mage, bow for ranger. Stamina costs are explicitly labelled
+beneath abilities; bottom-right numbers are consumable quantities. Enter opens
+shared text chat. Chat typing never triggers movement or ability keys.
+
+The public server stores character/world progress. Browser character access is
+retained with an opaque browser token; old single-player saves are left intact.
+No voice chat or party management is implemented. Server positions update at
+20 Hz; scene positions interpolate each rendered frame. Rendering never resolves
+combat outcomes.
+
+Local development normally connects to the same public world so Tom and invited
+players can meet regardless of which client build they open. For isolated tests,
+launch the dev server with GREYWROUGHT_LOCAL_WORLD=1 and a separate
+GREYWROUGHT_WORLD_SAVE path. Never test combat against the live shared save.

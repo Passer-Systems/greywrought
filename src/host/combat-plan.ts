@@ -39,7 +39,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   clear.addEventListener("click", callbacks.onClear);
   const staminaHint = node("p", "combat-plan-stamina-hint", root);
   staminaHint.setAttribute("role", "status");
-  staminaHint.textContent = "No stamina left. Fill open slots with V: Jab or N: Guard — both cost 0.";
+  staminaHint.textContent = "No stamina left. Remove or replace a move to change your plan.";
   const danger = node("span", "combat-plan-danger", header); danger.id = "combat-plan-danger";
   danger.setAttribute("role", "status");
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
@@ -48,7 +48,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const row = node("div", "combat-plan-beat-row", grid); row.dataset.beat = String(beat);
     const player = node("div", "combat-plan-cell combat-plan-player", row);
     const tick = node("div", "combat-plan-tick", row);
-    node("strong", "", tick).textContent = "Beat " + (beat + 1);
+    node("strong", "", tick).textContent = "Turn " + (beat + 1);
     node("span", "", tick).textContent = beat + "s";
     const enemy = node("div", "combat-plan-cell combat-plan-enemy", row); enemy.dataset.beat = String(beat);
     return { row, player, enemy };
@@ -69,7 +69,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     });
   });
   const help = node("p", "combat-plan-help", root);
-  help.textContent = "Click a move, then an ability to replace · Right-click removes · Drag to swap · 1–3 choose slot";
+  help.textContent = "Click a move, then an ability to replace · Right-click removes · Drag to swap";
   const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
   feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();
@@ -98,7 +98,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     if (view.tile.parentElement !== cell) cell.append(view.tile);
     const beat = Math.min(2, Math.max(0, Math.floor(seconds)));
     const state = status === "stored" ? "Stored opener" : status === "pending" ? "Planned" : status === "active" ? "In progress" : "Resolved";
-    const detail = enemy.name + " · " + ability.name + "\n" + ability.damage + " damage · Beat " + (beat + 1) + " · " + seconds.toFixed(2).replace(/0$/, "") + "s · " + state + "\n" + ability.description;
+    const detail = enemy.name + " · " + ability.name + "\n" + ability.damage + " damage · Turn " + (beat + 1) + " · " + seconds.toFixed(2).replace(/0$/, "") + "s · " + state + "\n" + ability.description;
     view.tile.title = detail; view.tile.setAttribute("aria-label", detail);
     Object.assign(view.tile.dataset, { enemyId: enemy.id, abilityId: ability.id, offset: String(seconds), status });
     write(view.damage, status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "");
@@ -132,6 +132,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       const choosing = combat.phase === "choosing";
       const phaseLabel = combat.phase === "idle" ? enemy?.canStrike ? "Ready" : "Out of range" : choosing ? "Choosing" : combat.phase === "preparation" ? "Prepare " + combat.remainingSeconds.toFixed(1) + "s" : "Active";
       write(phase, "Combat · " + phaseLabel);
+      phase.title = "Round " + combat.cycle + " · three action turns, then preparation";
       write(resources, combat.availableStamina + " stamina");
       resources.title = combat.availableStamina + " stamina free · " + combat.reservedStamina + " reserved · " + combat.queued.length + "/3 moves queued";
       clock.title = phaseLabel + " · " + combat.remainingSeconds.toFixed(1) + "s remaining";

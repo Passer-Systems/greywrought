@@ -1,3 +1,4 @@
+import type { RemotePlayerView } from "../game/multiplayer-types.js";
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import type { LocalCharacter } from "./character-profile.js";
 import { publicUrl } from "./public-url.js";
@@ -74,7 +75,7 @@ export function createUnitFrames(host: HTMLElement) {
   return {
     ready,
     portrait(id: string) { return portraits.get(id); },
-    update(character: LocalCharacter, snapshot: AdventureSnapshot): void {
+    update(character: LocalCharacter, snapshot: AdventureSnapshot, others: readonly RemotePlayerView[] = []): void {
       if (disposed) return;
       if (archetype !== character.archetype) {
         archetype = character.archetype;
@@ -91,9 +92,13 @@ export function createUnitFrames(host: HTMLElement) {
       }
       health(target, enemy.name, enemy.health, enemy.maximumHealth, enemy.id);
       Object.assign(target.root.dataset, { hostile: String(enemy.disposition === "hostile" || enemy.aggro), aggro: String(enemy.aggro), disposition: enemy.disposition });
-      const attackingPlayer = enemy.aggro && enemy.health > 0 && snapshot.player.health > 0;
+      const recipient = enemy.targetPlayerId && enemy.targetPlayerId !== character.id ? others.find(other => other.id === enemy.targetPlayerId) : {id:character.id,name:character.name,player:snapshot.player};
+      const attackingPlayer = enemy.aggro && enemy.health > 0 && recipient && recipient.player.health > 0;
       targetOfTarget.root.hidden = !attackingPlayer;
-      if (attackingPlayer) health(targetOfTarget, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id);
+      if (attackingPlayer && recipient) {
+        targetOfTarget.portrait.src = publicUrl('assets/ui/characters/' + recipient.player.archetype + '.webp');
+        health(targetOfTarget, recipient.name, recipient.player.health, recipient.player.maximumHealth, recipient.id);
+      }
     },
     dispose(): void { if (disposed) return; disposed = true; root.remove(); style.remove(); },
   };

@@ -43,7 +43,7 @@ function renderAbility(view: AbilityIcon, ability: ThreatAbilityView, threat: Th
   write(view.clock, stored ? "" : active ? seconds > 0 ? seconds.toFixed(1) + "s" : "NOW" : seconds <= 0 ? "Ready" : seconds.toFixed(1) + "s");
   const windowAction = threat.windowAction;
   const sameWindowAction = windowAction && windowAction.ability.id === ability.id;
-  const beat = sameWindowAction ? " Beat " + (Math.round(windowAction.offsetSeconds) + 1) + "." : "";
+  const beat = sameWindowAction ? " Turn " + (Math.round(windowAction.offsetSeconds) + 1) + "." : "";
   const timing = stored ? "Stored opener: used on engagement as soon as you are in range." : active ? "Resolving now." : "Happens in " + seconds.toFixed(1) + " seconds. This move is already committed.";
   const facts = [ability.damage > 0 ? ability.damage + " damage" : "Power / defense", ability.range > 0 ? ability.range + " m range" : "Self"];
   const detail = [ability.name, facts.join(" · "), ability.description, timing + beat].join("\n");
@@ -114,7 +114,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
           if (opening) {
             const seconds = threat.remainingSeconds.toFixed(1);
             write(plate.openingClock, seconds);
-            plate.opening.title = "Enemy open for " + seconds + "s. " + (threat.selected ? "Q queues Lunge at your next free beat." : "Select this enemy, then Q queues Lunge.");
+            plate.opening.title = "Enemy open for " + seconds + "s. " + (threat.selected ? "1 queues your attack on the next free turn." : "Select this enemy, then 1 queues your attack.");
           }
           plate.shield.hidden = threat.block <= 0;
           write(plate.shield, "⛨ " + threat.block); plate.shield.title = threat.block + " block · " + threat.blockSeconds.toFixed(1) + "s";

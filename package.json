@@ -1,6 +1,6 @@
 {
   "name": "greywrought",
-  "version": "0.7.12",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.3.13",
@@ -15,7 +15,9 @@
     "test:browser-encounter": "bun acceptance/browser/encounter-journey.ts",
     "test:browser-barter": "bun acceptance/browser/npc-barter.ts",
     "test:browser-characters": "bun acceptance/browser/character-deletion.ts && bun acceptance/browser/class-models.ts",
-    "test:production": "bun scripts/production-smoke.ts"
+    "test:production": "bun scripts/production-smoke.ts",
+    "build:world": "bun build --compile --target=bun-linux-x64-baseline scripts/world-server.ts --outfile build/server/greywrought-world",
+    "test:multiplayer": "bun test src/server/world-service.test.ts && bun acceptance/browser/shared-world.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
