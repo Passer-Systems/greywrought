@@ -1,5 +1,5 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
-import { QUESTS, gearName, type QuestId, type QuestStatus } from "../game/yard-content.js";
+import { QUESTS, GEAR, gearName, type QuestId, type QuestStatus } from "../game/yard-content.js";
 
 /** A read-only journal of accepted, completed, and currently available quests. */
 export interface QuestLog {
@@ -61,6 +61,13 @@ export function createQuestLog(host: HTMLElement, onClose: () => void): QuestLog
     const reward = document.createElement("div"); reward.className = "quest-log-reward";
     reward.innerHTML = `<strong>Rewards</strong><span>${rewardText(snapshot, selected)}</span>`;
     detail.append(heading, meta, story, objective, reward);
+    if (definition.reward.gear) {
+      const gear = definition.reward.gear;
+      const equipped = snapshot.progression.equipment[GEAR[gear].slot] === gear;
+      const hint = document.createElement("p"); hint.className = "quest-log-hint";
+      hint.textContent = equipped ? `${gearName(gear, snapshot.player.archetype)} is equipped.` : `Equip ${gearName(gear, snapshot.player.archetype)} from your Backpack (B) or Character (C).`;
+      detail.append(hint);
+    }
     if (view.status === "available") {
       const hint = document.createElement("p"); hint.className = "quest-log-hint"; hint.textContent = `Speak with ${definition.giverName} to accept this quest.`; detail.append(hint);
     } else if (view.status === "ready") {
