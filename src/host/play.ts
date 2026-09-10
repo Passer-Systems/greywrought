@@ -451,7 +451,7 @@ function syncEncounter(): void {
   document.body.dataset.canRejoin = String(game.session.canRejoin);
   if (changed) {
     stopFrames();
-    element('pause-panel').hidden = game.online && game.inputEnabled;
+    element('pause-panel').hidden = game.online && (game.inputEnabled || game.pendingTransition === 'rejoin');
     button('pause-open').setAttribute('aria-expanded', String(!element('pause-panel').hidden));
     world.updatePlayers(game.players.filter(player => player.id !== character.id));
     world.updateChat(game.chat, character.id);
@@ -462,14 +462,15 @@ function syncEncounter(): void {
     if (!paused) world.canvas.focus();
   }
   const waiting = game.online && !game.inputEnabled && game.session.mode !== 'paused';
-  text('pause-title', !game.online ? 'Connection lost' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : 'Private encounter');
+  text('pause-title', !game.online ? 'Connection lost' : game.pendingTransition === 'resume' ? 'Resuming encounter…' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : 'Private encounter');
   text('pause-copy', !game.online
     ? 'Reconnecting… Your encounter pauses when the connection loss is detected. It will stay paused when you return.'
     : waiting ? 'Saving your encounter while the world continues.'
     : 'This is your private copy of the encounter. The rest of the world continues without you.');
   text('pause-rejoin-hint', game.session.canRejoin ? 'Out of combat. Resume your encounter to rejoin the main world from the top bar.' : 'In combat. Finish the encounter before rejoining the main world.');
-  button('pause-resume').disabled = !game.online || game.session.mode !== 'paused';
-  button('encounter-rejoin').disabled = !game.online || !game.session.canRejoin;
+  button('pause-resume').disabled = !game.online || game.session.mode !== 'paused' || game.pendingTransition !== null;
+  button('encounter-rejoin').disabled = !game.online || !game.session.canRejoin || game.pendingTransition !== null;
+  button('encounter-pause').disabled = game.pendingTransition !== null;
   element('encounter-status').hidden = game.session.mode === 'shared' || !game.online || !element('pause-panel').hidden;
   text('encounter-title', game.session.mode === 'paused' ? 'Paused encounter' : 'Private encounter');
   text('encounter-pause', game.session.mode === 'paused' ? 'Resume…' : 'Pause');

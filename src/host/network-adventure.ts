@@ -11,6 +11,7 @@ export interface NetworkAdventure extends AdventureGame {
   readonly connectionRevision: number;
   readonly session: EncounterSession;
   readonly inputEnabled: boolean;
+  readonly pendingTransition: 'resume' | 'rejoin' | null;
   readonly players: readonly RemotePlayerView[];
   readonly chat: readonly SharedChatMessage[];
   sendChat(text: string): void;
@@ -39,9 +40,11 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let cameraX = NaN, cameraZ = NaN;
   let pendingCamera = false, lastCameraAt = 0;
   let pauseRequest: number | null = null;
+  let transitionRequest: number | null = null;
+  let pendingTransition: 'resume' | 'rejoin' | null = null;
   const listeners = new Set<() => void>();
   const notify = () => { for (const listener of listeners) listener(); };
-  const inputEnabled = () => online && session.mode !== 'paused' && pauseRequest === null;
+  const inputEnabled = () => online && session.mode !== 'paused' && pauseRequest === null && transitionRequest === null;
   let readyResolve: () => void, readyReject: (reason: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   const timeout = setTimeout(() => { if (!snapshot) { close(); readyReject(new Error('The world could not be reached.')); } }, 15000);
@@ -78,19 +81,21 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
         snapshot = message.snapshot; players = message.players; chat = message.chat;
         serverTime = message.serverTime;
         serverWallTimeMillis = message.serverWallTimeMillis;
-        if (changed) { prediction = new LocalMovement(snapshot, message.movement); connectionRevision++; }
+        if (changed) { prediction = new LocalMovement(snapshot, message.movement); connectionRevision++; transitionRequest = null; pendingTransition = null; }
         prediction.reconcile(snapshot, message.movement, serverTime);
         online = true; clearTimeout(timeout); readyResolve();
         notify();
       } else if (message.type === 'result' && message.sequence === pauseRequest && !message.accepted) {
         pauseRequest = null; notify();
+      } else if (message.type === 'result' && message.sequence === transitionRequest && !message.accepted) {
+        transitionRequest = null; pendingTransition = null; notify();
       } else if (message.type === 'error') {
         if (!snapshot) { close(); readyReject(new Error(message.text)); }
         else snapshot = {...snapshot,report:message.text};
       }
     };
     socket.onclose = () => {
-      online = false; pauseRequest = null; pendingCamera = false; notify();
+      online = false; pauseRequest = null; transitionRequest = null; pendingTransition = null; pendingCamera = false; notify();
       if (!closed) reconnect = setTimeout(open, 1000);
     };
   }
@@ -104,6 +109,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     get connectionRevision() { return connectionRevision; },
     get session() { return session; },
     get inputEnabled() { return inputEnabled(); },
+    get pendingTransition() { return pendingTransition; },
     get players() { return players; },
     get chat() { return chat; },
     advance(seconds) {
@@ -136,8 +142,8 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       if (!inputEnabled()) return;
       pauseRequest = send({type:'pause'}); notify();
     },
-    resume() { if (online && session.mode === 'paused') send({type:'resume'}); },
-    rejoin() { if (online && session.canRejoin) send({type:'rejoin'}); },
+    resume() { if (online && session.mode === 'paused' && transitionRequest === null) { pendingTransition = 'resume'; transitionRequest = send({type:'resume'}); notify(); } },
+    rejoin() { if (online && session.canRejoin && transitionRequest === null) { pendingTransition = 'rejoin'; transitionRequest = send({type:'rejoin'}); notify(); } },
     subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     close,
   };
