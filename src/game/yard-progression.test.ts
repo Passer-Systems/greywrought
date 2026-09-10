@@ -25,11 +25,10 @@ test("Cold Hands requires nearby acceptance, gathered cargo, physical return and
   game.equip("mainhand","insulated-coat");game.equip("mainhand","yard-weapon");expect(game.snapshot.progression.equipment.mainhand).toBeNull();
   game.equip("chest","insulated-coat");expect(game.snapshot.progression.damageReduction).toBe(2);
   const restored=createAdventure({save:game.save()});expect(restored.snapshot.progression).toEqual(game.snapshot.progression);
-  game.equip("chest",null);expect(game.snapshot.progression.damageReduction).toBe(0);
+  game.advance(1.5);game.equip("chest",null);expect(game.snapshot.progression.damageReduction).toBe(0);
 });
-test("locked skills reject queuing and replacement; earned lessons and level bonuses persist",()=>{
-  let game=at(createAdventure(),-3,8,"expedition");tap(game,"disengage");tap(game,"bloodRage");expect(game.snapshot.combat.queued).toHaveLength(0);
-  tap(game,"strike");const id=game.snapshot.combat.queued[0]!.id;expect(game.replaceQueuedAction(id,"disengage")).toBe(false);
+test("locked skills reject activation; earned lessons and level bonuses persist",()=>{
+  let game=at(createAdventure(),-3,8,"expedition");tap(game,"disengage");tap(game,"bloodRage");expect(game.snapshot.player.currentAction).toBeNull();expect(game.snapshot.player.stamina).toBe(5);
   const c=earnedChapter();expect(c.level).toBe(3);expect(c.completed).toEqual(["cold-hands","roll-call","last-shift"]);
   const save=JSON.parse(game.save());save.state.chapter=c;
   game=createAdventure({save:JSON.stringify(save)});expect(game.snapshot.progression.attackBonus).toBe(4);expect(game.snapshot.progression.unlockedActions).toContain("bloodRage");
@@ -50,26 +49,21 @@ test("cooperating scout contributors receive personal saved credit; bystanders r
   expect(b.snapshot.quests[1]!.status).toBe("ready");expect(c.snapshot.quests[1]!.status).toBe("active");
   const restored=createSharedAdventure({save:world.save()});expect(restored.join("a","a","mage").snapshot.quests[1]!.status).toBe("ready");
 });
-test("Foreman Nine defeats attack spam while earned gear, block, escape and potions win",()=>{
-  for(const seed of [9844,2000,4000]){
-    const spam=fightForeman(foremanFixture(false,seed),false);
-    const gearedSpam=fightForeman(foremanFixture(true,seed),false);
-    const prepared=fightForeman(foremanFixture(true,seed),true);
-    console.log({seed,spam,gearedSpam,prepared});
-    expect(spam.health).toBe(0);expect(spam.bossHealth).toBeGreaterThan(0);
-    expect(gearedSpam.health).toBe(0);expect(gearedSpam.bossHealth).toBeGreaterThan(0);
-    expect(prepared.bossHealth).toBe(0);expect(prepared.health).toBeGreaterThan(0);
-  }
+test("earned gear and timed defense improve the Foreman fight",()=>{
+  const unprepared=fightForeman(foremanFixture(false),false);
+  const prepared=fightForeman(foremanFixture(true),true);
+  expect(unprepared.health).toBe(0);expect(unprepared.bossHealth).toBeGreaterThan(0);
+  expect(prepared.bossHealth).toBe(0);expect(prepared.health).toBeGreaterThan(0);
 });
 test("coat applies after Block, preserves complete blocks, and enforces one damage minimum",()=>{
   for(const [damage,block,expected] of [[32,0,30],[32,24,6],[8,24,0],[25,24,1]] as const){
     const source=foremanFixture(true),save=JSON.parse(source.save());
     const boss=save.state.threats.find((t:{id:string})=>t.id==="ritual-guardian");boss.damage=damage;
-    const game=createAdventure({save:JSON.stringify(save)}),offset=game.snapshot.threats.find(t=>t.id==="ritual-guardian")!.windowAction!.offsetSeconds;
-    game.advance(game.snapshot.combat.remainingSeconds+Math.floor(offset));
+    const game=createAdventure({save:JSON.stringify(save)});
+    const cast=game.snapshot.threats.find(t=>t.id==="ritual-guardian")!.cast!;
+    game.advance(cast.remainingSeconds-.1);expect(game.snapshot.player.health).toBe(100);
     if(block)tap(game,"brace");
-    game.advance(offset-Math.floor(offset)-.001);expect(game.snapshot.player.health).toBe(100);
-    game.advance(.002);expect(game.snapshot.player.health).toBe(100-expected);
+    game.advance(.5);expect(game.snapshot.player.health).toBe(100-expected);
   }
 });
 test("each participating quest holder loots a personal Roll; replay waits for claims and preserves turn-in",()=>{

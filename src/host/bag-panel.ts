@@ -191,7 +191,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     setText(itemName, item ? `${label(item)} × ${quantity(item)}` : "Your backpack is empty");
     const copy = !item ? "Gather coolant crystals, search fallen foes, or buy potions from Mara."
       : item.id === "potions" ? `Restores ${next.potionHealing} health. ${Math.ceil(next.player.health)} / ${next.player.maximumHealth} health.`
-      : item.id === "insulated-coat" || item.id === "yard-weapon" ? `${GEAR[item.id].description} Right-click to equip. Changing gear in combat takes one turn and costs no stamina.`
+      : item.id === "insulated-coat" || item.id === "yard-weapon" ? `${GEAR[item.id].description} Right-click to equip. Changing gear in combat uses a 1.5-second recovery and costs no stamina.`
       : item.id === "carriedRelics" ? "Recovered from Foreman Nine. Bring it to Rowan and complete Clock Out."
       : item.id === "cargo" ? "Three are kept for Mara while her task is active. Other crystals become supplies on entering town. Carry six straight to the engine for its offering."
       : `Recovered from fallen foes. Return alive to ${YARD.settlement} to turn each salvage into a supply.`;

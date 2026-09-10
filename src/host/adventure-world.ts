@@ -450,7 +450,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.body.position.y = threat.id === "scout" ? 1.25 : 0;
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;
-        rig.lungePath.visible = threat.aggro && threat.health > 0 && threat.currentAbility.id === "maul" && threat.windowAction !== null && threat.windowAction.status !== "resolved";
+        rig.lungePath.visible = threat.aggro && threat.health > 0 && (threat.cast?.ability.id === "maul" || threat.currentActivity?.ability.id === "maul");
         if (rig.lungePath.visible) {
           const from = threat.attackOrigin, to = threat.targetPosition;
           const dx = to.x - from.x, dz = to.z - from.z;

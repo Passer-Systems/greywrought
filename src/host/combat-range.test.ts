@@ -10,13 +10,13 @@ const snapshot = { ...base, player: { ...base.player, position: origin }, select
 test("attack distance follows class and move, independent of readiness", () => {
   expect(playerRange(snapshot, "strike").state).toBe("out");
   for (const archetype of ["mage", "hunter"] as const) expect(playerRange({ ...snapshot, player: { ...snapshot.player, archetype } }, "strike").state).toBe("in");
-  const close = { ...snapshot, threats: [{ ...scout, position: { x: 3, y: 0, z: 0 } }] };
+  const close = { ...snapshot, threats: [{ ...scout, position: { x: 1.5, y: 0, z: 0 } }] };
   expect(playerRange(close, "strike").state).toBe("in");
   expect(playerRange(close, "disengage").state).toBe("in");
-  expect(playerRange(close, "jab").state).toBe("out");
+  expect(playerRange(close, "jab").state).toBe("in");
 });
 
-test("queued target identity wins over the selected enemy; self moves have no range cue", () => {
+test("explicit target identity wins over the selected enemy; self moves have no range cue", () => {
   const next = { ...snapshot, threats: [...snapshot.threats, { ...scout, id: "near", position: origin }], selectedThreat: "near" };
   expect(playerRange(next, "strike").state).toBe("in");
   expect(playerRange(next, "strike", scout.id).state).toBe("out");

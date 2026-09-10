@@ -17,11 +17,12 @@ Equipment, levels and the timing of your responses all affect survival. Quest
 turn-ins show your rewards with an Equip button for new gear. Coolant crystals
 have a recognizable cyan crystal model and a hover tooltip with quest progress.
 
-Combat has three one-second turns, one second to choose the enemy's next move,
-and five seconds to prepare. Queue up to three moves using five stamina. Each
-enemy announces one move in the coming window. Additional enemies join the
-shared rhythm. Hover an intention for its damage, range and response; press J
-for the lorebook. Faded attack art and a distance marker mean out of range now.
+Combat is continuous and tab-targeted. Your basic attack repeats every 1.5 seconds;
+other abilities act when pressed, subject to stamina and a shared recovery.
+Each enemy independently commits to a spell with at least three seconds of warning.
+A cast bar below its nameplate shows the spell icon, name and time until it fires;
+the selected enemy also has a cast bar beneath its target frame. Hover for damage,
+range and how to respond. Faded attack art means out of range now.
 
 Foreman Nine has a targeted pulse, a dodgeable press and a shielded interval.
 Its damage grows while you fight: prepare your gear, block the pulse, leave the
@@ -69,10 +70,11 @@ Left-drag or right-drag turns the camera and your character. Hold Alt while
 left-dragging to look around without changing your character's facing. Both mouse
 buttons move forward, including while S is held. The wheel zooms.
 
-Tab selects a target. **1** queues your class attack, **2** Block, **=** drinks
-or queues a health potion. Completing Rowan's quests unlocks **3** a class
-retreat attack and **4** a class power. Click a queued move then an ability to replace it; right-click
-to remove it; drag onto another turn to move or swap. Executed moves stay locked.
+Tab selects a target. **1** starts or stops your class's auto attack, **2** uses
+Block, and **=** drinks a health potion. Completing Rowan's quests unlocks **3**
+a class retreat attack and **4** a class power. Drag action-bar spells to rearrange
+them; hotkeys follow their slots. Abilities use real-time recovery; movement stays
+available throughout combat.
 
 Hover crystals for the quest tooltip; left-click or press G nearby to gather.
 R offers six carried crystals at the engine. F speaks with NPCs or opens nearby
@@ -113,7 +115,7 @@ bun run test
 bun run build
 ```
 
-The static build can be hosted without a game server. The public site is served
+The static client connects to the shared game server. The public site is served
 by Caddy on DigitalOcean. Source edits and local tests do not alter the public
 deployment; a verified release is copied to a versioned directory before the
 server's current-release pointer changes.

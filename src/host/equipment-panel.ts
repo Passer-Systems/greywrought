@@ -45,7 +45,7 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     selected = id;
     for (const [slotId, button] of buttons) button.setAttribute("aria-pressed", String(slotId === id));
     if (!snapshot) return;
-    const signature = JSON.stringify([id, snapshot.phase, snapshot.combat.phase, snapshot.player.archetype, snapshot.progression]);
+    const signature = JSON.stringify([id, snapshot.phase, snapshot.player.inCombat, snapshot.player.archetype, snapshot.progression]);
     if (signature === detailSignature) return;
     detailSignature = signature;
     const label = slots.find(slot => slot[0] === id)![1];
@@ -67,7 +67,7 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     details.append(kind, heading, description);
     if (owned) {
       const action = document.createElement("button"); action.type = "button"; action.id = "equipment-toggle";
-      action.textContent = (equipped ? "Unequip" : "Equip") + (snapshot.phase === "expedition" && (snapshot.combat.phase !== "idle" || snapshot.player.inCombat) ? " · 1 turn · 0 stamina" : "");
+      action.textContent = (equipped ? "Unequip" : "Equip") + (snapshot.phase === "expedition" && snapshot.player.inCombat ? " · 1.5s recovery" : "");
       action.disabled = snapshot.phase === "lost";
       action.dataset.gearItem = gearId;
       action.addEventListener("click", () => onEquip(GEAR[gearId].slot, equipped ? null : gearId));

@@ -3,7 +3,6 @@ Bun.env.GREYWROUGHT_DEBUG_PORT='9394';
 const first=await openBrowser('shared-world-first');
 Bun.env.GREYWROUGHT_DEBUG_PORT='9395';
 const second=await openBrowser('shared-world-second');
-const queue='JSON.parse(document.getElementById("combat-plan").dataset.queued)';
 try {
   await first.enter();
   await second.waitFor('["account","creator","roster"].includes(document.body.dataset.entryRoute)');
@@ -16,7 +15,7 @@ try {
   await first.waitFor('JSON.parse(document.body.dataset.gameRemotePlayers).length===1');
   await second.waitFor('JSON.parse(document.body.dataset.gameRemotePlayers).length===1');
   check(await first.evaluate<boolean>(`[...document.querySelectorAll('.adventure-actions kbd')].map(e=>e.textContent).join(',')==='1,2,3,4,5,6,7,8,9,0,-,='`),'Hotbar must be numbered in keyboard order');
-  check(await first.evaluate<number>(`document.querySelectorAll('.adventure-actions [data-action]').length`)===3,'Starting bar must contain attack, block and the potion on equals');
+  check(await first.evaluate<number>(`document.querySelectorAll('.adventure-actions [data-action]:not(.action-locked)').length`)===3,'Starting bar must contain attack, block and the potion on equals');
   check(await first.evaluate<boolean>(`document.querySelector('[data-action="strike"] img').src.endsWith('sword-strike.png')`),'Warrior must retain sword');
   check(await second.evaluate<boolean>(`document.querySelector('[data-action="strike"] img').src.endsWith('wand-bolt.svg')`),'Mage must retain wand');
   check(await first.evaluate<boolean>(`document.querySelector('[data-action="brace"] .action-cost')===null`),'Ability icons must not have stamina badges');
@@ -35,25 +34,13 @@ try {
   await first.shot('two-players-and-chat');
   await first.key('KeyA',true);await first.waitFor('Number(document.body.dataset.gamePlayerX)>-0.2');await first.key('KeyA',false);
   await first.key('KeyW',true);await first.waitFor('Number(document.body.dataset.gamePlayerZ)>2.5');await first.key('KeyW',false);
-  await first.press('Digit2');await first.press('Digit1');await first.press('Digit1');
-  await first.waitFor(queue+'.length===3');
-  check(await first.evaluate<string>(`document.querySelector('.combat-plan-tick strong').textContent`)==='Turn 1','Timeline must use turns');
-  check(await first.evaluate<string>(queue+'.map(e=>e.action).join()')==='brace,strike,strike','Number keys must queue in first available order');
-  await first.click('.combat-plan-move[data-offset="0"]');await first.press('Digit1');
-  await first.waitFor(queue+'.every(e=>e.action==="strike")');
-  await first.click('.combat-plan-move[data-offset="1"]');
-  await first.waitFor('!document.querySelector(".adventure-actions [data-action=brace]").disabled');
-  await first.click('.adventure-actions [data-action="brace"]');
-  await first.waitFor(queue+'[1].action==="brace"');
-  const pos=await first.evaluate<{x:number;y:number}>(`(()=>{const r=document.querySelector('.combat-plan-move[data-offset="2"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
-  await first.call('Input.dispatchMouseEvent',{type:'mousePressed',...pos,button:'right',buttons:2,clickCount:1});
-  await first.call('Input.dispatchMouseEvent',{type:'mouseReleased',...pos,button:'right',buttons:0,clickCount:1});
-  await first.waitFor(queue+'.length===2');
-  await first.press('Digit1');await first.waitFor(queue+'.length===3');
-  await first.shot('numbered-bar-queue-editing');
+  await first.press('Digit2');
+  await first.waitFor('Number(document.body.dataset.gameBlock)>0');
+  check(await first.evaluate<boolean>('document.getElementById("combat-plan")===null'),'Turn planner must be absent');
   await first.key('KeyW',true);await first.waitFor('Number(document.body.dataset.gamePlayerZ)>8');await first.key('KeyW',false);
   await first.press('Digit1');
   await first.waitFor(`Number(document.querySelector('#map-threats [data-enemy-id="scout"]').dataset.health)<96`,20000);
+  await first.press('Digit1');await first.waitFor('document.body.dataset.gameAutoAttack==="false"');
   const hp=await first.evaluate<string>(`document.querySelector('#map-threats [data-enemy-id="scout"]').dataset.health`);
   await second.waitFor(`document.querySelector('#map-threats [data-enemy-id="scout"]').dataset.health===${JSON.stringify(hp)}`);
   await second.shot('shared-enemy-damage');
@@ -62,5 +49,5 @@ try {
   await first.click('#entry-enter-world');await first.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.gameOnline==="true"');
   await second.waitFor('JSON.parse(document.body.dataset.gameRemotePlayers).length===1');
   check(first.errors.length===0&&second.errors.length===0,'Both browsers must remain free of errors');
-  console.log('PASS two players, distinct movement, shared chat and enemy damage, numbered two-ability bar, FIFO queue, mouse replacement/removal, rejoin; '+first.output);
+  console.log('PASS two players, distinct movement, shared chat and enemy damage, numbered abilities, immediate Block, repeating auto attack, rejoin; '+first.output);
 } finally {await first.close();await second.close();}

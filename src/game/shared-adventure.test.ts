@@ -38,43 +38,35 @@ describe("one shared Frostwood", () => {
     expect(() => a.advance(1)).toThrow("shared adventure");
   });
 
-  test("both characters damage one enemy and personal defense resolves before its one attack", () => {
+  test("both characters damage one enemy and only the threatened character's defense absorbs its cast", () => {
     const world = fixture(), a = world.getPlayer("a")!, b = world.getPlayer("b")!;
-    tap(a, "brace"); tap(a, "strike"); tap(b, "strike");
-    world.advance(0.01);
-    expect(enemy(a).health).toBe(87);
-    expect(enemy(b).health).toBe(87);
+    tap(a, "strike"); tap(b, "strike"); world.advance(.01);
+    expect(enemy(a).health).toBe(78); expect(enemy(b).health).toBe(78);
     expect(enemy(a).targetPlayerId).toBe("a");
-    expect(enemy(a).actionSequence).toBe(1);
+    expect(enemy(a).actionSequence).toBe(0);
+    expect(a.snapshot.player.health).toBe(100); expect(b.snapshot.player.health).toBe(100);
+    tap(a, "strike"); tap(b, "strike");
+    const cast = enemy(a).cast!;
+    world.advance(cast.remainingSeconds - .1); tap(a, "brace");
+    world.advance(.2);
     expect(a.snapshot.player.health).toBe(100);
-    expect(a.snapshot.player.block).toBe(16);
+    expect(a.snapshot.player.block).toBe(24 - cast.ability.damage);
     expect(b.snapshot.player.block).toBe(0);
-    world.advance(1.01);
-    expect(enemy(a).health).toBe(78);
-    expect(enemy(b).health).toBe(78);
-    expect(a.snapshot.combat.elapsedSeconds).toBe(b.snapshot.combat.elapsedSeconds);
-    expect(a.snapshot.player.stamina).toBe(2);
-    expect(b.snapshot.player.stamina).toBe(4);
+    expect(b.snapshot.player.stamina).toBe(5);
   });
 
-  test("another character neither doubles enemy time nor redirects its damage to that character's block", () => {
+  test("another character neither doubles enemy time nor redirects damage to their block", () => {
     const solo = fixture(false), shared = fixture();
     const a = shared.getPlayer("a")!, b = shared.getPlayer("b")!;
-    tap(b, "brace");
-    solo.advance(1.2); shared.advance(1.2);
+    solo.advance(.01); shared.advance(.01);
+    const cast = enemy(a).cast!;
+    expect(enemy(solo.getPlayer("a")!).cast).toEqual(cast);
+    solo.advance(cast.remainingSeconds - .1); shared.advance(cast.remainingSeconds - .1);
+    tap(b, "brace"); solo.advance(.2); shared.advance(.2);
     expect(a.snapshot.player.health).toBe(solo.getPlayer("a")!.snapshot.player.health);
-    expect(a.snapshot.player.health).toBe(92);
-    expect(b.snapshot.player.health).toBe(100);
-    expect(b.snapshot.player.block).toBe(24);
+    expect(a.snapshot.player.health).toBe(100 - cast.ability.damage);
+    expect(b.snapshot.player.health).toBe(100); expect(b.snapshot.player.block).toBe(24);
     expect(enemy(a).actionSequence).toBe(enemy(solo.getPlayer("a")!).actionSequence);
-    expect(enemy(a).position).toEqual(enemy(solo.getPlayer("a")!).position);
-    expect(a.snapshot.combat.elapsedSeconds).toBe(solo.getPlayer("a")!.snapshot.combat.elapsedSeconds);
-    shared.advance(a.snapshot.combat.remainingSeconds);
-    expect(a.snapshot.combat.phase).toBe("choosing");
-    expect(b.snapshot.combat.phase).toBe("choosing");
-    shared.advance(1);
-    expect(a.snapshot.combat.phase).toBe("preparation");
-    expect(b.snapshot.combat.remainingSeconds).toBeCloseTo(a.snapshot.combat.remainingSeconds);
   });
 
   test("disconnect retains the character and shared save retains online and offline progress", () => {
@@ -90,7 +82,7 @@ describe("one shared Frostwood", () => {
     expect(returned.snapshot.player.position).toEqual(position);
     expect(enemy(returned).health).toBe(87);
     expect(partner.snapshot.player.health).toBe(b.snapshot.player.health);
-    expect(returned.snapshot.combat.elapsedSeconds).toBe(b.snapshot.combat.elapsedSeconds);
+    expect(returned.snapshot.combat.autoAttack).toBe(false);
     restored.advance(0.1);
     expect(returned.snapshot.player.position).toEqual(position);
     expect(() => restored.join("a", "Ada", "warrior")).toThrow("calling");

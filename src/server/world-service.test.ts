@@ -105,7 +105,6 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(await first.invalid({ type: 'camera', x: 1e100, z: 0 })).toBe(false);
     expect(await first.invalid({ type: 'action', action: 'forward', pressed: true, save: 'forged' })).toBe(false);
     expect(await first.command({ type: 'chat', text: 'x'.repeat(281) })).toBe(false);
-    expect(await first.command({ type: 'replace', id: 999, action: 'strike' })).toBe(false);
     expect(await first.command({ type: 'chat', text: 'Two' })).toBe(true);
     expect(await first.command({ type: 'chat', text: 'Three' })).toBe(true);
     expect(await first.command({ type: 'chat', text: 'Four' })).toBe(false);

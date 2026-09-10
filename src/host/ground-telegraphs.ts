@@ -18,19 +18,17 @@ const styles: Record<string, { color: number; icon: string; label: string; kind:
 };
 
 function warningState(threat: ThreatView, snapshot: AdventureSnapshot, audience?: RangeAudience) {
-  const move = threat.windowAction;
-  if (!threat.aggro || !threat.active || threat.health <= 0 || !move || move.status === "resolved") return null;
+  const move = threat.cast ?? threat.currentActivity;
+  if (!threat.aggro || !threat.active || threat.health <= 0 || !move) return null;
   const style = styles[move.ability.id];
   if (!style) return null;
-  const combat = snapshot.combat;
-  const untilOpening = combat.phase === "preparation" ? combat.remainingSeconds : threat.joinsNextWindow ? combat.remainingSeconds + 5 : -combat.elapsedSeconds;
-  const seconds = Math.max(0, untilOpening + move.offsetSeconds, threat.currentActivity?.remainingSeconds ?? 0);
+  const seconds = Math.max(0, move.remainingSeconds);
   const remoteTarget = audience && threat.targetPlayerId && threat.targetPlayerId !== audience.selfId;
   const recipient = remoteTarget ? audience.players.find(player => player.id === threat.targetPlayerId)?.player.position : snapshot.player.position;
   if (style.kind === "target" && !recipient) return null;
   const position = style.kind === "target" ? recipient! : style.kind === "self" ? threat.position : threat.targetPosition;
   const radius = style.kind === "area" ? move.ability.range : style.kind === "target" ? 0.8 : 1.1;
-  return { style, position, radius, seconds, beat: Math.min(3, Math.floor(move.offsetSeconds) + 1), damage: move.ability.damage, ability: move.ability.id, committed: move.status === "active" };
+  return { style, position, radius, seconds, damage: move.ability.damage, ability: move.ability.id, committed: !threat.cast || threat.cast.status === "resolving" };
 }
 
 export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElement) {
@@ -64,17 +62,17 @@ export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElemen
         let warning = warnings.get(threat.id);
         if (!state) { if (warning) warning.root.visible = false; continue; }
         if (!warning) { warning = createWarning(); warnings.set(threat.id, warning); }
-        const { style, radius, position, seconds, beat, damage } = state;
+        const { style, radius, position, seconds, damage } = state;
         warning.root.visible = true; warning.root.position.set(position.x, 0.13, position.z);
         warning.fill.scale.setScalar(radius); warning.edge.scale.setScalar(radius);
         warning.fill.material.color.setHex(style.color); warning.edge.material.color.setHex(style.color);
         warning.fill.material.opacity = state.committed ? 0.30 : 0.16;
-        // Self buffs are already named on the caster's plate and combat plan.
+        // Self buffs are already named on the caster's plate.
         warning.badge.visible = style.kind !== "self";
         // The far edge keeps area icons above the lower combat HUD at the normal camera angle.
         warning.badge.position.set(facing.x * radius * 0.7, style.kind === "target" ? 2.7 : 0.25, facing.z * radius * 0.7);
         const time = seconds > 0 ? `${seconds.toFixed(1)}s` : "NOW";
-        const text = `${style.label}|${time}|${beat}|${damage}|${style.kind}|${state.committed}|${images.has(style.icon)}`;
+        const text = `${style.label}|${time}|${damage}|${style.kind}|${state.committed}|${images.has(style.icon)}`;
         if (warning.text !== text) {
           warning.text = text;
           const ctx = warning.context, color = `#${style.color.toString(16).padStart(6, "0")}`;
@@ -88,7 +86,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElemen
           ctx.fillText(enemyResponseLabel(state.ability), 40, 101);
           warning.texture.needsUpdate = true;
         }
-        diagnostics.push({ enemy: threat.id, ability: state.ability, response: enemyResponseLabel(state.ability), kind: style.kind, color: style.color, radius, x: position.x, z: position.z, seconds: Number(seconds.toFixed(1)), beat, committed: state.committed });
+        diagnostics.push({ enemy: threat.id, ability: state.ability, response: enemyResponseLabel(state.ability), kind: style.kind, color: style.color, radius, x: position.x, z: position.z, seconds: Number(seconds.toFixed(1)), committed: state.committed });
       }
       const serialized = JSON.stringify(diagnostics);
       if (canvas.dataset.telegraphs !== serialized) canvas.dataset.telegraphs = serialized;

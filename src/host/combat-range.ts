@@ -16,7 +16,7 @@ export function playerRange(snapshot: AdventureSnapshot, action: CombatAction, t
   const target = snapshot.threats.find(threat => threat.id === targetId && threat.active && threat.health > 0);
   if (!target) return { state: "unknown", text: "No living target selected." };
   if (target.phase === "returning") return { state: "out", text: "Returning home and recovering. Cannot be attacked until it returns." };
-  const metres = classAction(snapshot.player.archetype, action).range ?? (action === "strike" && snapshot.player.archetype !== "warrior" ? COMBAT_RULES.strike.rangedRange : COMBAT_RULES[action].range);
+  const metres = action === "strike" ? (snapshot.player.archetype === "warrior" ? COMBAT_RULES.strike.range : COMBAT_RULES.strike.rangedRange) : classAction(snapshot.player.archetype, action).range ?? COMBAT_RULES[action].range;
   return reach(snapshot.player.position, target.position, metres);
 }
 

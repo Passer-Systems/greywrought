@@ -18,7 +18,6 @@ import { createInnPanel } from "./inn-panel.js";
 import { createLorebook } from "./lorebook.js";
 import { createShopPanel } from "./shop-panel.js";
 import { createTradePanel } from "./trade-panel.js";
-import { createCombatPlan } from "./combat-plan.js";
 import { createQuestLog } from "./quest-log.js";
 import { createQuestRewardNotice } from "./quest-reward-notice.js";
 import { updateQuestTracker } from "./quest-tracker.js";
@@ -67,24 +66,11 @@ const questRewards = createQuestRewardNotice(element("adventure-hud"), {
 const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => unitFrames.portrait(id));
 const chatLog = createChatLog(element("adventure-hud"), text => running?.game.sendChat(text));
 const unitFrames = createUnitFrames(element("adventure-hud"));
-const combatPlan = createCombatPlan(element("combat-plan-mount"), {
-  rangeAudience: () => running ? { selfId: running.character.id, players: running.game.players } : undefined,
-  onSelect: () => { if (running?.ready) renderHud(running.game.snapshot); },
-  onReplace: (id, action) => {
-    if (!running?.ready || paused) return false;
-    const replaced = running.game.replaceQueuedAction(id, action);
-    combatPlan.update(running.game.snapshot);
-    return replaced;
-  },
-  onRemove: id => { if (running?.ready && !paused) { running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
-  onClear: () => { if (running?.ready && !paused) { running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
-  onMove: (id, seconds) => { if (running?.ready && !paused) { running.game.moveQueuedAction(id, seconds); combatPlan.update(running.game.snapshot); } },
-});
 const hudSize = new ResizeObserver(entries => {
   const entry = entries[0];
   if (entry) document.body.style.setProperty("--combat-hud-height", entry.contentRect.height + "px");
 });
-hudSize.observe(element("combat-plan-mount").parentElement!);
+hudSize.observe(element("adventure-actions").parentElement!);
 const inn = createInnPanel(element("adventure-hud"), {
   onQuest: submitQuest,
   onRest: () => pulse("rest"),
@@ -281,17 +267,12 @@ function listen(target: EventTarget, type: string, handler: EventListener, local
 function click(id: string, handler: () => void): void { listen(element(id), "click", handler); }
 function pressAction(action: AdventureAction): void {
   if ((action === "disengage" || action === "bloodRage") && !running?.game.snapshot.progression.unlockedActions.includes(action)) return;
-  switch (action) {
-    case "strike": case "brace": case "disengage": case "bloodRage": case "jab": case "guard": case "drinkPotion":
-      if (combatPlan.replaceSelected(action)) return;
-  }
   running?.game.setAction(action, true);
 }
 function pulse(action: AdventureAction): void {
   if (!running?.ready || (paused && action !== "closeLoot" && action !== "closeShop")) return;
   pressAction(action);
   running.game.setAction(action, false);
-  combatPlan.update(running.game.snapshot);
 }
 function release(): void {
   if (running) {
@@ -440,7 +421,6 @@ function returnToRoster(): void {
   closeLorebook();
   closeQuestLog();
   chatLog.reset();
-  combatPlan.reset();
   if (running) audio.update(running.game.snapshot, true);
   audio.reset();
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
@@ -562,14 +542,17 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gameBlock = String(player.block); data.gameManeuver = player.maneuver;
   data.gameManeuverSeconds = String(player.maneuverSeconds);
   data.gameStamina = String(player.stamina); data.gameBloodRage = String(player.bloodRage); data.gameInCombat = String(player.inCombat);
-  data.gameCombatPhase = snapshot.combat.phase; data.gameCombatElapsed = String(snapshot.combat.elapsedSeconds);
-  data.gameCombatCycle = String(snapshot.combat.cycle); data.gameReservedStamina = String(snapshot.combat.reservedStamina);
-  data.gameAvailableStamina = String(snapshot.combat.availableStamina);
+  data.gameAutoAttack = String(snapshot.combat.autoAttack);
+  data.gameAutoAttackRemaining = String(snapshot.combat.autoAttackRemainingSeconds);
+  data.gameGlobalCooldown = String(snapshot.combat.globalCooldown);
+  const stamina = element("combat-stamina");
+  stamina.setAttribute("aria-valuenow", String(player.stamina));
+  stamina.setAttribute("aria-valuemin", "0"); stamina.setAttribute("aria-valuemax", String(player.maximumStamina));
+  stamina.title = "Stamina " + player.stamina + " / " + player.maximumStamina;
+  element("combat-stamina-fill").style.width = (100 * player.stamina / player.maximumStamina) + "%";
   data.archetype = player.archetype;
   text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players);
-  combatPlan.update(snapshot);
-  data.gameCombatPlan = String(!element("combat-plan").hidden);
   const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, text: entry.name + ": " + entry.text })) ?? [];
   chatLog.update([...snapshot.log, ...sharedChat]);
   data.gameOnline = String(running?.game.online ?? false);
@@ -582,11 +565,14 @@ function renderHud(snapshot: AdventureSnapshot): void {
     ["strike", "strike-ready"], ["brace", "block-ready"], ["disengage", "disengage-ready"], ["bloodRage", "rage-ready"],
   ] as const) {
     const spec = classAction(player.archetype, action);
-    const cost = spec.cost ?? COMBAT_RULES[action].cost;
-    const available = snapshot.phase === "expedition" && selected?.active && selected.health > 0;
-    const replacing = snapshot.combat.queued.find(move => move.id === combatPlan.replacementId && move.status === "pending");
-    const full = !replacing && snapshot.combat.queued.length >= 3;
-    const availableStamina = snapshot.combat.availableStamina + (replacing?.cost ?? 0);
+    const auto = action === "strike";
+    const cost = auto ? 0 : spec.cost ?? COMBAT_RULES[action].cost;
+    const living = snapshot.phase !== "lost";
+    const available = auto || action === "disengage" ? snapshot.phase === "expedition" && selected?.active && selected.health > 0
+      : action === "bloodRage" ? player.inCombat : living;
+    const availableStamina = player.stamina;
+    const cooldown = auto ? snapshot.combat.autoAttackRemainingSeconds : snapshot.combat.globalCooldown;
+    const cooldownDuration = auto ? 1.5 : snapshot.combat.globalCooldownDuration;
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]');
     const unlocked = snapshot.progression.unlockedActions.includes(action);
     if (control) {
@@ -597,26 +583,30 @@ function renderHud(snapshot: AdventureSnapshot): void {
       if (heading) heading.textContent = spec.name;
       const copy = control.querySelector<HTMLElement>(".action-tooltip span:last-child");
       if (copy) {
-        const recovery = action === "bloodRage" ? COMBAT_RULES.bloodRage.recovery : COMBAT_RULES.actionCooldown;
+        const recovery = snapshot.combat.globalCooldownDuration;
         const power = classAction(player.archetype, "bloodRage").powerDamagePerStack ?? COMBAT_RULES.bloodRage.damagePerStack;
         const effect = action === "strike" || action === "disengage"
           ? ((spec.damage ?? COMBAT_RULES[action].damage) + snapshot.progression.attackBonus + player.bloodRage * power) + " damage · " + (spec.range ?? COMBAT_RULES[action].range) + "m reach. "
           : action === "brace"
             ? (spec.block ?? COMBAT_RULES.brace.block) + " block for " + COMBAT_RULES.brace.duration + "s. " + (spec.heal ? "Restores " + spec.heal + " health in combat. " : "")
             : "+" + power + " damage per " + classKit(player.archetype).powerStackName + "; maximum 3 stacks. " + (player.archetype === "hunter" ? "" : "Each stack drains 1 health every 5s. ") + "Lose one stack every 2s outside combat. ";
-        copy.textContent = effect + recovery + " turn" + (recovery === 1 ? "" : "s") + " recovery. " + spec.description;
+        copy.textContent = effect + (auto ? "Repeats every 1.5 seconds while in range. Press again to stop. " : recovery + "s recovery. ") + spec.description;
       }
       control.classList.toggle("action-locked", !unlocked);
-      control.disabled = !unlocked || !available || full || availableStamina < cost;
-      control.style.setProperty("--recovery", "0");
+      control.disabled = !unlocked || !available || availableStamina < cost;
+      control.style.setProperty("--recovery", String(Math.min(1, cooldown / Math.max(.001, cooldownDuration))));
+      if (auto) {
+        control.dataset.autoActive = String(snapshot.combat.autoAttack);
+        control.setAttribute("aria-pressed", String(snapshot.combat.autoAttack));
+      }
       control.dataset.range = available ? playerRange(snapshot, action).state : "none";
     }
-    const detail = !unlocked ? action === "disengage" ? "Complete A Name on the Roll to unlock" : "Complete Clock Out to unlock" : !available ? "Select a living enemy beyond the gate" : full ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " free stamina" : (replacing ? "Replace · " : "Queue · ") + cost + " stamina";
+    const detail = !unlocked ? action === "disengage" ? "Complete A Name on the Roll to unlock" : "Complete Clock Out to unlock" : !available ? action === "bloodRage" ? "Requires combat" : "Select a living enemy beyond the gate" : auto ? snapshot.combat.autoAttack ? "Auto attack on · press to stop" : "Start auto attack" : availableStamina < cost ? "Need " + cost + " stamina" : cooldown > .001 ? "Ready in " + cooldown.toFixed(1) + "s" : cost + " stamina";
     const range = available ? playerRange(snapshot, action) : null;
     text(label, detail + (range?.text ? " · " + range.text : ""));
   }
   const recovery = element("player-action-bar");
-  recovery.hidden = player.actionCooldown <= 0.001;
+  recovery.hidden = player.actionCooldown <= 0.001 || (player.currentAction !== "gather" && player.currentAction !== "ritual");
   if (!recovery.hidden) {
     const actionControl = player.currentAction ? document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + player.currentAction + '"]') : null;
     const art = actionControl?.querySelector<HTMLImageElement>(".action-art img");
@@ -624,13 +614,18 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const source = art?.src ?? publicUrl("assets/ui/icons/spells/sword-strike.png");
     if (icon.src !== source) icon.src = source;
     const gathering = player.currentAction === "gather";
-    const label = gathering ? "Gathering" : (actionControl?.getAttribute("aria-label") ?? "Action") + " · Recovery";
-    const progress = gathering ? player.actionDuration - player.actionCooldown : player.actionCooldown;
+    const label = gathering ? "Gathering" : "Awakening the engine";
+    const progress = player.actionDuration - player.actionCooldown;
     text("player-action-name", label);
     text("player-action-time", progress.toFixed(1) + " / " + player.actionDuration.toFixed(1));
     element("player-action-fill").style.width = (100 * progress / Math.max(.001, player.actionDuration)) + "%";
-    recovery.setAttribute("role", gathering ? "progressbar" : "meter"); recovery.setAttribute("aria-label", label);
+    recovery.setAttribute("role", "progressbar"); recovery.setAttribute("aria-label", label);
     recovery.setAttribute("aria-valuenow", String(progress)); recovery.setAttribute("aria-valuemin", "0"); recovery.setAttribute("aria-valuemax", String(player.actionDuration));
+  }
+  const potion = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="drinkPotion"]');
+  if (potion) {
+    potion.disabled = snapshot.potions <= 0 || player.health >= player.maximumHealth || snapshot.phase === "lost";
+    potion.style.setProperty("--recovery", String(snapshot.combat.globalCooldown / Math.max(.001, snapshot.combat.globalCooldownDuration)));
   }
   text("potion-count", `${snapshot.potions} carried · heals ${snapshot.potionHealing}`);
   text("potion-stack", String(snapshot.potions));
@@ -871,20 +866,12 @@ listen(window, "keydown", (event) => {
     }
     return;
   }
-  if (event.code === "Backspace") {
-    event.preventDefault();
-    if (!event.repeat && running?.ready && !paused) {
-      combatPlan.removeSelected();
-    }
-    return;
-  }
   const action = actionForBarCode(event.code) ?? keyActions[event.code];
   if (!action || paused || !running?.ready) return;
   event.preventDefault();
   if (keys.has(event.code)) return;
   keys.add(event.code);
   pressAction(action);
-  combatPlan.update(running.game.snapshot);
 });
 listen(window, "keyup", (event) => {
   if (!(event instanceof KeyboardEvent)) return;
@@ -950,7 +937,6 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   lorebook.dispose();
   questLog.dispose();
   questRewards.dispose();
-  combatPlan.dispose();
   hudSize.disconnect();
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }
 };

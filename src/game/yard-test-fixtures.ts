@@ -44,30 +44,20 @@ export function foremanFixture(prepared: boolean, seed = 9844): AdventureGame {
 }
 export function fightForeman(game: AdventureGame, prepared: boolean): { health: number; bossHealth: number; seconds: number } {
   game.selectTarget("ritual-guardian");
-  let planned = -1, seconds = 0;
-  while (seconds < 240 && game.snapshot.player.health > 0) {
+  let seconds = 0;
+  tap(game, "strike");
+  while (seconds < 180 && game.snapshot.player.health > 0) {
     const s = game.snapshot, boss = s.threats.find(t => t.id === "ritual-guardian")!;
     if (boss.health === 0) break;
-    if (s.combat.phase === "preparation" && planned !== s.combat.cycle) {
-      planned = s.combat.cycle;
-      const move = boss.windowAction!;
-      const beat = Math.floor(move.offsetSeconds);
-      for (let slot=0;slot<3;slot++) {
-        if (!prepared) tap(game,"strike");
-        else if (move.ability.id === "foreman-shield") {
-          if (slot === 0 && s.player.health <= 85 && s.potions > 0) tap(game,"drinkPotion");
-        } else tap(game,slot === beat ? move.ability.id === "foreman-pulse" ? "brace" : "disengage" : "strike");
-      }
+    const cast = boss.cast;
+    if (prepared && s.combat.globalCooldown === 0) {
+      if (cast && cast.ability.damage > 0 && cast.remainingSeconds < .3) tap(game, "brace");
+      else if (s.player.health <= 65 && s.potions > 0 && (!cast || cast.remainingSeconds > 2)) tap(game, "drinkPotion");
     }
-    // Walk into reach before a new attack sequence; queued Disengage alone
-    // controls movement during the active Press turn.
-    const pos = s.player.position;
-    const gap = Math.hypot(boss.position.x-pos.x,boss.position.z-pos.z);
-    if (s.combat.phase === "preparation" && gap > 1.6) {
-      game.setCameraForward(boss.position.x-pos.x,boss.position.z-pos.z); game.setAction("forward",true);
-    } else game.setAction("forward",false);
-    game.advance(0.05); seconds += 0.05;
+    const dx = boss.position.x - s.player.position.x, dz = boss.position.z - s.player.position.z;
+    game.setCameraForward(dx, dz); game.setAction("forward", Math.hypot(dx, dz) > 1.7);
+    game.advance(.05); seconds += .05;
   }
-  game.setAction("forward",false);
-  return { health:game.snapshot.player.health, bossHealth:game.snapshot.threats.find(t=>t.id==="ritual-guardian")!.health, seconds };
+  game.setAction("forward", false);
+  return { health: game.snapshot.player.health, bossHealth: game.snapshot.threats.find(t => t.id === "ritual-guardian")!.health, seconds };
 }

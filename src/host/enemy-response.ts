@@ -5,7 +5,7 @@ export function enemyResponse(abilityId: string): string {
     case "fireball": return "Time your Block for impact. Running sideways will not dodge a fireball.";
     case "nest": return "The swarm follows the bee until it strikes. Leave the green area or Block, then retaliate.";
     case "warder": return "Leave the thorn area or Block the lash.";
-    case "maul": return "Bait the lunge, move clear of its landing, then counterattack if a turn remains.";
+    case "maul": return "Bait the lunge, move clear of its landing, then counterattack during its recovery.";
     case "kindle": return "Attack while it powers up. The next volley will be stronger.";
     case "ember-ward":
     case "foreman-shield": return "Let the shield expire. Use this opening to heal or power up.";

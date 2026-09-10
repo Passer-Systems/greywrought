@@ -77,7 +77,7 @@ describe("two-minute world regrowth", () => {
     const midway = JSON.parse(restored.save());
     expect(midway.world.threats[1].health).toBe(0);
     expect(midway.world.threats[1].respawnAt).toBe(150_000);
-    expect(midway.clock).toEqual(paused.clock);
+    expect(midway).not.toHaveProperty("clock");
     expect(midway.characters).toEqual(paused.characters);
     expect(midway.world.threats[0]).toEqual(paused.world.threats[0]);
     const beforeDowntime = restored.save();
@@ -94,11 +94,10 @@ describe("two-minute world regrowth", () => {
     for (const threat of saved.world.threats.filter((t: { id: string }) => t.id !== "ritual-guardian")) {
       dead(threat);
       Object.assign(threat, { position: { x: -8, y: 0, z: 22 }, targetPosition: { x: -7, y: 0, z: 20 }, targetPlayerId: "a",
-        joinCycle: 7, windowCycle: 7, specialOffset: 2, specialLaunched: true, specialResolved: true,
         remainingSeconds: 1, actionSequence: 12, lastActionHit: true, damage: 36, patrolIndex: 3 });
       if (threat.head) Object.assign(threat.head, { opened: true, block: 6, blockSeconds: 2, volley: 9, projectileSequence: 11,
-        events: [{ offsetSeconds: 2, spacing: 0.2, ability: "fireball", remainingSeconds: 1, status: "active", volley: 9, launched: 1 }],
-        fireballs: [{ impactOffset: 2, id: 11, origin: { x: -3, y: 0, z: 10 }, remainingSeconds: 0.5, duration: 0.9, damage: 18 }] });
+        ability: "fireball", castVolley: 9, pendingFireballs: 8, nextFireballSeconds: .2,
+        fireballs: [{ id: 11, origin: { x: -3, y: 0, z: 10 }, remainingSeconds: 0.5, duration: 0.9, damage: 18 }] });
       if (threat.wolf) Object.assign(threat.wolf, { circling: true, nextAttackSeconds: 1, facing: { x: 1, y: 0, z: 0 },
         attackOrigin: { x: -8, y: 0, z: 20 }, motion: { kind: "lunge", start: { x: -8, y: 0, z: 20 }, destination: { x: -7, y: 0, z: 20 }, remainingSeconds: 0.5, duration: 0.65 } });
     }

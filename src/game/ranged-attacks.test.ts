@@ -18,7 +18,7 @@ describe("class ranged attacks", () => {
     const game = rangedAt("mage");
     game.selectTarget("scout");
     const before = game.snapshot.player.position;
-    tap(game, "strike"); game.advance(0.01); game.advance(5.01);
+    tap(game, "strike"); game.advance(0.01);
     expect(game.snapshot.threats.find(t => t.id === "scout")?.health).toBe(87);
     expect(game.snapshot.player.position).toEqual(before);
     expect(game.snapshot.player.maneuver).toBe("none");
@@ -28,19 +28,19 @@ describe("class ranged attacks", () => {
     const game = rangedAt("hunter");
     game.selectTarget("scout");
     const before = game.snapshot.player.position;
-    tap(game, "strike"); game.advance(0.01); game.advance(5.01);
+    tap(game, "strike"); game.advance(0.01);
     expect(game.snapshot.threats.find(t => t.id === "scout")?.health).toBe(87);
     expect(game.snapshot.player.position).toEqual(before);
     expect(game.snapshot.player.maneuver).toBe("none");
   });
 
-  test("warrior strike remains a lunge", () => {
+  test("warrior auto strike stays in melee without moving", () => {
     const saved = JSON.parse(createAdventure({ archetype: "warrior" }).save());
     saved.state.phase = "expedition"; saved.state.position = { x: -3, y: 0, z: 8.1 };
     for (const enemy of saved.state.threats) enemy.rng = 9844;
     const game = createAdventure({ archetype: "warrior", save: JSON.stringify(saved) });
     game.selectTarget("scout"); tap(game, "strike"); game.advance(0.01);
-    expect(game.snapshot.player.maneuver).toBe("lunge");
+    expect(game.snapshot.player.maneuver).toBe("none");
   });
 
   test("mage Froststep and hunter Parting Shot hit at range, then retreat", () => {

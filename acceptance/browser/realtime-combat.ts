@@ -1,0 +1,88 @@
+import { createSharedAdventure } from '../../src/game/adventure.js';
+import { earnedChapter } from '../../src/game/yard-test-fixtures.js';
+import { createWorldService, type WorldSocketData } from '../../src/server/world-service.js';
+import { openBrowser, check } from './session.js';
+import type { AdventureSnapshot } from '../../src/game/adventure-types.js';
+
+Bun.env.GREYWROUGHT_GAME_URL = 'http://127.0.0.1:4173/';
+Bun.env.GREYWROUGHT_DEBUG_PORT = '9423';
+Bun.env.GREYWROUGHT_VULKAN = '1';
+const character = { id: 'realtime-fixture', name: 'Cast Tester', archetype: 'mage' as const, createdAtMillis: Date.now() };
+const token = 'realtime-fixture-token-000000000000000000';
+const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
+const saved = JSON.parse(seed.save());
+const chapter = earnedChapter(2); chapter.equipment.chest = 'insulated-coat';
+Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 8 }, chapter });
+for (const enemy of saved.world.threats) {
+  if (enemy.id === 'nest') Object.assign(enemy, { position: { x: -1, y: 0, z: 10 }, targetPosition: { x: -1, y: 0, z: 10 } });
+  else if (enemy.id !== 'scout' && enemy.active) Object.assign(enemy, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
+}
+const savePath = process.cwd() + '/build/browser/realtime-' + process.pid + '.json';
+await Bun.write(savePath, JSON.stringify({ version: 1, accounts: [{ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') }], world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
+const service = await createWorldService({ savePath, allowedOrigins: ['http://127.0.0.1:4173'] });
+const server = Bun.serve<WorldSocketData>({ hostname: '127.0.0.1', port: 4194, fetch: (request, host) => service.fetch(request, host), websocket: service.websocket });
+const page = await openBrowser('realtime-combat');
+try {
+  await page.call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{};
+    localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Combat Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});
+    localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
+    window.combatSamples=[];const Native=WebSocket;
+    window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4194/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state'){window.combatSnapshot=d.snapshot;window.combatSamples.push({time:d.serverTime,snapshot:d.snapshot});if(window.combatSamples.length>500)window.combatSamples.shift();}});}};` });
+  await page.reload();
+  await page.waitFor('document.body.dataset.entryRoute==="roster"');
+  await page.click('#entry-enter-world');
+  await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"');
+  check(await page.evaluate('!document.getElementById("combat-plan")&&!document.getElementById("combat-plan-mount")'), 'Removed planner must be absent');
+  await page.click('.enemy-nameplate[data-enemy-id="scout"] .nameplate-target');
+  const before = await page.evaluate<AdventureSnapshot>('window.combatSnapshot');
+  await page.press('Digit1');
+  await page.waitFor('window.combatSnapshot.combat.autoAttack&&window.combatSnapshot.player.attackSequence>=' + (before.player.attackSequence + 3));
+  const attacks = await page.evaluate<{ time: number; snapshot: AdventureSnapshot }[]>('window.combatSamples');
+  const hits = attacks.filter((sample, index) => index > 0 && sample.snapshot.player.attackSequence > attacks[index - 1]!.snapshot.player.attackSequence);
+  check(hits.length >= 3, 'One press must produce at least three attacks');
+  for (let index = 1; index < 3; index++) check(Math.abs(hits[index]!.time - hits[index - 1]!.time - 1.5) < .1, 'Auto attacks must repeat at 1.5-second intervals');
+  const after = await page.evaluate<AdventureSnapshot>('window.combatSnapshot');
+  check(after.player.position.x === before.player.position.x && after.player.position.z === before.player.position.z, 'Wand attacks must not lunge or teleport');
+  check(after.player.stamina === before.player.stamina, 'Basic attacks must not consume stamina');
+  await page.press('Digit1');
+  await page.waitFor('!window.combatSnapshot.combat.autoAttack');
+  const stopped = await page.evaluate<number>('window.combatSnapshot.player.attackSequence');
+  await Bun.sleep(1600);
+  check(await page.evaluate<number>('window.combatSnapshot.player.attackSequence') === stopped, 'Second press must stop auto attacks');
+  await page.waitFor('window.combatSnapshot.threats.find(t=>t.id==="scout").cast?.status==="casting"');
+  const cast = await page.evaluate<AdventureSnapshot['threats'][number]['cast']>('window.combatSnapshot.threats.find(t=>t.id==="scout").cast');
+  check(cast && cast.duration >= 3, 'Enemy must announce its spell with at least three seconds of cast time');
+  const bar = '.enemy-nameplate[data-enemy-id="scout"] .enemy-cast-bar';
+  await page.waitFor(`!document.querySelector('${bar}').hidden`);
+  check(await page.evaluate<boolean>(`document.querySelector('${bar}').innerText.includes(${JSON.stringify(cast.ability.name)})`), 'Nameplate cast must name the committed spell');
+  const geometry = await page.evaluate<{ below: boolean; width: number; icon: boolean; target: boolean }>(`(()=>{const c=document.querySelector('${bar}'),h=document.querySelector('.enemy-nameplate[data-enemy-id="scout"] .nameplate-health'),r=c.getBoundingClientRect();return {below:r.top>=h.getBoundingClientRect().bottom-1,width:r.width,icon:[...c.querySelectorAll('img')].some(i=>i.complete&&i.naturalWidth>0),target:[...document.querySelectorAll('.unit-frame-target-group .enemy-cast-bar')].some(c=>!c.hidden)}})()`);
+  check(geometry.below && geometry.width <= 210 && geometry.icon && geometry.target, 'Compact cast bar must have loaded artwork below health and match the target frame');
+  await page.press('Digit2');
+  await page.waitFor('window.combatSnapshot.player.block>0');
+  check(await page.evaluate<boolean>('window.combatSnapshot.combat.globalCooldown>0'), 'Block must activate immediately and start ordinary recovery');
+  await page.shot('named-cast-and-immediate-block');
+  await page.press('Digit1');
+  await page.waitFor('window.combatSnapshot.combat.autoAttack');
+  await page.press('Tab');
+  await page.waitFor('window.combatSnapshot.selectedThreat==="nest"');
+  if (!await page.evaluate<boolean>('window.combatSnapshot.combat.autoAttack')) await page.press('Digit1');
+  await page.key('KeyW', true);
+  await page.waitFor('window.combatSnapshot.threats.find(t=>t.id==="nest").aggro');
+  await page.key('KeyW', false);
+  await page.waitFor('window.combatSnapshot.threats.filter(t=>t.aggro&&t.cast?.status==="casting").length===2');
+  const multiple = await page.evaluate<AdventureSnapshot>('window.combatSnapshot');
+  check(multiple.threats.filter(t => t.aggro && t.cast).every(t => t.cast!.duration >= 3), 'Every enemy must bring its own fully warned cast');
+  check(await page.evaluate('document.querySelectorAll(".enemy-nameplate .enemy-cast-bar:not([hidden])").length===2'), 'Both enemies must show their casts without changing targets');
+  await page.shot('independent-enemy-casts');
+  await page.key('KeyA', true);
+  await page.waitFor('window.combatSnapshot.player.position.x>' + (multiple.player.position.x + .3));
+  await page.key('KeyA', false);
+  check(page.errors.length === 0, 'No browser exceptions');
+  console.log('PASS 1.5s repeating wand, toggle stop, no teleport/stamina cost, immediate Block, named cast bars, two independent enemies and free movement', page.output);
+} catch (error) {
+  await page.shot('failure'); throw error;
+} finally {
+  await page.key('KeyA', false).catch(() => {});
+  await page.key('KeyW', false).catch(() => {});
+  await page.close(); await service.close(); server.stop(true);
+}

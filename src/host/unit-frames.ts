@@ -2,6 +2,7 @@ import type { RemotePlayerView } from "../game/multiplayer-types.js";
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import type { LocalCharacter } from "./character-profile.js";
 import { publicUrl } from "./public-url.js";
+import { createEnemyCastBar } from "./enemy-nameplates.js";
 import { createUnitPortraits } from "./unit-portraits.js";
 
 interface Frame {
@@ -55,7 +56,7 @@ const styles = `
 .unit-frame-target .unit-frame-portrait { border-radius:0 2px 2px 0; }
 .unit-frame-target[data-hostile=true] .unit-frame-fill { background:linear-gradient(#da5353,#ac3338 50%,#80202b); }
 .unit-frame-target[data-hostile=false] .unit-frame-fill { background:linear-gradient(#e0ce51,#b19a2a 50%,#8e791d); }
-.unit-frame-tot { margin-top:2px; margin-left:auto; width:150px; height:39px; }
+.unit-frame-tot { margin-top:24px; margin-left:auto; width:150px; height:39px; }
 .unit-frame-tot .unit-frame-portrait { flex-basis:37px; width:37px; height:37px; border-width:2px; }
 .unit-frame-tot .unit-frame-bars { height:37px; padding:2px 3px; border-width:1px; }
 .unit-frame-tot .unit-frame-name { font-size:var(--ui-font-tiny); line-height:12px; height:12px; }
@@ -95,6 +96,7 @@ export function createUnitFrames(host: HTMLElement) {
   const player = makeFrame(root, "player-frame", "player");
   const targetGroup = node("div", "unit-frame-target-group", root); targetGroup.hidden = true;
   const target = makeFrame(targetGroup, "target-frame", "target");
+  const targetCast = createEnemyCastBar(target.root, "target-frame");
   const targetOfTarget = makeFrame(targetGroup, "target-of-target-frame", "tot"); targetOfTarget.root.hidden = true;
   let disposed = false, portraits: ReadonlyMap<string, string> = new Map();
   let selectedId = "", archetype = "";
@@ -118,7 +120,7 @@ export function createUnitFrames(host: HTMLElement) {
     const small = width <= 700;
     const slotWidth = small ? Math.min(250, (width - 20 - Math.max(70, width * 0.2)) / 2) : Math.min(250, (width - 188) / 2);
     const frameHeight = small ? 52 : 66;
-    return { width, height, slotWidth, frameWidth: Math.max(1, slotWidth * 0.75), frameHeight, groupHeight: frameHeight + (small ? 39 : 41) };
+    return { width, height, slotWidth, frameWidth: Math.max(1, slotWidth * 0.75), frameHeight, groupHeight: frameHeight + (small ? 61 : 63) };
   }
   function fit(position: FramePosition): FramePosition {
     const { width, height, frameWidth, groupHeight } = dimensions();
@@ -166,6 +168,7 @@ export function createUnitFrames(host: HTMLElement) {
     target.root.dataset.preview = String(!selectedId);
     if (selectedId) return;
     targetOfTarget.root.hidden = true;
+    targetCast.root.hidden = true;
     write(target.name, "Target frame");
     write(target.value, "Hold to move");
     target.fill.style.width = "100%";
@@ -258,6 +261,7 @@ export function createUnitFrames(host: HTMLElement) {
         if (image) target.portrait.src = image; else target.portrait.removeAttribute("src");
       }
       health(target, enemy.name, enemy.health, enemy.maximumHealth, enemy.id);
+      targetCast.render(enemy, snapshot, { selfId: character.id, players: others });
       Object.assign(target.root.dataset, { hostile: String(enemy.disposition === "hostile" || enemy.aggro), aggro: String(enemy.aggro), disposition: enemy.disposition });
       const recipient = enemy.targetPlayerId && enemy.targetPlayerId !== character.id ? others.find(other => other.id === enemy.targetPlayerId) : {id:character.id,name:character.name,player:snapshot.player};
       const attackingPlayer = enemy.aggro && enemy.health > 0 && recipient && recipient.player.health > 0;
