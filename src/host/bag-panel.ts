@@ -1,6 +1,6 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
-import { GEAR, YARD, gearName } from "../game/yard-content.js";
+import { GEAR, YARD, gearName, type GearSlot, type GearItemId } from "../game/yard-content.js";
 
 const itemTypes = [
   { id: "potions", name: "Health potion", icon: "items/health-potion-red.png" },
@@ -12,7 +12,7 @@ const itemTypes = [
 ] as const;
 type Item = typeof itemTypes[number];
 
-export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): void; onClose(): void }) {
+export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): void; onEquip(slot: GearSlot, item: GearItemId): void; onClose(): void }) {
   const style = document.createElement("style");
   style.textContent = `
     #bag-panel { position:absolute; z-index:28; right:18px; bottom:154px; width:calc(4 * var(--ui-slot-size) + 5 * var(--ui-slot-gap) + 6px); max-width:calc(100% - 24px); max-height:calc(100% - 174px); overflow:auto; padding:0; border:3px ridge #78796b; border-radius:5px; color:#e5e0d1; background:repeating-linear-gradient(115deg,#171a19 0px,#171a19 2px,#191c1b 3px,#191c1b 5px); box-shadow:0 0 0 1px #171912,0 8px 28px #000b,inset 0 0 14px #000; font:var(--ui-font-body) Georgia,serif; pointer-events:auto; }
@@ -92,6 +92,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     button.addEventListener("contextmenu", event => {
       event.preventDefault();
       if (slot.item?.id === "potions") callbacks.onUsePotion();
+      else if (slot.item?.id === "insulated-coat" || slot.item?.id === "yard-weapon") callbacks.onEquip(GEAR[slot.item.id].slot, slot.item.id);
     });
     return slot;
   });
@@ -128,7 +129,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     setText(itemName, item ? `${label(item)} × ${quantity(item)}` : "Your backpack is empty");
     const copy = !item ? "Gather coolant crystals, search fallen foes, or buy potions from Mara."
       : item.id === "potions" ? `Restores ${next.potionHealing} health. ${Math.ceil(next.player.health)} / ${next.player.maximumHealth} health.`
-      : item.id === "insulated-coat" || item.id === "yard-weapon" ? `${GEAR[item.id].description} ${next.progression.equipment[GEAR[item.id].slot] === item.id ? "Equipped." : "Not equipped."} Press C to change gear in town.`
+      : item.id === "insulated-coat" || item.id === "yard-weapon" ? `${GEAR[item.id].description} ${next.progression.equipment[GEAR[item.id].slot] === item.id ? "Equipped." : "Not equipped."} Right-click to equip. Changing gear in combat takes one turn and costs no stamina.`
       : item.id === "carriedRelics" ? "Recovered from Foreman Nine. Bring it to Rowan and complete Clock Out."
       : item.id === "cargo" ? "Three are kept for Mara while her task is active. Other crystals become supplies on entering town. Carry six straight to the engine for its offering."
       : `Recovered from fallen foes. Return alive to ${YARD.settlement} to turn each salvage into a supply.`;

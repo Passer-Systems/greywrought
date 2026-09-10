@@ -17,8 +17,9 @@ export interface TradeView {
   readonly available: number; readonly canAccept: boolean; readonly reason: string; readonly step: number;
 }
 export type CombatAction = "strike" | "brace" | "disengage" | "bloodRage" | "jab" | "guard" | "drinkPotion";
-export interface QueuedCombatAction {
-  readonly id: number; readonly action: CombatAction; readonly targetId: string | null;
+export type CombatMove = { readonly action: CombatAction } | { readonly action: "equip"; readonly gear: { readonly slot: GearSlot; readonly item: GearItemId | null } };
+export type QueuedCombatAction = CombatMove & {
+  readonly id: number; readonly targetId: string | null;
   readonly offsetSeconds: number; readonly cost: number;
   readonly status: "pending" | "executed" | "failed"; readonly reason: string | null;
 }
@@ -123,7 +124,7 @@ export interface AdventureSnapshot {
     readonly moving: boolean;
     readonly backpedaling: boolean;
     readonly attackSequence: number;
-    readonly actionCooldown: number; readonly currentAction: AdventureAction | null; readonly actionDuration: number;
+    readonly actionCooldown: number; readonly currentAction: AdventureAction | "equip" | null; readonly actionDuration: number;
     readonly guardSeconds: number;
     readonly block: number;
     readonly stamina: number; readonly maximumStamina: number; readonly staminaRecoverySeconds: number;
@@ -176,6 +177,7 @@ export interface AdventureGame {
   clearQueuedActions(): void;
   openLoot(sourceId: string): void;
   setTradeOffer(kind: "supplies" | "potions", quantity: number): void;
+  interactNpc(id: "mara" | "inn"): void;
   quest(id: QuestId, operation: QuestOperation): void;
   equip(slot: GearSlot, item: GearItemId | null): void;
   save(): string;

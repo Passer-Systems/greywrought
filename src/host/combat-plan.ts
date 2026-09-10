@@ -1,6 +1,7 @@
 import type { AdventureSnapshot, CombatAction, QueuedCombatAction, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
 import { enemyRange, playerRange, type RangeAudience } from "./combat-range.js";
+import { GEAR, gearName } from "../game/yard-content.js";
 
 const actions: Record<CombatAction, { name: string; icon: string }> = {
   strike: { name: "Lunge", icon: "sword-strike" },
@@ -157,7 +158,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         if (!cell) continue;
         if (!button) {
           button = node("button", "combat-plan-move", cell); button.type = "button";
-          button.dataset.queueId = String(move.id); art(button, actions[move.action].icon);
+          button.dataset.queueId = String(move.id); art(button, move.action === "equip" ? "items/leather-satchel" : actions[move.action].icon);
           node("span", "combat-plan-move-time", button);
           const cost = node("span", "combat-plan-move-cost", button);
           cost.textContent = String(move.cost); cost.title = move.cost + " stamina";
@@ -181,8 +182,16 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           buttons.set(move.id, button);
         }
         const ranged = next.player.archetype !== "warrior" && move.action === "strike";
-        const moveName = actionLabel(move.action);
-        const moveIcon = ranged ? (next.player.archetype === "mage" ? "wand-bolt.svg" : "bow-shot.svg") : actions[move.action].icon + ".png";
+        const weaponArt = next.player.archetype === "mage" ? "wand-bolt.svg" : next.player.archetype === "hunter" ? "bow-shot.svg" : "sword-strike.png";
+        let moveName: string, moveIcon: string;
+        if (move.action === "equip") {
+          const gear = move.gear.item ?? (move.gear.slot === "chest" ? "insulated-coat" : "yard-weapon");
+          moveName = `${move.gear.item ? "Equip" : "Unequip"} ${gearName(gear, next.player.archetype)}`;
+          moveIcon = gear === "yard-weapon" ? weaponArt : GEAR[gear].icon + ".png";
+        } else {
+          moveName = actionLabel(move.action);
+          moveIcon = ranged ? weaponArt : actions[move.action].icon + ".png";
+        }
         const moveImage = button.querySelector<HTMLImageElement>("img");
         if (moveImage && !moveImage.src.endsWith("/" + moveIcon)) moveImage.src = publicUrl("assets/ui/icons/" + (moveIcon.startsWith("items/") ? "" : "spells/") + moveIcon);
         if (button.parentElement !== cell) cell.append(button);
@@ -193,7 +202,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         write(costLabel, String(move.cost)); costLabel.title = move.cost + " stamina";
         button.setAttribute("aria-pressed", String(move.id === selectedId));
         const target = next.threats.find(threat => threat.id === move.targetId)?.name;
-        const range = move.status === "pending" ? playerRange(next, move.action, move.targetId) : null;
+        const range = move.status === "pending" && move.action !== "equip" ? playerRange(next, move.action, move.targetId) : null;
         button.dataset.range = range?.state ?? "none";
         const label = moveName + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina" + (target ? " · " + target : "") + " · " + move.status + (move.reason ? ": " + move.reason : "") + (range?.text ? " · " + range.text : "");
         button.title = label + (move.status === "pending" ? " · Click to replace · Right-click to remove" : ""); button.setAttribute("aria-label", label);

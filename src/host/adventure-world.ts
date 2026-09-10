@@ -44,6 +44,7 @@ interface ThreatRig {
 }
 
 export type WorldPick = { readonly kind: "threat"; readonly id: string }
+  | { readonly kind: "npc"; readonly id: "mara" | "inn" }
   | { readonly kind: "resource"; readonly id: "frost-cores" }
   | { readonly kind: "place"; readonly id: string };
 
@@ -152,8 +153,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
 
   const hoverTargets: HoverTarget[] = [
     { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(-2, 1.4, 12) },
-    { root: mara, pick: { kind: "place", id: "shop" }, name: "Mara · Supplies", anchor: new Vector3(3.4, 2.45, -7.5) },
-    { root: rowan, pick: { kind: "place", id: "innkeeper" }, name: "Rowan · Innkeeper", anchor: new Vector3(innPosition.x, 2.45, innPosition.z) },
+    { root: mara, pick: { kind: "npc", id: "mara" }, name: "Mara · Supplies", anchor: new Vector3(3.4, 2.45, -7.5) },
+    { root: rowan, pick: { kind: "npc", id: "inn" }, name: "Rowan · Innkeeper", anchor: new Vector3(innPosition.x, 2.45, innPosition.z) },
     { root: ritual, pick: { kind: "place", id: "ritual" }, name: YARD.works, anchor: new Vector3(ritualPosition.x, 0.4, ritualPosition.z) },
   ];
   const tooltip = document.createElement("div");
@@ -290,7 +291,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const hit = pick(hoverPointer.x, hoverPointer.y);
     const target = hit && hoverTargets.find(target => target.pick.kind === hit.kind && target.pick.id === hit.id);
     tooltip.hidden = !target;
-    canvas.style.cursor = hit?.kind === "resource" ? gatherCursor : "";
+    canvas.style.cursor = hit?.kind === "resource" ? gatherCursor : hit?.kind === "npc" ? "pointer" : "";
     if (hit) { canvas.dataset.hoverKind = hit.kind; canvas.dataset.hoverId = hit.id; }
     else { delete canvas.dataset.hoverKind; delete canvas.dataset.hoverId; }
     if (!target) return;

@@ -9,7 +9,7 @@ export function updateQuestTracker(s: AdventureSnapshot): void {
   const offered = view?.status === "available";
   let destinationId = returning || offered ? definition?.giver : definition?.destinationId;
   let title = offered ? `Speak with ${definition?.giverName}` : returning ? `Return to ${definition?.giverName}` : definition?.title ?? "The shift is over";
-  let detail = offered ? `Find ${definition?.giverName} in ${YARD.settlement}. Press F to talk and accept “${definition?.title}”.`
+  let detail = offered ? `Find ${definition?.giverName} in ${YARD.settlement}. Click to talk and accept “${definition?.title}”.`
     : returning ? `Your task is done. Speak with ${definition?.giverName} and choose Complete quest to receive your reward.`
     : definition?.objective ?? "The names are home. Rowan has a place for you at the table.";
   let warning = "";
@@ -24,7 +24,7 @@ export function updateQuestTracker(s: AdventureSnapshot): void {
     if (!s.ritualCalled) {
       destinationId = s.cargo >= 6 ? "ritual-site" : "frost-cores";
       detail = s.cargo >= 6 ? `Go to the ${YARD.works}. Press R nearby to offer six carried crystals.` : "Gather six coolant crystals to wake the engine. Stay beyond the gate: entering town trades spare crystals for supplies.";
-      warning = `${s.cargo} / 6 carried crystals · Equip your earned coat and weapon in town before you leave.`;
+      warning = `${s.cargo} / 6 carried crystals · Equip your earned coat and weapon before facing the foreman.`;
     } else if (roll) {
       detail = "Approach Foreman Nine’s remains. Press F, then take the Last Shift Roll. Return it to Rowan.";
     } else {

@@ -73,3 +73,24 @@ the same existing library. Source members and licenses are recorded in
 
 The runtime quest content is `greywrought:src/game/yard-content.ts`; it supplies
 NPC dialogue, objectives, rewards and item facts to the game and interface.
+
+## Reading quests and preparing gear
+
+Left-click Mara or Rowan nearby to open their greeting, then choose a quest or
+service. The quest page shows the brief and rewards before acceptance; returning
+opens an explicit completion action. F remains the nearby interaction shortcut.
+The quest log opens from its bottom-right icon or J, with quests on the left and
+story, objectives, progress and rewards on parchment on the right. L remains
+the monster lorebook. The tracker covers world names and enemy nameplates.
+
+Right-click earned gear to equip it. Outside combat this is immediate, in town
+or in the field. During combat, a gear change occupies one queued turn without
+spending stamina; its stats change when the turn resolves. It can be moved or
+cancelled like other planned moves. Locked hotbar abilities retain their empty
+slot frames until earned.
+
+The neutral Briar bee becomes a fast pursuer when attacked: 4.8 metres per second
+within 18 metres of its home, versus its peaceful 1.1-metre-per-second patrol.
+Its first Enraged Swarm follows a full preparation window. It must retain an
+attacker firing within wand/bow range, approach, and land its announced attack
+unless the player moves or blocks. Subsequent attack turns remain varied.

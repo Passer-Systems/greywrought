@@ -1,5 +1,5 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
-import { GEAR, QUESTS, gearName, type QuestId, type QuestStatus } from "../game/yard-content.js";
+import { QUESTS, gearName, type QuestId, type QuestStatus } from "../game/yard-content.js";
 
 /** A read-only journal of accepted, completed, and currently available quests. */
 export interface QuestLog {
@@ -21,7 +21,7 @@ function rewardText(snapshot: AdventureSnapshot, id: QuestId): string {
     reward.gear ? gearName(reward.gear, snapshot.player.archetype) : "",
     reward.potions ? `${reward.potions} healing potion${reward.potions === 1 ? "" : "s"}` : "",
     reward.supplies ? `${reward.supplies} supplies` : "",
-    reward.level > snapshot.progression.level ? `Level ${reward.level}` : "",
+    reward.level > 1 ? `Level ${reward.level}` : "",
     reward.ability === "disengage" ? "Disengage (3)" : reward.ability === "bloodRage" ? "Blood Rage (4)" : "",
   ].filter(Boolean);
   return parts.join(" · ") || "No reward listed";
@@ -55,7 +55,7 @@ export function createQuestLog(host: HTMLElement, onClose: () => void): QuestLog
     const meta = document.createElement("p"); meta.className = "quest-log-meta";
     meta.textContent = `${definition.giverName} · ${statusLabel[view.status]}`;
     const story = document.createElement("p");
-    story.textContent = view.status === "available" ? definition.offer : view.status === "completed" ? definition.after : view.status === "ready" ? definition.underway : definition.underway;
+    story.textContent = view.status === "available" ? definition.offer : view.status === "completed" ? definition.after : definition.offer;
     const objective = document.createElement("p"); objective.className = "quest-log-objective";
     objective.textContent = `${definition.objective} (${Math.min(view.progress, view.required)} / ${view.required})`;
     const reward = document.createElement("div"); reward.className = "quest-log-reward";

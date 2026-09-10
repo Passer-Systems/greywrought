@@ -35,7 +35,9 @@ export function createInnPanel(
     <button id="inn-rest" type="button">Rest · Restore health</button>
     <span class="inn-price">No charge</span>
   `;
-  const quests = createNpcQuests(panel.querySelector<HTMLElement>(".inn-quests")!, "inn", callbacks.onQuest);
+  const lodging = document.createElement("div"); lodging.id = "inn-service";
+  for (const selector of [".inn-health", "#inn-rest", ".inn-price"]) lodging.append(panel.querySelector(selector)!);
+  const quests = createNpcQuests(panel.querySelector<HTMLElement>(".inn-quests")!, "inn", callbacks.onQuest, { label: "I need a rest", element: lodging });
   const rest = panel.querySelector<HTMLButtonElement>("#inn-rest")!;
   const close = panel.querySelector<HTMLButtonElement>("#inn-close")!;
   const health = panel.querySelector<HTMLElement>(".inn-health")!;

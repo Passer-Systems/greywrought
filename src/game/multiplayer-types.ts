@@ -10,6 +10,7 @@ export interface RemotePlayerView {
 }
 export interface SharedChatMessage { readonly id: number; readonly speakerId: string | null; readonly name: string; readonly text: string; }
 export type WorldCommand =
+  | { type: "interactNpc"; id: "mara" | "inn" }
   | { type: "quest"; id: QuestId; operation: QuestOperation }
   | { type: "equip"; slot: GearSlot; item: GearItemId | null }
   | { type: 'movement'; frames: readonly MovementFrame[] }

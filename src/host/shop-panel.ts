@@ -24,7 +24,9 @@ export function createShopPanel(host: HTMLElement, callbacks: { onBuyPotion(): v
   </style><header class="rpg-window-header"><img id="shop-portrait" class="rpg-window-portrait" alt="Mara, the apothecary" /><h2 id="shop-title" class="rpg-window-title">Mara</h2><button id="shop-close" class="rpg-window-close" type="button" aria-label="Close shop">×</button></header><div class="shop-stock"><button id="shop-buy-potion" type="button"><img alt="" /><span><strong>Health potion</strong><small></small></span></button></div><p id="shop-offer"></p><footer><span id="shop-supplies"></span> <button id="shop-trade" type="button">Trade goods</button></footer><div class="shop-tab">Merchant</div>`;
   const questHost = document.createElement("div");
   panel.querySelector(".shop-stock")!.before(questHost);
-  const quests = createNpcQuests(questHost, "mara", callbacks.onQuest);
+  const stock = document.createElement("div"); stock.id = "shop-service";
+  for (const selector of [".shop-stock", "#shop-offer", "footer", ".shop-tab"]) stock.append(panel.querySelector(selector)!);
+  const quests = createNpcQuests(questHost, "mara", callbacks.onQuest, { label: "Browse goods · Buy and trade", element: stock });
   const buy = panel.querySelector<HTMLButtonElement>("#shop-buy-potion")!;
   buy.querySelector("img")!.src = publicUrl("assets/ui/icons/items/health-potion-red.png");
   const price = buy.querySelector("small")!, offer = panel.querySelector<HTMLElement>("#shop-offer")!, total = panel.querySelector("footer")!;

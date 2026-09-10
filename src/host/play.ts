@@ -18,6 +18,7 @@ import { createLorebook } from "./lorebook.js";
 import { createShopPanel } from "./shop-panel.js";
 import { createTradePanel } from "./trade-panel.js";
 import { createCombatPlan } from "./combat-plan.js";
+import { createQuestLog } from "./quest-log.js";
 import { updateQuestTracker } from "./quest-tracker.js";
 import { connectAdventure, type NetworkAdventure } from "./network-adventure.js";
 import { publicUrl } from "./public-url.js";
@@ -50,8 +51,10 @@ const corpseLoot = createCorpseLoot(element("adventure-hud"), {
 });
 const bags = createBagPanel(element("adventure-hud"), {
   onUsePotion: () => pulse("drinkPotion"),
+  onEquip: (slot, item) => { if (running?.ready && !paused) running.game.equip(slot, item); },
   onClose: closeBags,
 });
+const questLog = createQuestLog(element("adventure-hud"), closeQuestLog);
 const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => unitFrames.portrait(id));
 const chatLog = createChatLog(element("adventure-hud"), text => running?.game.sendChat(text));
 const unitFrames = createUnitFrames(element("adventure-hud"));
@@ -321,6 +324,7 @@ function returnToRoster(): void {
   equipment.close();
   closeBags();
   closeLorebook();
+  closeQuestLog();
   chatLog.reset();
   combatPlan.reset();
   if (running) audio.update(running.game.snapshot, true);
@@ -372,6 +376,18 @@ function toggleBags(): void {
   bags.open(running.game.snapshot);
   button("bag-open").setAttribute("aria-expanded", "true");
 }
+function closeQuestLog(): void {
+  questLog.close();
+  button("quest-log-open").setAttribute("aria-expanded", "false");
+  running?.world.canvas.focus();
+}
+function toggleQuestLog(): void {
+  if (questLog.isOpen()) { closeQuestLog(); return; }
+  if (!running?.ready || route !== "world") return;
+  closeLorebook();
+  questLog.open(running.game.snapshot);
+  button("quest-log-open").setAttribute("aria-expanded", "true");
+}
 function closeLorebook(): void {
   lorebook.close();
   button("lorebook-open").setAttribute("aria-expanded", "false");
@@ -380,6 +396,7 @@ function closeLorebook(): void {
 function toggleLorebook(): void {
   if (lorebook.isOpen) { closeLorebook(); return; }
   if (!running?.ready || route !== "world") return;
+  closeQuestLog();
   lorebook.open(running.game.snapshot.selectedThreat);
   button("lorebook-open").setAttribute("aria-expanded", "true");
 }
@@ -478,7 +495,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
     if (control) {
       control.classList.toggle("action-empty", !unlocked);
       control.disabled = !unlocked || !available || full || availableStamina < cost;
-      control.querySelector<HTMLElement>(".action-art")!.hidden = !unlocked;
+      control.querySelector<HTMLImageElement>(".action-art img")!.hidden = !unlocked;
       control.setAttribute("aria-label", !unlocked ? `Locked ability · ${action === "disengage" ? "Complete A Name on the Roll" : "Complete Clock Out"}` : action === "strike" ? player.archetype === "mage" ? "Arcane Bolt" : player.archetype === "hunter" ? "Aimed Shot" : "Lunge" : action === "brace" ? "Block" : action === "disengage" ? "Disengage" : "Blood Rage");
       control.style.setProperty("--recovery", "0");
       control.dataset.range = available ? playerRange(snapshot, action).state : "none";
@@ -510,6 +527,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   bags.update(snapshot);
   if (equipment.isOpen && running) equipment.update(running.character, snapshot);
   updateQuestTracker(snapshot);
+  questLog.update(snapshot);
   mapPosition(element("map-player"), player.position.x, player.position.z);
   element("map-player").style.transform = `translate(-50%, -50%) rotate(${-Math.atan2(player.cameraForward.x, player.cameraForward.z)}rad)`;
   for (const threat of snapshot.threats) {
@@ -562,6 +580,7 @@ function bindWorld(app: RunningAdventure): void {
     if ((event.button === 0 || event.button === 2) && buttons === 0 && dragDistance < 5 && !paused && app.ready) {
       const picked = app.world.pick(event.clientX, event.clientY);
       if (picked?.kind === "resource" && event.button === 0) pulse("gather");
+      else if (picked?.kind === "npc" && event.button === 0) app.game.interactNpc(picked.id);
       else if (picked?.kind === "threat") {
         if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
         else if (event.button === 0) app.game.selectTarget(picked.id);
@@ -677,6 +696,7 @@ click("pause-open", () => setMenuOpen(element("pause-panel").hidden));
 click("equipment-open", toggleEquipment);
 click("bag-open", toggleBags);
 click("lorebook-open", toggleLorebook);
+click("quest-log-open", toggleQuestLog);
 click("pause-resume", () => setMenuOpen(false));
 click("return-roster", returnToRoster);
 click("death-roster", returnToRoster);
@@ -705,6 +725,11 @@ listen(window, "keydown", (event) => {
     if (!event.repeat) toggleEquipment();
     return;
   }
+  if (event.code === "KeyJ") {
+    event.preventDefault();
+    if (!event.repeat) toggleQuestLog();
+    return;
+  }
   if (event.code === "KeyL") {
     event.preventDefault();
     if (!event.repeat) toggleLorebook();
@@ -715,6 +740,7 @@ listen(window, "keydown", (event) => {
     if (!event.repeat) toggleBags();
     return;
   }
+  if (event.code === "Escape" && questLog.isOpen()) { event.preventDefault(); closeQuestLog(); return; }
   if (event.code === "Escape" && lorebook.isOpen) { event.preventDefault(); closeLorebook(); return; }
   if (event.code === "Escape" && equipment.isOpen) { event.preventDefault(); closeEquipment(); return; }
   if (event.code === "Escape" && bags.isOpen) { event.preventDefault(); closeBags(); return; }
@@ -807,6 +833,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   shop.dispose();
   trade.dispose();
   lorebook.dispose();
+  questLog.dispose();
   combatPlan.dispose();
   hudSize.disconnect();
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }

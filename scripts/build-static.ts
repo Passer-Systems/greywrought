@@ -14,7 +14,7 @@ const git = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]);
 if (git.exitCode !== 0) throw new Error("Cannot identify release source");
 const release = { name: pkg.name, version: pkg.version, variant: "threejs", commit: git.stdout.toString().trim() };
 let index = await Bun.file("dist/index.html").text();
-for (const path of ["app/greywrought/play.js", "app/greywrought/cinderwake.css", "app/greywrought/equipment-panel.css"]) {
+for (const path of ["app/greywrought/play.js", "app/greywrought/cinderwake.css", "app/greywrought/equipment-panel.css", "app/greywrought/quest-log.css"]) {
   const digest = new Bun.CryptoHasher("sha256").update(await Bun.file(`dist/${path}`).arrayBuffer()).digest("hex").slice(0, 12);
   index = index.replaceAll(`./${path}`, `./${path}?v=${digest}`);
 }

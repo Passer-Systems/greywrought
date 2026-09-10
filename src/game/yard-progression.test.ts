@@ -109,3 +109,11 @@ test("Blood Rage adds its earned damage to both ranged attacks",()=>{
     expect(game.snapshot.threats.find(t=>t.id==="scout")!.health).toBe(96-9-4-8);
   }
 });
+
+test("clicking an NPC addresses that NPC when both are nearby; range still applies",()=>{
+  const game=at(createAdventure(),4.2,-9.25,"town");
+  game.interactNpc("mara");expect(game.snapshot.shopOpen).toBe(true);expect(game.snapshot.innOpen).toBe(false);
+  game.interactNpc("inn");expect(game.snapshot.innOpen).toBe(true);expect(game.snapshot.shopOpen).toBe(false);
+  const away=at(game,0,12,"expedition");away.interactNpc("mara");
+  expect(away.snapshot.shopOpen).toBe(false);expect(away.snapshot.report).toContain("Move closer to Mara");
+});

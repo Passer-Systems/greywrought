@@ -1,9 +1,9 @@
 import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
-import { YARD, QUESTS, GEAR, type QuestId, type QuestOperation, type QuestView, type ProgressionView, type GearSlot, type GearItemId } from "./yard-content.js";
+import { YARD, QUESTS, GEAR, gearName, type QuestId, type QuestOperation, type QuestView, type ProgressionView, type GearSlot, type GearItemId } from "./yard-content.js";
 import type {
   AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot, AdventureLogEntry, SharedAdventure,
-  CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView, ThreatAbilityView, MonsterLoreEntry, ThreatForecastEntry, CombatAction, QueuedCombatAction, CombatView,
+  CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView, ThreatAbilityView, MonsterLoreEntry, ThreatForecastEntry, CombatAction, CombatMove, QueuedCombatAction, CombatView,
 } from "./adventure-types.js";
 
 type Vector = { x: number; y: number; z: number };
@@ -48,7 +48,7 @@ interface HeadState {
 interface ThreatDefinition {
   id: string; name: string; level: number; position: Position; health: number; behavior?: "wolf" | "head";
   preparation: string; intention: string; damage: number; reach: number; benefit: string;
-  disposition: ThreatView["disposition"]; aggroRange: number; leash: number; speed: number; patrol?: readonly Position[];
+  disposition: ThreatView["disposition"]; aggroRange: number; leash: number; speed: number; pursuitSpeed?: number; patrol?: readonly Position[];
 }
 interface ThreatState {
   id: string; health: number; active: boolean; phase: ThreatPhase;
@@ -61,7 +61,8 @@ interface ThreatState {
   patrolIndex: number; moving: boolean; abilityIndex: number;
   wolf: WolfState | null; head: HeadState | null;
 }
-type QueueEntry = { -readonly [K in keyof QueuedCombatAction]: QueuedCombatAction[K] };
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+type QueueEntry = Mutable<QueuedCombatAction>;
 interface CombatClock { phase: CombatView["phase"]; elapsedSeconds: number; cycle: number; }
 interface CombatState { clock: CombatClock; queued: QueueEntry[]; nextId: number; }
 interface WorldState {
@@ -87,7 +88,7 @@ interface State {
   phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number;
   health: number; supplies: number; cargo: number;
   potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
-  actionCooldown: number; currentAction: AdventureAction | null; actionDuration: number; guardSeconds: number;
+  actionCooldown: number; currentAction: AdventureAction | "equip" | null; actionDuration: number; guardSeconds: number;
   block: number; stamina: number; staminaRecoverySeconds: number; bloodRage: number; rageDrainSeconds: number; rageDecaySeconds: number; maneuver: Maneuver | null;
   attackSequence: number; selectedThreat: string; report: string;
 }
@@ -106,9 +107,9 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(-3,10), point(-5,12), point(-3,14), point(-1,12)],
     preparation: "Gathering fire", intention: "Fireball", damage: 3, reach: 10,
     benefit: "Clear the Cinder Watchman to make the first clearing safer." },
-  { id: "nest", level: 2, disposition: "neutral", aggroRange: 0, leash: 7, speed: 1.1, name: "Briar bee", position: point(1, 20), health: 72,
+  { id: "nest", level: 2, disposition: "neutral", aggroRange: 0, leash: 18, speed: 1.1, pursuitSpeed: 4.8, name: "Briar bee", position: point(1, 20), health: 72,
     patrol: [point(1,20), point(-0.5,22), point(1,24.5), point(1.5,18)],
-    preparation: "Rousing the swarm", intention: "Swarm rush", damage: 16, reach: 3,
+    preparation: "Enraged wings gathering", intention: "Enraged Swarm", damage: 16, reach: 3,
     benefit: "Defeat the bee to make the briar passage safer." },
   { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2, name: "Cablekeeper", position: point(-3, 30), health: 72,
     patrol: [point(-3,30), point(-5,27), point(-1,30), point(-3,33)],
@@ -390,7 +391,7 @@ class Adventure implements AdventureGame {
       attackBonus: (c.level - 1) * 2 + gear.reduce((sum, id) => sum + GEAR[id].attackBonus, 0),
       damageReduction: gear.reduce((sum, id) => sum + GEAR[id].damageReduction, 0) };
   }
-  private actionUnlocked(action: CombatAction): boolean {
+  private actionUnlocked(action: CombatMove["action"]): boolean {
     return action !== "disengage" && action !== "bloodRage" || this.progression().unlockedActions.includes(action);
   }
   private questViews(): QuestView[] {
@@ -402,6 +403,19 @@ class Adventure implements AdventureGame {
       const nearby = s.phase === "town" && this.near(q.giver, 2.5);
       return { id: q.id, status, progress, required: q.required, canAccept: nearby && status === "available", canTurnIn: nearby && status === "ready" };
     });
+  }
+  interactNpc(id: "mara" | "inn"): void {
+    if (this.state.phase === "lost") return;
+    if (this.state.phase !== "town" || !this.near(id, 2.5)) {
+      this.report(`Move closer to ${id === "mara" ? "Mara" : "Rowan"} to talk.`);
+      return;
+    }
+    this.lootOpenId = null;
+    this.trade = null;
+    this.shopOpen = id === "mara";
+    this.innOpen = id === "inn";
+    this.report(id === "mara" ? "Mara says: A little preparation goes a long way."
+      : `Rowan says: Welcome to ${YARD.inn}. Come warm yourself by the hearth; rest is on the house.`);
   }
   quest(id: QuestId, operation: QuestOperation): void {
     const q = QUESTS.find(q => q.id === id), view = this.questViews().find(q => q.id === id);
@@ -421,8 +435,12 @@ class Adventure implements AdventureGame {
   }
   equip(slot: GearSlot, item: GearItemId | null): void {
     const s = this.state;
-    if (s.phase !== "town" || !(slot === "chest" || slot === "mainhand")) return;
+    if (s.phase === "lost" || !(slot === "chest" || slot === "mainhand")) return;
     if (item !== null && (!Object.hasOwn(GEAR, item) || !s.chapter.ownedGear.includes(item) || GEAR[item].slot !== slot)) return;
+    if (s.phase === "expedition" && (this.inCombat() || s.combat.clock.phase !== "idle")) {
+      this.queueAction({ action: "equip", gear: { slot, item } });
+      return;
+    }
     s.chapter.equipment[slot] = item;
   }
   private tradeView() {
@@ -465,10 +483,12 @@ class Adventure implements AdventureGame {
   private reservedStamina(): number {
     return this.state.combat.queued.filter(e => e.status === "pending").reduce((sum, e) => sum + e.cost, 0);
   }
-  private recoveryFor(action: CombatAction): number { return action === "bloodRage" ? COMBAT_RULES.bloodRage.recovery : COMBAT_RULES.actionCooldown; }
-  private queueAction(action: CombatAction): void {
+  private recoveryFor(action: CombatMove["action"]): number { return action === "bloodRage" ? COMBAT_RULES.bloodRage.recovery : COMBAT_RULES.actionCooldown; }
+  private queueAction(input: CombatAction | Extract<CombatMove, { action: "equip" }>): void {
+    const move: CombatMove = typeof input === "string" ? { action: input } : input;
+    const action = move.action;
     if (!this.actionUnlocked(action)) { this.report("Complete Rowan’s lessons to learn that move.", "combat"); return; }
-    const s = this.state, c = s.combat, cost = COMBAT_RULES[action].cost;
+    const s = this.state, c = s.combat, cost = action === "equip" ? 0 : COMBAT_RULES[action].cost;
     if (c.queued.length >= COMBAT_RULES.window.maximumActions) { this.report("Three moves already fill this plan.", "combat"); return; }
     if (s.stamina - this.reservedStamina() < cost) {
       this.report(`${actionName(action, s.archetype)} needs ${cost} stamina; ${s.stamina - this.reservedStamina()} free. Use Jab or Guard for 0 stamina, or remove a queued move.`, "combat"); return;
@@ -483,7 +503,7 @@ class Adventure implements AdventureGame {
       if (fits) break;
     }
     if (offsetSeconds >= COMBAT_RULES.window.actionSlots - EPSILON) { this.report("That move cannot fit in the three action slots.", "combat"); return; }
-    c.queued.push({ id: c.nextId++, action, targetId: action === "strike" || action === "disengage" || action === "jab" ? s.selectedThreat : null,
+    c.queued.push({ id: c.nextId++, ...move, targetId: action === "strike" || action === "disengage" || action === "jab" ? s.selectedThreat : null,
       offsetSeconds, cost, status: "pending", reason: null });
     c.queued.sort((a, b) => a.offsetSeconds - b.offsetSeconds);
     this.report(`${actionName(action, this.state.archetype)} queued at ${offsetSeconds.toFixed(1)} seconds.`, "combat");
@@ -537,10 +557,10 @@ class Adventure implements AdventureGame {
       this.report("No unreserved health potion is available.", "combat"); return false;
     }
     const replacement: QueuedCombatAction = {
-      ...entry,
+      id: entry.id,
       action,
       targetId: action === "strike" || action === "disengage" || action === "jab" ? s.selectedThreat : null,
-      cost,
+      offsetSeconds: entry.offsetSeconds, cost, status: entry.status, reason: entry.reason,
     };
     const candidate = c.queued.map(e => e.id === id ? replacement : { ...e }).sort((a, b) => a.offsetSeconds - b.offsetSeconds);
     const now = c.clock.phase === "active" ? c.clock.elapsedSeconds + s.actionCooldown : 0;
@@ -579,13 +599,17 @@ class Adventure implements AdventureGame {
       else if ((e.action === "strike" || e.action === "disengage") && (!target || !this.canUseAttack(target, e.action))) reason = "The target is out of reach, behind cover, or no longer available.";
       else if (e.action === "jab" && (!target || !target.active || target.health <= 0 || distance(s.position, target.position) > COMBAT_RULES.jab.range + EPSILON || !this.attackPath(target))) reason = "The target is out of reach, behind cover, or no longer available.";
       else if (e.action === "drinkPotion" && (s.potions < 1 || s.health >= 100)) reason = "No potion is available or your health is already full.";
+      else if (e.action === "equip" && e.gear.item !== null && (!s.chapter.ownedGear.includes(e.gear.item) || GEAR[e.gear.item].slot !== e.gear.slot)) reason = "You do not own suitable gear for that slot.";
       else if (e.action === "bloodRage" && (!this.inCombat() || s.bloodRage >= COMBAT_RULES.bloodRage.maximum)) reason = "Blood Rage needs a fight and cannot exceed three stacks.";
       if (reason) { e.status = "failed"; e.reason = reason; this.report(`${actionName(e.action, this.state.archetype)} failed: ${reason}`, "combat"); continue; }
       e.status = "executed";
       if (e.action === "strike" || e.action === "disengage") this.attack(e.action, target!);
       else {
         this.spendStamina(e.cost); this.recover(e.action, this.recoveryFor(e.action));
-        if (e.action === "brace" || e.action === "guard") {
+        if (e.action === "equip") {
+          s.chapter.equipment[e.gear.slot] = e.gear.item;
+          this.report(e.gear.item ? `${gearName(e.gear.item, s.archetype)} equipped.` : `${e.gear.slot === "chest" ? "Coat" : "Weapon"} unequipped.`, "combat");
+        } else if (e.action === "brace" || e.action === "guard") {
           s.guardSeconds = COMBAT_RULES[e.action].duration; s.block = COMBAT_RULES[e.action].block;
           this.report(`You gain ${s.block} block for ${s.guardSeconds} seconds.`, "combat");
         } else if (e.action === "drinkPotion") {
@@ -681,11 +705,9 @@ class Adventure implements AdventureGame {
         this.lootOpenId = null;
         const service = s.phase === "town" ? PLACES.filter(p => (p.kind === "shop" || p.kind === "inn") && this.near(p.id, 2.5))
           .sort((a,b) => distance(s.position,a.position) - distance(s.position,b.position))[0] : undefined;
-        this.shopOpen = service?.kind === "shop"; this.trade = null;
-        this.innOpen = service?.kind === "inn";
-        if (this.innOpen) this.report(`Rowan says: Welcome to ${YARD.inn}. Come warm yourself by the hearth; rest is on the house.`);
-        else if (this.shopOpen) this.report("Mara says: A little preparation goes a long way.");
+        if (service) this.interactNpc(service.kind === "shop" ? "mara" : "inn");
         else {
+          this.shopOpen = false; this.innOpen = false; this.trade = null;
           const corpse = s.world.threats.filter(t => this.canLoot(t))
             .sort((a, b) => distance(s.position, a.position) - distance(s.position, b.position))[0];
           if (corpse) this.openLoot(corpse.id);
@@ -782,6 +804,7 @@ class Adventure implements AdventureGame {
     damage += this.progression().attackBonus;
     const blocked = Math.min(damage, t.head?.block ?? t.shield);
     if (!t.head) t.shield -= blocked;
+    if (t.id === "nest" && t.contributors.length === 0) this.report("Your blow enrages the Briar bee. It rushes toward you; watch the marked ground and Block or move before its swarm lands.", "combat");
     if (!t.contributors.includes(this.playerId ?? "solo")) t.contributors.push(this.playerId ?? "solo");
     if (t.head) { t.head.block -= blocked; if (t.head.block === 0) t.head.blockSeconds = 0; }
     const s = this.state, dealt = Math.min(damage - blocked, t.health);
@@ -1045,8 +1068,13 @@ class Adventure implements AdventureGame {
     if (c.clock.phase === "idle") {
       c.clock.phase = "active"; c.clock.elapsedSeconds = 0; c.clock.cycle++;
       t.joinCycle = c.clock.cycle; this.planWindow(t, c.clock.cycle, true);
+      if (t.id === "nest") {
+        t.joinCycle = c.clock.cycle + 1; t.windowCycle = 0;
+        this.planWindow(t, t.joinCycle);
+      }
     } else {
       t.joinCycle = c.clock.cycle + 1; t.phase = "preparation";
+      if (t.id === "nest" && c.clock.phase === "preparation") t.joinCycle++;
       if (c.clock.phase === "preparation" || c.clock.phase === "choosing") this.planWindow(t, t.joinCycle);
     }
   }
@@ -1113,7 +1141,7 @@ class Adventure implements AdventureGame {
       }
     } else if (s.phase !== "expedition" || s.position.z <= 2 || distance(s.position, d.position) > d.leash || distance(t.position, d.position) > d.leash) this.releaseThreat(t);
   }
-  private recover(action: AdventureAction, duration: number): void {
+  private recover(action: AdventureAction | "equip", duration: number): void {
     this.state.currentAction = action; this.state.actionDuration = duration; this.state.actionCooldown = duration;
   }
   private inCombat(): boolean {
@@ -1179,10 +1207,11 @@ class Adventure implements AdventureGame {
   }
   private pursue(t: ThreatState, dt: number): void {
     const d = definition(t.id), gap = distance(t.position, this.state.position) - this.ability(t).range;
-    if (gap > EPSILON && d.speed > 0) this.moveThreat(t, this.state.position, Math.min(dt, gap / d.speed));
+    const speed = d.pursuitSpeed ?? d.speed;
+    if (gap > EPSILON && speed > 0) this.moveThreat(t, this.state.position, Math.min(dt, gap / speed));
     t.targetPosition = { ...t.position };
   }
-  private moveThreat(t: ThreatState, destination: Position, dt: number, speed = definition(t.id).speed): void {
+  private moveThreat(t: ThreatState, destination: Position, dt: number, speed = t.aggro ? definition(t.id).pursuitSpeed ?? definition(t.id).speed : definition(t.id).speed): void {
     if (speed === 0 || this.rootedSeconds(t) > EPSILON) return;
     let next = destination;
     if (!this.clearPath(t.position, destination)) {
@@ -1576,7 +1605,7 @@ function readSave(serialized: string, now = Date.now()): State {
     carriedRelics: number(s.carriedRelics, 0, 1, true), bankedRelics: number(s.bankedRelics, 0, Number.MAX_SAFE_INTEGER, true),
     carriedSalvage: root.version === 3 || current ? number(s.carriedSalvage, 0, Number.MAX_SAFE_INTEGER, true) : 0,
     presence: number(s.presence), ritualCalled: boolean(s.ritualCalled), actionCooldown: number(s.actionCooldown, 0, 2),
-    currentAction: v7 && s.currentAction !== null ? choice(s.currentAction, ["strike", "disengage", "brace", "bloodRage", "jab", "guard", "drinkPotion", "gather", "ritual"] as const) : null,
+    currentAction: v7 && s.currentAction !== null ? choice(s.currentAction, ["strike", "disengage", "brace", "bloodRage", "jab", "guard", "drinkPotion", "gather", "ritual", "equip"] as const) : null,
     actionDuration: v7 ? number(s.actionDuration, 0, 2) : number(s.actionCooldown, 0, 2),
     guardSeconds: Math.min(number(s.guardSeconds, 0, v7 ? 2 : current ? 5 : 3), COMBAT_RULES.brace.duration),
     block: current ? number(s.block, 0, v7 ? COMBAT_RULES.brace.block : 5) : number(s.guardSeconds, 0, 3) > 0 ? 5 : 0,
@@ -1615,6 +1644,7 @@ function readSave(serialized: string, now = Date.now()): State {
     }
     state.report = "Combat now uses three slots. You have five seconds to prepare your next moves.";
   }
+  if (state.combat.queued.some(e => e.action === "equip" && e.gear.item !== null && !state.chapter.ownedGear.includes(e.gear.item))) throw new Error("Invalid adventure save: planned gear is not owned.");
   const reserved = state.combat.queued.filter(e => e.status === "pending").reduce((sum,e) => sum + e.cost, 0);
   if (state.combat.queued.filter(e => e.status === "pending" && e.action === "drinkPotion").length > state.potions || reserved > state.stamina || (state.combat.phase !== "idle" && state.phase !== "expedition") || state.combat.queued.some(e => e.status === "pending" && state.combat.phase === "active" && e.offsetSeconds < state.combat.elapsedSeconds - EPSILON)) throw new Error("Invalid adventure save: inconsistent combat plan.");
   const { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled, combat, ...player } = state;
@@ -1700,7 +1730,7 @@ function maulAbility(damage = 18): ThreatAbilityView {
   return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres; each preparation chooses one of three active turns (33% each). It leaps on that turn and lands 0.65 seconds later, then recovers for 2 seconds. Its first Maul lands 2.65 seconds after engagement. Additional hounds join the next window. Maul gains 2 damage after each attack, up to 36; read its next damage before committing.", damage, range: 3, noticeSeconds: 5 };
 }
 function ordinaryAbility(d: ThreatDefinition, damage = d.damage): ThreatAbilityView {
-  return { id: d.id, name: d.intention, description: `${d.preparation}. During preparation it announces one of three active turns (33% each). Its highlighted area follows it until that turn, then locks in place; the strike lands 0.35 seconds later and recovers for 2.65 seconds. Additional enemies join the next active opening. Each attack raises its next damage by 15% of base damage, up to double. Forest attention adds further damage. The announced damage stays fixed through the window.`, damage, range: d.reach, noticeSeconds: 5 };
+  return { id: d.id, name: d.intention, description: `${d.preparation}. ${d.id === "nest" ? "Attacking enrages it: it pursues at 4.8 metres per second within 18 metres of its home. Its first retaliation follows a full five-second preparation. Each preparation chooses one of three turns (33% each)." : "During preparation it announces one of three active turns (33% each)."} Its highlighted area follows it until that turn, then locks in place; the strike lands 0.35 seconds later and recovers for 2.65 seconds. Additional enemies join the next active opening. Each attack raises its next damage by 15% of base damage, up to double. Forest attention adds further damage. The announced damage stays fixed through the window.`, damage, range: d.reach, noticeSeconds: 5 };
 }
 export function getMonsterLore(): readonly MonsterLoreEntry[] {
   return DEFINITIONS.map(d => {
@@ -1736,16 +1766,16 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
     };
     return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
-      description: d.id === "nest" ? "A neutral bee wandering beside the briars. Attacks only when disturbed. The surrounding shrubs remain after its defeat." : d.id === "warder" ? "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes this hazard." : "Appears when six coolant crystals are offered in the Ninth Bell Engine. Defeat it and search the body for its relic, then return home alive.",
-      opener: `Shows ${d.intention} immediately on engagement; commits at its first shared active opening${d.speed === 0 ? "; remains rooted" : "; approaches first when farther away"}.`,
+      description: d.id === "nest" ? "A neutral bee wandering beside the briars. Your attack enrages it into a fast pursuit, even from wand or bow range. It follows within 18 metres of its home; its surrounding shrubs remain after defeat." : d.id === "warder" ? "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes this hazard." : "Appears when six coolant crystals are offered in the Ninth Bell Engine. Defeat it and search the body for its relic, then return home alive.",
+      opener: d.id === "nest" ? "Closes toward its attacker immediately. Its first Enraged Swarm waits for the next active round after a full five-second preparation, then lands 0.35 seconds into its announced turn." : `Shows ${d.intention} immediately on engagement; commits at its first shared active opening${d.speed === 0 ? "; remains rooted" : "; approaches first when farther away"}.`,
       abilities: [ordinaryAbility(d), ...(d.id === "warder" ? [{ id: "harvest-thorns", name: "Gathering thorns", description: "While the warder lives, gathering coolant crystals deals 8 damage. Brace can absorb it. This happens only when you gather.", damage: 8, range: 0, noticeSeconds: 0 }] : [])],
-      sequences: [{ name: `Repeated ${d.intention}`, abilityIds: [d.id], offsetsSeconds: [], description: "During preparation it commits to one of three active turns (33% each), then marks the ground and strikes 0.35 seconds after that turn. The choice stays fixed through the window; it recovers for 2.65 seconds." }],
+      sequences: [{ name: `Repeated ${d.intention}`, abilityIds: [d.id], offsetsSeconds: [], description: `${d.id === "nest" ? "After its opening retaliation, each preparation" : "During preparation it"} commits to one of three active turns (33% each), then marks the ground and strikes 0.35 seconds after that turn. The choice stays fixed through the window; it recovers for 2.65 seconds.` }],
       strategy: `Leave the marked ground before the strike lands, or Brace shortly before impact. Attack during recovery.${d.id === "warder" ? " Clear it before gathering to avoid the thorns." : ""}`,
     };
   });
 }
 
-function actionName(action: CombatAction, archetype: CharacterArchetype): string { return ({ strike: archetype === "mage" ? "Arcane Bolt" : archetype === "hunter" ? "Aimed Shot" : "Lunge", brace: "Block", disengage: "Disengage", bloodRage: "Blood Rage", jab: "Jab", guard: "Guard", drinkPotion: "Health potion" } as const)[action]; }
+function actionName(action: CombatMove["action"], archetype: CharacterArchetype): string { return ({ strike: archetype === "mage" ? "Arcane Bolt" : archetype === "hunter" ? "Aimed Shot" : "Lunge", brace: "Block", disengage: "Disengage", bloodRage: "Blood Rage", jab: "Jab", guard: "Guard", drinkPotion: "Health potion", equip: "Change gear" } as const)[action]; }
 
 function volleySpacing(volley: number, offset: number): number { return volley <= 1 ? 0.2 : Math.min(0.2, Math.max(0, (COMBAT_RULES.window.active - 0.01 - offset) / (volley - 1))); }
 
@@ -1753,11 +1783,20 @@ function readCombat(value: unknown, legacyFiveSlotWindow = false): SavedState["c
   const c = record(value);
   if (!Array.isArray(c.queued) || c.queued.length > (legacyFiveSlotWindow ? 5 : COMBAT_RULES.window.maximumActions)) throw new Error("Invalid adventure save: invalid plan size.");
   const queued: QueueEntry[] = c.queued.map(value => {
-    const e = record(value), action = choice(e.action, ["strike", "brace", "disengage", "bloodRage", "jab", "guard", "drinkPotion"] as const);
+    const e = record(value), action = choice(e.action, ["strike", "brace", "disengage", "bloodRage", "jab", "guard", "drinkPotion", "equip"] as const);
     const status = choice(e.status, ["pending", "executed", "failed"] as const), reason = e.reason === null ? null : text(e.reason);
     const targetId = e.targetId === null ? null : choice(e.targetId, DEFINITIONS.map(t => t.id));
     if ((["strike", "disengage", "jab"].includes(action)) !== (targetId !== null) || (status === "failed") !== (reason !== null)) throw new Error("Invalid adventure save: inconsistent queued move.");
-    return { id: number(e.id, 1, Number.MAX_SAFE_INTEGER, true), action, targetId, offsetSeconds: number(e.offsetSeconds, 0, legacyFiveSlotWindow ? 4 : COMBAT_RULES.window.actionSlots - 1, true), cost: number(e.cost, COMBAT_RULES[action].cost, COMBAT_RULES[action].cost), status, reason };
+    const expectedCost = action === "equip" ? 0 : COMBAT_RULES[action].cost;
+    const id = number(e.id, 1, Number.MAX_SAFE_INTEGER, true);
+    const common = { targetId, offsetSeconds: number(e.offsetSeconds, 0, legacyFiveSlotWindow ? 4 : COMBAT_RULES.window.actionSlots - 1, true), cost: number(e.cost, expectedCost, expectedCost), status, reason };
+    if (action === "equip") {
+      const gear = record(e.gear), slot = choice(gear.slot, ["chest", "mainhand"] as const);
+      const item = gear.item === null ? null : choice(gear.item, ["insulated-coat", "yard-weapon"] as const);
+      if (item !== null && GEAR[item].slot !== slot) throw new Error("Invalid adventure save: gear does not fit the planned slot.");
+      return { id, action, gear: { slot, item }, ...common };
+    }
+    return { id, action, ...common };
   }).filter(e => !legacyFiveSlotWindow || e.offsetSeconds < COMBAT_RULES.window.actionSlots);
   if (new Set(queued.map(e => e.id)).size !== queued.length || queued.some((e,i) => i > 0 && e.offsetSeconds < queued[i-1]!.offsetSeconds + (queued[i-1]!.action === "bloodRage" ? 2 : 1) - EPSILON)) throw new Error("Invalid adventure save: overlapping queued moves.");
   const nextId = number(c.nextId, 1, Number.MAX_SAFE_INTEGER, true);

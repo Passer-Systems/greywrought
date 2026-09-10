@@ -1,7 +1,7 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import type { CharacterArchetype, LocalCharacter } from "./character-profile.js";
 import { publicUrl } from "./public-url.js";
-import { GEAR, YARD, gearName, type GearItemId, type GearSlot } from "../game/yard-content.js";
+import { GEAR, gearName, type GearItemId, type GearSlot } from "../game/yard-content.js";
 
 const slots = [
   ["head", "Head", "left"], ["neck", "Neck", "left"],
@@ -44,7 +44,7 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     selected = id;
     for (const [slotId, button] of buttons) button.setAttribute("aria-pressed", String(slotId === id));
     if (!snapshot) return;
-    const signature = JSON.stringify([id, snapshot.phase, snapshot.player.archetype, snapshot.progression]);
+    const signature = JSON.stringify([id, snapshot.phase, snapshot.combat.phase, snapshot.player.archetype, snapshot.progression]);
     if (signature === detailSignature) return;
     detailSignature = signature;
     const label = slots.find(slot => slot[0] === id)![1];
@@ -66,8 +66,8 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     details.append(kind, heading, description);
     if (owned) {
       const action = document.createElement("button"); action.type = "button"; action.id = "equipment-toggle";
-      action.textContent = snapshot.phase === "town" ? equipped ? "Unequip" : "Equip" : `Return to ${YARD.settlement} to change gear`;
-      action.disabled = snapshot.phase !== "town";
+      action.textContent = (equipped ? "Unequip" : "Equip") + (snapshot.phase === "expedition" && (snapshot.combat.phase !== "idle" || snapshot.player.inCombat) ? " · 1 turn · 0 stamina" : "");
+      action.disabled = snapshot.phase === "lost";
       action.dataset.gearItem = gearId;
       action.addEventListener("click", () => onEquip(GEAR[gearId].slot, equipped ? null : gearId));
       details.append(action);
@@ -93,6 +93,12 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     caption.append(title, item);
     button.append(mark, caption);
     button.addEventListener("click", () => select(id));
+    button.addEventListener("contextmenu", event => {
+      event.preventDefault();
+      if (!snapshot || snapshot.phase === "lost" || (id !== "chest" && id !== "mainhand")) return;
+      const gearId = id === "chest" ? "insulated-coat" : "yard-weapon";
+      if (snapshot.progression.ownedGear.includes(gearId)) onEquip(id, snapshot.progression.equipment[id] === gearId ? null : gearId);
+    });
     find(`[data-equipment-column="${column}"]`, HTMLElement).append(button);
     buttons.set(id, button);
   }

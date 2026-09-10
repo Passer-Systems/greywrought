@@ -17,6 +17,7 @@ export const files: readonly (readonly [string, string])[] = [
   ["src/host/favicon.svg", "dist/favicon.svg"],
   ["src/host/site.webmanifest", "dist/site.webmanifest"],
   ["src/host/cinderwake.css", "dist/app/greywrought/cinderwake.css"],
+  ["src/host/quest-log.css", "dist/app/greywrought/quest-log.css"],
   ["src/host/equipment-panel.css", "dist/app/greywrought/equipment-panel.css"],
   ["build/host/play.js", "dist/app/greywrought/play.js"],
   ["node_modules/three/build/three.module.js", "dist/vendor/three.module.js"],

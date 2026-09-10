@@ -164,3 +164,17 @@ test('releasing movement survives a burst of camera input', async () => {
     expect(next.snapshot.player.position).toEqual(stopped.snapshot.player.position);
   } finally {client.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true});}
 });
+
+test('NPC interaction accepts named villagers and rejects unrelated targets', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-npc-'));
+  const service = await createWorldService({savePath:join(directory,'world.json')});
+  const server = Bun.serve({hostname:'127.0.0.1',port:0,websocket:service.websocket,fetch:(request,host)=>service.fetch(request,host)});
+  const visitor = new Client(`ws://127.0.0.1:${server.port}/world`);
+  try {
+    await visitor.connect({id:'npc-visitor',name:'Visitor',archetype:'mage',createdAtMillis:1},crypto.randomUUID());
+    await visitor.state();
+    expect(await visitor.command({type:'interactNpc',id:'mara'})).toBe(true);
+    expect(await visitor.command({type:'interactNpc',id:'inn'})).toBe(true);
+    expect(await visitor.invalid({type:'interactNpc',id:'scout'})).toBe(false);
+  } finally { visitor.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true,force:true}); }
+});

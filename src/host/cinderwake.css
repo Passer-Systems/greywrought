@@ -1985,9 +1985,10 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .adventure-actions button[hidden] {display:none;}
 .adventure-actions button kbd { display:block; position:absolute; top:0; left:0; right:0; height:12px; color:#342e23; font:700 var(--ui-font-tiny)/12px Georgia,serif; text-align:center; }
 .action-art { position:absolute; inset:12px 1px 1px; overflow:hidden; border:1px solid #151916; border-radius:2px; background:radial-gradient(at 35% 20%,#4e5038,#101b19); }
+.action-art img[hidden] { display:none; }
 .action-art img { display:block; width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 1px 2px #000); }
-.adventure-actions button[data-action=bloodRage] .action-art {background:radial-gradient(at 35% 20%,#ad4c23,#371312);}
-.adventure-actions button[data-action=brace] .action-art {background:radial-gradient(at 35% 20%,#406b86,#162736);}
+.adventure-actions button[data-action=bloodRage]:not(.action-empty) .action-art {background:radial-gradient(at 35% 20%,#ad4c23,#371312);}
+.adventure-actions button[data-action=brace]:not(.action-empty) .action-art {background:radial-gradient(at 35% 20%,#406b86,#162736);}
 .adventure-actions button:hover {background:#f0e0b5;border-color:#fbe5a8;}
 .adventure-actions button:disabled {opacity:1;cursor:help;}
 .adventure-actions button:disabled .action-art img {filter:saturate(.5) brightness(.6);}
