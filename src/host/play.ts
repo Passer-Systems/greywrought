@@ -576,7 +576,7 @@ function bindWorld(app: RunningAdventure): void {
     lastX = event.clientX; lastY = event.clientY;
     dragDistance += Math.abs(dx) + Math.abs(dy);
     app.world.orbit(dx, dy);
-    if (buttons & 2) steerCharacter();
+    if ((buttons & 2) || ((buttons & 1) && !event.altKey)) steerCharacter();
   }, app.unbind);
   listen(canvas, "pointerup", (event) => {
     if (!(event instanceof PointerEvent)) return;

@@ -65,7 +65,8 @@ Assets and their attribution live in `greywrought:assets/`.
 ## Controls
 
 W/S move forward and backward; A/D strafe. Backpedaling is slower. Space jumps.
-Left-drag orbits the camera; right-drag also turns your character. Both mouse
+Left-drag or right-drag turns the camera and your character. Hold Alt while
+left-dragging to look around without changing your character's facing. Both mouse
 buttons move forward, including while S is held. The wheel zooms.
 
 Tab selects a target. **1** queues your class attack, **2** Block, **=** drinks
