@@ -250,6 +250,15 @@ The nameplate identifies the creature and health above one compact cast bar.
 Shield and control effects keep their distinct indicators. Its target frame repeats
 that same cast; ground warnings describe the same threatened area or target.
 Future choices remain unknown until the creature actually commits to them.
+Targeted spells have no floating BLOCK card above the player. Their cast bar
+provides the warning; dodgeable ground areas retain their own markers.
+
+Floating combat text shows resolved damage, healing, absorbed damage and misses.
+Outgoing damage rises beside the struck creature in gold; incoming damage appears
+beside the player in red, healing in green and absorption in blue. Numbers use
+actual amounts after armor, block and health caps, then fade after 1.4 seconds.
+Each player sees their own results; repeated updates and reconnects do not replay
+old numbers. Text stays behind the HUD and never intercepts mouse input.
 
 ## Player stamina and class abilities
 

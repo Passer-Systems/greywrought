@@ -22,7 +22,7 @@ export async function openBrowser(label: string) {
   await mkdir(output, { recursive: true });
   const chrome = Bun.spawn([
     Bun.env.CHROME_PATH ?? "google-chrome", "--headless=new", "--no-sandbox",
-    "--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check",
+    "--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check", "--mute-audio",
     "--password-store=basic", "--enable-unsafe-swiftshader",
     ...(Bun.env.GREYWROUGHT_SOFTWARE_RENDERING === "1" ? ["--use-angle=swiftshader"] : []),
     ...(Bun.env.GREYWROUGHT_VULKAN === "1" ? ["--use-angle=vulkan", "--enable-features=Vulkan", "--disable-vulkan-surface"] : []),

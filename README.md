@@ -23,6 +23,8 @@ Each enemy independently commits to a spell with at least three seconds of warni
 A cast bar below its nameplate shows the spell icon, name and time until it fires;
 the selected enemy also has a cast bar beneath its target frame. Hover for damage,
 range and how to respond. Faded attack art means out of range now.
+Floating numbers show damage dealt in gold, damage taken in red, healing in green,
+and absorbed damage in blue. Targeted spells use the enemy cast bar for warning.
 
 Foreman Nine has a targeted pulse, a dodgeable press and a shielded interval.
 Its damage grows while you fight: prepare your gear, block the pulse, leave the

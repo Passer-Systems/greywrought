@@ -2,7 +2,7 @@ import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, MOVEM
 import type { CharacterArchetype } from "../host/character-profile.js";
 import { YARD, QUESTS, GEAR, gearName, type QuestId, type QuestOperation, type QuestView, type ProgressionView, type GearSlot, type GearItemId } from "./yard-content.js";
 import type {
-  AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot, AdventureLogEntry, SharedAdventure,
+  AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot, AdventureLogEntry, SharedAdventure, CombatFeedback,
   CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView, ThreatAbilityView, MonsterLoreEntry, ThreatForecastEntry, CombatAction, CombatMove,
 } from "./adventure-types.js";
 import { classAction, classKit } from "./class-kit.js";
@@ -211,6 +211,8 @@ class Adventure implements AdventureGame {
   private innOpen = false;
   private readonly events: AdventureLogEntry[] = [];
   private eventId = 0;
+  private readonly combatFeedback: CombatFeedback[] = [];
+  private combatFeedbackId = 0;
   private lootOpenId: string | null = null;
 
   static sharedAdventure(options: Pick<AdventureOptions, "save" | "now">): SharedAdventure {
@@ -317,6 +319,7 @@ class Adventure implements AdventureGame {
     const s = this.state;
     return {
       quests: this.questViews(), progression: this.progression(),
+      combatFeedback: this.combatFeedback.map(entry => ({ ...entry })),
       phase: s.phase, combat: { autoAttack: this.autoAttacking, autoAttackRemainingSeconds: this.autoAttackRemainingSeconds, globalCooldown: s.actionCooldown, globalCooldownDuration: COMBAT_RULES.actionCooldown },
       player: {
         position: { ...s.position }, cameraForward: { ...this.cameraForward }, archetype: s.archetype,
@@ -483,9 +486,11 @@ class Adventure implements AdventureGame {
       s.block = action === "brace" ? classAction(s.archetype, action).block ?? COMBAT_RULES.brace.block : COMBAT_RULES.guard.block;
       const healing = action === "brace" && this.inCombat() ? Math.min(classAction(s.archetype, action).heal ?? 0, 100 - s.health) : 0;
       s.health += healing;
+      this.feedback(null, "heal", healing);
       this.report("You gain " + s.block + " block for " + s.guardSeconds + " seconds." + (healing ? " Restored " + healing + " health." : ""), "combat");
     } else if (action === "drinkPotion") {
       const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--;
+      this.feedback(null, "heal", healing);
       this.report("Your health potion restores " + healing + " health.", "combat");
     } else if (action === "jab") {
       this.hit(target!, (classAction(s.archetype, action).damage ?? COMBAT_RULES.jab.damage) + s.bloodRage * this.powerDamagePerStack(), classAction(s.archetype, action).name + " at");
@@ -608,6 +613,7 @@ class Adventure implements AdventureGame {
         if (s.phase === "town" && this.near("inn", 2.5)) {
           const healing = 100 - s.health;
           s.health = 100;
+          this.feedback(null, "heal", healing);
           this.report(healing > 0 ? `You rest at ${YARD.inn} and recover ${healing} health.` : "Rowan says: You're already rested. May the road bring you safely home.");
         } else this.report("Visit Rowan at The Wayfarer's Rest in Nine-Bell Yard to rest.");
         break;
@@ -671,6 +677,8 @@ class Adventure implements AdventureGame {
     if (t.head) { t.head.block -= blocked; if (t.head.block === 0) t.head.blockSeconds = 0; }
     const s = this.state, dealt = Math.min(damage - blocked, t.health);
     t.health -= dealt;
+    this.feedback(t.id, "block", blocked);
+    this.feedback(t.id, "damage", dealt);
     if (t.health > 0 && !t.aggro) this.engage(t);
     if (t.wolf?.motion && this.rootedSeconds(t) > EPSILON) this.groundWolfMotion(t);
     s.attackSequence += 1; s.presence += 1;
@@ -767,7 +775,7 @@ class Adventure implements AdventureGame {
     if (m.kind === "lunge") {
       const t = s.world.threats.find(t => t.id === m.targetId);
       if (t && t.active && t.health > 0 && distance(s.position, t.position) <= COMBAT_RULES.disengage.range + EPSILON && this.attackPath(t)) this.hit(t, (classAction(s.archetype, "strike").damage ?? COMBAT_RULES.strike.damage) + s.bloodRage * this.powerDamagePerStack(), "lunge at");
-      else this.report("Your lunge falls short.", "combat");
+      else { this.feedback(m.targetId, "miss", 0); this.report("Your lunge falls short.", "combat"); }
     }
   }
   private blocked(x: number, z: number): boolean {
@@ -1082,6 +1090,7 @@ class Adventure implements AdventureGame {
     if (h.ability === "ember-beam") {
       t.lastActionHit = this.headInRange(t);
       if (t.lastActionHit) this.hurt(COMBAT_RULES.head.beamDamage, "Cinder Watchman — Ember Beam");
+      else this.feedback(null, "miss", 0);
     } else if (h.ability === "ember-ward") {
       h.block = COMBAT_RULES.head.ward; h.blockSeconds = COMBAT_RULES.head.wardDuration;
       this.report("Cinder Watchman raises a ward: 6 block for 2 seconds.", "combat");
@@ -1092,7 +1101,10 @@ class Adventure implements AdventureGame {
     const h = t.head!;
     for (const ball of h.fireballs) {
       ball.remainingSeconds = Math.max(0, ball.remainingSeconds - dt);
-      if (ball.remainingSeconds <= EPSILON && this.headInRange(t)) this.hurt(ball.damage, "Cinder Watchman — Fireball");
+      if (ball.remainingSeconds <= EPSILON) {
+        if (this.headInRange(t)) this.hurt(ball.damage, "Cinder Watchman — Fireball");
+        else this.feedback(null, "miss", 0);
+      }
       if (this.state.health <= 0) return;
     }
     h.fireballs = h.fireballs.filter(ball => ball.remainingSeconds > EPSILON);
@@ -1180,7 +1192,12 @@ class Adventure implements AdventureGame {
       this.clearPath(t.targetPosition, this.state.position));
     t.actionSequence += 1;
     if (t.lastActionHit) this.hurt(t.damage, `${definition(t.id).name} — ${this.intention(t)}`);
-    else this.report(`${definition(t.id).name} — ${this.intention(t)} misses you.`, "combat");
+    else { this.feedback(null, "miss", 0); this.report(`${definition(t.id).name} — ${this.intention(t)} misses you.`, "combat"); }
+  }
+  private feedback(targetId: string | null, kind: CombatFeedback["kind"], amount: number): void {
+    if (kind !== "miss" && amount <= 0) return;
+    this.combatFeedback.push({ id: ++this.combatFeedbackId, targetId, kind, amount });
+    if (this.combatFeedback.length > 32) this.combatFeedback.shift();
   }
   private hurt(damage: number, source: string, bypassBlock = false): void {
     const s = this.state;
@@ -1190,6 +1207,8 @@ class Adventure implements AdventureGame {
     const remainder = damage - blocked;
     const taken = Math.min(s.health, remainder === 0 ? 0 : bypassBlock ? remainder : Math.max(1, remainder - this.progression().damageReduction));
     s.health -= taken;
+    this.feedback(null, "block", blocked);
+    this.feedback(null, "damage", taken);
     this.report(`${source} hits you for ${taken} damage${blocked > 0 ? ` (${blocked} blocked by Brace)` : ""}.`, "combat");
     if (s.health > 0) return;
     s.maneuver = null; s.block = 0; s.guardSeconds = 0; this.stopAutoAttack();

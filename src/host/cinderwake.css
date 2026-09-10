@@ -1854,6 +1854,12 @@ button { cursor: pointer !important; }
 [hidden] { display: none !important; }
 #world-wrap::before, #world-wrap::after { display: none; }
 #world-canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; outline: none; touch-action: none; }
+.floating-combat-text { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:4; }
+.floating-combat-hit { position:absolute; top:0; left:0; white-space:nowrap; pointer-events:none; user-select:none; color:#ffdf70; font:800 26px/1.1 system-ui,sans-serif; font-variant-numeric:tabular-nums; -webkit-text-stroke:3px #17120f; paint-order:stroke fill; text-shadow:0 2px 3px #000; will-change:transform,opacity; }
+.floating-combat-hit[data-kind="damage"][data-self="true"] { color:#ff7373; }
+.floating-combat-hit[data-kind="heal"] { color:#7cff96; }
+.floating-combat-hit[data-kind="block"] { color:#a9dfff; font-size:18px; }
+.floating-combat-hit[data-kind="miss"] { color:#efebe1; font-size:20px; }
 #adventure-hud { position: absolute; inset: 0; z-index: 5; pointer-events: none; color: #f7e8c9; font-size: var(--ui-font-body); }
 .parchment { background: linear-gradient(135deg, #253238f2, #14222bef); border: 1px solid #b69a67; box-shadow: 0 4px 16px #09111860, inset 0 0 0 3px #97835d18; border-radius: 4px; padding: 14px 17px; }
 .adventure-sidebar { position:absolute; right:8px; top:8px; bottom:180px; display:flex; flex-direction:column; align-items:flex-end; gap:8px; width:max-content; max-width:calc(100% - 16px); z-index:1; pointer-events:none; }

@@ -14,6 +14,7 @@ import { createRemotePlayers, type RemotePlayerView } from "./remote-player.js";
 import { createSnapshotInterpolation } from "./snapshot-interpolation.js";
 import { createOverheadNames, npcQuestMarker } from "./overhead-names.js";
 import { createChatBubbles } from "./chat-bubbles.js";
+import { createFloatingCombatText } from "./floating-combat-text.js";
 import type { SharedChatMessage } from "../game/multiplayer-types.js";
 import { YARD } from "../game/yard-content.js";
 
@@ -58,7 +59,7 @@ interface HoverTarget {
 export interface AdventureWorld {
   readonly canvas: HTMLCanvasElement;
   readonly ready: Promise<void>;
-  render(snapshot: AdventureSnapshot, delta: number, localPlayer?: AdventureSnapshot['player'], serverTime?: number): void;
+  render(snapshot: AdventureSnapshot, delta: number, localPlayer?: AdventureSnapshot['player'], serverTime?: number, connectionRevision?: number): void;
   updatePlayers(players: readonly RemotePlayerView[]): void;
   updateChat(messages: readonly SharedChatMessage[], localPlayerId: string): void;
   orbit(dx: number, dy: number): void;
@@ -185,6 +186,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   scene.add(player);
   const overheadNames = createOverheadNames(host, camera);
   const chatBubbles = createChatBubbles(host, scene, camera, player);
+  const combatText = createFloatingCombatText(host);
+  const combatAnchor = new Vector3();
   const playerArchetype = initial.player.archetype;
   const shield = new Mesh(new SphereGeometry(0.95, 20, 12), new MeshBasicMaterial({ color: 0x9bdfff, transparent: true, opacity: 0.22, wireframe: true, depthWrite: false }));
   shield.position.y = 0.9;
@@ -331,7 +334,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (head.z < -1 || head.z > 1 || Math.abs(head.x) > 1 || Math.abs(head.y) > 1) return null;
       return { x: (head.x + 1) * host.clientWidth / 2, y: (1 - head.y) * host.clientHeight / 2, feetY: (1 - feet.y) * host.clientHeight / 2 };
     },
-    render(snapshot, delta, localPlayer = snapshot.player, serverTime) {
+    render(snapshot, delta, localPlayer = snapshot.player, serverTime, connectionRevision = 0) {
       if (disposed) return;
       hoverSnapshot = snapshot;
       elapsed += delta;
@@ -519,6 +522,17 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       }
       overheadNames.end();
       chatBubbles.render();
+      const feedbackTime = performance.now();
+      combatText.update(snapshot.combatFeedback, feedbackTime, connectionRevision);
+      combatText.render(feedbackTime, id => {
+        const rig = id === null ? undefined : rigs.get(id);
+        if (id !== null && (!rig || !rig.root.visible)) return null;
+        combatAnchor.copy(rig ? rig.root.position : player.position);
+        combatAnchor.y += rig ? rig.body.position.y + rig.height * .65 : 1.8;
+        combatAnchor.project(camera);
+        if (combatAnchor.z < -1 || combatAnchor.z > 1 || Math.abs(combatAnchor.x) > 1 || Math.abs(combatAnchor.y) > 1) return null;
+        return { x: (combatAnchor.x + 1) * width / 2, y: (1 - combatAnchor.y) * height / 2 };
+      });
     },
     dispose() {
       if (disposed) return;
@@ -527,6 +541,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       tooltip.remove();
       remotePlayers.dispose();
       chatBubbles.dispose();
+      combatText.dispose();
       overheadNames.dispose();
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();

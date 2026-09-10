@@ -8,6 +8,12 @@ export interface AdventureLogEntry {
   readonly channel: "chat" | "combat";
   readonly text: string;
 }
+export interface CombatFeedback {
+  readonly id: number;
+  readonly targetId: string | null;
+  readonly kind: "damage" | "heal" | "block" | "miss";
+  readonly amount: number;
+}
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
   | "strike" | "disengage" | "brace" | "bloodRage" | "jab" | "guard" | "gather" | "ritual" | "interact"
@@ -106,6 +112,7 @@ export interface AdventureSnapshot {
   readonly progression: ProgressionView;
   readonly phase: "town" | "expedition" | "lost";
   readonly combat: CombatView;
+  readonly combatFeedback: readonly CombatFeedback[];
   readonly player: {
     readonly position: Position;
     readonly cameraForward: Position;

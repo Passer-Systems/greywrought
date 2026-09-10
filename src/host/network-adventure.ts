@@ -8,6 +8,7 @@ export interface NetworkAdventure extends AdventureGame {
   readonly serverTime: number;
   readonly serverWallTimeMillis: number;
   readonly online: boolean;
+  readonly connectionRevision: number;
   readonly players: readonly RemotePlayerView[];
   readonly chat: readonly SharedChatMessage[];
   sendChat(text: string): void;
@@ -26,7 +27,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let prediction: LocalMovement;
   let serverTime = 0, serverWallTimeMillis = 0, lastMovementAt = 0;
   let players: readonly RemotePlayerView[] = [], chat: readonly SharedChatMessage[] = [];
-  let sequence = 0, closed = false, online = false;
+  let sequence = 0, closed = false, online = false, connectionRevision = 0;
   let reconnect: ReturnType<typeof setTimeout> | undefined;
   let cameraX = NaN, cameraZ = NaN;
   let pendingCamera = false, lastCameraAt = 0;
@@ -56,7 +57,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
         snapshot = message.snapshot; players = message.players; chat = message.chat;
         serverTime = message.serverTime;
         serverWallTimeMillis = message.serverWallTimeMillis;
-        if (!online) prediction = new LocalMovement(snapshot, message.movement);
+        if (!online) { prediction = new LocalMovement(snapshot, message.movement); connectionRevision++; }
         prediction.reconcile(snapshot, message.movement, serverTime);
         online = true; clearTimeout(timeout); readyResolve();
       } else if (message.type === 'error') {
@@ -76,6 +77,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     get serverTime() { return serverTime; },
     get serverWallTimeMillis() { return serverWallTimeMillis; },
     get online() { return online; },
+    get connectionRevision() { return connectionRevision; },
     get players() { return players; },
     get chat() { return chat; },
     advance(seconds) {

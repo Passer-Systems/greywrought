@@ -727,7 +727,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     await world.ready;
     if (!alive || running !== app) { world.dispose(); return; }
     if (app.game.snapshot.phase === "lost") { showFallenCharacter(character); return; }
-    world.render(game.snapshot, 0);
+    world.render(game.snapshot, 0, game.renderPlayer, game.serverTime, game.connectionRevision);
     app.ready = true;
     lastTime = 0;
     const forward = world.forward(); game.setCameraForward(forward.x, forward.z);
@@ -911,7 +911,7 @@ function tick(now: number): void {
   audio.update(snapshot, route !== "world");
   running.world.updatePlayers(running.game.players.filter(player => player.id !== running!.character.id));
   running.world.updateChat(running.game.chat, running.character.id);
-  running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime);
+  running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime, running.game.connectionRevision);
   if (now + 0.5 >= nextHudTime) {
     renderHud(snapshot);
     nextHudTime = Math.max(nextHudTime + 50, now);
