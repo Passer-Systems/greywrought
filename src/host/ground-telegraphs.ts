@@ -1,6 +1,7 @@
 import { CanvasTexture, CircleGeometry, Group, Mesh, MeshBasicMaterial, Object3D, RingGeometry, Sprite, SpriteMaterial, SRGBColorSpace } from "three";
 import type { AdventureSnapshot, Position, ThreatView } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
+import type { RangeAudience } from "./combat-range.js";
 
 const styles: Record<string, { color: number; icon: string; label: string; kind: "area" | "target" | "self" }> = {
   "ember-beam": { color: 0xff643e, icon: "lightning-bolt", label: "BEAM", kind: "target" },
@@ -9,11 +10,13 @@ const styles: Record<string, { color: number; icon: string; label: string; kind:
   kindle: { color: 0xffbc49, icon: "energy-burst", label: "POWER UP", kind: "self" },
   nest: { color: 0x8fe342, icon: "poison-vial", label: "SWARM", kind: "area" },
   warder: { color: 0x51d98a, icon: "nature-leaf", label: "THORNS", kind: "area" },
-  "ritual-guardian": { color: 0x57cfff, icon: "frost-spell", label: "FROST", kind: "area" },
+  "foreman-pulse": { color: 0xffc365, icon: "lightning-bolt", label: "PULSE", kind: "target" },
+  "foreman-press": { color: 0xff8055, icon: "earth-stone", label: "PRESS", kind: "area" },
+  "foreman-shield": { color: 0x9cbfff, icon: "defensive-shield", label: "SHIELD", kind: "self" },
   maul: { color: 0xffb568, icon: "sword-strike", label: "MAUL", kind: "area" },
 };
 
-function warningState(threat: ThreatView, snapshot: AdventureSnapshot) {
+function warningState(threat: ThreatView, snapshot: AdventureSnapshot, audience?: RangeAudience) {
   const move = threat.windowAction;
   if (!threat.aggro || !threat.active || threat.health <= 0 || !move || move.status === "resolved") return null;
   const style = styles[move.ability.id];
@@ -21,7 +24,10 @@ function warningState(threat: ThreatView, snapshot: AdventureSnapshot) {
   const combat = snapshot.combat;
   const untilOpening = combat.phase === "preparation" ? combat.remainingSeconds : threat.joinsNextWindow ? combat.remainingSeconds + 5 : -combat.elapsedSeconds;
   const seconds = Math.max(0, untilOpening + move.offsetSeconds, threat.currentActivity?.remainingSeconds ?? 0);
-  const position = style.kind === "target" ? snapshot.player.position : style.kind === "self" ? threat.position : threat.targetPosition;
+  const remoteTarget = audience && threat.targetPlayerId && threat.targetPlayerId !== audience.selfId;
+  const recipient = remoteTarget ? audience.players.find(player => player.id === threat.targetPlayerId)?.player.position : snapshot.player.position;
+  if (style.kind === "target" && !recipient) return null;
+  const position = style.kind === "target" ? recipient! : style.kind === "self" ? threat.position : threat.targetPosition;
   const radius = style.kind === "area" ? move.ability.range : style.kind === "target" ? 0.8 : 1.1;
   return { style, position, radius, seconds, beat: Math.min(3, Math.floor(move.offsetSeconds) + 1), damage: move.ability.damage, ability: move.ability.id, committed: move.status === "active" };
 }
@@ -50,10 +56,10 @@ export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElemen
   }
   return {
     ready,
-    update(snapshot: AdventureSnapshot, facing: Pick<Position, "x" | "z">) {
+    update(snapshot: AdventureSnapshot, facing: Pick<Position, "x" | "z">, audience?: RangeAudience) {
       const diagnostics: object[] = [];
       for (const threat of snapshot.threats) {
-        const state = warningState(threat, snapshot);
+        const state = warningState(threat, snapshot, audience);
         let warning = warnings.get(threat.id);
         if (!state) { if (warning) warning.root.visible = false; continue; }
         if (!warning) { warning = createWarning(); warnings.set(threat.id, warning); }

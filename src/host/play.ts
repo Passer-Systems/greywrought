@@ -22,12 +22,28 @@ import { updateQuestTracker } from "./quest-tracker.js";
 import { connectAdventure, type NetworkAdventure } from "./network-adventure.js";
 import { publicUrl } from "./public-url.js";
 import { playerRange } from "./combat-range.js";
+import { YARD, type QuestId, type QuestOperation } from "../game/yard-content.js";
 
 declare global { interface Window { __GREYWROUGHT_TEARDOWN__?: () => void; } }
 
 window.__GREYWROUGHT_TEARDOWN__?.();
+document.title = `Greywrought — ${YARD.region}`;
+document.querySelector<HTMLMetaElement>('meta[property="og:title"]')!.content = document.title;
+document.querySelector<HTMLMetaElement>('meta[name="description"]')!.content = `Prepare in ${YARD.settlement}, investigate the missing crew, and end the last shift.`;
+for (const node of document.querySelectorAll<HTMLElement>("[data-yard-name]")) {
+  const key = node.dataset.yardName as keyof typeof YARD;
+  node.textContent = YARD[key];
+}
+for (const [id, label] of [["hearthstead", `${YARD.settlement} · safe`], ["forest-gate", YARD.gate], ["frost-cores", YARD.resource], ["ritual-site", YARD.works], ["inn", YARD.inn]]) {
+  const marker = document.querySelector<HTMLElement>(`[data-map-place="${id}"]`)!;
+  marker.title = label!; marker.setAttribute("aria-label", label!);
+}
+document.querySelector(".adventure-map")!.setAttribute("aria-label", `North-up ${YARD.region} map`);
+element("entry-realm-copy").textContent = `Prepare in ${YARD.settlement}, find the missing crew, and bring their names home. Each character has one life.`;
 const audio = createAdventureAudio();
-const equipment = createEquipmentPanel(element("equipment-panel"), closeEquipment);
+const equipment = createEquipmentPanel(element("equipment-panel"), closeEquipment, (slot, item) => {
+  if (running?.ready && !paused) running.game.equip(slot, item);
+});
 const corpseLoot = createCorpseLoot(element("adventure-hud"), {
   onTake: () => { pulse("takeLoot"); running?.world.canvas.focus(); },
   onClose: () => { pulse("closeLoot"); running?.world.canvas.focus(); },
@@ -58,11 +74,13 @@ const hudSize = new ResizeObserver(entries => {
 });
 hudSize.observe(element("combat-plan-mount").parentElement!);
 const inn = createInnPanel(element("adventure-hud"), {
+  onQuest: submitQuest,
   onRest: () => pulse("rest"),
   onClose: () => { pulse("closeInn"); running?.world.canvas.focus(); },
 });
 void unitFrames.ready.catch(cause => console.error("Unit portraits failed to load", cause));
 const shop = createShopPanel(element("adventure-hud"), {
+  onQuest: submitQuest,
   onBuyPotion: () => pulse("buyPotion"),
   onTrade: () => pulse("openTrade"),
   onClose: () => { pulse("closeShop"); running?.world.canvas.focus(); },
@@ -82,6 +100,9 @@ function element(id: string): HTMLElement {
   const found = document.getElementById(id);
   if (!found) throw new Error(`Missing interface element ${id}`);
   return found;
+}
+function submitQuest(id: QuestId, operation: QuestOperation): void {
+  if (running?.ready && !paused) running.game.quest(id, operation);
 }
 function button(id: string): HTMLButtonElement {
   const found = element(id);
@@ -104,7 +125,7 @@ const classes: Record<CharacterArchetype, { name: string; copy: string }> = {
 };
 const keyActions: Readonly<Record<string, AdventureAction>> = {
   KeyW: "forward", KeyS: "backward", KeyA: "left", KeyD: "right", Space: "jump",
-  Digit1: "strike", Digit2: "brace", KeyG: "gather", KeyR: "ritual",
+  Digit1: "strike", Digit2: "brace", Digit3: "disengage", Digit4: "bloodRage", KeyG: "gather", KeyR: "ritual",
   KeyF: "interact", Equal: "drinkPotion", KeyT: "rest", Tab: "target",
 };
 const resumeKey = "greywrought/adventure-active-character";
@@ -143,6 +164,7 @@ function listen(target: EventTarget, type: string, handler: EventListener, local
 }
 function click(id: string, handler: () => void): void { listen(element(id), "click", handler); }
 function pressAction(action: AdventureAction): void {
+  if ((action === "disengage" || action === "bloodRage") && !running?.game.snapshot.progression.unlockedActions.includes(action)) return;
   switch (action) {
     case "strike": case "brace": case "disengage": case "bloodRage": case "jab": case "guard": case "drinkPotion":
       if (combatPlan.replaceSelected(action)) return;
@@ -205,13 +227,13 @@ function renderEntry(): void {
   const selected = selectedCharacter();
   document.body.dataset.rosterTab = rosterTab;
   for (const tab of ["active", "rip"] as const) button(`entry-roster-${tab}`).setAttribute("aria-pressed", String(rosterTab === tab));
-  text("entry-roster-title", rosterTab === "rip" ? "Frostwood remembers" : "Choose a character");
+  text("entry-roster-title", rosterTab === "rip" ? "The yard remembers" : "Choose a character");
   text("entry-creator-profile", profile?.displayName ?? "");
   text("entry-roster-profile", profile?.displayName ?? "");
   text("entry-creator-class", classes[draft].name);
   text("entry-lore-title", classes[draft].name);
   text("entry-lore-copy", classes[draft].copy);
-  text("entry-lore-kit", "Lunge · Disengage · Block");
+  text("entry-lore-kit", "Attack · Block · Earn new abilities");
   text("entry-creator-preview-name", normalizedCharacterName(input("entry-character-name").value) ?? "Unnamed Adventurer");
   avatar("entry-creator", draft);
   for (const choice of document.querySelectorAll<HTMLElement>("[data-entry-archetype]")) choice.setAttribute("aria-pressed", String(choice.dataset.entryArchetype === draft));
@@ -256,10 +278,10 @@ function renderEntry(): void {
     avatar("entry-roster", selected.archetype);
     text("entry-roster-class", classes[selected.archetype].name);
     text("entry-roster-name", selected.name);
-    text("entry-roster-summary", selected.fallenAtMillis !== undefined ? "Rest in peace · Your journey is remembered" : "One life · One journey into Frostwood");
+    text("entry-roster-summary", selected.fallenAtMillis !== undefined ? "Rest in peace · Your journey is remembered" : `One life · ${YARD.region}`);
   } else {
     text("entry-roster-class", "");
-    text("entry-roster-name", rosterTab === "rip" ? "Frostwood remembers" : "A new journey awaits");
+    text("entry-roster-name", rosterTab === "rip" ? "The yard remembers" : "A new journey awaits");
     text("entry-roster-summary", "");
   }
 }
@@ -417,20 +439,21 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const ranged = player.archetype !== "warrior";
     const name = player.archetype === "mage" ? "Arcane Bolt" : player.archetype === "hunter" ? "Aimed Shot" : "Lunge";
     const icon = player.archetype === "warrior" ? "sword-strike.png" : player.archetype === "mage" ? "wand-bolt.svg" : "bow-shot.svg";
-    if (strikeControl.dataset.archetype !== player.archetype) {
-      strikeControl.dataset.archetype = player.archetype;
+    const strikeSignature = `${player.archetype}:${snapshot.progression.attackBonus}`;
+    if (strikeControl.dataset.archetype !== strikeSignature) {
+      strikeControl.dataset.archetype = strikeSignature;
       strikeControl.setAttribute("aria-label", name);
       const image = strikeControl.querySelector<HTMLImageElement>(".action-art img");
       if (image) image.src = publicUrl("assets/ui/icons/spells/" + icon);
       const tooltip = strikeControl.querySelector<HTMLElement>(".action-tooltip span:last-child");
       if (tooltip) tooltip.textContent = ranged
-        ? `1 stamina · 1 second recovery. ${name} strikes a target up to 10m away for 9 damage. You remain in place.`
-        : "1 stamina · 1 second recovery. Lunge into reach and strike for 9 damage, plus 4 per Rage stack.";
+        ? `1 stamina · 1 second recovery. ${name} strikes a target up to 10m away for ${9 + snapshot.progression.attackBonus} damage, plus 4 per Rage stack. You remain in place.`
+        : `1 stamina · 1 second recovery. Lunge into reach and strike for ${9 + snapshot.progression.attackBonus} damage, plus 4 per Rage stack.`;
       const title = strikeControl.querySelector<HTMLElement>(".action-tooltip strong");
       if (title) title.textContent = name;
     }
   }
-  text("adventure-zone", snapshot.phase === "town" ? "Hearthstead · safe haven" : snapshot.phase === "lost" ? "Journey ended" : "Frostwood");
+  text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players);
   combatPlan.update(snapshot);
   data.gameCombatPlan = String(!element("combat-plan").hidden);
@@ -443,7 +466,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   trade.update(snapshot);
   const selected = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat);
   for (const [action, label] of [
-    ["strike", "strike-ready"], ["brace", "block-ready"],
+    ["strike", "strike-ready"], ["brace", "block-ready"], ["disengage", "disengage-ready"], ["bloodRage", "rage-ready"],
   ] as const) {
     const cost = COMBAT_RULES[action].cost;
     const available = snapshot.phase === "expedition" && selected?.active && selected.health > 0;
@@ -451,12 +474,16 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const full = !replacing && snapshot.combat.queued.length >= 3;
     const availableStamina = snapshot.combat.availableStamina + (replacing?.cost ?? 0);
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]');
+    const unlocked = snapshot.progression.unlockedActions.includes(action);
     if (control) {
-      control.disabled = !available || full || availableStamina < cost;
+      control.classList.toggle("action-empty", !unlocked);
+      control.disabled = !unlocked || !available || full || availableStamina < cost;
+      control.querySelector<HTMLElement>(".action-art")!.hidden = !unlocked;
+      control.setAttribute("aria-label", !unlocked ? `Locked ability · ${action === "disengage" ? "Complete A Name on the Roll" : "Complete Clock Out"}` : action === "strike" ? player.archetype === "mage" ? "Arcane Bolt" : player.archetype === "hunter" ? "Aimed Shot" : "Lunge" : action === "brace" ? "Block" : action === "disengage" ? "Disengage" : "Blood Rage");
       control.style.setProperty("--recovery", "0");
       control.dataset.range = available ? playerRange(snapshot, action).state : "none";
     }
-    const detail = !available ? "Select a living enemy in the forest" : full ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " free stamina" : (replacing ? "Replace · " : "Queue · ") + cost + " stamina";
+    const detail = !unlocked ? "Earned by completing Rowan’s quests" : !available ? "Select a living enemy beyond the gate" : full ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " free stamina" : (replacing ? "Replace · " : "Queue · ") + cost + " stamina";
     const range = available ? playerRange(snapshot, action) : null;
     text(label, detail + (range?.text ? " · " + range.text : ""));
   }
@@ -560,7 +587,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
   entering = true;
   renderEntry();
   text("entry-enter-world", "Preparing your journey…");
-  text("entry-roster-feedback", "Loading the forest and your adventurer…");
+  text("entry-roster-feedback", `Loading ${YARD.settlement} and your adventurer…`);
   try {
     const game = await connectAdventure(character);
     if (game.snapshot.phase === "lost") { game.close(); showFallenCharacter(character); return; }

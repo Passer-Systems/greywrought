@@ -2155,3 +2155,14 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
   color:#f1dab0;background:#101717ed;font:bold 12px/12px system-ui;
   text-decoration:line-through;pointer-events:none;
 }
+
+/* Keep dialogue readable above the combat bar on short screens. */
+#shop-panel, #inn-panel { top:16%; max-height:calc(84% - 165px); overflow:auto; }
+.npc-quests { padding:0 12px; }
+.npc-quests section { padding:10px 0; border-bottom:1px solid #626658; }
+.npc-quests h3 { margin:0 0 7px; color:#ebca77; font:var(--ui-font-prominent) Georgia,serif; }
+.npc-quests p, #inn-panel .npc-quests p { margin:7px 0; font:var(--ui-font-small)/1.5 system-ui,sans-serif; }
+.npc-quests .npc-quest-objective { color:#e3dec4; }
+.npc-quests .npc-quest-rewards { color:#c5d6a0; }
+.npc-quests button { padding:6px 12px; border:2px ridge #998454; border-radius:3px; color:#f0dc9d; background:linear-gradient(#51472b,#29281b); cursor:pointer; font:var(--ui-font-body) Georgia,serif; }
+.npc-quests button:disabled { opacity:.5; cursor:default; }

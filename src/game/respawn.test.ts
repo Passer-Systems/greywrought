@@ -50,7 +50,7 @@ describe("two-minute world regrowth", () => {
     const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => time });
     const pending = JSON.parse(world.save());
     expect(pending.world.threats[0].respawnAt).toBe(140_000);
-    expect(pending.world.threats[4].respawnAt).toBeNull();
+    expect(pending.world.threats[4].respawnAt).toBe(140_000);
     time += 119_999; world.advance(0);
     expect(JSON.parse(world.save()).world.resourceRemaining).toBe(0);
     time++; world.advance(0);

@@ -78,6 +78,10 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(firstState.serverWallTimeMillis).toBeGreaterThanOrEqual(joinedAt);
     expect(firstState.serverWallTimeMillis).toBeLessThanOrEqual(Date.now());
     const initial = firstState.snapshot.player.position;
+    expect(firstState.snapshot.progression.unlockedActions).toEqual(['strike', 'brace', 'drinkPotion']);
+    expect(await first.command({ type: 'quest', id: 'cold-hands', operation: 'accept' })).toBe(true);
+    expect(await first.invalid({ type: 'quest', id: 'cold-hands', operation: 'complete' })).toBe(false);
+    expect(await first.invalid({ type: 'equip', slot: 'head', item: 'yard-weapon' })).toBe(false);
     const second = client(); await second.connect(secondCharacter, crypto.randomUUID());
     const together = await first.state(state => state.players.some(player => player.id === 'second'));
     expect(together.serverWallTimeMillis).toBeGreaterThanOrEqual(firstState.serverWallTimeMillis);
@@ -85,9 +89,13 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect((await second.state()).snapshot.player.archetype).toBe('mage');
     expect(await first.command({ type: 'camera', x: 1, z: 0 })).toBe(true);
     expect(await first.command({ type: 'action', action: 'forward', pressed: true })).toBe(true);
-    const seenMove = await second.state(state => state.players.some(player => player.id === 'first' && player.player.position.x > initial.x + 0.4));
+    const seenMove = await second.state(state => state.players.some(player => player.id === 'first' && player.player.position.x > initial.x + 1.2));
     expect(seenMove.snapshot.player.position.x).toBe(initial.x);
     expect(await first.command({ type: 'action', action: 'forward', pressed: false })).toBe(true);
+    expect(await first.command({ type: 'quest', id: 'cold-hands', operation: 'accept' })).toBe(true);
+    expect((await first.state(state => state.snapshot.quests[0]?.status === 'active')).snapshot.quests[0]?.status).toBe('active');
+    expect(await first.command({ type: 'equip', slot: 'mainhand', item: 'yard-weapon' })).toBe(true);
+    expect((await second.state()).snapshot.progression.equipment.mainhand).toBeNull();
     expect(await first.command({ type: 'chat', text: 'Meet at the gate.' })).toBe(true);
     const heard = await second.state(state => state.chat.some(message => message.text === 'Meet at the gate.'));
     expect(heard.chat.at(-1)?.name).toBe('Alden');
@@ -124,6 +132,8 @@ test('two socket clients share movement and chat; saved identity survives restar
     const restored = await returning.state();
     expect(restored.snapshot.player.position.x).toBeGreaterThan(initial.x + 0.4);
     expect(restored.snapshot.player.moving).toBe(false);
+    expect(restored.snapshot.quests[0]?.status).toBe('active');
+    expect(restored.snapshot.progression.equipment.mainhand).toBeNull();
     expect(restored.chat.some(message => message.text === 'Meet at the gate.')).toBe(true);
     expect(restored.chat.find(message => message.text === 'Meet at the gate.')?.speakerId).toBe('first');
     expect(restored.chat.find(message => message.text === 'Two')?.speakerId).toBeNull();

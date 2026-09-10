@@ -15,6 +15,7 @@ const enemyArt: Record<string, string> = {
   "ember-beam": "lightning-bolt", fireball: "fire-spell", "ember-ward": "defensive-shield",
   kindle: "energy-burst", maul: "sword-strike", nest: "poison-vial",
   warder: "nature-leaf", "ritual-guardian": "frost-spell",
+  "foreman-pulse": "lightning-bolt", "foreman-press": "earth-stone", "foreman-shield": "defensive-shield",
 };
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, parent: HTMLElement): HTMLElementTagNameMap[K] {
   const element = document.createElement(tag); element.className = className; parent.append(element); return element;

@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Prepare in Hearthstead, read the dangers of Frostwood, and bring your discoveries home." />
+    <meta name="description" content="Prepare in Nine-Bell Yard, read the dangers of The Last Shift, and bring your discoveries home." />
     <meta name="theme-color" content="#100a0d" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Greywrought — Frostwood" />
-    <meta property="og:description" content="Read enemy intentions, gather frost cores, and find your way home." />
+    <meta property="og:title" content="Greywrought — The Last Shift" />
+    <meta property="og:description" content="Read enemy intentions, gather coolant crystals, and find your way home." />
     <meta property="og:url" content="https://play.greywrought.com/" />
     <meta name="twitter:card" content="summary" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="./site.webmanifest" />
-    <title>Greywrought — Frostwood</title>
+    <title>Greywrought — The Last Shift</title>
     <link rel="stylesheet" href="./app/greywrought/cinderwake.css" />
     <link rel="stylesheet" href="./app/greywrought/equipment-panel.css" />
     <script type="importmap">
@@ -68,7 +68,7 @@
                 <p class="entry-kicker">Greywrought archetype</p>
                 <h3 id="entry-lore-title">Warrior</h3>
                 <p id="entry-lore-copy">A steadfast wayfarer who meets the forest with courage and a ready blade.</p>
-                <div id="entry-lore-kit" class="entry-lore-kit">Lunge · Disengage · Block</div>
+                <div id="entry-lore-kit" class="entry-lore-kit">Attack · Block · Earn new abilities</div>
               </aside>
             </div>
             <form id="entry-character-form" class="entry-creator-actions">
@@ -83,14 +83,14 @@
           <section id="entry-roster" class="entry-roster" data-entry-view="roster" aria-labelledby="entry-roster-title" hidden>
             <header class="entry-screen-header entry-roster-header">
               <img class="entry-logo" src="./assets/ui/brand/greywrought-logo.webp" alt="Greywrought" />
-              <div><p class="entry-kicker">Frostwood</p><h2 id="entry-roster-title">Choose a character</h2></div>
+              <div><p class="entry-kicker" data-yard-name="region">The Last Shift</p><h2 id="entry-roster-title">Choose a character</h2></div>
               <span id="entry-roster-profile" class="entry-profile-name"></span>
             </header>
             <div class="entry-roster-layout">
               <aside class="entry-realm-panel">
                 <p class="entry-kicker">Realm</p>
-                <h3>Hearthstead</h3>
-                <p>Prepare in a safe haven, explore Frostwood, and bring your discoveries home. Each character has one life.</p>
+                <h3 data-yard-name="settlement">Nine-Bell Yard</h3>
+                <p id="entry-realm-copy">Prepare in Nine-Bell Yard, find the missing crew, and bring their names home. Each character has one life.</p>
               </aside>
               <div class="entry-character-stage entry-roster-stage">
                 <div class="entry-stage-light" aria-hidden="true"></div>
@@ -130,13 +130,13 @@
           </section>
         </section>
         <section id="adventure-hud" hidden aria-label="Expedition">
-          <section class="adventure-map" aria-label="North-up Frostwood map">
+          <section class="adventure-map" aria-label="North-up The Last Shift map">
             <div id="map-field">
               <div class="map-road"></div>
-              <span class="map-landmark map-town" data-map-place="hearthstead" title="Hearthstead · safe" role="img" aria-label="Hearthstead · safe">⌂</span>
-              <span class="map-landmark map-gate" data-map-place="forest-gate" title="North gate" role="img" aria-label="North gate">▰</span>
-              <span class="map-landmark map-cores" data-map-place="frost-cores" title="Frost cores" role="img" aria-label="Frost cores">◆</span>
-              <span class="map-landmark map-grove" data-map-place="ritual-site" title="Deep Grove" role="img" aria-label="Deep Grove">◇</span>
+              <span class="map-landmark map-town" data-map-place="hearthstead" title="Nine-Bell Yard · safe" role="img" aria-label="Nine-Bell Yard · safe">⌂</span>
+              <span class="map-landmark map-gate" data-map-place="forest-gate" title="Yard gate" role="img" aria-label="Yard gate">▰</span>
+              <span class="map-landmark map-cores" data-map-place="frost-cores" title="Coolant crystals" role="img" aria-label="Coolant crystals">◆</span>
+              <span class="map-landmark map-grove" data-map-place="ritual-site" title="Ninth Bell Engine" role="img" aria-label="Ninth Bell Engine">◇</span>
               <span class="map-landmark map-inn" data-map-place="inn" title="Inn" role="img" aria-label="Inn">⌂</span>
               <div id="map-threats"></div>
               <div id="map-player" title="You">▲</div>
@@ -144,19 +144,19 @@
             <time id="map-clock" title="Server time (UTC)" aria-label="Server time (UTC)">--:--</time>
           </section>
           <section id="quest-tracker" class="adventure-objective parchment" aria-label="Current quest">
-            <span id="adventure-zone" class="eyebrow">Hearthstead · safe haven</span>
-            <div class="quest-heading"><span>The Frostwood Relic</span><span id="quest-progress"></span></div>
+            <span id="adventure-zone" class="eyebrow">Nine-Bell Yard · safe haven</span>
+            <div class="quest-heading"><span id="quest-title">The shift that never ended</span><span id="quest-progress"></span></div>
             <strong id="route-objective"></strong>
             <div id="quest-destination"></div>
             <p id="route-detail"></p>
-            <ol class="quest-steps" aria-label="Quest steps"><li id="quest-step-0"></li><li id="quest-step-1"></li><li id="quest-step-2"></li><li id="quest-step-3"></li></ol>
+            <ol class="quest-steps" aria-label="Quest steps"><li id="quest-step-0"></li><li id="quest-step-1"></li><li id="quest-step-2"></li></ol>
             <p id="route-warning"></p><div id="cargo-summary"></div>
           </section>
           <section id="enemy-intents" aria-label="Nearby enemy intentions"></section>
           <section class="adventure-bottom">
 <div id="combat-plan-mount"></div>
 <div id="player-action-bar" class="player-action-bar" hidden role="meter" aria-label="Action recovery"><img id="player-action-icon" alt="" /><div class="player-action-track"><span id="player-action-fill"></span><span id="player-action-name">Recovery</span><span id="player-action-time"></span></div></div>
-<div class="adventure-actions" aria-label="Abilities"><button type="button" data-action="strike" aria-label="Lunge" aria-describedby="tip-strike"><kbd>1</kbd><span class="action-art"><img src="./assets/ui/icons/spells/sword-strike.png" alt="" /></span><span class="action-recovery-shade"></span><span class="action-tooltip" id="tip-strike" role="tooltip"><strong>Lunge</strong><small id="strike-ready"></small><span>1 stamina · 1 second recovery. Lunge into reach and strike for 9 damage, plus 4 per Rage stack.</span></span></button><button type="button" data-action="brace" aria-label="Block" aria-describedby="tip-brace"><kbd>2</kbd><span class="action-art"><img src="./assets/ui/icons/spells/defensive-shield.png" alt="" /></span><span class="action-recovery-shade"></span><span class="action-tooltip" id="tip-brace" role="tooltip"><strong>Block</strong><small id="block-ready"></small><span>2 stamina · 1 second recovery. Absorb 24 damage for 2 seconds. Queue it to cover overlapping attacks.</span></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 3"><kbd>3</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 4"><kbd>4</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 5"><kbd>5</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 6"><kbd>6</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 7"><kbd>7</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 8"><kbd>8</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 9"><kbd>9</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 0"><kbd>0</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot -"><kbd>-</kbd><span class="action-art"></span></button><button type="button" data-action="drinkPotion" aria-label="Health potion" aria-describedby="tip-drinkPotion"><kbd>=</kbd><span class="action-art"><img src="./assets/ui/icons/items/health-potion-red.png" alt="" /></span><span class="action-cost" id="potion-stack">0</span><span class="action-tooltip" id="tip-drinkPotion" role="tooltip"><strong>Health potion</strong><small id="potion-count"></small><span>Recover 30 health. In combat: queue for 1 stamina and one turn. Outside combat: drink immediately.</span></span></button></div><div id="connection-status" class="adventure-controls" hidden role="status">Connection lost · reconnecting…</div></section>
+<div class="adventure-actions" aria-label="Abilities"><button type="button" data-action="strike" aria-label="Lunge" aria-describedby="tip-strike"><kbd>1</kbd><span class="action-art"><img src="./assets/ui/icons/spells/sword-strike.png" alt="" /></span><span class="action-recovery-shade"></span><span class="action-tooltip" id="tip-strike" role="tooltip"><strong>Lunge</strong><small id="strike-ready"></small><span>1 stamina · 1 second recovery. Lunge into reach and strike for 9 damage, plus 4 per Rage stack.</span></span></button><button type="button" data-action="brace" aria-label="Block" aria-describedby="tip-brace"><kbd>2</kbd><span class="action-art"><img src="./assets/ui/icons/spells/defensive-shield.png" alt="" /></span><span class="action-recovery-shade"></span><span class="action-tooltip" id="tip-brace" role="tooltip"><strong>Block</strong><small id="block-ready"></small><span>2 stamina · 1 second recovery. Absorb 24 damage for 2 seconds. Queue it to cover overlapping attacks.</span></span></button><button type="button" class="action-empty" disabled data-action="disengage" aria-label="Locked ability slot 3" aria-describedby="tip-disengage"><kbd>3</kbd><span class="action-art" hidden><img src="./assets/ui/icons/spells/mobility-boots.png" alt="" /></span><span class="action-recovery-shade"></span><span class="action-tooltip" id="tip-disengage" role="tooltip"><strong>Disengage</strong><small id="disengage-ready"></small><span>1 stamina. Strike an enemy within 3.5 m, then retreat 5 m.</span></span></button><button type="button" class="action-empty" disabled data-action="bloodRage" aria-label="Locked ability slot 4" aria-describedby="tip-rage"><kbd>4</kbd><span class="action-art" hidden><img src="./assets/ui/icons/spells/fire-spell.png" alt="" /></span><span class="action-recovery-shade"></span><span class="action-tooltip" id="tip-rage" role="tooltip"><strong>Blood Rage</strong><small id="rage-ready"></small><span>1 stamina. Gain a Rage stack: +4 attack damage, up to 3 stacks. Each stack drains 1 health every 5 seconds in combat.</span></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 5"><kbd>5</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 6"><kbd>6</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 7"><kbd>7</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 8"><kbd>8</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 9"><kbd>9</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot 0"><kbd>0</kbd><span class="action-art"></span></button><button type="button" class="action-empty" disabled aria-label="Empty ability slot -"><kbd>-</kbd><span class="action-art"></span></button><button type="button" data-action="drinkPotion" aria-label="Health potion" aria-describedby="tip-drinkPotion"><kbd>=</kbd><span class="action-art"><img src="./assets/ui/icons/items/health-potion-red.png" alt="" /></span><span class="action-cost" id="potion-stack">0</span><span class="action-tooltip" id="tip-drinkPotion" role="tooltip"><strong>Health potion</strong><small id="potion-count"></small><span>Recover 30 health. In combat: queue for 1 stamina and one turn. Outside combat: drink immediately.</span></span></button></div><div id="connection-status" class="adventure-controls" hidden role="status">Connection lost · reconnecting…</div></section>
           <nav class="system-menu" aria-label="Game shortcuts">
             <button id="bag-open" type="button" aria-label="Bags" aria-keyshortcuts="B" aria-haspopup="dialog" aria-controls="bag-panel" aria-expanded="false"><img src="./assets/ui/icons/menu/backpack-large.png" alt="" /><span class="system-menu-tooltip">Bags <kbd>B</kbd></span></button>
             <button id="equipment-open" type="button" aria-label="Character" aria-keyshortcuts="C" aria-haspopup="dialog" aria-controls="equipment-panel" aria-expanded="false"><img src="./assets/ui/icons/menu/character-profile.png" alt="" /><span class="system-menu-tooltip">Character <kbd>C</kbd></span></button>
@@ -165,7 +165,7 @@
           </nav>
         </section>
         <dialog id="equipment-panel" class="equipment-panel" aria-labelledby="equipment-name" aria-describedby="equipment-summary">
-          <header class="equipment-heading"><div><p class="equipment-kicker">Character · Equipment</p><h2 id="equipment-name">Adventurer</h2><p id="equipment-summary"></p></div><button id="equipment-close" class="equipment-close" type="button" aria-label="Close character screen">Close · Esc</button></header>
+          <header class="equipment-heading"><div><p class="equipment-kicker">Character · Equipment</p><h2 id="equipment-name">Adventurer</h2><p id="equipment-summary"></p></div><button id="equipment-close" class="equipment-close" type="button" aria-label="Close character screen">×</button></header>
           <div class="equipment-doll">
             <div class="equipment-column" data-equipment-column="left" role="group" aria-label="Armor and clothing"></div>
             <figure class="equipment-portrait-wrap"><img id="equipment-portrait" src="./assets/ui/characters/warrior.webp" alt="Warrior portrait" /><figcaption>Your adventurer</figcaption></figure>
@@ -175,8 +175,8 @@
           <section id="equipment-details" class="equipment-details" aria-live="polite" aria-label="Selected equipment slot"></section>
           <p class="equipment-hint">Select a slot to inspect · C or Esc to return</p>
         </dialog>
-        <section id="pause-panel" class="adventure-modal" role="dialog" aria-label="Game menu" hidden><div class="parchment"><h2>Game menu</h2><p>Your journey continues while this menu is open.</p><button id="pause-resume">Return to the forest</button><button id="return-roster">Choose a character</button></div></section>
-        <section id="death-panel" class="adventure-modal" role="dialog" aria-label="Expedition ended" hidden><div class="parchment"><span class="eyebrow">YOUR JOURNEY HAS ENDED</span><h2>Frostwood remembers</h2><p>This adventurer has fallen. Their memory rests in the 🪦 RIP tab.</p><button id="death-roster">Choose a character</button></div></section>
+        <section id="pause-panel" class="adventure-modal" role="dialog" aria-label="Game menu" hidden><div class="parchment"><h2>Game menu</h2><p>Your journey continues while this menu is open.</p><button id="pause-resume">Return to the yard</button><button id="return-roster">Choose a character</button></div></section>
+        <section id="death-panel" class="adventure-modal" role="dialog" aria-label="Expedition ended" hidden><div class="parchment"><span class="eyebrow">YOUR JOURNEY HAS ENDED</span><h2>The yard remembers</h2><p>This adventurer has fallen. Their memory rests in the 🪦 RIP tab.</p><button id="death-roster">Choose a character</button></div></section>
       </div>
     </main>
     <script type="module" src="./app/greywrought/play.js"></script>

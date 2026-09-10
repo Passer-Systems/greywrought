@@ -1,10 +1,15 @@
-# Greywrought: Frostwood expedition
+# Greywrought: Nine-Bell Yard
 
 Build a third-person expedition RPG that earns another expedition: prepare in
-Hearthstead, read a dangerous forest, choose which problems are worth solving,
+Nine-Bell Yard, read a dangerous forest, choose which problems are worth solving,
 bring something valuable home, and use it to prepare for a harder journey.
 The intended complete experience is roughly ten minutes; the first release
 must first make its route and a short encounter understandable through play.
+
+The current chapter is **The Last Shift**, set in permanently dark Nine-Bell Yard.
+See `greywrought:docs/nine-bell-yard.md` for the playable story, three explicit
+quests, equipment and skill rewards, Foreman Nine, and the torchlit setting.
+That chapter supersedes the early generic forest milestone names below.
 
 The active implementation is ordinary TypeScript, Three.js and Bun. The earlier
 native prototypes are archived. Fast browser iteration supports the game work;
@@ -18,8 +23,8 @@ language experiments are outside this delivery.
 - A physically connected safe hub, dangerous forest, and recognizable way home.
 - Rising forest alertness and a deliberate optional ritual reward.
 - Recognizable animated enemies, restrained parchment UI, and a legible north-up map.
-- One local expedition first; shared hubs, companions and online disconnect
-  protection belong to later multiplayer work.
+- One shared world with individual persistent character and quest progress.
+  Authored NPC needs grant equipment and skills through explicit turn-ins.
 
 ## Town barter
 

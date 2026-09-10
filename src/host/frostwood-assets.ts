@@ -1,4 +1,4 @@
-import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3, type AnimationAction, type Object3D } from "three";
+import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3, type AnimationAction, type Object3D, type Material } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
@@ -33,6 +33,15 @@ export async function actor(name: string, height: number, playerModel?: "warrior
   const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger" : playerModel === "mage" ? "Wizard" : "Warrior"}.glb` : null;
   const gltf = await source(playerPath ?? `${root}actors/${name}.gltf`);
   const model = clone(gltf.scene);
+  const localMaterials: Material[] = [];
+  if (name === "Leela") model.traverse(object => {
+    if (!(object instanceof Mesh)) return;
+    const lightEye = (material: Material) => {
+      if (!(material instanceof MeshStandardMaterial) || material.name !== "Eye") return material;
+      const eye = material.clone(); eye.emissive.setHex(0x9cdfff); eye.emissiveIntensity = 1.2; localMaterials.push(eye); return eye;
+    };
+    object.material = Array.isArray(object.material) ? object.material.map(lightEye) : lightEye(object.material);
+  });
   const wrapper = fit(model, height);
   const shadowCanvas = document.createElement("canvas"); shadowCanvas.width=shadowCanvas.height=64;
   const context=shadowCanvas.getContext("2d")!;
@@ -53,7 +62,7 @@ export async function actor(name: string, height: number, playerModel?: "warrior
       next.fadeIn(fade).play(); result.action = next;
       return next;
     },
-    dispose() { mixer.stopAllAction(); mixer.uncacheRoot(model); },
+    dispose() { mixer.stopAllAction(); mixer.uncacheRoot(model); for (const material of localMaterials) material.dispose(); },
   };
   return result;
 }
@@ -62,7 +71,7 @@ export async function prop(name: string, size: number, axis: "height" | "width" 
   let promise = props.get(name);
   if (!promise) {
     promise = name.startsWith("nature/") ? source(`${root}${name}.gltf`).then(g => g.scene) : (async () => {
-      const base = publicUrl(`${root}village/${name}`);
+      const base = publicUrl(`${root}${name.startsWith("works/") ? name : `village/${name}`}`);
       const materials = await new MTLLoader().loadAsync(`${base}.mtl`);
       const response = await fetch(`${base}.obj`);
       if (!response.ok) throw Error(`Unable to load ${base}.obj: ${response.status}`);
@@ -71,10 +80,14 @@ export async function prop(name: string, size: number, axis: "height" | "width" 
       const mesh = new OBJLoader().setMaterials(materials).parse(surfaces);
       mesh.traverse(o => {
         if (!(o instanceof Mesh)) return;
-        o.material = (Array.isArray(o.material) ? o.material : [o.material]).map(m => {
+        const surface = (m: Material) => {
           const color = "color" in m ? (m as MeshStandardMaterial).color.clone().convertLinearToSRGB() : 0xffffff;
-          return new MeshStandardMaterial({ color, roughness: 0.95 });
-        });
+          const flame = name === "WoodenTorch_Fire" && (m.name === "Fire" || m.name === "Yellow");
+          return new MeshStandardMaterial({ name: m.name, color, roughness: 0.95, transparent: m.transparent, opacity: m.opacity,
+            emissive: flame ? m.name === "Fire" ? 0xff712b : 0xffc461 : 0x000000, emissiveIntensity: flame ? 1.5 : 0 });
+        };
+        // A material array requires geometry groups; preserve single-surface meshes.
+        o.material = Array.isArray(o.material) ? o.material.map(surface) : surface(o.material);
       });
       return mesh;
     })();

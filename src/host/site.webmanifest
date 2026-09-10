@@ -1,7 +1,7 @@
 {
   "name": "Greywrought",
   "short_name": "Greywrought",
-  "description": "Explore Frostwood, read enemy intentions, and bring your discoveries home.",
+  "description": "Find shelter in Nine-Bell Yard, brave the darkened works, and bring the last shift home.",
   "start_url": "./",
   "display": "fullscreen",
   "background_color": "#050306",

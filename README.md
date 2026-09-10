@@ -4,45 +4,36 @@ A browser action RPG built with **Three.js, ordinary TypeScript, and Bun**.
 
 Play at **https://play.greywrought.com/**.
 
-Create a character in Hearthstead, prepare at Mara’s apothecary, and explore
-Frostwood. Gather frost cores, clear threats, and return alive to bank your haul.
-Search defeated enemies for salvage, then return alive to exchange it for
-supplies. Offer six carried cores in the deep grove to call a guardian whose
-relic must be looted and brought home. Kills grant no experience points.
+Begin in **Nine-Bell Yard**, a settlement the sun never reaches, beside works
+whose machines still enforce a shift that ended years ago. Torchlight marks
+shelter and the way home. Mara needs coolant for her patients; Rowan knows why
+the ninth bell has begun ringing again.
 
-Combat follows three active seconds then five preparation seconds. You can plan
-up to three moves with five stamina; each enemy commits only one announced move per window.
-Additional enemies join the next shared opening without resetting the clock.
+Look for **!** above an NPC, speak with F and accept a quest. Bring the requested
+goods or news back to its giver and complete the quest at the gold **?**. Mara
+rewards a protective coat; Rowan grants a class weapon and Disengage. Their
+story leads to Foreman Nine and the missing names on the Last Shift Roll.
+Equipment, levels and the timing of your responses all affect survival.
 
-The first enemy is an animated Ember head with 96 health. It opens with a
-small targeted Beam, then uses Fireball, a two-second Ward, and Kindle in
-successive windows. Kindle strengthens later volleys. Painted icons below the
-nameplate show current activity and future windows, with explicit pauses.
-Hover for details; press L for every monster's abilities and move patterns.
+Combat has three one-second turns, one second to choose the enemy's next move,
+and five seconds to prepare. Queue up to three moves using five stamina. Each
+enemy announces one move in the coming window. Additional enemies join the
+shared rhythm. Hover an intention for its damage, range and response; press L
+for the lorebook. Faded attack art and a distance marker mean out of range now.
 
-You have five stamina per active window, refilled at the start of preparation.
-Queue moves before pulling and edit their timing in the five-column plan.
-Spend stamina on attacks, a brief
-10-point Block, or Blood Rage. Rage adds melee damage but drains health, caps
-at three stacks and fades rapidly outside combat. Free Jab and Guard fill
-a beat without spending stamina. Time Block around overlapping
-impacts, power up during enemy wards, and attack before Kindle strengthens it.
+Foreman Nine has a targeted pulse, a dodgeable press and a shielded interval.
+Its damage grows while you fight: prepare your gear, block the pulse, leave the
+press and use the shielded interval to recover. Ordinary enemies respawn after
+two minutes. Defeat permanently retires a character to the RIP roster.
 
-Deeper in the forest, the Ash hound approaches with diagonal hops, circles,
-then commits to a dodgeable Maul. It makes one attack per window. Hostile creatures are red; neutral creatures are yellow until
-provoked. The map, road and landmarks keep the route home visible.
-Characters and expeditions are saved in the browser; defeat is permanent.
-Animated Quaternius creatures and village scenery bring the route to life.
-Warrior, mage and ranger have distinct models and sword, staff and bow animations.
-They currently share the prototype ability kit.
-Music and sampled combat sounds begin after interaction; open the game menu to adjust
-music and effects volume or mute them.
-Rowan offers free healing at The Wayfarer’s Rest beside the town square.
-Mara’s **Trade goods** window exchanges three supplies for a health potion,
-or a potion for two supplies. Adjust the offer, then Accept; nothing changes
-until you accept. Escape or Cancel returns to her shop.
-Centered player, target and target-of-target frames track the fight; the Chat
-and Combat Log tabs preserve recent dialogue, damage, mitigation and loot.
+Warrior, mage and ranger have distinct Quaternius models, weapons and native
+animations. The warrior closes for melee; mage and ranger attack from range.
+Players share one server, with persistent individual characters and quest
+progress. Enter opens chat; messages appear in a short speech bubble too.
+Rowan offers healing at The Missing Bell; Mara sells potions and trades goods.
+Music and sampled sounds begin after interaction; Settings controls their volume.
+
+The chapter's design is recorded in [greywrought:docs/nine-bell-yard.md](docs/nine-bell-yard.md).
 
 ## Develop
 
@@ -57,6 +48,11 @@ bun run dev
 
 Open http://127.0.0.1:4173/. Edit TypeScript or styles and the development server
 updates the browser. No separate language compiler or native toolchain is needed.
+The local client connects to the public shared world. Changes to shared game
+data must be tested against an isolated local world and deployed together with
+the server before exposing the new client. `bun run preview` serves a built
+client on port 4180 against the same public world; `GREYWROUGHT_PREVIEW_DIR`
+can select a completed build while development continues separately.
 
 Gameplay lives in `greywrought:src/game/`. The existing Three.js presentation,
 input, audio, and browser persistence live in `greywrought:src/host/`.
@@ -64,28 +60,27 @@ Assets and their attribution live in `greywrought:assets/`.
 
 ## Controls
 
-W/S move forward and backward; A/D strafe. Space jumps. Hold both mouse buttons
-to move forward, including while S is held. Drag either mouse button to turn
-the view, and use the wheel to zoom.
+W/S move forward and backward; A/D strafe. Backpedaling is slower. Space jumps.
+Left-drag orbits the camera; right-drag also turns your character. Both mouse
+buttons move forward, including while S is held. The wheel zooms.
 
-Tab selects a target. Q queues Lunge, E Block, Z Disengage, X Blood Rage,
-V a free Jab, and N a free Guard. Up to three moves fit the active window.
-QE means Lunge at 0s, Block at 1s; QE3 places Block in slot 3, at 2s.
-Numbers 1–3 place the selected pending move in slots 1–3 (0–2 seconds),
-swapping with another pending move when possible. Click to select another move;
-drag to move or swap it. Backspace removes. Executed moves stay locked. G gathers frost cores and R
-calls the grove guardian. F talks to Mara or Rowan, or opens nearby corpse loot; click an
-item to take it. You can also click a lootable body. H queues a potion during combat or drinks it immediately outside combat. Return through the
-gate to secure carried rewards. Visit Rowan at the inn to recover health.
-C opens the character paper doll with all 19 Classic equipment slots. Select
-a slot to inspect it; gear changes are not yet implemented. B opens your backpack
-to inspect carried items; click an item for its tooltip and potion action.
-L opens the monster lorebook. The icon hotbar shows ability keys and hover
-tooltips; the separate recovery bar shows your current commitment. Escape
-closes a window or opens the game menu. Movement continues while windows are open.
-To delete a character, return to the roster, select them, and choose **Delete
-Character**. Confirming removes that character and their saved journey from
-the current browser; your other characters remain.
+Tab selects a target. **1** queues your class attack, **2** Block, **=** drinks
+or queues a health potion. Completing Rowan's quests unlocks **3** Disengage and
+**4** Blood Rage. Click a queued move then an ability to replace it; right-click
+to remove it; drag onto another turn to move or swap. Executed moves stay locked.
+
+Hover crystals for the quest tooltip; left-click or press G nearby to gather.
+R offers six carried crystals at the engine. F speaks with NPCs or opens nearby
+corpse loot; click an item to take it. The quest tracker gives the destination.
+
+C opens Character with the Classic equipment slots. Earned coat and class weapon
+can be equipped or removed there. B opens your backpack; L opens the monster
+lorebook. Escape closes a window or opens Settings. Movement continues with
+windows open. Unit frames can be unlocked, moved and mirrored in Settings.
+
+Return to the roster to create or delete a selected character. Defeated
+characters remain in the RIP tab. Access is retained in the browser profile;
+character and world progress are saved by the shared server.
 
 ## Versions and archives
 

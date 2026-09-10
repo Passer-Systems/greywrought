@@ -3,7 +3,7 @@ import { actor } from "./frostwood-assets.js";
 
 const appearances = [
   ["scout", "Skull"], ["nest", "Armabee"], ["warder", "MushroomKing"],
-  ["patrol", "Wolf"], ["ritual-guardian", "Yeti"],
+  ["patrol", "Wolf"], ["ritual-guardian", "Leela"],
 ] as const;
 
 /** One portrait pass; model geometry and textures remain owned by the shared asset cache. */
@@ -22,6 +22,8 @@ export async function createUnitPortraits(models: readonly (readonly [string, st
     for (const [id, model] of models) {
       const creature = await actor(model, 2);
       try {
+        creature.play(model === "Armabee" ? "Flying_Idle" : "Idle");
+        creature.mixer.update(0.01);
         creature.model.removeFromParent();
         scene.add(creature.model);
         scene.updateMatrixWorld(true);

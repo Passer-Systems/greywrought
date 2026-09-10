@@ -27,7 +27,7 @@ export function enemyRange(snapshot: AdventureSnapshot, threat: ThreatView, abil
   const targetLabel = target ? " · targeting " + target.name : " · to you";
   // Ground attacks lock their impact centre on launch; homing attacks continue
   // checking distance from the attacker at impact.
-  const homing = ability.id === "fireball" || ability.id === "ember-beam";
+  const homing = ability.id === "fireball" || ability.id === "ember-beam" || ability.id === "foreman-pulse";
   if (homing) return reach(threat.position, position, ability.range, targetLabel);
   if (threat.phase === "action") return reach(threat.targetPosition, position, ability.range, targetLabel);
   // Maul's range is its landing radius, in addition to the distance it leaps.

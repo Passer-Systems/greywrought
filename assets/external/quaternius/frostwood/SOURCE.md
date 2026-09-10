@@ -10,7 +10,6 @@ Extracted archive entries:
 - `Characters and Animals/Ultimate Monsters - Oct 2022/Blob/glTF/Birb.gltf`
 - `Characters and Animals/Ultimate Monsters - Oct 2022/Flying/glTF/Armabee.gltf`
 - `Characters and Animals/Ultimate Monsters - Oct 2022/Big/glTF/MushroomKing.gltf`
-- `Characters and Animals/Ultimate Monsters - Oct 2022/Big/glTF/Yeti.gltf`
 - `Characters and Animals/Ultimate Animated Animals - July 2021/glTF/Wolf.gltf`
 - `Characters and Animals/RPG Characters - Nov 2020/glTF/Cleric.gltf`
 - `Medieval/Medieval Village Pack - Dec 2020/Buildings/OBJ/House_1.obj`
@@ -76,3 +75,29 @@ Rowan the innkeeper: Characters and Animals/Ultimate Animated Character Pack - N
 - `Characters and Animals/Cute Animated Monsters - Aug 2020/glTF/Skull.gltf`
   supplies the Ember head, with native Idle, Walk, Bite_Front, Bite_InPlace,
   HitRecieve and Death clips. Mesh, embedded textures and clips retained.
+
+Nine-Bell Yard selection (September 2026), from the same local archive:
+
+- `Characters and Animals/Animated Mech Pack - March 2021/Flat Colors/glTF/Leela.gltf`
+  supplies Foreman Nine and its portrait. The original model, embedded buffer,
+  one native skin and all 18 native clips are unchanged. The game uses `Idle`,
+  `Walk`, `Shoot`, `Kick`, `HitRecieve_1` and `Death`; gameplay supplies movement
+  and aligns the authored Shoot/Kick poses with the pulse/press timing. Pack
+  `Characters and Animals/Animated Mech Pack - March 2021/License.txt` is retained
+  as `greywrought:assets/external/quaternius/frostwood/actors/mech-LICENSE.txt` (CC0).
+- `Space/Ultimate Modular Sci-Fi - Feb 2021/OBJ/` supplies `Pipes`,
+  `Details_Pipes_Long`, `Props_Capsule`, `Props_Base`, `Props_Vessel` and
+  `Column_1`, each with its matching `.obj` and `.mtl`, copied unchanged into
+  `greywrought:assets/external/quaternius/frostwood/works/`. The pack's
+  `Space/Ultimate Modular Sci-Fi - Feb 2021/License.txt` is retained there (CC0).
+- `Miscellaneous/Survival Pack - Sept 2020/OBJ/WoodenTorch_Fire.obj` and its
+  matching `.mtl` supply the settlement's standing torches. The pack's
+  `Miscellaneous/Survival Pack - Sept 2020/License.txt` is retained as
+  `greywrought:assets/external/quaternius/frostwood/village/torch-LICENSE.txt` (CC0).
+  The loader adds emission to the authored flame materials and the scene adds
+  warm light at each torch. No day/night cycle: cold fill preserves nighttime
+  path and combat readability. Completed personal quests light Mara's cooling
+  vessels and warm Rowan's doorway; these effects do not change shared world state.
+
+All shared source archives remain unchanged. New assets need no external texture
+dependencies. The renderer gives the mech's authored Eye material a cold glow.

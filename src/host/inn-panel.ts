@@ -1,4 +1,6 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
+import { YARD } from "../game/yard-content.js";
+import { createNpcQuests, type QuestCallback } from "./npc-quests.js";
 
 export interface InnPanel {
   update(snapshot: AdventureSnapshot, open: boolean): void;
@@ -7,7 +9,7 @@ export interface InnPanel {
 
 export function createInnPanel(
   host: HTMLElement,
-  callbacks: { readonly onRest: () => void; readonly onClose: () => void },
+  callbacks: { readonly onRest: () => void; readonly onClose: () => void; readonly onQuest: QuestCallback },
 ): InnPanel {
   const panel = document.createElement("section");
   panel.id = "inn-panel";
@@ -15,7 +17,7 @@ export function createInnPanel(
   panel.setAttribute("aria-labelledby", "inn-title");
   panel.innerHTML = `
     <style>
-      #inn-panel { position:absolute; top:26%; left:50%; transform:translateX(-50%); z-index:45; box-sizing:border-box; width:min(320px,calc(100% - 24px)); padding:0 0 14px; border:3px ridge #79796f; border-radius:5px; background:#17201bf5; color:#f5e6c8; box-shadow:0 8px 30px #0008; pointer-events:auto; font:var(--ui-font-body)/1.5 system-ui,sans-serif; }
+      #inn-panel { position:absolute; top:16%; max-height:calc(84% - 165px); overflow:auto; left:50%; transform:translateX(-50%); z-index:45; box-sizing:border-box; width:min(320px,calc(100% - 24px)); padding:0 0 14px; border:3px ridge #79796f; border-radius:5px; background:#17201bf5; color:#f5e6c8; box-shadow:0 8px 30px #0008; pointer-events:auto; font:var(--ui-font-body)/1.5 system-ui,sans-serif; }
       #inn-panel[hidden] { display:none; }
       #inn-panel p { margin:10px 14px; }
       #inn-panel .inn-host { margin:12px 14px; color:#d4b887; font-size:var(--ui-font-body); }
@@ -26,13 +28,14 @@ export function createInnPanel(
       #inn-rest { width:calc(100% - 28px); margin:0 14px; }
       #inn-panel .inn-price { display:block; text-align:center; margin-top:5px; color:#d4b887; font-size:var(--ui-font-small); }
     </style>
-    <header class="rpg-window-header"><h2 id="inn-title" class="rpg-window-title">The Wayfarer’s Rest</h2><button id="inn-close" class="rpg-window-close" type="button" aria-label="Close inn">×</button></header>
+    <header class="rpg-window-header"><h2 id="inn-title" class="rpg-window-title">${YARD.inn}</h2><button id="inn-close" class="rpg-window-close" type="button" aria-label="Close inn">×</button></header>
     <p class="inn-host">Rowan · Innkeeper</p>
-    <p>Come in out of the cold. There’s a warm bed waiting for you.</p>
+    <div class="inn-quests"></div>
     <p class="inn-health"></p>
     <button id="inn-rest" type="button">Rest · Restore health</button>
     <span class="inn-price">No charge</span>
   `;
+  const quests = createNpcQuests(panel.querySelector<HTMLElement>(".inn-quests")!, "inn", callbacks.onQuest);
   const rest = panel.querySelector<HTMLButtonElement>("#inn-rest")!;
   const close = panel.querySelector<HTMLButtonElement>("#inn-close")!;
   const health = panel.querySelector<HTMLElement>(".inn-health")!;
@@ -42,9 +45,11 @@ export function createInnPanel(
   return {
     update(snapshot, open) {
       panel.hidden = !open;
+      quests.update(snapshot, open);
       health.textContent = `Health ${Math.ceil(snapshot.player.health)} / ${snapshot.player.maximumHealth}`;
     },
     dispose() {
+      quests.dispose();
       rest.removeEventListener("click", callbacks.onRest);
       close.removeEventListener("click", callbacks.onClose);
       panel.remove();

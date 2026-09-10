@@ -33,7 +33,7 @@ export function createChatBubbles(host: HTMLElement, scene: Scene, camera: Persp
   const feed = createChatBubbleFeed();
   const style = document.createElement("style");
   style.textContent = `
-    [data-chat-bubbles] { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:8; }
+    [data-chat-bubbles] { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:4; }
     [data-chat-bubble] { position:absolute; box-sizing:border-box; width:max-content; max-width:min(240px,calc(100% - 24px)); padding:8px 12px; border:2px solid #55442d; border-radius:14px; background:#fff3d5; color:#30291e; box-shadow:0 2px 5px #0006; font:var(--ui-font-prominent,14px)/1.35 system-ui,sans-serif; text-align:center; overflow-wrap:anywhere; white-space:pre-wrap; transform:translate(-50%,calc(-100% - 34px)); pointer-events:none; }
     [data-chat-bubble][data-self="true"] { transform:translate(-50%,calc(-100% - 10px)); }
     [data-chat-bubble]::after { content:""; position:absolute; left:calc(50% - 6px); bottom:-8px; width:11px; height:11px; background:#fff3d5; border-right:2px solid #55442d; border-bottom:2px solid #55442d; transform:rotate(45deg); }

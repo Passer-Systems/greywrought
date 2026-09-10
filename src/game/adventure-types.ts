@@ -1,4 +1,5 @@
 import type { CharacterArchetype } from "../host/character-profile.js";
+import type { QuestId, QuestOperation, QuestView, ProgressionView, GearSlot, GearItemId } from "./yard-content.js";
 import type { MovementFrame, MovementCheckpoint } from "./movement.js";
 
 export interface Position { readonly x: number; readonly y: number; readonly z: number; }
@@ -108,6 +109,8 @@ export interface PlaceView {
   readonly kind: "town" | "gate" | "resource" | "ritual" | "shop" | "inn";
 }
 export interface AdventureSnapshot {
+  readonly quests: readonly QuestView[];
+  readonly progression: ProgressionView;
   readonly phase: "town" | "expedition" | "lost";
   readonly combat: CombatView;
   readonly player: {
@@ -173,6 +176,8 @@ export interface AdventureGame {
   clearQueuedActions(): void;
   openLoot(sourceId: string): void;
   setTradeOffer(kind: "supplies" | "potions", quantity: number): void;
+  quest(id: QuestId, operation: QuestOperation): void;
+  equip(slot: GearSlot, item: GearItemId | null): void;
   save(): string;
 }
 

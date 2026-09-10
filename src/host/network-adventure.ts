@@ -103,6 +103,8 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     clearQueuedActions() { send({type:'clear'}); },
     openLoot(id) { send({type:'loot',id}); },
     setTradeOffer(kind,quantity) { send({type:'trade',kind,quantity}); },
+    quest(id, operation) { send({type:"quest",id,operation}); },
+    equip(slot, item) { send({type:"equip",slot,item}); },
     save() { throw new Error('Shared journeys are saved by the world.'); },
     sendChat(text) { send({type:'chat',text}); },
     close,

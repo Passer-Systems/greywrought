@@ -1,16 +1,17 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
 import { createUnitPortraits } from "./unit-portraits.js";
+import { createNpcQuests, type QuestCallback } from "./npc-quests.js";
 
-export function createShopPanel(host: HTMLElement, callbacks: { onBuyPotion(): void; onClose(): void; onTrade?(): void }) {
+export function createShopPanel(host: HTMLElement, callbacks: { onBuyPotion(): void; onClose(): void; onTrade?(): void; onQuest: QuestCallback }) {
   const panel = document.createElement("section");
   panel.id = "shop-panel"; panel.hidden = true;
   panel.setAttribute("role", "dialog"); panel.setAttribute("aria-labelledby", "shop-title");
   panel.innerHTML = `<style>
-    #shop-panel { position:absolute; z-index:44; left:22px; top:22%; width:min(380px,calc(100% - 44px)); padding:0; border:3px ridge #79796f; border-radius:5px; background:linear-gradient(110deg,#242721,#111713 70%); color:#ddd3b9; pointer-events:auto; font:var(--ui-font-body)/1.45 system-ui; box-shadow:0 8px 25px #0009,inset 0 0 16px #000; }
+    #shop-panel { position:absolute; z-index:44; left:22px; top:16%; max-height:calc(84% - 165px); overflow:auto; width:min(380px,calc(100% - 44px)); padding:0; border:3px ridge #79796f; border-radius:5px; background:linear-gradient(110deg,#242721,#111713 70%); color:#ddd3b9; pointer-events:auto; font:var(--ui-font-body)/1.45 system-ui; box-shadow:0 8px 25px #0009,inset 0 0 16px #000; }
     #shop-panel[hidden] { display:none; }
     #shop-panel header { --window-emblem-space:52.5px; --window-header-height:52.5px; }
-    #shop-panel .shop-stock { display:grid; grid-template-columns:1fr 1fr; gap:8px; min-height:205px; margin:10px 10px 0; align-content:start; }
+    #shop-panel .shop-stock { display:grid; grid-template-columns:1fr 1fr; gap:8px; min-height:64px; margin:10px 10px 0; align-content:start; }
     #shop-buy-potion { display:grid; grid-template-columns:44px 1fr; gap:7px; padding:5px; min-width:0; text-align:left; border:1px solid #6c6e5e; border-radius:3px; background:#0c140fcc; color:#e9dfc6; cursor:pointer; font:var(--ui-font-body)/1.35 system-ui; }
     #shop-buy-potion:hover { background:#293425; border-color:#c6b36d; }
     #shop-buy-potion:disabled { opacity:.55; cursor:default; }
@@ -21,6 +22,9 @@ export function createShopPanel(host: HTMLElement, callbacks: { onBuyPotion(): v
     #shop-panel .shop-tab { width:92px; margin:0 0 -24px; padding:3px; background:linear-gradient(#413b26,#1b2118); border:2px ridge #897d57;border-radius:0 0 5px 5px;color:#e8d18b;text-align:center;font:var(--ui-font-body) Georgia; }
     #shop-panel button:focus-visible {outline:2px solid #efd286;outline-offset:2px;}
   </style><header class="rpg-window-header"><img id="shop-portrait" class="rpg-window-portrait" alt="Mara, the apothecary" /><h2 id="shop-title" class="rpg-window-title">Mara</h2><button id="shop-close" class="rpg-window-close" type="button" aria-label="Close shop">×</button></header><div class="shop-stock"><button id="shop-buy-potion" type="button"><img alt="" /><span><strong>Health potion</strong><small></small></span></button></div><p id="shop-offer"></p><footer><span id="shop-supplies"></span> <button id="shop-trade" type="button">Trade goods</button></footer><div class="shop-tab">Merchant</div>`;
+  const questHost = document.createElement("div");
+  panel.querySelector(".shop-stock")!.before(questHost);
+  const quests = createNpcQuests(questHost, "mara", callbacks.onQuest);
   const buy = panel.querySelector<HTMLButtonElement>("#shop-buy-potion")!;
   buy.querySelector("img")!.src = publicUrl("assets/ui/icons/items/health-potion-red.png");
   const price = buy.querySelector("small")!, offer = panel.querySelector<HTMLElement>("#shop-offer")!, total = panel.querySelector("footer")!;
@@ -37,6 +41,7 @@ export function createShopPanel(host: HTMLElement, callbacks: { onBuyPotion(): v
     ready,
     update(snapshot: AdventureSnapshot): void {
       panel.hidden = !snapshot.shopOpen;
+      quests.update(snapshot, snapshot.shopOpen);
       buy.disabled = snapshot.supplies < snapshot.potionPrice;
       const cost = `${snapshot.potionPrice} supplies`;
       if(price.textContent !== cost) price.textContent = cost;
@@ -46,6 +51,6 @@ export function createShopPanel(host: HTMLElement, callbacks: { onBuyPotion(): v
       const supplyText = panel.querySelector("#shop-supplies")!; if(supplyText.textContent !== supplies) supplyText.textContent = supplies;
       buy.setAttribute("aria-label", `Buy health potion for ${cost}`);
     },
-    dispose(): void { disposed=true; buy.removeEventListener("click",callbacks.onBuyPotion);close.removeEventListener("click",callbacks.onClose);trade.remove();panel.remove(); },
+    dispose(): void { disposed=true; quests.dispose(); buy.removeEventListener("click",callbacks.onBuyPotion);close.removeEventListener("click",callbacks.onClose);trade.remove();panel.remove(); },
   };
 }

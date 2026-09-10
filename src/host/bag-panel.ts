@@ -1,11 +1,14 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
+import { GEAR, YARD, gearName } from "../game/yard-content.js";
 
 const itemTypes = [
-  { id: "potions", name: "Health potion", icon: "health-potion-red" },
-  { id: "cargo", name: "Frost cores", icon: "blue-gem" },
-  { id: "carriedSalvage", name: "Forest salvage", icon: "leather-satchel" },
-  { id: "carriedRelics", name: "Frost relic", icon: "purple-crystal" },
+  { id: "potions", name: "Health potion", icon: "items/health-potion-red.png" },
+  { id: "cargo", name: YARD.resource, icon: "items/blue-gem.png" },
+  { id: "carriedSalvage", name: "Yard salvage", icon: "items/leather-satchel.png" },
+  { id: "carriedRelics", name: "Last Shift Roll", icon: "items/purple-crystal.png" },
+  { id: "insulated-coat", name: GEAR["insulated-coat"].name, icon: GEAR["insulated-coat"].icon + ".png" },
+  { id: "yard-weapon", name: GEAR["yard-weapon"].name, icon: GEAR["yard-weapon"].icon + ".png" },
 ] as const;
 type Item = typeof itemTypes[number];
 
@@ -56,7 +59,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
   usePotion.id = "bag-use-potion"; usePotion.type = "button";
   details.append(itemName, description, usePotion);
   const secured = document.createElement("p"); secured.id = "bag-secured";
-  const securedTitle = document.createElement("strong"); securedTitle.textContent = "Secured in Hearthstead";
+  const securedTitle = document.createElement("strong"); securedTitle.textContent = `Secured in ${YARD.settlement}`;
   const securedValue = document.createElement("span"); secured.append(securedTitle, securedValue);
   panel.append(header, grid, secured);
   host.append(style, panel, details);
@@ -97,7 +100,9 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
   }
   function update(next: AdventureSnapshot): void {
     snapshot = next;
-    const carried = itemTypes.filter(item => next[item.id] > 0);
+    const quantity = (item: Item) => item.id === "insulated-coat" || item.id === "yard-weapon" ? Number(next.progression.ownedGear.includes(item.id)) : next[item.id];
+    const label = (item: Item) => item.id === "insulated-coat" || item.id === "yard-weapon" ? gearName(item.id, next.player.archetype) : item.name;
+    const carried = itemTypes.filter(item => quantity(item) > 0);
     if (!carried.some(item => item.id === selected)) selected = carried[0]?.id ?? null;
     slots.forEach((slot, index) => {
       const item = carried[index];
@@ -107,11 +112,12 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
       slot.image.hidden = !item; slot.count.hidden = !item;
       if (item) {
         slot.button.dataset.bagItem = item.id;
-        slot.button.dataset.quantity = String(next[item.id]);
-        slot.button.setAttribute("aria-label", `${item.name} × ${next[item.id]}`);
-        const src = publicUrl(`assets/ui/icons/items/${item.icon}.png`);
+        slot.button.dataset.quantity = String(quantity(item));
+        slot.button.setAttribute("aria-label", `${label(item)} × ${quantity(item)}`);
+        const icon = item.id === "yard-weapon" ? next.player.archetype === "mage" ? "spells/wand-bolt.svg" : next.player.archetype === "hunter" ? "spells/bow-shot.svg" : item.icon : item.icon;
+        const src = publicUrl(`assets/ui/icons/${icon}`);
         if (slot.image.src !== src) slot.image.src = src;
-        setText(slot.count, String(next[item.id]));
+        setText(slot.count, String(quantity(item)));
       } else {
         delete slot.button.dataset.bagItem;
         delete slot.button.dataset.quantity;
@@ -119,17 +125,18 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
       }
     });
     const item = carried.find(item => item.id === selected);
-    setText(itemName, item ? `${item.name} × ${next[item.id]}` : "Your backpack is empty");
-    const copy = !item ? "Gather frost cores, search fallen foes, or buy potions from Mara."
+    setText(itemName, item ? `${label(item)} × ${quantity(item)}` : "Your backpack is empty");
+    const copy = !item ? "Gather coolant crystals, search fallen foes, or buy potions from Mara."
       : item.id === "potions" ? `Restores ${next.potionHealing} health. ${Math.ceil(next.player.health)} / ${next.player.maximumHealth} health.`
-      : item.id === "carriedRelics" ? "A relic recovered in Frostwood. Return alive to Hearthstead to secure it."
-      : item.id === "cargo" ? "Gathered in Frostwood. Return alive to Hearthstead to turn each core into a supply."
-      : "Recovered from fallen foes. Return alive to Hearthstead to turn each salvage into a supply.";
+      : item.id === "insulated-coat" || item.id === "yard-weapon" ? `${GEAR[item.id].description} ${next.progression.equipment[GEAR[item.id].slot] === item.id ? "Equipped." : "Not equipped."} Press C to change gear in town.`
+      : item.id === "carriedRelics" ? "Recovered from Foreman Nine. Bring it to Rowan and complete Clock Out."
+      : item.id === "cargo" ? "Three are kept for Mara while her task is active. Other crystals become supplies on entering town. Carry six straight to the engine for its offering."
+      : `Recovered from fallen foes. Return alive to ${YARD.settlement} to turn each salvage into a supply.`;
     setText(description, copy);
     usePotion.hidden = selected !== "potions";
     usePotion.disabled = next.phase === "lost" || next.potions < 1 || next.player.health >= next.player.maximumHealth;
     setText(usePotion, next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
-    setText(securedValue, `${next.supplies} supplies · ${next.bankedRelics} relics`);
+    setText(securedValue, `${next.supplies} supplies${next.quests.some(q => q.id === "last-shift" && q.status === "completed") ? " · Last Shift Roll delivered" : ""}`);
     if (!details.hidden) {
       const slot = slots.find(slot => slot.item?.id === selected);
       if (!slot || panel.hidden) details.hidden = true;

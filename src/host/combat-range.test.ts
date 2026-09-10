@@ -35,6 +35,9 @@ test("Maul includes leap and landing radius before launch, then uses its locked 
 test("homing range tracks attacker, while ordinary committed areas stay locked", () => {
   const threat = { ...scout, phase: "action" as const, position: origin, targetPosition: { x: 20, y: 0, z: 0 } };
   expect(enemyRange(snapshot, threat, { ...scout.currentAbility, id: "fireball", range: 10 }).state).toBe("in");
+  expect(enemyRange(snapshot, threat, { ...scout.currentAbility, id: "foreman-pulse", range: 22 }).state).toBe("in");
+  expect(enemyRange(snapshot, { ...threat, position: { x: 23, y: 0, z: 0 } }, { ...scout.currentAbility, id: "foreman-pulse", range: 22 }).state).toBe("out");
+  expect(enemyRange(snapshot, threat, { ...scout.currentAbility, id: "foreman-press", range: 3.5 }).state).toBe("out");
   expect(enemyRange(snapshot, threat, { ...scout.currentAbility, id: "nest", range: 3 }).state).toBe("out");
 });
 

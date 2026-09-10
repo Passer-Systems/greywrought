@@ -1,3 +1,4 @@
+import { YARD } from "../game/yard-content.js";
 import { getMonsterLore } from "../game/adventure.js";
 import type { MonsterLoreEntry, ThreatAbilityView } from "../game/adventure-types.js";
 
@@ -9,7 +10,7 @@ export function createLorebook(host: HTMLElement, onClose: () => void, portrait:
   const panel = node("section", host); panel.id = "lorebook-panel"; panel.hidden = true;
   panel.setAttribute("role", "dialog"); panel.setAttribute("aria-labelledby", "lorebook-title");
   const header = node("header", panel, "rpg-window-header");
-  node("h2", header, "rpg-window-title", "Frostwood Lorebook").id = "lorebook-title";
+  node("h2", header, "rpg-window-title", `${YARD.region} Lorebook`).id = "lorebook-title";
   const close = node("button", header, "rpg-window-close", "×"); close.type = "button"; close.id = "lorebook-close"; close.setAttribute("aria-label", "Close lorebook");
   const layout = node("div", panel, "lorebook-layout");
   const nav = node("nav", layout, "lorebook-index"); nav.setAttribute("aria-label", "Monsters");
@@ -55,7 +56,7 @@ export function createLorebook(host: HTMLElement, onClose: () => void, portrait:
     }
     node("h3", article, "lorebook-section-title", "How to respond");
     node("p", article, "lorebook-strategy", entry.strategy);
-    node("p", article, "lorebook-footer", "The forest keeps moving while you read. L or Esc closes the book.");
+    node("p", article, "lorebook-footer", "The yard keeps moving while you read. L or Esc closes the book.");
   }
   for (const entry of entries) {
     const tab = node("button", nav, "", entry.name); tab.type = "button"; tab.dataset.monsterId = entry.id;

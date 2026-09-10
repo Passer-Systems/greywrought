@@ -31,7 +31,7 @@ function renderAbility(view: AbilityIcon, ability: ThreatAbilityView, threat: Th
     path.setAttribute("fill", "currentColor");
     path.setAttribute("d", ability.id === "bite" ? "M5 6L11 8L13 17L16 12L19 17L21 8L27 6L25 24L20 28L12 28L7 24ZM10 20L12 24L20 24L22 20L18 22L16 19L14 22Z" : ability.id === "maul" ? "M6 4L12 6L10 17L4 28L6 16ZM16 3L21 5L18 19L11 29L14 16ZM25 5L29 8L25 21L19 28L22 17Z" : "M24 3L29 8L17 20L20 23L17 26L13 22L7 29L3 25L10 18L6 14L9 11L12 14Z");
     svg.append(path);
-    const artwork: Record<string,string> = {"ember-beam":"lightning-bolt",fireball:"fire-spell","ember-ward":"defensive-shield",kindle:"energy-burst",nest:"poison-vial",warder:"nature-leaf","ritual-guardian":"frost-spell"};
+    const artwork: Record<string,string> = {"ember-beam":"lightning-bolt",fireball:"fire-spell","ember-ward":"defensive-shield",kindle:"energy-burst",nest:"poison-vial",warder:"nature-leaf","ritual-guardian":"frost-spell","foreman-pulse":"lightning-bolt","foreman-press":"earth-stone","foreman-shield":"defensive-shield"};
     if (artwork[ability.id]) { const img=document.createElement("img");img.src=publicUrl("assets/ui/icons/spells/"+artwork[ability.id]+".png");img.alt="";view.icon.replaceChildren(img); }
     else view.icon.replaceChildren(svg);
   }

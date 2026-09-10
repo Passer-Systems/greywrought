@@ -59,6 +59,8 @@ function command(value: unknown): value is WorldCommand {
     case 'remove': return keys(value, ['type', 'id']) && finite(value.id, 1, Number.MAX_SAFE_INTEGER, true);
     case 'clear': return keys(value, ['type']);
     case 'trade': return keys(value, ['type', 'kind', 'quantity']) && member(value.kind, ['supplies', 'potions']) && finite(value.quantity, 0, 100_000, true);
+    case 'quest': return keys(value, ['type', 'id', 'operation']) && member(value.id, ['cold-hands', 'roll-call', 'last-shift']) && member(value.operation, ['accept', 'turnIn']);
+    case 'equip': return keys(value, ['type', 'slot', 'item']) && member(value.slot, ['chest', 'mainhand']) && (value.item === null || member(value.item, ['insulated-coat', 'yard-weapon']));
     case 'chat': return keys(value, ['type', 'text']) && typeof value.text === 'string' && value.text.trim().length > 0 && value.text.length <= 280 && !/[\u0000-\u001f\u007f]/.test(value.text);
     default: return false;
   }
@@ -191,6 +193,8 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'clear': player.clearQueuedActions(); break;
       case 'loot': player.openLoot(value.id); break;
       case 'trade': player.setTradeOffer(value.kind, value.quantity); break;
+      case 'quest': player.quest(value.id, value.operation); break;
+      case 'equip': player.equip(value.slot, value.item); break;
       case 'chat': {
         const now = performance.now();
         socket.data.chatsAt = socket.data.chatsAt.filter(at => now - at < 1000);

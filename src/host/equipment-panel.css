@@ -48,3 +48,6 @@
   .equipment-slot strong { font-size: var(--ui-font-small); }
   .equipment-heading h2 { font-size: 22px; }
 }
+#equipment-toggle { margin-top:9px; padding:6px 16px; border:2px ridge #a58b57; border-radius:3px; color:#f0dc9d; background:#3f3d27; font:var(--ui-font-body) Georgia,serif; }
+#equipment-toggle:disabled { opacity:.6; cursor:default !important; }
+.equipment-slot[data-equipped="true"] small { color:#b9d39b; }
