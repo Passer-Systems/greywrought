@@ -1,0 +1,28 @@
+#quest-log-panel {
+  position:absolute; z-index:50; top:12%; left:50%; transform:translateX(-50%);
+  width:min(640px,calc(100vw - 28px)); max-height:72vh; color:#ecdfc6;
+  background:#171713f5; border:3px ridge #82785f; border-radius:5px;
+  box-shadow:0 12px 38px #000b; font:var(--ui-font-body)/1.45 system-ui,sans-serif;
+}
+#quest-log-panel[hidden] { display:none; }
+#quest-log-panel .rpg-window-header { margin:0; }
+.quest-log-body { display:grid; grid-template-columns: minmax(190px, 36%) 1fr; min-height:310px; }
+.quest-log-list { padding:9px 0; border-right:1px solid #7a6e59; overflow:auto; background:#101311; }
+.quest-log-entry { display:flex; width:100%; gap:8px; padding:9px 10px; border:0; border-bottom:1px solid #3e413a; color:#d8d0bb; background:transparent; text-align:left; cursor:pointer; font:inherit; }
+.quest-log-entry:hover { background:#293329; }
+.quest-log-entry[aria-pressed="true"] { background:#4b4939; box-shadow:inset 3px 0 #e7c477; color:#ffe4a2; }
+.quest-log-mark { flex:0 0 18px; color:#e5bf5e; font-weight:800; text-align:center; }
+.quest-log-entry-copy { display:flex; flex-direction:column; min-width:0; }
+.quest-log-entry-copy strong { font:600 var(--ui-font-body)/1.3 Georgia,serif; }
+.quest-log-entry-copy small { color:#9fa69c; font-size:var(--ui-font-small); }
+.quest-log-detail { padding:18px 22px 22px; overflow:auto; background:linear-gradient(90deg,#272115,#30281a 50%,#241d14); }
+.quest-log-detail h3 { margin:0 0 3px; color:#f0cc79; font:700 var(--ui-font-prominent)/1.3 Georgia,serif; }
+.quest-log-meta { margin:0 0 16px; color:#aeb8a6; font-size:var(--ui-font-small); }
+.quest-log-detail > p { margin:11px 0; }
+.quest-log-objective { color:#f1dfa8; }
+.quest-log-reward { display:flex; flex-direction:column; gap:3px; margin-top:22px; padding-top:11px; border-top:1px solid #b89a654d; color:#d8cfb4; }
+.quest-log-reward strong { color:#e8c778; font-size:var(--ui-font-small); text-transform:uppercase; letter-spacing:.08em; }
+.quest-log-hint { color:#cabd9c; font-size:var(--ui-font-small); }
+.quest-log-hint.ready { color:#9bd5a5; font-weight:700; }
+.quest-log-empty { padding:14px; color:#a7aea0; }
+@media (max-width:560px) { .quest-log-body { grid-template-columns:1fr; } .quest-log-list { max-height:180px; border-right:0; border-bottom:1px solid #7a6e59; } .quest-log-detail { min-height:220px; } }
