@@ -1,6 +1,8 @@
 import { COMBAT_RULES, createAdventure } from './adventure.js';
 import {test,expect} from 'bun:test';
 import type {AdventureGame, AdventureAction} from './adventure-types.js';
+import type {CharacterArchetype} from '../host/character-profile.js';
+import { earnedChapter } from './yard-test-fixtures.js';
 function tap(g:AdventureGame,a:AdventureAction){g.setAction(a,true);g.setAction(a,false);}
 test('all available creatures patrol, including the bee; pauses stay brief',()=>{
  const g=createAdventure(),before=g.snapshot;
@@ -41,15 +43,18 @@ test('summon guarantees five seconds, preserves its plan on reload and leaves a 
   expect(g.snapshot.threats.find(t=>t.id==='ritual-guardian')!.actionSequence).toBe(sequence);
  }
 });
-function fight(factory:typeof createAdventure,count:number,defend:boolean,seed=2000){
- const data=JSON.parse(factory().save()); const ids=['warder','patrol','ritual-guardian'].slice(0,count);
- data.state.phase='expedition';data.state.position={x:-3,y:0,z:34};data.state.ritualCalled=true;
- data.state.selectedThreat=ids[0]; data.state.combat={phase:'preparation',elapsedSeconds:0,cycle:1,queued:[],nextId:1};
+function fight(factory:typeof createAdventure,count:number,defend:boolean,seed=2000,archetype:CharacterArchetype='warrior'){
+ const data=JSON.parse(factory({archetype}).save()); const ids=['nest','warder','patrol'].slice(0,count);
+ const chapter=earnedChapter(2);
+ data.state.chapter=chapter; data.state.chapter.equipment={chest:'insulated-coat',mainhand:'yard-weapon'};
+ data.state.phase='expedition';data.state.position={x:-3,y:0,z:24};data.state.ritualCalled=false;
+ data.state.selectedThreat=ids[0]; data.state.combat={phase:'idle',elapsedSeconds:0,cycle:0,queued:[],nextId:1};
  for(const t of data.state.threats){
-  if(!ids.includes(t.id)){t.active=true;t.health=0;t.phase='cleared';t.lootClaimed=true;continue;}
-  Object.assign(t,{active:true,aggro:true,phase:'preparation',windowCycle:0,joinCycle:2,rng:seed+ids.indexOf(t.id)*500,position:{x:-3+ids.indexOf(t.id)*.6,y:0,z:33},targetPosition:{x:-3,y:0,z:33}});
+   if(!ids.includes(t.id)){if(t.id!=='ritual-guardian'){t.active=true;t.health=0;t.phase='cleared';t.lootClaimed=true;} continue;}
+  Object.assign(t,{active:true,aggro:false,rng:seed+ids.indexOf(t.id)*500});
  }
- const g=factory({save:JSON.stringify(data)});let planned=0,elapsed=0;
+ const g=factory({archetype,save:JSON.stringify(data)});let planned=0,elapsed=0;
+ tap(g, 'strike'); g.advance(.01); elapsed += .01;
  for(;elapsed<240&&g.snapshot.phase!=='lost'&&g.snapshot.threats.some(t=>ids.includes(t.id)&&t.health>0);elapsed+=.05){
   let s=g.snapshot;const target=s.threats.find(t=>ids.includes(t.id)&&t.health>0)!;
   if(s.selectedThreat!==target.id)g.selectTarget(target.id);
@@ -66,12 +71,52 @@ function fight(factory:typeof createAdventure,count:number,defend:boolean,seed=2
  }
  return {count,defend,seed,hp:g.snapshot.player.health,seconds:Math.round(elapsed),remaining:g.snapshot.threats.filter(t=>ids.includes(t.id)).map(t=>[t.id,t.health]),lost:g.snapshot.phase==='lost'};
 }
-test('three-slot committed pulls reward defense; attack spam loses against two or three',()=>{
+test('earned opening gear rewards defense; doubles punish spam and triples overwhelm it',()=>{
  const solo=fight(createAdventure,1,false),soloDefense=fight(createAdventure,1,true);
  const pair=fight(createAdventure,2,false),pairDefense=fight(createAdventure,2,true);
  const triple=fight(createAdventure,3,false),tripleDefense=fight(createAdventure,3,true);
- for(const result of [solo,soloDefense,pairDefense]){expect(result.lost).toBe(false);expect(result.remaining.every(([,hp])=>hp===0)).toBe(true);}
- expect(solo.hp).toBe(35);expect(soloDefense.hp).toBe(99);
- expect(pair.lost).toBe(true);expect(pair.hp).toBe(0);expect(pairDefense.hp).toBe(1);
- expect(triple.lost).toBe(true);expect(tripleDefense.lost).toBe(true);
+ for(const result of [solo,soloDefense]){expect(result.lost).toBe(false);expect(result.remaining.every(([,hp])=>hp===0)).toBe(true);}
+ expect(solo.hp).toBe(85);expect(soloDefense.hp).toBe(100);
+ expect(pair.lost).toBe(false);expect(pair.hp).toBe(15);expect(pairDefense.hp).toBe(78);
+ expect(triple.lost).toBe(true);expect(tripleDefense.lost).toBe(false);expect(tripleDefense.hp).toBe(6);
+});
+
+test('every class still has to answer an ordinary pull',()=>{
+ for(const archetype of ['warrior','mage','hunter','alchemist','artificer'] as const){
+  const solo=fight(createAdventure,1,false,2000,archetype), defended=fight(createAdventure,1,true,2000,archetype);
+  expect(solo.lost).toBe(false); expect(defended.lost).toBe(false);
+  expect(solo.remaining.every(([,hp])=>hp===0)).toBe(true);
+  expect(defended.remaining.every(([,hp])=>hp===0)).toBe(true);
+  expect(defended.hp).toBeGreaterThan(solo.hp);
+  const pair=fight(createAdventure,2,false,2000,archetype);
+  expect(pair.lost || pair.hp < 50 || pair.remaining.some((row)=>Number(row[1])>0)).toBe(true);
+ }
+});
+
+test('ranged attacks keep Watchman aggro instead of dropping contact at distance',()=>{
+ for(const archetype of ['mage','hunter','alchemist','artificer'] as const){
+  const data=JSON.parse(createAdventure({archetype}).save());
+  data.state.phase='expedition'; data.state.position={x:-3,y:0,z:4};
+  for(const t of data.state.threats) if(t.id!=='scout' && t.id!=='ritual-guardian'){t.active=true;t.health=0;t.phase='cleared';t.lootClaimed=true;}
+  const game=createAdventure({archetype,save:JSON.stringify(data)}); game.selectTarget('scout'); tap(game,'strike'); game.advance(.01);
+  expect(game.snapshot.threats.find(t=>t.id==='scout')!.aggro).toBe(true);
+  game.advance(8);
+  expect(game.snapshot.player.health).toBeLessThan(100);
+  expect(game.snapshot.threats.find(t=>t.id==='scout')!.health).toBeLessThan(96);
+ }
+});
+
+test('retreating from a committed double pull breaks contact and preserves the run',()=>{
+ const data=JSON.parse(createAdventure({archetype:'warrior'}).save());
+ data.state.phase='expedition'; data.state.position={x:-3,y:0,z:24};
+ data.state.chapter=earnedChapter(2);
+ data.state.chapter.equipment={chest:'insulated-coat',mainhand:'yard-weapon'};
+ for(const t of data.state.threats) if(t.id==='scout') {t.health=0;t.phase='cleared';t.lootClaimed=true;}
+ const game=createAdventure({archetype:'warrior',save:JSON.stringify(data)});
+ game.selectTarget('patrol'); tap(game,'brace'); game.advance(.01);
+ expect(game.snapshot.threats.filter(t=>t.aggro).map(t=>t.id).sort()).toEqual(['patrol','warder']);
+ game.setCameraForward(0,-1); game.setAction('forward',true); game.advance(7); game.setAction('forward',false);
+ expect(game.snapshot.player.position.z).toBeLessThan(0);
+ expect(game.snapshot.phase).toBe('town'); expect(game.snapshot.player.health).toBeGreaterThan(0);
+ expect(game.snapshot.threats.filter(t=>t.aggro).length).toBe(0);
 });

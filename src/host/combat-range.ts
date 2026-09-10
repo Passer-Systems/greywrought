@@ -1,6 +1,7 @@
 import { COMBAT_RULES } from "../game/adventure.js";
 import type { AdventureSnapshot, CombatAction, Position, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
 import type { RemotePlayerView } from "../game/multiplayer-types.js";
+import { classAction } from "../game/class-kit.js";
 
 export interface RangeAudience { readonly selfId: string; readonly players: readonly RemotePlayerView[]; }
 export interface RangeCue { readonly state: "in" | "out" | "none" | "unknown"; readonly text: string; }
@@ -14,7 +15,8 @@ export function playerRange(snapshot: AdventureSnapshot, action: CombatAction, t
   if (action !== "strike" && action !== "disengage" && action !== "jab") return none;
   const target = snapshot.threats.find(threat => threat.id === targetId && threat.active && threat.health > 0);
   if (!target) return { state: "unknown", text: "No living target selected." };
-  const metres = action === "strike" && snapshot.player.archetype !== "warrior" ? COMBAT_RULES.strike.rangedRange : COMBAT_RULES[action].range;
+  if (target.phase === "returning") return { state: "out", text: "Returning home and recovering. Cannot be attacked until it returns." };
+  const metres = classAction(snapshot.player.archetype, action).range ?? (action === "strike" && snapshot.player.archetype !== "warrior" ? COMBAT_RULES.strike.rangedRange : COMBAT_RULES[action].range);
   return reach(snapshot.player.position, target.position, metres);
 }
 

@@ -1,6 +1,6 @@
 import {
   CanvasTexture, Color,
-  ConeGeometry, CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
+  CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
   Material, Mesh, MeshBasicMaterial, MeshStandardMaterial,
   Object3D, PerspectiveCamera, PlaneGeometry, RingGeometry, Scene, SphereGeometry,
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
@@ -136,13 +136,20 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const rowan = new Group(); rowan.position.set(innPosition.x, innPosition.y, innPosition.z); rowan.rotation.y = -Math.PI / 3;
   terrain.add(rowan);
   const coreRoot = new Group();
-  coreRoot.position.set(-2, 0, 12);
-  const coreMaterial = new MeshStandardMaterial({ color: 0x86ebff, emissive: 0x2090ae, emissiveIntensity: 0.55 });
-  for (let index = 0; index < 5; index++) {
-    const core = new Mesh(new ConeGeometry(0.2, 0.7 + index * 0.08, 5), coreMaterial);
-    core.position.set(Math.sin(index * 2) * 0.6, 0.5, Math.cos(index * 2) * 0.6);
-    coreRoot.add(core);
-  }
+  const corePlace = initial.places.find(place => place.id === "frost-cores")!;
+  coreRoot.position.set(corePlace.position.x, 0, corePlace.position.z);
+  const coresReady = Promise.all([1.2, 0.75, 0.65].map(async (height, index) => {
+    const crystal = await prop("Crystal2", height);
+    if (disposed) return;
+    crystal.position.set(index === 0 ? 0 : index === 1 ? -0.5 : 0.55, 0, index === 2 ? 0.4 : -0.2);
+    crystal.rotation.y = index * 2;
+    crystal.traverse(object => {
+      if (!(object instanceof Mesh)) return;
+      object.material = new MeshStandardMaterial({ color: 0x86ebff, emissive: 0x2090ae, emissiveIntensity: 0.75, roughness: 0.35 });
+    });
+    coreRoot.add(crystal);
+    canvas.dataset.resourceModel = "Crystal2";
+  }));
   terrain.add(coreRoot);
   const ritualPlace = initial.places.find((place) => place.kind === "ritual");
   const ritualPosition = ritualPlace?.position ?? { x: 0, y: 0, z: 43 };
@@ -152,7 +159,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   terrain.add(ritual);
 
   const hoverTargets: HoverTarget[] = [
-    { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(-2, 1.4, 12) },
+    { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(corePlace.position.x, 1.4, corePlace.position.z) },
     { root: mara, pick: { kind: "npc", id: "mara" }, name: "Mara · Supplies", anchor: new Vector3(3.4, 2.45, -7.5) },
     { root: rowan, pick: { kind: "npc", id: "inn" }, name: "Rowan · Innkeeper", anchor: new Vector3(innPosition.x, 2.45, innPosition.z) },
     { root: ritual, pick: { kind: "place", id: "ritual" }, name: YARD.works, anchor: new Vector3(ritualPosition.x, 0.4, ritualPosition.z) },
@@ -186,11 +193,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   playerHalo.rotation.x = -Math.PI / 2;
   playerHalo.position.y = 0.04;
   player.add(playerHalo);
-  const playerProjectile = new Mesh(new SphereGeometry(0.16, 12, 8), new MeshStandardMaterial({ color: playerArchetype === "mage" ? 0xb78cff : 0xffd36b, emissive: playerArchetype === "mage" ? 0x5420a8 : 0x8a4a00, emissiveIntensity: 1.2 }));
+  const alchemist = playerArchetype === "alchemist", artificer = playerArchetype === "artificer";
+  const playerProjectile = new Mesh(new SphereGeometry(0.16, 12, 8), new MeshStandardMaterial({ color: playerArchetype === "mage" ? 0xb78cff : alchemist ? 0x7ed36d : artificer ? 0xffb347 : 0xffd36b, emissive: playerArchetype === "mage" ? 0x5420a8 : alchemist ? 0x245c28 : artificer ? 0x6d3200 : 0x8a4a00, emissiveIntensity: 1.2 }));
   playerProjectile.visible = false; scene.add(playerProjectile);
   const rigs = new Map<string, ThreatRig>();
   let knight: ForestActor | null = null;
-  const playerAnimation = playerArchetype === "mage" ? { attack: "Staff_Attack", hit: "RecieveHit", jump: "Roll" } : playerArchetype === "hunter" ? { attack: "Bow_Shoot", hit: "RecieveHit", jump: "Roll" } : { attack: "Sword_Attack", hit: "RecieveHit", jump: "Roll" };
+  const playerAnimation = playerArchetype === "mage" ? { attack: "Staff_Attack", hit: "RecieveHit", jump: "Roll" } : playerArchetype === "hunter" ? { attack: "Bow_Shoot", hit: "RecieveHit", jump: "Roll" } : playerArchetype === "alchemist" || playerArchetype === "artificer" ? { attack: "Shoot_OneHanded", hit: "RecieveHit", jump: "Roll" } : { attack: "Sword_Attack", hit: "RecieveHit", jump: "Roll" };
   let merchant: ForestActor | null = null;
   let innkeeper: ForestActor | null = null;
   let playerAttackRemaining = 0;
@@ -264,7 +272,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (place) hoverTargets.push({ root, pick: { kind: "place", id: place.id }, name: place.name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
   }).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
   const telegraphs = createGroundTelegraphs(scene, canvas);
-  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, creaturesReady, natureReady, telegraphs.ready]).then(()=>undefined);
+  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, creaturesReady, coresReady, natureReady, telegraphs.ready]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
   const forward = () => ({ x: Math.sin(yaw), z: Math.cos(yaw) });

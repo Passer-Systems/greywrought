@@ -9,11 +9,13 @@ whose machines still enforce a shift that ended years ago. Torchlight marks
 shelter and the way home. Mara needs coolant for her patients; Rowan knows why
 the ninth bell has begun ringing again.
 
-Look for **!** above an NPC, speak with F and accept a quest. Bring the requested
+Look for **!** above an NPC, left-click or speak with F and accept a quest. Bring the requested
 goods or news back to its giver and complete the quest at the gold **?**. Mara
-rewards a protective coat; Rowan grants a class weapon and Disengage. Their
+rewards a protective coat; Rowan grants a class weapon and a retreat attack. Their
 story leads to Foreman Nine and the missing names on the Last Shift Roll.
-Equipment, levels and the timing of your responses all affect survival.
+Equipment, levels and the timing of your responses all affect survival. Quest
+turn-ins show your rewards with an Equip button for new gear. Coolant crystals
+have a recognizable cyan crystal model and a hover tooltip with quest progress.
 
 Combat has three one-second turns, one second to choose the enemy's next move,
 and five seconds to prepare. Queue up to three moves using five stamina. Each
@@ -26,8 +28,10 @@ Its damage grows while you fight: prepare your gear, block the pulse, leave the
 press and use the shielded interval to recover. Ordinary enemies respawn after
 two minutes. Defeat permanently retires a character to the RIP roster.
 
-Warrior, mage and ranger have distinct Quaternius models, weapons and native
-animations. The warrior closes for melee; mage and ranger attack from range.
+Warrior, mage, ranger, alchemist and artificer have distinct Quaternius models
+and native animations. The warrior closes for melee; the other classes attack
+from range. The Alchemist throws reagents and combines healing with a smaller
+shield. The Artificer fires rivets and spends more stamina on heavier plating.
 Players share one server, with persistent individual characters and quest
 progress. Enter opens chat; messages appear in a short speech bubble too.
 Rowan offers healing at The Missing Bell; Mara sells potions and trades goods.
@@ -65,8 +69,8 @@ Left-drag orbits the camera; right-drag also turns your character. Both mouse
 buttons move forward, including while S is held. The wheel zooms.
 
 Tab selects a target. **1** queues your class attack, **2** Block, **=** drinks
-or queues a health potion. Completing Rowan's quests unlocks **3** Disengage and
-**4** Blood Rage. Click a queued move then an ability to replace it; right-click
+or queues a health potion. Completing Rowan's quests unlocks **3** a class
+retreat attack and **4** a class power. Click a queued move then an ability to replace it; right-click
 to remove it; drag onto another turn to move or swap. Executed moves stay locked.
 
 Hover crystals for the quest tooltip; left-click or press G nearby to gather.

@@ -563,11 +563,11 @@ describe("physical attacks within the shared plan",()=>{
   });
   test("the hound's only attack is Maul; it holds its committed landing and cannot damage during preparation",()=>{
     const game=wolfGame();game.advance(0.01);expect(game.snapshot.player.health).toBe(100);
-    game.advance(2);const launched=threat(game,"patrol");expect(launched.movementMode).toBe("lunge");expect(launched.actionSequence).toBe(0);
+    game.advance(1);const launched=threat(game,"patrol");expect(launched.movementMode).toBe("lunge");expect(launched.actionSequence).toBe(0);
     game.setCameraForward(0,-1);game.setAction("forward",true);game.advance(0.3);
     expect(threat(game,"patrol").targetPosition).toEqual(launched.targetPosition);expect(threat(game,"patrol").facing).toEqual(launched.facing);
     game.advance(0.35);game.setAction("forward",false);expect(threat(game,"patrol").actionSequence).toBe(1);
-    game.advance(1.35);expect(game.snapshot.combat.phase).toBe("preparation");const hp=game.snapshot.player.health;
+    game.advance(2.35);expect(game.snapshot.combat.phase).toBe("preparation");const hp=game.snapshot.player.health;
     game.advance(5);expect(game.snapshot.player.health).toBe(hp);expect(threat(game,"patrol").movementMode).toBe("lunge");
     game.advance(0.65);expect(threat(game,"patrol").actionSequence).toBe(2);
   });
@@ -631,7 +631,7 @@ describe("physical attacks within the shared plan",()=>{
     }
   });
   test("saved Maul stays airborne and resumes its committed landing and recovery",()=>{
-    const game=wolfGame();game.advance(0.01);game.advance(2.325);
+    const game=wolfGame();game.advance(0.01);game.advance(1.325);
     expect(threat(game,"patrol").movementMode).toBe("lunge");
     expect(threat(game,"patrol").position.y).toBeGreaterThan(0);
     const saved=game.save(),loaded=createAdventure({save:saved});expect(loaded.save()).toBe(saved);

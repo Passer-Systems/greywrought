@@ -314,26 +314,44 @@ on the icons. Level marks encounter progression (head 1, bee/hound 2, warder 3,
 guardian 4); it does not multiply damage. Actual shields and roots appear beside
 the plate. The lorebook describes the same moves.
 
-## Player stamina and Blood Rage
+## Player stamina and class abilities
 
-The class basic attacks differ; the remaining starting kit is shared. Each active window has five stamina, replenished after the active sequence resolves
+Enemies recover their full health and lose accumulated power when they break
+contact. Returning enemies cannot be attacked until they reach home. Retreat
+saves the character but forfeits damage dealt, preventing repeated ranged chip
+attacks from defeating an enemy without committing to its encounter.
+
+All five classes share the three-turn planner but have their own attacks,
+defenses, retreat moves and powers. Each active window has five stamina, replenished after the active sequence resolves
 and when combat ends. There is no midwindow stamina regeneration. There
 is no backup resource or per-ability cooldown in this prototype. Actions share
 recovery time; movement remains available while recovering and reading menus.
 
 | Key | Ability | Stamina | Effect | Action recovery |
 | --- | --- | --- | --- | --- |
-| 1 | Lunge / Arcane Bolt / Aimed Shot | 1 | Warrior closes into melee for 9 damage; mage/ranger hit from up to 10m without moving | 1 turn |
-| 2 | Block | 2 | Absorb 24 damage over at most 2s | 1 turn |
+| 1 | Class attack | 1 | Warrior closes into melee; other classes attack from up to 10m. Base damage: 9 warrior/mage/ranger, 8 alchemist, 10 artificer | 1 turn |
+| 2 | Class defense | 2, or 3 for Artificer | Absorb 24 damage for 2s. Alchemist instead heals 6 and blocks 16; Artificer blocks 28 | 1 turn |
 | = | Health potion | 1 | Drink a carried potion for 30 health during combat | 1 turn |
 
-The starting loadout contains only attack, block and potion. Other implemented
-combat moves are not on the starting bar or bound to combat keys. Each action
+The starting loadout contains attack, defense and potion. Slots 3 and 4 show
+locked icons until Rowan teaches the retreat and power moves. Each action
 fills the earliest free turn; there is no automatic filler. Potions remain
 immediate outside combat and are consumed only when they fire.
 
-Each Rage stack adds 4 damage to melee attacks and drains 1 health every
-5 seconds, bypassing Block. It can kill you. Outside combat lose one stack
+| Class | Retreat (3) | Power (4) | Damage added per power stack |
+| --- | --- | --- | --- |
+| Warrior | Disengage | Blood Rage | 4 |
+| Mage | Froststep | Overchannel | 4 |
+| Ranger | Parting Shot | Keen Focus | 4 |
+| Alchemist | Caustic Escape | Volatile Mixture | 3 |
+| Artificer | Recoil Snare | Overclock | 5 |
+
+Retreat attacks cost 1 stamina, damage and snare their target, then move the
+player backward. Warrior needs melee reach; ranged classes use their ranged
+reach. Each power costs 1 stamina and takes two turns of recovery. Up to three
+stacks strengthen attacks. Each stack drains 1 health every
+5 seconds, bypassing Block, except Ranger Focus, which does not drain health.
+The drain can kill you. Outside combat lose one stack
 every 2 seconds; re-engaging in time preserves momentum. The cap and health
 cost bound farming on a weak enemy. Stamina and Rage, including their timers,
 are saved. Older adventure saves initialize these resources without erasing
@@ -353,8 +371,12 @@ committed travel direction; on the ground it resumes facing the player. Nearby i
 and commits Maul toward a fixed landing point. It recovers for 2 seconds after
 landing. After the first encounter, Maul starts on a randomly chosen beat
 after the visible preparation.
-The first encounter warns for 4 seconds before launching. A lunge takes 0.65 seconds and starts at 18 damage within 3 metres of its
-committed landing. Disengage provides a deliberate escape and punishment loop.
+Its first leap starts on turn 2 and lands 1.65 seconds after engagement, leaving
+turn 3 for a counterattack. A lunge takes 0.65 seconds and starts at 18 damage
+within 2 metres of its committed landing. Moving sideways after launch can
+escape the impact on foot; standing still takes the hit. Later rounds can use
+any turn: counterattack during recovery if a turn remains, or strike earlier
+and reserve movement for a late Maul. Disengage also provides a deliberate escape.
 
 Maul is the hound’s sole combat action in each window. It does not home.
 Block can absorb it; movement can avoid its committed landing.

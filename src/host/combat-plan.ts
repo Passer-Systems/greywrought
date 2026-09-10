@@ -2,6 +2,8 @@ import type { AdventureSnapshot, CombatAction, QueuedCombatAction, ThreatAbility
 import { publicUrl } from "./public-url.js";
 import { enemyRange, playerRange, type RangeAudience } from "./combat-range.js";
 import { GEAR, gearName } from "../game/yard-content.js";
+import { classAction } from "../game/class-kit.js";
+import { enemyResponse } from "./enemy-response.js";
 
 const actions: Record<CombatAction, { name: string; icon: string }> = {
   strike: { name: "Lunge", icon: "sword-strike" },
@@ -23,7 +25,7 @@ function node<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, 
 }
 function write(element: HTMLElement, value: string): void { if (element.textContent !== value) element.textContent = value; }
 function art(parent: HTMLElement, icon: string): void {
-  const image = node("img", "", parent); image.src = publicUrl("assets/ui/icons/" + (icon.startsWith("items/") ? icon : "spells/" + icon) + (icon.endsWith(".svg") ? "" : ".png")); image.alt = "";
+  const image = node("img", "", parent); image.src = publicUrl("assets/ui/icons/" + (icon.startsWith("items/") ? icon : "spells/" + icon) + (icon.endsWith(".svg") || icon.endsWith(".png") ? "" : ".png")); image.alt = "";
 }
 
 export function createCombatPlan(host: HTMLElement, callbacks: {
@@ -82,8 +84,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   let snapshot: AdventureSnapshot | null = null;
   const enemyTiles = new Map<string, { tile: HTMLSpanElement; damage: HTMLSpanElement; source: HTMLSpanElement; health: HTMLSpanElement; fill: HTMLSpanElement; tooltip: HTMLSpanElement }>();
   function actionLabel(action: CombatAction): string {
-    return action === "strike" && snapshot?.player.archetype !== "warrior"
-      ? snapshot?.player.archetype === "mage" ? "Arcane Bolt" : "Aimed Shot" : actions[action].name;
+    return snapshot ? classAction(snapshot.player.archetype, action).name : actions[action].name;
   }
   function removeSelected(): void { if (selectedId !== null) callbacks.onRemove(selectedId); }
   function moveSelected(offsetSeconds: number): void { if (selectedId !== null) callbacks.onMove(selectedId, offsetSeconds); }
@@ -104,7 +105,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const state = status === "stored" ? "Stored opener" : status === "pending" ? "Planned" : status === "active" ? "In progress" : "Resolved";
     const range = status === "resolved" || !snapshot ? null : enemyRange(snapshot, enemy, ability, callbacks.rangeAudience?.());
     view.tile.dataset.range = range?.state ?? "none";
-    const detail = enemy.name + " · " + ability.name + "\n" + ability.damage + " damage · Turn " + (beat + 1) + " · " + seconds.toFixed(2).replace(/0$/, "") + "s · " + state + "\n" + ability.description + (range?.text ? "\n" + range.text : "");
+    const response = enemyResponse(ability.id);
+    const detail = enemy.name + " · " + ability.name + "\n" + ability.damage + " damage · Turn " + (beat + 1) + " · " + seconds.toFixed(2).replace(/0$/, "") + "s · " + state + "\n" + ability.description + (response ? "\nResponse: " + response : "") + (range?.text ? "\n" + range.text : "");
     view.tile.setAttribute("aria-label", detail);
     Object.assign(view.tile.dataset, { enemyId: enemy.id, abilityId: ability.id, offset: String(seconds), status });
     write(view.damage, status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "");
@@ -182,7 +184,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           buttons.set(move.id, button);
         }
         const ranged = next.player.archetype !== "warrior" && move.action === "strike";
-        const weaponArt = next.player.archetype === "mage" ? "wand-bolt.svg" : next.player.archetype === "hunter" ? "bow-shot.svg" : "sword-strike.png";
+        const weaponArt = classAction(next.player.archetype, "strike").icon.replace("assets/ui/icons/spells/", "");
         let moveName: string, moveIcon: string;
         if (move.action === "equip") {
           const gear = move.gear.item ?? (move.gear.slot === "chest" ? "insulated-coat" : "yard-weapon");
@@ -190,7 +192,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           moveIcon = gear === "yard-weapon" ? weaponArt : GEAR[gear].icon + ".png";
         } else {
           moveName = actionLabel(move.action);
-          moveIcon = ranged ? weaponArt : actions[move.action].icon + ".png";
+          moveIcon = ranged ? weaponArt : classAction(next.player.archetype, move.action).icon.replace("assets/ui/icons/spells/", "");
         }
         const moveImage = button.querySelector<HTMLImageElement>("img");
         if (moveImage && !moveImage.src.endsWith("/" + moveIcon)) moveImage.src = publicUrl("assets/ui/icons/" + (moveIcon.startsWith("items/") ? "" : "spells/") + moveIcon);

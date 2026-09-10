@@ -1,6 +1,6 @@
 export const characterProfileStorageKey = "greywrought/local-profile-v1";
 
-export type CharacterArchetype = "warrior" | "mage" | "hunter";
+export type CharacterArchetype = "warrior" | "mage" | "hunter" | "alchemist" | "artificer";
 
 export interface LocalCharacter {
   readonly id: string;
@@ -39,7 +39,7 @@ function parse(source: string): unknown | null {
 }
 
 function archetype(value: unknown): value is CharacterArchetype {
-  return value === "warrior" || value === "mage" || value === "hunter";
+  return value === "warrior" || value === "mage" || value === "hunter" || value === "alchemist" || value === "artificer";
 }
 
 export function normalizedDisplayName(source: string): string | null {

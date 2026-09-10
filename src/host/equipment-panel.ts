@@ -16,7 +16,7 @@ const slots = [
   ["ranged", "Ranged / Relic", "weapons"],
 ] as const;
 type SlotId = typeof slots[number][0];
-const classNames: Record<CharacterArchetype, string> = { warrior: "Warrior", mage: "Mage", hunter: "Hunter" };
+const classNames: Record<CharacterArchetype, string> = { warrior: "Warrior", mage: "Mage", hunter: "Hunter", alchemist: "Alchemist", artificer: "Artificer" };
 
 export function createEquipmentPanel(element: HTMLElement, onClose: () => void, onEquip: (slot: GearSlot, item: GearItemId | null) => void) {
   if (!(element instanceof HTMLDialogElement)) throw new Error("Equipment panel must be a dialog");
@@ -37,8 +37,8 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
   let portraitClass: CharacterArchetype | null = null;
   let snapshot: AdventureSnapshot | null = null;
   let detailSignature = "";
-  const starterName = (archetype: CharacterArchetype) => archetype === "mage" ? "Starter wand" : archetype === "hunter" ? "Starter bow" : "Starter sword";
-  const weaponIcon = (archetype: CharacterArchetype) => archetype === "mage" ? "wand-bolt.svg" : archetype === "hunter" ? "bow-shot.svg" : "sword-strike.png";
+  const starterName = (archetype: CharacterArchetype) => archetype === "mage" ? "Starter wand" : archetype === "hunter" ? "Starter bow" : archetype === "alchemist" ? "Starter reagent kit" : archetype === "artificer" ? "Starter rivet tool" : "Starter sword";
+  const weaponIcon = (archetype: CharacterArchetype) => archetype === "mage" || archetype === "alchemist" ? "wand-bolt.svg" : archetype === "hunter" ? "bow-shot.svg" : archetype === "artificer" ? "lightning-bolt.png" : "sword-strike.png";
 
   function select(id: SlotId): void {
     selected = id;

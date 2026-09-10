@@ -1,4 +1,5 @@
 import { COMBAT_RULES } from "../game/adventure.js";
+import { classAction, classKit } from "../game/class-kit.js";
 import type { AdventureAction, AdventureSnapshot } from "../game/adventure-types.js";
 import {
   archiveFallenCharacter, characterProfileStorageKey, decodeCharacterProfile, encodeCharacterProfile,
@@ -19,6 +20,7 @@ import { createShopPanel } from "./shop-panel.js";
 import { createTradePanel } from "./trade-panel.js";
 import { createCombatPlan } from "./combat-plan.js";
 import { createQuestLog } from "./quest-log.js";
+import { createQuestRewardNotice } from "./quest-reward-notice.js";
 import { updateQuestTracker } from "./quest-tracker.js";
 import { connectAdventure, type NetworkAdventure } from "./network-adventure.js";
 import { publicUrl } from "./public-url.js";
@@ -55,6 +57,9 @@ const bags = createBagPanel(element("adventure-hud"), {
   onClose: closeBags,
 });
 const questLog = createQuestLog(element("adventure-hud"), closeQuestLog);
+const questRewards = createQuestRewardNotice(element("adventure-hud"), {
+  onEquip: (slot, item) => { if (running?.ready && !paused) running.game.equip(slot, item); },
+});
 const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => unitFrames.portrait(id));
 const chatLog = createChatLog(element("adventure-hud"), text => running?.game.sendChat(text));
 const unitFrames = createUnitFrames(element("adventure-hud"));
@@ -125,6 +130,8 @@ const classes: Record<CharacterArchetype, { name: string; copy: string }> = {
   warrior: { name: "Warrior", copy: "A steadfast wayfarer who meets the forest with courage and a ready blade." },
   mage: { name: "Mage", copy: "A curious seeker drawn to the old mysteries sleeping beneath the frost." },
   hunter: { name: "Hunter", copy: "A patient trailfinder who reads the forest and knows when to return home." },
+  alchemist: { name: "Alchemist", copy: "A field chemist who turns scarce reagents into healing, acid, and volatile power." },
+  artificer: { name: "Artificer", copy: "A works engineer who answers danger with a rivet tool, plated wards, and overclocked machinery." },
 };
 const keyActions: Readonly<Record<string, AdventureAction>> = {
   KeyW: "forward", KeyS: "backward", KeyA: "left", KeyD: "right", Space: "jump",
@@ -318,6 +325,7 @@ function deletePendingCharacter(): void {
   renderEntry();
 }
 function returnToRoster(): void {
+  questRewards.reset();
   stopFrames();
   release();
   save(true);
@@ -451,25 +459,6 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gameCombatCycle = String(snapshot.combat.cycle); data.gameReservedStamina = String(snapshot.combat.reservedStamina);
   data.gameAvailableStamina = String(snapshot.combat.availableStamina);
   data.archetype = player.archetype;
-  const strikeControl = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="strike"]');
-  if (strikeControl) {
-    const ranged = player.archetype !== "warrior";
-    const name = player.archetype === "mage" ? "Arcane Bolt" : player.archetype === "hunter" ? "Aimed Shot" : "Lunge";
-    const icon = player.archetype === "warrior" ? "sword-strike.png" : player.archetype === "mage" ? "wand-bolt.svg" : "bow-shot.svg";
-    const strikeSignature = `${player.archetype}:${snapshot.progression.attackBonus}`;
-    if (strikeControl.dataset.archetype !== strikeSignature) {
-      strikeControl.dataset.archetype = strikeSignature;
-      strikeControl.setAttribute("aria-label", name);
-      const image = strikeControl.querySelector<HTMLImageElement>(".action-art img");
-      if (image) image.src = publicUrl("assets/ui/icons/spells/" + icon);
-      const tooltip = strikeControl.querySelector<HTMLElement>(".action-tooltip span:last-child");
-      if (tooltip) tooltip.textContent = ranged
-        ? `1 stamina · 1 second recovery. ${name} strikes a target up to 10m away for ${9 + snapshot.progression.attackBonus} damage, plus 4 per Rage stack. You remain in place.`
-        : `1 stamina · 1 second recovery. Lunge into reach and strike for ${9 + snapshot.progression.attackBonus} damage, plus 4 per Rage stack.`;
-      const title = strikeControl.querySelector<HTMLElement>(".action-tooltip strong");
-      if (title) title.textContent = name;
-    }
-  }
   text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players);
   combatPlan.update(snapshot);
@@ -485,7 +474,8 @@ function renderHud(snapshot: AdventureSnapshot): void {
   for (const [action, label] of [
     ["strike", "strike-ready"], ["brace", "block-ready"], ["disengage", "disengage-ready"], ["bloodRage", "rage-ready"],
   ] as const) {
-    const cost = COMBAT_RULES[action].cost;
+    const spec = classAction(player.archetype, action);
+    const cost = spec.cost ?? COMBAT_RULES[action].cost;
     const available = snapshot.phase === "expedition" && selected?.active && selected.health > 0;
     const replacing = snapshot.combat.queued.find(move => move.id === combatPlan.replacementId && move.status === "pending");
     const full = !replacing && snapshot.combat.queued.length >= 3;
@@ -493,9 +483,24 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]');
     const unlocked = snapshot.progression.unlockedActions.includes(action);
     if (control) {
+      control.setAttribute("aria-label", !unlocked ? `Locked ability · ${spec.name}` : spec.name);
+      const art = control.querySelector<HTMLImageElement>(".action-art img");
+      if (art) { const source = publicUrl(spec.icon); if (art.src !== source) art.src = source; }
+      const heading = control.querySelector<HTMLElement>(".action-tooltip strong");
+      if (heading) heading.textContent = spec.name;
+      const copy = control.querySelector<HTMLElement>(".action-tooltip span:last-child");
+      if (copy) {
+        const recovery = action === "bloodRage" ? COMBAT_RULES.bloodRage.recovery : COMBAT_RULES.actionCooldown;
+        const power = classAction(player.archetype, "bloodRage").powerDamagePerStack ?? COMBAT_RULES.bloodRage.damagePerStack;
+        const effect = action === "strike" || action === "disengage"
+          ? ((spec.damage ?? COMBAT_RULES[action].damage) + snapshot.progression.attackBonus + player.bloodRage * power) + " damage · " + (spec.range ?? COMBAT_RULES[action].range) + "m reach. "
+          : action === "brace"
+            ? (spec.block ?? COMBAT_RULES.brace.block) + " block for " + COMBAT_RULES.brace.duration + "s. " + (spec.heal ? "Restores " + spec.heal + " health in combat. " : "")
+            : "+" + power + " damage per " + classKit(player.archetype).powerStackName + "; maximum 3 stacks. " + (player.archetype === "hunter" ? "" : "Each stack drains 1 health every 5s. ") + "Lose one stack every 2s outside combat. ";
+        copy.textContent = effect + recovery + " turn" + (recovery === 1 ? "" : "s") + " recovery. " + spec.description;
+      }
       control.classList.toggle("action-locked", !unlocked);
       control.disabled = !unlocked || !available || full || availableStamina < cost;
-      control.setAttribute("aria-label", !unlocked ? `Locked ability · ${action === "disengage" ? "Complete A Name on the Roll" : "Complete Clock Out"}` : action === "strike" ? player.archetype === "mage" ? "Arcane Bolt" : player.archetype === "hunter" ? "Aimed Shot" : "Lunge" : action === "brace" ? "Block" : action === "disengage" ? "Disengage" : "Blood Rage");
       control.style.setProperty("--recovery", "0");
       control.dataset.range = available ? playerRange(snapshot, action).state : "none";
     }
@@ -527,6 +532,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   if (equipment.isOpen && running) equipment.update(running.character, snapshot);
   updateQuestTracker(snapshot);
   questLog.update(snapshot);
+  questRewards.update(snapshot);
   mapPosition(element("map-player"), player.position.x, player.position.z);
   element("map-player").style.transform = `translate(-50%, -50%) rotate(${-Math.atan2(player.cameraForward.x, player.cameraForward.z)}rad)`;
   for (const threat of snapshot.threats) {
@@ -600,6 +606,7 @@ function bindWorld(app: RunningAdventure): void {
   listen(canvas, "wheel", (event) => { if (event instanceof WheelEvent) { event.preventDefault(); app.world.zoom(event.deltaY); } }, app.unbind);
 }
 async function enterWorld(character: LocalCharacter): Promise<void> {
+  questRewards.reset();
   if (entering || running) return;
   if (character.fallenAtMillis !== undefined) { showFallenCharacter(character); return; }
   entering = true;
@@ -667,7 +674,7 @@ listen(element("entry-character-form"), "submit", (event) => {
 listen(input("entry-character-name"), "input", () => renderEntry());
 for (const choice of document.querySelectorAll<HTMLElement>("[data-entry-archetype]")) listen(choice, "click", () => {
   const value = choice.dataset.entryArchetype;
-  if (value === "warrior" || value === "mage" || value === "hunter") { draft = value; renderEntry(); }
+  if (value === "warrior" || value === "mage" || value === "hunter" || value === "alchemist" || value === "artificer") { draft = value; renderEntry(); }
 });
 listen(element("entry-roster-list"), "click", (event) => {
   if (!(event.target instanceof Element) || !profile || entering) return;
@@ -833,6 +840,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   trade.dispose();
   lorebook.dispose();
   questLog.dispose();
+  questRewards.dispose();
   combatPlan.dispose();
   hudSize.disconnect();
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }

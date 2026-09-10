@@ -101,3 +101,9 @@ Nine-Bell Yard selection (September 2026), from the same local archive:
 
 All shared source archives remain unchanged. New assets need no external texture
 dependencies. The renderer gives the mech's authored Eye material a cold glow.
+
+Coolant crystals use `Medieval/Ultimate RPG Items Pack - Aug 2019/OBJ/Crystal2.obj`
+and its matching `.mtl` from the same archive. Pack `License.txt` is retained at
+`greywrought:assets/external/quaternius/frostwood/village/crystal-LICENSE.txt` (CC0).
+The authored faceted mesh is unchanged; the renderer replaces its pink material
+with an emissive cyan material to match coolant and Mara's restored jars.

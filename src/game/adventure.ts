@@ -5,6 +5,7 @@ import type {
   AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot, AdventureLogEntry, SharedAdventure,
   CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView, ThreatAbilityView, MonsterLoreEntry, ThreatForecastEntry, CombatAction, CombatMove, QueuedCombatAction, CombatView,
 } from "./adventure-types.js";
+import { classAction, classKit } from "./class-kit.js";
 
 type Vector = { x: number; y: number; z: number };
 type Phase = AdventureSnapshot["phase"];
@@ -21,7 +22,7 @@ export const COMBAT_RULES = {
   drinkPotion: { cost: 1, recovery: 1 },
   enemy: { preparation: 5, action: 0.65, recovery: 2 },
   head: { beamDamage: 8, fireballDamage: 18, fireballTravel: 0.9, fireballSpacing: 0.2, warning: 5, ward: 6, wardDuration: 2, kindleDuration: 5 },
-  wolf: { circleRange: 5.5, circleRadius: 4.5, circleSpeed: 1.5, lungeDistance: 8, lungeHeight: 0.9 },
+  wolf: { circleRange: 5.5, circleRadius: 4.5, circleSpeed: 1.5, lungeDistance: 8, lungeHeight: 0.9, impactRadius: 2 },
 } as const;
 export const MARA_TRADE_RULES = { suppliesPerPotion: 3, suppliesPerPotionSold: 2 } as const;
 export const WORLD_RESPAWN_MILLISECONDS = 120_000;
@@ -484,11 +485,15 @@ class Adventure implements AdventureGame {
     return this.state.combat.queued.filter(e => e.status === "pending").reduce((sum, e) => sum + e.cost, 0);
   }
   private recoveryFor(action: CombatMove["action"]): number { return action === "bloodRage" ? COMBAT_RULES.bloodRage.recovery : COMBAT_RULES.actionCooldown; }
+  private actionCost(action: CombatMove["action"]): number {
+    if (action === "equip") return 0;
+    return classAction(this.state.archetype, action).cost ?? COMBAT_RULES[action].cost;
+  }
   private queueAction(input: CombatAction | Extract<CombatMove, { action: "equip" }>): void {
     const move: CombatMove = typeof input === "string" ? { action: input } : input;
     const action = move.action;
     if (!this.actionUnlocked(action)) { this.report("Complete Rowan’s lessons to learn that move.", "combat"); return; }
-    const s = this.state, c = s.combat, cost = action === "equip" ? 0 : COMBAT_RULES[action].cost;
+    const s = this.state, c = s.combat, cost = this.actionCost(action);
     if (c.queued.length >= COMBAT_RULES.window.maximumActions) { this.report("Three moves already fill this plan.", "combat"); return; }
     if (s.stamina - this.reservedStamina() < cost) {
       this.report(`${actionName(action, s.archetype)} needs ${cost} stamina; ${s.stamina - this.reservedStamina()} free. Use Jab or Guard for 0 stamina, or remove a queued move.`, "combat"); return;
@@ -547,7 +552,7 @@ class Adventure implements AdventureGame {
     if (!entry || entry.status !== "pending") {
       this.report("Only a pending move can be replaced.", "combat"); return false;
     }
-    const cost = COMBAT_RULES[action].cost;
+    const cost = this.actionCost(action);
     const reservedWithoutEntry = this.reservedStamina() - entry.cost;
     if (s.stamina - reservedWithoutEntry < cost) {
       this.report(`${actionName(action, s.archetype)} needs ${cost} stamina; ${s.stamina - reservedWithoutEntry} free.`, "combat"); return false;
@@ -597,10 +602,10 @@ class Adventure implements AdventureGame {
       else if (!this.ready()) reason = "You are still recovering.";
       else if (s.stamina < e.cost) reason = "Not enough stamina.";
       else if ((e.action === "strike" || e.action === "disengage") && (!target || !this.canUseAttack(target, e.action))) reason = "The target is out of reach, behind cover, or no longer available.";
-      else if (e.action === "jab" && (!target || !target.active || target.health <= 0 || distance(s.position, target.position) > COMBAT_RULES.jab.range + EPSILON || !this.attackPath(target))) reason = "The target is out of reach, behind cover, or no longer available.";
+      else if (e.action === "jab" && (!target || !target.active || target.health <= 0 || target.phase === "returning" || distance(s.position, target.position) > COMBAT_RULES.jab.range + EPSILON || !this.attackPath(target))) reason = "The target is out of reach, behind cover, or no longer available.";
       else if (e.action === "drinkPotion" && (s.potions < 1 || s.health >= 100)) reason = "No potion is available or your health is already full.";
       else if (e.action === "equip" && e.gear.item !== null && (!s.chapter.ownedGear.includes(e.gear.item) || GEAR[e.gear.item].slot !== e.gear.slot)) reason = "You do not own suitable gear for that slot.";
-      else if (e.action === "bloodRage" && (!this.inCombat() || s.bloodRage >= COMBAT_RULES.bloodRage.maximum)) reason = "Blood Rage needs a fight and cannot exceed three stacks.";
+      else if (e.action === "bloodRage" && (!this.inCombat() || s.bloodRage >= COMBAT_RULES.bloodRage.maximum)) reason = `${classKit(s.archetype).powerName} needs a fight and cannot exceed three stacks.`;
       if (reason) { e.status = "failed"; e.reason = reason; this.report(`${actionName(e.action, this.state.archetype)} failed: ${reason}`, "combat"); continue; }
       e.status = "executed";
       if (e.action === "strike" || e.action === "disengage") this.attack(e.action, target!);
@@ -610,17 +615,20 @@ class Adventure implements AdventureGame {
           s.chapter.equipment[e.gear.slot] = e.gear.item;
           this.report(e.gear.item ? `${gearName(e.gear.item, s.archetype)} equipped.` : `${e.gear.slot === "chest" ? "Coat" : "Weapon"} unequipped.`, "combat");
         } else if (e.action === "brace" || e.action === "guard") {
-          s.guardSeconds = COMBAT_RULES[e.action].duration; s.block = COMBAT_RULES[e.action].block;
+          s.guardSeconds = COMBAT_RULES[e.action].duration;
+          s.block = e.action === "brace" ? (classAction(s.archetype, "brace").block ?? COMBAT_RULES.brace.block) : COMBAT_RULES[e.action].block;
+          const tonic = e.action === "brace" && this.inCombat() ? (classAction(s.archetype, "brace").heal ?? 0) : 0;
+          if (tonic > 0) { const healed = Math.min(tonic, 100 - s.health); s.health += healed; if (healed > 0) this.report(`${classKit(s.archetype).abilities.brace.name} restores ${healed} health.`, "combat"); }
           this.report(`You gain ${s.block} block for ${s.guardSeconds} seconds.`, "combat");
         } else if (e.action === "drinkPotion") {
           const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--;
           this.report(`Your health potion restores ${healing} health.`, "combat");
         } else if (e.action === "jab") {
-          this.hit(target!, COMBAT_RULES.jab.damage + s.bloodRage * COMBAT_RULES.bloodRage.damagePerStack, "jab");
+          this.hit(target!, (classAction(s.archetype, "jab").damage ?? COMBAT_RULES.jab.damage) + s.bloodRage * this.powerDamagePerStack(), "jab");
         } else {
           if (s.bloodRage === 0) s.rageDrainSeconds = COMBAT_RULES.bloodRage.drainSeconds;
           s.bloodRage++; s.rageDecaySeconds = 0;
-          this.report(`Blood Rage rises to ${s.bloodRage}. Attacks gain ${s.bloodRage * COMBAT_RULES.bloodRage.damagePerStack} damage.`, "combat");
+          this.report(`${classKit(s.archetype).powerName} rises to ${s.bloodRage}. Attacks gain ${s.bloodRage * this.powerDamagePerStack()} damage.`, "combat");
         }
       }
     }
@@ -774,9 +782,10 @@ class Adventure implements AdventureGame {
   }
   private canUseAttack(t: ThreatState, action: "strike" | "disengage"): boolean {
     const s = this.state;
-    const range = action === "strike" && s.archetype !== "warrior" ? COMBAT_RULES.strike.rangedRange : COMBAT_RULES[action].range;
-    return this.actionUnlocked(action) && this.ready() && s.stamina >= COMBAT_RULES[action].cost && s.position.y === 0 && s.verticalSpeed === 0 &&
-      t.active && t.health > 0 && distance(s.position, t.position) <= range + EPSILON && this.attackPath(t);
+    const ranged = s.archetype !== "warrior";
+    const range = ranged ? COMBAT_RULES.strike.rangedRange : COMBAT_RULES[action].range;
+    return this.actionUnlocked(action) && this.ready() && s.stamina >= this.actionCost(action) && s.position.y === 0 && s.verticalSpeed === 0 &&
+      t.active && t.health > 0 && t.phase !== "returning" && distance(s.position, t.position) <= range + EPSILON && this.attackPath(t);
   }
   private attack(action: "strike" | "disengage", selected?: ThreatState): void {
     const s = this.state;
@@ -787,20 +796,27 @@ class Adventure implements AdventureGame {
     }
     const length = distance(s.position, t.position);
     const facing = length > EPSILON ? point((t.position.x - s.position.x) / length, (t.position.z - s.position.z) / length) : { ...this.cameraForward };
-    const ranged = action === "strike" && s.archetype !== "warrior";
+    const ranged = s.archetype !== "warrior";
     if (ranged) {
-      this.spendStamina(COMBAT_RULES.strike.cost); this.recover(action, COMBAT_RULES.actionCooldown);
-      this.hit(t, COMBAT_RULES.strike.damage + s.bloodRage * COMBAT_RULES.bloodRage.damagePerStack, s.archetype === "mage" ? "cast Arcane Bolt at" : "fire an arrow at");
+      this.spendStamina(this.actionCost(action)); this.recover(action, classAction(s.archetype, action).duration ?? COMBAT_RULES.actionCooldown);
+      this.hit(t, (classAction(s.archetype, action).damage ?? COMBAT_RULES.strike.damage) + s.bloodRage * this.powerDamagePerStack(),
+        `${classAction(s.archetype, action).name} at`);
+      if (action === "disengage") {
+        const destination = point(Math.max(-12, Math.min(12, s.position.x - facing.x * COMBAT_RULES.disengage.distance)), Math.max(-14, Math.min(45, s.position.z - facing.z * COMBAT_RULES.disengage.distance)));
+        s.maneuver = { kind: "disengage", targetId: t.id, start: { ...s.position }, destination, facing: { x: -facing.x, y: 0, z: -facing.z }, remainingSeconds: COMBAT_RULES.disengage.duration };
+      }
       return;
     }
     const amount = action === "strike" ? Math.max(0, length - COMBAT_RULES.strike.stopDistance) : -COMBAT_RULES.disengage.distance;
     const destination = point(Math.max(-12, Math.min(12, s.position.x + facing.x * amount)), Math.max(-14, Math.min(45, s.position.z + facing.z * amount)));
-    this.spendStamina(COMBAT_RULES[action].cost); this.recover(action, COMBAT_RULES.actionCooldown);
+    this.spendStamina(this.actionCost(action)); this.recover(action, COMBAT_RULES.actionCooldown);
     s.maneuver = { kind: action === "strike" ? "lunge" : "disengage", targetId: t.id,
       start: { ...s.position }, destination, facing, remainingSeconds: COMBAT_RULES[action].duration };
-    if (action === "disengage") this.hit(t, COMBAT_RULES.disengage.damage + s.bloodRage * COMBAT_RULES.bloodRage.damagePerStack, "strike");
+    if (action === "disengage") this.hit(t, (classAction(s.archetype, action).damage ?? COMBAT_RULES.disengage.damage) + s.bloodRage * this.powerDamagePerStack(), "strike");
   }
+  private powerDamagePerStack(): number { return classAction(this.state.archetype, "bloodRage").powerDamagePerStack ?? COMBAT_RULES.bloodRage.damagePerStack; }
   private hit(t: ThreatState, damage: number, verb: string): void {
+    if (t.phase === "returning") return;
     damage += this.progression().attackBonus;
     const blocked = Math.min(damage, t.head?.block ?? t.shield);
     if (!t.head) t.shield -= blocked;
@@ -934,7 +950,7 @@ class Adventure implements AdventureGame {
     s.position.y = 0; s.verticalSpeed = 0; s.maneuver = null;
     if (m.kind === "lunge") {
       const t = s.world.threats.find(t => t.id === m.targetId);
-      if (t && t.active && t.health > 0 && distance(s.position, t.position) <= COMBAT_RULES.disengage.range + EPSILON && this.attackPath(t)) this.hit(t, COMBAT_RULES.strike.damage + s.bloodRage * COMBAT_RULES.bloodRage.damagePerStack, "lunge at");
+      if (t && t.active && t.health > 0 && distance(s.position, t.position) <= COMBAT_RULES.disengage.range + EPSILON && this.attackPath(t)) this.hit(t, (classAction(s.archetype, "strike").damage ?? COMBAT_RULES.strike.damage) + s.bloodRage * this.powerDamagePerStack(), "lunge at");
       else this.report("Your lunge falls short.", "combat");
     }
   }
@@ -1090,7 +1106,7 @@ class Adventure implements AdventureGame {
     // Commit one of the three active beats up front. The PRNG lives in the save,
     // so a reload cannot silently move an already announced attack.
     t.specialOffset = initial
-      ? t.wolf ? 2.65 : OTHER_PHASE_SECONDS.action
+      ? t.wolf ? 1 + COMBAT_RULES.enemy.action : OTHER_PHASE_SECONDS.action
       : Math.floor(nextThreatRandom(t) * COMBAT_RULES.window.actionSlots) + (t.head ? 0 : t.wolf ? COMBAT_RULES.enemy.action : OTHER_PHASE_SECONDS.action);
     t.specialLaunched = false; t.specialResolved = false;
     t.phase = "preparation"; t.lastActionHit = false;
@@ -1155,11 +1171,13 @@ class Adventure implements AdventureGame {
   private advanceResources(dt: number): void {
     const s = this.state;
     if (s.bloodRage === 0) { s.rageDrainSeconds = 0; s.rageDecaySeconds = 0; return; }
-    s.rageDrainSeconds -= dt;
-    if (s.rageDrainSeconds <= EPSILON) {
-      s.rageDrainSeconds += COMBAT_RULES.bloodRage.drainSeconds;
-      this.hurt(s.bloodRage * COMBAT_RULES.bloodRage.drainPerStack, "Blood Rage", true);
-      if (s.health <= 0) return;
+    if (s.archetype !== "hunter") {
+      s.rageDrainSeconds -= dt;
+      if (s.rageDrainSeconds <= EPSILON) {
+        s.rageDrainSeconds += COMBAT_RULES.bloodRage.drainSeconds;
+        this.hurt(s.bloodRage * COMBAT_RULES.bloodRage.drainPerStack, classKit(s.archetype).powerName, true);
+        if (s.health <= 0) return;
+      }
     }
     if (this.inCombat()) s.rageDecaySeconds = 0;
     else {
@@ -1172,6 +1190,9 @@ class Adventure implements AdventureGame {
     }
   }
   private releaseThreat(t: ThreatState): void {
+    if (t.health < definition(t.id).health) this.report(`${definition(t.id).name} breaks contact and recovers while returning home.`, "combat");
+    t.health = definition(t.id).health;
+    t.actionSequence = 0;
     t.shield = 0; t.contributors = [];
     for (const player of this.participants()) player.clearTargetQueue(t.id);
     t.targetPlayerId = null; t.joinCycle = 0; t.windowCycle = 0; t.specialLaunched = false; t.specialResolved = false;
@@ -1593,10 +1614,11 @@ function readSave(serialized: string, now = Date.now()): State {
     return result;
   });
   if (new Set(threats.map(t => t.id)).size !== DEFINITIONS.length) throw new Error("Invalid adventure save: duplicate threat.");
+  const savedArchetype = choice(s.archetype, ["warrior", "mage", "hunter", "alchemist", "artificer"] as const);
   const state: SavedState = {
     chapter: readChapter(s.chapter),
     phase: choice(s.phase, ["town", "expedition", "lost"] as const),
-    archetype: choice(s.archetype, ["warrior", "mage", "hunter"] as const),
+    archetype: savedArchetype,
     position: { x: number(p.x, -12, 12), y: number(p.y, 0, 2), z: number(p.z, -14, 45) },
     verticalSpeed: number(s.verticalSpeed, -6, 5.5), health: number(s.health, 0, 100),
     supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, Number.MAX_SAFE_INTEGER, true),
@@ -1616,7 +1638,7 @@ function readSave(serialized: string, now = Date.now()): State {
     rageDecaySeconds: v7 ? number(s.rageDecaySeconds, 0, 2) : 0,
     maneuver: current ? readManeuver(s.maneuver) : null,
     attackSequence: number(s.attackSequence, 0, Number.MAX_SAFE_INTEGER, true),
-    selectedThreat: choice(s.selectedThreat, DEFINITIONS.map(t => t.id)), report: text(s.report), threats, combat: v8 ? readCombat(s.combat, root.version === 8) : { ...newClock(), queued: [], nextId: 1 },
+    selectedThreat: choice(s.selectedThreat, DEFINITIONS.map(t => t.id)), report: text(s.report), threats, combat: v8 ? readCombat(s.combat, root.version === 8, savedArchetype) : { ...newClock(), queued: [], nextId: 1 },
   };
   if ((state.phase === "lost") !== (state.health === 0) || threats.find(t => t.id === "ritual-guardian")?.active !== state.ritualCalled) {
     throw new Error("Invalid adventure save: inconsistent expedition.");
@@ -1727,7 +1749,7 @@ function headAbility(id: HeadAbilityId, volley: number): ThreatAbilityView {
   return { id, name: `Fireball ×${volley}`, description: `${volley} homing fireball${volley === 1 ? "" : "s"}, ${COMBAT_RULES.head.fireballDamage} damage each. First impact lands at the announced time; further impacts follow up to 0.2 seconds apart, closer when needed to finish before preparation. Brace around impact. Cover or leaving 10-metre reach prevents damage; defeating the head extinguishes its fireballs.`, damage: COMBAT_RULES.head.fireballDamage * volley, range: 10, noticeSeconds: 5 };
 }
 function maulAbility(damage = 18): ThreatAbilityView {
-  return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres; each preparation chooses one of three active turns (33% each). It leaps on that turn and lands 0.65 seconds later, then recovers for 2 seconds. Its first Maul lands 2.65 seconds after engagement. Additional hounds join the next window. Maul gains 2 damage after each attack, up to 36; read its next damage before committing.", damage, range: 3, noticeSeconds: 5 };
+  return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres; each preparation chooses one of three active turns (33% each). It leaps on that turn and lands 0.65 seconds later in a 2-metre area, then recovers for 2 seconds. Move as it leaps to dodge, then attack if a turn remains. Its first Maul lands 1.65 seconds after engagement, leaving turn 3 for your counterattack. Additional hounds join the next window. Maul gains 2 damage after each attack, up to 36; read its next damage before committing.", damage, range: COMBAT_RULES.wolf.impactRadius, noticeSeconds: 5 };
 }
 function ordinaryAbility(d: ThreatDefinition, damage = d.damage): ThreatAbilityView {
   return { id: d.id, name: d.intention, description: `${d.preparation}. ${d.id === "nest" ? "Attacking enrages it: it pursues at 4.8 metres per second within 18 metres of its home. Its first retaliation follows a full five-second preparation. Each preparation chooses one of three turns (33% each)." : "During preparation it announces one of three active turns (33% each)."} Its highlighted area follows it until that turn, then locks in place; the strike lands 0.35 seconds later and recovers for 2.65 seconds. Additional enemies join the next active opening. Each attack raises its next damage by 15% of base damage, up to double. Forest attention adds further damage. The announced damage stays fixed through the window.`, damage, range: d.reach, noticeSeconds: 5 };
@@ -1775,11 +1797,13 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
   });
 }
 
-function actionName(action: CombatMove["action"], archetype: CharacterArchetype): string { return ({ strike: archetype === "mage" ? "Arcane Bolt" : archetype === "hunter" ? "Aimed Shot" : "Lunge", brace: "Block", disengage: "Disengage", bloodRage: "Blood Rage", jab: "Jab", guard: "Guard", drinkPotion: "Health potion", equip: "Change gear" } as const)[action]; }
+function actionName(action: CombatMove["action"], archetype: CharacterArchetype): string {
+  return action === "equip" ? "Change gear" : classAction(archetype, action).name;
+}
 
 function volleySpacing(volley: number, offset: number): number { return volley <= 1 ? 0.2 : Math.min(0.2, Math.max(0, (COMBAT_RULES.window.active - 0.01 - offset) / (volley - 1))); }
 
-function readCombat(value: unknown, legacyFiveSlotWindow = false): SavedState["combat"] {
+function readCombat(value: unknown, legacyFiveSlotWindow = false, archetype: CharacterArchetype = "warrior"): SavedState["combat"] {
   const c = record(value);
   if (!Array.isArray(c.queued) || c.queued.length > (legacyFiveSlotWindow ? 5 : COMBAT_RULES.window.maximumActions)) throw new Error("Invalid adventure save: invalid plan size.");
   const queued: QueueEntry[] = c.queued.map(value => {
@@ -1787,7 +1811,7 @@ function readCombat(value: unknown, legacyFiveSlotWindow = false): SavedState["c
     const status = choice(e.status, ["pending", "executed", "failed"] as const), reason = e.reason === null ? null : text(e.reason);
     const targetId = e.targetId === null ? null : choice(e.targetId, DEFINITIONS.map(t => t.id));
     if ((["strike", "disengage", "jab"].includes(action)) !== (targetId !== null) || (status === "failed") !== (reason !== null)) throw new Error("Invalid adventure save: inconsistent queued move.");
-    const expectedCost = action === "equip" ? 0 : COMBAT_RULES[action].cost;
+    const expectedCost = action === "equip" ? 0 : classAction(archetype, action).cost ?? COMBAT_RULES[action].cost;
     const id = number(e.id, 1, Number.MAX_SAFE_INTEGER, true);
     const common = { targetId, offsetSeconds: number(e.offsetSeconds, 0, legacyFiveSlotWindow ? 4 : COMBAT_RULES.window.actionSlots - 1, true), cost: number(e.cost, expectedCost, expectedCost), status, reason };
     if (action === "equip") {

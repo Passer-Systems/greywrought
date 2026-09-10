@@ -27,7 +27,7 @@ export const files: readonly (readonly [string, string])[] = [
   ["node_modules/three/examples/jsm/loaders/GLTFLoader.js", "dist/vendor/three-addons/loaders/GLTFLoader.js"],
   ["node_modules/three/examples/jsm/utils/BufferGeometryUtils.js", "dist/vendor/three-addons/utils/BufferGeometryUtils.js"],
   ["node_modules/three/examples/jsm/utils/SkeletonUtils.js", "dist/vendor/three-addons/utils/SkeletonUtils.js"],
-  ...["Warrior.glb", "Wizard.glb", "Ranger.glb", "LICENSE.txt", "SOURCE.md"].map((name): readonly [string, string] => [`assets/external/quaternius/class-characters/${name}`, `dist/assets/quaternius/class-characters/${name}`]),
+  ...["Warrior.glb", "Wizard.glb", "Ranger.glb", "Alchemist.gltf", "Artificer.gltf", "ultimate-character-license.txt", "LICENSE.txt", "SOURCE.md"].map((name): readonly [string, string] => [`assets/external/quaternius/class-characters/${name}`, `dist/assets/quaternius/class-characters/${name}`]),
   ["assets/ui/icons/SOURCE.md", "dist/assets/ui/icons/SOURCE.md"],
   ["assets/ui/icons/manifest.json", "dist/assets/ui/icons/manifest.json"],
   ["assets/ui/cursors/SOURCE.md", "dist/assets/ui/cursors/SOURCE.md"],

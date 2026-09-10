@@ -115,7 +115,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
         slot.button.dataset.bagItem = item.id;
         slot.button.dataset.quantity = String(quantity(item));
         slot.button.setAttribute("aria-label", `${label(item)} × ${quantity(item)}`);
-        const icon = item.id === "yard-weapon" ? next.player.archetype === "mage" ? "spells/wand-bolt.svg" : next.player.archetype === "hunter" ? "spells/bow-shot.svg" : item.icon : item.icon;
+        const icon = item.id === "yard-weapon" ? next.player.archetype === "mage" || next.player.archetype === "alchemist" ? "spells/wand-bolt.svg" : next.player.archetype === "hunter" ? "spells/bow-shot.svg" : next.player.archetype === "artificer" ? "spells/lightning-bolt.png" : item.icon : item.icon;
         const src = publicUrl(`assets/ui/icons/${icon}`);
         if (slot.image.src !== src) slot.image.src = src;
         setText(slot.count, String(quantity(item)));

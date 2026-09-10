@@ -2,6 +2,7 @@ import { CanvasTexture, CircleGeometry, Group, Mesh, MeshBasicMaterial, Object3D
 import type { AdventureSnapshot, Position, ThreatView } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
 import type { RangeAudience } from "./combat-range.js";
+import { enemyResponseLabel } from "./enemy-response.js";
 
 const styles: Record<string, { color: number; icon: string; label: string; kind: "area" | "target" | "self" }> = {
   "ember-beam": { color: 0xff643e, icon: "lightning-bolt", label: "BEAM", kind: "target" },
@@ -46,7 +47,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElemen
     fill.rotation.x = -Math.PI / 2; fill.renderOrder = 2; root.add(fill);
     const edge = new Mesh(new RingGeometry(0.975, 1, 64), new MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false }));
     edge.rotation.x = -Math.PI / 2; edge.position.y = 0.015; edge.renderOrder = 3; root.add(edge);
-    const card = document.createElement("canvas"); card.width = 80; card.height = 88;
+    const card = document.createElement("canvas"); card.width = 80; card.height = 106;
     const context = card.getContext("2d");
     if (!context) throw new Error("Attack warning artwork is unavailable");
     const texture = new CanvasTexture(card); texture.colorSpace = SRGBColorSpace;
@@ -77,15 +78,17 @@ export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElemen
         if (warning.text !== text) {
           warning.text = text;
           const ctx = warning.context, color = `#${style.color.toString(16).padStart(6, "0")}`;
-          ctx.clearRect(0, 0, 80, 88);
-          ctx.fillStyle = "#101820ef"; ctx.fillRect(0, 0, 80, 88);
-          ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.strokeRect(2, 2, 76, 84);
+          ctx.clearRect(0, 0, 80, 106);
+          ctx.fillStyle = "#101820ef"; ctx.fillRect(0, 0, 80, 106);
+          ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.strokeRect(2, 2, 76, 102);
           const icon = images.get(style.icon); if (icon) ctx.drawImage(icon, 5, 4, 70, 64);
           ctx.fillStyle = "#fff4df"; ctx.font = "bold 20px system-ui"; ctx.textAlign = "center";
           ctx.fillText(time, 40, 82);
+          ctx.fillStyle = color; ctx.font = "bold 16px system-ui";
+          ctx.fillText(enemyResponseLabel(state.ability), 40, 101);
           warning.texture.needsUpdate = true;
         }
-        diagnostics.push({ enemy: threat.id, ability: state.ability, kind: style.kind, color: style.color, radius, x: position.x, z: position.z, seconds: Number(seconds.toFixed(1)), beat, committed: state.committed });
+        diagnostics.push({ enemy: threat.id, ability: state.ability, response: enemyResponseLabel(state.ability), kind: style.kind, color: style.color, radius, x: position.x, z: position.z, seconds: Number(seconds.toFixed(1)), beat, committed: state.committed });
       }
       const serialized = JSON.stringify(diagnostics);
       if (canvas.dataset.telegraphs !== serialized) canvas.dataset.telegraphs = serialized;

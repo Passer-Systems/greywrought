@@ -36,7 +36,7 @@ function identifier(value: unknown): value is string {
 function character(value: unknown): value is LocalCharacter {
   return record(value) && keys(value, ['id', 'name', 'archetype', 'createdAtMillis']) && identifier(value.id)
     && typeof value.name === 'string' && normalizedCharacterName(value.name) === value.name
-    && member(value.archetype, ['warrior', 'mage', 'hunter'])
+    && member(value.archetype, ['warrior', 'mage', 'hunter', 'alchemist', 'artificer'])
     && finite(value.createdAtMillis, 0, Number.MAX_SAFE_INTEGER, true);
 }
 function command(value: unknown): value is WorldCommand {

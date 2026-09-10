@@ -2,6 +2,7 @@ import type { AdventureSnapshot, ThreatAbilityView, ThreatView } from "../game/a
 import type { AdventureWorld } from "./adventure-world.js";
 import { publicUrl } from "./public-url.js";
 import { enemyRange, type RangeAudience } from "./combat-range.js";
+import { enemyResponse } from "./enemy-response.js";
 
 interface AbilityIcon { button: HTMLButtonElement; icon: HTMLElement; clock: HTMLElement; tooltip: HTMLElement; }
 interface Plate {
@@ -49,7 +50,7 @@ function renderAbility(view: AbilityIcon, ability: ThreatAbilityView, threat: Th
   const range = enemyRange(snapshot, threat, ability, audience);
   view.button.dataset.range = range.state;
   const facts = [ability.damage > 0 ? ability.damage + " damage" : "Power / defense", ability.damage <= 0 ? "Self" : ability.id === "maul" ? "8 m leap · " + ability.range + " m impact radius" : ability.range + " m range"];
-  const detail = [ability.name, facts.join(" · "), ability.description, timing + beat, range.text].filter(Boolean).join("\n");
+  const detail = [ability.name, facts.join(" · "), enemyResponse(ability.id), ability.description, timing + beat, range.text].filter(Boolean).join("\n");
   write(view.tooltip, detail);
   view.button.setAttribute("aria-label", (active ? "Active" : stored ? "Opener" : next ? "Then" : "Next") + ": " + ability.name + ". " + timing + (range.text ? " " + range.text : ""));
 
@@ -77,7 +78,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
     root.append(target, row);
     const track = span("nameplate-cast", root), fill = span("nameplate-cast-fill", track);
     const opening = span("nameplate-opening", root); opening.hidden = true;
-    const openingIcon = document.createElement("img"); openingIcon.src = publicUrl("assets/ui/icons/spells/sword-strike.png"); openingIcon.alt = "Lunge opening"; opening.append(openingIcon);
+    const openingIcon = document.createElement("img"); openingIcon.src = publicUrl("assets/ui/icons/spells/sword-strike.png"); openingIcon.alt = "Attack opening"; opening.append(openingIcon);
     const openingClock = span("nameplate-opening-clock", opening);
     const shield = span("nameplate-shield", root); shield.hidden = true;
     const effect = span("nameplate-rooted", root); effect.hidden = true; effect.title = "Rooted until you land";
@@ -112,13 +113,13 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
           plate.target.setAttribute("aria-label", "Target " + threat.name + ". " + Math.ceil(threat.health) + " of " + threat.maximumHealth + " health. " + threat.benefit);
           write(plate.health, Math.ceil(threat.health) + " (" + Math.round(100*threat.health/threat.maximumHealth) + "%)");
           write(plate.level, String(threat.level));
-          const opening = snapshot.combat.phase === "active" && (threat.phase === "recovery" || threat.currentAbility.id === "kindle") && threat.block === 0 && threat.canStrike;
+          const opening = threat.aggro && (threat.phase === "recovery" || threat.currentActivity?.ability.id === "kindle") && threat.block === 0 && threat.canStrike;
           plate.opening.hidden = !opening;
           root.dataset.strikeOpening = String(opening);
           if (opening) {
             const seconds = threat.remainingSeconds.toFixed(1);
             write(plate.openingClock, seconds);
-            plate.opening.title = "Enemy open for " + seconds + "s. " + (threat.selected ? "1 queues your attack on the next free turn." : "Select this enemy, then 1 queues your attack.");
+            plate.opening.title = "Exposed for " + seconds + "s. Attack on an available turn before it recovers.";
           }
           plate.shield.hidden = threat.block <= 0;
           write(plate.shield, "⛨ " + threat.block); plate.shield.title = threat.block + " block · " + threat.blockSeconds.toFixed(1) + "s";
@@ -149,8 +150,8 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
             plate.nextArrow.hidden = !first;
             if (first) renderAbility(plate.next, first.ability, threat, true, snapshot, audience, first);
           }
-          write(plate.status, threat.disposition === "neutral" && !threat.aggro ? "\u25C7" : "\u25C6");
-          plate.status.title = threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
+          write(plate.status, threat.phase === "returning" ? "↶" : threat.disposition === "neutral" && !threat.aggro ? "\u25C7" : "\u25C6");
+          plate.status.title = threat.phase === "returning" ? "Returning home · recovering" : threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
           plate.fill.style.width = Math.max(0, Math.min(100, threat.remainingSeconds / Math.max(0.01, threat.phaseDuration) * 100)) + "%";
           plate.width = root.offsetWidth; plate.height = root.offsetHeight;
         }

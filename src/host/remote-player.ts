@@ -52,7 +52,7 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
           if (dead) { dead = false; actionRemaining = 0; mounted.play("Idle"); }
           if (player.health < lastHealth) { mounted.play("RecieveHit", false, 0.4); actionRemaining = 0.4; }
           else if (player.attackSequence !== lastAttack) {
-            mounted.play(player.archetype === "mage" ? "Staff_Attack" : player.archetype === "hunter" ? "Bow_Shoot" : "Sword_Attack", false, 0.4);
+            mounted.play(player.archetype === "mage" ? "Staff_Attack" : player.archetype === "hunter" ? "Bow_Shoot" : player.archetype === "alchemist" || player.archetype === "artificer" ? "Shoot_OneHanded" : "Sword_Attack", false, 0.4);
             actionRemaining = 0.4;
           } else if (actionRemaining === 0) mounted.play(player.maneuver === "disengage" || !player.grounded ? "Roll" : player.moving ? "Run" : "Idle");
         }

@@ -29,8 +29,8 @@ export interface ForestActor {
   play(name: string, loop?: boolean, duration?: number, fade?: number): AnimationAction;
   dispose(): void;
 }
-export async function actor(name: string, height: number, playerModel?: "warrior" | "mage" | "hunter"): Promise<ForestActor> {
-  const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger" : playerModel === "mage" ? "Wizard" : "Warrior"}.glb` : null;
+export async function actor(name: string, height: number, playerModel?: "warrior" | "mage" | "hunter" | "alchemist" | "artificer"): Promise<ForestActor> {
+  const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger.glb" : playerModel === "mage" ? "Wizard.glb" : playerModel === "alchemist" ? "Alchemist.gltf" : playerModel === "artificer" ? "Artificer.gltf" : "Warrior.glb"}` : null;
   const gltf = await source(playerPath ?? `${root}actors/${name}.gltf`);
   const model = clone(gltf.scene);
   const localMaterials: Material[] = [];

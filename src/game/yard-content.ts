@@ -84,7 +84,12 @@ export const GEAR = {
 } as const;
 
 export function gearName(id: GearItemId, archetype: CharacterArchetype): string {
-  return id === "insulated-coat" ? GEAR[id].name : archetype === "mage" ? "Linemender's Wand" : archetype === "hunter" ? "Yardwatch Bow" : "Shiftkeeper's Blade";
+  if (id === "insulated-coat") return GEAR[id].name;
+  if (archetype === "mage") return "Linemender's Wand";
+  if (archetype === "hunter") return "Yardwatch Bow";
+  if (archetype === "alchemist") return "Glasswork Reagent Kit";
+  if (archetype === "artificer") return "Clockwork Rivet Tool";
+  return "Shiftkeeper's Blade";
 }
 
 export function questDefinition(id: QuestId): QuestDefinition {

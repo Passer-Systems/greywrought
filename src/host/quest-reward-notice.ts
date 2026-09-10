@@ -45,7 +45,7 @@ export function createQuestRewardNotice(host: HTMLElement, options: QuestRewardN
   host.append(panel);
   const style = document.createElement("style");
   style.textContent = `
-    .quest-reward-notice { position:fixed; left:50%; bottom:calc(var(--combat-hud-height, 112px) + 18px); z-index:24; width:min(340px,calc(100vw - 28px)); transform:translateX(-50%); padding:11px 13px 12px; color:#eee2c8; border:1px solid #9d8255; border-radius:4px; background:linear-gradient(145deg,#282318f2,#11150ff5); box-shadow:0 8px 28px #000b, inset 0 1px #e7c47755; font:var(--ui-font-body)/1.35 system-ui,sans-serif; }
+    .quest-reward-notice { position:fixed; pointer-events:auto; left:50%; bottom:calc(var(--combat-hud-height, 112px) + 18px); z-index:24; width:min(340px,calc(100vw - 28px)); transform:translateX(-50%); padding:11px 13px 12px; color:#eee2c8; border:1px solid #9d8255; border-radius:4px; background:linear-gradient(145deg,#282318f2,#11150ff5); box-shadow:0 8px 28px #000b, inset 0 1px #e7c47755; font:var(--ui-font-body)/1.35 system-ui,sans-serif; }
     .quest-reward-notice[hidden] { display:none; }
     .quest-reward-notice-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .quest-reward-notice-kicker { color:#e5bf5e; text-transform:uppercase; letter-spacing:.1em; font-size:var(--ui-font-tiny); font-weight:700; }

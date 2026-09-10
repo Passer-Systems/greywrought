@@ -1,7 +1,8 @@
 # Frostwood audio
 
 Downloaded 2026-09-09. Only the files listed below are included; original
-archives stay outside the release. Recordings are unmodified.
+archives stay outside the release. The music is transcoded to 96 kbps MP3 for the
+prototype's download budget; the original source identity and license remain unchanged.
 
 ## Music
 
@@ -13,8 +14,8 @@ https://creativecommons.org/licenses/by/4.0/
 - Original: https://incompetech.com/music/royalty-free/mp3-royaltyfree/Frost%20Waltz.mp3
 - Identity: ISRC USUAN1100516; official catalogue UUID
   6d80c57d-1f05-4471-bd90-767ce0addb0e; uploaded 2008-11-21.
-- Saved as greywrought:assets/audio/frost-waltz.mp3, SHA-256
-  560f932189551c8a009a671da25d8b51cf2067df85fcac35731ea6ac0c7d6cd3.
+- Saved as greywrought:assets/audio/frost-waltz.mp3 after 96 kbps transcoding,
+  SHA-256 cf48c505396a6710d9adba17d64bfb16d581e0dbc7d452c7b67cd70def47b634.
 - Official track page attribution block specifies CC BY 4.0, verified against
   https://incompetech.com/music/royalty-free/pieces.json on download date.
 - Required creator, title, source and license credit is visible in the game's
