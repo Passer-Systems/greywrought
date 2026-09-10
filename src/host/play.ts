@@ -439,7 +439,7 @@ function syncEncounter(): void {
   if (!running?.ready || route !== "world") return;
   const { game, world, character } = running;
   if (game.snapshot.phase === 'lost') { showFallenCharacter(character); return; }
-  const state = `${game.online}:${game.session.id}:${game.session.mode}:${game.inputEnabled}:${backgrounded}`;
+  const state = `${game.online}:${game.session.id}:${game.session.mode}:${game.inputEnabled}:${game.pendingTransition}:${backgrounded}`;
   const changed = state !== lastEncounterState;
   lastEncounterState = state;
   const wasPaused = paused;

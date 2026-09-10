@@ -447,6 +447,11 @@ gameplay heartbeat timer or focus check. Existing combat, damage, warnings and
 supplies are kept.
 Other players remain in the shared world with its own enemies and clock. The
 current build has no parties, so only the character and enemies enter the copy.
+When the departing character was an enemy's last combatant, that main-world
+enemy clears combat, recovers, and returns to its home. With nobody left in the
+main world to observe the return, the reset finishes immediately. If another
+combatant remains, the enemy targets them without resetting its health, attack
+timing, or accumulated power. The private copy retains the original fight.
 
 The player frame shows In combat or Out of combat. Attacking or being engaged by
 a creature joins its encounter; changing the creature's current target does not
@@ -466,6 +471,21 @@ normally when its browser tab stops rendering.
 The copy grants no loot, resources, experience or quest progress. Carried
 potions may be used and equipment changed while playing; health loss, death and
 spent supplies persist. Death still ends the character's life. Finish the fight
-or retreat, then choose Rejoin world to return near the original pause location.
+or retreat, then choose Rejoin main world in the top bar to return near the original pause location.
 Rejoining carries the character's current condition back without merging enemy
 deaths or replenishing health. It does not silently resume the shared world.
+
+The client stops sending movement while resume or rejoin is awaiting its new
+world state. Replies from retired connections cannot reactivate input. A
+foreground connection that stops delivering state for three seconds is closed
+and retried; an initial connection attempt expires after fifteen seconds.
+Background tabs defer the client silence check, while the server's native
+ping/pong check remains active. Reconnects always require an explicit resume.
+
+Run `bun run test:private-encounter` from the checkout for the focused domain,
+transport, and browser journeys. These use isolated local saves and include
+disconnect during a cast, repeated reconnect, a graceful server restart,
+silent state delivery, private rewards, and delayed rejoin movement.
+An abrupt server crash can recover only the most recent completed save; active
+play saves every five seconds, and encounter transitions also request a save.
+The two-second disconnect detection interval is live combat time, not rollback.

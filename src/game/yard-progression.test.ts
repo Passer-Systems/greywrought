@@ -43,9 +43,11 @@ test("shared scout kills grant saved credit to current contributors, excluding b
   const seed=createSharedAdventure();for(const id of ["a","b","c"])seed.join(id,id,"mage");
   const save=JSON.parse(seed.save());
   for(const p of save.characters){p.state.chapter=earnedChapter(1);p.state.chapter.accepted.push("roll-call");p.state.phase="expedition";p.state.position={x:-3,y:0,z:8};}
-  save.world.threats[0].health=22;
+  save.world.threats[0].health=33;
   const world=createSharedAdventure({save:JSON.stringify(save)}),a=world.join("a","a","mage"),b=world.join("b","b","mage"),c=world.join("c","c","mage");
-  tap(a,"strike");world.advance(.01);world.leave("a");tap(b,"strike");world.advance(.01);
+  tap(a,"strike");world.advance(.01);tap(b,"strike");world.advance(.01);
+  expect(a.snapshot.player.inCombat).toBe(true);expect(b.snapshot.player.inCombat).toBe(true);
+  world.leave("a");world.advance(1.5);
   expect(b.snapshot.quests[1]!.status).toBe("ready");expect(c.snapshot.quests[1]!.status).toBe("active");
   const restored=createSharedAdventure({save:world.save()});
   expect(restored.join("a","a","mage").snapshot.quests[1]!.status).toBe("active");

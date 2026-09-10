@@ -297,6 +297,26 @@ class Adventure implements AdventureGame {
       for (const threat of context.world.threats) {
         threat.contributors = threat.contributors.filter(contributor => contributor !== id);
         threat.combatants = threat.combatants.filter(combatant => combatant !== id);
+        // Detach before publishing the fork, even when no shared tick will run.
+        if (threat.targetPlayerId === id) threat.targetPlayerId = null;
+        if (threat.aggro && threat.combatants.length > 0 && threat.targetPlayerId === null) {
+          const replacement = threat.combatants.find(combatant => context.online.has(combatant));
+          if (replacement !== undefined) {
+            threat.targetPlayerId = replacement;
+            const replacementGame = context.online.get(replacement);
+            if (replacementGame) threat.targetPosition = { ...replacementGame.state.position };
+          }
+        }
+        if (threat.aggro && threat.combatants.length === 0) {
+          game.releaseThreat(threat);
+          // Empty zones do not tick; complete the unobserved reset before saving.
+          if (context.online.size === 1 && threat.phase === "returning") {
+            threat.position = { ...definition(threat.id).position };
+            threat.targetPosition = { ...threat.position };
+            threat.patrolIndex = 1;
+            threat.phase = definition(threat.id).patrol ? "patrol" : "dormant";
+          }
+        }
       }
       game.shared = privateContext;
       game.state.world = privateContext.world;

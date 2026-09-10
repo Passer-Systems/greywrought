@@ -37,6 +37,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let players: readonly RemotePlayerView[] = [], chat: readonly SharedChatMessage[] = [];
   let sequence = 0, closed = false, online = false, connectionRevision = 0;
   let reconnect: ReturnType<typeof setTimeout> | undefined;
+  let socketGeneration = 0;
   let cameraX = NaN, cameraZ = NaN;
   let pendingCamera = false, lastCameraAt = 0;
   let pauseRequest: number | null = null;
@@ -47,10 +48,12 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   const inputEnabled = () => online && session.mode !== 'paused' && pauseRequest === null && transitionRequest === null;
   let readyResolve: () => void, readyReject: (reason: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
+  let handshakeTimeout: ReturnType<typeof setTimeout> | undefined;
+  let livenessTimeout: ReturnType<typeof setTimeout> | undefined;
   const timeout = setTimeout(() => { if (!snapshot) { close(); readyReject(new Error('The world could not be reached.')); } }, 15000);
   function close(): void {
     if (online) send({type:'pause'});
-    closed = true; online = false; clearTimeout(timeout); clearTimeout(reconnect); socket?.close();
+    closed = true; online = false; socketGeneration++; clearTimeout(timeout); clearTimeout(handshakeTimeout); clearTimeout(livenessTimeout); clearTimeout(reconnect); socket?.close();
   }
   function send(command: WorldCommand): number | null {
     if (!online || socket.readyState !== WebSocket.OPEN) return null;
@@ -64,12 +67,29 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     pendingCamera = false; lastCameraAt = performance.now();
   }
   function open(): void {
-    socket = new WebSocket(url);
-    socket.onopen = () => {
+    if (closed) return;
+    clearTimeout(reconnect); reconnect = undefined;
+    const generation = ++socketGeneration;
+    const current = new WebSocket(url);
+    socket = current;
+    function disconnected(): void {
+      if (closed || generation !== socketGeneration) return;
+      socketGeneration++;
+      clearTimeout(handshakeTimeout); handshakeTimeout = undefined;
+      clearTimeout(livenessTimeout); livenessTimeout = undefined;
+      online = false; pauseRequest = null; transitionRequest = null; pendingTransition = null; pendingCamera = false;
+      current.close();
+      reconnect = setTimeout(open, 1000);
+      notify();
+    }
+    handshakeTimeout = setTimeout(disconnected, 15000);
+    current.onopen = () => {
+      if (closed || generation !== socketGeneration) { current.close(); return; }
       const message: ClientWorldMessage = {type:'join',token:token!,character};
-      socket.send(JSON.stringify(message));
+      current.send(JSON.stringify(message));
     };
-    socket.onmessage = event => {
+    current.onmessage = event => {
+      if (closed || generation !== socketGeneration) return;
       const message = JSON.parse(String(event.data)) as ServerWorldMessage;
       if (message.type === 'state') {
         if (!message.session) {
@@ -81,6 +101,13 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
         snapshot = message.snapshot; players = message.players; chat = message.chat;
         serverTime = message.serverTime;
         serverWallTimeMillis = message.serverWallTimeMillis;
+        clearTimeout(handshakeTimeout); handshakeTimeout = undefined;
+        clearTimeout(livenessTimeout);
+        livenessTimeout = setTimeout(function checkLiveness() {
+          if (closed || generation !== socketGeneration || !online) return;
+          if (document.hidden) { livenessTimeout = setTimeout(checkLiveness, 1000); return; }
+          disconnected();
+        }, 3000);
         if (changed) { prediction = new LocalMovement(snapshot, message.movement); connectionRevision++; transitionRequest = null; pendingTransition = null; }
         prediction.reconcile(snapshot, message.movement, serverTime);
         online = true; clearTimeout(timeout); readyResolve();
@@ -94,10 +121,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
         else snapshot = {...snapshot,report:message.text};
       }
     };
-    socket.onclose = () => {
-      online = false; pauseRequest = null; transitionRequest = null; pendingTransition = null; pendingCamera = false; notify();
-      if (!closed) reconnect = setTimeout(open, 1000);
-    };
+    current.onclose = disconnected;
   }
   open(); await ready;
   return {

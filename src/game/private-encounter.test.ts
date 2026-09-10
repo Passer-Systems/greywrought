@@ -53,6 +53,68 @@ describe("private paused encounters", () => {
     expect(world.players()).toHaveLength(1);
   });
 
+  test("disconnecting the sole fighter releases the shared threat back home", () => {
+    const world = createSharedAdventure({ now: () => 1000 });
+    const alice = world.join("alice", "Alice", "warrior");
+    alice.setCameraForward(-3, 16);
+    alice.setAction("forward", true);
+    world.advance(Math.hypot(3, 16) / 4.5);
+    alice.setAction("forward", false);
+    alice.selectTarget("scout");
+    tap(alice, "strike");
+    world.advance(0.25);
+    const sharedThreat = alice.snapshot.threats.find(t => t.id === "scout")!;
+    expect(sharedThreat.aggro).toBe(true);
+    expect(sharedThreat.targetPlayerId).toBe("alice");
+    expect(world.pause("alice")).toBe(true);
+    const released = JSON.parse(world.save()).world.threats.find((t: { id: string }) => t.id === "scout");
+    expect(released.aggro).toBe(false);
+    expect(released.targetPlayerId).toBeNull();
+    expect(released.combatants).toEqual([]);
+    expect(released.health).toBe(96);
+    expect(released.phase).toBe("patrol");
+    expect(released.position).toEqual({ x: -3, y: 0, z: 10 });
+    world.advance(10);
+    const afterAdvance = JSON.parse(world.save()).world.threats.find((t: { id: string }) => t.id === "scout");
+    expect(afterAdvance.position).toEqual({ x: -3, y: 0, z: 10 });
+    expect(world.session("alice").mode).toBe("paused");
+  });
+
+  test("an engaged partner keeps the shared cast while an unengaged observer stays out", () => {
+    const seed = createSharedAdventure();
+    seed.join("alice", "Alice", "warrior");
+    seed.join("bob", "Bob", "mage");
+    seed.join("observer", "Observer", "hunter");
+    const saved = JSON.parse(seed.save()) as { characters: Array<{ id: string; state: Record<string, unknown> }> };
+    for (const character of saved.characters) {
+      if (character.id === "alice" || character.id === "bob") {
+        character.state.phase = "expedition";
+        character.state.position = { x: -3, y: 0, z: 8 };
+      }
+    }
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+    const alice = world.join("alice", "Alice", "warrior");
+    const bob = world.join("bob", "Bob", "mage");
+    world.join("observer", "Observer", "hunter");
+    alice.selectTarget("scout"); tap(alice, "strike"); world.advance(0.2);
+    bob.selectTarget("scout"); tap(bob, "strike"); world.advance(0.2);
+    const before = bob.snapshot.threats.find(t => t.id === "scout")!;
+    expect(alice.snapshot.player.inCombat).toBe(true);
+    expect(bob.snapshot.player.inCombat).toBe(true);
+    expect(before.cast).not.toBeNull();
+    const castRemaining = before.cast!.remainingSeconds;
+    const health = before.health;
+
+    expect(world.pause("alice")).toBe(true);
+    const shared = JSON.parse(world.save()).world.threats.find((t: { id: string }) => t.id === "scout");
+    expect(shared.health).toBe(health);
+    expect(shared.castDuration).toBeGreaterThan(0);
+    expect(shared.remainingSeconds).toBeCloseTo(castRemaining, 5);
+    expect(shared.targetPlayerId).toBe("bob");
+    expect(shared.combatants).toEqual(["bob"]);
+    expect(world.players().map(player => player.id)).toEqual(["bob", "observer"]);
+  });
+
   test("private save reopens paused and rejoin is gated by combat", () => {
     const world = createSharedAdventure({ now: () => 1000 });
     const alice = world.join("alice", "Alice", "warrior");
