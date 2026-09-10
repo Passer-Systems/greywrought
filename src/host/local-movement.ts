@@ -23,6 +23,7 @@ export class LocalMovement {
 
   constructor(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoint) {
     this.snapshot = snapshot;
+    this.sequence = checkpoint.sequence;
     this.state = { position: { ...snapshot.player.position }, verticalSpeed: checkpoint.verticalSpeed };
     this.maneuver = checkpoint.maneuver ? { ...checkpoint.maneuver } : null;
     this.cameraX = snapshot.player.cameraForward.x; this.cameraZ = snapshot.player.cameraForward.z;

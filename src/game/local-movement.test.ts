@@ -10,6 +10,22 @@ function near(actual: AdventureSnapshot['player']['position'], expected: Adventu
   expect(actual.z).toBeCloseTo(expected.z, 6);
 }
 
+test('prediction rebuilt after a pause continues above the last acknowledged movement sequence', () => {
+  const server = createAdventure(); server.enableNetworkMovement!();
+  const before = new LocalMovement(server.snapshot, server.movementCheckpoint!);
+  before.setAction('forward', true); before.advance(.05);
+  server.enqueueMovement!(before.takeOutgoing()); server.advance(.05);
+  const checkpoint = server.movementCheckpoint!;
+  expect(checkpoint.sequence).toBeGreaterThan(0);
+  const resumed = new LocalMovement(server.snapshot, checkpoint);
+  resumed.setAction('right', true); resumed.advance(.05);
+  const frames = resumed.takeOutgoing();
+  expect(frames[0]!.sequence).toBe(checkpoint.sequence + 1);
+  expect(server.enqueueMovement!(frames)).toBe(true);
+  server.advance(.05);
+  near(resumed.player.position, server.snapshot.player.position);
+});
+
 test('delayed and jittered acknowledgments preserve immediate speed, turns, release, mouse priority and jumping', () => {
   const server = createAdventure(), solo = createAdventure();
   server.enableNetworkMovement!();

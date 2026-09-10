@@ -133,9 +133,11 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(restored.snapshot.player.moving).toBe(false);
     expect(restored.snapshot.quests[0]?.status).toBe('active');
     expect(restored.snapshot.progression.equipment.mainhand).toBeNull();
-    expect(restored.chat.some(message => message.text === 'Meet at the gate.')).toBe(true);
-    expect(restored.chat.find(message => message.text === 'Meet at the gate.')?.speakerId).toBe('first');
-    expect(restored.chat.find(message => message.text === 'Two')?.speakerId).toBeNull();
+    // A disconnect creates a paused private instance; shared-world chat does
+    // not leak across that boundary.
+    expect(restored.session.mode).toBe('paused');
+    expect(restored.chat.some(message => message.text === 'Meet at the gate.')).toBe(false);
+    expect(restored.chat.find(message => message.text === 'Two')?.speakerId).toBeUndefined();
     const latest = await returning.state(state => state !== restored);
     expect(latest.snapshot.player.position).toEqual(restored.snapshot.player.position);
   } finally {
@@ -177,3 +179,47 @@ test('NPC interaction accepts named villagers and rejects unrelated targets', as
     expect(await visitor.invalid({type:'interactNpc',id:'scout'})).toBe(false);
   } finally { visitor.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true,force:true}); }
 });
+
+test('pause forks the connection and explicit rejoin returns it to the shared world', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-private-'));
+  const service = await createWorldService({ savePath: join(directory, 'world.json') });
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
+  const visitor = new Client(`ws://127.0.0.1:${server.port}/world`);
+  try {
+    await visitor.connect({ id: 'private', name: 'Private', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
+    const shared = await visitor.state();
+    expect(shared.session.mode).toBe('shared');
+    expect(await visitor.command({ type: 'pause' })).toBe(true);
+    const paused = await visitor.state(state => state.session.mode === 'paused');
+    expect(paused.session.origin).not.toBeNull();
+    expect(paused.session.canRejoin).toBe(true);
+    expect(await visitor.command({ type: 'movement', frames: [{ sequence: 1, seconds: 0.05, input: { forward: 1, strafe: 0, cameraX: 0, cameraZ: 1, jump: false } }] })).toBe(false);
+    expect(await visitor.command({ type: 'heartbeat' })).toBe(true);
+    expect(await visitor.command({ type: 'resume' })).toBe(true);
+    expect((await visitor.state(state => state.session.mode === 'private')).session.mode).toBe('private');
+    visitor.messages.length = 0;
+    expect(await visitor.command({ type: 'rejoin' })).toBe(true);
+    const rejoined = await visitor.state(state => state.session.mode === 'shared');
+    expect(rejoined.session.mode).toBe('shared');
+  } finally {
+    visitor.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('heartbeat expiry forks a silent socket before its close callback', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-heartbeat-'));
+  const savePath = join(directory, 'world.json');
+  const service = await createWorldService({ savePath });
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
+  const visitor = new Client(`ws://127.0.0.1:${server.port}/world`);
+  try {
+    await visitor.connect({ id: 'heartbeat', name: 'Heartbeat', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
+    await visitor.state();
+    await new Promise(resolve => setTimeout(resolve, 5_500));
+    const saved = JSON.parse(await readFile(savePath, 'utf8')) as { world: string };
+    const world = JSON.parse(saved.world) as { instances?: readonly { ownerId: string; mode: string }[] };
+    expect(world.instances?.some(instance => instance.ownerId === 'heartbeat' && instance.mode === 'paused')).toBe(true);
+  } finally {
+    visitor.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true, force: true });
+  }
+}, 10_000);

@@ -41,6 +41,7 @@ function character(value: unknown): value is LocalCharacter {
 function command(value: unknown): value is WorldCommand {
   if (!record(value)) return false;
   switch (value.type) {
+    case 'pause': case 'resume': case 'rejoin': case 'heartbeat': return keys(value, ['type']);
     case 'movement': return keys(value, ['type', 'frames']) && Array.isArray(value.frames) && value.frames.length > 0 && value.frames.length <= 30 && value.frames.every((frame, index, frames) => {
       if (!record(frame) || !keys(frame, ['sequence', 'seconds', 'input']) || !finite(frame.sequence, 1, Number.MAX_SAFE_INTEGER, true)
         || !finite(frame.seconds, Number.MIN_VALUE, 0.05) || !record(frame.input)) return false;
@@ -70,6 +71,7 @@ export interface WorldSocketData {
   lastSequence: number;
   commandsAt: number[];
   chatsAt: number[];
+  lastHeartbeat: number;
 }
 export interface WorldServiceOptions {
   savePath: string;
@@ -112,6 +114,7 @@ export async function createWorldService(options: WorldServiceOptions) {
   let serverTime = 0;
   const clients = new Set<ServerWebSocket<WorldSocketData>>();
   const online = new Map<string, ServerWebSocket<WorldSocketData>>();
+  const privateChat = new Map<string, SharedChatMessage[]>();
   let closed = false;
   let saveQueue = Promise.resolve();
   const onPersistenceError = options.onPersistenceError ?? (() => console.error('Shared world could not be saved.'));
@@ -133,11 +136,13 @@ export async function createWorldService(options: WorldServiceOptions) {
   }
   function error(socket: ServerWebSocket<WorldSocketData>, text: string): void { send(socket, { type: 'error', text }); }
   function broadcast(): void {
-    const players = world.players();
     const serverWallTimeMillis = Date.now();
     for (const [id, socket] of online) {
       const player = world.getPlayer(id);
-      if (player) send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat, serverTime, serverWallTimeMillis, movement: player.movementCheckpoint! });
+      if (!player) continue;
+      const session = world.session(id);
+      const players = world.players(session.id);
+      send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat: session.mode === 'shared' ? chat : (privateChat.get(session.id) ?? []), serverTime, serverWallTimeMillis, movement: player.movementCheckpoint!, session });
     }
   }
   function disconnect(socket: ServerWebSocket<WorldSocketData>): void {
@@ -172,11 +177,24 @@ export async function createWorldService(options: WorldServiceOptions) {
     accounts.set(selected.id, account);
     socket.data.id = selected.id;
     online.set(selected.id, socket);
+    socket.data.lastHeartbeat = performance.now();
     void persist().catch(onPersistenceError);
     broadcast();
   }
   function apply(player: AdventureGame, value: WorldCommand, socket: ServerWebSocket<WorldSocketData>): boolean {
+    const id = socket.data.id;
+    if (id === null) return false;
+    const session = world.session(id);
     switch (value.type) {
+      case 'pause': return world.pause(id);
+      case 'resume': return world.resume(id);
+      case 'rejoin': {
+        const previous = session.id;
+        const accepted = world.rejoin(id);
+        if (accepted && previous !== 'shared') privateChat.delete(previous);
+        return accepted;
+      }
+      case 'heartbeat': socket.data.lastHeartbeat = performance.now(); return true;
       case 'movement': return player.enqueueMovement!(value.frames);
       case 'action': player.setAction(value.action, value.pressed); break;
       case 'mouseForward': player.setMouseForward(value.active); break;
@@ -194,8 +212,11 @@ export async function createWorldService(options: WorldServiceOptions) {
         socket.data.chatsAt.push(now);
         const account = accounts.get(socket.data.id!);
         if (!account) return false;
-        chat.push({ id: nextChatId++, speakerId: account.character.id, name: account.character.name, text: value.text.trim() });
-        if (chat.length > 100) chat.shift();
+        const message = { id: nextChatId++, speakerId: account.character.id, name: account.character.name, text: value.text.trim() };
+        const target = session.mode === 'shared' ? chat : (privateChat.get(session.id) ?? []);
+        target.push(message);
+        if (target.length > 100) target.shift();
+        if (session.mode !== 'shared') privateChat.set(session.id, target);
         broadcast();
         break;
       }
@@ -208,7 +229,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     sendPings: true,
     backpressureLimit: 1024 * 1024,
     closeOnBackpressureLimit: true,
-    open(socket) { clients.add(socket); },
+    open(socket) { clients.add(socket); socket.data.lastHeartbeat = performance.now(); },
     message(socket, payload) {
       if (closed) return;
       if (typeof payload !== 'string' || new TextEncoder().encode(payload).byteLength > MAX_PAYLOAD) { error(socket, 'That message is too large.'); socket.close(1009, 'Message too large'); return; }
@@ -224,10 +245,17 @@ export async function createWorldService(options: WorldServiceOptions) {
       let accepted = false;
       if (player && keys(value, ['type', 'sequence', 'command']) && sequence > socket.data.lastSequence && command(value.command)) {
         const stopping = (value.command.type === 'action' && !value.command.pressed) || (value.command.type === 'mouseForward' && !value.command.active);
-        if (stopping || socket.data.commandsAt.length < 120) {
+        const session = world.session(socket.data.id!);
+        const priority = value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin' || value.command.type === 'heartbeat' || stopping;
+        const allowedWhilePaused = priority || value.command.type === 'chat' || value.command.type === 'camera' || value.command.type === 'target';
+        if ((session.mode !== 'paused' || allowedWhilePaused) && (priority || socket.data.commandsAt.length < 120)) {
           socket.data.lastSequence = sequence;
           if (!stopping) socket.data.commandsAt.push(now);
           accepted = apply(player, value.command, socket);
+          if (accepted && (value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin')) {
+            void persist().catch(onPersistenceError);
+            broadcast();
+          }
         }
       }
       send(socket, { type: 'result', sequence, accepted });
@@ -243,6 +271,12 @@ export async function createWorldService(options: WorldServiceOptions) {
     previousTick = now;
     world.advance(elapsed);
     if (online.size > 0) { serverTime += elapsed; broadcast(); }
+    for (const socket of [...clients]) {
+      if (socket.data.id !== null && now - socket.data.lastHeartbeat > 5_000) {
+        disconnect(socket);
+        socket.close(4004, 'Connection heartbeat expired');
+      }
+    }
     for (const socket of clients) if (socket.data.id === null && now - socket.data.openedAt > 10_000) socket.close(4003, 'Choose a character');
   }, 50);
   const saves = setInterval(() => { if (online.size > 0) void persist().catch(onPersistenceError); }, 5000);
@@ -256,7 +290,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       const origin = request.headers.get('origin');
       if (origin !== null && origin !== url.origin && !options.allowedOrigins?.includes(origin)) return new Response('Please enter from the game.', { status: 403 });
       if (clients.size >= MAX_PLAYERS * 2) return new Response('The world is busy. Please try again shortly.', { status: 503 });
-      if (server.upgrade(request, { data: { id: null, openedAt: performance.now(), lastSequence: -1, commandsAt: [], chatsAt: [] } })) return undefined;
+      if (server.upgrade(request, { data: { id: null, openedAt: performance.now(), lastSequence: -1, commandsAt: [], chatsAt: [], lastHeartbeat: performance.now() } })) return undefined;
       return new Response('Enter the world through the game.', { status: 426 });
     },
     async close(): Promise<void> {

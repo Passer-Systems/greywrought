@@ -39,7 +39,8 @@ describe("legacy combat save migration", () => {
     expect(player.snapshot).toMatchObject({ supplies: 39, potions: 3, resourceRemaining: 6 });
     expect(player.snapshot.progression.ownedGear).toEqual(["insulated-coat", "yard-weapon"]);
     const saved = JSON.parse(game.save());
-    expect(saved.version).toBe(2);
+    expect(saved.version).toBe(3);
+    expect(saved.instances).toEqual([]);
     expect(saved).not.toHaveProperty("clock");
     expect(saved.characters[0].state).not.toHaveProperty("combat");
     expect(createSharedAdventure({ save: game.save() }).join("legacy", "Legacy", "mage").snapshot.progression).toEqual(player.snapshot.progression);

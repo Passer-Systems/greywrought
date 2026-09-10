@@ -74,10 +74,14 @@ describe("one shared Frostwood", () => {
     tap(a, "strike"); world.advance(0.02);
     const health = a.snapshot.player.health, position = a.snapshot.player.position;
     a.setAction("forward", true); world.leave("a"); world.advance(0.1);
-    expect(world.getPlayer("a")).toBeUndefined();
+    expect(world.getPlayer("a")?.snapshot.player.health).toBe(health);
+    expect(world.session("a").mode).toBe("paused");
     expect(enemy(b).targetPlayerId).toBe("b");
     const restored = createSharedAdventure({ save: world.save() });
     const returned = restored.join("a", "Ada", "mage"), partner = restored.join("b", "Bram", "hunter");
+    expect(restored.session("a").mode).toBe("paused");
+    expect(restored.resume("a")).toBe(true);
+    expect(restored.rejoin("a")).toBe(false);
     expect(returned.snapshot.player.health).toBe(health);
     expect(returned.snapshot.player.position).toEqual(position);
     expect(enemy(returned).health).toBe(87);

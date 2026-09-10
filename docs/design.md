@@ -437,3 +437,22 @@ Local development normally connects to the same public world so Tom and invited
 players can meet regardless of which client build they open. For isolated tests,
 launch the dev server with GREYWROUGHT_LOCAL_WORLD=1 and a separate
 GREYWROUGHT_WORLD_SAVE path. Never test combat against the live shared save.
+
+## Private encounters and pause — 0.12.0
+
+Escape pauses by taking the character into a private copy of the zone. The same
+thing happens on disconnect; a lost connection is detected within five seconds
+of the last heartbeat. Existing combat, damage, warnings and supplies are kept.
+Other players remain in the shared world with its own enemies and clock. The
+current build has no parties, so only the character and enemies enter the copy.
+
+The private encounter stays frozen until Resume encounter is chosen, including
+after reconnecting or restarting the server. Leaving the browser requests pause;
+returning focus does not resume combat. It can be paused again at any time.
+
+The copy grants no loot, resources, experience or quest progress. Carried
+potions may be used and equipment changed while playing; health loss, death and
+spent supplies persist. Death still ends the character's life. Finish the fight
+or retreat, then choose Rejoin world to return near the original pause location.
+Rejoining carries the character's current condition back without merging enemy
+deaths or replenishing health. It does not silently resume the shared world.

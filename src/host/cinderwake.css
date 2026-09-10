@@ -1925,8 +1925,12 @@ button { cursor: pointer !important; }
 
 .adventure-modal { position: absolute; inset: 0; z-index: 50; background: #091419b5; display: flex; justify-content: center; align-items: center; }
 .adventure-modal > div { max-width: 440px; padding: 30px; box-shadow: 0 8px 60px #000a; }
-#pause-panel { background: none; pointer-events: none; }
+#pause-panel { background: #08101360; pointer-events: auto; }
 #pause-panel > div { pointer-events: auto; }
+.encounter-status { position: absolute; top: var(--hud-edge, 16px); left: 50%; transform: translateX(-50%); z-index: 35; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid #a28c63; border-radius: 4px; background: #11191eea; color: #f8deac; font-size: var(--ui-font-body); pointer-events: auto; }
+.encounter-status span { color: #d2dada; }
+.encounter-status button { border: 1px solid #8f7955; border-radius: 3px; padding: 4px 7px; background: #3a3327; color: #ffeac8; font: inherit; white-space: nowrap; }
+.encounter-status button:disabled { opacity: .4; }
 .adventure-modal h2 { font: 700 var(--ui-font-title) Georgia; color: #f8deac; margin: 12px 0; }.adventure-modal p { font-size: var(--ui-font-prominent); line-height: 1.7; color: #d2dada; }
 .adventure-modal button { border: 1px solid #c0a16c; padding: 11px 14px; margin: 8px 5px 0 0; background: #584830; color: #ffeac8; border-radius: 3px; font: 600 var(--ui-font-body) system-ui; }.adventure-modal button:hover { background: #736044; }.adventure-modal button:disabled { opacity: .4; }
 @media (max-width: 1000px) { .adventure-map {width:147px;}.adventure-actions small { font-size: var(--ui-font-tiny); } }

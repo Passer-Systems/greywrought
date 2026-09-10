@@ -83,7 +83,9 @@ describe("two-minute world regrowth", () => {
     const beforeDowntime = restored.save();
     time += 60_000;
     const afterDowntime = createSharedAdventure({ save: beforeDowntime, now: () => time });
-    expect(afterDowntime.join("a", "Ada", "mage").snapshot.threats[1]!.health).toBe(72);
+    expect(afterDowntime.join("observer", "Bram", "mage").snapshot.threats[1]!.health).toBe(72);
+    expect(afterDowntime.join("a", "Ada", "mage").snapshot.threats[1]!.health).toBe(0);
+    expect(afterDowntime.session('a').mode).toBe('paused');
     expect(player.snapshot.player.health).toBe(paused.characters[0].state.health);
   });
 

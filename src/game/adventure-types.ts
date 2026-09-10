@@ -3,6 +3,12 @@ import type { QuestId, QuestOperation, QuestView, ProgressionView, GearSlot, Gea
 import type { MovementFrame, MovementCheckpoint } from "./movement.js";
 
 export interface Position { readonly x: number; readonly y: number; readonly z: number; }
+export interface EncounterSession {
+  readonly id: string;
+  readonly mode: "shared" | "paused" | "private";
+  readonly canRejoin: boolean;
+  readonly origin: Position | null;
+}
 export interface AdventureLogEntry {
   readonly id: number;
   readonly channel: "chat" | "combat";
@@ -180,8 +186,12 @@ export interface AdventureGame {
 export interface SharedAdventure {
   join(id: string, name: string, archetype: CharacterArchetype): AdventureGame;
   leave(id: string): void;
+  pause(id: string): boolean;
+  resume(id: string): boolean;
+  rejoin(id: string): boolean;
+  session(id: string): EncounterSession;
   advance(seconds: number): void;
   getPlayer(id: string): AdventureGame | undefined;
-  players(): readonly { readonly id: string; readonly name: string; readonly player: AdventureSnapshot["player"] }[];
+  players(instanceId?: string): readonly { readonly id: string; readonly name: string; readonly player: AdventureSnapshot["player"] }[];
   save(): string;
 }

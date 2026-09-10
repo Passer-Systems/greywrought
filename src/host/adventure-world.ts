@@ -110,7 +110,8 @@ function lootGlint(): Sprite {
 export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
-  const interpolation = createSnapshotInterpolation();
+  let interpolation = createSnapshotInterpolation();
+  let lastConnectionRevision = -1;
   scene.background = new Color(0x16242d);
   scene.fog = new Fog(0x16242d, 24, 66);
   const camera = new PerspectiveCamera(48, 1, 0.1, 110);
@@ -336,6 +337,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     },
     render(snapshot, delta, localPlayer = snapshot.player, serverTime, connectionRevision = 0) {
       if (disposed) return;
+      if (lastConnectionRevision !== connectionRevision) {
+        interpolation = createSnapshotInterpolation();
+        lastConnectionRevision = connectionRevision;
+      }
       hoverSnapshot = snapshot;
       elapsed += delta;
       let visiblePlayers = otherPlayers;

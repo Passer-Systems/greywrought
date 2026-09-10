@@ -1,5 +1,5 @@
 import type { QuestId, QuestOperation, GearSlot, GearItemId } from "./yard-content.js";
-import type { AdventureAction, AdventureSnapshot } from './adventure-types.js';
+import type { AdventureAction, AdventureSnapshot, EncounterSession } from './adventure-types.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 import type { MovementFrame, MovementCheckpoint } from './movement.js';
 
@@ -10,6 +10,10 @@ export interface RemotePlayerView {
 }
 export interface SharedChatMessage { readonly id: number; readonly speakerId: string | null; readonly name: string; readonly text: string; }
 export type WorldCommand =
+  | { type: 'pause' }
+  | { type: 'resume' }
+  | { type: 'rejoin' }
+  | { type: 'heartbeat' }
   | { type: "interactNpc"; id: "mara" | "inn" }
   | { type: "quest"; id: QuestId; operation: QuestOperation }
   | { type: "equip"; slot: GearSlot; item: GearItemId | null }
@@ -25,6 +29,6 @@ export type ClientWorldMessage =
   | { type: 'join'; token: string; character: LocalCharacter }
   | { type: 'command'; sequence: number; command: WorldCommand };
 export type ServerWorldMessage =
-  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; movement: MovementCheckpoint }
+  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; movement: MovementCheckpoint; session: EncounterSession }
   | { type: 'result'; sequence: number; accepted: boolean }
   | { type: 'error'; text: string };

@@ -3,7 +3,7 @@ import type { CharacterArchetype } from "../host/character-profile.js";
 import { YARD, QUESTS, GEAR, gearName, type QuestId, type QuestOperation, type QuestView, type ProgressionView, type GearSlot, type GearItemId } from "./yard-content.js";
 import type {
   AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot, AdventureLogEntry, SharedAdventure, CombatFeedback,
-  CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView, ThreatAbilityView, MonsterLoreEntry, ThreatForecastEntry, CombatAction, CombatMove,
+  CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView, ThreatAbilityView, MonsterLoreEntry, ThreatForecastEntry, CombatAction, CombatMove, EncounterSession,
 } from "./adventure-types.js";
 import { classAction, classKit } from "./class-kit.js";
 
@@ -70,6 +70,9 @@ interface SharedContext {
   now: () => number;
   online: Map<string, Adventure>;
   characters: Map<string, Adventure>;
+  readonly id: string;
+  mode: "shared" | "paused" | "private";
+  readonly origin: Vector | null;
 }
 interface ChapterState {
   accepted: QuestId[]; completed: QuestId[]; scoutDefeated: boolean;
@@ -196,6 +199,7 @@ class Adventure implements AdventureGame {
   }
   enableNetworkMovement(enabled = true): void { this.movementFrames = enabled ? [] : null; this.movementSequence = 0; this.movementElapsed = 0; }
   enqueueMovement(frames: readonly MovementFrame[]): boolean {
+    if (this.instancePaused()) return false;
     if (!this.movementFrames) this.enableNetworkMovement();
     if (this.movementFrames!.reduce((sum, frame) => sum + frame.seconds, 0) + frames.reduce((sum, frame) => sum + frame.seconds, 0) > 2) return false;
     for (const frame of frames) if (frame.sequence > (this.movementFrames!.at(-1)?.sequence ?? this.movementSequence)) this.movementFrames!.push(frame);
@@ -216,33 +220,132 @@ class Adventure implements AdventureGame {
   private lootOpenId: string | null = null;
 
   static sharedAdventure(options: Pick<AdventureOptions, "save" | "now">): SharedAdventure {
-    const context: SharedContext = { world: initialState("warrior").world, now: options.now ?? Date.now, online: new Map(), characters: new Map() };
+    const context: SharedContext = { world: initialState("warrior").world, now: options.now ?? Date.now, online: new Map(), characters: new Map(), id: "shared", mode: "shared", origin: null };
+    const sessions = new Map<string, SharedContext>();
     const characters = new Map<string, { name: string; game: Adventure }>();
     if (options.save !== undefined) {
       const root = record(JSON.parse(options.save));
-      if ((root.version !== 1 && root.version !== 2) || root.kind !== "shared-adventure" || !Array.isArray(root.characters)) throw new Error("Unsupported shared adventure save.");
+      if ((root.version !== 1 && root.version !== 2 && root.version !== 3) || root.kind !== "shared-adventure" || !Array.isArray(root.characters)) throw new Error("Unsupported shared adventure save.");
       const world = record(root.world), version = root.version === 1 ? 9 : 10;
       const template = savedState(initialState("warrior"));
       context.world = readSave(JSON.stringify({ version, state: { ...template, ...world, phase: "expedition" } }), context.now()).world;
+      const instances = new Map<string, { id: string; origin: Vector; world: WorldState }>();
+      if (root.version === 3) {
+        if (!Array.isArray(root.instances)) throw new Error("Missing saved private encounters.");
+        for (const value of root.instances) {
+          const entry = record(value), ownerId = text(entry.ownerId), id = text(entry.id);
+          if (!id.startsWith('private:') || instances.has(ownerId) || [...instances.values()].some(instance => instance.id === id)) throw new Error("Invalid private encounter identity.");
+          instances.set(ownerId, { id, origin: groundPosition(entry.origin), world: readSave(JSON.stringify({ version: 10, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world });
+        }
+      }
       for (const value of root.characters) {
         const entry = record(value), id = text(entry.id), name = text(entry.name), state = record(entry.state);
         if (!id || characters.has(id)) throw new Error("Invalid shared character identity.");
-        const game = new Adventure({}, context, id);
-        game.state = readSave(JSON.stringify({ version, state: { ...state, ...world } }), context.now());
-        game.state.world = context.world;
+        const instance = instances.get(id);
+        const ownContext: SharedContext = instance
+          ? { world: instance.world, now: context.now, online: new Map(), characters: new Map(), id: instance.id, mode: 'paused', origin: instance.origin }
+          : context;
+        const game = new Adventure({}, ownContext, id);
+        game.state = readSave(JSON.stringify({ version, state: { ...state, ...ownContext.world } }), context.now());
+        game.state.world = ownContext.world;
         characters.set(id, { name, game });
-        context.characters.set(id, game);
+        ownContext.characters.set(id, game);
+        if (instance) sessions.set(id, ownContext);
       }
+      if ([...instances.keys()].some(id => !characters.has(id))) throw new Error("Missing private encounter character.");
     }
     const refresh = () => {
       refreshWorld(context.world, context.now());
       for (const { game } of characters.values()) game.closeMissingLoot();
     };
     refresh();
-    const retarget = (driver: Adventure, t: ThreatState): Adventure | undefined => {
-      const target = driver.chooseTarget(t);
-      if (t.aggro && target && t.targetPlayerId !== target.playerId) { t.targetPlayerId = target.playerId; target.beginCast(t); }
-      return target;
+    const clearInputs = (game: Adventure) => {
+      game.held.clear(); game.mouseForward = false; game.moving = false; game.backpedaling = false; game.stopAutoAttack();
+      game.enableNetworkMovement(false); game.shopOpen = false; game.innOpen = false; game.trade = null; game.lootOpenId = null;
+    };
+    const createPrivate = (id: string, game: Adventure): SharedContext => {
+      const clone = structuredClone(game.state.world);
+      for (const t of clone.threats) {
+        if (t.aggro && (t.targetPlayerId === id || t.contributors.includes(id))) { t.targetPlayerId = id; continue; }
+        t.targetPlayerId = null;
+        if (!t.aggro) continue;
+        t.aggro = false; t.castDuration = 0; t.remainingSeconds = 0; t.moving = false;
+        t.phase = !t.active ? 'dormant' : t.health === 0 ? 'cleared' : 'returning';
+        if (t.head) { t.head.fireballs = []; t.head.pendingFireballs = 0; t.head.nextFireballSeconds = 0; }
+        if (t.wolf) { t.wolf.motion = null; t.wolf.circling = false; t.position.y = 0; }
+      }
+      const privateContext: SharedContext = { world: clone, now: context.now, online: new Map(), characters: new Map(), id: `private:${crypto.randomUUID()}`, mode: "paused", origin: { x: game.state.position.x, y: 0, z: game.state.position.z } };
+      privateContext.characters.set(id, game); sessions.set(id, privateContext);
+      return privateContext;
+    };
+    const pause = (id: string): boolean => {
+      const existing = sessions.get(id);
+      if (existing) {
+        const existingGame = existing.characters.get(id);
+        if (!existingGame) return false;
+        clearInputs(existingGame);
+        existing.online.delete(id); existing.mode = "paused";
+        return true;
+      }
+      const game = context.online.get(id);
+      if (!game || game.shared?.id !== "shared") return false;
+      const privateContext = createPrivate(id, game);
+      for (const threat of context.world.threats) {
+        threat.contributors = threat.contributors.filter(contributor => contributor !== id);
+      }
+      game.shared = privateContext;
+      game.state.world = privateContext.world;
+      clearInputs(game); context.online.delete(id); context.characters.delete(id); privateContext.mode = "paused";
+      return true;
+    };
+    const resume = (id: string): boolean => {
+      const privateContext = sessions.get(id);
+      const game = privateContext?.characters.get(id);
+      if (!privateContext || !game || privateContext.mode !== "paused" || game.state.health <= 0) return false;
+      privateContext.mode = "private"; privateContext.online.set(id, game); clearInputs(game); return true;
+    };
+    const rejoin = (id: string): boolean => {
+      const privateContext = sessions.get(id), game = privateContext?.characters.get(id);
+      if (!privateContext || !game || (privateContext.mode !== "private" && privateContext.mode !== "paused") || game.state.health <= 0 || game.inCombat()) return false;
+      const origin = privateContext.origin ?? game.state.position;
+      game.shared = context; game.state.world = context.world;
+      const destination = { x: origin.x, y: 0, z: origin.z };
+      if (!game.blocked(destination.x, destination.z)) game.state.position = destination;
+      game.state.verticalSpeed = 0; game.state.maneuver = null;
+      if (game.state.position.z <= 0) game.state.phase = 'town';
+      else if (game.state.position.z >= 2) game.state.phase = 'expedition';
+      clearInputs(game); sessions.delete(id); context.characters.set(id, game); context.online.set(id, game); return true;
+    };
+    const session = (id: string): EncounterSession => {
+      const game = characters.get(id)?.game, privateContext = sessions.get(id);
+      if (privateContext && game) return game.sessionView();
+      return { id: "shared", mode: "shared", canRejoin: false, origin: null };
+    };
+    const stepContext = (ctx: SharedContext, seconds: number): void => {
+      if (ctx.mode === "paused") return;
+      const players = [...ctx.online.values()], driver = players[0];
+      if (!driver) return;
+      let remaining = seconds;
+      while (remaining > EPSILON) {
+        const dt = Math.min(remaining, 1 / 60);
+        for (const player of players) player.stepPlayer(dt);
+        for (const t of ctx.world.threats) {
+          t.moving = false; const target = driver.chooseTarget(t);
+          if (t.aggro && target && t.targetPlayerId !== target.playerId) {
+            // A departing player does not rewind the creature's current cast or
+            // ramp. The replacement target inherits the live encounter beat.
+            t.targetPlayerId = target.playerId;
+            t.targetPosition = { ...target.state.position };
+          }
+          if (t.aggro && !target) driver.releaseThreat(t); else (target ?? driver).acquireOrRelease(t, dt);
+        }
+        for (const player of players) player.stepAutoAttack(dt);
+        for (const t of ctx.world.threats) {
+          const target = driver.targetPlayer(t);
+          if (t.aggro && t.active && t.health > 0 && target) target.advanceThreat(t, dt); else if (t.aggro && !target) driver.releaseThreat(t);
+        }
+        remaining -= dt;
+      }
     };
     return {
       join(id, name, archetype) {
@@ -255,56 +358,47 @@ class Adventure implements AdventureGame {
           context.characters.set(id, entry.game);
         } else if (entry.game.state.archetype !== archetype) throw new Error("The saved character has a different calling.");
         entry.name = name;
-        context.online.set(id, entry.game);
+        const privateContext = sessions.get(id);
+        if (privateContext) { entry.game.shared = privateContext; entry.game.state.world = privateContext.world; }
+        else context.online.set(id, entry.game);
         return entry.game;
       },
       leave(id) {
-        const game = context.online.get(id);
-        if (!game) return;
-        game.held.clear(); game.mouseForward = false; game.moving = false; game.backpedaling = false;
-        game.stopAutoAttack();
-        context.online.delete(id);
+        const privateContext = sessions.get(id);
+        if (privateContext) {
+          const game = privateContext.characters.get(id);
+          if (game) clearInputs(game);
+          privateContext.online.delete(id); privateContext.mode = "paused";
+          return;
+        }
+        if (!pause(id)) { const game = context.online.get(id); if (game) clearInputs(game); context.online.delete(id); }
       },
-      getPlayer(id) { return context.online.get(id); },
-      players() { return [...context.online].map(([id, game]) => ({ id, name: characters.get(id)!.name, player: game.snapshot.player })); },
+      pause, resume, rejoin, session,
+      getPlayer(id) { return context.online.get(id) ?? sessions.get(id)?.characters.get(id); },
+      players(instanceId?: string) {
+        const ctx = instanceId && instanceId !== "shared" ? [...sessions.values()].find(instance => instance.id === instanceId) : context;
+        return [...(ctx?.online ?? new Map())].map(([id, game]) => ({ id, name: characters.get(id)!.name, player: game.snapshot.player }));
+      },
       advance(seconds) {
         if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Elapsed time must be finite and nonnegative.");
         refresh();
-        const players = [...context.online.values()], driver = players[0];
-        if (!driver) return;
-        let remaining = seconds;
-        while (remaining > EPSILON) {
-          const dt = Math.min(remaining, 1 / 60);
-          for (const player of players) player.stepPlayer(dt);
-          for (const t of context.world.threats) {
-            t.moving = false;
-            const target = retarget(driver, t);
-            if (t.aggro && !target) driver.releaseThreat(t);
-            else (target ?? driver).acquireOrRelease(t, dt);
-          }
-          for (const player of players) player.stepAutoAttack(dt);
-          for (const t of context.world.threats) {
-            const target = retarget(driver, t);
-            if (t.aggro && t.active && t.health > 0 && target) target.advanceThreat(t, dt);
-            else if (t.aggro && !target) driver.releaseThreat(t);
-          }
-          remaining -= dt;
-        }
+        stepContext(context, seconds);
+        for (const privateContext of sessions.values()) stepContext(privateContext, seconds);
       },
       save() {
         refresh();
-        return JSON.stringify({ version: 2, kind: "shared-adventure", world: context.world,
+        return JSON.stringify({ version: 3, kind: "shared-adventure", world: context.world,
           characters: [...characters].map(([id, { name, game }]) => {
             const { world, ...player } = game.state;
             return { id, name, state: player };
           }),
-        });
+          instances: [...sessions].map(([ownerId, instance]) => ({ id: instance.id, ownerId, origin: instance.origin, mode: instance.mode, world: instance.world })) });
       },
     };
   }
 
   private readonly now: () => number;
-  constructor(options: AdventureOptions, private readonly shared?: SharedContext, private readonly playerId: string | null = null) {
+  constructor(options: AdventureOptions, private shared?: SharedContext, private readonly playerId: string | null = null) {
     this.now = shared?.now ?? options.now ?? Date.now;
     this.state = options.save === undefined ? initialState(options.archetype ?? "warrior") : readSave(options.save, this.now());
     if (shared) { this.state.world = shared.world; }
@@ -313,6 +407,14 @@ class Adventure implements AdventureGame {
       throw new Error("The saved character has a different calling.");
     }
     this.appendLog(options.save === undefined ? "Welcome to Nine-Bell Yard. Visit Mara for potions or Rowan at the inn to rest." : "Welcome back. Your journey has been restored.");
+  }
+
+  private inPrivateInstance(): boolean { return this.shared !== undefined && this.shared.id !== "shared"; }
+  private instancePaused(): boolean { return this.shared?.mode === "paused"; }
+  private sessionView(): EncounterSession {
+    const c = this.shared;
+    if (!c || c.id === "shared") return { id: "shared", mode: "shared", canRejoin: false, origin: null };
+    return { id: c.id, mode: c.mode, canRejoin: (c.mode === "paused" || c.mode === "private") && this.state.health > 0 && !this.inCombat(), origin: c.origin ? { ...c.origin } : null };
   }
 
   get snapshot(): AdventureSnapshot {
@@ -386,6 +488,7 @@ class Adventure implements AdventureGame {
     });
   }
   interactNpc(id: "mara" | "inn"): void {
+    if (this.instancePaused() || this.inPrivateInstance()) { this.report("Services are available only in the shared world."); return; }
     if (this.state.phase === "lost") return;
     if (this.state.phase !== "town" || !this.near(id, 2.5)) {
       this.report(`Move closer to ${id === "mara" ? "Mara" : "Rowan"} to talk.`);
@@ -399,6 +502,7 @@ class Adventure implements AdventureGame {
       : `Rowan says: Welcome to ${YARD.inn}. Come warm yourself by the hearth; rest is on the house.`);
   }
   quest(id: QuestId, operation: QuestOperation): void {
+    if (this.instancePaused() || this.inPrivateInstance()) { this.report("Quest progress is available only in the shared world."); return; }
     const q = QUESTS.find(q => q.id === id), view = this.questViews().find(q => q.id === id);
     if (!q || !view) return;
     if (operation === "accept") {
@@ -416,6 +520,7 @@ class Adventure implements AdventureGame {
   }
   equip(slot: GearSlot, item: GearItemId | null): void {
     const s = this.state;
+    if (this.instancePaused()) return;
     if (s.phase === "lost" || !(slot === "chest" || slot === "mainhand")) return;
     if (item !== null && (!Object.hasOwn(GEAR, item) || !s.chapter.ownedGear.includes(item) || GEAR[item].slot !== slot)) return;
     if (this.inCombat()) {
@@ -425,6 +530,7 @@ class Adventure implements AdventureGame {
     s.chapter.equipment[slot] = item;
   }
   private tradeView() {
+    if (this.inPrivateInstance()) return null;
     if (!this.trade || !this.shopOpen || this.state.phase !== "town" || !this.near("mara", 2.5)) return null;
     const { kind, quantity } = this.trade;
     const step = kind === "supplies" ? MARA_TRADE_RULES.suppliesPerPotion : 1;
@@ -435,6 +541,7 @@ class Adventure implements AdventureGame {
     return { kind, quantity, receivedQuantity, available, canAccept, reason, step } as const;
   }
   setTradeOffer(kind: "supplies" | "potions", quantity: number): void {
+    if (this.instancePaused() || this.inPrivateInstance()) return;
     if (!this.shopOpen || !this.near("mara", 2.5) || this.state.phase !== "town") return;
     const step = kind === "supplies" ? MARA_TRADE_RULES.suppliesPerPotion : 1;
     const available = kind === "supplies" ? this.state.supplies : this.state.potions;
@@ -455,7 +562,7 @@ class Adventure implements AdventureGame {
     const length = Math.hypot(x, z);
     if (length > EPSILON) this.cameraForward = point(x / length, z / length);
   }
-  setMouseForward(active: boolean): void { this.mouseForward = active; }
+  setMouseForward(active: boolean): void { if (!this.instancePaused()) this.mouseForward = active; }
   selectTarget(id: string): void {
     definition(id);
     this.state.selectedThreat = id;
@@ -508,6 +615,7 @@ class Adventure implements AdventureGame {
     return t.contributors.includes(this.playerId ?? "solo") && this.state.chapter.accepted.includes("last-shift") && !this.state.chapter.completed.includes("last-shift");
   }
   private lootAvailable(t: ThreatState): boolean {
+    if (this.inPrivateInstance()) return false;
     if (t.id !== "ritual-guardian") return !t.lootClaimed;
     if (this.state.carriedRelics > 0) return false;
     if (this.state.chapter.accepted.includes("last-shift") && !this.state.chapter.completed.includes("last-shift") && !this.eligibleForRoll(t)) return false;
@@ -538,6 +646,7 @@ class Adventure implements AdventureGame {
     }
   }
   setAction(action: AdventureAction, pressed: boolean): void {
+    if (this.instancePaused()) { if (!pressed) this.held.delete(action); return; }
     if (!pressed) { this.held.delete(action); return; }
     if (this.held.has(action)) return;
     this.held.add(action);
@@ -553,6 +662,11 @@ class Adventure implements AdventureGame {
   }
   private act(action: AdventureAction): void {
     const s = this.state;
+    if (this.instancePaused()) return;
+    if (this.inPrivateInstance() && ["openTrade", "acceptTrade", "buyPotion", "rest", "gather", "ritual", "interact"].includes(action)) {
+      this.report("Services and world rewards are unavailable during a private encounter.");
+      return;
+    }
     if (action === "closeShop") { this.shopOpen = false; this.trade = null; return; }
     if (action === "closeTrade") { this.trade = null; return; }
     if (action === "openTrade") { if (this.shopOpen && this.near("mara", 2.5) && s.phase === "town") this.trade = { kind: "supplies", quantity: 3 }; return; }
@@ -661,7 +775,7 @@ class Adventure implements AdventureGame {
   private attackInRange(t: ThreatState, action: "strike" | "disengage" | "jab"): boolean {
     const s = this.state;
     const range = action === "jab" ? COMBAT_RULES.jab.range : classAction(s.archetype, action).range ?? COMBAT_RULES[action].range;
-    return s.phase === "expedition" && t.active && t.health > 0 && t.phase !== "returning" && distance(s.position, t.position) <= range + EPSILON && this.attackPath(t);
+    return s.phase === "expedition" && t.active && t.health > 0 && t.phase !== "returning" && (!this.inPrivateInstance() || t.aggro) && distance(s.position, t.position) <= range + EPSILON && this.attackPath(t);
   }
   private canUseAttack(t: ThreatState, action: "strike" | "disengage"): boolean {
     return this.actionUnlocked(action) && this.attackInRange(t, action) && (action === "strike" || this.ready() && this.state.stamina >= this.actionCost(action));
@@ -684,7 +798,7 @@ class Adventure implements AdventureGame {
     s.attackSequence += 1; s.presence += 1;
     this.report(`You ${verb} ${definition(t.id).name} for ${dealt} damage${blocked ? ` (${blocked} absorbed by ${t.head ? "Ember Ward" : "Safety Shield"})` : ""}.`, "combat");
     if (t.health === 0) {
-      if (t.id === "scout") for (const player of this.shared ? this.shared.characters.values() : [this]) {
+      if (t.id === "scout" && !this.inPrivateInstance()) for (const player of this.shared ? this.shared.characters.values() : [this]) {
         if (t.contributors.includes(player.playerId ?? "solo") && player.state.chapter.accepted.includes("roll-call")) player.state.chapter.scoutDefeated = true;
       }
       t.shield = 0;
@@ -701,6 +815,7 @@ class Adventure implements AdventureGame {
   }
   private gather(): void {
     const s = this.state;
+    if (this.inPrivateInstance()) { this.report("Private encounters do not grant resources."); return; }
     if (s.phase !== "expedition" || !this.ready()) return;
     if (!this.near("frost-cores", 3)) { this.report("Approach the coolant crystals in the first clearing to gather."); return; }
     if (s.world.resourceRemaining < 3) { this.report("The coolant crystals are regrowing. Return soon to gather more."); return; }
@@ -714,6 +829,7 @@ class Adventure implements AdventureGame {
   }
   private ritual(): void {
     const s = this.state;
+    if (this.inPrivateInstance()) { this.report("Private encounters do not grant world progress."); return; }
     if (s.phase !== "expedition" || !this.ready()) return;
     if (!this.near("ritual-site", 3)) { this.report("Reach the Ninth Bell Engine to offer six coolant crystals."); return; }
     if (s.cargo < 6) { this.report("The offering needs six carried coolant crystals."); return; }
@@ -824,7 +940,7 @@ class Adventure implements AdventureGame {
       }
       s.actionCooldown = 0; s.guardSeconds = 0; s.block = 0; this.shopOpen = false; this.trade = null; this.innOpen = false;
       this.report("You enter The Last Shift. The forest is listening; Nine-Bell Yard lies behind you.");
-    } else if (s.phase === "expedition" && s.position.z <= 0) {
+    } else if (s.phase === "expedition" && s.position.z <= 0 && !this.inPrivateInstance()) {
       const reservedCrystals = s.chapter.accepted.includes("cold-hands") && !s.chapter.completed.includes("cold-hands") ? Math.min(3, s.cargo) : 0;
       const reservedRoll = s.chapter.accepted.includes("last-shift") && !s.chapter.completed.includes("last-shift") ? s.carriedRelics : 0;
       s.phase = "town"; s.supplies += s.cargo - reservedCrystals + s.carriedSalvage; s.bankedRelics += s.carriedRelics - reservedRoll;
@@ -910,6 +1026,7 @@ class Adventure implements AdventureGame {
   private acquireOrRelease(t: ThreatState, dt: number): void {
     if (!t.active || t.health <= 0) return;
     const d = definition(t.id), s = this.state;
+    if (this.inPrivateInstance() && !t.aggro) return;
     if (t.phase === "returning") { this.returnHome(t, dt); return; }
     if (!t.aggro) {
       this.patrol(t, dt);

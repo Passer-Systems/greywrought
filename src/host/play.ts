@@ -251,6 +251,8 @@ let nextFrameTime = 0;
 let nextHudTime = 0;
 const frameInterval = 1000 / 60;
 let paused = false;
+let backgrounded = false;
+let lastEncounterState = '';
 let entering = false;
 let profile: LocalProfile | null = null;
 let profileBlocked = false;
@@ -426,27 +428,68 @@ function returnToRoster(): void {
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }
   paused = false;
+  lastEncounterState = '';
   route = "roster";
   element("pause-panel").hidden = true;
   element("shop-panel").hidden = true;
   element("death-panel").hidden = true;
   renderEntry();
 }
-function setPaused(value: boolean): void {
-  if (!running?.ready || route !== "world" || paused === value) return;
-  if (value) release();
-  paused = value;
-  stopFrames();
+function syncEncounter(): void {
+  if (!running?.ready || route !== "world") return;
+  const { game, world, character } = running;
+  if (game.snapshot.phase === 'lost') { showFallenCharacter(character); return; }
+  const state = `${game.online}:${game.session.id}:${game.session.mode}:${game.inputEnabled}:${backgrounded}`;
+  const changed = state !== lastEncounterState;
+  lastEncounterState = state;
+  const wasPaused = paused;
+  paused = backgrounded || !game.inputEnabled;
+  if (paused && !wasPaused) { release(); world.clearHover(); }
   document.body.dataset.gamePaused = String(paused);
-  audio.update(running.game.snapshot, paused);
+  document.body.dataset.encounterMode = game.session.mode;
+  document.body.dataset.encounterId = game.session.id;
+  document.body.dataset.canRejoin = String(game.session.canRejoin);
+  if (changed) {
+    stopFrames();
+    element('pause-panel').hidden = game.online && game.inputEnabled;
+    button('pause-open').setAttribute('aria-expanded', String(!element('pause-panel').hidden));
+    world.updatePlayers(game.players.filter(player => player.id !== character.id));
+    world.updateChat(game.chat, character.id);
+    world.render(game.snapshot, 0, game.renderPlayer, paused ? undefined : game.serverTime, game.connectionRevision);
+    renderHud(game.snapshot);
+    nameplates?.render(game.snapshot, world, { selfId: character.id, players: game.players });
+    audio.update(game.snapshot, paused);
+    if (!paused) world.canvas.focus();
+  }
+  const waiting = game.online && !game.inputEnabled && game.session.mode !== 'paused';
+  text('pause-title', !game.online ? 'Connection lost' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : 'Private encounter');
+  text('pause-copy', !game.online
+    ? 'Reconnecting… Your encounter pauses when the connection loss is detected. It will stay paused when you return.'
+    : waiting ? 'Saving your encounter while the world continues.'
+    : 'This is your private copy of the encounter. The rest of the world continues without you.');
+  text('pause-rejoin-hint', game.session.canRejoin ? 'Ready to rejoin near where you paused.' : 'Finish combat or retreat before rejoining the world.');
+  button('pause-resume').disabled = !game.online || game.session.mode !== 'paused';
+  button('pause-rejoin').disabled = !game.online || !game.session.canRejoin;
+  button('encounter-rejoin').disabled = !game.online || !game.session.canRejoin;
+  element('encounter-status').hidden = game.session.mode === 'shared' || !game.online || !element('pause-panel').hidden;
+  text('encounter-title', game.session.mode === 'paused' ? 'Paused encounter' : 'Private encounter');
+  text('encounter-pause', game.session.mode === 'paused' ? 'Resume…' : 'Pause');
+  text('encounter-detail', game.session.canRejoin ? 'Ready to rejoin' : 'Finish combat · no rewards');
   save(true);
   scheduleFrame();
 }
+function setBackgrounded(value: boolean): void {
+  backgrounded = value;
+  if (value && running?.ready) { release(); running.game.pause(); }
+  syncEncounter();
+}
 function setMenuOpen(value: boolean): void {
   if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
+  if (value) { release(); running.game.pause(); syncEncounter(); }
   element("pause-panel").hidden = !value;
   button("pause-open").setAttribute("aria-expanded", String(value));
   if (!value) running.world.canvas.focus();
+  syncEncounter();
   save(true);
 }
 function closeEquipment(): void {
@@ -733,7 +776,10 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     const forward = world.forward(); game.setCameraForward(forward.x, forward.z);
     makeEnemyInterface(game.snapshot);
     route = "world";
-    paused = document.hidden || !document.hasFocus();
+    backgrounded = document.hidden || !document.hasFocus();
+    paused = false;
+    lastEncounterState = '';
+    app.unbind.push(game.subscribe(syncEncounter));
     renderEntry();
     renderHud(game.snapshot);
     text("entry-roster-feedback", "");
@@ -741,7 +787,8 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     try { sessionStorage.setItem(resumeKey, character.id); } catch { /* Manual entry remains available without session storage. */ }
     world.canvas.focus();
     save(true);
-    scheduleFrame();
+    if (backgrounded) game.pause();
+    syncEncounter();
   } catch (cause: unknown) {
     if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }
     text("entry-roster-feedback", "Your journey could not be opened. Existing saved progress has been kept. Reload to try again.");
@@ -805,7 +852,10 @@ click("equipment-open", toggleEquipment);
 click("bag-open", toggleBags);
 click("lorebook-open", toggleLorebook);
 click("quest-log-open", toggleQuestLog);
-click("pause-resume", () => setMenuOpen(false));
+click("pause-resume", () => running?.game.resume());
+click("pause-rejoin", () => running?.game.rejoin());
+click("encounter-rejoin", () => running?.game.rejoin());
+click("encounter-pause", () => setMenuOpen(true));
 click("return-roster", returnToRoster);
 click("death-roster", returnToRoster);
 for (const target of [element("map-threats"), element("enemy-intents")]) listen(target, "click", (event) => {
@@ -880,11 +930,11 @@ listen(window, "keyup", (event) => {
   if (action && ![...keys].some((key) => keyActions[key] === action)) running?.game.setAction(action, false);
 }, removers, true);
 listen(element("chat-log-input"), "focus", () => release());
-listen(window, "blur", () => { release(); if (running?.ready) setPaused(true); });
-listen(window, "focus", () => { if (!document.hidden) setPaused(false); });
-listen(document, "visibilitychange", () => { setPaused(document.hidden || !document.hasFocus()); });
-listen(window, "pagehide", () => { release(); save(true); });
-listen(window, "beforeunload", () => { release(); save(true); });
+listen(window, "blur", () => setBackgrounded(true));
+listen(window, "focus", () => { if (!document.hidden) setBackgrounded(false); });
+listen(document, "visibilitychange", () => setBackgrounded(document.hidden || !document.hasFocus()));
+listen(window, "pagehide", () => { release(); running?.game.pause(); save(true); });
+listen(window, "beforeunload", () => { release(); running?.game.pause(); save(true); });
 listen(window, "pointerdown", (event) => { if (event.isTrusted) void audio.unlock(); });
 
 function stopFrames(): void {
