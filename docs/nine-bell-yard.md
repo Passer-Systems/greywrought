@@ -86,8 +86,8 @@ the monster lorebook. The tracker covers world names and enemy nameplates.
 Right-click earned gear to equip it. Outside combat this is immediate, in town
 or in the field. During combat, a gear change occupies one queued turn without
 spending stamina; its stats change when the turn resolves. It can be moved or
-cancelled like other planned moves. Locked hotbar abilities retain their empty
-slot frames until earned.
+cancelled like other planned moves. Locked hotbar abilities retain their icon and frame, dimmed with a lock
+marker; their tooltip names the quest that unlocks them.
 
 The neutral Briar bee becomes a fast pursuer when attacked: 4.8 metres per second
 within 18 metres of its home, versus its peaceful 1.1-metre-per-second patrol.

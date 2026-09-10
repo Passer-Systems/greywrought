@@ -493,14 +493,13 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]');
     const unlocked = snapshot.progression.unlockedActions.includes(action);
     if (control) {
-      control.classList.toggle("action-empty", !unlocked);
+      control.classList.toggle("action-locked", !unlocked);
       control.disabled = !unlocked || !available || full || availableStamina < cost;
-      control.querySelector<HTMLImageElement>(".action-art img")!.hidden = !unlocked;
       control.setAttribute("aria-label", !unlocked ? `Locked ability · ${action === "disengage" ? "Complete A Name on the Roll" : "Complete Clock Out"}` : action === "strike" ? player.archetype === "mage" ? "Arcane Bolt" : player.archetype === "hunter" ? "Aimed Shot" : "Lunge" : action === "brace" ? "Block" : action === "disengage" ? "Disengage" : "Blood Rage");
       control.style.setProperty("--recovery", "0");
       control.dataset.range = available ? playerRange(snapshot, action).state : "none";
     }
-    const detail = !unlocked ? "Earned by completing Rowan’s quests" : !available ? "Select a living enemy beyond the gate" : full ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " free stamina" : (replacing ? "Replace · " : "Queue · ") + cost + " stamina";
+    const detail = !unlocked ? action === "disengage" ? "Complete A Name on the Roll to unlock" : "Complete Clock Out to unlock" : !available ? "Select a living enemy beyond the gate" : full ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " free stamina" : (replacing ? "Replace · " : "Queue · ") + cost + " stamina";
     const range = available ? playerRange(snapshot, action) : null;
     text(label, detail + (range?.text ? " · " + range.text : ""));
   }
