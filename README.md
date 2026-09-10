@@ -20,7 +20,7 @@ have a recognizable cyan crystal model and a hover tooltip with quest progress.
 Combat has three one-second turns, one second to choose the enemy's next move,
 and five seconds to prepare. Queue up to three moves using five stamina. Each
 enemy announces one move in the coming window. Additional enemies join the
-shared rhythm. Hover an intention for its damage, range and response; press L
+shared rhythm. Hover an intention for its damage, range and response; press J
 for the lorebook. Faded attack art and a distance marker mean out of range now.
 
 Foreman Nine has a targeted pulse, a dodgeable press and a shielded interval.
@@ -78,7 +78,7 @@ R offers six carried crystals at the engine. F speaks with NPCs or opens nearby
 corpse loot; click an item to take it. The quest tracker gives the destination.
 
 C opens Character with the Classic equipment slots. Earned coat and class weapon
-can be equipped or removed there. B opens your backpack; L opens the monster
+can be equipped or removed there. B opens your backpack; L opens the quest log; J opens the monster
 lorebook. Escape closes a window or opens Settings. Movement continues with
 windows open. Unit frames can be unlocked, moved and mirrored in Settings.
 

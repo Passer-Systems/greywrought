@@ -26,7 +26,7 @@ async function moveTo(x: number, z: number, tolerance = 0.5) {
 try {
   await page.enter();
   await page.waitFor('[...document.querySelectorAll("#player-frame img, #target-frame img")].every(image => image.complete && image.naturalWidth > 0)');
-  await page.press("KeyL");
+  await page.press("KeyJ");
   await page.waitFor('!document.getElementById("lorebook-panel").hidden');
   for (const id of ["scout", "patrol", "nest", "warder", "ritual-guardian"]) {
     await page.click('#lorebook-panel button[data-monster-id="' + id + '"]');
@@ -42,7 +42,7 @@ try {
   await page.key("KeyW", false);
   check(await page.evaluate<boolean>('!document.getElementById("lorebook-panel").hidden'), "Moving must leave the lorebook open");
   await page.press("Escape"); await page.waitFor('document.getElementById("lorebook-panel").hidden && document.body.dataset.gamePaused === "false"');
-  await page.press("KeyL"); await page.click("#lorebook-close");
+  await page.press("KeyJ"); await page.click("#lorebook-close");
   await page.waitFor('document.getElementById("lorebook-panel").hidden');
   await moveTo(5, -11);
   await page.press("KeyF");
@@ -269,5 +269,5 @@ try {
   await page.waitFor(`document.body.dataset.entryRoute === "world" && Number(document.body.dataset.gameSupplies) === ${15 + lootQuantity}`);
   check(page.errors.length === 0, "Browser exceptions occurred");
   await Bun.write(`${page.output}/result.json`, JSON.stringify({ gathered, lootQuantity, looted, beforeBrace, predictedDamage, braced, avoided, returned, reopened: await page.read(), errors: page.errors }, null, 2));
-  console.log(`PASS: Lorebook L and movement, five stamina, prequeued opening defense, QE/QE3 and live retiming, free fillers, keyboard swaps, queue/reload and three-move cap; inn, merchant, bag, loot/reload, neutral/aggro, log, nest defense/dodge, extraction. Evidence: ${page.output}`);
+  console.log(`PASS: Lorebook J and movement, five stamina, prequeued opening defense, QE/QE3 and live retiming, free fillers, keyboard swaps, queue/reload and three-move cap; inn, merchant, bag, loot/reload, neutral/aggro, log, nest defense/dodge, extraction. Evidence: ${page.output}`);
 } finally { await hold([]).catch(() => {}); await page.close(); }

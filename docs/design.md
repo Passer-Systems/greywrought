@@ -386,7 +386,7 @@ Their single committed special is shown truthfully, without previewing later win
 
 ## In-game lorebook
 
-L toggles the lorebook. Every current monster has a page with its portrait,
+J toggles the lorebook. L opens the quest log. Every current monster has a page with its portrait,
 disposition, health, engagement behavior, opener, all abilities,
 move sequences and useful responses. These entries consume the same ability
 and sequence definitions as combat. The head chooses its ability from resolved fight state; each enemy independently chooses

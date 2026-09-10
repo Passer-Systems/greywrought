@@ -56,7 +56,7 @@ export function createLorebook(host: HTMLElement, onClose: () => void, portrait:
     }
     node("h3", article, "lorebook-section-title", "How to respond");
     node("p", article, "lorebook-strategy", entry.strategy);
-    node("p", article, "lorebook-footer", "The yard keeps moving while you read. L or Esc closes the book.");
+    node("p", article, "lorebook-footer", "The yard keeps moving while you read. J or Esc closes the book.");
   }
   for (const entry of entries) {
     const tab = node("button", nav, "", entry.name); tab.type = "button"; tab.dataset.monsterId = entry.id;

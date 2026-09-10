@@ -731,12 +731,12 @@ listen(window, "keydown", (event) => {
     if (!event.repeat) toggleEquipment();
     return;
   }
-  if (event.code === "KeyJ") {
+  if (event.code === "KeyL") {
     event.preventDefault();
     if (!event.repeat) toggleQuestLog();
     return;
   }
-  if (event.code === "KeyL") {
+  if (event.code === "KeyJ") {
     event.preventDefault();
     if (!event.repeat) toggleLorebook();
     return;
