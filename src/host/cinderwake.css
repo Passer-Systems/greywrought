@@ -2127,6 +2127,8 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .adventure-actions .action-recovery-shade {height:calc(var(--recovery,0) * 31px);}
 .adventure-actions button:hover {background:none;border-color:transparent;}
 .adventure-actions button:hover .action-art {border-color:#ffe5a8;}
+.adventure-actions button.action-dragging {opacity:.42;}
+.adventure-actions button.action-drag-over .action-art {border-color:#ffe083;box-shadow:0 0 0 2px #ffe083,0 0 12px #ffbd45;}
 .adventure-actions .action-empty .action-art {background:#10191542;border-color:#adaf9d8c;}
 .adventure-actions .action-empty:disabled {cursor:default;}
 .adventure-actions .action-locked .action-art img {filter:grayscale(.65) brightness(.6);}

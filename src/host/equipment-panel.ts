@@ -37,6 +37,7 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
   let portraitClass: CharacterArchetype | null = null;
   let snapshot: AdventureSnapshot | null = null;
   let detailSignature = "";
+  let activeDraggedGear: GearItemId | null = null;
   const starterName = (archetype: CharacterArchetype) => archetype === "mage" ? "Starter wand" : archetype === "hunter" ? "Starter bow" : archetype === "alchemist" ? "Starter reagent kit" : archetype === "artificer" ? "Starter rivet tool" : "Starter sword";
   const weaponIcon = (archetype: CharacterArchetype) => archetype === "mage" || archetype === "alchemist" ? "wand-bolt.svg" : archetype === "hunter" ? "bow-shot.svg" : archetype === "artificer" ? "lightning-bolt.png" : "sword-strike.png";
 
@@ -75,11 +76,46 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     root.dataset.selectedSlot = id;
   }
 
+  const draggedGear = (event: DragEvent): GearItemId | null => {
+    const value = event.dataTransfer?.getData("application/x-greywrought-gear");
+    return value === "insulated-coat" || value === "yard-weapon" ? value : null;
+  };
+  const clearDropHighlights = (): void => {
+    for (const control of buttons.values()) {
+      delete control.dataset.dropTarget;
+      delete control.dataset.dropValid;
+    }
+  };
+  const showCompatibleSlots = (event: Event): void => {
+    const gear = (event as CustomEvent).detail as GearItemId;
+    if (gear !== "insulated-coat" && gear !== "yard-weapon") return;
+    activeDraggedGear = gear;
+    clearDropHighlights();
+    for (const [slotId, control] of buttons) {
+      if (GEAR[gear]?.slot === slotId) { control.dataset.dropTarget = "true"; control.dataset.dropValid = "true"; }
+    }
+  };
+  const endGearDrag = (): void => { activeDraggedGear = null; clearDropHighlights(); };
+  document.addEventListener("greywrought-gear-dragstart", showCompatibleSlots);
+  document.addEventListener("greywrought-gear-dragend", endGearDrag);
+
   for (const [id, label, column] of slots) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "equipment-slot";
     button.dataset.equipmentSlot = id;
+    button.addEventListener("dragover", event => {
+      const gear = activeDraggedGear;
+      if (!gear || GEAR[gear].slot !== id) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      button.dataset.dropTarget = "true"; button.dataset.dropValid = "true";
+    });
+    button.addEventListener("drop", event => {
+      event.preventDefault();
+      const gear = draggedGear(event) ?? activeDraggedGear; clearDropHighlights(); activeDraggedGear = null;
+      if (gear && GEAR[gear].slot === id && snapshot?.progression.ownedGear.includes(gear)) onEquip(id, gear);
+    });
     button.setAttribute("aria-controls", "equipment-details");
     const mark = document.createElement("span");
     mark.className = "equipment-slot-mark";
@@ -146,18 +182,20 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
   }
   return {
     get isOpen(): boolean { return root.open; },
-    open(character: LocalCharacter, snapshot: AdventureSnapshot): void {
+    open(character: LocalCharacter, snapshot: AdventureSnapshot, focus = true): void {
       update(character, snapshot);
       if (root.open) return;
       previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       root.show();
       document.getElementById("equipment-open")?.setAttribute("aria-expanded", "true");
-      buttons.get(selected)?.focus({ preventScroll: true });
+      if (focus) buttons.get(selected)?.focus({ preventScroll: true });
     },
     close,
     update,
     dispose(): void {
       close();
+      document.removeEventListener("greywrought-gear-dragstart", showCompatibleSlots);
+      document.removeEventListener("greywrought-gear-dragend", endGearDrag);
       closeButton.removeEventListener("click", requestClose);
       root.removeEventListener("cancel", cancel);
       for (const button of buttons.values()) button.remove();

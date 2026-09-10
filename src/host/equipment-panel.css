@@ -51,3 +51,4 @@
 #equipment-toggle { margin-top:9px; padding:6px 16px; border:2px ridge #a58b57; border-radius:3px; color:#f0dc9d; background:#3f3d27; font:var(--ui-font-body) Georgia,serif; }
 #equipment-toggle:disabled { opacity:.6; cursor:default !important; }
 .equipment-slot[data-equipped="true"] small { color:#b9d39b; }
+.equipment-slot[data-drop-target="true"][data-drop-valid="true"] { border-color:#98d879; background:#294b2b; box-shadow:0 0 0 2px #b7f18b80, inset 0 0 12px #75d25966; }

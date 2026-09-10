@@ -1,6 +1,6 @@
 {
   "name": "greywrought",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.3.13",
