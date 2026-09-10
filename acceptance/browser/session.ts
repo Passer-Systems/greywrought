@@ -15,7 +15,12 @@ interface Reply {
   };
 }
 
-export async function openBrowser(label: string) {
+interface BrowserOptions {
+  readonly localOnly?: boolean;
+  readonly beforeNavigate?: (call: (method: string, params?: object) => Promise<Reply>) => Promise<void>;
+}
+
+export async function openBrowser(label: string, options: BrowserOptions = {}) {
   const port = Number(Bun.env.GREYWROUGHT_DEBUG_PORT ?? 9297);
   const url = Bun.env.GREYWROUGHT_GAME_URL ?? "http://127.0.0.1:4173/";
   const output = `${process.cwd()}/build/browser/${label}-${process.pid}`;
@@ -24,6 +29,7 @@ export async function openBrowser(label: string) {
     Bun.env.CHROME_PATH ?? "google-chrome", "--headless=new", "--no-sandbox",
     "--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check", "--mute-audio",
     "--password-store=basic", "--enable-unsafe-swiftshader",
+    ...(options.localOnly ? ["--disable-background-networking", "--proxy-server=http://127.0.0.1:9", "--proxy-bypass-list=127.0.0.1;localhost;[::1]"] : []),
     ...(Bun.env.GREYWROUGHT_SOFTWARE_RENDERING === "1" ? ["--use-angle=swiftshader"] : []),
     ...(Bun.env.GREYWROUGHT_VULKAN === "1" ? ["--use-angle=vulkan", "--enable-features=Vulkan", "--disable-vulkan-surface"] : []),
     `--remote-debugging-port=${port}`, `--user-data-dir=${output}/profile`,
@@ -31,6 +37,7 @@ export async function openBrowser(label: string) {
   ], { stdout: Bun.file(`${output}/chrome.log`), stderr: Bun.file(`${output}/chrome-errors.log`) });
   let socket: WebSocket | undefined;
   const errors: unknown[] = [];
+  const requests: string[] = [];
   const pending = new Map<number, { resolve: (reply: Reply) => void; reject: (error: Error) => void }>();
   let sequence = 0;
   try {
@@ -43,6 +50,8 @@ export async function openBrowser(label: string) {
     socket.onmessage = event => {
       const message = JSON.parse(String(event.data)) as Reply;
       if (message.method === "Runtime.exceptionThrown") errors.push(message.params);
+      if (message.method === "Network.requestWillBeSent") requests.push((message.params as { request: { url: string } }).request.url);
+      if (message.method === "Network.webSocketCreated") requests.push((message.params as { url: string }).url);
       if (message.id !== undefined) {
         const handler = pending.get(message.id);
         pending.delete(message.id);
@@ -122,11 +131,13 @@ export async function openBrowser(label: string) {
     }
     await call("Runtime.enable");
     await call("Page.enable");
+    if (options.localOnly) await call("Network.enable");
     await call("Emulation.setFocusEmulationEnabled", { enabled: true });
+    await options.beforeNavigate?.(call);
     await call("Page.navigate", { url });
     await call("Page.bringToFront");
     await waitFor('document.body !== null && location.href !== "about:blank"');
-    return { url, output, errors, call, evaluate, waitFor, key, press, click, shot, enter, read, reload,
+    return { url, output, errors, requests, call, evaluate, waitFor, key, press, click, shot, enter, read, reload,
       async close() { socket?.close(); chrome.kill(); await chrome.exited; },
     };
   } catch (error) { socket?.close(); chrome.kill(); await chrome.exited; throw error; }

@@ -60,10 +60,59 @@ data must be tested against an isolated local world and deployed together with
 the server before exposing the new client. `bun run preview` serves a built
 client on port 4180 against the same public world; `GREYWROUGHT_PREVIEW_DIR`
 can select a completed build while development continues separately.
+To develop against a local shared world, use `GREYWROUGHT_LOCAL_WORLD=1 bun run dev`.
 
 Gameplay lives in `greywrought:src/game/`. The existing Three.js presentation,
 input, audio, and browser persistence live in `greywrought:src/host/`.
 Assets and their attribution live in `greywrought:assets/`.
+
+## Offline demo with multiple clients
+
+Prepare the checkout with Bun 1.3.13 while internet access is available:
+
+```sh
+bun install --frozen-lockfile
+bun run build
+```
+
+Then, including with Wi-Fi off, start the local game from that checkout:
+
+```sh
+bun run demo
+```
+
+Open **http://127.0.0.1:4180/** in two separate browser profiles, or one normal
+window and one private window. Create a character in each. Both players share
+the same local world, including movement, enemies and chat. Ordinary tabs share
+a character roster; the same character cannot play in two clients at once.
+Keep the terminal running while playing. The game files, music, models and world
+server are all local; no public server or internet access is needed after setup.
+
+Escape opens the Encounter tab and pauses your private copy while the other
+player continues. A lost client connection also leaves that character paused;
+reconnecting never resumes automatically. Choose **Resume encounter**, finish
+combat or retreat, then use **Rejoin main world** in the top bar. Turning off
+Wi-Fi does not interrupt localhost connections; it demonstrates internet
+independence, not a dropped connection to this local server.
+
+Ctrl-C saves the local world to `greywrought:build/demo-shared-world.json`.
+Restarting `bun run demo` restores it, with returning players paused until they
+resume. `GREYWROUGHT_WORLD_SAVE` selects a different save; relative save paths
+are resolved from the checkout root. `GREYWROUGHT_PORT` changes the port.
+Use the same browser profile and URL to retain character access. Private-window
+access is temporary and disappears when all private windows close.
+
+This launcher binds to this computer only. Multiple clients on this computer
+work offline; another computer's `localhost` refers to that other computer.
+For machines using Nix instead of an installed Bun, prepare Bun in a Nix shell
+before going offline; the cached runtime can then be started with
+`nix shell --offline nixpkgs#bun -c bun run demo`.
+
+After building, `bun run test:offline-demo` exercises two independent Chrome
+profiles with external traffic blocked: shared movement/chat, disconnect and
+private-zone isolation, explicit resume/rejoin, movement afterward, and saved
+recovery after restarting the server. It also checks that neither client
+requests external game resources. Chrome must be installed before running it.
 
 ## Controls
 
@@ -84,8 +133,9 @@ corpse loot; click an item to take it. The quest tracker gives the destination.
 
 C opens Character with the Classic equipment slots. Earned coat and class weapon
 can be equipped or removed there. B opens your backpack; L opens the quest log; J opens the monster
-lorebook. Escape closes a window or opens Settings. Movement continues with
-windows open. Unit frames can be unlocked, moved and mirrored in Settings.
+lorebook. Escape closes a window or opens Encounter. Opening the game menu pauses
+your private encounter. Unit frames can be unlocked, moved and mirrored in the
+separate Settings tab.
 
 Return to the roster to create or delete a selected character. Defeated
 characters remain in the RIP tab. Access is retained in the browser profile;
