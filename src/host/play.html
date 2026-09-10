@@ -181,8 +181,17 @@
           <section id="equipment-details" class="equipment-details" aria-live="polite" aria-label="Selected equipment slot"></section>
           <p class="equipment-hint">Select a slot to inspect · C or Esc to return</p>
         </dialog>
-        <aside id="encounter-status" class="encounter-status" hidden aria-label="Private encounter"><strong id="encounter-title">Private encounter</strong><span id="encounter-detail">Finish combat · no rewards</span><button id="encounter-pause" type="button">Pause</button><button id="encounter-rejoin" type="button" disabled>Rejoin world</button></aside>
-        <section id="pause-panel" class="adventure-modal" role="dialog" aria-labelledby="pause-title" hidden><div class="parchment"><h2 id="pause-title">Paused encounter</h2><p id="pause-copy">This is your private copy of the encounter. The rest of the world continues without you.</p><p>No loot, resources, or experience here. Damage and used supplies carry back.</p><p id="pause-rejoin-hint">Finish combat or retreat before rejoining the world.</p><button id="pause-resume" type="button">Resume encounter</button><button id="pause-rejoin" type="button" disabled>Rejoin world</button><button id="return-roster" type="button">Choose a character</button></div></section>
+        <aside id="encounter-status" class="encounter-status" hidden aria-label="Private encounter"><strong id="encounter-title">Private encounter</strong><span id="encounter-detail">Finish combat · no rewards</span><button id="encounter-pause" type="button">Pause</button><button id="encounter-rejoin" type="button" disabled>Rejoin main world</button></aside>
+        <section id="pause-panel" class="adventure-modal" role="dialog" aria-label="Game menu" hidden><div class="parchment">
+          <div class="pause-tabs" role="tablist" aria-label="Game menu">
+            <button id="pause-tab-encounter" type="button" role="tab" aria-selected="true" aria-controls="pause-encounter">Encounter</button>
+            <button id="pause-tab-settings" type="button" role="tab" aria-selected="false" aria-controls="pause-settings" tabindex="-1">Settings</button>
+          </div>
+          <div id="pause-encounter" role="tabpanel" aria-labelledby="pause-tab-encounter" tabindex="0">
+            <h2 id="pause-title">Paused encounter</h2><p id="pause-copy">This is your private copy of the encounter. The rest of the world continues without you.</p><p>No loot, resources, or experience here. Damage and used supplies carry back.</p><p id="pause-rejoin-hint">Finish combat or retreat before rejoining the main world.</p><button id="pause-resume" type="button">Resume encounter</button><button id="return-roster" type="button">Choose a character</button>
+          </div>
+          <div id="pause-settings" role="tabpanel" aria-labelledby="pause-tab-settings" tabindex="0" hidden><h2>Settings</h2></div>
+        </div></section>
         <section id="death-panel" class="adventure-modal" role="dialog" aria-label="Expedition ended" hidden><div class="parchment"><span class="eyebrow">YOUR JOURNEY HAS ENDED</span><h2>The yard remembers</h2><p>This adventurer has fallen. Their memory rests in the 🪦 RIP tab.</p><button id="death-roster">Choose a character</button></div></section>
       </div>
     </main>

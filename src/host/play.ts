@@ -467,9 +467,8 @@ function syncEncounter(): void {
     ? 'Reconnecting… Your encounter pauses when the connection loss is detected. It will stay paused when you return.'
     : waiting ? 'Saving your encounter while the world continues.'
     : 'This is your private copy of the encounter. The rest of the world continues without you.');
-  text('pause-rejoin-hint', game.session.canRejoin ? 'Out of combat. Ready to rejoin near where you paused.' : 'In combat. Finish the encounter before rejoining the world.');
+  text('pause-rejoin-hint', game.session.canRejoin ? 'Out of combat. Resume your encounter to rejoin the main world from the top bar.' : 'In combat. Finish the encounter before rejoining the main world.');
   button('pause-resume').disabled = !game.online || game.session.mode !== 'paused';
-  button('pause-rejoin').disabled = !game.online || !game.session.canRejoin;
   button('encounter-rejoin').disabled = !game.online || !game.session.canRejoin;
   element('encounter-status').hidden = game.session.mode === 'shared' || !game.online || !element('pause-panel').hidden;
   text('encounter-title', game.session.mode === 'paused' ? 'Paused encounter' : 'Private encounter');
@@ -483,9 +482,17 @@ function setBackgrounded(value: boolean): void {
   if (value && running?.ready) release();
   syncEncounter();
 }
-function setMenuOpen(value: boolean): void {
+function selectMenuTab(tab: "encounter" | "settings"): void {
+  for (const name of ["encounter", "settings"] as const) {
+    const selected = name === tab;
+    element(`pause-${name}`).hidden = !selected;
+    button(`pause-tab-${name}`).setAttribute("aria-selected", String(selected));
+    button(`pause-tab-${name}`).tabIndex = selected ? 0 : -1;
+  }
+}
+function setMenuOpen(value: boolean, tab: "encounter" | "settings" = "encounter"): void {
   if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
-  if (value) { release(); running.game.pause(); syncEncounter(); }
+  if (value) { selectMenuTab(tab); release(); running.game.pause(); syncEncounter(); }
   element("pause-panel").hidden = !value;
   button("pause-open").setAttribute("aria-expanded", String(value));
   if (!value) running.world.canvas.focus();
@@ -846,13 +853,22 @@ click("entry-delete-accept", deletePendingCharacter);
 click("entry-creator-back", () => { route = profile?.characters.length ? "roster" : "account"; renderEntry(); });
 click("entry-change-character", () => { if (!entering) { route = "creator"; renderEntry(); } });
 click("entry-enter-world", () => { const character = selectedCharacter(); if (character) void enterWorld(character); });
-click("pause-open", () => setMenuOpen(element("pause-panel").hidden));
+click("pause-open", () => setMenuOpen(element("pause-panel").hidden, "settings"));
+for (const tab of ["encounter", "settings"] as const) {
+  click(`pause-tab-${tab}`, () => selectMenuTab(tab));
+  listen(button(`pause-tab-${tab}`), "keydown", (event) => {
+    if (!(event instanceof KeyboardEvent) || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? "encounter" : event.key === "End" ? "settings" : tab === "encounter" ? "settings" : "encounter";
+    selectMenuTab(next);
+    button(`pause-tab-${next}`).focus();
+  });
+}
 click("equipment-open", toggleEquipment);
 click("bag-open", toggleBags);
 click("lorebook-open", toggleLorebook);
 click("quest-log-open", toggleQuestLog);
 click("pause-resume", () => running?.game.resume());
-click("pause-rejoin", () => running?.game.rejoin());
 click("encounter-rejoin", () => running?.game.rejoin());
 click("encounter-pause", () => setMenuOpen(true));
 click("return-roster", returnToRoster);

@@ -55,7 +55,7 @@ try {
   check(frozen.snapshot.player.inCombat, 'Paused encounter must retain combat membership');
   check(await page.evaluate<boolean>('document.getElementById("player-combat-status").textContent==="In combat"'), 'Player frame must show the active combat state');
   check(frozen.players.length === 0, 'Private encounter must exclude other players');
-  check(await page.evaluate<boolean>('document.getElementById("pause-rejoin").disabled'), 'Cannot rejoin while combat remains');
+  check(await page.evaluate<boolean>('document.getElementById("encounter-rejoin").disabled'), 'Cannot rejoin while combat remains');
   const observerX = observed!.snapshot.player.position.x;
   command({type:'camera',x:1,z:0}); command({type:'action',action:'forward',pressed:true});
   await page.key('KeyW', true);

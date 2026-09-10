@@ -83,6 +83,7 @@ try {
   await page.waitFor('document.getElementById("bag-panel").hidden');
   await page.press("Escape");
   await page.waitFor('!document.getElementById("pause-panel").hidden');
+  await page.click('#pause-tab-settings');
   await page.click('[data-volume="music"]');
   await moveWithWindow('!document.getElementById("pause-panel").hidden');
   await page.press("Escape");

@@ -52,7 +52,7 @@ export function createAdventureAudio(): AdventureAudio {
     <label style="display:flex;align-items:center;gap:10px">Effects <input data-volume="effects" aria-label="Effects volume" type="range" min="0" max="100" style="flex:1;min-width:70px"><output data-level="effects"></output></label>
     <label style="display:flex;align-items:center;gap:8px"><input data-mute type="checkbox"> Mute all sound</label>
     <small style="line-height:1.4">“Frost Waltz” by <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100516" target="_blank" rel="noopener noreferrer" style="color:inherit">Kevin MacLeod (incompetech.com)</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style="color:inherit">CC BY 4.0</a><br>Sound effects: Kenney · CC0</small>`;
-  document.querySelector("#pause-panel > div")?.append(panel);
+  document.querySelector("#pause-settings")?.append(panel);
   const listeners = new AbortController();
   function stopEffects(): void {
     for (const source of playing) source.stop();

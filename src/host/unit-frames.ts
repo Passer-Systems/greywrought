@@ -114,7 +114,7 @@ export function createUnitFrames(host: HTMLElement) {
     <label><input id="unit-frames-mirrored" type="checkbox"> Mirror symmetrically</label>
     <small>Unlock, then hold the left mouse button on either frame to move it. Close this menu for more room.</small>
     <button id="unit-frames-reset" type="button">Reset frame defaults</button>`;
-  document.querySelector("#pause-panel > div")?.append(panel);
+  document.querySelector("#pause-settings")?.append(panel);
   const locked = panel.querySelector<HTMLInputElement>("#unit-frames-locked")!;
   const mirrored = panel.querySelector<HTMLInputElement>("#unit-frames-mirrored")!;
   let drag: { side: FrameSide; element: HTMLElement; pointerId: number; dx: number; dy: number } | null = null;
