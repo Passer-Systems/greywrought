@@ -1,5 +1,6 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { GEAR, QUESTS, gearName, type GearItemId, type GearSlot, type QuestId } from "../game/yard-content.js";
+import { classAction } from "../game/class-kit.js";
 
 /**
  * A small, transient reward card shown once when a quest is turned in.
@@ -8,6 +9,8 @@ import { GEAR, QUESTS, gearName, type GearItemId, type GearSlot, type QuestId } 
  */
 export interface QuestRewardNotice {
   update(snapshot: AdventureSnapshot): void;
+  /** Clear transition history when the local player changes character. */
+  reset(): void;
   dispose(): void;
 }
 
@@ -23,8 +26,7 @@ function rewardLine(snapshot: AdventureSnapshot, questId: QuestId): string[] {
   if (reward.potions) lines.push(`${reward.potions} healing potion${reward.potions === 1 ? "" : "s"}`);
   if (reward.supplies) lines.push(`${reward.supplies} supplies`);
   if (reward.level > 1) lines.push(`Level ${reward.level}`);
-  if (reward.ability === "disengage") lines.push("Disengage · key 3");
-  if (reward.ability === "bloodRage") lines.push("Blood Rage · key 4");
+  if (reward.ability) lines.push(`${classAction(snapshot.player.archetype, reward.ability).name} · key ${reward.ability === "disengage" ? "3" : "4"}`);
   return lines;
 }
 
@@ -91,8 +93,11 @@ export function createQuestRewardNotice(host: HTMLElement, options: QuestRewardN
       equip.addEventListener("click", () => {
         if (!activeGear) return;
         options.onEquip(activeGear.slot, activeGear.item);
+        // The server may reject an equip while the player is changing state.
+        // Keep the control available instead of trapping the player behind a
+        // permanently disabled button; the next snapshot will confirm success.
         equip.textContent = "Equip requested";
-        equip.disabled = true;
+        window.setTimeout(() => { if (!equip.isConnected || panel.hidden) return; equip.textContent = `Equip ${gearName(activeGear!.item, snapshot.player.archetype)}`; }, 700);
       });
       actions.append(equip);
     }
@@ -108,6 +113,13 @@ export function createQuestRewardNotice(host: HTMLElement, options: QuestRewardN
       seen = current;
       if (completed) show(snapshot, completed.id);
       else if (activeQuest && snapshot.progression.equipment[activeGear?.slot ?? "chest"] === activeGear?.item) dismiss();
+    },
+    reset() {
+      initialized = false;
+      seen = new Map();
+      panel.hidden = true;
+      activeGear = null;
+      activeQuest = null;
     },
     dispose() { panel.remove(); style.remove(); },
   };

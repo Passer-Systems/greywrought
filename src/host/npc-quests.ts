@@ -1,5 +1,6 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { QUESTS, GEAR, gearName, type QuestId, type QuestOperation } from "../game/yard-content.js";
+import { classAction } from "../game/class-kit.js";
 
 export type QuestCallback = (id: QuestId, operation: QuestOperation) => void;
 
@@ -77,7 +78,7 @@ export function createNpcQuests(
     if (view.status !== "completed" || completedHere === view.id) {
       if (view.status !== "completed") node("p", article, `${definition.objective} · ${view.progress} / ${view.required}`, "npc-quest-objective");
       const earned = definition.reward;
-      const facts = [earned.gear ? `${gearName(earned.gear, snapshot.player.archetype)} (${GEAR[earned.gear].damageReduction ? "2 armor" : "+3 attack damage"})` : "", earned.potions ? `${earned.potions} potions` : "", earned.supplies ? `${earned.supplies} supplies` : "", earned.level > 1 ? `Level ${earned.level}` : "", earned.ability === "disengage" ? "Disengage · key 3" : earned.ability === "bloodRage" ? "Blood Rage · key 4" : ""].filter(Boolean);
+      const facts = [earned.gear ? `${gearName(earned.gear, snapshot.player.archetype)} (${GEAR[earned.gear].damageReduction ? "2 armor" : "+3 attack damage"})` : "", earned.potions ? `${earned.potions} potions` : "", earned.supplies ? `${earned.supplies} supplies` : "", earned.level > 1 ? `Level ${earned.level}` : "", earned.ability ? `${classAction(snapshot.player.archetype, earned.ability).name} · key ${earned.ability === "disengage" ? "3" : "4"}` : ""].filter(Boolean);
       node("p", article, (view.status === "completed" ? "Received: " : "Rewards: ") + facts.join(" · "), "npc-quest-rewards");
     }
     const actions = node("div", article, "", "npc-quest-actions");
