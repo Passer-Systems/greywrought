@@ -480,7 +480,7 @@ function syncEncounter(): void {
 }
 function setBackgrounded(value: boolean): void {
   backgrounded = value;
-  if (value && running?.ready) { release(); running.game.pause(); }
+  if (value && running?.ready) release();
   syncEncounter();
 }
 function setMenuOpen(value: boolean): void {
@@ -787,7 +787,6 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     try { sessionStorage.setItem(resumeKey, character.id); } catch { /* Manual entry remains available without session storage. */ }
     world.canvas.focus();
     save(true);
-    if (backgrounded) game.pause();
     syncEncounter();
   } catch (cause: unknown) {
     if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }

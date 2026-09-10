@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createConnection, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Server } from 'bun';
@@ -54,6 +55,39 @@ class Client {
     const response = await this.wait(message => message.type === 'result' && message.sequence === sequence);
     return response.type === 'result' && response.accepted;
   }
+}
+
+async function silentJoinedSocket(port: number, character: LocalCharacter, token: string): Promise<Socket> {
+  const socket = createConnection({ host: '127.0.0.1', port });
+  await new Promise<void>((resolve, reject) => {
+    socket.once('connect', resolve);
+    socket.once('error', reject);
+  });
+  socket.write([
+    'GET /world HTTP/1.1',
+    'Host: 127.0.0.1',
+    'Upgrade: websocket',
+    'Connection: Upgrade',
+    'Sec-WebSocket-Version: 13',
+    `Sec-WebSocket-Key: ${Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString('base64')}`,
+    '\r\n',
+  ].join('\r\n'));
+  const join = JSON.stringify({ type: 'join', token, character });
+  const payload = new TextEncoder().encode(join);
+  if (payload.length >= 65_536) throw new Error('raw test join unexpectedly exceeded websocket test-frame limit');
+  const extended = payload.length >= 126;
+  const frame = new Uint8Array((extended ? 4 : 2) + 4 + payload.length);
+  frame[0] = 0x81;
+  frame[1] = 0x80 | (extended ? 126 : payload.length);
+  if (extended) { frame[2] = payload.length >>> 8; frame[3] = payload.length & 0xff; }
+  const mask = [0x17, 0x29, 0x3b, 0x4d];
+  const maskOffset = extended ? 4 : 2;
+  frame.set(mask, maskOffset);
+  const payloadOffset = maskOffset + 4;
+  for (let index = 0; index < payload.length; index += 1) frame[payloadOffset + index] = (payload[index] ?? 0) ^ (mask[index % 4] ?? 0);
+  await new Promise<void>(resolve => setTimeout(resolve, 50));
+  socket.write(frame);
+  return socket;
 }
 
 test('two socket clients share movement and chat; saved identity survives restart', async () => {
@@ -194,7 +228,6 @@ test('pause forks the connection and explicit rejoin returns it to the shared wo
     expect(paused.session.origin).not.toBeNull();
     expect(paused.session.canRejoin).toBe(true);
     expect(await visitor.command({ type: 'movement', frames: [{ sequence: 1, seconds: 0.05, input: { forward: 1, strafe: 0, cameraX: 0, cameraZ: 1, jump: false } }] })).toBe(false);
-    expect(await visitor.command({ type: 'heartbeat' })).toBe(true);
     expect(await visitor.command({ type: 'resume' })).toBe(true);
     expect((await visitor.state(state => state.session.mode === 'private')).session.mode).toBe('private');
     visitor.messages.length = 0;
@@ -206,8 +239,8 @@ test('pause forks the connection and explicit rejoin returns it to the shared wo
   }
 });
 
-test('heartbeat expiry forks a silent socket before its close callback', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'greywrought-heartbeat-'));
+test('native transport liveness keeps a background socket shared, while close forks it', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-native-ping-'));
   const savePath = join(directory, 'world.json');
   const service = await createWorldService({ savePath });
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
@@ -215,7 +248,14 @@ test('heartbeat expiry forks a silent socket before its close callback', async (
   try {
     await visitor.connect({ id: 'heartbeat', name: 'Heartbeat', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
     await visitor.state();
+    // No gameplay command or browser heartbeat is sent. Bun's native ping /
+    // pong handling keeps this healthy socket in the shared world.
     await new Promise(resolve => setTimeout(resolve, 5_500));
+    visitor.messages.length = 0;
+    const shared = await visitor.state(state => state.session.mode === 'shared');
+    expect(shared.session.mode).toBe('shared');
+    visitor.socket.close();
+    await new Promise(resolve => setTimeout(resolve, 100));
     const saved = JSON.parse(await readFile(savePath, 'utf8')) as { world: string };
     const world = JSON.parse(saved.world) as { instances?: readonly { ownerId: string; mode: string }[] };
     expect(world.instances?.some(instance => instance.ownerId === 'heartbeat' && instance.mode === 'paused')).toBe(true);
@@ -223,3 +263,22 @@ test('heartbeat expiry forks a silent socket before its close callback', async (
     visitor.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true, force: true });
   }
 }, 10_000);
+
+test('missing native pong forks a joined socket despite continuous broadcasts', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-missing-pong-'));
+  const savePath = join(directory, 'world.json');
+  const service = await createWorldService({ savePath });
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
+  let socket: Socket | undefined;
+  try {
+    socket = await silentJoinedSocket(server.port!, { id: 'silent', name: 'Silent', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
+    // The raw socket never answers ping frames. Application state broadcasts
+    // still occur, so this proves they do not reset the native lease.
+    await new Promise(resolve => setTimeout(resolve, 6_000));
+    const saved = JSON.parse(await readFile(savePath, 'utf8')) as { world: string };
+    const world = JSON.parse(saved.world) as { instances?: readonly { ownerId: string; mode: string }[] };
+    expect(world.instances?.some(instance => instance.ownerId === 'silent' && instance.mode === 'paused')).toBe(true);
+  } finally {
+    socket?.destroy(); await service.close(); server.stop(true); await rm(directory, { recursive: true, force: true });
+  }
+}, 12_000);

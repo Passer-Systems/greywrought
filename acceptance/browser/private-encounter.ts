@@ -35,7 +35,6 @@ const socket = new WebSocket('ws://127.0.0.1:4196/world');
 socket.onmessage = event => { const state = JSON.parse(String(event.data)) as ServerWorldMessage; if (state.type === 'state') observed = state; };
 const command = (command: WorldCommand) => socket.send(JSON.stringify({ type: 'command', sequence: ++sequence, command }));
 await new Promise<void>(resolve => { socket.onopen = () => { socket.send(JSON.stringify({ type: 'join', token: observerToken, character: observer })); resolve(); }; });
-const heartbeat = setInterval(() => command({type:'heartbeat'}), 1000);
 const page = await openBrowser('private-encounter');
 try {
   await page.call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{};
@@ -105,4 +104,4 @@ try {
   check(page.errors.length===0,'No browser exceptions');
   console.log('PASS paused cast frozen, main player independent, disconnect restores paused, explicit resume, no rewards, potion/HP retained, main enemy preserved, rejoin movement',page.output);
 } catch(error) { await page.shot('failure'); throw error; }
-finally { await page.close(); clearInterval(heartbeat); socket.close(); await service.close(); server.stop(true); }
+finally { await page.close(); socket.close(); await service.close(); server.stop(true); }

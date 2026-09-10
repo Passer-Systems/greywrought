@@ -41,7 +41,7 @@ function character(value: unknown): value is LocalCharacter {
 function command(value: unknown): value is WorldCommand {
   if (!record(value)) return false;
   switch (value.type) {
-    case 'pause': case 'resume': case 'rejoin': case 'heartbeat': return keys(value, ['type']);
+    case 'pause': case 'resume': case 'rejoin': return keys(value, ['type']);
     case 'movement': return keys(value, ['type', 'frames']) && Array.isArray(value.frames) && value.frames.length > 0 && value.frames.length <= 30 && value.frames.every((frame, index, frames) => {
       if (!record(frame) || !keys(frame, ['sequence', 'seconds', 'input']) || !finite(frame.sequence, 1, Number.MAX_SAFE_INTEGER, true)
         || !finite(frame.seconds, Number.MIN_VALUE, 0.05) || !record(frame.input)) return false;
@@ -71,7 +71,8 @@ export interface WorldSocketData {
   lastSequence: number;
   commandsAt: number[];
   chatsAt: number[];
-  lastHeartbeat: number;
+  lastPingAt: number;
+  lastPongAt: number;
 }
 export interface WorldServiceOptions {
   savePath: string;
@@ -176,8 +177,8 @@ export async function createWorldService(options: WorldServiceOptions) {
     world.join(selected.id, account.character.name, account.character.archetype).enableNetworkMovement?.(false);
     accounts.set(selected.id, account);
     socket.data.id = selected.id;
+    socket.data.lastPongAt = performance.now();
     online.set(selected.id, socket);
-    socket.data.lastHeartbeat = performance.now();
     void persist().catch(onPersistenceError);
     broadcast();
   }
@@ -194,7 +195,6 @@ export async function createWorldService(options: WorldServiceOptions) {
         if (accepted && previous !== 'shared') privateChat.delete(previous);
         return accepted;
       }
-      case 'heartbeat': socket.data.lastHeartbeat = performance.now(); return true;
       case 'movement': return player.enqueueMovement!(value.frames);
       case 'action': player.setAction(value.action, value.pressed); break;
       case 'mouseForward': player.setMouseForward(value.active); break;
@@ -225,11 +225,14 @@ export async function createWorldService(options: WorldServiceOptions) {
   }
   const websocket: WebSocketHandler<WorldSocketData> = {
     maxPayloadLength: MAX_PAYLOAD,
+    // Application broadcasts do not prove that a client can receive traffic.
+    // The tick below owns an explicit native ping/pong lease instead.
     idleTimeout: 30,
-    sendPings: true,
+    sendPings: false,
     backpressureLimit: 1024 * 1024,
     closeOnBackpressureLimit: true,
-    open(socket) { clients.add(socket); socket.data.lastHeartbeat = performance.now(); },
+    open(socket) { clients.add(socket); },
+    pong(socket) { socket.data.lastPongAt = performance.now(); },
     message(socket, payload) {
       if (closed) return;
       if (typeof payload !== 'string' || new TextEncoder().encode(payload).byteLength > MAX_PAYLOAD) { error(socket, 'That message is too large.'); socket.close(1009, 'Message too large'); return; }
@@ -246,7 +249,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       if (player && keys(value, ['type', 'sequence', 'command']) && sequence > socket.data.lastSequence && command(value.command)) {
         const stopping = (value.command.type === 'action' && !value.command.pressed) || (value.command.type === 'mouseForward' && !value.command.active);
         const session = world.session(socket.data.id!);
-        const priority = value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin' || value.command.type === 'heartbeat' || stopping;
+        const priority = value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin' || stopping;
         const allowedWhilePaused = priority || value.command.type === 'chat' || value.command.type === 'camera' || value.command.type === 'target';
         if ((session.mode !== 'paused' || allowedWhilePaused) && (priority || socket.data.commandsAt.length < 120)) {
           socket.data.lastSequence = sequence;
@@ -272,7 +275,12 @@ export async function createWorldService(options: WorldServiceOptions) {
     world.advance(elapsed);
     if (online.size > 0) { serverTime += elapsed; broadcast(); }
     for (const socket of [...clients]) {
-      if (socket.data.id !== null && now - socket.data.lastHeartbeat > 5_000) {
+      if (socket.data.id === null) continue;
+      if (now - socket.data.lastPingAt >= 1_000) {
+        socket.data.lastPingAt = now;
+        socket.ping();
+      }
+      if (now - socket.data.lastPongAt > 5_000) {
         disconnect(socket);
         socket.close(4004, 'Connection heartbeat expired');
       }
@@ -290,7 +298,8 @@ export async function createWorldService(options: WorldServiceOptions) {
       const origin = request.headers.get('origin');
       if (origin !== null && origin !== url.origin && !options.allowedOrigins?.includes(origin)) return new Response('Please enter from the game.', { status: 403 });
       if (clients.size >= MAX_PLAYERS * 2) return new Response('The world is busy. Please try again shortly.', { status: 503 });
-      if (server.upgrade(request, { data: { id: null, openedAt: performance.now(), lastSequence: -1, commandsAt: [], chatsAt: [], lastHeartbeat: performance.now() } })) return undefined;
+      const openedAt = performance.now();
+      if (server.upgrade(request, { data: { id: null, openedAt, lastSequence: -1, commandsAt: [], chatsAt: [], lastPingAt: openedAt, lastPongAt: openedAt } })) return undefined;
       return new Response('Enter the world through the game.', { status: 426 });
     },
     async close(): Promise<void> {

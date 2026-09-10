@@ -13,7 +13,6 @@ export type WorldCommand =
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'rejoin' }
-  | { type: 'heartbeat' }
   | { type: "interactNpc"; id: "mara" | "inn" }
   | { type: "quest"; id: QuestId; operation: QuestOperation }
   | { type: "equip"; slot: GearSlot; item: GearItemId | null }

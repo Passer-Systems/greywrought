@@ -38,21 +38,16 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let reconnect: ReturnType<typeof setTimeout> | undefined;
   let cameraX = NaN, cameraZ = NaN;
   let pendingCamera = false, lastCameraAt = 0;
-  let pauseRequest: number | null = null, lastStateAt = performance.now();
+  let pauseRequest: number | null = null;
   const listeners = new Set<() => void>();
   const notify = () => { for (const listener of listeners) listener(); };
   const inputEnabled = () => online && session.mode !== 'paused' && pauseRequest === null;
   let readyResolve: () => void, readyReject: (reason: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   const timeout = setTimeout(() => { if (!snapshot) { close(); readyReject(new Error('The world could not be reached.')); } }, 15000);
-  const heartbeat = setInterval(() => {
-    if (!online) return;
-    if (performance.now() - lastStateAt > 5000) { online = false; notify(); socket.close(); }
-    else send({type:'heartbeat'});
-  }, 1000);
   function close(): void {
     if (online) send({type:'pause'});
-    closed = true; online = false; clearTimeout(timeout); clearTimeout(reconnect); clearInterval(heartbeat); socket?.close();
+    closed = true; online = false; clearTimeout(timeout); clearTimeout(reconnect); socket?.close();
   }
   function send(command: WorldCommand): number | null {
     if (!online || socket.readyState !== WebSocket.OPEN) return null;
@@ -83,7 +78,6 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
         snapshot = message.snapshot; players = message.players; chat = message.chat;
         serverTime = message.serverTime;
         serverWallTimeMillis = message.serverWallTimeMillis;
-        lastStateAt = performance.now();
         if (changed) { prediction = new LocalMovement(snapshot, message.movement); connectionRevision++; }
         prediction.reconcile(snapshot, message.movement, serverTime);
         online = true; clearTimeout(timeout); readyResolve();
