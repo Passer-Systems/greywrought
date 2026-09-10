@@ -52,7 +52,7 @@ interface ThreatDefinition {
 }
 interface ThreatState {
   id: string; health: number; active: boolean; phase: ThreatPhase;
-  contributors: string[]; rollClaims: string[]; shield: number;
+  contributors: string[]; combatants: string[]; rollClaims: string[]; shield: number;
   respawnAt: number | null;
   rng: number;
   castDuration: number; shieldSeconds: number;
@@ -144,7 +144,7 @@ const newWolf = (): WolfState => ({ facing: point(0, 1), motion: null,
 const newHead = (): HeadState => ({ opened: false, ability: "ember-beam", castVolley: 1, block: 0, blockSeconds: 0, volley: 1, projectileSequence: 0, pendingFireballs: 0, nextFireballSeconds: 0, fireballs: [] });
 const newThreat = (t: ThreatDefinition): ThreatState => ({
   id: t.id, health: t.health, active: t.id !== "ritual-guardian", phase: t.patrol && t.id !== "ritual-guardian" ? "patrol" : "dormant",
-  contributors: [], rollClaims: [], shield: 0,
+  contributors: [], combatants: [], rollClaims: [], shield: 0,
   respawnAt: null,
   rng: crypto.getRandomValues(new Uint32Array(1))[0]!,
   castDuration: 0, shieldSeconds: 0,
@@ -266,7 +266,11 @@ class Adventure implements AdventureGame {
     const createPrivate = (id: string, game: Adventure): SharedContext => {
       const clone = structuredClone(game.state.world);
       for (const t of clone.threats) {
-        if (t.aggro && (t.targetPlayerId === id || t.contributors.includes(id))) { t.targetPlayerId = id; continue; }
+        if (t.aggro && (t.targetPlayerId === id || t.combatants.includes(id) || t.contributors.includes(id))) {
+          t.targetPlayerId = id;
+          t.combatants = [id];
+          continue;
+        }
         t.targetPlayerId = null;
         if (!t.aggro) continue;
         t.aggro = false; t.castDuration = 0; t.remainingSeconds = 0; t.moving = false;
@@ -292,6 +296,7 @@ class Adventure implements AdventureGame {
       const privateContext = createPrivate(id, game);
       for (const threat of context.world.threats) {
         threat.contributors = threat.contributors.filter(contributor => contributor !== id);
+        threat.combatants = threat.combatants.filter(combatant => combatant !== id);
       }
       game.shared = privateContext;
       game.state.world = privateContext.world;
@@ -335,8 +340,10 @@ class Adventure implements AdventureGame {
             // A departing player does not rewind the creature's current cast or
             // ramp. The replacement target inherits the live encounter beat.
             t.targetPlayerId = target.playerId;
+            if (target.playerId !== null && !t.combatants.includes(target.playerId)) t.combatants.push(target.playerId);
             t.targetPosition = { ...target.state.position };
           }
+          if (t.aggro && target?.playerId !== null && target?.playerId !== undefined && !t.combatants.includes(target.playerId)) t.combatants.push(target.playerId);
           if (t.aggro && !target) driver.releaseThreat(t); else (target ?? driver).acquireOrRelease(t, dt);
         }
         for (const player of players) player.stepAutoAttack(dt);
@@ -788,6 +795,7 @@ class Adventure implements AdventureGame {
     if (!t.head) t.shield -= blocked;
     if (t.id === "nest" && t.contributors.length === 0) this.report("Your blow enrages the Briar bee. It rushes toward you; watch the marked ground and Block or move before its swarm lands.", "combat");
     if (!t.contributors.includes(this.playerId ?? "solo")) t.contributors.push(this.playerId ?? "solo");
+    if (!t.combatants.includes(this.playerId ?? "solo")) t.combatants.push(this.playerId ?? "solo");
     if (t.head) { t.head.block -= blocked; if (t.head.block === 0) t.head.blockSeconds = 0; }
     const s = this.state, dealt = Math.min(damage - blocked, t.health);
     t.health -= dealt;
@@ -804,7 +812,7 @@ class Adventure implements AdventureGame {
       t.shield = 0;
       t.respawnAt = this.now() + WORLD_RESPAWN_MILLISECONDS;
       for (const player of this.participants()) player.stopAutoAttack(t.id);
-      t.targetPlayerId = null; t.phase = "cleared"; t.remainingSeconds = 0; t.lastActionHit = false; t.aggro = false; t.moving = false;
+      t.targetPlayerId = null; t.phase = "cleared"; t.remainingSeconds = 0; t.lastActionHit = false; t.aggro = false; t.moving = false; t.combatants = [];
       if (t.head) { t.head.fireballs = []; t.head.block = 0; t.head.blockSeconds = 0; }
       if (t.wolf) { t.wolf.motion = null; t.wolf.circling = false; t.position.y = 0; }
       this.report(`${definition(t.id).name} dies. ${definition(t.id).benefit}`, "combat");
@@ -876,6 +884,15 @@ class Adventure implements AdventureGame {
       }
       this.movementElapsed += elapsed; remaining -= elapsed;
       if (this.movementElapsed >= frame.seconds - EPSILON) this.movementFrames!.shift();
+    }
+    // Network input is a stream of short-lived commands.  An empty stream
+    // means the player is neutral, not that world physics has stopped.  Keep
+    // advancing locomotion so jumps land and vertical velocity settles while
+    // a backgrounded client is not sending fresh packets.
+    if (remaining > EPSILON && !blocked) {
+      moveLocomotion(this.state, {
+        forward: 0, strafe: 0, cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false,
+      }, remaining);
     }
   }
   private moveManeuver(dt: number): void {
@@ -993,6 +1010,7 @@ class Adventure implements AdventureGame {
   }
   private engage(t: ThreatState): void {
     t.aggro = true; t.lastActionHit = false; t.targetPlayerId = this.playerId;
+    if (this.playerId !== null && !t.combatants.includes(this.playerId)) t.combatants.push(this.playerId);
     this.beginCast(t);
   }
   private beginCast(t: ThreatState): void {
@@ -1044,7 +1062,9 @@ class Adventure implements AdventureGame {
     this.state.currentAction = action; this.state.actionDuration = duration; this.state.actionCooldown = duration; this.state.actionRemainingSeconds = duration;
   }
   private inCombat(): boolean {
-    return this.state.phase === "expedition" && this.state.world.threats.some(t => t.active && t.health > 0 && t.aggro && (!this.shared || t.targetPlayerId === this.playerId));
+    const id = this.playerId ?? "solo";
+    return this.state.phase === "expedition" && this.state.world.threats.some(t => t.active && t.health > 0 && t.aggro &&
+      (t.combatants.includes(id) || (!this.shared || t.targetPlayerId === this.playerId)));
   }
   private spendStamina(cost: number): void {
     const s = this.state;
@@ -1082,7 +1102,7 @@ class Adventure implements AdventureGame {
     if (t.health < definition(t.id).health) this.report(`${definition(t.id).name} breaks contact and recovers while returning home.`, "combat");
     t.health = definition(t.id).health;
     t.actionSequence = 0;
-    t.shield = 0; t.contributors = [];
+    t.shield = 0; t.contributors = []; t.combatants = [];
     for (const player of this.participants()) player.stopAutoAttack(t.id);
     t.targetPlayerId = null; t.castDuration = 0; t.shieldSeconds = 0;
     t.aggro = false; t.remainingSeconds = 0; t.lastActionHit = false; t.moving = false; t.abilityIndex = 0;
@@ -1378,9 +1398,17 @@ function readSave(serialized: string, now = Date.now()): State {
     if (!active && id === "ritual-guardian" && phase === "patrol" && t.aggro === false) phase = "dormant";
     if ((health === 0) !== (phase === "cleared") || (!active && phase !== "dormant") || (id !== "ritual-guardian" && !active)) throw new Error("Invalid adventure save: inconsistent threat.");
     const aggro = version === 1 ? phase !== "dormant" && phase !== "cleared" : boolean(t.aggro);
+    const legacyCombatants = t.combatants === undefined
+      ? (aggro && health > 0 ? [...new Set([
+        ...(t.targetPlayerId === undefined || t.targetPlayerId === null ? [] : [text(t.targetPlayerId)]),
+        ...(t.contributors === undefined ? [] : stringList(t.contributors)),
+      ])] : [])
+      : stringList(t.combatants);
     const result: ThreatState = {
       ...newThreat(d), id, health, active, phase, aggro,
-      contributors: t.contributors === undefined ? [] : stringList(t.contributors), rollClaims: t.rollClaims === undefined ? [] : stringList(t.rollClaims),
+      contributors: t.contributors === undefined ? [] : stringList(t.contributors),
+      combatants: legacyCombatants,
+      rollClaims: t.rollClaims === undefined ? [] : stringList(t.rollClaims),
       shield: t.shield === undefined ? 0 : number(t.shield, 0, 60), shieldSeconds: realtime ? number(t.shieldSeconds, 0, 5) : 0,
       respawnAt: health === 0 ? t.respawnAt === undefined || t.respawnAt === null ? now + WORLD_RESPAWN_MILLISECONDS : number(t.respawnAt) : null,
       rng: t.rng === undefined ? seedForThreat(id) : number(t.rng, 0, 0xffffffff, true),

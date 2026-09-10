@@ -467,14 +467,14 @@ function syncEncounter(): void {
     ? 'Reconnecting… Your encounter pauses when the connection loss is detected. It will stay paused when you return.'
     : waiting ? 'Saving your encounter while the world continues.'
     : 'This is your private copy of the encounter. The rest of the world continues without you.');
-  text('pause-rejoin-hint', game.session.canRejoin ? 'Ready to rejoin near where you paused.' : 'Finish combat or retreat before rejoining the world.');
+  text('pause-rejoin-hint', game.session.canRejoin ? 'Out of combat. Ready to rejoin near where you paused.' : 'In combat. Finish the encounter before rejoining the world.');
   button('pause-resume').disabled = !game.online || game.session.mode !== 'paused';
   button('pause-rejoin').disabled = !game.online || !game.session.canRejoin;
   button('encounter-rejoin').disabled = !game.online || !game.session.canRejoin;
   element('encounter-status').hidden = game.session.mode === 'shared' || !game.online || !element('pause-panel').hidden;
   text('encounter-title', game.session.mode === 'paused' ? 'Paused encounter' : 'Private encounter');
   text('encounter-pause', game.session.mode === 'paused' ? 'Resume…' : 'Pause');
-  text('encounter-detail', game.session.canRejoin ? 'Ready to rejoin' : 'Finish combat · no rewards');
+  text('encounter-detail', game.session.canRejoin ? 'Out of combat · ready to rejoin' : 'In combat · no rewards');
   save(true);
   scheduleFrame();
 }

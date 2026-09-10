@@ -34,6 +34,8 @@ const styles = `
 .unit-frames { position:absolute; inset:0; pointer-events:none; color:#f4e5ba; font:var(--ui-font-small)/1.2 system-ui,sans-serif; filter:drop-shadow(0 2px 2px #000b); }
 .unit-frame { position:relative; display:flex; align-items:center; height:66px; min-width:0; }
 .unit-frame-player,.unit-frame-target-group { position:absolute; width:var(--unit-frame-width); }
+.unit-frame-combat-status { position:absolute; top:calc(100% - 5px); right:3px; color:#c3c8bc; font:var(--ui-font-small)/1.2 system-ui,sans-serif; text-shadow:0 1px 2px #000,1px 0 2px #000; }
+.unit-frame-player[data-in-combat=true] .unit-frame-combat-status { color:#ffc18f; }
 .unit-frame-target-group { min-width:0; }
 .unit-frames[data-locked=false] .unit-frame-player,.unit-frames[data-locked=false] .unit-frame-target-group { pointer-events:auto; cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
 .unit-frames[data-locked=false] .unit-frame-player::after,.unit-frames[data-locked=false] .unit-frame-target::after { content:""; position:absolute; inset:-4px; border:1px dashed #e1c781; border-radius:5px; pointer-events:none; }
@@ -94,6 +96,8 @@ export function createUnitFrames(host: HTMLElement) {
   const style = node("style", "", host); style.textContent = styles;
   const root = node("div", "unit-frames", host);
   const player = makeFrame(root, "player-frame", "player");
+  const combatStatus = node("span", "unit-frame-combat-status", player.root);
+  combatStatus.id = "player-combat-status";
   const targetGroup = node("div", "unit-frame-target-group", root); targetGroup.hidden = true;
   const target = makeFrame(targetGroup, "target-frame", "target");
   const targetCast = createEnemyCastBar(target.root, "target-frame");
@@ -251,6 +255,8 @@ export function createUnitFrames(host: HTMLElement) {
         player.portrait.src = targetOfTarget.portrait.src = publicUrl(`assets/ui/characters/${archetype}.webp`);
       }
       health(player, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id);
+      player.root.dataset.inCombat = String(snapshot.player.inCombat);
+      write(combatStatus, snapshot.player.inCombat ? "In combat" : "Out of combat");
       const enemy = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat && threat.active);
       if (!enemy) { selectedId = ""; preview(); return; }
       targetGroup.hidden = false;

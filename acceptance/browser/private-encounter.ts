@@ -52,6 +52,8 @@ try {
   const frozen = await page.evaluate<State>('window.encounterState');
   const frozenEnemy = frozen.snapshot.threats.find(t => t.id === 'scout')!;
   check(frozenEnemy.aggro && frozenEnemy.cast !== null, 'Private copy must preserve the engaged enemy and cast');
+  check(frozen.snapshot.player.inCombat, 'Paused encounter must retain combat membership');
+  check(await page.evaluate<boolean>('document.getElementById("player-combat-status").textContent==="In combat"'), 'Player frame must show the active combat state');
   check(frozen.players.length === 0, 'Private encounter must exclude other players');
   check(await page.evaluate<boolean>('document.getElementById("pause-rejoin").disabled'), 'Cannot rejoin while combat remains');
   const observerX = observed!.snapshot.player.position.x;
@@ -85,6 +87,8 @@ try {
   await page.waitFor('window.encounterState.snapshot.threats.find(t=>t.id==="scout").health===0', 15000);
   const finished = await page.evaluate<State>('window.encounterState');
   check(finished.session.canRejoin, 'Ending combat must allow rejoin');
+  check(!finished.snapshot.player.inCombat, 'Final enemy death must end combat');
+  check(await page.evaluate<boolean>('document.getElementById("player-combat-status").textContent==="Out of combat"'), 'Player frame must show when combat ends');
   check(finished.snapshot.carriedSalvage === frozen.snapshot.carriedSalvage && finished.snapshot.cargo === frozen.snapshot.cargo, 'Private kill must grant no resource rewards');
   check(JSON.stringify(finished.snapshot.progression) === JSON.stringify(frozen.snapshot.progression), 'Private combat cannot award progression');
   check(!finished.snapshot.loot.some(loot => loot.available), 'Private corpses cannot be looted');

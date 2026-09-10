@@ -112,6 +112,27 @@ test('partial input acknowledgments replay only remaining duration and authorita
   near(local.player.position, lost.player.position);
 });
 
+test('authoritative physics lands a jump while network input is temporarily absent', () => {
+  const server = createAdventure();
+  server.enableNetworkMovement!();
+  server.enqueueMovement!([{ sequence: 1, seconds: 1 / 60, input: { forward: 0, strafe: 0, cameraX: 0, cameraZ: 1, jump: true } }]);
+  server.advance(1 / 60);
+  expect(server.snapshot.player.position.y).toBeGreaterThan(0);
+  expect(server.snapshot.player.grounded).toBe(false);
+
+  // A hidden tab may stop producing packets, but the server must still run
+  // neutral physics rather than freezing the player in midair.
+  server.advance(2);
+  expect(server.snapshot.player.position.y).toBe(0);
+  expect(server.snapshot.player.grounded).toBe(true);
+  expect(server.snapshot.player.position.x).toBeCloseTo(0, 8);
+  expect(server.snapshot.player.position.z).toBeCloseTo(-8, 8);
+
+  server.enqueueMovement!([{ sequence: 2, seconds: 1 / 60, input: { forward: 1, strafe: 0, cameraX: 0, cameraZ: 1, jump: false } }]);
+  server.advance(1 / 60);
+  expect(server.snapshot.player.position.z).toBeCloseTo(-8 + 4.5 / 60, 7);
+});
+
 test('server-announced maneuvers advance between snapshots without predicting combat outcomes', () => {
   const snapshot = createAdventure().snapshot;
   const player = { ...snapshot.player, maneuver: 'disengage' as const, maneuverSeconds: 0.8 };

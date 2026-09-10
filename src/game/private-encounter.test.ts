@@ -68,4 +68,65 @@ describe("private paused encounters", () => {
     expect(restored.session("alice").mode).toBe("private");
     expect(reopened.snapshot.player.health).toBe(alice.snapshot.player.health);
   });
+
+  test("combat membership follows a replacement target and clears only after the encounter ends", () => {
+    const world = createSharedAdventure({ now: () => 1000 });
+    const alice = world.join("alice", "Alice", "warrior");
+    const bob = world.join("bob", "Bob", "mage");
+    for (const player of [alice, bob]) {
+      player.setCameraForward(-3, 16);
+      player.setAction("forward", true);
+    }
+    world.advance(Math.hypot(3, 16) / 4.5);
+    alice.setAction("forward", false); bob.setAction("forward", false);
+    alice.selectTarget("scout"); tap(alice, "strike"); world.advance(0.25);
+    expect(alice.snapshot.player.inCombat).toBe(true);
+    // A second participant joining the same encounter becomes a combatant too;
+    // target selection must not make the first participant lose membership.
+    bob.selectTarget("scout"); tap(bob, "strike"); world.advance(0.2);
+    expect(bob.snapshot.player.inCombat).toBe(true);
+    expect(alice.snapshot.player.inCombat).toBe(true);
+    const scout = bob.snapshot.threats.find(t => t.id === "scout")!;
+    expect(scout.targetPlayerId).toBe("alice");
+    // Killing the sole remaining threat clears the membership for Bob.
+    bob.selectTarget("scout");
+    for (let i = 0; i < 30 && bob.snapshot.threats.find(t => t.id === "scout")!.health > 0; i++) {
+      tap(bob, "strike"); world.advance(1.6);
+    }
+    expect(bob.snapshot.threats.find(t => t.id === "scout")!.health).toBe(0);
+    expect(bob.snapshot.player.inCombat).toBe(false);
+    expect(alice.snapshot.player.inCombat).toBe(false);
+  });
+
+  test("private rejoin stays gated until every engaged threat ends", () => {
+    const seed = createSharedAdventure();
+    seed.join("alice", "Alice", "warrior");
+    const saved = JSON.parse(seed.save()) as {
+      world: { threats: Array<Record<string, unknown>> };
+      characters: Array<{ state: Record<string, unknown> }>;
+    };
+    saved.characters[0]!.state.phase = "expedition";
+    saved.characters[0]!.state.position = { x: 0, y: 0, z: 5 };
+    for (const id of ["scout", "patrol"]) {
+      const threat = saved.world.threats.find(entry => entry.id === id)!;
+      threat.health = 5; threat.phase = "preparation"; threat.aggro = true;
+      threat.targetPlayerId = "alice"; threat.combatants = ["alice"];
+      threat.position = { x: 0, y: 0, z: 5 }; threat.targetPosition = { x: 0, y: 0, z: 5 };
+      threat.castDuration = 3; threat.remainingSeconds = 3;
+    }
+    const world = createSharedAdventure({ save: JSON.stringify(saved) });
+    const alice = world.join("alice", "Alice", "warrior");
+    world.pause("alice");
+    const reopened = createSharedAdventure({ save: world.save() });
+    const resumed = reopened.join("alice", "Alice", "warrior");
+    expect(reopened.resume("alice")).toBe(true);
+    expect(reopened.rejoin("alice")).toBe(false);
+    resumed.selectTarget("scout"); tap(resumed, "strike"); reopened.advance(0.1);
+    expect(resumed.snapshot.threats.find(t => t.id === "scout")!.health).toBe(0);
+    expect(reopened.rejoin("alice")).toBe(false);
+    reopened.advance(1.6);
+    resumed.selectTarget("patrol"); tap(resumed, "strike"); reopened.advance(0.1);
+    expect(resumed.snapshot.threats.find(t => t.id === "patrol")!.health).toBe(0);
+    expect(reopened.rejoin("alice")).toBe(true);
+  });
 });

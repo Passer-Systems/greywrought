@@ -264,7 +264,7 @@ test('native transport liveness keeps a background socket shared, while close fo
   }
 }, 10_000);
 
-test('missing native pong forks a joined socket despite continuous broadcasts', async () => {
+test('two seconds without native pong forks a joined socket despite continuous broadcasts', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'greywrought-missing-pong-'));
   const savePath = join(directory, 'world.json');
   const service = await createWorldService({ savePath });
@@ -274,7 +274,7 @@ test('missing native pong forks a joined socket despite continuous broadcasts', 
     socket = await silentJoinedSocket(server.port!, { id: 'silent', name: 'Silent', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
     // The raw socket never answers ping frames. Application state broadcasts
     // still occur, so this proves they do not reset the native lease.
-    await new Promise(resolve => setTimeout(resolve, 6_000));
+    await new Promise(resolve => setTimeout(resolve, 2_500));
     const saved = JSON.parse(await readFile(savePath, 'utf8')) as { world: string };
     const world = JSON.parse(saved.world) as { instances?: readonly { ownerId: string; mode: string }[] };
     expect(world.instances?.some(instance => instance.ownerId === 'silent' && instance.mode === 'paused')).toBe(true);

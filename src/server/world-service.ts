@@ -280,7 +280,7 @@ export async function createWorldService(options: WorldServiceOptions) {
         socket.data.lastPingAt = now;
         socket.ping();
       }
-      if (now - socket.data.lastPongAt > 5_000) {
+      if (now - socket.data.lastPongAt > 2_000) {
         disconnect(socket);
         socket.close(4004, 'Connection heartbeat expired');
       }

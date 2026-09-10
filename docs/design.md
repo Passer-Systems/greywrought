@@ -441,12 +441,18 @@ GREYWROUGHT_WORLD_SAVE path. Never test combat against the live shared save.
 ## Private encounters and pause — 0.12.0
 
 Escape pauses by taking the character into a private copy of the zone. The same
-thing happens on disconnect; a lost connection is detected within five seconds
+thing happens on disconnect; a lost connection is detected after two seconds
 of the last WebSocket pong. The browser answers pings automatically, without a
 gameplay heartbeat timer or focus check. Existing combat, damage, warnings and
 supplies are kept.
 Other players remain in the shared world with its own enemies and clock. The
 current build has no parties, so only the character and enemies enter the copy.
+
+The player frame shows In combat or Out of combat. Attacking or being engaged by
+a creature joins its encounter; changing the creature's current target does not
+end that participation. Rejoin is rejected by the server until every creature
+in that encounter has died or broken contact and reset. Pausing and reconnecting
+preserve combat membership. Damage contribution and quest credit remain separate.
 
 The private encounter stays frozen until Resume encounter is chosen, including
 after reconnecting or restarting the server. Switching tabs or windows only
@@ -454,6 +460,8 @@ suspends local rendering and audio and releases held movement; combat continues
 on the server. Loading without focus does not fork. Closing or leaving the page
 requests pause. Returning focus does not resume an explicitly paused encounter.
 It can be paused again at any time.
+Gravity continues on the server without movement packets, so a character lands
+normally when its browser tab stops rendering.
 
 The copy grants no loot, resources, experience or quest progress. Carried
 potions may be used and equipment changed while playing; health loss, death and
