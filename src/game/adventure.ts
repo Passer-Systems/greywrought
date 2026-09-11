@@ -26,6 +26,7 @@ export const COMBAT_RULES = {
 } as const;
 export const MARA_TRADE_RULES = { suppliesPerPotion: 3, suppliesPerPotionSold: 2 } as const;
 export const WORLD_RESPAWN_MILLISECONDS = 120_000;
+const CALL_FOR_HELP_RANGE = 9;
 interface Maneuver {
   kind: "lunge" | "disengage"; targetId: string; remainingSeconds: number;
   start: Vector; destination: Vector; facing: Vector;
@@ -464,6 +465,7 @@ class Adventure implements AdventureGame {
         return {
           ...t, name: d.name, level: d.level, position: { ...t.position }, homePosition: { ...d.position },
           disposition: d.disposition, moving: s.phase !== "lost" && t.moving, maximumHealth: d.health,
+          aggroRange: d.aggroRange, callForHelpRange: CALL_FOR_HELP_RANGE,
           movementMode: this.movementMode(t), motionProgress: t.wolf?.motion ? 1 - t.wolf.motion.remainingSeconds / t.wolf.motion.duration : 0,
           facing: { ...(t.wolf?.facing ?? this.direction(t.position, t.aggro ? (this.targetPlayer(t)?.state.position ?? s.position) : t.targetPosition)) },
           nextAttackSeconds: t.wolf?.nextAttackSeconds ?? t.remainingSeconds,
@@ -1022,11 +1024,13 @@ class Adventure implements AdventureGame {
     return t.targetPlayerId === null ? undefined : this.shared.online.get(t.targetPlayerId);
   }
   private chooseTarget(t: ThreatState): Adventure | undefined {
-    const d = definition(t.id);
-    const eligible = (p: Adventure): boolean => p.state.phase === "expedition" && p.state.health > 0 && p.state.position.z > 2 && distance(p.state.position, d.position) <= d.leash;
     const previous = this.targetPlayer(t);
-    if (t.aggro && previous && eligible(previous)) return previous;
-    return this.participants().filter(eligible).sort((a,b) => distance(a.state.position,t.position) - distance(b.state.position,t.position))[0];
+    if (t.aggro && previous?.canBeTargetedBy(t)) return previous;
+    return this.participants().filter(p => p.canBeTargetedBy(t)).sort((a,b) => distance(a.state.position,t.position) - distance(b.state.position,t.position))[0];
+  }
+  private canBeTargetedBy(t: ThreatState): boolean {
+    const s = this.state, d = definition(t.id);
+    return s.phase === "expedition" && s.health > 0 && s.position.z > 2 && distance(s.position, d.position) <= d.leash;
   }
   private engage(t: ThreatState): void {
     t.aggro = true; t.lastActionHit = false; t.targetPlayerId = this.playerId;
@@ -1072,9 +1076,15 @@ class Adventure implements AdventureGame {
       // Hostile creatures close to an engaged ally answer the call, but only
       // across a short, clear path. This keeps pulls local instead of waking
       // the whole forest and leaves neutral creatures untouched.
-      if (!t.aggro && s.phase === "expedition" && s.position.z > 2 && this.inCombat() && distance(s.position,d.position) <= d.leash && d.disposition === "hostile") {
-        const ally = s.world.threats.find(other => other !== t && other.aggro && other.health > 0 && distance(t.position, other.position) <= 9 && this.clearPath(t.position, other.position));
-        if (ally) { this.engage(t); this.report(`${d.name} answers its ally's call.`, "combat"); }
+      if (!t.aggro && d.disposition === "hostile" && distance(t.position, d.position) <= d.leash) {
+        for (const ally of s.world.threats) {
+          if (ally === t || !ally.active || !ally.aggro || ally.health <= 0 || distance(t.position, ally.position) > CALL_FOR_HELP_RANGE || !this.clearPath(t.position, ally.position)) continue;
+          const opponent = this.targetPlayer(ally);
+          if (!opponent?.canBeTargetedBy(ally) || !opponent.canBeTargetedBy(t)) continue;
+          opponent.engage(t);
+          opponent.report(`${d.name} answers its ally's call.`, "combat");
+          break;
+        }
       }
     } else if (s.phase !== "expedition" || s.position.z <= 2 || distance(s.position, d.position) > d.leash || distance(t.position, d.position) > d.leash) this.releaseThreat(t);
   }

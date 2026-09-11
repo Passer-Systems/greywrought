@@ -251,6 +251,7 @@ let nextFrameTime = 0;
 let nextHudTime = 0;
 const frameInterval = 1000 / 60;
 let paused = false;
+let aggroRangesVisible = false;
 let backgrounded = false;
 let lastEncounterState = '';
 let entering = false;
@@ -282,6 +283,18 @@ function release(): void {
     running.game.setMouseForward(false);
   }
   keys.clear();
+}
+function toggleAggroRanges(): void {
+  aggroRangesVisible = !aggroRangesVisible;
+  button('aggro-ranges-toggle').setAttribute('aria-pressed', String(aggroRangesVisible));
+  text('aggro-ranges-state', aggroRangesVisible ? 'On' : 'Off');
+  element('aggro-ranges-legend').hidden = !aggroRangesVisible;
+  document.body.dataset.aggroRangesVisible = String(aggroRangesVisible);
+  if (running) {
+    const { world, game } = running;
+    world.setAggroRangesVisible(aggroRangesVisible);
+    if (paused) world.render(game.snapshot, 0, game.renderPlayer, undefined, game.connectionRevision);
+  }
 }
 function save(_force = false): void {
   if (!running?.ready) return;
@@ -447,6 +460,7 @@ function syncEncounter(): void {
   if (paused && !wasPaused) { release(); world.clearHover(); }
   document.body.dataset.gamePaused = String(paused);
   document.body.dataset.encounterMode = game.session.mode;
+  element('aggro-ranges-private').hidden = game.session.mode === 'shared';
   document.body.dataset.encounterId = game.session.id;
   document.body.dataset.canRejoin = String(game.session.canRejoin);
   if (changed) {
@@ -771,6 +785,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     if (game.snapshot.phase === "lost") { game.close(); showFallenCharacter(character); return; }
     audio.reset();
     const world = createAdventureWorld(element("world-wrap"), game.snapshot);
+    world.setAggroRangesVisible(aggroRangesVisible);
     world.updateChat(game.chat, character.id);
     const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false };
     running = app;
@@ -855,6 +870,7 @@ click("entry-creator-back", () => { route = profile?.characters.length ? "roster
 click("entry-change-character", () => { if (!entering) { route = "creator"; renderEntry(); } });
 click("entry-enter-world", () => { const character = selectedCharacter(); if (character) void enterWorld(character); });
 click("pause-open", () => setMenuOpen(element("pause-panel").hidden, "settings"));
+click("aggro-ranges-toggle", toggleAggroRanges);
 for (const tab of ["encounter", "settings"] as const) {
   click(`pause-tab-${tab}`, () => selectMenuTab(tab));
   listen(button(`pause-tab-${tab}`), "keydown", (event) => {
@@ -896,6 +912,11 @@ listen(window, "keydown", (event) => {
   if (route !== "world") return;
   if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
   if (event.code === "Enter") { event.preventDefault(); release(); chatLog.focusInput(); return; }
+  if (event.code === "KeyH" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    event.preventDefault();
+    if (!event.repeat) toggleAggroRanges();
+    return;
+  }
   if (event.code === "KeyC") {
     event.preventDefault();
     if (!event.repeat) toggleEquipment();

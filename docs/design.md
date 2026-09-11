@@ -361,9 +361,15 @@ extraction with salvage but no main reward, and a death whose log and visible
 intentions explain the fatal sequence. The player should be able to name a
 plausible better choice. Fairness and the desire to retry require Tom's playtest.
 
-Nearby hostile allies assist each other through clear terrain. Neutral creatures
-remain neutral until attacked. Reinforcements share the encounter clock and
-announce their move before joining. Pulling one creature remains manageable;
+Hostile creatures within nine units of an engaged creature answer its call
+through clear terrain, targeting that creature's opponent even when a bystander
+is closer. The opponent must remain within the helper's pursuit limit. Neutral
+creatures remain neutral until attacked; an attacked bee can call hostile help.
+Each reinforcement starts its own announced cast. H toggles solid red direct
+aggro rings and dashed amber call-for-help rings, using the ranges supplied by
+the game server. The visible button and legend explain both; returning, defeated,
+and dormant creatures have no rings. Private copies retain base range markings
+but explain that new enemies cannot join. Pulling one creature remains manageable;
 two should threaten near death without deliberate defense, and three should
 overwhelm a committed fight. These are balance targets, not automatic damage
 multipliers or a rule that kills the player merely for engaging three enemies.

@@ -10,6 +10,7 @@ import type { AdventureSnapshot, ThreatView } from "../game/adventure-types.js";
 import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
 import { createGroundTelegraphs } from "./ground-telegraphs.js";
+import { createAggroRanges } from "./aggro-ranges.js";
 import { createRemotePlayers, type RemotePlayerView } from "./remote-player.js";
 import { createSnapshotInterpolation } from "./snapshot-interpolation.js";
 import { createOverheadNames, npcQuestMarker } from "./overhead-names.js";
@@ -69,6 +70,7 @@ export interface AdventureWorld {
   hover(x: number, y: number): void;
   clearHover(): void;
   setThreatNameplateVisible(id: string, visible: boolean): void;
+  setAggroRangesVisible(visible: boolean): void;
   projectThreat(id: string): { x: number; y: number; feetY: number } | null;
   dispose(): void;
 }
@@ -276,6 +278,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (place) hoverTargets.push({ root, pick: { kind: "place", id: place.id }, name: place.name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
   }).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
   const telegraphs = createGroundTelegraphs(scene, canvas);
+  const aggroRanges = createAggroRanges(scene, canvas);
   const ready = Promise.all([knightReady, merchantReady, innkeeperReady, creaturesReady, coresReady, natureReady, telegraphs.ready]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
@@ -328,6 +331,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.22, pitch + dy * 0.004)); },
     zoom(delta) { distance = Math.max(6, Math.min(18, distance * Math.exp(delta * 0.001))); },
     setThreatNameplateVisible(id, visible) { overheadNames.suppress(`threat:${id}`, visible); },
+    setAggroRangesVisible(visible) { aggroRanges.setVisible(visible); },
     projectThreat(id) {
       const rig = rigs.get(id); if (!rig || !rig.root.visible) return null;
       const head = rig.root.position.clone().add(new Vector3(0, rig.height + rig.body.position.y + 0.25, 0)).project(camera);
@@ -513,6 +517,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       else cameraTarget.lerp(position, 1 - Math.exp(-delta * 12));
       const facing = forward();
       telegraphs.update(snapshot, facing, { selfId: localPlayerId, players: visiblePlayers });
+      aggroRanges.update(snapshot);
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
       camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
       renderer.render(scene, camera);
@@ -548,6 +553,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       chatBubbles.dispose();
       combatText.dispose();
       overheadNames.dispose();
+      aggroRanges.dispose();
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();
       disposeObjects(scene);

@@ -1,4 +1,4 @@
-import { createAdventure } from './adventure.js';
+import { createAdventure, createSharedAdventure } from './adventure.js';
 import {test,expect} from 'bun:test';
 import type {AdventureGame, AdventureAction} from './adventure-types.js';
 import type {CharacterArchetype} from '../host/character-profile.js';
@@ -25,6 +25,107 @@ test('social aggro reaches a nearby ally outside player detection; neutral bee s
  expect(g.snapshot.threats.find(t=>t.id==='patrol')!.cast!.duration).toBeGreaterThanOrEqual(3);
  expect(g.snapshot.threats.find(t=>t.id==='nest')!.aggro).toBe(false);
  expect(g.snapshot.log.some(e=>e.text.includes("ally's call"))).toBe(true);
+});
+test('threat views expose the gameplay detection and call-for-help radii',()=>{
+ const threats=createAdventure().snapshot.threats;
+ expect(threats.map(t=>[t.id,t.aggroRange,t.callForHelpRange])).toEqual([
+  ['scout',6,9],['nest',0,9],['warder',8,9],['patrol',6,9],['ritual-guardian',8,9],
+ ]);
+});
+
+function sharedSocialPull(){
+ const seed=createSharedAdventure();seed.join('attacker','Attacker','mage');seed.join('bystander','Bystander','mage');
+ const data=JSON.parse(seed.save());
+ for(const entry of data.characters)Object.assign(entry.state,{phase:'expedition',position:entry.id==='attacker'?{x:-3,y:0,z:20}:{x:-8,y:0,z:21}});
+ for(const t of data.world.threats){
+  if(t.id==='scout')Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
+  if(t.id==='warder')t.position={x:-3,y:0,z:27};
+  if(t.id==='patrol')t.position={x:-8,y:0,z:28};
+ }
+ const world=createSharedAdventure({save:JSON.stringify(data)});
+ const attacker=world.join('attacker','Attacker','mage'),bystander=world.join('bystander','Bystander','mage');
+ attacker.selectTarget('warder');tap(attacker,'strike');
+ return {world,attacker,bystander};
+}
+
+test('a call recruits against its caller’s opponent despite a nearer bystander or separate fight',()=>{
+ for(const separateFight of [false,true]){
+  const {world,attacker,bystander}=sharedSocialPull();
+  if(separateFight){bystander.selectTarget('nest');tap(bystander,'strike');}
+  world.advance(.01);
+  const helper=attacker.snapshot.threats.find(t=>t.id==='patrol')!;
+  expect(helper.aggro).toBe(true);expect(helper.targetPlayerId).toBe('attacker');
+  expect(attacker.snapshot.log.some(e=>e.text.includes("ally's call"))).toBe(true);
+  expect(bystander.snapshot.player.inCombat).toBe(separateFight);
+ }
+});
+
+test('pausing a pull keeps new helpers out of the private encounter',()=>{
+ const {world,attacker}=sharedSocialPull();
+ expect(world.pause('attacker')).toBe(true);expect(world.resume('attacker')).toBe(true);
+ world.advance(.01);
+ expect(attacker.snapshot.threats.find(t=>t.id==='warder')!.aggro).toBe(true);
+ expect(attacker.snapshot.threats.find(t=>t.id==='patrol')!.aggro).toBe(false);
+ expect(world.session('attacker').mode).toBe('private');
+});
+
+test('calls cannot recruit a distant, returning, or defeated helper',()=>{
+ for(const excluded of ['distant','returning','defeated']){
+  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
+  Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:20}});
+  for(const t of data.state.threats){
+   if(t.id==='scout')Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
+   if(t.id==='warder')t.position={x:-3,y:0,z:27};
+   if(t.id==='patrol'){
+    t.position={x:-8,y:0,z:excluded==='distant'?36:28};
+    if(excluded==='returning')t.phase='returning';
+    if(excluded==='defeated')Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
+   }
+  }
+  const game=createAdventure({save:JSON.stringify(data)});game.selectTarget('warder');tap(game,'strike');game.advance(.01);
+  expect(game.snapshot.threats.find(t=>t.id==='warder')!.aggro).toBe(true);
+  expect(game.snapshot.threats.find(t=>t.id==='patrol')!.aggro).toBe(false);
+ }
+});
+
+test('calls cannot wake the inactive Foreman before summoning',()=>{
+ const data=JSON.parse(createAdventure({archetype:'mage'}).save());
+ Object.assign(data.state,{phase:'expedition',position:{x:0,y:0,z:30}});
+ for(const t of data.state.threats){
+  if(t.id==='warder')t.position={x:0,y:0,z:35};
+  else if(t.active)Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
+ }
+ const game=createAdventure({save:JSON.stringify(data)});game.selectTarget('warder');tap(game,'strike');game.advance(.01);
+ expect(game.snapshot.threats.find(t=>t.id==='warder')!.aggro).toBe(true);
+ expect(game.snapshot.threats.find(t=>t.id==='ritual-guardian')!.aggro).toBe(false);
+});
+
+test('an attacked neutral creature can call hostile help only across a clear path',()=>{
+ for(const obstructed of [false,true]){
+  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
+  Object.assign(data.state,{phase:'expedition',position:obstructed?{x:3,y:0,z:27}:{x:1,y:0,z:20}});
+  for(const t of data.state.threats){
+   if(t.id==='nest')t.position=obstructed?{x:3,y:0,z:25}:{x:-3,y:0,z:20};
+   else if(t.id==='patrol')t.position=obstructed?{x:3,y:0,z:17}:{x:-8,y:0,z:25};
+   else if(t.active)Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
+  }
+  const game=createAdventure({save:JSON.stringify(data)});game.selectTarget('nest');tap(game,'strike');game.advance(.01);
+  expect(game.snapshot.threats.find(t=>t.id==='nest')!.aggro).toBe(true);
+  expect(game.snapshot.threats.find(t=>t.id==='patrol')!.aggro).toBe(!obstructed);
+ }
+});
+
+test('a helper does not inherit an opponent beyond its own leash',()=>{
+ const data=JSON.parse(createAdventure({archetype:'mage'}).save());
+ Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:10}});
+ for(const t of data.state.threats){
+  if(t.id==='scout')t.position={x:-3,y:0,z:16};
+  else if(t.id==='warder')t.position={x:-3,y:0,z:24};
+  else if(t.active)Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
+ }
+ const game=createAdventure({save:JSON.stringify(data)});game.selectTarget('scout');tap(game,'strike');game.advance(.01);
+ expect(game.snapshot.threats.find(t=>t.id==='scout')!.aggro).toBe(true);
+ expect(game.snapshot.threats.find(t=>t.id==='warder')!.aggro).toBe(false);
 });
 test('summoning gives three full seconds and preserves an independent existing cast',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());

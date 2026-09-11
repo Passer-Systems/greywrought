@@ -127,6 +127,12 @@ a class retreat attack and **4** a class power. Drag action-bar spells to rearra
 them; hotkeys follow their slots. Abilities use real-time recovery; movement stays
 available throughout combat.
 
+**H** toggles enemy awareness ranges; the visible Aggro ranges button also works.
+Solid red rings show direct aggro and dashed amber rings show call-for-help range.
+Nearby hostile creatures can answer a fighting creature's call, across a clear
+path and within their pursuit limits. Neutral creatures only fight back when
+attacked. Private encounters cannot draw new creatures into the fight.
+
 Hover crystals for the quest tooltip; left-click or press G nearby to gather.
 R offers six carried crystals at the engine. F speaks with NPCs or opens nearby
 corpse loot; click an item to take it. The quest tracker gives the destination.
