@@ -16,7 +16,7 @@ test('a ranged pull cannot chip an enemy down across leash resets or hit its ret
  game.setAction('forward',false);
  expect(bee().phase).toBe('returning');expect(bee().health).toBe(72);
  const returning=JSON.parse(game.save());
- returning.state.position={x:bee().position.x-5,y:0,z:bee().position.z};
+ returning.state.position={x:bee().position.x+5,y:0,z:bee().position.z};
  game=createAdventure({save:JSON.stringify(returning)});
  expect(Math.hypot(bee().position.x-game.snapshot.player.position.x,bee().position.z-game.snapshot.player.position.z)).toBeLessThan(10);
  expect(bee().canStrike).toBe(false);

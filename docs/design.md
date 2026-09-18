@@ -243,7 +243,15 @@ Execution lasts at least three seconds and continues until committed casts,
 projectiles and movement abilities finish. The next planning window opens
 after those effects settle, so planning never demands a last-second manual dodge.
 
-Players move freely during planning. During execution, the chosen actions and
+Players move freely during planning. Engaged enemies keep pursuing: melee
+creatures close into reach, the hound follows and circles, and the Watchman
+keeps its casting distance. Pursuit follows the current opponent without
+changing the committed ability or beat and does no damage during planning.
+Leaving an enemy's home territory or returning to town breaks contact; the
+creature recovers and returns home. Late arrivals can follow during planning
+but still wait until the next cycle to choose and attack.
+
+During execution, the chosen actions and
 movement abilities play automatically, with manual movement and new combat
 inputs locked. Ordinary control returns with planning or the end of combat.
 There is no mid-sequence cancel or override. Explicit pause and disconnect

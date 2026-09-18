@@ -85,6 +85,8 @@ describe("Frostwood world and persistent rewards",()=>{
     walk(game, 2, 38.4);
     expect(fightForeman(game,true).bossHealth).toBe(0);
     expect(game.snapshot.carriedRelics).toBe(0);
+    for (let i = 0; i < 20 && game.snapshot.player.maneuver !== "none"; i++) game.advance(.05);
+    expect(game.snapshot.player.maneuver).toBe("none");
     const corpse = threat(game, "ritual-guardian").position;
     walk(game, corpse.x, corpse.z);
     tap(game, "interact");

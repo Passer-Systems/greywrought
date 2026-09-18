@@ -375,6 +375,12 @@ class Adventure implements AdventureGame {
           if (t.aggro && target?.playerId !== null && target?.playerId !== undefined && !t.combatants.includes(target.playerId)) t.combatants.push(target.playerId);
           if (t.aggro && !target) driver.releaseThreat(t); else (target ?? driver).acquireOrRelease(t, dt);
         }
+        if (ctx.clock.phase === "preparation") {
+          for (const t of ctx.world.threats) {
+            const target = driver.targetPlayer(t);
+            if (t.aggro && t.active && t.health > 0 && target) target.positionThreat(t, dt);
+          }
+        }
         if (ctx.clock.phase === "active") {
           for (const player of players) if (player.inCombat()) player.executeQueued();
           for (const t of ctx.world.threats) {
@@ -1112,6 +1118,9 @@ class Adventure implements AdventureGame {
     this.stepPlayer(dt);
     if (this.state.health <= 0) { this.finishCombatStep(0); return; }
     for (const threat of this.state.world.threats) { threat.moving = false; this.acquireOrRelease(threat, dt); }
+    if (this.state.combat.clock.phase === "preparation") {
+      for (const threat of this.state.world.threats) if (threat.aggro && threat.active && threat.health > 0) this.positionThreat(threat, dt);
+    }
     if (this.state.combat.clock.phase === "active") {
       this.executeQueued();
       for (const threat of this.state.world.threats) if (threat.aggro && threat.active && threat.health > 0 && this.state.health > 0) this.advanceThreat(threat, dt);
@@ -1328,6 +1337,14 @@ class Adventure implements AdventureGame {
     t.moving = true;
     if (t.wolf) t.wolf.facing = this.direction(t.position, next);
   }
+  private positionThreat(t: ThreatState, dt: number): void {
+    if (t.wolf) { this.positionWolf(t, dt); t.targetPosition = this.wolfEndpoint(t); }
+    else if (t.head) {
+      const gap = distance(t.position, this.state.position) - 8;
+      if (gap > 0) this.moveThreat(t, this.state.position, Math.min(dt, gap / definition(t.id).speed));
+      t.targetPosition = { ...this.state.position };
+    } else this.pursue(t, dt);
+  }
   private advanceThreat(t: ThreatState, dt: number): void {
     const clock = this.state.combat.clock;
     if (t.windowCycle !== clock.cycle || t.joinCycle > clock.cycle) return;
@@ -1338,12 +1355,7 @@ class Adventure implements AdventureGame {
       if (t.head.blockSeconds <= EPSILON) t.head.block = 0;
     }
     if (t.phase === "preparation") {
-      if (t.wolf) { this.positionWolf(t, dt); t.targetPosition = this.wolfEndpoint(t); }
-      else if (t.head) {
-        const gap = distance(t.position, this.state.position) - 8;
-        if (gap > 0) this.moveThreat(t, this.state.position, Math.min(dt, gap / definition(t.id).speed));
-        t.targetPosition = { ...this.state.position };
-      } else this.pursue(t, dt);
+      this.positionThreat(t, dt);
       t.remainingSeconds = Math.max(0, t.specialOffset - clock.elapsedSeconds);
       if (t.wolf) t.wolf.nextAttackSeconds = t.remainingSeconds;
       if (t.remainingSeconds > EPSILON) return;
