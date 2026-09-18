@@ -5,7 +5,7 @@ export const THICKET: Barrier = [2, Infinity, 18, 24];
 export const MOVEMENT_BARRIERS: readonly Barrier[] = [[-Infinity, -3, -0.5, 4], [3, Infinity, -0.5, 4], THICKET];
 export interface MovementInput { forward: number; strafe: number; cameraX: number; cameraZ: number; jump: boolean; }
 export interface MovementFrame { sequence: number; seconds: number; input: MovementInput; }
-export interface MovementManeuver { kind: 'lunge' | 'disengage'; start: Position; destination: Position; remainingSeconds: number; duration: number; }
+export interface MovementManeuver { kind: 'lunge' | 'disengage' | 'bait'; start: Position; destination: Position; remainingSeconds: number; duration: number; }
 export interface MovementCheckpoint { sequence: number; elapsed: number; verticalSpeed: number; maneuver?: MovementManeuver | null; }
 export interface MovementState { position: { x: number; y: number; z: number }; verticalSpeed: number; }
 

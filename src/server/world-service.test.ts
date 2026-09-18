@@ -112,7 +112,7 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(firstState.serverWallTimeMillis).toBeGreaterThanOrEqual(joinedAt);
     expect(firstState.serverWallTimeMillis).toBeLessThanOrEqual(Date.now());
     const initial = firstState.snapshot.player.position;
-    expect(firstState.snapshot.progression.unlockedActions).toEqual(['strike', 'brace', 'drinkPotion']);
+    expect(firstState.snapshot.progression.unlockedActions).toEqual(['bait', 'shove', 'finish', 'strike', 'brace', 'drinkPotion']);
     expect(await first.command({ type: 'quest', id: 'cold-hands', operation: 'accept' })).toBe(true);
     expect(await first.invalid({ type: 'quest', id: 'cold-hands', operation: 'complete' })).toBe(false);
     expect(await first.invalid({ type: 'equip', slot: 'head', item: 'yard-weapon' })).toBe(false);
@@ -282,3 +282,30 @@ test('two seconds without native pong forks a joined socket despite continuous b
     socket?.destroy(); await service.close(); server.stop(true); await rm(directory, { recursive: true, force: true });
   }
 }, 12_000);
+
+test('Bait transport rejects invalid ground and queues a valid destination in the real encounter', async () => {
+  const { createSharedAdventure } = await import('../game/adventure.js');
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-bait-'));
+  const savePath = join(directory, 'world.json');
+  const character: LocalCharacter = { id: 'bait-tester', name: 'Bait Tester', archetype: 'warrior', createdAtMillis: 1 };
+  const token = crypto.randomUUID(), seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
+  const saved = JSON.parse(seed.save());
+  Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 8 } });
+  await writeFile(savePath, JSON.stringify({ version: 1, accounts: [{ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') }], world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
+  const service = await createWorldService({ savePath });
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
+  const client = new Client(`ws://127.0.0.1:${server.port}/world`);
+  try {
+    await client.connect(character, token); await client.state(s => s.snapshot.combat.phase === 'preparation');
+    for (const destination of [{ x: 100, y: 0, z: 8 }, { x: 0, y: 1, z: 8 }, { x: 0, y: 0, z: '8' }, { x: 0, z: 8 }, { x: null, y: 0, z: 8 }]) {
+      expect(await client.invalid({ type: 'bait', destination })).toBe(false);
+    }
+    expect(await client.command({ type: 'bait', destination: { x: 4, y: 0, z: 20 } })).toBe(false);
+    const destination = { x: 0, y: 0, z: 8 };
+    expect(await client.command({ type: 'bait', destination })).toBe(true);
+    const planned = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait'));
+    expect(planned.snapshot.combat.queued[0]!.destination).toEqual(destination);
+    expect(await client.command({ type: 'ready' })).toBe(true);
+    expect(await client.command({ type: 'bait', destination })).toBe(false);
+  } finally { client.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
+});

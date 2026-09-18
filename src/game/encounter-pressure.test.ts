@@ -205,6 +205,7 @@ test('retreating from a committed double pull breaks contact and preserves the r
  data.state.chapter=earnedChapter(2);
  data.state.chapter.equipment={chest:'insulated-coat',mainhand:'yard-weapon'};
  for(const t of data.state.threats) if(t.id==='scout') {t.health=0;t.phase='cleared';t.lootClaimed=true;}
+ const hound=data.state.threats.find((t:{id:string})=>t.id==='patrol'); hound.position={x:-6,y:0,z:24};
  const game=createAdventure({archetype:'warrior',save:JSON.stringify(data)});
  game.selectTarget('patrol'); tap(game,'brace'); game.advance(.01);
  expect(game.snapshot.threats.filter(t=>t.aggro).map(t=>t.id).sort()).toEqual(['patrol','warder']);

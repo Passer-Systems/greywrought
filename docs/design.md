@@ -338,9 +338,44 @@ hover explanations. The combat plan shows each queued move alongside enemy casts
 on the same beat. A separate player cast bar appears for gathering or awakening
 the engine, never for an instant attack.
 
+## Roadside sabotage — 0.14.0
+
+The first roadside clearing groups the Briar bee, Ash hound and Cinder Watchman.
+The player can deliberately recruit enemy attacks into their plan. All classes
+start with three shared tools, using existing authored actors and animations:
+
+- **Bait (5):** click a destination, then choose its beat. Move up to 6 metres
+  automatically over 0.45 seconds. Costs 1 stamina.
+- **Shove (6):** push a selected enemy within 3.5 metres up to 4 metres. A
+  collision damages and staggers both creatures, disrupting their attacks.
+  Costs 1 stamina.
+- **Finish (7):** attack within 3.5 metres for 12 damage, or 54 if the enemy
+  is staggered. Costs 1 stamina.
+
+These are default hotkeys; existing custom bar arrangements stay usable.
+The player can cancel Bait aiming with Escape before clicking ground.
+The same three action slots, 30-second planning cap and Ready (R) apply.
+
+The teaching combination is Bait on Beat 1, the hound's charge on Beat 2,
+then Finish on Beat 3. A hound that collides with the bee staggers both and
+interrupts its swarm. The interrupted bee spills a swarm cloud. The Watchman's
+fireball can hit other creatures and ignite the cloud. Friendly-fire kills
+retain normal engaged-player credit in the shared world; private encounters
+still grant no rewards. Already launched projectiles continue after an interrupt.
+
+Hover, focus or click a committed enemy card to inspect its predicted path;
+select a queued move to inspect its movement. Clicking pins a preview until it
+is cleared, the cycle changes or playback begins. Predictions execute the same
+combat rules on a copy of the encounter with everyone ready. “If started now”
+is conditional: enemies still stalk during planning, so moving changes the plan.
+
+The playtest question is whether pulling another creature feels like gaining
+a useful weapon. The prototype proves the interactions; difficulty and how
+satisfying the setup feels still need playtesting.
+
 ## Later encounter: Ash hound
 
-The animated Ash hound patrols the deeper western forest, runs toward its target
+The animated Ash hound patrols the western edge of the first clearing, runs toward its target
 on the ground, and circles nearby. The planning window shows its committed Maul
 and cast beat. It leaps to a fixed landing point in 0.65 seconds, facing its
 travel direction with running animation frozen. Plan a movement ability or Block
@@ -400,10 +435,10 @@ aggro rings and dashed amber call-for-help rings, using the ranges supplied by
 the game server. The visible button and legend explain both; returning, defeated,
 and dormant creatures have no rings. Private copies retain base range markings
 but explain that new enemies cannot join. Pulling one creature remains manageable;
-two should threaten near death without deliberate defense, and three should
-overwhelm a committed fight. These are balance targets, not automatic damage
+multiple enemies reward deliberate defense and turning their attacks against
+each other. These are balance targets, not automatic damage
 multipliers or a rule that kills the player merely for engaging three enemies.
-The combat plan explicitly warns when two or more enemies are engaged.
+The combat plan identifies multiple enemies as opportunities for sabotage.
 
 
 ### Next balance question
@@ -415,27 +450,19 @@ player to predictable damage. A passing rules test establishes those mechanics,
 not the fairness or enjoyment of the final balance. The next playtest decides
 whether the timings, health and pressure produce decisions Tom wants to repeat.
 
-## Ground attack warnings
+## Intention previews and playback
 
-Every engaged enemy shows its announced attack independently of target selection.
-Highlighted areas use a bright effect-colored boundary and matching painted icon:
-green for swarm/thorns, blue for frost, amber for Maul. The area matches the actual
-strike radius and follows the caster until the windup commits its ground.
-A small painted icon and countdown sit at the far edge of the area. Detailed
-damage, caster and timing information lives on the nameplate cast bar and
-target frame; large warning cards do not cover the central fighting area.
+Committed attacks live in the three-beat planner. Inspection shows a thin path,
+a landing or impact area where applicable, and predicted collisions. Homing
+attacks show their path and target without an escape circle under the player.
+The default battlefield has no permanent attack rings or floating beat badges.
+H still deliberately toggles aggro ranges, which describe enemy awareness.
 
-Homing fireballs and beams mark the player in red; their ability details explain
-that they track you and can be blocked;
-they do not pretend to be dodgeable splash areas. Shield and power-up circles sit
-under their caster; the cast bar identifies the buff. They have no
-second ground-level text card overlapping the player frames. Existing damage attacks do not
-acquire poison-over-time or freeze effects merely from their warning color.
-
-Each enemy receives a cast slot in the shared sequence. Ordinary physical
-strikes retain a 0.35-second windup and Maul its 0.65-second lunge. Warnings
-reflect committed cast timing and landing areas. Delayed impacts retain their
-ability timing; the plan's beat marks the start of the cast.
+A beat marks when a cast begins; delayed effects land later. Planning cast bars
+and real-time “attack before recovery” cues are absent. Playback shows actual
+casts, projectiles, impacts, spilled swarms, ignitions and damage numbers.
+The player commits to the sequence, including queued movement; controls return
+after its effects resolve.
 
 ## Patrols and encounter pressure
 

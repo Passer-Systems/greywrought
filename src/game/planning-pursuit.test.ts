@@ -4,7 +4,7 @@ import { tap } from "./yard-test-fixtures.js";
 
 function seed(id: "nest" | "patrol") {
   const saved = JSON.parse(createAdventure({ archetype: "mage" }).save());
-  Object.assign(saved.state, { phase: "expedition", position: id === "nest" ? { x: -8, y: 0, z: 20 } : { x: -6, y: 0, z: 17 } });
+  Object.assign(saved.state, { phase: "expedition", position: id === "nest" ? { x: -8, y: 0, z: 15 } : { x: -6, y: 0, z: 10 } });
   for (const t of saved.state.threats) if (t.active && t.id !== id) Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true });
   return saved;
 }
@@ -34,8 +34,8 @@ for (const id of ["nest", "patrol"] as const) {
     const game = createAdventure({ save: JSON.stringify(saved) });
     game.selectTarget(id); tap(game, "strike"); game.advance(.01);
     const enemy = () => game.snapshot.threats.find(t => t.id === id)!;
-    const home = id === "nest" ? { x: 1, z: 20 } : { x: -6, z: 24 };
-    game.setCameraForward(id === "patrol" ? 6 : 0, id === "patrol" ? -20 : -1); game.setAction("forward", true);
+    const home = enemy().homePosition;
+    game.setCameraForward(-game.snapshot.player.position.x, -game.snapshot.player.position.z); game.setAction("forward", true);
     for (let i = 0; i < 200 && enemy().aggro; i++) game.advance(.05);
     game.setAction("forward", false);
     expect(enemy().aggro).toBe(false);

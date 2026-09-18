@@ -9,7 +9,7 @@ import type { LocalCharacter } from '../host/character-profile.js';
 
 const ACTIONS = [
   'forward', 'backward', 'left', 'right', 'jump', 'strike', 'disengage', 'brace',
-  'bloodRage', 'jab', 'guard', 'gather', 'ritual', 'interact', 'buyPotion',
+  'bait', 'shove', 'finish', 'bloodRage', 'jab', 'guard', 'gather', 'ritual', 'interact', 'buyPotion',
   'drinkPotion', 'rest', 'target', 'openTrade', 'closeTrade', 'acceptTrade',
   'closeShop', 'takeLoot', 'closeLoot', 'closeInn',
 ] as const satisfies readonly AdventureAction[];
@@ -54,9 +54,10 @@ function command(value: unknown): value is WorldCommand {
     case 'mouseForward': return keys(value, ['type', 'active']) && typeof value.active === 'boolean';
     case 'camera': return keys(value, ['type', 'x', 'z']) && finite(value.x, -1, 1) && finite(value.z, -1, 1) && Math.hypot(value.x, value.z) > 0.001;
     case 'target': case 'loot': return keys(value, ['type', 'id']) && identifier(value.id);
+    case 'bait': return keys(value, ['type', 'destination']) && record(value.destination) && keys(value.destination, ['x','y','z']) && finite(value.destination.x,-12,12) && finite(value.destination.y,0,0) && finite(value.destination.z,-14,45);
     case 'ready': return keys(value, ['type']);
     case 'delay': case 'move': return keys(value, ['type','id','seconds']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true) && finite(value.seconds,0,2,true);
-    case 'replace': return keys(value,['type','id','action']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true) && member(value.action,['strike','brace','disengage','bloodRage','jab','guard','drinkPotion']);
+    case 'replace': return keys(value,['type','id','action']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true) && member(value.action,['bait','shove','finish','strike','brace','disengage','bloodRage','jab','guard','drinkPotion']);
     case 'remove': return keys(value,['type','id']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true);
     case 'clear': return keys(value,['type']);
     case 'trade': return keys(value, ['type', 'kind', 'quantity']) && member(value.kind, ['supplies', 'potions']) && finite(value.quantity, 0, 100_000, true);
@@ -205,6 +206,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'mouseForward': player.setMouseForward(value.active); break;
       case 'camera': player.setCameraForward(value.x, value.z); break;
       case 'target': player.selectTarget(value.id); break;
+      case 'bait': return player.queueBait(value.destination);
       case 'ready': return player.readyCombat();
       case 'delay': player.setQueuedDelay(value.id,value.seconds); break;
       case 'move': player.moveQueuedAction(value.id,value.seconds); break;

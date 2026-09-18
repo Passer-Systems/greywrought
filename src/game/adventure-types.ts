@@ -22,20 +22,32 @@ export interface CombatFeedback {
 }
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
-  | "strike" | "disengage" | "brace" | "bloodRage" | "jab" | "guard" | "gather" | "ritual" | "interact"
+  | "bait" | "shove" | "finish" | "strike" | "disengage" | "brace" | "bloodRage" | "jab" | "guard" | "gather" | "ritual" | "interact"
   | "buyPotion" | "drinkPotion" | "rest" | "target" | "openTrade" | "closeTrade" | "acceptTrade" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn";
 export interface TradeView {
   readonly kind: "supplies" | "potions"; readonly quantity: number; readonly receivedQuantity: number;
   readonly available: number; readonly canAccept: boolean; readonly reason: string; readonly step: number;
 }
-export type CombatAction = "strike" | "brace" | "disengage" | "bloodRage" | "jab" | "guard" | "drinkPotion";
+export type CombatAction = "bait" | "shove" | "finish" | "strike" | "brace" | "disengage" | "bloodRage" | "jab" | "guard" | "drinkPotion";
 export type CombatMove = { readonly action: CombatAction } | { readonly action: "equip"; readonly gear: { readonly slot: GearSlot; readonly item: GearItemId | null } };
 export interface QueuedCombatAction {
   readonly id: number; readonly action: CombatAction; readonly targetId: string | null;
+  readonly destination: Position | null;
   readonly offsetSeconds: number; readonly cost: number;
   readonly status: "pending" | "executed" | "failed"; readonly reason: string | null;
 }
+export interface CombatForecast {
+  readonly playerId: string;
+  readonly paths: readonly { readonly actorId: string; readonly kind: "move" | "attack" | "shove"; readonly action: string; readonly beat: number; readonly queueId: number | null; readonly points: readonly Position[]; readonly radius: number }[];
+  readonly events: readonly { readonly time: number; readonly kind: "hit" | "collision" | "interruption" | "ignition" | "defeat"; readonly sourceId: string; readonly targetId: string | null; readonly position: Position; readonly damage: number; readonly text: string; readonly radius: number; readonly queueId: number | null }[];
+  readonly outcomes: readonly { readonly id: string; readonly health: number; readonly staggered: boolean }[];
+}
+export interface CombatHazard { readonly id: string; readonly kind: "swarm"; readonly position: Position; readonly radius: number; }
+export interface CombatEffect { readonly id: number; readonly kind: "ignition"; readonly position: Position; readonly radius: number; }
 export interface CombatView {
+  readonly forecast: CombatForecast | null;
+  readonly hazards: readonly CombatHazard[];
+  readonly effects: readonly CombatEffect[];
   readonly ready: boolean;
   readonly phase: "idle" | "active" | "choosing" | "preparation"; readonly remainingSeconds: number;
   readonly elapsedSeconds: number; readonly cycle: number; readonly queued: readonly QueuedCombatAction[];
@@ -76,6 +88,7 @@ export interface ThreatForecastEntry {
   readonly ability: ThreatAbilityView; readonly remainingSeconds: number; readonly status: "stored" | "pending" | "active";
 }
 export interface ThreatView {
+  readonly staggered: boolean;
   readonly id: string;
   readonly name: string;
   readonly level: number;
@@ -145,7 +158,7 @@ export interface AdventureSnapshot {
     readonly block: number;
     readonly stamina: number; readonly maximumStamina: number; readonly staminaRecoverySeconds: number;
     readonly bloodRage: number; readonly rageDrainSeconds: number; readonly rageDecaySeconds: number; readonly inCombat: boolean;
-    readonly maneuver: "none" | "lunge" | "disengage";
+    readonly maneuver: "none" | "lunge" | "disengage" | "bait";
     readonly maneuverSeconds: number;
     readonly facing: Position;
   };
@@ -186,6 +199,7 @@ export interface AdventureGame {
   setMouseForward(active: boolean): void;
   setCameraForward(x: number, z: number): void;
   selectTarget(id: string): void;
+  queueBait(destination: Position): boolean;
   readyCombat(): boolean;
   setQueuedDelay(id: number, seconds: number): void;
   moveQueuedAction(id: number, offsetSeconds: number): void;

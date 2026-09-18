@@ -1,5 +1,5 @@
 import type { QuestId, QuestOperation, GearSlot, GearItemId } from "./yard-content.js";
-import type { AdventureAction, AdventureSnapshot, EncounterSession, CombatAction } from './adventure-types.js';
+import type { AdventureAction, AdventureSnapshot, EncounterSession, CombatAction, Position } from './adventure-types.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 import type { MovementFrame, MovementCheckpoint } from './movement.js';
 
@@ -21,6 +21,7 @@ export type WorldCommand =
   | { type: 'mouseForward'; active: boolean }
   | { type: 'camera'; x: number; z: number }
   | { type: 'target'; id: string }
+  | { type: 'bait'; destination: Position }
   | { type: 'ready' }
   | { type: 'delay' | 'move'; id: number; seconds: number }
   | { type: 'replace'; id: number; action: CombatAction }

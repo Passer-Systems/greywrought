@@ -1,97 +1,105 @@
-import { CanvasTexture, CircleGeometry, Group, Mesh, MeshBasicMaterial, Object3D, RingGeometry, Sprite, SpriteMaterial, SRGBColorSpace } from "three";
-import type { AdventureSnapshot, Position, ThreatView } from "../game/adventure-types.js";
-import { publicUrl } from "./public-url.js";
-import type { RangeAudience } from "./combat-range.js";
-import { enemyResponseLabel } from "./enemy-response.js";
+import { BufferGeometry, CircleGeometry, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, RingGeometry } from "three";
+import type { AdventureSnapshot, Position } from "../game/adventure-types.js";
 
-const styles: Record<string, { color: number; icon: string; label: string; kind: "area" | "target" | "self" }> = {
-  "ember-beam": { color: 0xff643e, icon: "lightning-bolt", label: "BEAM", kind: "target" },
-  fireball: { color: 0xff4e35, icon: "fire-spell", label: "FIRE", kind: "target" },
-  "ember-ward": { color: 0x90b9ff, icon: "defensive-shield", label: "SHIELD", kind: "self" },
-  kindle: { color: 0xffbc49, icon: "energy-burst", label: "POWER UP", kind: "self" },
-  nest: { color: 0x8fe342, icon: "poison-vial", label: "SWARM", kind: "area" },
-  warder: { color: 0x51d98a, icon: "nature-leaf", label: "THORNS", kind: "area" },
-  "foreman-pulse": { color: 0xffc365, icon: "lightning-bolt", label: "PULSE", kind: "target" },
-  "foreman-press": { color: 0xff8055, icon: "earth-stone", label: "PRESS", kind: "area" },
-  "foreman-shield": { color: 0x9cbfff, icon: "defensive-shield", label: "SHIELD", kind: "self" },
-  maul: { color: 0xffb568, icon: "sword-strike", label: "MAUL", kind: "area" },
-};
+export type CombatPreview = { readonly kind: "enemy"; readonly threatId: string }
+  | { readonly kind: "move"; readonly queueId: number };
 
-function warningState(threat: ThreatView, snapshot: AdventureSnapshot, audience?: RangeAudience) {
-  const move = threat.cast ?? threat.currentActivity;
-  if (!threat.aggro || !threat.active || threat.health <= 0 || !move) return null;
-  const style = styles[move.ability.id];
-  if (!style) return null;
-  const seconds = Math.max(0, move.remainingSeconds);
-  const remoteTarget = audience && threat.targetPlayerId && threat.targetPlayerId !== audience.selfId;
-  const recipient = remoteTarget ? audience.players.find(player => player.id === threat.targetPlayerId)?.player.position : snapshot.player.position;
-  if (style.kind === "target" && !recipient) return null;
-  const position = style.kind === "target" ? recipient! : style.kind === "self" ? threat.position : threat.targetPosition;
-  const radius = style.kind === "area" ? move.ability.range : style.kind === "target" ? 0.8 : 1.1;
-  return { style, position, radius, seconds, damage: move.ability.damage, ability: move.ability.id, committed: !threat.cast || threat.cast.status === "resolving" };
-}
+const COLOR = 0xc4d4d7;
+const GROUND_HEIGHT = 0.1;
 
-export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElement) {
-  const images = new Map<string, HTMLImageElement>();
-  const ready = Promise.all(Object.values(styles).map(async style => {
-    const image = new Image();
-    image.src = publicUrl(`assets/ui/icons/spells/${style.icon}.png`);
-    await image.decode(); images.set(style.icon, image);
-  })).then(() => undefined);
-  const warnings = new Map<string, ReturnType<typeof createWarning>>();
-  function createWarning() {
-    const root = new Group(); root.visible = false; scene.add(root);
-    const fill = new Mesh(new CircleGeometry(1, 64), new MeshBasicMaterial({ transparent: true, opacity: 0.17, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
-    fill.rotation.x = -Math.PI / 2; fill.renderOrder = 2; root.add(fill);
-    const edge = new Mesh(new RingGeometry(0.975, 1, 64), new MeshBasicMaterial({ transparent: true, opacity: 0.95, depthWrite: false }));
-    edge.rotation.x = -Math.PI / 2; edge.position.y = 0.015; edge.renderOrder = 3; root.add(edge);
-    const card = document.createElement("canvas"); card.width = 80; card.height = 106;
-    const context = card.getContext("2d");
-    if (!context) throw new Error("Attack warning artwork is unavailable");
-    const texture = new CanvasTexture(card); texture.colorSpace = SRGBColorSpace;
-    const badge = new Sprite(new SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, sizeAttenuation: false }));
-    badge.scale.set(0.055, 0.055 * card.height / card.width, 1); badge.renderOrder = 4; root.add(badge);
-    return { root, fill, edge, badge, context, texture, text: "" };
+export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasElement, "dataset">) {
+  const root = new Group();
+  scene.add(root);
+  canvas.dataset.telegraphs = "[]";
+  const stroke = new MeshBasicMaterial({ color: COLOR, transparent: true, opacity: 0.82, depthWrite: false });
+  const fill = new MeshBasicMaterial({ color: COLOR, transparent: true, opacity: 0.09, depthWrite: false });
+  const lineGeometry = new PlaneGeometry(1, 1);
+  const ringGeometry = new RingGeometry(0.98, 1, 48);
+  const landingGeometry = new RingGeometry(0.2, 0.26, 24);
+  const areaGeometry = new CircleGeometry(1, 48);
+  const arrowGeometry = new BufferGeometry();
+  arrowGeometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0.38, 0.17, 0, -0.16, -0.17, 0, -0.16], 3));
+  let signature = "";
+
+  function line(from: Position, to: Position, width: number) {
+    const length = Math.hypot(to.x - from.x, to.z - from.z);
+    if (length < 0.005) return;
+    const mesh = new Mesh(lineGeometry, stroke);
+    mesh.rotation.set(-Math.PI / 2, 0, Math.atan2(to.x - from.x, to.z - from.z));
+    mesh.scale.set(width, length, 1);
+    mesh.position.set((from.x + to.x) / 2, GROUND_HEIGHT, (from.z + to.z) / 2);
+    mesh.renderOrder = 3;
+    root.add(mesh);
   }
+
+  function marker(position: Position, radius: number, area: boolean) {
+    const edge = new Mesh(area ? ringGeometry : landingGeometry, stroke);
+    edge.rotation.x = -Math.PI / 2;
+    edge.position.set(position.x, GROUND_HEIGHT + 0.01, position.z);
+    edge.scale.setScalar(area ? radius : 1);
+    edge.renderOrder = 3;
+    root.add(edge);
+    if (area) {
+      const disk = new Mesh(areaGeometry, fill);
+      disk.rotation.x = -Math.PI / 2;
+      disk.position.set(position.x, GROUND_HEIGHT, position.z);
+      disk.scale.setScalar(radius);
+      disk.renderOrder = 2;
+      root.add(disk);
+    }
+  }
+
   return {
-    ready,
-    update(snapshot: AdventureSnapshot, facing: Pick<Position, "x" | "z">, audience?: RangeAudience) {
+    update(snapshot: Pick<AdventureSnapshot, "combat">, preview: CombatPreview | null) {
+      const forecast = snapshot.combat.phase === "preparation" && preview ? snapshot.combat.forecast : null;
+      const paths = forecast?.paths.filter(path => preview?.kind === "enemy"
+        ? path.actorId === preview.threatId
+        : preview?.kind === "move" && path.queueId === preview.queueId && path.actorId === forecast.playerId) ?? [];
+      const events = forecast?.events.filter(event => (event.kind === "collision" || event.kind === "ignition" || event.kind === "interruption")
+        && (preview?.kind === "enemy" ? event.sourceId === preview.threatId
+          : preview?.kind === "move" && event.queueId === preview.queueId && event.sourceId === forecast.playerId)) ?? [];
+      const nextSignature = JSON.stringify({ preview, paths, events });
+      if (nextSignature === signature) return;
+      signature = nextSignature;
+      root.clear();
       const diagnostics: object[] = [];
-      for (const threat of snapshot.threats) {
-        const state = warningState(threat, snapshot, audience);
-        let warning = warnings.get(threat.id);
-        if (!state) { if (warning) warning.root.visible = false; continue; }
-        if (!warning) { warning = createWarning(); warnings.set(threat.id, warning); }
-        const { style, radius, position, seconds, damage } = state;
-        warning.root.visible = true; warning.root.position.set(position.x, 0.13, position.z);
-        warning.fill.scale.setScalar(radius); warning.edge.scale.setScalar(radius);
-        warning.fill.material.color.setHex(style.color); warning.edge.material.color.setHex(style.color);
-        warning.fill.material.opacity = state.committed ? 0.30 : 0.16;
-        // Targeted spells and self buffs are already named on the caster's plate.
-        warning.badge.visible = style.kind === "area";
-        // The far edge keeps area icons above the lower combat HUD at the normal camera angle.
-        warning.badge.position.set(facing.x * radius * 0.7, style.kind === "target" ? 2.7 : 0.25, facing.z * radius * 0.7);
-        const time = snapshot.combat.phase === "preparation" && threat.windowAction
-          ? "BEAT " + (threat.windowAction.offsetSeconds + 1)
-          : seconds > 0 ? `${seconds.toFixed(1)}s` : "IMPACT";
-        const text = `${style.label}|${time}|${damage}|${style.kind}|${state.committed}|${images.has(style.icon)}`;
-        if (warning.text !== text) {
-          warning.text = text;
-          const ctx = warning.context, color = `#${style.color.toString(16).padStart(6, "0")}`;
-          ctx.clearRect(0, 0, 80, 106);
-          ctx.fillStyle = "#101820ef"; ctx.fillRect(0, 0, 80, 106);
-          ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.strokeRect(2, 2, 76, 102);
-          const icon = images.get(style.icon); if (icon) ctx.drawImage(icon, 5, 4, 70, 64);
-          ctx.fillStyle = "#fff4df"; ctx.font = "bold 20px system-ui"; ctx.textAlign = "center";
-          ctx.fillText(time, 40, 82);
-          ctx.fillStyle = color; ctx.font = "bold 16px system-ui";
-          ctx.fillText(style.label, 40, 101);
-          warning.texture.needsUpdate = true;
+      const selection = preview?.kind === "enemy" ? { previewKind: "enemy", enemy: preview.threatId }
+        : { previewKind: "move", queueId: preview?.queueId };
+      for (const path of paths) {
+        const last = path.points.at(-1);
+        if (!last) continue;
+        for (let index = 1; index < path.points.length; index++) line(path.points[index - 1]!, path.points[index]!, 0.065);
+        const before = [...path.points].reverse().find(point => Math.hypot(last.x - point.x, last.z - point.z) > 0.1);
+        if (before) {
+          const arrow = new Mesh(arrowGeometry, stroke);
+          arrow.position.set(last.x, GROUND_HEIGHT + 0.02, last.z);
+          arrow.rotation.y = Math.atan2(last.x - before.x, last.z - before.z);
+          arrow.renderOrder = 3;
+          root.add(arrow);
         }
-        diagnostics.push({ enemy: threat.id, ability: state.ability, response: enemyResponseLabel(state.ability), kind: style.kind, badgeVisible: warning.badge.visible, color: style.color, radius, x: position.x, z: position.z, seconds: Number(seconds.toFixed(1)), committed: state.committed });
+        const area = path.kind === "attack" && path.radius > 0;
+        if (area || path.kind !== "attack") marker(last, area ? path.radius : 0.26, area);
+        diagnostics.push({ ...selection, actorId: path.actorId, ability: path.action, beat: path.beat,
+          kind: area ? "area" : path.kind === "attack" ? "target" : "movement",
+          path: path.points, position: last, x: last.x, z: last.z, radius: area ? path.radius : 0 });
       }
-      const serialized = JSON.stringify(diagnostics);
-      if (canvas.dataset.telegraphs !== serialized) canvas.dataset.telegraphs = serialized;
+      for (const event of events) {
+        if (event.kind === "ignition") marker(event.position, event.radius, true);
+        else {
+          const { x, y, z } = event.position;
+          line({ x: x - 0.23, y, z: z - 0.23 }, { x: x + 0.23, y, z: z + 0.23 }, 0.08);
+          line({ x: x - 0.23, y, z: z + 0.23 }, { x: x + 0.23, y, z: z - 0.23 }, 0.08);
+        }
+        diagnostics.push({ ...selection, kind: event.kind === "ignition" ? "area" : "target", event: event.kind,
+          position: event.position, radius: event.radius, targetId: event.targetId });
+      }
+      canvas.dataset.telegraphs = JSON.stringify(diagnostics);
+    },
+    dispose() {
+      root.clear(); root.removeFromParent();
+      lineGeometry.dispose(); ringGeometry.dispose(); landingGeometry.dispose(); areaGeometry.dispose(); arrowGeometry.dispose();
+      stroke.dispose(); fill.dispose();
+      canvas.dataset.telegraphs = "[]";
     },
   };
 }

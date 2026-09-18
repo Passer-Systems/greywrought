@@ -1942,10 +1942,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 
 @media(max-width:850px) { .adventure-bottom { bottom:158px; width:calc(100vw - 20px); }   }
 
-.nameplate-opening { position:absolute;left:0;top:58px;width:26px;height:26px;border:1px solid #dec979;border-radius:3px;background:#342f16;box-shadow:0 0 6px #edc55a88; }
-.nameplate-opening[hidden], .nameplate-effects:empty {display:none;}
-.nameplate-opening img {width:100%;height:100%;object-fit:contain;}
-.nameplate-opening-clock {position:absolute;bottom:-4px;right:-1px;color:#fff0b0;font-size:var(--ui-font-tiny);text-shadow:0 1px 2px #000;}
+.nameplate-effects:empty {display:none;}
 .nameplate-rooted {position:absolute;right:0;top:58px;width:26px;height:26px;border:1px solid #78dec8;border-radius:3px;background:#133f40;display:grid;place-items:center;color:#b6fff0;}
 .nameplate-rooted[hidden] {display:none;}
 .nameplate-effect-icon {font-size:21px;}
@@ -2014,10 +2011,9 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .adventure-bottom {width:min(720px,calc(100vw - 370px));}
 .adventure-controls {text-align:center;}
 @media(max-width:850px) {.adventure-bottom {width:calc(100vw - 20px);} .adventure-actions button {width:43px;height:56px;} .action-tooltip {width:195px;} .adventure-actions button:nth-child(1) .action-tooltip,.adventure-actions button:nth-child(2) .action-tooltip {left:0;transform:none;} .adventure-actions button:nth-last-child(1) .action-tooltip,.adventure-actions button:nth-last-child(2) .action-tooltip {left:auto;right:0;transform:none;}}
-.nameplate-opening,.nameplate-rooted,.nameplate-shield {top:42px;}
+.nameplate-rooted,.nameplate-shield {top:42px;}
 .enemy-nameplate {width:180px;padding:0 26px 0 26px;}
 .nameplate-target {width:180px;margin:0 auto;}
-.nameplate-opening {left:0;}
 .nameplate-heading {height:16px;gap:5px;}
 .nameplate-level {display:grid;place-items:center;flex:0 0 16px;width:16px;height:16px;box-sizing:border-box;border:1px solid var(--enemy-color);border-radius:50%;color:#fff2c8;font:700 var(--ui-font-tiny)/1 system-ui;text-shadow:0 1px 2px #000;}
 .nameplate-name {font-size:var(--ui-font-body);}
@@ -2151,3 +2147,20 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-help {font-size:10px;text-align:center;color:#aeb7a7;margin:5px 0 0;}
 .combat-plan-feedback {min-height:16px;margin:3px 0 0;color:#ead6ac;text-align:center;font-size:12px;white-space:normal;}
 @media(max-width:850px) {.combat-plan {padding:5px;max-width:490px;} .combat-plan-grid {grid-template-columns:65px repeat(3,minmax(0,1fr));} .combat-plan-help {font-size:9px;}}
+
+.combat-plan-enemy-move { cursor: pointer; padding: 0; font: inherit; }
+.combat-plan-enemy-move:hover, .combat-plan-enemy-move:focus-visible, .combat-plan-enemy-move[aria-pressed="true"] { outline: 2px solid #eccb78; outline-offset: 2px; }
+.combat-plan-inspect { position: relative; padding: 6px 8px; background: #172126; border-left: 2px solid #d6b767; color: #e7deca; }
+.combat-plan-inspect-title { font-size: 12px; padding-right: 90px; display: block; }
+.combat-plan-inspect-copy { margin: 3px 0 0; font-size: 11px; line-height: 1.4; max-height: 48px; overflow-y: auto; }
+.combat-plan-unpin { position: absolute; right: 6px; top: 4px; background: transparent; border: 0; color: #d7bd86; font: 11px system-ui; cursor: pointer; }
+.combat-plan-danger[data-severity="tactics"] { color: #d7c692; background: #302b1f; border-color: #655536; }
+#bait-aim-hint { margin: 4px 0; padding: 7px 12px; color: #fff1bc; background: #182d32ed; border: 1px solid #91cbb4; font: 13px system-ui; }
+body[data-bait-aiming="true"] #world-canvas { cursor: crosshair; }
+.adventure-actions button[aria-pressed="true"] { outline: 2px solid #a0e4ce; }
+body[data-bait-aiming="true"] .combat-plan { visibility: hidden; pointer-events: none; }
+
+.combat-plan-forecast-summary { margin: 3px 0; color: #f2d495; font-size: 11px; }
+.combat-plan-inspect { height: 92px; box-sizing: border-box; }
+.combat-plan-inspect-copy { max-height: 32px; }
+.combat-plan-forecast-summary[hidden] { display: block; visibility: hidden; }

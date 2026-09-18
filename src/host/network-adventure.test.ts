@@ -154,3 +154,12 @@ test('resume and rejoin reject duplicate actions and release the barrier only on
   expect(game.renderPlayer.position.z).toBeGreaterThan(-8);
   game.close();
 });
+
+test('Bait sends its selected ground point without predicting combat movement', async () => {
+  const { game, socket } = await connected();
+  const before = game.snapshot.player.position, destination = { x: 1, y: 0, z: 15 };
+  expect(game.queueBait(destination)).toBe(true);
+  expect(socket.sent.at(-1)).toMatchObject({ type: 'command', command: { type: 'bait', destination } });
+  expect(game.snapshot.player.position).toEqual(before);
+  game.close();
+});

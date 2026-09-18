@@ -155,6 +155,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     setMouseForward(active) { prediction.setMouseForward(active && inputEnabled()); },
     setCameraForward(x,z) { prediction.setCameraForward(x,z); if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
     selectTarget(id) { send({type:'target',id}); },
+    queueBait(destination) { send({type:'bait',destination}); return online; },
     readyCombat() { send({type:'ready'}); return online; },
     setQueuedDelay(id, seconds) { send({type:'delay',id,seconds}); },
     moveQueuedAction(id, seconds) { send({type:'move',id,seconds}); },

@@ -59,8 +59,7 @@ try {
   const added = await page.evaluate<{id:string;kind:string;target:string;text:string}[]>('window.feedbackAdded');
   check(new Set(added.map(e=>e.id)).size===added.length,'Repeated server snapshots must not replay feedback');
   check(added.some(e=>e.kind==='damage'&&e.target==='scout')&&added.some(e=>e.kind==='damage'&&e.target==='player')&&added.some(e=>e.kind==='block')&&added.some(e=>e.kind==='heal'),'All actual result categories must render');
-  await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).some(t=>t.kind==="target")');
-  check(await page.evaluate<boolean>('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).filter(t=>t.kind==="target").every(t=>t.badgeVisible===false)'), 'The floating BLOCK warning must be removed');
+  check(await page.evaluate<boolean>('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).length===0'), 'The battlefield has no persistent warnings without an inspected intention');
   await page.shot('cast-bar-without-block-warning');
   check(page.errors.length===0,'No browser exceptions');
   console.log('PASS actual outgoing/incoming damage, absorbed block, healing, no repeated numbers, fade/cleanup, pointer pass-through and removed BLOCK warning',page.output);

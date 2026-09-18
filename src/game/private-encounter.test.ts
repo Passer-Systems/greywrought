@@ -133,7 +133,9 @@ describe("private paused encounters", () => {
   });
 
   test("combat membership follows a replacement target and clears only after the encounter ends", () => {
-    const world = createSharedAdventure({ now: () => 1000 });
+    const seed = JSON.parse(createSharedAdventure({ now: () => 1000 }).save());
+    for (const t of seed.world.threats) if (t.active && t.id !== "scout") Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true, respawnAt: 121000 });
+    const world = createSharedAdventure({ save: JSON.stringify(seed), now: () => 1000 });
     const alice = world.join("alice", "Alice", "warrior");
     const bob = world.join("bob", "Bob", "mage");
     for (const player of [alice, bob]) {
