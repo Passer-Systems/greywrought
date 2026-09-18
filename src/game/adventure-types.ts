@@ -30,9 +30,16 @@ export interface TradeView {
 }
 export type CombatAction = "strike" | "brace" | "disengage" | "bloodRage" | "jab" | "guard" | "drinkPotion";
 export type CombatMove = { readonly action: CombatAction } | { readonly action: "equip"; readonly gear: { readonly slot: GearSlot; readonly item: GearItemId | null } };
+export interface QueuedCombatAction {
+  readonly id: number; readonly action: CombatAction; readonly targetId: string | null;
+  readonly offsetSeconds: number; readonly cost: number;
+  readonly status: "pending" | "executed" | "failed"; readonly reason: string | null;
+}
 export interface CombatView {
-  readonly autoAttack: boolean; readonly autoAttackRemainingSeconds: number;
-  readonly globalCooldown: number; readonly globalCooldownDuration: number;
+  readonly ready: boolean;
+  readonly phase: "idle" | "active" | "choosing" | "preparation"; readonly remainingSeconds: number;
+  readonly elapsedSeconds: number; readonly cycle: number; readonly queued: readonly QueuedCombatAction[];
+  readonly reservedStamina: number; readonly availableStamina: number;
 }
 export interface CorpseLootView {
   readonly sourceId: string;
@@ -78,7 +85,7 @@ export interface ThreatView {
   readonly aggroRange: number;
   readonly callForHelpRange: number;
   readonly targetPlayerId?: string | null;
-  readonly aggro: boolean;
+  readonly aggro: boolean; readonly joinsNextWindow: boolean;
   readonly moving: boolean;
   readonly movementMode: "idle" | "walk" | "circle" | "lunge";
   readonly motionProgress: number;
@@ -91,6 +98,8 @@ export interface ThreatView {
   readonly canStrike: boolean;
   readonly canDisengage: boolean;
   readonly cast: { readonly ability: ThreatAbilityView; readonly remainingSeconds: number; readonly duration: number; readonly status: "casting" | "resolving" } | null;
+  readonly windowAction: { readonly ability: ThreatAbilityView; readonly offsetSeconds: number; readonly status: "pending" | "active" | "resolved" } | null;
+  readonly forecast: readonly ThreatForecastEntry[];
   readonly currentActivity: ThreatForecastEntry | null;
   readonly currentAbility: ThreatAbilityView;
   readonly health: number;
@@ -177,6 +186,12 @@ export interface AdventureGame {
   setMouseForward(active: boolean): void;
   setCameraForward(x: number, z: number): void;
   selectTarget(id: string): void;
+  readyCombat(): boolean;
+  setQueuedDelay(id: number, seconds: number): void;
+  moveQueuedAction(id: number, offsetSeconds: number): void;
+  replaceQueuedAction(id: number, action: CombatAction): boolean;
+  removeQueuedAction(id: number): void;
+  clearQueuedActions(): void;
   openLoot(sourceId: string): void;
   setTradeOffer(kind: "supplies" | "potions", quantity: number): void;
   interactNpc(id: "mara" | "inn"): void;

@@ -21,6 +21,8 @@ export class LocalMovement {
   private maneuver: MovementManeuver | null = null;
   private correction = { x: 0, y: 0, z: 0 };
 
+  private executionLocked(snapshot = this.snapshot): boolean { return snapshot.player.inCombat && snapshot.combat.phase === 'active'; }
+
   constructor(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoint) {
     this.snapshot = snapshot;
     this.sequence = checkpoint.sequence;
@@ -37,12 +39,13 @@ export class LocalMovement {
       grounded: this.state.position.y === 0, moving: this.moving, backpedaling: this.backpedaling };
   }
   setAction(action: AdventureAction, pressed: boolean): void {
+    if (this.executionLocked() && isLocomotionAction(action)) return;
     if (pressed) {
       if (action === 'jump' && !this.held.has(action)) this.jump = true;
       this.held.add(action);
     } else this.held.delete(action);
   }
-  setMouseForward(active: boolean): void { this.mouseForward = active; }
+  setMouseForward(active: boolean): void { this.mouseForward = this.executionLocked() ? false : active; }
   setCameraForward(x: number, z: number): void {
     const length = Math.hypot(x, z);
     if (Number.isFinite(length) && length > 1e-9) { this.cameraX = x / length; this.cameraZ = z / length; }
@@ -53,8 +56,9 @@ export class LocalMovement {
     const decay = Math.exp(-20 * remaining);
     this.correction.x *= decay; this.correction.y *= decay; this.correction.z *= decay;
     while (remaining > 1e-9 && this.history.length < 240) {
-      const input: MovementInput = { forward: this.mouseForward ? 1 : Number(this.held.has('forward')) - Number(this.held.has('backward')),
-        strafe: Number(this.held.has('right')) - Number(this.held.has('left')), cameraX: this.cameraX, cameraZ: this.cameraZ, jump: this.jump };
+      const locked = this.executionLocked();
+      const input: MovementInput = { forward: locked ? 0 : this.mouseForward ? 1 : Number(this.held.has('forward')) - Number(this.held.has('backward')),
+        strafe: locked ? 0 : Number(this.held.has('right')) - Number(this.held.has('left')), cameraX: this.cameraX, cameraZ: this.cameraZ, jump: locked ? false : this.jump };
       const frame: MovementFrame = { sequence: ++this.sequence, seconds: Math.min(remaining, 1 / 60), input };
       this.jump = false;
       this.history.push(frame); this.outgoing.push(frame);
@@ -79,6 +83,11 @@ export class LocalMovement {
   reconcile(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoint, serverTime: number): void {
     if (serverTime < this.serverTime) return;
     const previous = this.player.position;
+    const enteredExecution = !this.executionLocked() && this.executionLocked(snapshot);
+    if (enteredExecution) {
+      this.held.clear(); this.mouseForward = false; this.jump = false;
+      this.history = []; this.outgoing = [];
+    }
     const initialized = this.serverTime !== -Infinity;
     this.serverTime = serverTime; this.snapshot = snapshot;
     this.state = { position: { ...snapshot.player.position }, verticalSpeed: checkpoint.verticalSpeed };

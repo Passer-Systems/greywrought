@@ -19,19 +19,21 @@ test("a ranged hit enrages the bee, which closes and retaliates only after its a
   for (const block of [false, true]) {
     const { world, mage, bee } = rangedBee();
     expect(bee().aggro).toBe(false); expect(bee().canStrike).toBe(true);
-    tap(mage, "strike"); world.advance(.01); tap(mage, "strike");
+    tap(mage, "strike");
+    if (block) tap(mage, "brace");
+    mage.readyCombat(); world.advance(.01);
     expect(bee().health).toBe(63); expect(bee().aggro).toBe(true);
     expect(bee().targetPlayerId).toBe("mage");
     expect(mage.snapshot.log.some(entry => entry.text.includes("enrages the Briar bee"))).toBe(true);
     const cast = bee().cast!;
-    expect(cast.duration).toBeGreaterThanOrEqual(3);
+    expect(cast.duration).toBeGreaterThanOrEqual(0); expect(cast.duration).toBeLessThanOrEqual(2);
     expect(cast.ability.name).toBe("Enraged Swarm");
     expect(cast.ability.damage).toBeGreaterThanOrEqual(16);
-    world.advance(cast.remainingSeconds - .1);
+    world.advance(Math.max(0, cast.remainingSeconds - .1));
     expect(mage.snapshot.player.health).toBe(100); expect(bee().actionSequence).toBe(0);
-    if (block) tap(mage, "brace");
-    world.advance(.5);
-    expect(bee().actionSequence).toBe(1); expect(bee().lastActionHit).toBe(true);
-    expect(mage.snapshot.player.health).toBe(block ? 100 : 100 - cast.ability.damage);
+    for (let elapsed = 0; elapsed < 10 && bee().actionSequence === 0; elapsed += .05) world.advance(.05);
+    expect(bee().actionSequence).toBe(1);
+    expect(bee().lastActionHit).toBe(true);
+    expect(mage.snapshot.player.health).toBe(block ? 100 : 100 - bee().currentAbility.damage);
   }
 });

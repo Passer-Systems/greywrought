@@ -14,11 +14,9 @@ function seed(archetype: CharacterArchetype = "mage") {
   return saved;
 }
 function beam(game: AdventureGame, defense: "guard" | "brace") {
-  game.advance(.001);
-  const cast = game.snapshot.threats.find(t => t.id === "scout")!.cast!;
-  game.advance(cast.remainingSeconds - .1);
-  tap(game, defense);
-  game.advance(.2);
+  game.advance(.001); tap(game, defense);
+  game.moveQueuedAction(game.snapshot.combat.queued[0]!.id, game.snapshot.threats[0]!.windowAction!.offsetSeconds);
+  game.readyCombat(); game.advance(2.9);
 }
 
 describe("personal combat feedback", () => {
@@ -38,10 +36,9 @@ describe("personal combat feedback", () => {
   test("full block emits absorption only, never shield activation", () => {
     const game = createAdventure({ save: JSON.stringify(seed()) });
     game.advance(.001);
-    const remaining = game.snapshot.threats.find(t => t.id === "scout")!.cast!.remainingSeconds;
-    game.advance(remaining - .1); tap(game, "brace");
+    tap(game, "brace"); game.moveQueuedAction(game.snapshot.combat.queued[0]!.id, game.snapshot.threats[0]!.windowAction!.offsetSeconds);
     expect(game.snapshot.combatFeedback).toEqual([]);
-    game.advance(.2);
+    game.readyCombat(); game.advance(2.9);
     expect(game.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "block", amount: 8 }]);
     expect(game.snapshot.player.health).toBe(100);
   });
@@ -52,7 +49,7 @@ describe("personal combat feedback", () => {
     saved.state.threats[0].head.blockSeconds = 2;
     saved.state.threats[0].health = 2;
     const game = createAdventure({ save: JSON.stringify(saved) });
-    tap(game, "strike");
+    tap(game, "strike"); game.readyCombat(); game.advance(.001);
     expect(game.snapshot.combatFeedback).toEqual([
       { id: 1, targetId: "scout", kind: "block", amount: 6 },
       { id: 2, targetId: "scout", kind: "damage", amount: 2 },
@@ -61,11 +58,11 @@ describe("personal combat feedback", () => {
 
   test("potions, Protective Tonic, and inn healing report capped recovery", () => {
     const potionSave = seed(); potionSave.state.health = 95; potionSave.state.potions = 1;
-    const potion = createAdventure({ save: JSON.stringify(potionSave) }); tap(potion, "drinkPotion");
-    expect(potion.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 5 }]);
+    const potion = createAdventure({ save: JSON.stringify(potionSave) }); potion.advance(.001); tap(potion, "drinkPotion"); potion.readyCombat(); potion.advance(.001);
+    expect(potion.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 5 }, { id: 2, targetId: null, kind: "damage", amount: 8 }]);
     const tonicSave = seed("alchemist"); tonicSave.state.health = 98;
-    const tonic = createAdventure({ save: JSON.stringify(tonicSave) }); tonic.advance(.001); tap(tonic, "brace");
-    expect(tonic.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 2 }]);
+    const tonic = createAdventure({ save: JSON.stringify(tonicSave) }); tonic.advance(.001); tap(tonic, "brace"); tonic.readyCombat(); tonic.advance(.001);
+    expect(tonic.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 2 }, { id: 2, targetId: null, kind: "block", amount: 8 }]);
     const innSave = seed(); Object.assign(innSave.state, { phase: "town", health: 97, position: { x: 5, y: 0, z: -11 } });
     const inn = createAdventure({ save: JSON.stringify(innSave) }); tap(inn, "rest"); tap(inn, "rest");
     expect(inn.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 3 }]);
@@ -73,24 +70,27 @@ describe("personal combat feedback", () => {
 
   test("keeps distinct events between snapshots, copies entries, and clears on restore", () => {
     const game = createAdventure({ save: JSON.stringify(seed()) });
-    tap(game, "strike"); game.advance(1.5);
+    tap(game, "strike"); tap(game, "strike"); game.readyCombat(); game.advance(1.5);
     const feedback = game.snapshot.combatFeedback;
     expect(feedback).toEqual([
       { id: 1, targetId: "scout", kind: "damage", amount: 9 },
-      { id: 2, targetId: "scout", kind: "damage", amount: 9 },
+      { id: 2, targetId: null, kind: "damage", amount: 8 },
+      { id: 3, targetId: "scout", kind: "damage", amount: 9 },
     ]);
     expect(game.snapshot.combatFeedback).toEqual(feedback);
     expect(game.snapshot.combatFeedback[0]).not.toBe(feedback[0]);
     expect(createAdventure({ save: game.save() }).snapshot.combatFeedback).toEqual([]);
   });
 
-  test("misses describe resolved attacks and waiting autos emit nothing", () => {
+  test("misses describe resolved attacks and unreachable strikes emit nothing", () => {
     const waitingSave = seed("warrior"); waitingSave.state.position.z = 5;
-    const waiting = createAdventure({ save: JSON.stringify(waitingSave) }); tap(waiting, "strike"); waiting.advance(.1);
+    const waiting = createAdventure({ save: JSON.stringify(waitingSave) }); tap(waiting, "strike"); waiting.readyCombat(); waiting.advance(.1);
     expect(waiting.snapshot.combatFeedback).toEqual([]);
     const saved = seed();
     Object.assign(saved.state.threats[0], { aggro: true, phase: "preparation", remainingSeconds: .1, castDuration: 3 });
     saved.state.position = { x: -3, y: 0, z: 21 };
+    saved.state.combat.clock = { phase: "active", cycle: 1, elapsedSeconds: 2.9 };
+    Object.assign(saved.state.threats[0], { windowCycle: 1, joinCycle: 1 });
     const missed = createAdventure({ save: JSON.stringify(saved) }); missed.advance(.2);
     expect(missed.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "miss", amount: 0 }]);
   });
@@ -102,14 +102,13 @@ describe("personal combat feedback", () => {
     saved.world.threats = solo.threats;
     const world = createSharedAdventure({ save: JSON.stringify(saved) });
     const a = world.join("a", "Ada", "mage"), b = world.join("b", "Bram", "hunter");
-    tap(a, "strike"); tap(b, "strike"); tap(a, "strike"); tap(b, "strike");
-    world.advance(.001);
-    const remaining = a.snapshot.threats.find(t => t.id === "scout")!.cast!.remainingSeconds;
-    world.advance(remaining - .1); tap(a, "guard"); world.advance(.2);
+    tap(a, "strike"); tap(b, "strike"); tap(a, "guard");
+    a.moveQueuedAction(a.snapshot.combat.queued[1]!.id, a.snapshot.threats[0]!.windowAction!.offsetSeconds);
+    a.readyCombat(); b.readyCombat(); world.advance(2.9);
     expect(a.snapshot.combatFeedback).toEqual([
-      { id: 1, targetId: "scout", kind: "damage", amount: 9 },
-      { id: 2, targetId: null, kind: "block", amount: 2 },
-      { id: 3, targetId: null, kind: "damage", amount: 6 },
+      { id: 1, targetId: null, kind: "block", amount: 2 },
+      { id: 2, targetId: null, kind: "damage", amount: 6 },
+      { id: 3, targetId: "scout", kind: "damage", amount: 9 },
     ]);
     expect(b.snapshot.combatFeedback).toEqual([{ id: 1, targetId: "scout", kind: "damage", amount: 9 }]);
     const restored = createSharedAdventure({ save: world.save() });

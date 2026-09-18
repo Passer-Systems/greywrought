@@ -1,4 +1,4 @@
-import { earnedChapter, fightForeman } from "./yard-test-fixtures.js";
+import { earnedChapter, fightForeman, fightTarget, finishCycle } from "./yard-test-fixtures.js";
 import { describe, expect, test } from "bun:test";
 import { createAdventure, getMonsterLore } from "./adventure.js";
 import type { AdventureAction, AdventureGame, ThreatView } from "./adventure-types.js";
@@ -39,16 +39,7 @@ function approachWarder(): AdventureGame {
  const game=createAdventure({save:JSON.stringify(saved)});game.advance(0.01);return game;
 }
 function finish(game: AdventureGame, id: string): void {
-  game.selectTarget(id);
-  if (!game.snapshot.combat.autoAttack) tap(game, "strike");
-  for (let seconds = 0; seconds < 90 && threat(game, id).health > 0 && game.snapshot.player.health > 0; seconds += .05) {
-    const target = threat(game, id), player = game.snapshot.player;
-    const dx = target.position.x - player.position.x, dz = target.position.z - player.position.z;
-    game.setCameraForward(dx, dz); game.setAction("forward", Math.hypot(dx, dz) > 1.7);
-    if (target.cast && target.cast.ability.damage > 0 && target.cast.remainingSeconds < .3 && game.snapshot.combat.globalCooldown === 0) tap(game, "brace");
-    game.advance(.05);
-  }
-  game.setAction("forward", false);
+  fightTarget(game, id);
   expect(threat(game, id).health).toBe(0);
 }
 function legacyV2(game:AdventureGame):string {
@@ -87,10 +78,10 @@ describe("Frostwood world and persistent rewards",()=>{
     prepared.state.chapter=earnedChapter(2);prepared.state.chapter.equipment={chest:"insulated-coat",mainhand:"yard-weapon"};
     for (const enemy of prepared.state.threats) if (enemy.id !== "ritual-guardian") Object.assign(enemy, { health:0, phase:"cleared", lootClaimed:true });
     const game=createAdventure({save:JSON.stringify(prepared)});
-    tap(game, "ritual");
+    tap(game, "ritual"); game.advance(.01);
     expect(game.snapshot.ritualCalled).toBe(true);
     expect(game.snapshot.cargo).toBe(6);
-    expect(threat(game,"ritual-guardian").cast!.remainingSeconds).toBeGreaterThanOrEqual(3);
+    expect(threat(game,"ritual-guardian").windowAction!.offsetSeconds).toBeGreaterThanOrEqual(0);
     walk(game, 2, 38.4);
     expect(fightForeman(game,true).bossHealth).toBe(0);
     expect(game.snapshot.carriedRelics).toBe(0);
@@ -126,9 +117,9 @@ describe("Frostwood world and persistent rewards",()=>{
     expect(threat(game,"nest")).toMatchObject({disposition:"neutral",aggro:false,health:72,actionSequence:0});
     expect(threat(game,"nest").position).not.toEqual(threat(game,"nest").homePosition);
     expect(game.snapshot.player.health).toBe(100);
-    game.selectTarget("nest");tap(game,"strike");
-    for(let i=0;i<200&&!threat(game,"nest").aggro;i++){const target=threat(game,"nest").position,p=game.snapshot.player.position;game.setCameraForward(target.x-p.x,target.z-p.z);game.setAction("forward",true);game.advance(.02);}
-    game.setAction("forward",false);
+    game.selectTarget("nest");
+    for(let i=0;i<200&&!threat(game,"nest").canStrike;i++){const target=threat(game,"nest").position,p=game.snapshot.player.position;game.setCameraForward(target.x-p.x,target.z-p.z);game.setAction("forward",true);game.advance(.02);}
+    game.setAction("forward",false); tap(game,"strike"); game.readyCombat(); game.advance(.01);
     expect(threat(game,"nest").aggro).toBe(true);
     expect(threat(game,"nest").health).toBe(63);
     finish(game,"nest");
@@ -184,7 +175,7 @@ describe("Frostwood world and persistent rewards",()=>{
 
   test("loss is permanent and saved: stores are gone and neither rest nor movement revives", () => {
     const game = approachWarder();
-    game.advance(120);
+    for (let cycle = 0; cycle < 100 && game.snapshot.player.health > 0; cycle++) { game.readyCombat(); finishCycle(game); game.advance(.01); }
     expect(game.snapshot.phase).toBe("lost");
     expect(game.snapshot.player.health).toBe(0);
     expect(game.snapshot.supplies).toBe(0);
@@ -260,7 +251,7 @@ describe("Frostwood world and persistent rewards",()=>{
     expect(claimed.snapshot.carriedSalvage).toBe(0);
     expect(claimed.snapshot.supplies).toBe(16);
     walk(game, -8, 8); walk(game, -8, 24); walk(game, -3, 26.6);
-    game.advance(120);
+    for (let cycle = 0; cycle < 100 && game.snapshot.player.health > 0; cycle++) { game.readyCombat(); finishCycle(game); game.advance(.01); }
     expect(game.snapshot.phase).toBe("lost");
     expect(game.snapshot.carriedSalvage).toBe(0);
     expect(game.snapshot.supplies).toBe(0);

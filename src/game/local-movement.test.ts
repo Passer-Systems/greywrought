@@ -26,6 +26,20 @@ test('prediction rebuilt after a pause continues above the last acknowledged mov
   near(resumed.player.position, server.snapshot.player.position);
 });
 
+test('active combat clears held locomotion and does not replay stale movement frames', () => {
+  const server = createAdventure(); server.enableNetworkMovement!();
+  const local = new LocalMovement(server.snapshot, server.movementCheckpoint!);
+  local.setAction('forward', true); local.advance(.1);
+  expect(local.player.position.z).toBeGreaterThan(server.snapshot.player.position.z);
+  const active = { ...server.snapshot, player: { ...server.snapshot.player, inCombat: true }, combat: { ...server.snapshot.combat, phase: 'active' as const } };
+  local.reconcile(active, server.movementCheckpoint!, 1);
+  const locked = local.player.position;
+  local.setAction('forward', true); local.setMouseForward(true); local.setAction('jump', true); local.advance(.2);
+  expect(local.player.position.x).toBeCloseTo(locked.x, 7);
+  expect(local.player.position.z).toBeCloseTo(locked.z, 7);
+  expect(local.takeOutgoing().every(frame => frame.input.forward === 0 && frame.input.strafe === 0 && !frame.input.jump)).toBe(true);
+});
+
 test('delayed and jittered acknowledgments preserve immediate speed, turns, release, mouse priority and jumping', () => {
   const server = createAdventure(), solo = createAdventure();
   server.enableNetworkMovement!();

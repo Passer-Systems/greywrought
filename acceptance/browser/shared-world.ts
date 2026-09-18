@@ -34,13 +34,16 @@ try {
   await first.shot('two-players-and-chat');
   await first.key('KeyA',true);await first.waitFor('Number(document.body.dataset.gamePlayerX)>-0.2');await first.key('KeyA',false);
   await first.key('KeyW',true);await first.waitFor('Number(document.body.dataset.gamePlayerZ)>2.5');await first.key('KeyW',false);
-  await first.press('Digit2');
+  await first.waitFor('document.body.dataset.gameCombatPhase==="preparation"');
+  await first.click('.adventure-actions [data-action="brace"]');
+  await first.click('.combat-plan-ready');
+  await first.waitFor('document.body.dataset.gameCombatPhase==="active"');
   await first.waitFor('Number(document.body.dataset.gameBlock)>0');
-  check(await first.evaluate<boolean>('document.getElementById("combat-plan")===null'),'Turn planner must be absent');
   await first.key('KeyW',true);await first.waitFor('Number(document.body.dataset.gamePlayerZ)>8');await first.key('KeyW',false);
-  await first.press('Digit1');
+  await first.waitFor('document.body.dataset.gameCombatPhase==="preparation"');
+  await first.click('.adventure-actions [data-action="strike"]');
+  await first.click('.combat-plan-ready');
   await first.waitFor(`Number(document.querySelector('#map-threats [data-enemy-id="scout"]').dataset.health)<96`,20000);
-  await first.press('Digit1');await first.waitFor('document.body.dataset.gameAutoAttack==="false"');
   const hp=await first.evaluate<string>(`document.querySelector('#map-threats [data-enemy-id="scout"]').dataset.health`);
   await second.waitFor(`document.querySelector('#map-threats [data-enemy-id="scout"]').dataset.health===${JSON.stringify(hp)}`);
   await second.shot('shared-enemy-damage');
@@ -49,5 +52,5 @@ try {
   await first.click('#entry-enter-world');await first.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.gameOnline==="true"');
   await second.waitFor('JSON.parse(document.body.dataset.gameRemotePlayers).length===1');
   check(first.errors.length===0&&second.errors.length===0,'Both browsers must remain free of errors');
-  console.log('PASS two players, distinct movement, shared chat and enemy damage, numbered abilities, immediate Block, repeating auto attack, rejoin; '+first.output);
+  console.log('PASS two players, distinct movement, shared chat and enemy damage, numbered abilities, planned Block/strike, rejoin; '+first.output);
 } finally {await first.close();await second.close();}

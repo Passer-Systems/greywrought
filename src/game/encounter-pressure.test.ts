@@ -22,7 +22,7 @@ test('social aggro reaches a nearby ally outside player detection; neutral bee s
  const g=createAdventure({save:JSON.stringify(data)});g.advance(.01);
  expect(g.snapshot.threats.find(t=>t.id==='warder')!.aggro).toBe(true);
  expect(g.snapshot.threats.find(t=>t.id==='patrol')!.aggro).toBe(true);
- expect(g.snapshot.threats.find(t=>t.id==='patrol')!.cast!.duration).toBeGreaterThanOrEqual(3);
+ expect([0,1,2]).toContain(g.snapshot.threats.find(t=>t.id==='patrol')!.windowAction!.offsetSeconds);
  expect(g.snapshot.threats.find(t=>t.id==='nest')!.aggro).toBe(false);
  expect(g.snapshot.log.some(e=>e.text.includes("ally's call"))).toBe(true);
 });
@@ -127,7 +127,7 @@ test('a helper does not inherit an opponent beyond its own leash',()=>{
  expect(game.snapshot.threats.find(t=>t.id==='scout')!.aggro).toBe(true);
  expect(game.snapshot.threats.find(t=>t.id==='warder')!.aggro).toBe(false);
 });
-test('summoning gives three full seconds and preserves an independent existing cast',()=>{
+test('summoning during planning preserves the existing committed cast',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
  Object.assign(data.state,{phase:'expedition',position:{x:2,y:0,z:38.5},cargo:6});
  const warder=data.state.threats.find((t:{id:string})=>t.id==='warder');
@@ -136,26 +136,25 @@ test('summoning gives three full seconds and preserves an independent existing c
  const previous=game.snapshot.threats.find(t=>t.id==='warder')!.cast;
  tap(game,'ritual');
  const boss=game.snapshot.threats.find(t=>t.id==='ritual-guardian')!;
- expect(boss.cast!.remainingSeconds).toBeGreaterThanOrEqual(3);
+ expect(boss.cast).toBeNull();expect(boss.joinsNextWindow).toBe(true);
  expect(game.snapshot.threats.find(t=>t.id==='warder')!.cast).toEqual(previous);
  const restored=createAdventure({save:game.save()});
  expect(restored.snapshot.threats.find(t=>t.id==='ritual-guardian')!.cast).toEqual(boss.cast);
  game.advance(2.99);expect(game.snapshot.threats.find(t=>t.id==='ritual-guardian')!.actionSequence).toBe(0);
 });
 
-test('engaging another enemy starts its own cast without resetting an existing one',()=>{
+test('engaging another enemy during planning preserves the existing committed cast',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
  Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:14}});
  for(const t of data.state.threats)if(t.active&&!['scout','nest'].includes(t.id))Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
  const game=createAdventure({save:JSON.stringify(data)});game.advance(.01);
  const scout=()=>game.snapshot.threats.find(t=>t.id==='scout')!;
  const bee=()=>game.snapshot.threats.find(t=>t.id==='nest')!;
- const first=scout().cast!;expect(first.duration).toBeGreaterThanOrEqual(3);
+ const first=scout().cast!;expect([0,1,2]).toContain(first.duration);
  game.advance(1);const remaining=scout().cast!.remainingSeconds;
  game.selectTarget('nest');tap(game,'strike');game.advance(.01);
- expect(bee().cast!.duration).toBeGreaterThanOrEqual(3);
- expect(bee().cast!.remainingSeconds).toBeGreaterThanOrEqual(2.99);
- expect(scout().cast!.remainingSeconds).toBeCloseTo(remaining-.01);
+ expect(bee().cast).toBeNull();expect(bee().joinsNextWindow).toBe(true);
+ expect(scout().cast!.remainingSeconds).toBeCloseTo(remaining);
  expect(scout().cast!.ability).toEqual(first.ability);
  expect(game.snapshot.player.health).toBe(100);
 });
@@ -167,12 +166,15 @@ function pressure(count:number,defend:boolean,archetype:CharacterArchetype='warr
  const ids=['warder','patrol'].slice(0,count);
  for(const t of data.state.threats){
   if(!ids.includes(t.id)&&t.active)Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
-  if(ids.includes(t.id))Object.assign(t,{aggro:true,phase:'preparation',rng:2000});
+  if(ids.includes(t.id))Object.assign(t,{aggro:true,combatants:['solo'],phase:'preparation',rng:2000});
  }
  const game=createAdventure({save:JSON.stringify(data)});
  for(let elapsed=0;elapsed<12&&game.snapshot.player.health>0;elapsed+=.05){
   const s=game.snapshot;
-  if(defend&&s.combat.globalCooldown===0&&s.threats.some(t=>t.cast&&t.cast.ability.damage>0&&t.cast.remainingSeconds<.25))tap(game,'brace');
+  if(s.combat.phase==='preparation'){
+   if(defend&&s.player.stamina>=2){tap(game,'brace');const block=game.snapshot.combat.queued.find(e=>e.action==='brace');if(block)game.moveQueuedAction(block.id,Math.min(...s.threats.filter(t=>t.windowAction&&t.windowAction.ability.damage>0).map(t=>t.windowAction!.offsetSeconds)));}
+   game.readyCombat();
+  }
   game.advance(.05);
  }
  return game.snapshot.player.health;
@@ -191,7 +193,7 @@ test('ranged attacks keep Watchman aggro instead of dropping contact at distance
   for(const t of data.state.threats) if(t.id!=='scout' && t.id!=='ritual-guardian'){t.active=true;t.health=0;t.phase='cleared';t.lootClaimed=true;}
   const game=createAdventure({archetype,save:JSON.stringify(data)}); game.selectTarget('scout'); tap(game,'strike'); game.advance(.01);
   expect(game.snapshot.threats.find(t=>t.id==='scout')!.aggro).toBe(true);
-  game.advance(8);
+  game.readyCombat();game.advance(8);
   expect(game.snapshot.player.health).toBeLessThan(100);
   expect(game.snapshot.threats.find(t=>t.id==='scout')!.health).toBeLessThan(96);
  }

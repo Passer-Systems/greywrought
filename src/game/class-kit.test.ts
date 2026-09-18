@@ -25,7 +25,7 @@ describe("new class kits", () => {
       const game = expedition(archetype);
       game.selectTarget("scout");
       game.setAction("strike", true); game.setAction("strike", false);
-      game.advance(0.01); game.advance(1.01);
+      game.readyCombat(); game.advance(0.01); game.advance(1.01);
       expect(game.snapshot.threats.find(threat => threat.id === "scout")?.health).toBeLessThan(96);
       const restored = createAdventure({ archetype, save: game.save() });
       expect(restored.snapshot.player.archetype).toBe(archetype);
@@ -35,7 +35,7 @@ describe("new class kits", () => {
   test("class powers preserve spent stamina through a save", () => {
     for (const archetype of ["warrior", "mage", "hunter", "alchemist", "artificer"] as const) {
       const game = expedition(archetype); game.selectTarget("scout"); game.advance(.01);
-      game.setAction("bloodRage", true); game.setAction("bloodRage", false);
+      game.setAction("bloodRage", true); game.setAction("bloodRage", false); game.readyCombat(); game.advance(.001);
       expect(game.snapshot.player.stamina).toBe(4);
       expect(game.snapshot.player.bloodRage).toBe(1);
       const restored = createAdventure({ archetype, save: game.save() });
@@ -49,13 +49,14 @@ test("class powers preserve their distinct health costs through Block and can en
   for (const archetype of ["warrior", "mage", "hunter", "alchemist", "artificer"] as const) {
     const game = expedition(archetype); game.advance(.01);
     const saved = JSON.parse(game.save());
+    Object.assign(saved.state.threats[0], { specialOffset: 2, remainingSeconds: 2, castDuration: 2 });
     Object.assign(saved.state, { health: 50, bloodRage: 3, rageDrainSeconds: .1, block: 24, guardSeconds: 2 });
-    const charged = createAdventure({ save: JSON.stringify(saved) }); charged.advance(.1);
+    const charged = createAdventure({ save: JSON.stringify(saved) }); charged.readyCombat(); charged.advance(.1);
     expect(charged.snapshot.player.health).toBe(archetype === "hunter" ? 50 : 47);
     expect(charged.snapshot.player.block).toBe(24);
     if (archetype !== "hunter") {
       saved.state.health = 1;
-      const dying = createAdventure({ save: JSON.stringify(saved) }); dying.advance(.1);
+      const dying = createAdventure({ save: JSON.stringify(saved) }); dying.readyCombat(); dying.advance(.1);
       expect(dying.snapshot.phase).toBe("lost"); expect(dying.snapshot.player.health).toBe(0);
     }
   }

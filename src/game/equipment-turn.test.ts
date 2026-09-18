@@ -12,23 +12,23 @@ test("gear outside combat changes immediately with slot and ownership validation
     expect(game.snapshot.progression.equipment.mainhand).toBeNull();
     game.equip("chest", "insulated-coat");
     expect(game.snapshot.progression.damageReduction).toBe(2);
-    expect(game.snapshot.combat.globalCooldown).toBe(0);
+    expect(game.snapshot.player.actionCooldown).toBe(0);
     game.equip("chest", null);
     expect(game.snapshot.progression.damageReduction).toBe(0);
   }
 });
 
-test("equipment changes during auto attacks cost no stamina and persist immediately", () => {
+test("equipment changes during planning cost no stamina and persist immediately", () => {
   const game = foremanFixture(true); game.advance(1); tap(game, "strike"); game.advance(.01);
-  const stamina = game.snapshot.player.stamina;
+  const stamina = game.snapshot.player.stamina, currentAction = game.snapshot.player.currentAction, cooldown = game.snapshot.player.actionCooldown;
   game.equip("chest", null);
   expect(game.snapshot.progression.damageReduction).toBe(0);
   expect(game.snapshot.player.stamina).toBe(stamina);
-  expect(game.snapshot.player.currentAction).toBe("equip");
-  expect(game.snapshot.combat.globalCooldown).toBeCloseTo(1.5);
-  game.equip("chest", "insulated-coat");
+  expect(game.snapshot.player.currentAction).toBe(currentAction);
+  expect(game.snapshot.player.actionCooldown).toBe(cooldown);
+  game.readyCombat(); game.equip("chest", "insulated-coat");
   expect(game.snapshot.progression.damageReduction).toBe(0);
-  expect(game.snapshot.combat.autoAttack).toBe(true);
+  expect(game.snapshot.combat.phase).toBe("active");
   expect(createAdventure({ save: game.save() }).snapshot.progression.damageReduction).toBe(0);
 });
 

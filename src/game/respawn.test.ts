@@ -25,7 +25,7 @@ describe("two-minute world regrowth", () => {
     const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => time });
     const a = world.join("a", "Ada", "mage");
     const b = world.join("b", "Bram", "mage");
-    tap(a, "strike"); world.advance(0.01);
+    tap(a, "strike"); a.readyCombat(); b.readyCombat(); world.advance(0.01);
     expect(a.snapshot.threats[0]!.health).toBe(0);
     expect(JSON.parse(world.save()).world.threats[0].respawnAt).toBe(time + WORLD_RESPAWN_MILLISECONDS);
     a.openLoot("scout"); expect(a.snapshot.lootOpenId).toBe("scout");
@@ -77,7 +77,7 @@ describe("two-minute world regrowth", () => {
     const midway = JSON.parse(restored.save());
     expect(midway.world.threats[1].health).toBe(0);
     expect(midway.world.threats[1].respawnAt).toBe(150_000);
-    expect(midway).not.toHaveProperty("clock");
+    expect(midway.clock).toEqual(paused.clock);
     expect(midway.characters).toEqual(paused.characters);
     expect(midway.world.threats[0]).toEqual(paused.world.threats[0]);
     const beforeDowntime = restored.save();

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createSharedAdventure } from "./adventure.js";
+import { finishCycle, readyParty } from "./yard-test-fixtures.js";
 
 const tap = (game: ReturnType<ReturnType<typeof createSharedAdventure>["join"]>, action: Parameters<typeof game.setAction>[0]) => {
   game.setAction(action, true); game.setAction(action, false);
@@ -108,7 +109,7 @@ describe("private paused encounters", () => {
     expect(world.pause("alice")).toBe(true);
     const shared = JSON.parse(world.save()).world.threats.find((t: { id: string }) => t.id === "scout");
     expect(shared.health).toBe(health);
-    expect(shared.castDuration).toBeGreaterThan(0);
+    expect(shared.castDuration).toBeGreaterThanOrEqual(0);
     expect(shared.remainingSeconds).toBeCloseTo(castRemaining, 5);
     expect(shared.targetPlayerId).toBe("bob");
     expect(shared.combatants).toEqual(["bob"]);
@@ -153,7 +154,8 @@ describe("private paused encounters", () => {
     // Killing the sole remaining threat clears the membership for Bob.
     bob.selectTarget("scout");
     for (let i = 0; i < 30 && bob.snapshot.threats.find(t => t.id === "scout")!.health > 0; i++) {
-      tap(bob, "strike"); world.advance(1.6);
+      if (bob.snapshot.combat.phase === "active") finishCycle(bob, world);
+      tap(bob, "strike"); tap(bob, "strike"); tap(bob, "strike"); readyParty(alice, bob); finishCycle(bob, world);
     }
     expect(bob.snapshot.threats.find(t => t.id === "scout")!.health).toBe(0);
     expect(bob.snapshot.player.inCombat).toBe(false);
@@ -183,11 +185,11 @@ describe("private paused encounters", () => {
     const resumed = reopened.join("alice", "Alice", "warrior");
     expect(reopened.resume("alice")).toBe(true);
     expect(reopened.rejoin("alice")).toBe(false);
-    resumed.selectTarget("scout"); tap(resumed, "strike"); reopened.advance(0.1);
+    resumed.selectTarget("scout"); tap(resumed, "strike"); resumed.readyCombat(); reopened.advance(0.1);
     expect(resumed.snapshot.threats.find(t => t.id === "scout")!.health).toBe(0);
     expect(reopened.rejoin("alice")).toBe(false);
-    reopened.advance(1.6);
-    resumed.selectTarget("patrol"); tap(resumed, "strike"); reopened.advance(0.1);
+    finishCycle(resumed, reopened);
+    resumed.selectTarget("patrol"); tap(resumed, "strike"); resumed.readyCombat(); reopened.advance(0.1);
     expect(resumed.snapshot.threats.find(t => t.id === "patrol")!.health).toBe(0);
     expect(reopened.rejoin("alice")).toBe(true);
   });

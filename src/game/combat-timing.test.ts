@@ -20,15 +20,15 @@ describe("legacy combat save migration", () => {
     expect(game.snapshot).toMatchObject({ supplies: 47, potions: 4, cargo: 3, bankedRelics: 2 });
     expect(game.snapshot.progression.equipment).toEqual(legacy.state.chapter.equipment);
     expect(game.snapshot.quests.filter(q => q.status === "completed")).toHaveLength(2);
-    expect(game.snapshot.combat.autoAttack).toBe(false);
-    expect(game.snapshot.combat.globalCooldown).toBe(0);
+    expect(game.snapshot.combat.queued).toEqual([]);
+    expect(game.snapshot.combat.phase).toBe("idle");
     const saved = JSON.parse(game.save());
-    expect(saved.version).toBe(10);
-    expect(saved.state).not.toHaveProperty("combat");
+    expect(saved.version).toBe(11);
+    expect(saved.state.combat.queued).toEqual([]);
     expect(createAdventure({ save: game.save() }).snapshot.progression).toEqual(game.snapshot.progression);
   });
 
-  test("shared-v1 retains offline characters and world progress without a shared clock", () => {
+  test("shared-v1 retains offline characters and world progress with a fresh shared clock", () => {
     const legacy = JSON.parse(sharedV1);
     legacy.characters[0].state.chapter = earnedChapter(2);
     Object.assign(legacy.characters[0].state, { health: 61, supplies: 39, potions: 3 });
@@ -39,10 +39,10 @@ describe("legacy combat save migration", () => {
     expect(player.snapshot).toMatchObject({ supplies: 39, potions: 3, resourceRemaining: 6 });
     expect(player.snapshot.progression.ownedGear).toEqual(["insulated-coat", "yard-weapon"]);
     const saved = JSON.parse(game.save());
-    expect(saved.version).toBe(3);
+    expect(saved.version).toBe(4);
     expect(saved.instances).toEqual([]);
-    expect(saved).not.toHaveProperty("clock");
-    expect(saved.characters[0].state).not.toHaveProperty("combat");
+    expect(saved.clock.phase).toBe("idle");
+    expect(saved.characters[0].state.combat.queued).toEqual([]);
     expect(createSharedAdventure({ save: game.save() }).join("legacy", "Legacy", "mage").snapshot.progression).toEqual(player.snapshot.progression);
   });
 });

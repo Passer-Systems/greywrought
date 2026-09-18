@@ -45,19 +45,20 @@ export function createEnemyCastBar(parent: HTMLElement, id: string) {
         icon.src = publicUrl("assets/ui/icons/spells/" + (artwork[ability.id] ?? "sword-strike") + ".png");
       }
       write(name, ability.name);
-      const time = seconds.toFixed(1) + "s";
+      const planning = snapshot.combat.phase === "preparation" && threat.windowAction !== null;
+      const time = planning ? "Beat " + (threat.windowAction!.offsetSeconds + 1) : seconds.toFixed(1) + "s";
       write(clock, time);
       fill.style.width = (progress * 100) + "%";
       track.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
       track.setAttribute("aria-label", ability.name);
-      track.setAttribute("aria-valuetext", time + " remaining");
+      track.setAttribute("aria-valuetext", planning ? time : time + " remaining");
       root.dataset.remaining = String(seconds); root.dataset.duration = String(cast.duration);
       const range = enemyRange(snapshot, threat, ability, audience);
       root.dataset.range = range.state;
       const facts = [ability.damage > 0 ? ability.damage + " damage" : "Power / defense", ability.damage <= 0 ? "Self" : ability.id === "maul" ? COMBAT_RULES.wolf.lungeDistance + " m leap · " + ability.range + " m impact radius" : ability.range + " m range"];
       const response = [enemyResponseLabel(ability.id), enemyResponse(ability.id)].filter(Boolean).join(" · ");
-      write(tooltip, [ability.name, facts.join(" · "), response, ability.description, "Casts in " + time + ".", range.text].filter(Boolean).join("\n"));
-      root.setAttribute("aria-label", ability.name + ", " + time + " remaining." + (response ? " " + response : ""));
+      write(tooltip, [ability.name, facts.join(" · "), response, ability.description, planning ? "Starts on " + time.toLowerCase() + "." : "Casts in " + time + ".", range.text].filter(Boolean).join("\n"));
+      root.setAttribute("aria-label", ability.name + ", " + time + (planning ? "." : " remaining.") + (response ? " " + response : ""));
     },
   };
 }

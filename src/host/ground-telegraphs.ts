@@ -71,7 +71,9 @@ export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElemen
         warning.badge.visible = style.kind === "area";
         // The far edge keeps area icons above the lower combat HUD at the normal camera angle.
         warning.badge.position.set(facing.x * radius * 0.7, style.kind === "target" ? 2.7 : 0.25, facing.z * radius * 0.7);
-        const time = seconds > 0 ? `${seconds.toFixed(1)}s` : "NOW";
+        const time = snapshot.combat.phase === "preparation" && threat.windowAction
+          ? "BEAT " + (threat.windowAction.offsetSeconds + 1)
+          : seconds > 0 ? `${seconds.toFixed(1)}s` : "IMPACT";
         const text = `${style.label}|${time}|${damage}|${style.kind}|${state.committed}|${images.has(style.icon)}`;
         if (warning.text !== text) {
           warning.text = text;
@@ -83,7 +85,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: HTMLCanvasElemen
           ctx.fillStyle = "#fff4df"; ctx.font = "bold 20px system-ui"; ctx.textAlign = "center";
           ctx.fillText(time, 40, 82);
           ctx.fillStyle = color; ctx.font = "bold 16px system-ui";
-          ctx.fillText(enemyResponseLabel(state.ability), 40, 101);
+          ctx.fillText(style.label, 40, 101);
           warning.texture.needsUpdate = true;
         }
         diagnostics.push({ enemy: threat.id, ability: state.ability, response: enemyResponseLabel(state.ability), kind: style.kind, badgeVisible: warning.badge.visible, color: style.color, radius, x: position.x, z: position.z, seconds: Number(seconds.toFixed(1)), committed: state.committed });

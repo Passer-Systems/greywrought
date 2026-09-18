@@ -54,6 +54,11 @@ function command(value: unknown): value is WorldCommand {
     case 'mouseForward': return keys(value, ['type', 'active']) && typeof value.active === 'boolean';
     case 'camera': return keys(value, ['type', 'x', 'z']) && finite(value.x, -1, 1) && finite(value.z, -1, 1) && Math.hypot(value.x, value.z) > 0.001;
     case 'target': case 'loot': return keys(value, ['type', 'id']) && identifier(value.id);
+    case 'ready': return keys(value, ['type']);
+    case 'delay': case 'move': return keys(value, ['type','id','seconds']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true) && finite(value.seconds,0,2,true);
+    case 'replace': return keys(value,['type','id','action']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true) && member(value.action,['strike','brace','disengage','bloodRage','jab','guard','drinkPotion']);
+    case 'remove': return keys(value,['type','id']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true);
+    case 'clear': return keys(value,['type']);
     case 'trade': return keys(value, ['type', 'kind', 'quantity']) && member(value.kind, ['supplies', 'potions']) && finite(value.quantity, 0, 100_000, true);
     case 'interactNpc': return keys(value, ['type', 'id']) && member(value.id, ['mara', 'inn']);
     case 'quest': return keys(value, ['type', 'id', 'operation']) && member(value.id, ['cold-hands', 'roll-call', 'last-shift']) && member(value.operation, ['accept', 'turnIn']);
@@ -200,6 +205,12 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'mouseForward': player.setMouseForward(value.active); break;
       case 'camera': player.setCameraForward(value.x, value.z); break;
       case 'target': player.selectTarget(value.id); break;
+      case 'ready': return player.readyCombat();
+      case 'delay': player.setQueuedDelay(value.id,value.seconds); break;
+      case 'move': player.moveQueuedAction(value.id,value.seconds); break;
+      case 'replace': return player.replaceQueuedAction(value.id,value.action);
+      case 'remove': player.removeQueuedAction(value.id); break;
+      case 'clear': player.clearQueuedActions(); break;
       case 'loot': player.openLoot(value.id); break;
       case 'trade': player.setTradeOffer(value.kind, value.quantity); break;
       case 'interactNpc': player.interactNpc(value.id); break;

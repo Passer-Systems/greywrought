@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createSharedAdventure } from "./adventure.js";
+import { readyParty } from "./yard-test-fixtures.js";
 import type { AdventureAction, AdventureGame, SharedAdventure } from "./adventure-types.js";
 
 function tap(player: AdventureGame, action: AdventureAction): void {
@@ -40,17 +41,16 @@ describe("one shared Frostwood", () => {
 
   test("both characters damage one enemy and only the threatened character's defense absorbs its cast", () => {
     const world = fixture(), a = world.getPlayer("a")!, b = world.getPlayer("b")!;
-    tap(a, "strike"); tap(b, "strike"); world.advance(.01);
+    tap(a, "strike"); tap(b, "strike"); tap(a, "brace");
+    a.moveQueuedAction(a.snapshot.combat.queued[1]!.id, enemy(a).windowAction!.offsetSeconds); readyParty(a, b); world.advance(1.01);
     expect(enemy(a).health).toBe(78); expect(enemy(b).health).toBe(78);
     expect(enemy(a).targetPlayerId).toBe("a");
-    expect(enemy(a).actionSequence).toBe(0);
+    expect(enemy(a).actionSequence).toBe(1);
     expect(a.snapshot.player.health).toBe(100); expect(b.snapshot.player.health).toBe(100);
-    tap(a, "strike"); tap(b, "strike");
-    const cast = enemy(a).cast!;
-    world.advance(cast.remainingSeconds - .1); tap(a, "brace");
-    world.advance(.2);
+    const damage = enemy(a).currentAbility.damage;
+    world.advance(.1);
     expect(a.snapshot.player.health).toBe(100);
-    expect(a.snapshot.player.block).toBe(24 - cast.ability.damage);
+    expect(a.snapshot.player.block).toBe(24 - damage);
     expect(b.snapshot.player.block).toBe(0);
     expect(b.snapshot.player.stamina).toBe(5);
   });
@@ -61,8 +61,9 @@ describe("one shared Frostwood", () => {
     solo.advance(.01); shared.advance(.01);
     const cast = enemy(a).cast!;
     expect(enemy(solo.getPlayer("a")!).cast).toEqual(cast);
-    solo.advance(cast.remainingSeconds - .1); shared.advance(cast.remainingSeconds - .1);
-    tap(b, "brace"); solo.advance(.2); shared.advance(.2);
+    tap(b, "brace");
+    solo.getPlayer("a")!.readyCombat(); readyParty(a, b);
+    solo.advance(cast.remainingSeconds + .1); shared.advance(cast.remainingSeconds + .1);
     expect(a.snapshot.player.health).toBe(solo.getPlayer("a")!.snapshot.player.health);
     expect(a.snapshot.player.health).toBe(100 - cast.ability.damage);
     expect(b.snapshot.player.health).toBe(100); expect(b.snapshot.player.block).toBe(24);
@@ -71,7 +72,7 @@ describe("one shared Frostwood", () => {
 
   test("disconnect retains the character and shared save retains online and offline progress", () => {
     const world = fixture(), a = world.getPlayer("a")!, b = world.getPlayer("b")!;
-    tap(a, "strike"); world.advance(0.02);
+    tap(a, "strike"); readyParty(a, b); world.advance(0.02);
     const health = a.snapshot.player.health, position = a.snapshot.player.position;
     a.setAction("forward", true); world.leave("a"); world.advance(0.1);
     expect(world.getPlayer("a")?.snapshot.player.health).toBe(health);
@@ -86,7 +87,7 @@ describe("one shared Frostwood", () => {
     expect(returned.snapshot.player.position).toEqual(position);
     expect(enemy(returned).health).toBe(87);
     expect(partner.snapshot.player.health).toBe(b.snapshot.player.health);
-    expect(returned.snapshot.combat.autoAttack).toBe(false);
+    expect(returned.snapshot.combat).toEqual(a.snapshot.combat);
     restored.advance(0.1);
     expect(returned.snapshot.player.position).toEqual(position);
     expect(() => restored.join("a", "Ada", "warrior")).toThrow("calling");
@@ -96,7 +97,7 @@ describe("one shared Frostwood", () => {
     const seed = JSON.parse(fixture().save()); seed.world.threats[0].health = 9; seed.world.resourceRemaining = 3;
     const world = createSharedAdventure({ save: JSON.stringify(seed) });
     const a = world.join("a", "Ada", "mage"), b = world.join("b", "Bram", "hunter");
-    tap(a, "strike"); world.advance(0.01);
+    tap(a, "strike"); readyParty(a, b); world.advance(0.01);
     a.openLoot("scout"); b.openLoot("scout");
     tap(a, "takeLoot"); tap(b, "takeLoot");
     expect(a.snapshot.carriedSalvage).toBe(1);

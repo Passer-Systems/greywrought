@@ -17,12 +17,15 @@ Equipment, levels and the timing of your responses all affect survival. Quest
 turn-ins show your rewards with an Equip button for new gear. Coolant crystals
 have a recognizable cyan crystal model and a hover tooltip with quest progress.
 
-Combat is continuous and tab-targeted. Your basic attack repeats every 1.5 seconds;
-other abilities act when pressed, subject to stamina and a shared recovery.
-Each enemy independently commits to a spell with at least three seconds of warning.
-A cast bar below its nameplate shows the spell icon, name and time until it fires;
-the selected enemy also has a cast bar beneath its target frame. Hover for damage,
-range and how to respond. Faded attack art means out of range now.
+Combat alternates between committed enemy intentions, player planning, and a
+three-beat action sequence. You have up to 30 seconds to arrange your moves;
+press **Ready** to begin early. Each beat shows your move beside every enemy
+casting on that beat. Hover for damage, range, and how to respond. A beat marks
+the start of an ability; projectiles and other delayed effects can land later.
+Move freely while planning. During execution, your selected actions and movement
+abilities play out automatically, with manual movement locked until planning
+returns. Enemies that join after intentions are committed wait for the next
+cycle before choosing or attacking.
 Floating numbers show damage dealt in gold, damage taken in red, healing in green,
 and absorbed damage in blue. Targeted spells use the enemy cast bar for warning.
 
@@ -121,11 +124,12 @@ Left-drag or right-drag turns the camera and your character. Hold Alt while
 left-dragging to look around without changing your character's facing. Both mouse
 buttons move forward, including while S is held. The wheel zooms.
 
-Tab selects a target. **1** starts or stops your class's auto attack, **2** uses
-Block, and **=** drinks a health potion. Completing Rowan's quests unlocks **3**
-a class retreat attack and **4** a class power. Drag action-bar spells to rearrange
-them; hotkeys follow their slots. Abilities use real-time recovery; movement stays
-available throughout combat.
+Tab selects a target. During planning, **1** queues your class's attack, **2**
+queues Block, and **=** queues a health potion. Completing Rowan's quests unlocks
+**3**, a class retreat attack, and **4**, a class power. Arrange up to three moves
+in the combat plan, then press **Ready** or let the 30-second timer expire.
+Drag action-bar spells to rearrange them; hotkeys follow their slots. Manual
+movement is available while planning and resumes after execution.
 
 **H** toggles enemy awareness ranges; the visible Aggro ranges button also works.
 Solid red rings show direct aggro and dashed amber rings show call-for-help range.

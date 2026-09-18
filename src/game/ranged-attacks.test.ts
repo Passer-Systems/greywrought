@@ -14,32 +14,32 @@ function rangedAt(archetype: "mage" | "hunter"): AdventureGame {
 }
 
 describe("class ranged attacks", () => {
-  test("mage Arcane Bolt hits beyond melee lunge reach without moving the player", () => {
+  test("mage Arcane Bolt hits beyond melee reach without moving the player", () => {
     const game = rangedAt("mage");
     game.selectTarget("scout");
     const before = game.snapshot.player.position;
-    tap(game, "strike"); game.advance(0.01);
+    tap(game, "strike"); game.readyCombat(); game.advance(0.01);
     expect(game.snapshot.threats.find(t => t.id === "scout")?.health).toBe(87);
     expect(game.snapshot.player.position).toEqual(before);
     expect(game.snapshot.player.maneuver).toBe("none");
   });
 
-  test("ranger Aimed Shot hits beyond melee lunge reach without moving the player", () => {
+  test("ranger Aimed Shot hits beyond melee reach without moving the player", () => {
     const game = rangedAt("hunter");
     game.selectTarget("scout");
     const before = game.snapshot.player.position;
-    tap(game, "strike"); game.advance(0.01);
+    tap(game, "strike"); game.readyCombat(); game.advance(0.01);
     expect(game.snapshot.threats.find(t => t.id === "scout")?.health).toBe(87);
     expect(game.snapshot.player.position).toEqual(before);
     expect(game.snapshot.player.maneuver).toBe("none");
   });
 
-  test("warrior auto strike stays in melee without moving", () => {
+  test("warrior queued strike stays in melee without moving", () => {
     const saved = JSON.parse(createAdventure({ archetype: "warrior" }).save());
     saved.state.phase = "expedition"; saved.state.position = { x: -3, y: 0, z: 8.1 };
     for (const enemy of saved.state.threats) enemy.rng = 9844;
     const game = createAdventure({ archetype: "warrior", save: JSON.stringify(saved) });
-    game.selectTarget("scout"); tap(game, "strike"); game.advance(0.01);
+    game.selectTarget("scout"); tap(game, "strike"); game.readyCombat(); game.advance(0.01);
     expect(game.snapshot.player.maneuver).toBe("none");
   });
 
@@ -53,7 +53,7 @@ describe("class ranged attacks", () => {
       saved.state.chapter.level = 2;
       const game = createAdventure({ archetype, save: JSON.stringify(saved) });
       game.selectTarget("scout");
-      tap(game, "disengage"); game.advance(.01);
+      tap(game, "disengage"); game.readyCombat(); game.advance(.01);
       expect(game.snapshot.threats.find(t => t.id === "scout")?.health).toBe(88);
       expect(game.snapshot.player.maneuver).toBe("disengage");
       game.advance(.81);

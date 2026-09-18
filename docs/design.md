@@ -17,7 +17,8 @@ language experiments are outside this delivery.
 
 ## Product constraints
 
-- Deliberate real-time movement and combat, with current and upcoming intentions.
+- Free exploration and planning movement, with committed enemy intentions and
+  automatically executed three-beat combat sequences.
 - Hardcore character stakes; persistent supplies and relics come from extraction.
 - No kill XP. Fighting buys safer travel, quiet, access, or removal of a hazard.
 - A physically connected safe hub, dangerous forest, and recognizable way home.
@@ -79,9 +80,10 @@ The map remains readable both in town and while an enemy is selected.
 
 ### Make Spire-style combat visible in a moving world
 
-Keep third-person movement and deliberate real-time combat. The central skill
-is reading a committed enemy intention and choosing how to spend position,
-time, health and resources before it resolves.
+Keep third-person exploration and planning movement. The central combat skill
+is reading committed enemy intentions and choosing how to spend action slots,
+health and resources before the sequence executes automatically. Manual movement
+is locked during execution; planned movement abilities supply combat repositioning.
 
 Every active enemy needs a recognizable body and silhouette, a clear target
 indicator, and animation for idle, movement when moving, preparation, action,
@@ -152,7 +154,8 @@ Player and target frames flank a clear central viewing area around the character
 and nearby enemies. Show the target's target beneath its frame when it is actually
 attacking someone. One cast bar sits below each enemy nameplate and below the
 selected target frame. It contains the committed spell's icon, name and remaining
-seconds, filling left to right until the spell fires. No future move is previewed.
+seconds, filling left to right until the spell fires. During planning, the combat
+plan shows every engaged enemy's committed move; later cycles remain unknown.
 Each tooltip names the attack, damage, range, timing and positional response.
 Offensive opportunities appear on the left only while actionable; actual
 control effects and debuffs belong on the right. The current recovery opening
@@ -161,8 +164,8 @@ damage. Disengage roots its struck enemy only until the player lands; display th
 
 The bottom-left Chat and Combat Log tabs show actual events. The log must retain
 simultaneous outcomes and let the player read older entries without snapping
-back to the newest line. Windows preserve movement, including already-held
-WASD; Escape and the visible close button both work.
+back to the newest line. Windows preserve planning movement, including already-held
+WASD; execution still locks movement. Escape and the visible close button both work.
 
 Hearthstead includes Mara's merchant window and Rowan's inn service. The inn
 has a recognizable building, animated innkeeper and free healing. The merchant
@@ -215,27 +218,40 @@ Current upstream references checked in September 2026:
   positioning and viewport collision handling for more involved tooltips and
   popovers. Add it when those interactions exceed the current simple tooltip.
 
-## Continuous tab-target combat
+## Three-beat combat loop
 
-Tab or left-click selects a creature. The basic attack on 1 toggles automatic
-attacks every 1.5 seconds, with no stamina cost. Warrior uses a sword within 2m;
-other classes use their ranged weapon within 10m. Autos never move the player.
-Moving out of reach or behind cover prevents a hit, and returning to range cannot
-release accumulated attacks. Death, leaving the expedition, losing the target
-or disconnecting stops auto attack.
+Engaged combat repeats enemy intention selection, player planning, and execution.
+Enemies choose from the resulting fight state as soon as the previous sequence
+finishes. Selection has no artificial one-second or quarter-second wait. Reveal
+the committed intentions before opening the player's planning window.
 
-Abilities fire when pressed if their resource and recovery requirements are met.
-Instant abilities and combat equipment changes use a 1.5-second shared recovery;
-movement is independent. No player action slots, queued sequences, shared rounds,
-planning lockout, or enemy deliberation delay remain.
+The encounter has one maximum 30-second planning window, regardless of enemy
+count. Tab or left-click selects a creature. Action buttons queue moves into three
+slots, which can be rearranged before pressing Ready. Ready begins execution
+early; the timer begins it automatically when the planning window expires.
+In shared combat, participating players ready their own plans; execution begins
+when everyone participating is ready or the common timer expires. Unengaged
+players do not delay the sequence. Private encounters keep their own clock.
 
-Each enemy chooses from current health, resources and positions, then commits its
-next spell and starts an independent cast of at least 3 seconds. The cast bar is
-the warning: icon, spell name and remaining seconds. Fireball uses 3 seconds;
-defense or power abilities can use 5. The cast stays committed while the player
-moves or acts. At completion it resolves with its actual range/area rules, then
-its recovery ends before another choice. Additional enemies bring their own cast
-timers. Summoned Foreman Nine always provides the full visible opening warning.
+The three slots start at 0, 1, and 2 seconds of the execution sequence. Multiple
+enemies can choose the same slot. A slot marks when an ability starts casting;
+impact can happen later, including after the final slot. Existing ability effects
+and ground warnings continue to describe the actual attack. A richer display
+separating cast timing from delayed danger is deferred.
+
+Execution lasts at least three seconds and continues until committed casts,
+projectiles and movement abilities finish. The next planning window opens
+after those effects settle, so planning never demands a last-second manual dodge.
+
+Players move freely during planning. During execution, the chosen actions and
+movement abilities play automatically, with manual movement and new combat
+inputs locked. Ordinary control returns with planning or the end of combat.
+There is no mid-sequence cancel or override. Explicit pause and disconnect
+protection retain the committed sequence for resumption.
+
+An enemy aggroed after the current intentions are committed waits until the next
+enemy-selection stage before choosing or attacking. This applies to proximity,
+player attacks, and calls for help. Waiting creates no extra overhead marker.
 
 ## First encounter: Cinder Watchman
 
@@ -268,14 +284,17 @@ saves the character but forfeits damage dealt, preventing repeated ranged chip
 attacks from defeating an enemy without committing to its encounter.
 
 All five classes have their own attacks, defenses, retreat moves and powers.
-Five stamina regenerates continuously at one point per 1.5 seconds. Basic attacks
-are free and run on an independent 1.5-second timer. Abilities spend stamina when
-they activate, sharing a 1.5-second recovery. Movement remains available while
-recovering and reading menus.
+The combat plan shows available and reserved stamina. Abilities spend their
+displayed cost when the chosen move executes; changing an unexecuted plan does
+not spend a potion or stamina. Basic attacks occupy a chosen beat instead of
+repeating automatically. Ordinary movement is available during planning and
+locked during execution, while queued movement abilities run automatically.
+Planning freezes combat resource drain, stamina recovery and defense durations;
+the time spent choosing a plan does not change those values.
 
 | Key | Ability | Stamina | Effect |
 | --- | --- | --- | --- |
-| 1 | Class auto attack | 0 | Warrior strikes within 2m; others shoot from up to 10m. Repeats every 1.5s |
+| 1 | Class attack | 0 | Queue a strike within 2m or a ranged attack from up to 10m |
 | 2 | Class defense | 2, or 3 for Artificer | Absorb 24 damage for 2s. Alchemist heals 6 and blocks 16; Artificer blocks 28 |
 | = | Health potion | 1 in combat | Drink a carried potion for 30 health |
 
@@ -293,7 +312,7 @@ slot order and the corresponding keys. Potions are consumed only on activation.
 
 Retreat attacks cost 1 stamina, damage and snare their target, then move the
 player backward. Warrior needs melee reach; ranged classes use their ranged
-reach. Each power costs 1 stamina and uses the shared 1.5-second recovery. Up to three
+reach. Each power costs 1 stamina and occupies a chosen beat. Up to three
 stacks strengthen attacks. Each stack drains 1 health every
 5 seconds, bypassing Block, except Ranger Focus, which does not drain health.
 The drain can kill you. Outside combat lose one stack
@@ -305,18 +324,18 @@ characters, health, loot or secured rewards.
 Player and enemy frames have matching dimensions and contain only portrait,
 name and health. The player frame has no stamina, Rage or location/status
 section. The compact painted-icon hotbar has key labels, recovery shading and
-hover explanations. Active auto attack has a lit border. A separate player cast
-bar appears for gathering or awakening the engine, never for an instant attack.
+hover explanations. The combat plan shows each queued move alongside enemy casts
+on the same beat. A separate player cast bar appears for gathering or awakening
+the engine, never for an instant attack.
 
 ## Later encounter: Ash hound
 
 The animated Ash hound patrols the deeper western forest, runs toward its target
-on the ground, and circles nearby. Its visible Maul cast gives at least three
-seconds to respond. It then commits to a fixed landing point and leaps there in
-0.65 seconds, facing its travel direction with running animation frozen. The
-2m impact area can be avoided by moving after commitment or absorbed with Block.
-Two seconds of recovery give a clear opportunity to counterattack before its next
-cast. Maul starts at 18 damage and grows by 2 per attack, capped at 36.
+on the ground, and circles nearby. The planning window shows its committed Maul
+and cast beat. It leaps to a fixed landing point in 0.65 seconds, facing its
+travel direction with running animation frozen. Plan a movement ability or Block
+to handle its 2m impact area. Ordinary manual dodging during execution is locked.
+Maul starts at 18 damage and grows by 2 per attack, capped at 36.
 There are no approach hops. Disengage offers a deliberate escape.
 
 ## In-game lorebook
@@ -365,7 +384,8 @@ Hostile creatures within nine units of an engaged creature answer its call
 through clear terrain, targeting that creature's opponent even when a bystander
 is closer. The opponent must remain within the helper's pursuit limit. Neutral
 creatures remain neutral until attacked; an attacked bee can call hostile help.
-Each reinforcement starts its own announced cast. H toggles solid red direct
+Each reinforcement waits for the next cycle's enemy selection before joining
+the action sequence. H toggles solid red direct
 aggro rings and dashed amber call-for-help rings, using the ranges supplied by
 the game server. The visible button and legend explain both; returning, defeated,
 and dormant creatures have no rings. Private copies retain base range markings
@@ -402,9 +422,10 @@ under their caster; the cast bar identifies the buff. They have no
 second ground-level text card overlapping the player frames. Existing damage attacks do not
 acquire poison-over-time or freeze effects merely from their warning color.
 
-Each enemy casts independently. Ordinary physical strikes retain a 0.35-second
-windup and Maul its 0.65-second lunge. Warnings reflect committed cast timing and
-landing areas, with no global pause between casts.
+Each enemy receives a cast slot in the shared sequence. Ordinary physical
+strikes retain a 0.35-second windup and Maul its 0.65-second lunge. Warnings
+reflect committed cast timing and landing areas. Delayed impacts retain their
+ability timing; the plan's beat marks the start of the cast.
 
 ## Patrols and encounter pressure
 

@@ -1,17 +1,23 @@
 import {test,expect} from 'bun:test';
 import {createAdventure} from './adventure.js';
-import {tap} from './yard-test-fixtures.js';
+import {tap, finishCycle} from './yard-test-fixtures.js';
 
 test('a ranged pull cannot chip an enemy down across leash resets or hit its retreat',()=>{
  const saved=JSON.parse(createAdventure({archetype:'mage'}).save());
  saved.state.phase='expedition';saved.state.position={x:-8,y:0,z:20};
  for(const t of saved.state.threats)if(t.active&&t.id!=='nest'){t.health=0;t.phase='cleared';t.lootClaimed=true;}
- const game=createAdventure({archetype:'mage',save:JSON.stringify(saved)});
+ let game=createAdventure({archetype:'mage',save:JSON.stringify(saved)});
  const bee=()=>game.snapshot.threats.find(t=>t.id==='nest')!;
- game.selectTarget('nest');tap(game,'strike');game.advance(.01);
+ game.selectTarget('nest');tap(game,'strike');game.readyCombat();game.advance(.01);
  expect(bee().health).toBe(63);expect(bee().aggro).toBe(true);
- game.setCameraForward(0,-1);game.setAction('forward',true);game.advance(3.8);game.setAction('forward',false);
+ finishCycle(game);
+ game.setCameraForward(0,-1);game.setAction('forward',true);
+ for(let step=0;step<100&&bee().phase!=='returning';step++)game.advance(.05);
+ game.setAction('forward',false);
  expect(bee().phase).toBe('returning');expect(bee().health).toBe(72);
+ const returning=JSON.parse(game.save());
+ returning.state.position={x:bee().position.x-5,y:0,z:bee().position.z};
+ game=createAdventure({save:JSON.stringify(returning)});
  expect(Math.hypot(bee().position.x-game.snapshot.player.position.x,bee().position.z-game.snapshot.player.position.z)).toBeLessThan(10);
  expect(bee().canStrike).toBe(false);
  tap(game,'strike');game.advance(.05);

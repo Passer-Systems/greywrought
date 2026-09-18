@@ -124,7 +124,9 @@ try {
   await page.waitFor('document.body.dataset.encounterMode==="private"&&document.body.dataset.gamePaused==="false"');
   await page.click('.adventure-actions [data-action="drinkPotion"]');
   await page.waitFor('window.encounterState.snapshot.potions===0');
-  await page.press('Digit1');
+  await page.waitFor('document.body.dataset.gameCombatPhase==="preparation"');
+  await page.click('.adventure-actions [data-action="strike"]');
+  await page.click('.combat-plan-ready');
   await page.waitFor('window.encounterState.snapshot.threats.find(t=>t.id==="scout").health===0', 15000);
   const finished = await page.evaluate<State>('window.encounterState');
   check(finished.session.canRejoin, 'Ending combat must allow rejoin');
