@@ -431,6 +431,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.rootEffect.position.y = 0.12 - threat.position.y;
         rig.rootEffect.visible = threat.rootedSeconds > 0;
         const attackClip = threat.currentAbility.id === "maul" ? "Gallop_Jump" : threat.currentAbility.id === "foreman-pulse" ? "Shoot" : threat.currentAbility.id === "foreman-shield" ? "Idle" : rig.attack;
+        const phaseProgress = threat.phaseDuration > 0 ? Math.max(0, Math.min(1, 1 - threat.remainingSeconds / threat.phaseDuration)) : 0;
         const changed = threat.phase !== rig.phase;
         if (threat.actionSequence > rig.sequence && ["ember-beam", "foreman-pulse"].includes(threat.currentAbility.id)) { rig.attackTime = 0.3; rig.beamTime = 0.18; }
         if (threat.phase === "cleared") {
@@ -445,20 +446,20 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           const action = changed ? rig.actor.play(attackClip,false,undefined,0.035) : rig.actor.action!;
           action.paused = true;
           const impactStart = 0.3;
-          action.time = action.getClip().duration * (impactStart + (1-impactStart) * Math.max(0, 1-threat.remainingSeconds/threat.phaseDuration));
+          action.time = action.getClip().duration * (impactStart + (1-impactStart) * phaseProgress);
         } else if(threat.health < rig.health && threat.health>0) {
           rig.hitTime=0.3; rig.actor.play(rig.hit,false,0.3,0.04);
         } else if(threat.phase === "preparation" && !threat.moving && rig.hitTime<=delta) {
           const action = changed || rig.actor.action?.getClip().name !== attackClip ? rig.actor.play(attackClip,false,undefined,0.12) : rig.actor.action;
           action.paused = true;
-          action.time = action.getClip().duration * 0.3 * Math.max(0,1-threat.remainingSeconds/threat.phaseDuration);
+          action.time = action.getClip().duration * 0.3 * phaseProgress;
         } else if(rig.hitTime<=delta || changed) {
           rig.actor.play(threat.movementMode === "circle" ? "Walk" : threat.moving ? rig.walk : rig.idle);
         }
         rig.hitTime=Math.max(0,rig.hitTime-delta);
         rig.attackTime=Math.max(0,rig.attackTime-delta);
         // Authored motion supplies the pose; a restrained lean makes the full windup visible.
-        const preparation = threat.phase === "preparation" && !threat.moving ? Math.max(0,1-threat.remainingSeconds/threat.phaseDuration) : 0;
+        const preparation = threat.phase === "preparation" && !threat.moving ? phaseProgress : 0;
         rig.body.position.y = threat.id === "scout" ? 1.25 : 0;
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;

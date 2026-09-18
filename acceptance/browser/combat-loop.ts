@@ -12,8 +12,13 @@ const seed = createSharedAdventure(); seed.join(character.id, character.name, ch
 const saved = JSON.parse(seed.save());
 Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 8 } });
 saved.characters[0].state.combat.phase = 'preparation';
+Object.assign(saved.clock, { phase: 'preparation', elapsedSeconds: 0, cycle: 1 });
 for (const enemy of saved.world.threats) {
-  if (enemy.id === 'scout' || enemy.id === 'nest') Object.assign(enemy, { position: { x: enemy.id === 'scout' ? -1 : 0, y: 0, z: 10 }, targetPosition: { x: enemy.id === 'scout' ? -1 : 0, z: 10, y: 0 }, aggro: true, targetPlayerId: character.id, phase: 'preparation' });
+  if (enemy.id === 'scout' || enemy.id === 'nest') {
+    const offset = enemy.id === 'scout' ? 0 : 1;
+    Object.assign(enemy, { position: { x: enemy.id === 'scout' ? -1 : 0, y: 0, z: 10 }, targetPosition: { x: enemy.id === 'scout' ? -1 : 0, z: 10, y: 0 }, aggro: true, targetPlayerId: character.id, combatants: [character.id], phase: 'preparation', joinCycle: 1, windowCycle: 1, specialOffset: offset, castDuration: offset, remainingSeconds: offset });
+    if (enemy.id === 'scout') Object.assign(enemy.head, { ability: 'fireball', opened: true, volley: 2, castVolley: 2 });
+  }
   else if (enemy.active) Object.assign(enemy, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
 }
 const savePath = process.cwd() + '/build/browser/combat-loop-' + process.pid + '.json';
@@ -27,16 +32,36 @@ try {
   await page.waitFor('document.body.dataset.entryRoute==="roster"');
   await page.click('#entry-enter-world');
   await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"');
+  await page.waitFor('document.body.dataset.creatureRigState==="ready"');
+  await page.evaluate(`(async () => {
+    const { Scene, SkinnedMesh } = await import('three');
+    const drawn = new Set();
+    window.enemyFrames = [];
+    SkinnedMesh.prototype.onBeforeRender = function () {
+      for (let root = this; root; root = root.parent) if (root.userData.threatId) drawn.add(root.userData.threatId);
+    };
+    Scene.prototype.onAfterRender = function () {
+      this.traverse(root => {
+        if (root.userData.threatId !== 'scout') return;
+        let finite = true;
+        root.traverse(object => { finite &&= object.matrixWorld.elements.every(Number.isFinite); });
+        window.enemyFrames.push({ phase: window.combatSnapshot.combat.phase, finite, drawn: drawn.has('scout') });
+      });
+      drawn.clear();
+    };
+  })()`);
   await page.click('.enemy-nameplate[data-enemy-id="scout"] .nameplate-target');
   await page.waitFor('window.combatSnapshot.combat.phase==="preparation"');
   await page.waitFor('document.getElementById("combat-plan")&&!document.getElementById("combat-plan").hidden');
   check(await page.evaluate<number>('window.combatSnapshot.combat.remainingSeconds') <= 30.1, 'Planning window is capped at 30 seconds');
   check(await page.evaluate('document.querySelectorAll(".combat-plan-tick").length===3'), 'Planner exposes three timing slots');
   check(await page.evaluate('document.querySelectorAll(".combat-plan-enemy-move").length>=2'), 'Planner shows committed intentions from multiple enemies');
+  check(await page.evaluate('window.combatSnapshot.threats.find(enemy=>enemy.id==="scout").windowAction.offsetSeconds===0'), 'Watchman is committed to Beat 1');
   await page.click('.adventure-actions [data-action="strike"]');
   await page.waitFor('window.combatSnapshot.combat.queued.length===1');
   await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 10, y: 10, buttons: 0 });
   await page.shot('combat-planning-multiple-enemies');
+  check(await page.evaluate('window.enemyFrames.length>0&&window.enemyFrames.every(frame=>frame.finite&&frame.drawn)'), 'Beat 1 enemy keeps a finite pose and is drawn during planning');
   await page.click('.combat-plan-ready');
   await page.waitFor('window.combatSnapshot.combat.phase==="active"');
   const cycle = await page.evaluate<number>('window.combatSnapshot.combat.cycle');
@@ -48,7 +73,8 @@ try {
   check(await page.evaluate<number>('window.combatSnapshot.combat.queued.length') === 1, 'New actions are ignored during execution');
   await page.waitFor(`window.combatSnapshot.combat.phase==="preparation"&&window.combatSnapshot.combat.cycle>${cycle}`, 10000);
   await page.shot('combat-loop-ready-and-active');
+  check(await page.evaluate('window.enemyFrames.some(frame=>frame.phase==="active")&&window.enemyFrames.every(frame=>frame.finite&&frame.drawn)'), 'Enemy remains drawn through execution and the next planning cycle');
   check(page.errors.length === 0, 'No browser exceptions');
-  console.log('PASS 30-second planning, three slots, Ready starts sequence, execution locks movement and new actions', page.output);
+  console.log('PASS 30-second planning, three slots, Ready starts sequence, execution locks movement and new actions; Beat 1 enemy remains visible', page.output);
 } catch (error) { await page.shot('failure'); throw error; }
 finally { await page.key('KeyW', false).catch(() => {}); await page.close(); await service.close(); server.stop(true); }
