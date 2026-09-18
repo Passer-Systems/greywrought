@@ -71,12 +71,12 @@ const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   onRemove: id => { if (running?.ready && !paused) { running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
   onClear: () => { if (running?.ready && !paused) { running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
   onMove: (id, seconds) => { if (running?.ready && !paused) { running.game.moveQueuedAction(id, seconds); combatPlan.update(running.game.snapshot); } },
-  onReady: () => { if (running?.ready && !paused) { running.game.readyCombat(); combatPlan.update(running.game.snapshot); } },
+  onReady: readyCombat,
 });
-const hudSize = new ResizeObserver(entries => {
-  const entry = entries[0];
-  if (entry) document.body.style.setProperty("--combat-hud-height", entry.contentRect.height + "px");
-});
+function readyCombat(): void {
+  if (running?.ready && !paused) { running.game.readyCombat(); combatPlan.update(running.game.snapshot); }
+}
+const hudSize = new ResizeObserver(() => unitFrames.layout());
 hudSize.observe(element("combat-plan-mount").parentElement!);
 const inn = createInnPanel(element("adventure-hud"), {
   onQuest: submitQuest,
@@ -958,6 +958,12 @@ listen(window, "keydown", (event) => {
       else if (running?.game.snapshot.innOpen) pulse("closeInn");
       else setMenuOpen(true);
     }
+    return;
+  }
+  if (event.code === "KeyR" && running?.game.snapshot.player.inCombat) {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    event.preventDefault();
+    if (!event.repeat && running.game.snapshot.combat.phase === "preparation") readyCombat();
     return;
   }
   const action = actionForBarCode(event.code) ?? keyActions[event.code];

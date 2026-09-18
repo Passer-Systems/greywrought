@@ -227,11 +227,13 @@ the committed intentions before opening the player's planning window.
 
 The encounter has one maximum 30-second planning window, regardless of enemy
 count. Tab or left-click selects a creature. Action buttons queue moves into three
-slots, which can be rearranged before pressing Ready. Ready begins execution
+slots, which can be rearranged before pressing Ready or its R shortcut. Ready begins execution
 early; the timer begins it automatically when the planning window expires.
 In shared combat, participating players ready their own plans; execution begins
 when everyone participating is ready or the common timer expires. Unengaged
 players do not delay the sequence. Private encounters keep their own clock.
+Player and target frames remain visible above the plan during both planning and
+execution. Custom frame placements stay under the player's control.
 
 The three slots start at 0, 1, and 2 seconds of the execution sequence. Multiple
 enemies can choose the same slot. A slot marks when an ability starts casting;

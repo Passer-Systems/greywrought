@@ -2150,5 +2150,4 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-delay[aria-pressed=true] {background:#71603a;border-color:#dfcb91;}
 .combat-plan-help {font-size:10px;text-align:center;color:#aeb7a7;margin:5px 0 0;}
 .combat-plan-feedback {min-height:16px;margin:3px 0 0;color:#ead6ac;text-align:center;font-size:12px;white-space:normal;}
-body[data-game-combat-plan=true] .unit-frames {top:auto;bottom:calc(var(--combat-hud-height,310px) + 22px);}
 @media(max-width:850px) {.combat-plan {padding:5px;max-width:490px;} .combat-plan-grid {grid-template-columns:65px repeat(3,minmax(0,1fr));} .combat-plan-help {font-size:9px;}}

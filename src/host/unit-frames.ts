@@ -145,10 +145,12 @@ export function createUnitFrames(host: HTMLElement) {
     }
   }
   function layout(): void {
-    const { width, height, slotWidth, frameWidth, frameHeight } = dimensions();
+    const { width, height, slotWidth, frameWidth, frameHeight, groupHeight } = dimensions();
     const slotSpan = width <= 700 ? width - 20 : Math.min(820, width - 28);
     const span = (slotSpan - slotWidth) * 0.9 * 0.95 + frameWidth;
-    const defaultY = height - (294 * 0.9 * 1.05 + (width <= 850 ? 146 : 0)) - frameHeight;
+    const plan = host.querySelector<HTMLElement>("#combat-plan");
+    const planTop = plan && !plan.hidden ? plan.getBoundingClientRect().top : height;
+    const defaultY = Math.min(height - (294 * 0.9 * 1.05 + (width <= 850 ? 146 : 0)) - frameHeight, planTop - groupHeight - 12);
     for (const side of ["player", "target"] as const) {
       const saved = prefs.positions?.[side];
       placements[side] = fit(saved ? { x: saved.x * width - frameWidth / 2, y: saved.y * height }
@@ -247,6 +249,7 @@ export function createUnitFrames(host: HTMLElement) {
   });
   return {
     ready,
+    layout,
     portrait(id: string) { return portraits.get(id); },
     update(character: LocalCharacter, snapshot: AdventureSnapshot, others: readonly RemotePlayerView[] = []): void {
       if (disposed) return;

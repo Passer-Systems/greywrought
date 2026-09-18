@@ -39,8 +39,9 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const resources = node("span", "combat-plan-resources", header);
   const clear = node("button", "combat-plan-clear", header); clear.type = "button"; clear.textContent = "Clear";
   clear.addEventListener("click", callbacks.onClear);
-  const ready = node("button", "combat-plan-ready", header); ready.type = "button"; ready.textContent = "Ready";
-  ready.title = "Begin this combat sequence now";
+  const ready = node("button", "combat-plan-ready", header); ready.type = "button"; ready.textContent = "Ready (R)";
+  ready.setAttribute("aria-keyshortcuts", "R");
+  ready.title = "Begin this combat sequence now (R)";
   ready.addEventListener("click", callbacks.onReady);
   const staminaHint = node("p", "combat-plan-stamina-hint", root);
   staminaHint.setAttribute("role", "status");
@@ -138,8 +139,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       clear.disabled = combat.phase !== "preparation" || !combat.queued.some(entry => entry.status === "pending");
       ready.hidden = combat.phase !== "preparation";
       ready.disabled = combat.phase !== "preparation" || combat.ready;
-      write(ready, combat.ready ? "Ready ✓" : "Ready");
-      ready.title = combat.ready ? "Waiting for the other players or the timer" : "Begin this combat sequence now";
+      write(ready, combat.ready ? "Ready ✓" : "Ready (R)");
+      ready.title = combat.ready ? "Waiting for the other players or the timer" : "Begin this combat sequence now (R)";
       const newest = combat.queued.reduce<QueuedCombatAction | undefined>((latest, move) => !latest || move.id > latest.id ? move : latest, undefined);
       if (newest && newest.id !== lastId) { selectedId = lastId = newest.id; }
       if (!combat.queued.some(entry => entry.id === selectedId)) selectedId = newest?.id ?? null;
