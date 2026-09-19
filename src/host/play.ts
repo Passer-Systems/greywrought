@@ -612,9 +612,10 @@ function toggleLorebook(): void {
   lorebook.open(running.game.snapshot.selectedThreat);
   button("lorebook-open").setAttribute("aria-expanded", "true");
 }
+let mapCenter = { x: 0, z: -8 };
 function mapPosition(target: HTMLElement, x: number, z: number): void {
-  target.style.left = `${50 - x * 2.5}%`;
-  target.style.top = `${94 - (z + 12) * 1.53}%`;
+  target.style.left = `${50 + (x - mapCenter.x) * 100 / 64}%`;
+  target.style.top = `${50 - (z - mapCenter.z) * 100 / 64}%`;
 }
 function makeEnemyInterface(snapshot: AdventureSnapshot): void {
   for (const place of snapshot.places) {
@@ -765,8 +766,14 @@ function renderHud(snapshot: AdventureSnapshot): void {
   updateQuestTracker(snapshot);
   questLog.update(snapshot);
   questRewards.update(snapshot);
+  mapCenter = player.position;
+  element("map-terrain").setAttribute("viewBox", `${mapCenter.x - 32} ${-mapCenter.z - 32} 64 64`);
+  for (const place of snapshot.places) {
+    const marker = document.querySelector<HTMLElement>(`[data-map-place="${place.id}"]`);
+    if (marker) mapPosition(marker, place.position.x, place.position.z);
+  }
   mapPosition(element("map-player"), player.position.x, player.position.z);
-  element("map-player").style.transform = `translate(-50%, -50%) rotate(${-Math.atan2(player.cameraForward.x, player.cameraForward.z)}rad)`;
+  element("map-player").style.transform = `translate(-50%, -50%) rotate(${Math.atan2(player.cameraForward.x, player.cameraForward.z)}rad)`;
   for (const threat of snapshot.threats) {
     const marker = markers.get(threat.id);
     if (!marker) continue;

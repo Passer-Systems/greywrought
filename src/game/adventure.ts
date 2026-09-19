@@ -1,3 +1,4 @@
+import { inTown, WORLD_BOUNDS, migrateSpatialLayout } from './world-layout.js';
 import { findEmote } from './emotes.js';
 import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
@@ -114,32 +115,32 @@ function savedState(state: State): SavedState {
 
 const point = (x: number, z: number): Vector => ({ x, y: 0, z });
 const DEFINITIONS: readonly ThreatDefinition[] = [
-  { id: "scout", level: 1, behavior: "head", disposition: "hostile", aggroRange: 6, leash: 14, speed: 1.6, name: "Cinder Watchman", position: point(-3,10), health: 96,
-    patrol: [point(-3,10), point(-5,12), point(-3,14), point(-1,12)],
+  { id: "scout", level: 1, behavior: "head", disposition: "hostile", aggroRange: 6, leash: 14, speed: 1.6, name: "Cinder Watchman", position: point(-3, 30), health: 96,
+    patrol: [point(-3, 30), point(-5, 32), point(-3, 34), point(-1, 32)],
     preparation: "Gathering fire", intention: "Fireball", damage: 3, reach: 10,
     benefit: "Clear the Cinder Watchman to make the first clearing safer." },
-  { id: "nest", level: 2, disposition: "neutral", aggroRange: 0, leash: 18, speed: 1.1, pursuitSpeed: 4.8, name: "Briar bee", position: point(-1, 15), health: 72,
-    patrol: [point(-1,15), point(0,16), point(1,17), point(0,14)],
+  { id: "nest", level: 2, disposition: "neutral", aggroRange: 0, leash: 18, speed: 1.1, pursuitSpeed: 4.8, name: "Briar bee", position: point(-1, 35), health: 72,
+    patrol: [point(-1, 35), point(0, 36), point(1, 37), point(0, 34)],
     preparation: "Enraged wings gathering", intention: "Enraged Swarm", damage: 16, reach: 3,
     benefit: "Defeat the bee to make the briar passage safer." },
-  { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2, name: "Cablekeeper", position: point(-3, 30), health: 72,
-    patrol: [point(-3,30), point(-5,27), point(-1,30), point(-3,33)],
+  { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2, name: "Cablekeeper", position: point(-3, 50), health: 72,
+    patrol: [point(-3, 50), point(-5, 47), point(-1, 50), point(-3, 53)],
     preparation: "Raising thorn wards", intention: "Thorn lash", damage: 18, reach: 5,
     benefit: "Clear the warder to gather coolant crystals without cutting thorns." },
-  { id: "patrol", level: 2, behavior: "wolf", disposition: "hostile", aggroRange: 6, leash: 30, speed: 4.2, name: "Ash hound", position: point(-6,17), health: 72,
-    patrol: [point(-6,17), point(-7,15), point(-7,19), point(-6,20)],
+  { id: "patrol", level: 2, behavior: "wolf", disposition: "hostile", aggroRange: 6, leash: 30, speed: 4.2, name: "Ash hound", position: point(-6, 37), health: 72,
+    patrol: [point(-6, 37), point(-7, 35), point(-7, 39), point(-6, 40)],
     preparation: "Drawing back to pounce", intention: "Lunging Maul", damage: 4, reach: 2,
     benefit: "Clear the hound to make the deeper trail safer." },
-  { id: "ritual-guardian", level: 4, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2.2, name: "Foreman Nine", position: point(2, 40), health: 200,
-    patrol: [point(2,40), point(0,38), point(-2,40), point(0,42)],
+  { id: "ritual-guardian", level: 4, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2.2, name: "Foreman Nine", position: point(2, 60), health: 200,
+    patrol: [point(2, 60), point(0, 58), point(-2, 60), point(0, 62)],
     preparation: "Charging the works", intention: "Roll-call Pulse", damage: 32, reach: 3.5,
     benefit: "Defeat the called guardian, then carry its Last Shift Roll home." },
 ];
 const PLACES: readonly PlaceView[] = [
   { id: "hearthstead", name: YARD.settlement, position: point(0, -8), kind: "town" },
   { id: "forest-gate", name: YARD.gate, position: point(0, 0), kind: "gate" },
-  { id: "frost-cores", name: YARD.resource, position: point(-2, 12), kind: "resource" },
-  { id: "ritual-site", name: YARD.works, position: point(2, 40), kind: "ritual" },
+  { id: "frost-cores", name: YARD.resource, position: point(-2, 32), kind: "resource" },
+  { id: "ritual-site", name: YARD.works, position: point(2, 60), kind: "ritual" },
   { id: "mara", name: "Mara / Apothecary", position: point(3.4, -7.5), kind: "shop" },
   { id: "inn", name: `Rowan / ${YARD.inn}`, position: point(5, -11), kind: "inn" },
 ];
@@ -248,10 +249,11 @@ class Adventure implements AdventureGame {
     const characters = new Map<string, { name: string; game: Adventure }>();
     if (options.save !== undefined) {
       const root = record(JSON.parse(options.save));
+      migrateSpatialLayout(root);
       if ((root.version !== 1 && root.version !== 2 && root.version !== 3 && root.version !== 4) || root.kind !== "shared-adventure" || !Array.isArray(root.characters)) throw new Error("Unsupported shared adventure save.");
       const world = record(root.world), version = root.version === 1 ? 9 : root.version === 4 ? 11 : 10;
       const template = savedState(initialState("warrior"));
-      context.world = readSave(JSON.stringify({ version, state: { ...template, ...world, phase: "expedition" } }), context.now()).world;
+      context.world = readSave(JSON.stringify({ version, spatialLayout: 1, state: { ...template, ...world, phase: "expedition" } }), context.now()).world;
       context.clock = root.version === 4 ? readClock(root.clock) : newClock();
       const instances = new Map<string, { id: string; origin: Vector; world: WorldState; clock: CombatClock }>();
       if (root.version === 3 || root.version === 4) {
@@ -259,7 +261,7 @@ class Adventure implements AdventureGame {
         for (const value of root.instances) {
           const entry = record(value), ownerId = text(entry.ownerId), id = text(entry.id);
           if (!id.startsWith('private:') || instances.has(ownerId) || [...instances.values()].some(instance => instance.id === id)) throw new Error("Invalid private encounter identity.");
-          instances.set(ownerId, { id, clock: root.version === 4 ? readClock(entry.clock) : newClock(), origin: groundPosition(entry.origin), world: readSave(JSON.stringify({ version, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world });
+          instances.set(ownerId, { id, clock: root.version === 4 ? readClock(entry.clock) : newClock(), origin: groundPosition(entry.origin), world: readSave(JSON.stringify({ version, spatialLayout: 1, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world });
         }
       }
       for (const value of root.characters) {
@@ -270,7 +272,7 @@ class Adventure implements AdventureGame {
           ? { world: instance.world, clock: instance.clock, now: context.now, online: new Map(), characters: new Map(), id: instance.id, mode: 'paused', origin: instance.origin }
           : context;
         const game = new Adventure({}, ownContext, id);
-        game.state = readSave(JSON.stringify({ version, state: { ...state, ...ownContext.world } }), context.now());
+        game.state = readSave(JSON.stringify({ version, spatialLayout: 1, state: { ...state, ...ownContext.world } }), context.now());
         game.state.world = ownContext.world; game.state.combat.clock = ownContext.clock;
         characters.set(id, { name, game });
         ownContext.characters.set(id, game);
@@ -370,8 +372,7 @@ class Adventure implements AdventureGame {
       const destination = { x: origin.x, y: 0, z: origin.z };
       if (!game.blocked(destination.x, destination.z)) game.state.position = destination;
       game.state.verticalSpeed = 0; game.state.maneuver = null;
-      if (game.state.position.z <= 0) game.state.phase = 'town';
-      else if (game.state.position.z >= 2) game.state.phase = 'expedition';
+      game.state.phase = inTown(game.state.position) ? 'town' : 'expedition';
       clearInputs(game); sessions.delete(id); context.characters.set(id, game); context.online.set(id, game); return true;
     };
     const session = (id: string): EncounterSession => {
@@ -425,7 +426,7 @@ class Adventure implements AdventureGame {
       },
       save() {
         refresh();
-        return JSON.stringify({ version: 4, kind: "shared-adventure", world: context.world, clock: context.clock,
+        return JSON.stringify({ version: 4, spatialLayout: 1, kind: "shared-adventure", world: context.world, clock: context.clock,
           characters: [...characters].map(([id, { name, game }]) => {
             const { threats, resourceRemaining, resourceRespawns, ritualCalled, ...player } = savedState(game.state);
             return { id, name, state: player };
@@ -505,7 +506,7 @@ class Adventure implements AdventureGame {
     };
   }
 
-  save(): string { return JSON.stringify({ version: 11, state: savedState(this.state) }); }
+  save(): string { return JSON.stringify({ version: 11, spatialLayout: 1, state: savedState(this.state) }); }
   private progression(): ProgressionView {
     const c = this.state.chapter;
     const gear = Object.values(c.equipment).filter((id): id is GearItemId => id !== null);
@@ -707,7 +708,7 @@ class Adventure implements AdventureGame {
     return null;
   }
   queueBait(destination: Position): boolean {
-    if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z) || destination.y !== 0 || destination.x < -12 || destination.x > 12 || destination.z < -14 || destination.z > 45 || this.blocked(destination.x, destination.z)) return false;
+    if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z) || destination.y !== 0 || destination.x < WORLD_BOUNDS.minX || destination.x > WORLD_BOUNDS.maxX || destination.z < WORLD_BOUNDS.minZ || destination.z > WORLD_BOUNDS.maxZ || this.blocked(destination.x, destination.z)) return false;
     const c = this.state.combat;
     if (!this.editableQueue() || !this.inCombat() || c.clock.phase !== "preparation" || this.queueReason("bait") || c.queued.length >= 3) return false;
     const offset = [0,1,2].find(slot => !c.queued.some(e => e.offsetSeconds === slot))!;
@@ -1276,7 +1277,7 @@ class Adventure implements AdventureGame {
     this.closeMissingLoot();
     if (this.shopOpen && !this.near("mara", 2.5)) { this.shopOpen = false; this.trade = null; }
     if (this.innOpen && !this.near("inn", 2.5)) this.innOpen = false;
-    if (s.phase === "town" && s.position.z >= 2) {
+    if (s.phase === "town" && !inTown(s.position)) {
       s.phase = "expedition"; s.carriedSalvage = 0; s.presence = 0;
       if (!this.shared) {
         s.world.resourceRemaining = 12; s.world.resourceRespawns = []; s.world.ritualCalled = false;
@@ -1288,8 +1289,8 @@ class Adventure implements AdventureGame {
         s.world.threats = fresh;
       }
       s.actionCooldown = 0; s.guardSeconds = 0; s.block = 0; this.shopOpen = false; this.trade = null; this.innOpen = false;
-      this.report("You enter The Last Shift. The forest is listening; Nine-Bell Yard lies behind you.");
-    } else if (s.phase === "expedition" && s.position.z <= 0 && !this.inPrivateInstance()) {
+      this.report("You leave Nine-Bell Yard. Return to town to secure what you carry.");
+    } else if (s.phase === "expedition" && inTown(s.position) && !this.inPrivateInstance()) {
       const reservedCrystals = s.chapter.accepted.includes("cold-hands") && !s.chapter.completed.includes("cold-hands") ? Math.min(3, s.cargo) : 0;
       const reservedRoll = s.chapter.accepted.includes("last-shift") && !s.chapter.completed.includes("last-shift") ? s.carriedRelics : 0;
       s.phase = "town"; s.supplies += s.cargo - reservedCrystals + s.carriedSalvage; s.bankedRelics += s.carriedRelics - reservedRoll;
@@ -1392,7 +1393,7 @@ class Adventure implements AdventureGame {
   }
   private canBeTargetedBy(t: ThreatState): boolean {
     const s = this.state, d = definition(t.id);
-    return s.phase === "expedition" && s.health > 0 && s.position.z > 2 && distance(s.position, d.position) <= d.leash;
+    return s.phase === "expedition" && s.health > 0 && !inTown(s.position) && distance(s.position, d.position) <= d.leash;
   }
   private engage(t: ThreatState): void {
     this.state.sitting = false; this.activeEmote = null;
@@ -1442,7 +1443,7 @@ class Adventure implements AdventureGame {
     if (t.phase === "returning") { this.returnHome(t, dt); return; }
     if (!t.aggro) {
       this.patrol(t, dt);
-      if (s.phase === "expedition" && s.position.z > 2 && d.disposition === "hostile" && distance(s.position, t.position) <= d.aggroRange && this.clearPath(t.position, s.position)) this.engage(t);
+      if (s.phase === "expedition" && !inTown(s.position) && d.disposition === "hostile" && distance(s.position, t.position) <= d.aggroRange && this.clearPath(t.position, s.position)) this.engage(t);
       // Hostile creatures close to an engaged ally answer the call, but only
       // across a short, clear path. This keeps pulls local instead of waking
       // the whole forest and leaves neutral creatures untouched.
@@ -1456,7 +1457,7 @@ class Adventure implements AdventureGame {
           break;
         }
       }
-    } else if (s.phase !== "expedition" || s.position.z <= 2 || distance(s.position, d.position) > d.leash || distance(t.position, d.position) > d.leash) this.releaseThreat(t);
+    } else if (s.phase !== "expedition" || inTown(s.position) || distance(s.position, d.position) > d.leash || distance(t.position, d.position) > d.leash) this.releaseThreat(t);
   }
   private recover(action: AdventureAction | "equip", duration: number): void {
     this.state.currentAction = action; this.state.actionDuration = duration; this.state.actionCooldown = duration; this.state.actionRemainingSeconds = duration;
@@ -1691,7 +1692,7 @@ class Adventure implements AdventureGame {
     if (h.pendingFireballs === 0 && h.fireballs.length === 0) this.beginRecovery(t);
   }
   private reachableEndpoint(from: Position, to: Position): Vector {
-    const destination = point(Math.max(-12, Math.min(12, to.x)), Math.max(-14, Math.min(45, to.z)));
+    const destination = point(Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, to.x)), Math.max(WORLD_BOUNDS.minZ, Math.min(WORLD_BOUNDS.maxZ, to.z)));
     const steps = Math.max(1, Math.ceil(distance(from, destination) / 0.05));
     let reachable = point(from.x, from.z);
     for (let step = 1; step <= steps; step++) {
@@ -1826,12 +1827,14 @@ function choice<T extends string>(value: unknown, choices: readonly T[]): T {
 }
 function groundPosition(value: unknown, maximumHeight = 0): Vector {
   const p = record(value);
-  return { x: number(p.x, -12, 12), y: number(p.y, 0, maximumHeight), z: number(p.z, -14, 45) };
+  return { x: number(p.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX), y: number(p.y, 0, maximumHeight), z: number(p.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ) };
 }
 function readSave(serialized: string, now = Date.now()): State {
   let parsed: unknown;
   try { parsed = JSON.parse(serialized); } catch { throw new Error("Invalid adventure save: unreadable saved data."); }
-  const root = record(parsed), version = number(root.version, 1, 11, true), realtime = version >= 10;
+  const root = record(parsed);
+  migrateSpatialLayout(root);
+  const version = number(root.version, 1, 11, true), realtime = version >= 10;
   const s = record(root.state), p = record(s.position);
   if (!Array.isArray(s.threats) || s.threats.length !== DEFINITIONS.length) throw new Error("Invalid adventure save: missing threats.");
   const threats: ThreatState[] = s.threats.map(value => {
@@ -1887,7 +1890,7 @@ function readSave(serialized: string, now = Date.now()): State {
   const state: State = {
     chapter: readChapter(s.chapter), combat: newCombat(), phase: choice(s.phase, ["town", "expedition", "lost"] as const),
     archetype: choice(s.archetype, ["warrior", "mage", "hunter", "alchemist", "artificer"] as const),
-    position: { x: number(p.x, -12, 12), y: number(p.y, 0, 2), z: number(p.z, -14, 45) },
+    position: { x: number(p.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX), y: number(p.y, 0, 2), z: number(p.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ) },
     verticalSpeed: number(s.verticalSpeed, -6, 5.5), health: number(s.health, 0, 100),
     supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, Number.MAX_SAFE_INTEGER, true),
     world: { threats, resourceRemaining: number(s.resourceRemaining, 0, 12, true), resourceRespawns: readResourceRespawns(s.resourceRespawns, number(s.resourceRemaining, 0, 12, true), now), ritualCalled: boolean(s.ritualCalled) },

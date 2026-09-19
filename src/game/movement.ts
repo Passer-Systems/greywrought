@@ -1,8 +1,9 @@
+import { WORLD_BOUNDS } from './world-layout.js';
 import type { Position } from './adventure-types.js';
 
 export type Barrier = readonly [left: number, right: number, bottom: number, top: number];
-export const THICKET: Barrier = [2, Infinity, 18, 24];
-export const MOVEMENT_BARRIERS: readonly Barrier[] = [[-Infinity, -3, -0.5, 4], [3, Infinity, -0.5, 4], THICKET];
+export const THICKET: Barrier = [2, 12, 38, 44];
+export const MOVEMENT_BARRIERS: readonly Barrier[] = [[-22, -3, -0.5, 4], [3, 22, -0.5, 4], THICKET];
 export interface MovementInput { forward: number; strafe: number; cameraX: number; cameraZ: number; jump: boolean; }
 export interface MovementFrame { sequence: number; seconds: number; input: MovementInput; }
 export interface MovementManeuver { kind: 'lunge' | 'disengage' | 'bait'; start: Position; destination: Position; remainingSeconds: number; duration: number; }
@@ -13,7 +14,7 @@ export function blockedPosition(x: number, z: number): boolean {
   return MOVEMENT_BARRIERS.some(([left, right, bottom, top]) => x > left && x < right && z >= bottom && z <= top);
 }
 export function movePosition(p: MovementState['position'], dx: number, dz: number): void {
-  const nextX = Math.max(-12, Math.min(12, p.x + dx)), nextZ = Math.max(-14, Math.min(45, p.z + dz));
+  const nextX = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, p.x + dx)), nextZ = Math.max(WORLD_BOUNDS.minZ, Math.min(WORLD_BOUNDS.maxZ, p.z + dz));
   if (!blockedPosition(nextX, nextZ)) { p.x = nextX; p.z = nextZ; }
   else {
     if (!blockedPosition(nextX, p.z)) p.x = nextX;

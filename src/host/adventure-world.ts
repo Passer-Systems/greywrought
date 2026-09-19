@@ -340,7 +340,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       health:threat.health,sequence:threat.actionSequence,attackTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const natureReady = buildFrostwood(terrain, thicket, innPosition, (root, name) => {
-    const place = name === "House_1" ? { id: "town", name: YARD.settlement }
+    const place = name === "House_1" ? { id: "town", name: root.position.x === -14 ? "Nine-Bell Bank" : YARD.settlement }
       : name === "Inn" ? { id: "inn", name: YARD.inn }
       : name === "Fence" ? { id: `gate-${root.id}`, name: YARD.gate } : null;
     if (place) hoverTargets.push({ root, pick: { kind: "place", id: place.id }, name: place.name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
