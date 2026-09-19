@@ -2,11 +2,26 @@
   "name": "Greywrought",
   "short_name": "Greywrought",
   "description": "Find shelter in Nine-Bell Yard, brave the darkened works, and bring the last shift home.",
+  "id": "./",
   "start_url": "./",
+  "scope": "./",
   "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
   "background_color": "#050306",
   "theme_color": "#100a0d",
   "icons": [
+    {
+      "src": "./assets/ui/icons/app/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/ui/icons/app/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "./favicon.svg",
       "sizes": "any",

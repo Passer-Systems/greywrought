@@ -1,3 +1,4 @@
+import { createAppControls } from './app-controls.js';
 import { COMBAT_RULES } from "../game/adventure.js";
 import { classAction, classKit } from "../game/class-kit.js";
 import type { AdventureAction, AdventureSnapshot } from "../game/adventure-types.js";
@@ -44,6 +45,7 @@ for (const [id, label] of [["hearthstead", `${YARD.settlement} · safe`], ["fore
 document.querySelector(".adventure-map")!.setAttribute("aria-label", `North-up ${YARD.region} map`);
 element("entry-realm-copy").textContent = `Prepare in ${YARD.settlement}, find the missing crew, and bring their names home. Each character has one life.`;
 const audio = createAdventureAudio();
+const appControls = createAppControls(element("character-select"), element("pause-settings"));
 const equipment = createEquipmentPanel(element("equipment-panel"), closeEquipment, (slot, item) => {
   if (running?.ready && !paused) running.game.equip(slot, item);
 });
@@ -1101,6 +1103,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   release(); save(true); alive = false; cancelAnimationFrame(frame);
   for (const remove of removers) remove();
   audio.dispose();
+  appControls.dispose();
   equipment.dispose();
   corpseLoot.dispose();
   bags.dispose();
