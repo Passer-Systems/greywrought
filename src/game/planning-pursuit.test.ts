@@ -4,7 +4,7 @@ import { tap } from "./yard-test-fixtures.js";
 
 function seed(id: "nest" | "patrol") {
   const saved = JSON.parse(createAdventure({ archetype: "mage" }).save());
-  Object.assign(saved.state, { phase: "expedition", position: id === "nest" ? { x: -8, y: 0, z: 15 } : { x: -6, y: 0, z: 10 } });
+  Object.assign(saved.state, { phase: "expedition", position: id === "nest" ? { x: -8, y: 0, z: 35 } : { x: -6, y: 0, z: 30 } });
   for (const t of saved.state.threats) if (t.active && t.id !== id) Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true });
   return saved;
 }
@@ -78,7 +78,7 @@ for (const id of ["nest", "patrol"] as const) {
 
 test("late arrivals approach during planning but cannot attack until the next cycle", () => {
   const saved = seed("patrol"), bee = saved.state.threats.find((t: { id: string }) => t.id === "nest");
-  Object.assign(bee, { health: 72, phase: "patrol", lootClaimed: false, position: { x: 0, y: 0, z: 17 }, targetPosition: { x: 0, y: 0, z: 17 } });
+  Object.assign(bee, { health: 72, phase: "patrol", lootClaimed: false, position: { x: 0, y: 0, z: 37 }, targetPosition: { x: 0, y: 0, z: 37 } });
   const game = createAdventure({ save: JSON.stringify(saved) });
   game.selectTarget("patrol"); tap(game, "strike"); game.advance(.01);
   game.selectTarget("nest"); tap(game, "strike");

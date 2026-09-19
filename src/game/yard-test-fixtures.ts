@@ -67,7 +67,7 @@ export function trained(game: AdventureGame, count = 3): AdventureGame {
 }
 export function foremanFixture(prepared: boolean, seed = 9844): AdventureGame {
   const saved = JSON.parse(createAdventure().save());
-  Object.assign(saved.state, { phase: "expedition", position: { x:2, y:0, z:38.5 }, cargo: 6, potions: prepared ? 2 : 0 });
+  Object.assign(saved.state, { phase: "expedition", position: { x:2, y:0, z:58.5 }, cargo: 6, potions: prepared ? 2 : 0 });
   if (prepared) {
     saved.state.chapter = earnedChapter(2);
     saved.state.chapter.equipment = { chest: "insulated-coat", mainhand: "yard-weapon" };
