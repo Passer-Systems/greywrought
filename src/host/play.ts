@@ -71,6 +71,7 @@ const chatLog = createChatLog(element("adventure-hud"), text => running?.game.se
 const unitFrames = createUnitFrames(element("adventure-hud"));
 const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   portrait: id => unitFrames.portrait(id),
+  playerName: id => running?.character.id === id ? "You" : running?.game.players.find(player => player.id === id)?.name,
   onRemove: id => { if (running?.ready && !paused) { running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
   onClear: () => { if (running?.ready && !paused) { running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
   onMove: (id, seconds) => { if (running?.ready && !paused) { running.game.moveQueuedAction(id, seconds); combatPlan.update(running.game.snapshot); } },

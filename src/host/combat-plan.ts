@@ -1,4 +1,4 @@
-import type { AdventureSnapshot, CombatAction, ThreatAbilityView } from "../game/adventure-types.js";
+import type { AdventureSnapshot, CombatAction, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
 import { classAction } from "../game/class-kit.js";
 import type { CombatPreview } from "./ground-telegraphs.js";
 import { enemyResponse } from "./enemy-response.js";
@@ -22,7 +22,7 @@ const enemyArt: Record<string, string> = {
   warder: "nature-leaf", "ritual-guardian": "frost-spell",
 };
 type QueuedCombatAction = AdventureSnapshot["combat"]["queued"][number];
-type ShownEnemyMove = { id: string; enemy: string; ability: ThreatAbilityView; seconds: number; status: string };
+type ShownEnemyMove = { id: string; enemy: string; ability: ThreatAbilityView; seconds: number; status: string; targetId: string | null; target: string };
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, parent: HTMLElement): HTMLElementTagNameMap[K] {
   const element = document.createElement(tag); element.className = className; parent.append(element); return element;
 }
@@ -33,6 +33,7 @@ function art(parent: HTMLElement, icon: string): void {
 
 export function createCombatPlan(host: HTMLElement, callbacks: {
   portrait: (id: string) => string | undefined;
+  playerName: (id: string) => string | undefined;
   onRemove: (id: number) => void;
   onClear: () => void;
   onMove: (id: number, offsetSeconds: number) => void;
@@ -119,12 +120,12 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         const threat = snapshot.threats.find(threat => threat.id === preview.threatId);
         const ability = threat?.windowAction?.ability;
         if (threat && ability) {
-          title = threat.name + " · " + ability.name;
+          title = threat.name + " · " + ability.name + " → " + enemyTarget(threat, ability);
           copy = ability.description + " " + enemyResponse(ability.id);
         }
       } else {
         const move = snapshot.combat.queued.find(move => move.id === preview.queueId);
-        if (move) { title = actionLabel(move.action); copy = String(move.action) === "equip" ? "Change equipment on the chosen beat." : classAction(snapshot.player.archetype, move.action).description; }
+        if (move) { title = actionLabel(move.action) + " → " + moveTarget(move); copy = String(move.action) === "equip" ? "Change equipment on the chosen beat." : classAction(snapshot.player.archetype, move.action).description; }
       }
       const events = snapshot.combat.forecast?.events.filter(event => preview.kind === "move" || event.sourceId === preview.threatId || event.targetId === preview.threatId) ?? [];
       const consequences = events.filter(event => event.kind !== "hit").slice(0, 3);
@@ -153,6 +154,16 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     return actions[action].name;
   }
   function selected(): QueuedCombatAction | undefined { return snapshot?.combat.queued.find(entry => entry.id === selectedId); }
+  function moveTarget(move: QueuedCombatAction): string {
+    if (move.targetId) return snapshot?.threats.find(threat => threat.id === move.targetId)?.name ?? "Unavailable target";
+    return move.destination ? "Chosen ground" : "Self";
+  }
+  function enemyTarget(threat: ThreatView, ability: ThreatAbilityView): string {
+    if (ability.damage <= 0) return "Self";
+    if (ability.id === "foreman-pulse") return "Nearby players";
+    const id = threat.targetPlayerId ?? (snapshot?.combat.forecast?.playerId === "solo" ? "solo" : null);
+    return id === "solo" ? "You" : id ? callbacks.playerName(id) ?? "Another player" : "No target";
+  }
   function editing(): boolean { return snapshot?.combat.phase === "preparation"; }
   function removeSelected(): void { if (editing() && selectedId !== null) callbacks.onRemove(selectedId); }
   function moveSelected(offsetSeconds: number): void { if (editing() && selectedId !== null) callbacks.onMove(selectedId, offsetSeconds); }
@@ -160,14 +171,14 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const move = selected();
     editor.hidden = !move;
     if (!move || !snapshot) return;
-    write(selection, actionLabel(move.action) + (move.status === "pending" ? " · choose slot" : move.status === "executed" ? " · used" : " · failed"));
+    write(selection, actionLabel(move.action) + " → " + moveTarget(move) + (move.status === "pending" ? " · choose slot" : move.status === "executed" ? " · used" : " · failed"));
     for (const button of delayButtons) {
       button.disabled = move.status !== "pending" || !editing();
       button.setAttribute("aria-pressed", String(Number(button.dataset.slot) === move.offsetSeconds + 1));
     }
     remove.disabled = move.status !== "pending" || !editing();
   }
-  function enemyMove(cell: HTMLElement, ability: ThreatAbilityView, seconds: number, status: string, enemyName: string, threatId: string): void {
+  function enemyMove(cell: HTMLElement, ability: ThreatAbilityView, seconds: number, status: string, enemyName: string, threatId: string, targetId: string | null, target: string): void {
     const icon = node("button", "combat-plan-enemy-move", cell); icon.type = "button";
     const preview: CombatPreview = { kind: "enemy", threatId };
     icon.dataset.threatId = threatId; inspectControl(icon, preview);
@@ -181,8 +192,9 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const words = node("span", "combat-plan-enemy-words", identity);
     node("strong", "combat-plan-enemy-name", words).textContent = enemyName;
     node("span", "combat-plan-enemy-action", words).textContent = ability.name;
-    node("span", "combat-plan-enemy-status", words).textContent = status === "pending" ? "" : status;
-    const detail = enemyName + " · " + ability.name + " · " + seconds.toFixed(1) + "s · " + status + "\n" + ability.description;
+    node("span", "combat-plan-enemy-target", words).textContent = "→ " + target;
+    icon.dataset.targetId = targetId ?? ""; icon.dataset.targetSelf = String(target === "You");
+    const detail = enemyName + " · " + ability.name + " → " + target + " · " + seconds.toFixed(1) + "s · " + status + "\n" + ability.description;
     icon.title = detail; icon.setAttribute("aria-label", detail);
     icon.dataset.abilityId = ability.id; icon.dataset.offset = String(seconds);
     icon.dataset.status = status;
@@ -230,6 +242,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           button.dataset.queueId = String(move.id); art(button, String(move.action) === "equip" ? "defensive-shield" : actions[move.action].icon);
           node("span", "combat-plan-move-time", button);
           node("span", "combat-plan-move-label", button);
+          node("span", "combat-plan-move-target", button);
           const cost = node("span", "combat-plan-move-cost", button);
           cost.textContent = String(move.cost); cost.title = move.cost + " stamina";
           inspectControl(button, { kind: "move", queueId: move.id });
@@ -257,24 +270,26 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         button.dataset.status = move.status; button.dataset.queuedAction = move.action; button.dataset.offset = String(move.offsetSeconds);
       button.draggable = combat.phase === "preparation" && move.status === "pending";
         button.setAttribute("aria-pressed", String(move.id === selectedId));
-        const target = next.threats.find(threat => threat.id === move.targetId)?.name;
-        const label = moveName + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina" + (target ? " · " + target : "") + " · " + move.status + (move.reason ? ": " + move.reason : "");
+        const target = moveTarget(move);
+        const label = moveName + " → " + target + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina · " + move.status + (move.reason ? ": " + move.reason : "");
         write(button.querySelector<HTMLElement>(".combat-plan-move-label")!, moveName);
+        write(button.querySelector<HTMLElement>(".combat-plan-move-target")!, "→ " + target);
+        button.dataset.targetId = move.targetId ?? "";
         button.title = label; button.setAttribute("aria-label", label);
         write(button.querySelector<HTMLElement>(".combat-plan-move-time")!, move.status === "executed" ? "✓" : move.status === "failed" ? "×" : move.offsetSeconds.toFixed(1) + "s");
       }
       const shown: ShownEnemyMove[] = choosing ? [] : attackers.flatMap<ShownEnemyMove>(threat => {
         if (threat.joinsNextWindow && combat.phase === "active") return [];
-        if (threat.windowAction) return [{ id: threat.id, enemy: threat.name, ability: threat.windowAction.ability, seconds: threat.windowAction.offsetSeconds, status: threat.windowAction.status }];
-        return threat.forecast.slice(0, 1).map(move => ({ id: threat.id, enemy: threat.name, ability: move.ability, seconds: 0, status: move.status }));
+        if (threat.windowAction) return [{ id: threat.id, enemy: threat.name, ability: threat.windowAction.ability, seconds: threat.windowAction.offsetSeconds, status: threat.windowAction.status, targetId: threat.targetPlayerId ?? null, target: enemyTarget(threat, threat.windowAction.ability) }];
+        return threat.forecast.slice(0, 1).map(move => ({ id: threat.id, enemy: threat.name, ability: move.ability, seconds: 0, status: move.status, targetId: threat.targetPlayerId ?? null, target: enemyTarget(threat, move.ability) }));
       });
-      const key = JSON.stringify([combat.phase, shown.map(move => Boolean(callbacks.portrait(move.id))), attackers.map(threat => [threat.id, threat.joinsNextWindow]), shown.map(move => [move.enemy, move.ability.id, move.seconds, move.ability.damage, move.status])]);
+      const key = JSON.stringify([combat.phase, shown.map(move => Boolean(callbacks.portrait(move.id))), attackers.map(threat => [threat.id, threat.joinsNextWindow]), shown.map(move => [move.enemy, move.ability.id, move.seconds, move.ability.damage, move.status, move.targetId, move.target])]);
       if (key !== enemyKey) {
         enemyKey = key;
         for (const cell of enemyCells) cell.replaceChildren();
         for (const move of shown) {
           const cell = enemyCells[Math.min(2, Math.max(0, Math.floor(move.seconds + .02)))];
-          if (cell) enemyMove(cell, move.ability, Math.max(0, move.seconds), move.status, move.enemy, move.id);
+          if (cell) enemyMove(cell, move.ability, Math.max(0, move.seconds), move.status, move.enemy, move.id, move.targetId, move.target);
         }
       }
       write(enemyLabel, choosing ? "Enemies · choosing next moves" : `Enemies · ${attackers.length} engaged`); enemyLabel.title = choosing ? "Enemies are choosing their next moves" : "Each icon shows one engaged enemy’s announced move";
