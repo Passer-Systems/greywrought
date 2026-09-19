@@ -309,3 +309,29 @@ test('Bait transport rejects invalid ground and queues a valid destination in th
     expect(await client.command({ type: 'bait', destination })).toBe(false);
   } finally { client.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
 });
+
+test('slash emotes replicate actions and chat while unknown commands stay private', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-emotes-'));
+  const service = await createWorldService({savePath:join(directory,'world.json')});
+  const server = Bun.serve({hostname:'127.0.0.1',port:0,websocket:service.websocket,fetch:(request,host)=>service.fetch(request,host)});
+  const dancer = new Client(`ws://127.0.0.1:${server.port}/world`);
+  const watcher = new Client(`ws://127.0.0.1:${server.port}/world`);
+  try {
+    await dancer.connect({id:'dancer',name:'Dancer',archetype:'warrior',createdAtMillis:1},crypto.randomUUID());
+    await watcher.connect({id:'watcher',name:'Watcher',archetype:'mage',createdAtMillis:1},crypto.randomUUID());
+    await dancer.state(); await watcher.state();
+    expect(await dancer.command({type:'chat',text:'/dance'})).toBe(true);
+    const dancing = await watcher.state(state => state.players.some(other => other.player.emote?.name === 'dance'));
+    expect(dancing.chat.at(-1)).toMatchObject({name:'Dancer',kind:'emote',text:'starts to dance.'});
+    expect(await dancer.command({type:'chat',text:'/wave Watcher'})).toBe(true);
+    const waving = await watcher.state(state => state.chat.at(-1)?.text.includes('Watcher') === true);
+    expect(waving.players.find(other => other.id === 'dancer')?.player.emote?.name).toBe('wave');
+    expect(await dancer.command({type:'chat',text:'/unknown'})).toBe(false);
+    await dancer.wait(message => message.type === 'error' && message.text.includes('/emotes'));
+    expect(watcher.messages.some(message => message.type === 'state' && message.chat.some(entry => entry.text === '/unknown'))).toBe(false);
+    expect(await watcher.command({type:'chat',text:'/e admires the trees.'})).toBe(true);
+    await dancer.state(state => state.chat.at(-1)?.kind === 'emote' && state.chat.at(-1)?.text === 'admires the trees.');
+    expect(await watcher.command({type:'chat',text:'/emotes'})).toBe(true);
+    await watcher.wait(message => message.type === 'error' && message.text.includes('/train'));
+  } finally {dancer.socket.close();watcher.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true});}
+});

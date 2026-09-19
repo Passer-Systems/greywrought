@@ -2,6 +2,7 @@ import { Group, Mesh, MeshBasicMaterial, SkinnedMesh, Vector3 } from "three";
 import type { RemotePlayerView } from "../game/multiplayer-types.js";
 export type { RemotePlayerView } from "../game/multiplayer-types.js";
 import { actor, type ForestActor } from "./frostwood-assets.js";
+import { createSocialAnimation } from "./social-animation.js";
 
 export function createRemotePlayers(scene: Group | import("three").Scene) {
   const rigs = new Map<string, ReturnType<typeof createRig>>();
@@ -18,7 +19,7 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
     let lastHealth = view.player.health;
     let dead = false;
     let actionRemaining = 0;
-    let sittingPlayed = false;
+    const playSocialAnimation = createSocialAnimation();
     function disposeActor(value: ForestActor) {
       value.dispose();
       value.model.traverse(object => { if (object instanceof SkinnedMesh) object.skeleton.dispose(); });
@@ -56,13 +57,15 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
             mounted.play(player.archetype === "mage" ? "Staff_Attack" : player.archetype === "hunter" ? "Bow_Shoot" : player.archetype === "alchemist" || player.archetype === "artificer" ? "Shoot_OneHanded" : "Sword_Attack", false, 0.4);
             actionRemaining = 0.4;
           } else if (actionRemaining === 0) {
-            if (player.sitting) {
-              if (!sittingPlayed) { mounted.play("SitDown", false); sittingPlayed = true; }
-            } else { sittingPlayed = false; mounted.play(player.maneuver === "disengage" || !player.grounded ? "Roll" : player.moving ? "Run" : "Idle"); }
+            if (!playSocialAnimation(mounted, player.sitting, player.moving ? null : player.emote)) {
+              mounted.play(player.maneuver === "disengage" || !player.grounded ? "Roll" : player.moving ? "Run" : "Idle");
+            }
           }
         }
         lastHealth = player.health; lastAttack = player.attackSequence;
         mounted.mixer.update(delta);
+        root.userData.animation = mounted.action?.getClip().name ?? '';
+        root.userData.animationTime = mounted.action?.time ?? 0;
       },
       dispose() { disposed = true; if (mounted) disposeActor(mounted); root.removeFromParent(); },
     };

@@ -1,3 +1,4 @@
+import { EMOTE_HELP, emoteText, findEmote } from '../game/emotes.js';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
@@ -104,8 +105,9 @@ function decodeSave(source: string): SavedService {
     if (!record(entry) || !finite(entry.id, 1, value.nextChatId - 1, true) || typeof entry.name !== 'string'
       || normalizedCharacterName(entry.name) !== entry.name || typeof entry.text !== 'string'
       || !command({ type: 'chat', text: entry.text }) || (chat.at(-1)?.id ?? 0) >= entry.id
+      || (entry.kind !== undefined && entry.kind !== 'emote')
       || (entry.speakerId !== undefined && entry.speakerId !== null && (!identifier(entry.speakerId) || !ids.has(entry.speakerId)))) throw new Error('Invalid saved shared chat');
-    chat.push({ id: entry.id, speakerId: typeof entry.speakerId === 'string' ? entry.speakerId : null, name: entry.name, text: entry.text });
+    chat.push({ id: entry.id, speakerId: typeof entry.speakerId === 'string' ? entry.speakerId : null, name: entry.name, text: entry.text, ...(entry.kind === 'emote' ? { kind: 'emote' as const } : {}) });
   }
   return { version: 1, accounts, world: value.world, chat, nextChatId: value.nextChatId };
 }
@@ -220,14 +222,39 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'quest': player.quest(value.id, value.operation); break;
       case 'equip': player.equip(value.slot, value.item); break;
       case 'chat': {
-        if (value.text.trim().toLowerCase() === '/sit') { player.sit(); broadcast(); break; }
         const now = performance.now();
         socket.data.chatsAt = socket.data.chatsAt.filter(at => now - at < 1000);
         if (socket.data.chatsAt.length >= 3) { error(socket, 'Give others a moment to speak.'); return false; }
         socket.data.chatsAt.push(now);
         const account = accounts.get(socket.data.id!);
         if (!account) return false;
-        const message = { id: nextChatId++, speakerId: account.character.id, name: account.character.name, text: value.text.trim() };
+        let text = value.text.trim();
+        let kind: 'emote' | undefined;
+        if (text.startsWith('/')) {
+          const match = /^\/(\S+)(?:\s+(.*))?$/.exec(text);
+          if (!match) { error(socket, 'Type /emotes to see the available actions.'); return false; }
+          const name = match[1]!.toLowerCase(), argument = match[2]?.trim();
+          if (name === 'emotes') { error(socket, EMOTE_HELP); return true; }
+          if (session.mode === 'paused') { error(socket, 'Resume your journey to perform an emote.'); return false; }
+          if (name === 'sit') { player.sit(); broadcast(); return true; }
+          if (name === 'stand') { player.emote('stand'); broadcast(); return true; }
+          if (['e', 'em', 'emote', 'me'].includes(name)) {
+            if (!argument) { error(socket, 'Try /e followed by what your character does.'); return false; }
+            player.emote('stand'); text = argument; kind = 'emote';
+          } else {
+            const emote = findEmote(name);
+            if (!emote) { error(socket, 'Unknown command. Type /emotes to see the available actions.'); return false; }
+            let addressed: string | undefined;
+            if (argument) {
+              const names = [...world.players(session.id).map(other => other.name), ...player.snapshot.threats.map(threat => threat.name)];
+              const matches = names.filter(candidate => candidate.toLowerCase() === argument.toLowerCase());
+              if (matches.length !== 1) { error(socket, 'Use the full name of one character or creature here.'); return false; }
+              addressed = matches[0];
+            }
+            player.emote(emote.name); text = emoteText(emote, addressed); kind = 'emote';
+          }
+        }
+        const message: SharedChatMessage = { id: nextChatId++, speakerId: account.character.id, name: account.character.name, text, ...(kind ? { kind } : {}) };
         const target = session.mode === 'shared' ? chat : (privateChat.get(session.id) ?? []);
         target.push(message);
         if (target.length > 100) target.shift();

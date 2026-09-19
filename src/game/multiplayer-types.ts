@@ -8,7 +8,7 @@ export interface RemotePlayerView {
   readonly name: string;
   readonly player: AdventureSnapshot['player'];
 }
-export interface SharedChatMessage { readonly id: number; readonly speakerId: string | null; readonly name: string; readonly text: string; }
+export interface SharedChatMessage { readonly id: number; readonly speakerId: string | null; readonly name: string; readonly text: string; readonly kind?: 'emote'; }
 export type WorldCommand =
   | { type: 'pause' }
   | { type: 'resume' }

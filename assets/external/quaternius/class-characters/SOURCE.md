@@ -26,7 +26,12 @@ The matching Alchemist and Artificer portraits under
 The sitting animation uses `SitDown` from the same archive's
 `Characters and Animals/Ultimate Animated Character Pack - Nov 2019/glTF/Knight_Golden_Female.gltf`,
 already preserved at `greywrought:assets/external/quaternius/rig-socket-prototype/wayfarer/Knight_Golden_Female.gltf`.
-`greywrought:assets/external/quaternius/class-characters/Sitting.gltf` keeps that
-model's rig, geometry and `SitDown` clip, with unused animation records and
-buffer data removed. Three.js retargets this CC0 clip to each class's skeleton
-and proportions.
+`greywrought:assets/external/quaternius/class-characters/Social.glb` keeps that
+model's rig, geometry, `SitDown` and `Victory` (renamed `Cheer`) clips, with unused
+buffer data removed. It also contains `Dance_Loop` from the archive member
+`Animation/Universal Animation Library 1[Standard]/Unreal-Godot/UAL1_Standard.glb`,
+retargeted to this rig and renamed `Dance`. The animation library is CC0 under
+the archive's license. `Wave` and `Train` are original Greywrought skeletal
+gestures authored on the character's idle pose. No Blizzard art or audio is used.
+`greywrought:scripts/prepare-emotes.mjs` prepares this compact animation donor.
+Three.js retargets its clips to each class's skeleton and proportions.

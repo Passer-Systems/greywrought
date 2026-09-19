@@ -1,3 +1,4 @@
+import { findEmote } from './emotes.js';
 import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
 import { YARD, QUESTS, GEAR, gearName, type QuestId, type QuestOperation, type QuestView, type ProgressionView, type GearSlot, type GearItemId } from "./yard-content.js";
@@ -201,6 +202,9 @@ function initialState(archetype: CharacterArchetype): State {
 
 class Adventure implements AdventureGame {
   private state: State;
+  private activeEmote: AdventureSnapshot["player"]["emote"] = null;
+  private emoteSequence = 0;
+  private emoteSeconds = 0;
   private held = new Set<AdventureAction>();
   private mouseForward = false;
   private movementFrames: MovementFrame[] | null = null;
@@ -461,7 +465,7 @@ class Adventure implements AdventureGame {
         moving: this.moving, backpedaling: this.backpedaling, attackSequence: s.attackSequence,
         actionCooldown: s.actionCooldown, currentAction: s.currentAction, actionDuration: s.actionDuration, guardSeconds: s.guardSeconds,
         block: s.block, stamina: s.stamina, maximumStamina: COMBAT_RULES.stamina.maximum, staminaRecoverySeconds: s.staminaRecoverySeconds,
-        bloodRage: s.bloodRage, rageDrainSeconds: s.rageDrainSeconds, rageDecaySeconds: s.rageDecaySeconds, inCombat: this.inCombat(), sitting: s.sitting, maneuver: s.maneuver?.kind ?? "none",
+        bloodRage: s.bloodRage, rageDrainSeconds: s.rageDrainSeconds, rageDecaySeconds: s.rageDecaySeconds, inCombat: this.inCombat(), sitting: s.sitting, emote: this.activeEmote, maneuver: s.maneuver?.kind ?? "none",
         maneuverSeconds: s.maneuver?.remainingSeconds ?? 0, facing: { ...(s.maneuver?.facing ?? this.cameraForward) },
       },
       threats: s.world.threats.map((t): ThreatView => {
@@ -596,7 +600,17 @@ class Adventure implements AdventureGame {
   setMouseForward(active: boolean): void { if (!this.instancePaused() && !this.executionLocked()) this.mouseForward = active; }
   sit(): void {
     if (this.instancePaused() || this.state.phase === "lost" || this.inCombat()) return;
+    this.activeEmote = null;
     this.state.sitting = true;
+  }
+  emote(name: string): void {
+    if (this.instancePaused() || this.state.phase === "lost" || this.inCombat()) return;
+    if (name === "stand") { this.state.sitting = false; this.activeEmote = null; return; }
+    const definition = findEmote(name);
+    if (!definition) return;
+    this.state.sitting = false;
+    this.activeEmote = { name: definition.name, sequence: ++this.emoteSequence };
+    this.emoteSeconds = definition.name === "dance" ? Infinity : 3;
   }
   selectTarget(id: string): void {
     definition(id);
@@ -708,7 +722,7 @@ class Adventure implements AdventureGame {
     if (c.queued.length >= COMBAT_RULES.window.maximumActions) { this.report("All three slots are filled.", "combat"); return; }
     const target = ["strike", "disengage", "jab", "shove", "finish"].includes(action) ? this.state.world.threats.find(t => t.id === this.state.selectedThreat)! : null;
     if (target) {
-      this.state.sitting = false;
+      this.state.sitting = false; this.activeEmote = null;
       if (!target.aggro) this.engage(target);
       if (!target.combatants.includes(this.playerId ?? "solo")) target.combatants.push(this.playerId ?? "solo");
       if (c.clock.phase === "idle") this.beginPlanning();
@@ -1166,7 +1180,7 @@ class Adventure implements AdventureGame {
     }
   }
   private move(dt: number): void {
-    if (this.mouseForward || this.held.has("forward") || this.held.has("backward") || this.held.has("left") || this.held.has("right") || this.held.has("jump")) this.state.sitting = false;
+    if (this.mouseForward || this.held.has("forward") || this.held.has("backward") || this.held.has("left") || this.held.has("right") || this.held.has("jump")) { this.state.sitting = false; this.activeEmote = null; }
     const result = moveLocomotion(this.state, { forward: this.mouseForward ? 1 : Number(this.held.has("forward")) - Number(this.held.has("backward")),
       strafe: Number(this.held.has("right")) - Number(this.held.has("left")), cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt);
     this.moving = result.moving; this.backpedaling = result.backpedaling;
@@ -1179,7 +1193,7 @@ class Adventure implements AdventureGame {
       if (this.movementSequence !== frame.sequence) { this.movementSequence = frame.sequence; this.movementElapsed = 0; }
       const elapsed = Math.min(remaining, frame.seconds - this.movementElapsed);
       if (!blocked) {
-        if (Math.abs(frame.input.forward) > EPSILON || Math.abs(frame.input.strafe) > EPSILON || frame.input.jump) this.state.sitting = false;
+        if (Math.abs(frame.input.forward) > EPSILON || Math.abs(frame.input.strafe) > EPSILON || frame.input.jump) { this.state.sitting = false; this.activeEmote = null; }
         this.setCameraForward(frame.input.cameraX, frame.input.cameraZ);
         const result = moveLocomotion(this.state, { ...frame.input, jump: frame.input.jump && this.movementElapsed === 0 }, elapsed);
         this.moving = result.moving; this.backpedaling = result.backpedaling;
@@ -1239,6 +1253,10 @@ class Adventure implements AdventureGame {
   }
   private stepPlayer(dt: number): void {
     const s = this.state;
+    if (this.activeEmote) {
+      this.emoteSeconds -= dt;
+      if (this.emoteSeconds <= EPSILON || this.inCombat() || s.phase === "lost") this.activeEmote = null;
+    }
     if (s.phase === "lost") { if (this.movementFrames) this.consumeMovement(dt, true); this.moving = false; this.backpedaling = false; return; }
     if (s.maneuver) { if (this.movementFrames) this.consumeMovement(dt, true); this.moveManeuver(dt); }
     else if (this.executionLocked()) {
@@ -1370,7 +1388,7 @@ class Adventure implements AdventureGame {
     return s.phase === "expedition" && s.health > 0 && s.position.z > 2 && distance(s.position, d.position) <= d.leash;
   }
   private engage(t: ThreatState): void {
-    this.state.sitting = false;
+    this.state.sitting = false; this.activeEmote = null;
     t.aggro = true; t.lastActionHit = false; t.targetPlayerId = this.playerId;
     if (this.playerId !== null && !t.combatants.includes(this.playerId)) t.combatants.push(this.playerId);
     const clock = this.state.combat.clock;

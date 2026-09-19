@@ -1,6 +1,6 @@
 {
   "name": "greywrought",
-  "version": "0.14.1",
+  "version": "0.15.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.3.13",
@@ -19,6 +19,7 @@
     "test:private-encounter": "bun test src/host/network-adventure.test.ts src/game/private-encounter.test.ts src/server/world-service.test.ts && bun acceptance/browser/private-encounter.ts && bun acceptance/browser/rejoin-movement.ts",
     "test:foreman-recovery": "bun test src/game/private-encounter.test.ts && bun acceptance/browser/foreman-recovery.ts",
     "test:sit": "bun acceptance/browser/sit.ts",
+    "test:emotes": "bun test src/game/emotes.test.ts && bun acceptance/browser/emotes.ts",
     "test:ability-range": "bun test src/host/combat-range.test.ts && bun acceptance/browser/ability-range.ts",
     "test:browser-barter": "bun acceptance/browser/npc-barter.ts",
     "test:browser-characters": "bun acceptance/browser/character-deletion.ts && bun acceptance/browser/class-models.ts",

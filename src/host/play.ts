@@ -643,6 +643,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gameManeuverSeconds = String(player.maneuverSeconds);
   data.gameStamina = String(player.stamina); data.gameBloodRage = String(player.bloodRage); data.gameInCombat = String(player.inCombat);
   data.gamePlayerSitting = String(player.sitting);
+  data.gamePlayerEmote = JSON.stringify(player.emote);
   data.gameCombatPhase = snapshot.combat.phase;
   data.gameCombatRemaining = String(snapshot.combat.remainingSeconds);
   const stamina = element("combat-stamina");
@@ -656,7 +657,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   combatPlan.update(snapshot);
   if (snapshot.combat.phase !== "preparation" || snapshot.combat.queued.length >= 3) setBaitAiming(false);
   data.gameCombatPlan = String(!element("combat-plan").hidden);
-  const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, text: entry.name + ": " + entry.text })) ?? [];
+  const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, text: entry.kind === 'emote' ? `* ${entry.name} ${entry.text}` : entry.name + ": " + entry.text })) ?? [];
   chatLog.update([...snapshot.log, ...sharedChat]);
   data.gameOnline = String(running?.game.online ?? false);
   data.gameRemotePlayers = JSON.stringify(running?.game.players ?? []);

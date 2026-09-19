@@ -35,6 +35,8 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let prediction: LocalMovement;
   let serverTime = 0, serverWallTimeMillis = 0, lastMovementAt = 0;
   let players: readonly RemotePlayerView[] = [], chat: readonly SharedChatMessage[] = [];
+  const notices: SharedChatMessage[] = [];
+  let noticeId = -1_000_000_000;
   let sequence = 0, closed = false, online = false, connectionRevision = 0;
   let reconnect: ReturnType<typeof setTimeout> | undefined;
   let socketGeneration = 0;
@@ -118,7 +120,12 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
         transitionRequest = null; pendingTransition = null; notify();
       } else if (message.type === 'error') {
         if (!snapshot) { close(); readyReject(new Error(message.text)); }
-        else snapshot = {...snapshot,report:message.text};
+        else {
+          snapshot = {...snapshot,report:message.text};
+          notices.push({id:noticeId--,speakerId:null,name:'Notice',text:message.text});
+          if (notices.length > 20) notices.shift();
+          notify();
+        }
       }
     };
     current.onclose = disconnected;
@@ -135,7 +142,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     get inputEnabled() { return inputEnabled(); },
     get pendingTransition() { return pendingTransition; },
     get players() { return players; },
-    get chat() { return chat; },
+    get chat() { return [...chat, ...notices]; },
     advance(seconds) {
       if (!inputEnabled()) return;
       prediction.advance(seconds);
@@ -153,6 +160,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       if (pressed) flushCamera(); send({type:'action',action,pressed});
     },
     setMouseForward(active) { prediction.setMouseForward(active && inputEnabled()); },
+    emote(name) { if (inputEnabled()) send({ type: 'chat', text: `/${name}` }); },
     sit() { if (inputEnabled()) send({ type: 'sit' }); },
     setCameraForward(x,z) { prediction.setCameraForward(x,z); if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
     selectTarget(id) { send({type:'target',id}); },

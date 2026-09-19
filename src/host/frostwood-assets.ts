@@ -35,25 +35,27 @@ export async function actor(name: string, height: number, playerModel?: "warrior
   const model = clone(gltf.scene);
   const animations = [...gltf.animations];
   if (playerPath !== null) {
-    const donor = await source("assets/quaternius/class-characters/Sitting.gltf");
+    const donor = await source("assets/quaternius/class-characters/Social.glb");
     const sourceModel = clone(donor.scene);
     let targetRig: SkinnedMesh | undefined, sourceRig: SkinnedMesh | undefined;
     model.traverse(object => { if (object instanceof SkinnedMesh) targetRig ??= object; });
     sourceModel.traverse(object => { if (object instanceof SkinnedMesh) sourceRig ??= object; });
-    const clip = donor.animations.find(animation => animation.name === "SitDown");
     const boneName = (bone: Object3D): string => bone.userData.name ?? bone.name;
     const targetBody = targetRig?.skeleton.bones.find(bone => boneName(bone) === "Body"), sourceBody = sourceRig?.skeleton.bones.find(bone => boneName(bone) === "Body");
-    if (!targetRig || !sourceRig || !clip || !targetBody || !sourceBody) throw Error("Missing character sitting rig or animation");
+    if (!targetRig || !sourceRig || !targetBody || !sourceBody) throw Error("Missing character social animation rig");
     model.updateMatrixWorld(true); sourceModel.updateMatrixWorld(true);
     const scale = targetBody.getWorldPosition(new Vector3()).y / sourceBody.getWorldPosition(new Vector3()).y;
     // Retarget rotations and hip motion while preserving each class's bind proportions.
-    const sitting = retargetClip(targetRig, sourceRig, clip, {
-      hip: sourceBody.name, scale, fps: 24,
-      names: Object.fromEntries(targetRig.skeleton.bones.map(bone => [bone.name, sourceRig!.skeleton.bones.find(sourceBone => boneName(sourceBone) === (boneName(bone) === "Root" ? "Bone" : boneName(bone)))?.name ?? bone.name])),
-    });
-    for (const track of sitting.tracks) track.name = track.name.replace(/^\.bones\[([^\]]+)\]/, "$1");
-    animations.push(sitting);
-    targetRig.skeleton.pose(); model.updateMatrixWorld(true);
+    for (const clip of donor.animations) {
+      sourceRig.skeleton.pose(); sourceModel.updateMatrixWorld(true);
+      const social = retargetClip(targetRig, sourceRig, clip, {
+        hip: sourceBody.name, scale, fps: 24,
+        names: Object.fromEntries(targetRig.skeleton.bones.map(bone => [bone.name, sourceRig!.skeleton.bones.find(sourceBone => boneName(sourceBone) === (boneName(bone) === "Root" ? "Bone" : boneName(bone)))?.name ?? bone.name])),
+      });
+      for (const track of social.tracks) track.name = track.name.replace(/^\.bones\[([^\]]+)\]/, "$1");
+      animations.push(social);
+      targetRig.skeleton.pose(); model.updateMatrixWorld(true);
+    }
   }
   const localMaterials: Material[] = [];
   if (name === "Leela") model.traverse(object => {

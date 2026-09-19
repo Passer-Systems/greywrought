@@ -12,6 +12,7 @@ import { buildFrostwood } from "./frostwood-scenery.js";
 import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.js";
 import { createAggroRanges } from "./aggro-ranges.js";
 import { createRemotePlayers, type RemotePlayerView } from "./remote-player.js";
+import { createSocialAnimation } from "./social-animation.js";
 import { createSnapshotInterpolation } from "./snapshot-interpolation.js";
 import { createOverheadNames, npcQuestMarker } from "./overhead-names.js";
 import { createChatBubbles } from "./chat-bubbles.js";
@@ -276,7 +277,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let merchant: ForestActor | null = null;
   let innkeeper: ForestActor | null = null;
   let playerAttackRemaining = 0;
-  let playerSittingPlayed = false;
+  const playSocialAnimation = createSocialAnimation();
   let disposed = false;
   let otherPlayers: readonly RemotePlayerView[] = [];
   let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean) => void) | undefined;
@@ -438,6 +439,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       } else snapshot = {...snapshot, player: localPlayer};
       remotePlayers.update(visiblePlayers);
       remotePlayers.render(delta);
+      document.body.dataset.rigRemoteAnimations = JSON.stringify(Array.from(remotePlayers.entries(), ([id, rig]) => ({ id, animation: rig.root.userData.animation, time: rig.root.userData.animationTime })));
       player.position.set(localPlayer.position.x, localPlayer.position.y, localPlayer.position.z);
       const position = player.position;
       const face = snapshot.player.facing;
@@ -473,12 +475,14 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         if(!playerDead) {
           playerHitRemaining=Math.max(0,playerHitRemaining-delta); playerAttackRemaining=Math.max(0,playerAttackRemaining-delta);
           if(playerHitRemaining===0&&playerAttackRemaining===0) {
-            if (snapshot.player.sitting) {
-              if (!playerSittingPlayed) { knight.play("SitDown", false); playerSittingPlayed = true; }
-            } else { playerSittingPlayed = false; knight.play(snapshot.player.maneuver === "disengage" || !snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle"); }
+            if (!playSocialAnimation(knight, snapshot.player.sitting, snapshot.player.moving ? null : snapshot.player.emote)) {
+              knight.play(snapshot.player.maneuver === "disengage" || !snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle");
+            }
           }
         }
         knight.mixer.update(delta);
+        document.body.dataset.rigAnimation = knight.action?.getClip().name ?? '';
+        document.body.dataset.rigAnimationTime = String(knight.action?.time ?? 0);
         document.body.dataset.rigAnimationMode=playerDead?"death":playerHitRemaining>0?"hit":playerAttackRemaining>0?"attack":snapshot.player.moving?"locomotion":"idle";
       }
       if (merchant) {
