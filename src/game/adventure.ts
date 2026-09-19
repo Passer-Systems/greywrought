@@ -6,23 +6,23 @@ import type {
   AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot, AdventureLogEntry, SharedAdventure, CombatFeedback,
   CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView, ThreatAbilityView, MonsterLoreEntry, ThreatForecastEntry, CombatAction, CombatMove, EncounterSession, CombatForecast, CombatEffect,
 } from "./adventure-types.js";
-import { classAction, classKit } from "./class-kit.js";
+import { classAction, classKit, MELEE_RANGE } from "./class-kit.js";
 
 type Vector = { x: number; y: number; z: number };
 type Phase = AdventureSnapshot["phase"];
 export const COMBAT_RULES = {
   actionCooldown: 1,
   bait: { distance: 6, duration: .45, cost: 1 },
-  shove: { range: 3.5, distance: 4, damage: 18, cost: 1 },
-  finish: { range: 3.5, damage: 12, staggeredDamage: 54, cost: 1 },
+  shove: { range: MELEE_RANGE, distance: 4, damage: 18, cost: 1 },
+  finish: { range: MELEE_RANGE, damage: 12, staggeredDamage: 54, cost: 1 },
   swarm: { radius: 3, damage: 36 },
   window: { active: 3, choosing: 0, preparation: 30, actionSlots: 3, maximumActions: 3 },
   stamina: { maximum: 5, recoverySeconds: 1.5 },
   bloodRage: { cost: 1, maximum: 3, damagePerStack: 4, drainPerStack: 1, drainSeconds: 5, decaySeconds: 2, recovery: 2 },
-  strike: { damage: 9, range: 2, rangedRange: 10, stopDistance: 1.5, duration: 0.25, cost: 0 },
-  disengage: { damage: 6, range: 3.5, distance: 5, duration: 0.8, cost: 1 },
+  strike: { damage: 9, range: MELEE_RANGE, rangedRange: 10, stopDistance: 1.5, duration: 0.25, cost: 0 },
+  disengage: { damage: 6, range: MELEE_RANGE, distance: 5, duration: 0.8, cost: 1 },
   brace: { block: 24, duration: 2, cost: 2 },
-  jab: { damage: 3, range: 2, cost: 0 },
+  jab: { damage: 3, range: MELEE_RANGE, cost: 0 },
   guard: { block: 2, duration: 1, cost: 0 },
   drinkPotion: { cost: 1, recovery: 1 },
   enemy: { preparation: 3, action: 0.65, recovery: 2 },

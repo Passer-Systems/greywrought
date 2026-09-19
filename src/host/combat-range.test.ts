@@ -30,11 +30,11 @@ test("explicit target identity wins over the selected enemy; self moves have no 
 
 test("targeted tools use their own reach and respect the game's cover check", () => {
   const saved = JSON.parse(createAdventure({ archetype: "mage" }).save());
-  Object.assign(saved.state, { phase: "expedition", position: { x: -3, y: 0, z: 7 } });
+  Object.assign(saved.state, { phase: "expedition", position: { x: -3, y: 0, z: 5 } });
   const near = createAdventure({ save: JSON.stringify(saved) }).snapshot;
   expect(playerRange(near, "shove").state).toBe("in");
   expect(playerRange(near, "finish").state).toBe("in");
-  saved.state.position.z = 6;
+  saved.state.position.z = 4.99;
   const farther = createAdventure({ save: JSON.stringify(saved) }).snapshot;
   expect(playerRange(farther, "strike").state).toBe("in");
   expect(playerRange(farther, "shove").state).toBe("out");
@@ -44,6 +44,19 @@ test("targeted tools use their own reach and respect the game's cover check", ()
   const blocked = createAdventure({ save: JSON.stringify(saved) }).snapshot;
   expect(playerRange(blocked, "strike").state).toBe("out");
   expect(playerRange(blocked, "strike").text).toContain("cover");
+});
+
+test("all melee actions reach exactly five metres and stop beyond it", () => {
+  const saved = JSON.parse(createAdventure().save());
+  Object.assign(saved.state, { phase: "expedition", position: { x: -3, y: 0, z: 5 } });
+  for (const z of [5, 4.99]) {
+    saved.state.position.z = z;
+    const view = createAdventure({ save: JSON.stringify(saved) }).snapshot;
+    for (const action of ["strike", "shove", "finish", "disengage", "jab"] as const) {
+      expect(playerRange(view, action).state).toBe(z === 5 ? "in" : "out");
+      expect(view.threats.find(threat => threat.id === "scout")!.inRangeActions.includes(action)).toBe(z === 5);
+    }
+  }
 });
 
 test("Maul includes leap and landing radius before launch, then uses its locked area", () => {

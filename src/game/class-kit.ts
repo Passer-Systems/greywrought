@@ -1,6 +1,8 @@
 import type { CharacterArchetype } from "../host/character-profile.js";
 import type { CombatAction } from "./adventure-types.js";
 
+export const MELEE_RANGE = 5;
+
 export interface ClassActionSpec {
   readonly name: string;
   /** Path is resolved by the host against the static asset root. */
@@ -24,8 +26,8 @@ export interface ClassKit {
 
 const tactics = {
   bait: { name: "Bait", icon: "assets/ui/icons/spells/mobility-boots.png", description: "Move up to 6 metres toward chosen ground on this beat. Lure enemies into each other. Costs 1 stamina.", cost: 1, range: 6, duration: .45 },
-  shove: { name: "Shove", icon: "assets/ui/icons/spells/sword-strike.png", description: "Push an enemy within 3.5 metres. Collisions hurt and stagger both enemies, interrupting their attacks. Costs 1 stamina.", cost: 1, range: 3.5 },
-  finish: { name: "Finish", icon: "assets/ui/icons/spells/sword-strike.png", description: "Strike within 3.5 metres for 12 damage, or 54 against a staggered enemy. Costs 1 stamina.", cost: 1, range: 3.5, damage: 12 },
+  shove: { name: "Shove", icon: "assets/ui/icons/spells/sword-strike.png", description: "Push an enemy within 5 metres. Collisions hurt and stagger both enemies, interrupting their attacks. Costs 1 stamina.", cost: 1, range: MELEE_RANGE },
+  finish: { name: "Finish", icon: "assets/ui/icons/spells/sword-strike.png", description: "Strike within 5 metres for 12 damage, or 54 against a staggered enemy. Costs 1 stamina.", cost: 1, range: MELEE_RANGE, damage: 12 },
 } as const;
 const common = {
   brace: { name: "Block", icon: "assets/ui/icons/spells/defensive-shield.png", description: "Raise your guard and absorb incoming damage." },
@@ -39,8 +41,8 @@ const kits: Readonly<Record<CharacterArchetype, ClassKit>> = {
     archetype: "warrior", powerName: "Blood Rage", powerStackName: "Rage",
     abilities: {
       ...tactics,
-      strike: { name: "Sword Strike", icon: "assets/ui/icons/spells/sword-strike.png", description: "Strike a nearby enemy.", damage: 9, range: 2, cost: 0, duration: .25 },
-      brace: { ...common.brace, description: "Absorb 24 damage for 2 seconds. Costs 2 stamina." }, disengage: { name: "Disengage", icon: "assets/ui/icons/spells/mobility-boots.png", description: "Strike for 6, then leap backward and root the enemy briefly. Costs 1 stamina.", damage: 6, range: 3.5, cost: 1, duration: .8 },
+      strike: { name: "Sword Strike", icon: "assets/ui/icons/spells/sword-strike.png", description: "Strike an enemy within 5 metres.", damage: 9, range: MELEE_RANGE, cost: 0, duration: .25 },
+      brace: { ...common.brace, description: "Absorb 24 damage for 2 seconds. Costs 2 stamina." }, disengage: { name: "Disengage", icon: "assets/ui/icons/spells/mobility-boots.png", description: "Strike an enemy within 5 metres for 6, then leap backward and root it briefly. Costs 1 stamina.", damage: 6, range: MELEE_RANGE, cost: 1, duration: .8 },
       bloodRage: { name: "Blood Rage", icon: "assets/ui/icons/spells/fire-spell.png", description: "Build Rage while remaining in combat; each stack adds attack damage but drains health.", cost: 1, powerDamagePerStack: 4 },
       jab: common.jab, guard: common.guard, drinkPotion: common.drinkPotion,
     },

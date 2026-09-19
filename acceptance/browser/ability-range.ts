@@ -11,7 +11,7 @@ const token = 'ability-range-fixture-token-000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
 Object.assign(saved.characters[0].state, {
-  phase: 'expedition', position: { x: -1, y: 0, z: 8 }, chapter: earnedChapter(2), selectedThreat: 'nest',
+  phase: 'expedition', position: { x: -1, y: 0, z: 5 }, chapter: earnedChapter(2), selectedThreat: 'nest',
 });
 for (const threat of saved.world.threats) {
   if (threat.id === 'nest') threat.remainingSeconds = 60;
@@ -48,10 +48,9 @@ try {
   check(await page.evaluate<boolean>(`document.querySelector('.adventure-actions [data-action="strike"]').dataset.range==='out'`), 'Distant Sword Strike must be dimmed');
   await page.shot('out-of-reach');
   await page.key('KeyW', true); await page.waitFor(glowing('shove')); await page.key('KeyW', false);
-  check(await page.evaluate<boolean>(glowing('finish')), 'Finish must glow inside its 3.5 metre reach');
-  check(!await page.evaluate<boolean>(glowing('strike')), 'Sword Strike must remain dim beyond its shorter reach');
-  await page.shot('tools-in-reach');
-  await page.key('KeyW', true); await page.waitFor(glowing('strike')); await page.key('KeyW', false);
+  check(await page.evaluate<boolean>(glowing('finish')), 'Finish must glow inside its 5 metre reach');
+  check(await page.evaluate<boolean>(glowing('strike')), 'Sword Strike and melee tools must share 5 metre reach');
+  check(await page.evaluate<boolean>(`(()=>{const s=window.rangeState.snapshot,p=s.player.position,t=s.threats.find(t=>t.id==='nest').position,d=Math.hypot(p.x-t.x,p.z-t.z);return d<=5&&d>4.5;})()`), 'Melee glow must begin at the 5 metre boundary');
   check(await page.evaluate<boolean>(`getComputedStyle(document.querySelector('.adventure-actions [data-action="strike"] .action-art')).boxShadow!=='none'`), 'Usable attack must have a visible glow');
   await page.shot('strike-in-reach');
   await page.key('KeyS', true); await page.waitFor(`!${glowing('shove')}`); await page.key('KeyS', false);
@@ -63,7 +62,8 @@ try {
   await page.click('.combat-plan-ready');
   await page.waitFor('document.body.dataset.gameCombatPhase==="active"');
   check(!await page.evaluate<boolean>(glowing('strike')), 'Committed combat must stop showing an actionable attack');
+  await page.waitFor('window.rangeState.snapshot.threats.find(t=>t.id==="nest").health<72');
   check(page.errors.length === 0, 'Ability range journey must have no browser exceptions');
-  console.log('PASS out-of-range dimming, distinct move reach, actionable glow, movement updates, and queued attack', page.output);
+  console.log('PASS five metre melee reach, actionable glow, movement updates, and queued attack damage', page.output);
 } catch (error) { await page?.shot('failure'); throw error; }
 finally { await page?.close(); await service.close(); server.stop(true); frontend.kill(); await frontend.exited; }

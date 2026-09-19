@@ -321,7 +321,7 @@ slot order and the corresponding keys. Potions are consumed only on activation.
 | Artificer | Recoil Snare | Overclock | 5 |
 
 Retreat attacks cost 1 stamina, damage and snare their target, then move the
-player backward. Warrior needs melee reach; ranged classes use their ranged
+player backward. Warrior needs 5-metre melee reach; ranged classes use their ranged
 reach. Each power costs 1 stamina and occupies a chosen beat. Up to three
 stacks strengthen attacks. Each stack drains 1 health every
 5 seconds, bypassing Block, except Ranger Focus, which does not drain health.
@@ -346,10 +346,10 @@ start with three shared tools, using existing authored actors and animations:
 
 - **Bait (5):** click a destination, then choose its beat. Move up to 6 metres
   automatically over 0.45 seconds. Costs 1 stamina.
-- **Shove (6):** push a selected enemy within 3.5 metres up to 4 metres. A
+- **Shove (6):** push a selected enemy within 5 metres up to 4 metres. A
   collision damages and staggers both creatures, disrupting their attacks.
   Costs 1 stamina.
-- **Finish (7):** attack within 3.5 metres for 12 damage, or 54 if the enemy
+- **Finish (7):** attack within 5 metres for 12 damage, or 54 if the enemy
   is staggered. Costs 1 stamina.
 
 These are default hotkeys; existing custom bar arrangements stay usable.
