@@ -1,9 +1,10 @@
 import { WORLD_BOUNDS } from './world-layout.js';
+import { CAVE_BARRIERS } from './cave-layout.js';
 import type { Position } from './adventure-types.js';
 
 export type Barrier = readonly [left: number, right: number, bottom: number, top: number];
 export const THICKET: Barrier = [2, 12, 38, 44];
-export const MOVEMENT_BARRIERS: readonly Barrier[] = [[-22, -3, -0.5, 4], [3, 22, -0.5, 4], THICKET];
+export const MOVEMENT_BARRIERS: readonly Barrier[] = [[-22, -3, -0.5, 4], [3, 22, -0.5, 4], THICKET, ...CAVE_BARRIERS];
 export interface MovementInput { forward: number; strafe: number; cameraX: number; cameraZ: number; jump: boolean; }
 export interface MovementFrame { sequence: number; seconds: number; input: MovementInput; }
 export interface MovementManeuver { kind: 'lunge' | 'disengage' | 'bait'; start: Position; destination: Position; remainingSeconds: number; duration: number; }

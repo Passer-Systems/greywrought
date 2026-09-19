@@ -116,6 +116,16 @@ function savedState(state: State): SavedState {
 
 const point = (x: number, z: number): Vector => ({ x, y: 0, z });
 const DEFINITIONS: readonly ThreatDefinition[] = [
+  { id: "cave-bat", level: 4, disposition: "hostile", aggroRange: 7, leash: 17, speed: 2.5, pursuitSpeed: 5.2,
+    name: "Hollowwing bat", position: point(43,-46), health: 108,
+    patrol: [point(43,-46),point(45,-50),point(48,-46),point(43,-42)],
+    preparation: "Folding its wings for a bite", intention: "Echo Bite", damage: 26, reach: 2.2,
+    benefit: "Search its remains for three pieces of cave salvage." },
+  { id: "cave-crab", level: 5, disposition: "hostile", aggroRange: 8, leash: 16, speed: 2.1,
+    name: "Ironback cave crab", position: point(69,-47), health: 156,
+    patrol: [point(69,-47),point(73,-51),point(77,-47),point(73,-41)],
+    preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 38, reach: 4.5,
+    benefit: "Search its shell for six pieces of cave salvage." },
   { id: "scout", level: 1, behavior: "head", disposition: "hostile", aggroRange: 6, leash: 14, speed: 1.6, name: "Cinder Watchman", position: point(-3, 30), health: 96,
     patrol: [point(-3, 30), point(-5, 32), point(-3, 34), point(-1, 32)],
     preparation: "Gathering fire", intention: "Fireball", damage: 3, reach: 10,
@@ -138,6 +148,8 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     benefit: "Defeat the called guardian, then carry its Last Shift Roll home." },
 ];
 const PLACES: readonly PlaceView[] = [
+  { id: "hollowdeep", name: "Hollowdeep Cave · Danger", position: point(28,-46), kind: "gate" },
+  { id: "hollowdeep-exit", name: "Exit to the meadow", position: point(30,-46), kind: "gate" },
   { id: "hearthstead", name: YARD.settlement, position: point(0, -8), kind: "town" },
   { id: "forest-gate", name: YARD.gate, position: point(0, 0), kind: "gate" },
   { id: "frost-cores", name: YARD.resource, position: point(-2, 32), kind: "resource" },
@@ -496,8 +508,8 @@ class Adventure implements AdventureGame {
       }),
       loot: s.world.threats.filter(t => t.health === 0).map((t): CorpseLootView => ({
         sourceId: t.id, sourceName: definition(t.id).name, position: { ...t.position },
-        itemName: t.id === "ritual-guardian" ? "Last Shift Roll" : "Forest salvage",
-        kind: t.id === "ritual-guardian" ? "relic" : "salvage", quantity: 1,
+        itemName: t.id === "ritual-guardian" ? "Last Shift Roll" : t.id.startsWith("cave-") ? "Cave salvage" : "Forest salvage",
+        kind: t.id === "ritual-guardian" ? "relic" : "salvage", quantity: salvageQuantity(t.id),
         available: this.lootAvailable(t), reachable: this.canLoot(t),
       })),
       lootOpenId: this.lootOpenId, carriedSalvage: s.carriedSalvage,
@@ -867,8 +879,9 @@ class Adventure implements AdventureGame {
       s.carriedRelics += 1;
       this.report("You receive loot: Last Shift Roll × 1. Reach Nine-Bell Yard alive to keep it.");
     } else {
-      s.carriedSalvage += 1;
-      this.report("You receive loot: Forest salvage × 1. Return alive to exchange it for one supply.");
+      const quantity = salvageQuantity(corpse.id);
+      s.carriedSalvage += quantity;
+      this.report(`You receive loot: ${corpse.id.startsWith("cave-") ? "Cave" : "Forest"} salvage × ${quantity}. Return alive to exchange it for supplies.`);
     }
   }
   setAction(action: AdventureAction, pressed: boolean): void {
@@ -986,7 +999,7 @@ class Adventure implements AdventureGame {
   private phaseDuration(t: ThreatState): number {
     if (t.phase === "preparation") return t.castDuration;
     if (t.phase === "recovery") return COMBAT_RULES.enemy.recovery;
-    if (t.phase === "action") return t.head ? COMBAT_RULES.head.fireballTravel + (t.head.castVolley - 1) * COMBAT_RULES.head.fireballSpacing : t.wolf ? COMBAT_RULES.enemy.action : OTHER_PHASE_SECONDS.action;
+    if (t.phase === "action") return t.head ? COMBAT_RULES.head.fireballTravel + (t.head.castVolley - 1) * COMBAT_RULES.head.fireballSpacing : t.wolf ? COMBAT_RULES.enemy.action : this.ability(t).noticeSeconds;
     return 0;
   }
   private rootedSeconds(t: ThreatState): number {
@@ -1625,7 +1638,7 @@ class Adventure implements AdventureGame {
       else if (t.id === "ritual-guardian" && t.abilityIndex === 2) {
         t.shield = 60; t.shieldSeconds = 5; t.actionSequence++;
         this.report("Foreman Nine raises Safety Shield: 60 Block for 5 seconds.", "combat"); this.beginRecovery(t);
-      } else { t.phase = "action"; t.approaching = distance(t.position, this.state.position) > this.ability(t).range; t.remainingSeconds = OTHER_PHASE_SECONDS.action; t.targetPosition = { ...t.position };
+      } else { t.phase = "action"; t.approaching = distance(t.position, this.state.position) > this.ability(t).range; t.remainingSeconds = this.ability(t).noticeSeconds; t.targetPosition = { ...t.position };
         if (!t.approaching) this.tracePath(t.id, "attack", this.ability(t).id, [t.position, t.targetPosition], this.ability(t).range);
       }
       return;
@@ -1858,7 +1871,7 @@ function readSave(serialized: string, now = Date.now()): State {
   migrateSpatialLayout(root);
   const version = number(root.version, 1, 11, true), realtime = version >= 10;
   const s = record(root.state), p = record(s.position);
-  if (!Array.isArray(s.threats) || s.threats.length !== DEFINITIONS.length) throw new Error("Invalid adventure save: missing threats.");
+  if (!Array.isArray(s.threats)) throw new Error("Invalid adventure save: missing threats.");
   const threats: ThreatState[] = s.threats.map(value => {
     const t = record(value), id = choice(t.id, DEFINITIONS.map(d => d.id)), d = definition(id);
     const health = id === "ritual-guardian" && t.active === false && s.chapter === undefined ? d.health : number(t.health, 0, d.health);
@@ -1908,7 +1921,11 @@ function readSave(serialized: string, now = Date.now()): State {
     if (result.lootClaimed && health > 0) throw new Error("Invalid adventure save: living creature already looted.");
     return result;
   });
-  if (new Set(threats.map(t => t.id)).size !== DEFINITIONS.length) throw new Error("Invalid adventure save: duplicate threat.");
+  if (new Set(threats.map(t => t.id)).size !== threats.length) throw new Error("Invalid adventure save: duplicate threat.");
+  for (const d of DEFINITIONS) if (!threats.some(t => t.id === d.id)) {
+    if (!d.id.startsWith("cave-")) throw new Error("Invalid adventure save: missing threats.");
+    threats.push(newThreat(d));
+  }
   const state: State = {
     chapter: readChapter(s.chapter), combat: newCombat(), phase: choice(s.phase, ["town", "expedition", "lost"] as const),
     archetype: choice(s.archetype, ["warrior", "mage", "hunter", "alchemist", "artificer"] as const),
@@ -2024,12 +2041,22 @@ function headAbility(id: HeadAbilityId, volley: number): ThreatAbilityView {
 function maulAbility(damage = 18): ThreatAbilityView {
   return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres on its chosen beat, landing 0.65 seconds later in a 2-metre area. Bait its leap through another enemy: the collision damages and staggers both, interrupting their attacks. Finish staggered enemies for 54 damage. Each Maul gains 2 damage, up to 36.", damage, range: COMBAT_RULES.wolf.impactRadius, noticeSeconds: .65 };
 }
+function salvageQuantity(id: string): number { return id === "cave-crab" ? 6 : id === "cave-bat" ? 3 : 1; }
 function ordinaryAbility(d: ThreatDefinition, damage = d.damage): ThreatAbilityView {
+  if (d.id === "cave-bat") return { id: "echo-bite", name: d.intention, description: "Closes to 2.2 metres, then bites 0.3 seconds after its beat. Block at impact or retreat before the bite. Its next bite grows stronger.", damage, range: d.reach, noticeSeconds: .3 };
+  if (d.id === "cave-crab") return { id: "cavern-slam", name: d.intention, description: "Raises both claws and slams the marked 4.5-metre area 1.1 seconds after its beat. Retreat out of the ring or Block; one Block may not absorb the whole slam. Its next slam grows stronger.", damage, range: d.reach, noticeSeconds: 1.1 };
   if (d.id === "nest") return { id: d.id, name: d.intention, description: "Swarm hits within 3 metres, 0.35 seconds after its beat. Collisions interrupt it and spill a cloud. Bait a hound through the bee or Shove enemies together. Watchman fireballs ignite the cloud; stay clear or Block.", damage, range: d.reach, noticeSeconds: .35 };
   return { id: d.id, name: d.intention, description: d.preparation + ". Starts on its chosen beat, approaches if needed, then strikes the marked area after 0.35 seconds. Plan a retreat or Block. Each attack raises its next damage by 15% of base damage, up to double.", damage, range: d.reach, noticeSeconds: .35 };
 }
 export function getMonsterLore(): readonly MonsterLoreEntry[] {
   return DEFINITIONS.map(d => {
+    if (d.id.startsWith("cave-")) return {
+      id: d.id, name: d.name, health: d.health, disposition: d.disposition,
+      description: d.id === "cave-bat" ? "A swift winged hunter in Hollowdeep’s first chamber. Its narrow bite is quick, and it pursues fleeing explorers." : "A heavy-shelled predator in Hollowdeep’s deepest chamber. Its wide slam is slow, but stronger than a single Block.",
+      opener: d.preparation + ". Its beat is announced before you plan.", abilities: [ordinaryAbility(d)],
+      sequences: [{ name: d.intention, abilityIds: [ordinaryAbility(d).id], offsetsSeconds: [], description: "One committed attack per sequence. Damage increases as the fight continues." }],
+      strategy: d.id === "cave-bat" ? "Queue Block at its beat, then strike. Take potions and return with its salvage." : "Use the long windup to retreat clear of the slam. Strike from the edge of melee reach. The western tunnel leads home.",
+    };
     if (d.behavior === "head") return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
       description: "A floating fire spirit wandering around the first clearing. Notices you within 6 metres and pursues within 14 metres of home.",

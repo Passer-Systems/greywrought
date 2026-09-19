@@ -2,6 +2,7 @@ import { Color, DirectionalLight, HemisphereLight, Mesh, OrthographicCamera, Sce
 import { actor } from "./frostwood-assets.js";
 
 const appearances = [
+  ["cave-bat", "Bat"], ["cave-crab", "Crab"],
   ["scout", "Skull"], ["nest", "Armabee"], ["warder", "MushroomKing"],
   ["patrol", "Wolf"], ["ritual-guardian", "Leela"],
 ] as const;
@@ -22,7 +23,7 @@ export async function createUnitPortraits(models: readonly (readonly [string, st
     for (const [id, model] of models) {
       const creature = await actor(model, 2);
       try {
-        creature.play(model === "Armabee" ? "Flying_Idle" : "Idle");
+        creature.play(model === "Armabee" ? "Flying_Idle" : model === "Bat" ? "Flying" : "Idle");
         creature.mixer.update(0.01);
         creature.model.removeFromParent();
         scene.add(creature.model);

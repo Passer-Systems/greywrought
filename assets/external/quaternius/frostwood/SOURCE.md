@@ -1,5 +1,12 @@
 # Quaternius Frostwood selection
 
+Hollowdeep Cave adds `Characters and Animals/Cute Animated Monsters - Aug 2020/glTF/Bat.gltf`
+and `Characters and Animals/Cute Animated Monsters - Aug 2020/glTF/Crab.gltf` from the
+same CC0 archive. Meshes, skins, embedded textures and native clips are retained;
+JSON whitespace is removed. Bat uses Flying, Bite_Front, HitRecieve and Death;
+Crab uses Idle, Walk, Bite_InPlace, HitRecieve and Death. Cave walls reuse the
+listed Rock_Medium_3; supports reuse Column_1 and Pipes.
+
 Author: Quaternius, https://quaternius.com. License: CC0 1.0 Universal; retained in LICENSE.txt. No attribution obligation; attribution retained voluntarily.
 
 Source: user-owned local archive ~/code/game-assets/quaternius/All in One - Quaternius[Patreon].zip, selected September 2026. Models and embedded animation data copied unchanged; nature PNG textures reduced to at most 512×512 with ImageMagick for the browser release; scene placement and animation timing authored by Greywrought. OBJ buildings retain their source materials. No external downloads or animation retargeting.

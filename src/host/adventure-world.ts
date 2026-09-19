@@ -9,6 +9,7 @@ import {
 import type { AdventureSnapshot, CombatView, Position, ThreatView } from "../game/adventure-types.js";
 import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
+import { buildHollowdeep } from "./hollowdeep-scenery.js";
 import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.js";
 import { createAggroRanges } from "./aggro-ranges.js";
 import { createRemotePlayers, type RemotePlayerView } from "./remote-player.js";
@@ -323,6 +324,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     document.body.dataset.innkeeperState = "ready";
   });
   const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string}> = {
+    "cave-bat": {model:"Bat",height:1.5,idle:"Flying",walk:"Flying",attack:"Bite_Front",hit:"HitRecieve"},
+    "cave-crab": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
     scout: {model:"Skull",height:1.6,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
     nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
     warder: {model:"MushroomKing",height:2.4,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact"},
@@ -356,12 +359,14 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (place) hoverTargets.push({ root, pick: { kind: "place", id: place.id }, name: place.name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
     return place !== null;
   }).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
+  let updateCave = (_position: Position) => {};
+  const caveReady = buildHollowdeep(terrain).then(update => { updateCave = update; });
   const telegraphs = createGroundTelegraphs(scene, canvas);
   const combatEffects = createCombatEffects(scene);
   let combatPreview: CombatPreview | null = null;
   let combatHudHeight = 0;
   const aggroRanges = createAggroRanges(scene, canvas);
-  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, creaturesReady, coresReady, natureReady]).then(()=>undefined);
+  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, creaturesReady, coresReady, natureReady, caveReady]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
   const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
@@ -566,7 +571,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.attackTime=Math.max(0,rig.attackTime-delta);
         // Authored motion supplies the pose; a restrained lean makes the full windup visible.
         const preparation = threat.phase === "preparation" && !threat.moving ? phaseProgress : 0;
-        rig.body.position.y = threat.id === "scout" ? 1.25 : 0;
+        rig.body.position.y = threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : 0;
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;
         rig.ward.position.y = rig.height*0.55 + rig.body.position.y;
@@ -619,6 +624,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       else cameraTarget.lerp(position, 1 - Math.exp(-delta * 12));
       const facing = forward();
       if (snapshot.combat.phase !== "preparation") combatPreview = null;
+      updateCave(snapshot.player.position);
       telegraphs.update(snapshot, combatPreview);
       combatEffects.update(snapshot.combat, elapsed, delta, connectionRevision);
       aggroRanges.update(snapshot);
