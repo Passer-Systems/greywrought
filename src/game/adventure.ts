@@ -57,6 +57,7 @@ interface ThreatDefinition {
   disposition: ThreatView["disposition"]; aggroRange: number; leash: number; speed: number; pursuitSpeed?: number; patrol?: readonly Position[];
 }
 interface ThreatState {
+  cancelledWindow: boolean;
   comboOpened: boolean; staggered: boolean; swarm: { position: Vector; expiresCycle: number } | null;
   id: string; health: number; active: boolean; phase: ThreatPhase;
   contributors: string[]; combatants: string[]; rollClaims: string[]; shield: number;
@@ -158,6 +159,7 @@ const newWolf = (): WolfState => ({ facing: point(0, 1), motion: null,
 });
 const newHead = (): HeadState => ({ opened: false, ability: "ember-beam", castVolley: 1, block: 0, blockSeconds: 0, volley: 1, projectileSequence: 0, pendingFireballs: 0, nextFireballSeconds: 0, fireballs: [] });
 const newThreat = (t: ThreatDefinition): ThreatState => ({
+  cancelledWindow: false,
   id: t.id, health: t.health, active: t.id !== "ritual-guardian", phase: t.patrol && t.id !== "ritual-guardian" ? "patrol" : "dormant",
   comboOpened: false, staggered: false, swarm: null, contributors: [], combatants: [], rollClaims: [], shield: 0,
   respawnAt: null, joinCycle: 0, windowCycle: 0, specialOffset: 0, approaching: false,
@@ -481,7 +483,7 @@ class Adventure implements AdventureGame {
           block: t.head?.block ?? t.shield, blockSeconds: t.head?.blockSeconds ?? t.shieldSeconds, volley: t.head?.volley ?? 0, fireballs: t.head?.fireballs.map(p => ({ ...p, origin: { ...p.origin } })) ?? [],
           rootedSeconds: this.rootedSeconds(t), canStrike: this.canUseAttack(t, "strike"), canDisengage: this.canUseAttack(t, "disengage"), cast: this.castView(t),
           inRangeActions: (["strike", "disengage", "jab", "shove", "finish"] as const).filter(action => this.attackInRange(t, action)),
-          selected: t.id === s.selectedThreat, phaseDuration: this.phaseDuration(t), windowAction: t.aggro && t.windowCycle === s.combat.clock.cycle && t.joinCycle <= s.combat.clock.cycle ? { ability: this.ability(t), offsetSeconds: t.specialOffset, status: t.phase === "recovery" || t.phase === "approach" ? "resolved" : t.phase === "action" ? "active" : "pending" } : null, forecast: t.aggro && t.windowCycle === s.combat.clock.cycle ? [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialOffset - s.combat.clock.elapsedSeconds), status: t.phase === "recovery" || t.phase === "approach" ? "active" : "pending" }] : [],
+          selected: t.id === s.selectedThreat, phaseDuration: this.phaseDuration(t), windowAction: (t.aggro || t.cancelledWindow && s.combat.clock.phase === "active") && t.windowCycle === s.combat.clock.cycle && t.joinCycle <= s.combat.clock.cycle ? { ability: this.ability(t), offsetSeconds: t.specialOffset, status: t.cancelledWindow ? "cancelled" : t.phase === "recovery" || t.phase === "approach" ? "resolved" : t.phase === "action" ? "active" : "pending" } : null, forecast: t.aggro && t.windowCycle === s.combat.clock.cycle ? [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialOffset - s.combat.clock.elapsedSeconds), status: t.phase === "recovery" || t.phase === "approach" ? "active" : "pending" }] : [],
           preparation: d.preparation,
           currentActivity: this.currentActivity(t), currentAbility: this.ability(t),
           intention: this.intention(t), damage: t.damage, reach: this.ability(t).range,
@@ -651,7 +653,7 @@ class Adventure implements AdventureGame {
       player.state.combat.queued = []; player.state.combat.ready = false;
     }
     for (const threat of this.state.world.threats) {
-      threat.staggered = false;
+      threat.staggered = false; threat.cancelledWindow = false;
       if (threat.swarm && threat.swarm.expiresCycle < clock.cycle) threat.swarm = null;
       const target = this.targetPlayer(threat);
       if (target && threat.aggro && threat.health > 0) target.commitThreat(threat);
@@ -1006,6 +1008,7 @@ class Adventure implements AdventureGame {
   }
   private defeat(t: ThreatState, sourceId: string): void {
     if (t.health === 0) {
+      if (this.hasUnresolvedCast(t)) t.cancelledWindow = true;
       this.traceEvent("defeat", sourceId, t.id, t.position, 0, definition(t.id).name + " falls.");
       if (t.id === "scout" && !this.inPrivateInstance()) for (const player of this.shared ? this.shared.characters.values() : [this]) {
         if (t.contributors.includes(player.playerId ?? "solo") && player.state.chapter.accepted.includes("roll-call")) player.state.chapter.scoutDefeated = true;
@@ -1075,8 +1078,12 @@ class Adventure implements AdventureGame {
     return this.state.world.threats.filter(t => t !== actor && t.active && t.health > 0 && t.phase !== "returning" && this.segmentTouches(from, to, t.position, radius))
       .sort((a,b) => distance(from, this.contactPoint(from,to,a.position,radius)) - distance(from, this.contactPoint(from,to,b.position,radius)))[0];
   }
+  private hasUnresolvedCast(t: ThreatState): boolean {
+    return t.phase === "preparation" || t.phase === "action" && (!t.head || t.head.pendingFireballs > 0);
+  }
   private interrupt(t: ThreatState, sourceId: string): void {
     if (t.health <= 0) return;
+    if (this.hasUnresolvedCast(t)) t.cancelledWindow = true;
     const interrupted = t.phase === "preparation" || t.phase === "action";
     t.staggered = true; t.approaching = false; t.position.y = 0;
     if (t.wolf) { t.wolf.motion = null; t.wolf.circling = false; }
@@ -1498,7 +1505,7 @@ class Adventure implements AdventureGame {
       return;
     }
     if (t.health < definition(t.id).health) this.report(`${definition(t.id).name} breaks contact and recovers while returning home.`, "combat");
-    t.comboOpened = false; t.staggered = false; t.swarm = null;
+    t.comboOpened = false; t.staggered = false; t.swarm = null; t.cancelledWindow = false;
     t.health = definition(t.id).health;
     t.actionSequence = 0;
     t.shield = 0; t.contributors = []; t.combatants = [];
@@ -1843,6 +1850,7 @@ function readSave(serialized: string, now = Date.now()): State {
       : stringList(t.combatants);
     const result: ThreatState = {
       ...newThreat(d), id, health, active, phase, aggro,
+      cancelledWindow: t.cancelledWindow === undefined ? false : boolean(t.cancelledWindow),
       comboOpened: t.comboOpened === undefined ? false : boolean(t.comboOpened),
       staggered: t.staggered === undefined ? false : boolean(t.staggered),
       swarm: t.swarm === undefined || t.swarm === null ? null : { position: groundPosition(record(t.swarm).position), expiresCycle: number(record(t.swarm).expiresCycle, 0, Number.MAX_SAFE_INTEGER, true) },

@@ -75,13 +75,21 @@ test("interrupting a volley cancels unlaunched shots and preserves its already-f
   Object.assign(live.state.threats[0].head, { volley: 3, castVolley: 3, pendingFireballs: 2, nextFireballSeconds: .2, fireballs: scout.head.fireballs });
   live.state.combat.queued = [{ id: 1, action: "shove", targetId: "scout", destination: null, offsetSeconds: 0, cost: 1, status: "pending", reason: null }];
   live.state.combat.nextId = 2; live.state.combat.phase = "active";
-  const interrupted = createAdventure({ save: JSON.stringify(live) }); interrupted.advance(.01);
-  const saved = JSON.parse(interrupted.save());
-  expect(saved.state.threats[0].head.pendingFireballs).toBe(0);
-  expect(saved.state.threats[0].head.fireballs).toHaveLength(1);
-  const restored = createAdventure({ save: interrupted.save() }); restored.advance(.7);
-  expect(restored.snapshot.player.health).toBe(82);
-  expect(restored.snapshot.threats[0]!.fireballs).toHaveLength(0);
+  for (const health of [96, 6]) for (const pending of [2, 0]) {
+    live.state.threats[0].health = health;
+    live.state.threats[0].head.pendingFireballs = pending;
+    const interrupted = createAdventure({ save: JSON.stringify(live) }); interrupted.advance(.01);
+    const saved = JSON.parse(interrupted.save());
+    expect(saved.state.threats[0].head.pendingFireballs).toBe(0);
+    expect(saved.state.threats[0].head.fireballs).toHaveLength(1);
+    expect(interrupted.snapshot.threats[0]!.health === 0).toBe(health === 6);
+    expect(interrupted.snapshot.threats[0]!.windowAction?.status === "cancelled").toBe(pending > 0);
+    const restored = createAdventure({ save: interrupted.save() });
+    expect(restored.snapshot.threats[0]!.windowAction).toEqual(interrupted.snapshot.threats[0]!.windowAction);
+    restored.advance(.7);
+    expect(restored.snapshot.player.health).toBe(82);
+    expect(restored.snapshot.threats[0]!.fireballs).toHaveLength(0);
+  }
 });
 
 test("enemy-caused Watchman kills grant quest credit and normal loot to engaged players", () => {

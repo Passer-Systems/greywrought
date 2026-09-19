@@ -112,7 +112,7 @@ export interface ThreatView {
   readonly canDisengage: boolean;
   readonly inRangeActions: readonly CombatAction[];
   readonly cast: { readonly ability: ThreatAbilityView; readonly remainingSeconds: number; readonly duration: number; readonly status: "casting" | "resolving" } | null;
-  readonly windowAction: { readonly ability: ThreatAbilityView; readonly offsetSeconds: number; readonly status: "pending" | "active" | "resolved" } | null;
+  readonly windowAction: { readonly ability: ThreatAbilityView; readonly offsetSeconds: number; readonly status: "pending" | "active" | "resolved" | "cancelled" } | null;
   readonly forecast: readonly ThreatForecastEntry[];
   readonly currentActivity: ThreatForecastEntry | null;
   readonly currentAbility: ThreatAbilityView;

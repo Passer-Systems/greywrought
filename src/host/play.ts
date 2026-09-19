@@ -70,6 +70,7 @@ const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => u
 const chatLog = createChatLog(element("adventure-hud"), text => running?.game.sendChat(text));
 const unitFrames = createUnitFrames(element("adventure-hud"));
 const combatPlan = createCombatPlan(element("combat-plan-mount"), {
+  portrait: id => unitFrames.portrait(id),
   onRemove: id => { if (running?.ready && !paused) { running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
   onClear: () => { if (running?.ready && !paused) { running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
   onMove: (id, seconds) => { if (running?.ready && !paused) { running.game.moveQueuedAction(id, seconds); combatPlan.update(running.game.snapshot); } },

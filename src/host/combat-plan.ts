@@ -32,6 +32,7 @@ function art(parent: HTMLElement, icon: string): void {
 }
 
 export function createCombatPlan(host: HTMLElement, callbacks: {
+  portrait: (id: string) => string | undefined;
   onRemove: (id: number) => void;
   onClear: () => void;
   onMove: (id: number, offsetSeconds: number) => void;
@@ -56,12 +57,18 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   danger.setAttribute("role", "status");
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
   const grid = node("div", "combat-plan-grid", root);
-  node("span", "combat-plan-axis", grid).textContent = "Beat";
-  for (let i = 0; i < 3; i++) node("span", "combat-plan-tick", grid).textContent = "Beat " + (i + 1) + " · " + i + "s";
-  const enemyLabel = node("span", "combat-plan-row-label", grid);
-  const enemyCells = Array.from({ length: 3 }, () => node("div", "combat-plan-cell combat-plan-enemy", grid));
-  node("span", "combat-plan-row-label", grid).textContent = "You";
-  const cells = Array.from({ length: 3 }, () => node("div", "combat-plan-cell combat-plan-player", grid));
+  const labels = node("div", "combat-plan-columns", grid);
+  node("span", "", labels).textContent = "You";
+  const enemyLabel = node("span", "", labels);
+  const cells: HTMLElement[] = [], enemyCells: HTMLElement[] = [];
+  for (let i = 0; i < 3; i++) {
+    const row = node("div", "combat-plan-beat", grid); row.dataset.beat = String(i);
+    const player = node("div", "combat-plan-cell combat-plan-player", row);
+    node("span", "combat-plan-tick", player).textContent = String(i + 1);
+    cells.push(player);
+    const enemies = node("div", "combat-plan-cell combat-plan-enemy", row);
+    enemies.dataset.beat = String(i); enemyCells.push(enemies);
+  }
   cells.forEach((cell, offset) => {
     cell.dataset.beat = String(offset);
     cell.addEventListener("dragover", event => {
@@ -92,7 +99,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const unpin = node("button", "combat-plan-unpin", inspect); unpin.type = "button"; unpin.textContent = "Clear preview";
   unpin.addEventListener("click", () => { pinnedPreview = transientPreview = null; updatePreview(); });
   const help = node("p", "combat-plan-help", root);
-  help.textContent = "Inspect an enemy move to see its path · drag your moves between beats · R to commit";
+  help.textContent = "Inspect moves · drag between beats · R to start";
   const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
   feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();
@@ -103,7 +110,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   function updatePreview(): void {
     const preview = editing() ? transientPreview ?? pinnedPreview : null;
     callbacks.onPreview(preview);
-    inspect.hidden = !editing();
+    inspect.hidden = !editing() || !preview;
     unpin.hidden = !pinnedPreview;
     let title = "Turn their attacks against them";
     let copy = "Bait into a better position, Shove enemies together, then Finish a staggered foe. Beats mark the cast; impacts may come later.";
@@ -165,12 +172,21 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const preview: CombatPreview = { kind: "enemy", threatId };
     icon.dataset.threatId = threatId; inspectControl(icon, preview);
     icon.addEventListener("click", () => { pinnedPreview = pinnedPreview?.kind === "enemy" && pinnedPreview.threatId === threatId ? null : preview; transientPreview = null; updatePreview(); });
-    art(icon, enemyArt[ability.id] ?? "sword-strike");
+    const actionArt = node("span", "combat-plan-enemy-art", icon);
+    art(actionArt, enemyArt[ability.id] ?? "sword-strike");
+    const identity = node("span", "combat-plan-enemy-identity", icon);
+    const portrait = node("img", "combat-plan-portrait", identity); portrait.alt = "";
+    const portraitUrl = callbacks.portrait(threatId);
+    if (portraitUrl) portrait.src = portraitUrl; else portrait.hidden = true;
+    const words = node("span", "combat-plan-enemy-words", identity);
+    node("strong", "combat-plan-enemy-name", words).textContent = enemyName;
+    node("span", "combat-plan-enemy-action", words).textContent = ability.name;
+    node("span", "combat-plan-enemy-status", words).textContent = status === "pending" ? "" : status;
     const detail = enemyName + " · " + ability.name + " · " + seconds.toFixed(1) + "s · " + status + "\n" + ability.description;
     icon.title = detail; icon.setAttribute("aria-label", detail);
     icon.dataset.abilityId = ability.id; icon.dataset.offset = String(seconds);
     icon.dataset.status = status;
-    node("span", "combat-plan-damage", icon).textContent = status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "";
+    node("span", "combat-plan-damage", actionArt).textContent = status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "";
   }
   return {
     removeSelected, moveSelected,
@@ -182,7 +198,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       previousCycle = combat.cycle;
       const pinned = pinnedPreview;
       if (pinned?.kind === "move" && !combat.queued.some(move => move.id === pinned.queueId)) pinnedPreview = null;
-      const attackers = next.threats.filter(threat => threat.active && threat.health > 0 && (threat.aggro || threat.joinsNextWindow || threat.windowAction !== null || threat.forecast.length > 0));
+      const attackers = next.threats.filter(threat => threat.active && (threat.health > 0 || combat.phase === "active" && threat.windowAction !== null) && (threat.aggro || threat.joinsNextWindow || threat.windowAction !== null || threat.forecast.length > 0));
       root.dataset.enemies = String(attackers.length);
       danger.hidden = attackers.length < 2;
       danger.dataset.severity = "tactics";
@@ -192,7 +208,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
       const choosing = combat.phase === "choosing";
       write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Enemies choose · momentarily" : combat.phase === "preparation" ? "Planning · " + Math.ceil(combat.remainingSeconds) + "s" : "Playing sequence");
-      write(resources, combat.queued.length + "/3 slots · " + combat.availableStamina + " stamina free · " + combat.reservedStamina + " reserved");
+      write(resources, combat.queued.length + "/3 · " + combat.availableStamina + " stamina");
       staminaHint.hidden = combat.availableStamina > 0 || combat.queued.length >= 3;
       clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / (combat.elapsedSeconds + combat.remainingSeconds)) + "%";
       clear.disabled = combat.phase !== "preparation" || !combat.queued.some(entry => entry.status === "pending");
@@ -213,6 +229,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           button = node("button", "combat-plan-move", cell); button.type = "button";
           button.dataset.queueId = String(move.id); art(button, String(move.action) === "equip" ? "defensive-shield" : actions[move.action].icon);
           node("span", "combat-plan-move-time", button);
+          node("span", "combat-plan-move-label", button);
           const cost = node("span", "combat-plan-move-cost", button);
           cost.textContent = String(move.cost); cost.title = move.cost + " stamina";
           inspectControl(button, { kind: "move", queueId: move.id });
@@ -242,6 +259,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         button.setAttribute("aria-pressed", String(move.id === selectedId));
         const target = next.threats.find(threat => threat.id === move.targetId)?.name;
         const label = moveName + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina" + (target ? " · " + target : "") + " · " + move.status + (move.reason ? ": " + move.reason : "");
+        write(button.querySelector<HTMLElement>(".combat-plan-move-label")!, moveName);
         button.title = label; button.setAttribute("aria-label", label);
         write(button.querySelector<HTMLElement>(".combat-plan-move-time")!, move.status === "executed" ? "✓" : move.status === "failed" ? "×" : move.offsetSeconds.toFixed(1) + "s");
       }
@@ -250,7 +268,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         if (threat.windowAction) return [{ id: threat.id, enemy: threat.name, ability: threat.windowAction.ability, seconds: threat.windowAction.offsetSeconds, status: threat.windowAction.status }];
         return threat.forecast.slice(0, 1).map(move => ({ id: threat.id, enemy: threat.name, ability: move.ability, seconds: 0, status: move.status }));
       });
-      const key = JSON.stringify([combat.phase, attackers.map(threat => [threat.id, threat.joinsNextWindow]), shown.map(move => [move.enemy, move.ability.id, move.seconds, move.ability.damage, move.status])]);
+      const key = JSON.stringify([combat.phase, shown.map(move => Boolean(callbacks.portrait(move.id))), attackers.map(threat => [threat.id, threat.joinsNextWindow]), shown.map(move => [move.enemy, move.ability.id, move.seconds, move.ability.damage, move.status])]);
       if (key !== enemyKey) {
         enemyKey = key;
         for (const cell of enemyCells) cell.replaceChildren();
