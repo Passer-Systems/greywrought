@@ -33,7 +33,7 @@ try {
     };` });
   await page.reload();
   await page.enter();
-  await page.press('Escape');
+  await page.click('#pause-toggle');
   await page.waitFor('document.body.dataset.encounterMode === "paused"');
   await page.click('#pause-resume');
   await page.waitFor('document.body.dataset.encounterMode === "private"');

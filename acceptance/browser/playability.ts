@@ -85,7 +85,10 @@ try {
   await page.waitFor('!document.getElementById("pause-panel").hidden');
   await page.click('#pause-tab-settings');
   await page.click('[data-volume="music"]');
-  await moveWithWindow('!document.getElementById("pause-panel").hidden');
+  const menuPosition = await page.read();
+  await page.key('KeyW', true); await Bun.sleep(300); await page.key('KeyW', false);
+  check((await page.read()).gamePlayerZ === menuPosition.gamePlayerZ, 'Settings menu must block movement input');
+  check((await page.read()).gamePaused === 'false', 'Settings menu must leave the world running');
   await page.press("Escape");
   await page.waitFor('document.getElementById("pause-panel").hidden');
   await page.shot("town");

@@ -58,7 +58,7 @@ try {
   check(await page.evaluate<boolean>('!window.sentCommands.some(message=>message.command?.type==="pause")'),'Blur, visibility and unfocused entry must send no pause command');
   check(await page.evaluate<boolean>('document.getElementById("pause-panel").hidden'),'Returning to the tab must not show a pause menu');
   await page.shot('returned-with-combat-still-running');
-  await page.press('Escape');
+  await page.click('#pause-toggle');
   await page.waitFor('window.gameState.session.mode==="paused"&&!document.getElementById("pause-panel").hidden');
   await page.call('Emulation.setFocusEmulationEnabled',{enabled:false});
   await page.call('Target.activateTarget',{targetId});

@@ -60,7 +60,7 @@ try {
   check(await page.evaluate('window.rangeState.snapshot.log.some(entry => entry.text.includes("ally\u0027s call"))'), 'Nearby enemy must answer the call in the real local world');
   check(await page.evaluate('document.getElementById("aggro-ranges-toggle").textContent.includes("H")'), 'The toggle must visibly show its hotkey');
   check(await page.evaluate('document.getElementById("world-canvas").dataset.aggroRanges === "[]"'), 'Ranges start hidden');
-  await page.press('Escape');
+  await page.click('#pause-toggle');
   await page.waitFor('document.body.dataset.encounterMode === "paused"');
   await page.press('KeyH');
   await page.waitFor('document.getElementById("aggro-ranges-toggle").getAttribute("aria-pressed") === "true"');

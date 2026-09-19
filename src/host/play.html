@@ -176,6 +176,7 @@
             <button id="equipment-open" type="button" aria-label="Character" aria-keyshortcuts="C" aria-haspopup="dialog" aria-controls="equipment-panel" aria-expanded="false"><img src="./assets/ui/icons/menu/character-profile.png" alt="" /><span class="system-menu-tooltip">Character <kbd>C</kbd></span></button>
             <button id="quest-log-open" type="button" aria-label="Quest Log" aria-keyshortcuts="L" aria-haspopup="dialog" aria-controls="quest-log-panel" aria-expanded="false"><img src="./assets/ui/icons/menu/quests.png" alt="" /><span class="system-menu-tooltip">Quest Log <kbd>L</kbd></span></button>
             <button id="lorebook-open" type="button" aria-label="Lorebook" aria-keyshortcuts="J" aria-controls="lorebook-panel" aria-expanded="false"><img src="./assets/ui/icons/items/spellbook.png" alt="" /><span class="system-menu-tooltip">Lorebook <kbd>J</kbd></span></button>
+            <button id="pause-toggle" type="button" aria-label="Pause encounter"><span id="pause-toggle-label">Pause</span></button>
             <button id="pause-open" type="button" aria-label="Settings" aria-keyshortcuts="Escape" aria-haspopup="dialog" aria-controls="pause-panel" aria-expanded="false"><img src="./assets/ui/icons/menu/settings.png" alt="" /><span class="system-menu-tooltip">Settings <kbd>Esc</kbd></span></button>
           </nav>
         </section>
@@ -197,7 +198,7 @@
             <button id="pause-tab-settings" type="button" role="tab" aria-selected="false" aria-controls="pause-settings" tabindex="-1">Settings</button>
           </div>
           <div id="pause-encounter" role="tabpanel" aria-labelledby="pause-tab-encounter" tabindex="0">
-            <h2 id="pause-title">Paused encounter</h2><p id="pause-copy">This is your private copy of the encounter. The rest of the world continues without you.</p><p>No loot, resources, or experience here. Damage and used supplies carry back.</p><p id="pause-rejoin-hint">Finish combat or retreat before rejoining the main world.</p><button id="pause-resume" type="button">Resume encounter</button><button id="return-roster" type="button">Choose a character</button>
+            <h2 id="pause-title">Shared world</h2><p id="pause-copy">This is your private copy of the encounter. The rest of the world continues without you.</p><p id="pause-private-warning">No loot, resources, or experience here. Damage and used supplies carry back.</p><p id="pause-rejoin-hint">Finish combat or retreat before rejoining the main world.</p><button id="pause-action" type="button">Pause encounter</button><button id="pause-resume" type="button">Resume encounter</button><button id="return-roster" type="button">Choose a character</button>
           </div>
           <div id="pause-settings" role="tabpanel" aria-labelledby="pause-tab-settings" tabindex="0" hidden><h2>Settings</h2></div>
         </div></section>

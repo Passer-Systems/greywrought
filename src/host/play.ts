@@ -294,7 +294,9 @@ function setBaitAiming(value: boolean): void {
   document.body.dataset.baitAiming = String(value);
   element("bait-aim-hint").hidden = !value;
 }
+function menuOpen(): boolean { return !element("pause-panel").hidden; }
 function pressAction(action: AdventureAction): void {
+  if (menuOpen()) return;
   if (action === "bait") {
     const snapshot = running?.game.snapshot;
     if (snapshot?.combat.phase === "preparation" && snapshot.combat.queued.length < 3 && snapshot.combat.availableStamina >= 1) setBaitAiming(!baitAiming);
@@ -500,7 +502,8 @@ function syncEncounter(): void {
   document.body.dataset.canRejoin = String(game.session.canRejoin);
   if (changed) {
     stopFrames();
-    element('pause-panel').hidden = game.online && (game.inputEnabled || game.pendingTransition === 'rejoin');
+    if (!game.online || (!game.inputEnabled && game.pendingTransition !== 'rejoin')) element('pause-panel').hidden = false;
+    else if (wasPaused) element('pause-panel').hidden = true;
     button('pause-open').setAttribute('aria-expanded', String(!element('pause-panel').hidden));
     world.updatePlayers(game.players.filter(player => player.id !== character.id));
     world.updateChat(game.chat, character.id);
@@ -508,15 +511,25 @@ function syncEncounter(): void {
     renderHud(game.snapshot);
     nameplates?.render(game.snapshot, world, { selfId: character.id, players: game.players });
     audio.update(game.snapshot, paused);
-    if (!paused) world.canvas.focus();
+    if (!paused && !menuOpen()) world.canvas.focus();
   }
   const waiting = game.online && !game.inputEnabled && game.session.mode !== 'paused';
-  text('pause-title', !game.online ? 'Connection lost' : game.pendingTransition === 'resume' ? 'Resuming encounter…' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : 'Private encounter');
+  text('pause-title', !game.online ? 'Connection lost' : game.pendingTransition === 'resume' ? 'Resuming encounter…' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : game.session.mode === 'shared' ? 'Shared world' : 'Private encounter');
   text('pause-copy', !game.online
     ? 'Reconnecting… Your encounter pauses when the connection loss is detected. It will stay paused when you return.'
     : waiting ? 'Saving your encounter while the world continues.'
-    : 'This is your private copy of the encounter. The rest of the world continues without you.');
-  text('pause-rejoin-hint', game.session.canRejoin ? 'Out of combat. Resume your encounter to rejoin the main world from the top bar.' : 'In combat. Finish the encounter before rejoining the main world.');
+    : game.session.mode === 'shared' ? 'The world keeps running while this menu is open. Pause creates a private encounter without rewards; the rest of the world continues.'
+    : game.session.mode === 'paused' ? 'Your private encounter is paused. The rest of the world continues without you.'
+    : 'Your private encounter keeps running while this menu is open.');
+  element('pause-private-warning').hidden = game.session.mode === 'shared';
+  element('pause-rejoin-hint').hidden = game.session.mode === 'shared';
+  button('pause-action').disabled = !game.online || !game.inputEnabled;
+  element('pause-action').hidden = game.session.mode === 'paused';
+  element('pause-resume').hidden = game.session.mode !== 'paused';
+  text('pause-toggle-label', game.session.mode === 'paused' ? 'Resume' : 'Pause');
+  button('pause-toggle').setAttribute('aria-label', game.session.mode === 'paused' ? 'Resume encounter' : 'Pause encounter');
+  button('pause-toggle').disabled = !game.online || game.pendingTransition !== null;
+  text('pause-rejoin-hint', game.session.canRejoin ? game.session.mode === 'paused' ? 'Out of combat. Resume your encounter to rejoin the main world from the top bar.' : 'Out of combat. Close this menu to rejoin the main world from the top bar.' : 'In combat. Finish the encounter before rejoining the main world.');
   button('pause-resume').disabled = !game.online || game.session.mode !== 'paused' || game.pendingTransition !== null;
   button('encounter-rejoin').disabled = !game.online || !game.session.canRejoin || game.pendingTransition !== null;
   button('encounter-pause').disabled = game.pendingTransition !== null;
@@ -542,10 +555,11 @@ function selectMenuTab(tab: "encounter" | "settings"): void {
 }
 function setMenuOpen(value: boolean, tab: "encounter" | "settings" = "encounter"): void {
   if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
-  if (value) { selectMenuTab(tab); release(); running.game.pause(); syncEncounter(); }
+  if (value) { selectMenuTab(tab); release(); running.world.clearHover(); }
   element("pause-panel").hidden = !value;
   button("pause-open").setAttribute("aria-expanded", String(value));
   if (!value) running.world.canvas.focus();
+  else button(`pause-tab-${tab}`).focus();
   syncEncounter();
   save(true);
 }
@@ -769,7 +783,7 @@ function bindWorld(app: RunningAdventure): void {
     app.game.setCameraForward(direction.x, direction.z);
   };
   listen(canvas, "pointerdown", (event) => {
-    if (!(event instanceof PointerEvent) || paused || !app.ready || event.button > 2) return;
+    if (!(event instanceof PointerEvent) || paused || menuOpen() || !app.ready || event.button > 2) return;
     event.preventDefault();
     app.world.clearHover();
     canvas.focus();
@@ -780,7 +794,7 @@ function bindWorld(app: RunningAdventure): void {
     app.game.setMouseForward((buttons & 3) === 3 && !combatExecutionLocked());
   }, app.unbind);
   listen(canvas, "pointermove", (event) => {
-    if (!(event instanceof PointerEvent) || paused || !app.ready) return;
+    if (!(event instanceof PointerEvent) || paused || menuOpen() || !app.ready) return;
     // A mouse chord changes buttons through pointermove, without another pointerdown.
     buttons = event.buttons;
     app.game.setMouseForward((buttons & 3) === 3 && !combatExecutionLocked());
@@ -795,8 +809,8 @@ function bindWorld(app: RunningAdventure): void {
   listen(canvas, "pointerup", (event) => {
     if (!(event instanceof PointerEvent)) return;
     buttons = event.buttons;
-    app.game.setMouseForward((buttons & 3) === 3 && !paused && !combatExecutionLocked());
-    if ((event.button === 0 || event.button === 2) && buttons === 0 && dragDistance < 5 && !paused && app.ready) {
+    app.game.setMouseForward((buttons & 3) === 3 && !paused && !menuOpen() && !combatExecutionLocked());
+    if ((event.button === 0 || event.button === 2) && buttons === 0 && dragDistance < 5 && !paused && !menuOpen() && app.ready) {
       if (baitAiming) {
         if (event.button === 0) {
           const destination = app.world.pickGround(event.clientX, event.clientY);
@@ -940,9 +954,17 @@ click("equipment-open", toggleEquipment);
 click("bag-open", toggleBags);
 click("lorebook-open", toggleLorebook);
 click("quest-log-open", toggleQuestLog);
+function togglePause(): void {
+  if (!running?.ready) return;
+  if (running.game.session.mode === 'paused') running.game.resume();
+  else { setMenuOpen(true); running.game.pause(); }
+  syncEncounter();
+}
+click("pause-toggle", togglePause);
+click("pause-action", togglePause);
 click("pause-resume", () => running?.game.resume());
 click("encounter-rejoin", () => running?.game.rejoin());
-click("encounter-pause", () => setMenuOpen(true));
+click("encounter-pause", togglePause);
 click("return-roster", returnToRoster);
 click("death-roster", returnToRoster);
 for (const target of [element("map-threats"), element("enemy-intents")]) listen(target, "click", (event) => {
@@ -956,6 +978,9 @@ for (const control of document.querySelectorAll<HTMLElement>("[data-action]")) l
   if (action && ["strike", "disengage", "brace", "bloodRage", "bait", "shove", "finish", "jab", "guard", "drinkPotion", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
 });
 bindActionBar();
+listen(window, "click", (event) => {
+  if (menuOpen() && event.target instanceof Element && !event.target.closest('#pause-panel, #pause-open, #pause-toggle')) { event.preventDefault(); event.stopImmediatePropagation(); }
+}, removers, true);
 listen(window, "keydown", (event) => {
   if (event.isTrusted) void audio.unlock();
   if (!(event instanceof KeyboardEvent)) return;
@@ -966,6 +991,7 @@ listen(window, "keydown", (event) => {
   }
   if (route !== "world") return;
   if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
+  if (menuOpen() && event.code !== "Escape" && event.code !== "KeyH") return;
   if (event.code === "Enter") { event.preventDefault(); release(); chatLog.focusInput(); return; }
   if (event.code === "KeyH" && !event.ctrlKey && !event.metaKey && !event.altKey) {
     event.preventDefault();

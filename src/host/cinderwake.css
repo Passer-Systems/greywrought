@@ -2168,3 +2168,5 @@ body[data-bait-aiming="true"] .combat-plan { visibility: hidden; pointer-events:
 .combat-plan-inspect { height: 92px; box-sizing: border-box; }
 .combat-plan-inspect-copy { max-height: 32px; }
 .combat-plan-forecast-summary[hidden] { display: block; visibility: hidden; }
+
+#pause-toggle { min-width: 58px; color: #f4dfad; font: 700 var(--ui-font-small) system-ui; }
