@@ -58,7 +58,9 @@ export function createOverheadNames(host: HTMLElement, camera: PerspectiveCamera
       }
       element.dataset.disposition = disposition;
       if (!name || !alive || !actor.visible || suppressed.has(id)) { element.hidden = true; return; }
-      actor.getWorldPosition(anchor); anchor.y += height; anchor.project(camera);
+      actor.getWorldPosition(anchor);
+      if (anchor.distanceToSquared(camera.position) > 40 * 40) { element.hidden = true; return; }
+      anchor.y += height; anchor.project(camera);
       if (anchor.z < -1 || anchor.z > 1 || Math.abs(anchor.x) > 1 || Math.abs(anchor.y) > 1) { element.hidden = true; return; }
       const x = (anchor.x + 1) * viewportWidth / 2;
       const y = (1 - anchor.y) * viewportHeight / 2;
