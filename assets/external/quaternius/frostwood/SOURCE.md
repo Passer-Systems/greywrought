@@ -4,6 +4,10 @@ Author: Quaternius, https://quaternius.com. License: CC0 1.0 Universal; retained
 
 Source: user-owned local archive ~/code/game-assets/quaternius/All in One - Quaternius[Patreon].zip, selected September 2026. Models and embedded animation data copied unchanged; nature PNG textures reduced to at most 512×512 with ImageMagick for the browser release; scene placement and animation timing authored by Greywrought. OBJ buildings retain their source materials. No external downloads or animation retargeting.
 
+Actor models are stored as binary glTF (`.glb`), preserving their original
+meshes, textures, skeletons, and animation buffers without base64 encoding.
+The source archive entries below retain their original filenames.
+
 Extracted archive entries:
 
 - `License.txt`

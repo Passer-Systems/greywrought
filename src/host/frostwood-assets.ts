@@ -31,7 +31,7 @@ export interface ForestActor {
 }
 export async function actor(name: string, height: number, playerModel?: "warrior" | "mage" | "hunter" | "alchemist" | "artificer"): Promise<ForestActor> {
   const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger.glb" : playerModel === "mage" ? "Wizard.glb" : playerModel === "alchemist" ? "Alchemist.gltf" : playerModel === "artificer" ? "Artificer.gltf" : "Warrior.glb"}` : null;
-  const gltf = await source(playerPath ?? `${root}actors/${name}.gltf`);
+  const gltf = await source(playerPath ?? `${root}actors/${name}.glb`);
   const model = clone(gltf.scene);
   const animations = [...gltf.animations];
   if (playerPath !== null) {
