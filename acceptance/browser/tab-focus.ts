@@ -12,7 +12,7 @@ const token = 'tab-focus-token-0000000000000000000000', observerToken = 'tab-obs
 const seed = createSharedAdventure();
 seed.join(character.id,character.name,character.archetype); seed.join(observer.id,observer.name,observer.archetype);
 const saved = JSON.parse(seed.save());
-Object.assign(saved.characters[0].state,{phase:'expedition',position:{x:-3,y:0,z:8}});
+Object.assign(saved.characters[0].state,{phase:'expedition',position:{x:-3,y:0,z:28}});
 for(const enemy of saved.world.threats) if(enemy.id!=='scout'&&enemy.active) Object.assign(enemy,{health:0,phase:'cleared',lootClaimed:true,respawnAt:Date.now()+3_600_000});
 const savePath=process.cwd()+'/build/browser/tab-focus-'+process.pid+'.json';
 await Bun.write(savePath,JSON.stringify({version:1,accounts:[

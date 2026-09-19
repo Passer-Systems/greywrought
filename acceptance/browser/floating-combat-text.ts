@@ -12,7 +12,7 @@ const token = 'floating-fixture-token-000000000000000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
 const chapter = earnedChapter(2); chapter.equipment.chest = 'insulated-coat';
-Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 8 }, chapter, health: 75, potions: 1 });
+Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 28 }, chapter, health: 75, potions: 1 });
 for (const enemy of saved.world.threats) {
   if (enemy.id !== 'scout' && enemy.active) Object.assign(enemy, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
 }

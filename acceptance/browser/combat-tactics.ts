@@ -10,13 +10,13 @@ const character = { id: 'combat-tactics-fixture', name: 'Roadside Tester', arche
 const token = 'combat-tactics-fixture-token-0000000000000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
-Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 15 } });
+Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 35 } });
 saved.characters[0].state.combat.phase = 'preparation';
 Object.assign(saved.clock, { phase: 'preparation', elapsedSeconds: 0, cycle: 1 });
 for (const enemy of saved.world.threats) {
   if (['scout', 'nest', 'patrol'].includes(enemy.id)) {
     const offset = enemy.id === 'patrol' ? 1 : 2;
-    const position = enemy.id === 'scout' ? { x: -4, y: 0, z: 12 } : enemy.id === 'nest' ? { x: 0, y: 0, z: 15 } : { x: -6, y: 0, z: 16 };
+    const position = enemy.id === 'scout' ? { x: -4, y: 0, z: 32 } : enemy.id === 'nest' ? { x: 0, y: 0, z: 35 } : { x: -6, y: 0, z: 36 };
     Object.assign(enemy, { position, targetPosition: { ...position }, aggro: true, targetPlayerId: character.id, combatants: [character.id], phase: 'preparation', joinCycle: 1, windowCycle: 1, specialOffset: offset, castDuration: offset, remainingSeconds: offset, comboOpened: true });
     if (enemy.id === 'scout') Object.assign(enemy.head, { ability: 'fireball', opened: true });
   } else if (enemy.active) Object.assign(enemy, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });

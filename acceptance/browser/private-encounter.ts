@@ -16,10 +16,10 @@ seed.join(character.id, character.name, character.archetype);
 seed.join(observer.id, observer.name, observer.archetype);
 const saved = JSON.parse(seed.save());
 const chapter = earnedChapter(2); chapter.equipment.chest = 'insulated-coat';
-Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 8 }, chapter, health: 60, potions: 1 });
+Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 28 }, chapter, health: 60, potions: 1 });
 Object.assign(saved.characters[1].state, { position: { x: 0, y: 0, z: -8 } });
 for (const enemy of saved.world.threats) {
-  if (enemy.id === 'scout') { enemy.health = 35; enemy.position = { x: -3, y: 0, z: 13 }; }
+  if (enemy.id === 'scout') { enemy.health = 35; enemy.position = { x: -3, y: 0, z: 33 }; }
   else if (enemy.active) Object.assign(enemy, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
 }
 const path = process.cwd() + '/build/browser/private-' + process.pid + '.json';

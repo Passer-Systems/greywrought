@@ -4,7 +4,7 @@ import { earnedChapter, tap } from "./yard-test-fixtures.js";
 
 function seed() {
   const save = JSON.parse(createAdventure({archetype:"mage"}).save());
-  Object.assign(save.state, {phase:"expedition", position:{x:-3,y:0,z:8}, chapter:earnedChapter(2)});
+  Object.assign(save.state, {phase:"expedition", position:{x:-3,y:0,z:28}, chapter:earnedChapter(2)});
   for (const t of save.state.threats) {
     t.rng=9844;
     if (t.active && t.id!=="scout") Object.assign(t,{health:0,phase:"cleared",lootClaimed:true});
@@ -29,7 +29,7 @@ test("intentions precede a full 30-second planning window; Ready repeats with fr
 
 test("late aggro waits through this execution and chooses only next cycle",()=>{
   const data=seed(); const bee=data.state.threats.find((t:{id:string})=>t.id==='nest');
-  Object.assign(bee,{health:72,phase:"patrol",lootClaimed:false,position:{x:0,y:0,z:9},targetPosition:{x:0,y:0,z:9}});
+  Object.assign(bee,{health:72,phase:"patrol",lootClaimed:false,position:{x:0,y:0,z:29},targetPosition:{x:0,y:0,z:29}});
   const game=createAdventure({save:JSON.stringify(data)}); game.advance(.01);
   game.selectTarget("nest"); tap(game,"strike");
   expect(game.snapshot.threats[1]!.joinsNextWindow).toBe(true);
@@ -93,7 +93,7 @@ test("shared Ready excludes town players; pausing and saving preserve spent and 
 test("network movement is consumed without motion and new proximity aggro waits during execution",()=>{
   const game=fight(); game.readyCombat(); game.advance(.1);
   const data=JSON.parse(game.save()), warder=data.state.threats.find((t:{id:string})=>t.id==='patrol');
-  Object.assign(warder,{health:72,phase:"patrol",lootClaimed:false,position:{x:-3,y:0,z:10},targetPosition:{x:-3,y:0,z:10}});
+  Object.assign(warder,{health:72,phase:"patrol",lootClaimed:false,position:{x:-3,y:0,z:30},targetPosition:{x:-3,y:0,z:30}});
   const resumed=createAdventure({save:JSON.stringify(data)}); resumed.enableNetworkMovement!();
   const start=resumed.snapshot.player.position;
   resumed.enqueueMovement!([{sequence:1,seconds:.1,input:{forward:1,strafe:0,cameraX:0,cameraZ:1,jump:true}}]);

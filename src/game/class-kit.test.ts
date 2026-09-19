@@ -7,7 +7,7 @@ import type { CharacterArchetype } from "../host/character-profile.js";
 function expedition(archetype: CharacterArchetype): AdventureGame {
   const saved = JSON.parse(createAdventure({ archetype }).save()) as { state: Record<string, unknown> };
   saved.state.phase = "expedition";
-  saved.state.position = { x: -3, y: 0, z: 8 };
+  saved.state.position = { x: -3, y: 0, z: 28 };
   saved.state.chapter = { accepted: ["roll-call", "last-shift"], completed: ["roll-call", "last-shift"], scoutDefeated: true, level: 3, ownedGear: [], equipment: { chest: null, mainhand: null } };
   return createAdventure({ archetype, save: JSON.stringify(saved) });
 }

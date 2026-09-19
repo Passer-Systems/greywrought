@@ -20,12 +20,12 @@ const character = { id: 'enemy-visibility-fixture', name: 'Visibility Tester', a
 const token = 'enemy-visibility-fixture-token-0000000000000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
-Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 8 } });
+Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 28 } });
 saved.characters[0].state.combat.phase = 'preparation';
 Object.assign(saved.clock, { phase: 'preparation', elapsedSeconds: 0, cycle: 1 });
 for (const enemy of saved.world.threats) {
   if (enemy.id === 'scout') {
-    const position = { x: -1, y: 0, z: 10 };
+    const position = { x: -1, y: 0, z: 30 };
     Object.assign(enemy, { position, targetPosition: { ...position }, aggro: true, targetPlayerId: character.id, combatants: [character.id], phase: 'preparation', joinCycle: 1, windowCycle: 1, specialOffset: 0, castDuration: 0, remainingSeconds: 0 });
   } else if (enemy.active) Object.assign(enemy, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
 }

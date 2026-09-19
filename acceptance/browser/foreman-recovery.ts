@@ -16,7 +16,7 @@ const chapter = earnedChapter(2);
 chapter.accepted.push('last-shift');
 chapter.equipment = { chest: 'insulated-coat', mainhand: 'yard-weapon' };
 Object.assign(saved.characters[0].state, {
-  phase: 'expedition', position: { x: 2, y: 0, z: 38.5 }, chapter, cargo: 12,
+  phase: 'expedition', position: { x: 2, y: 0, z: 58.5 }, chapter, cargo: 12,
 });
 for (const threat of saved.world.threats) if (threat.id !== 'ritual-guardian') {
   Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });

@@ -9,7 +9,7 @@ function seed() {
   const world = createSharedAdventure();
   world.join("a", "Ada", "mage");
   const saved = JSON.parse(world.save());
-  Object.assign(saved.characters[0].state, { phase: "expedition", position: { x: -3, y: 0, z: 8 }, supplies: 47 });
+  Object.assign(saved.characters[0].state, { phase: "expedition", position: { x: -3, y: 0, z: 28 }, supplies: 47 });
   return saved;
 }
 function dead(threat: ReturnType<typeof seed>["world"]["threats"][number]): void {
@@ -35,7 +35,7 @@ describe("two-minute world regrowth", () => {
     expect(a.snapshot.threats[0]!.health).toBe(0);
     time += 1; world.advance(0);
     expect(a.snapshot.threats[0]!.health).toBe(96);
-    expect(a.snapshot.threats[0]!.position).toEqual({ x: -3, y: 0, z: 10 });
+    expect(a.snapshot.threats[0]!.position).toEqual({ x: -3, y: 0, z: 30 });
     expect(a.snapshot.loot.some(corpse => corpse.sourceId === "scout")).toBe(false);
     expect(a.snapshot.lootOpenId).toBeNull();
     expect(b.snapshot.lootOpenId).toBeNull();
@@ -95,13 +95,13 @@ describe("two-minute world regrowth", () => {
     const initial = structuredClone(saved.world.threats);
     for (const threat of saved.world.threats.filter((t: { id: string }) => t.id !== "ritual-guardian")) {
       dead(threat);
-      Object.assign(threat, { position: { x: -8, y: 0, z: 22 }, targetPosition: { x: -7, y: 0, z: 20 }, targetPlayerId: "a",
+      Object.assign(threat, { position: { x: -8, y: 0, z: 42 }, targetPosition: { x: -7, y: 0, z: 40 }, targetPlayerId: "a",
         remainingSeconds: 1, actionSequence: 12, lastActionHit: true, damage: 36, patrolIndex: 3 });
       if (threat.head) Object.assign(threat.head, { opened: true, block: 6, blockSeconds: 2, volley: 9, projectileSequence: 11,
         ability: "fireball", castVolley: 9, pendingFireballs: 8, nextFireballSeconds: .2,
-        fireballs: [{ id: 11, origin: { x: -3, y: 0, z: 10 }, remainingSeconds: 0.5, duration: 0.9, damage: 18 }] });
+        fireballs: [{ id: 11, origin: { x: -3, y: 0, z: 30 }, remainingSeconds: 0.5, duration: 0.9, damage: 18 }] });
       if (threat.wolf) Object.assign(threat.wolf, { circling: true, nextAttackSeconds: 1, facing: { x: 1, y: 0, z: 0 },
-        attackOrigin: { x: -8, y: 0, z: 20 }, motion: { kind: "lunge", start: { x: -8, y: 0, z: 20 }, destination: { x: -7, y: 0, z: 20 }, remainingSeconds: 0.5, duration: 0.65 } });
+        attackOrigin: { x: -8, y: 0, z: 40 }, motion: { kind: "lunge", start: { x: -8, y: 0, z: 40 }, destination: { x: -7, y: 0, z: 40 }, remainingSeconds: 0.5, duration: 0.65 } });
     }
     const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => time });
     time += WORLD_RESPAWN_MILLISECONDS; world.advance(0);
@@ -116,7 +116,7 @@ describe("two-minute world regrowth", () => {
   test("each harvested batch returns independently after 120 seconds and retains its deadline through restart", () => {
     let time = 50_000;
     const saved = seed();
-    saved.characters[0].state.position = { x: -2, y: 0, z: 12 };
+    saved.characters[0].state.position = { x: -2, y: 0, z: 32 };
     dead(saved.world.threats[0]); dead(saved.world.threats[2]); dead(saved.world.threats[3]);
     const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => time });
     const player = world.join("a", "Ada", "mage");

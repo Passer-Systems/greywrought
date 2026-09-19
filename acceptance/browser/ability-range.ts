@@ -11,7 +11,7 @@ const token = 'ability-range-fixture-token-000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
 Object.assign(saved.characters[0].state, {
-  phase: 'expedition', position: { x: -1, y: 0, z: 5 }, chapter: earnedChapter(2), selectedThreat: 'nest',
+  phase: 'expedition', position: { x: -1, y: 0, z: 25 }, chapter: earnedChapter(2), selectedThreat: 'nest',
 });
 for (const threat of saved.world.threats) {
   if (threat.id === 'nest') threat.remainingSeconds = 60;

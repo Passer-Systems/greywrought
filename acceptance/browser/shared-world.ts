@@ -33,13 +33,13 @@ try {
   check(Number((await second.read()).gamePlayerX)===0,'One player moving must not move the other');
   await first.shot('two-players-and-chat');
   await first.key('KeyA',true);await first.waitFor('Number(document.body.dataset.gamePlayerX)>-0.2');await first.key('KeyA',false);
-  await first.key('KeyW',true);await first.waitFor('Number(document.body.dataset.gamePlayerZ)>2.5');await first.key('KeyW',false);
+  await first.key('KeyW',true);await first.waitFor('Number(document.body.dataset.gamePlayerZ)>22.5');await first.key('KeyW',false);
   await first.waitFor('document.body.dataset.gameCombatPhase==="preparation"');
   await first.click('.adventure-actions [data-action="brace"]');
   await first.click('.combat-plan-ready');
   await first.waitFor('document.body.dataset.gameCombatPhase==="active"');
   await first.waitFor('Number(document.body.dataset.gameBlock)>0');
-  await first.key('KeyW',true);await first.waitFor('Number(document.body.dataset.gamePlayerZ)>8');await first.key('KeyW',false);
+  await first.key('KeyW',true);await first.waitFor('Number(document.body.dataset.gamePlayerZ)>28');await first.key('KeyW',false);
   await first.waitFor('document.body.dataset.gameCombatPhase==="preparation"');
   await first.click('.adventure-actions [data-action="strike"]');
   await first.click('.combat-plan-ready');

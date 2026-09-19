@@ -14,7 +14,7 @@ function fixture(second = true): SharedAdventure {
   const save = JSON.parse(world.save());
   for (const entry of save.characters) {
     entry.state.phase = "expedition";
-    entry.state.position = { x: -3, y: 0, z: entry.id === "a" ? 8 : 7 };
+    entry.state.position = { x: -3, y: 0, z: entry.id === "a" ? 28 : 27 };
   }
   for (const t of save.world.threats) {
     t.rng = 9844;
@@ -102,7 +102,7 @@ describe("one shared Frostwood", () => {
     tap(a, "takeLoot"); tap(b, "takeLoot");
     expect(a.snapshot.carriedSalvage).toBe(1);
     expect(b.snapshot.carriedSalvage).toBe(0);
-    a.setCameraForward(0, -1); a.setAction("forward", true); world.advance(2); a.setAction("forward", false);
+    a.setCameraForward(0, -1); a.setAction("forward", true); world.advance((a.snapshot.player.position.z + 1) / 4.5); a.setAction("forward", false);
     expect(a.snapshot.phase).toBe("town");
     expect(b.snapshot.phase).toBe("expedition");
     expect(a.snapshot.supplies).toBe(16);

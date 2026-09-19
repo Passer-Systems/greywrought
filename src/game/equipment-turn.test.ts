@@ -36,7 +36,7 @@ test("shared-world gear belongs to its character and survives saved rejoin", () 
   const seed = createSharedAdventure(); seed.join("mage", "Mage", "mage"); seed.join("town", "Town", "warrior");
   const saved = JSON.parse(seed.save());
   for (const character of saved.characters) character.state.chapter = earnedChapter(2);
-  Object.assign(saved.characters[0].state, { phase: "expedition", position: { x: -3, y: 0, z: 8 } });
+  Object.assign(saved.characters[0].state, { phase: "expedition", position: { x: -3, y: 0, z: 28 } });
   const world = createSharedAdventure({ save: JSON.stringify(saved) });
   const mage = world.join("mage", "Mage", "mage"), town = world.join("town", "Town", "warrior");
   tap(mage, "strike"); world.advance(.01);

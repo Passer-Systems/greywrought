@@ -290,18 +290,18 @@ test('Bait transport rejects invalid ground and queues a valid destination in th
   const character: LocalCharacter = { id: 'bait-tester', name: 'Bait Tester', archetype: 'warrior', createdAtMillis: 1 };
   const token = crypto.randomUUID(), seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
   const saved = JSON.parse(seed.save());
-  Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 8 } });
+  Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 28 } });
   await writeFile(savePath, JSON.stringify({ version: 1, accounts: [{ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') }], world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
   const service = await createWorldService({ savePath });
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
   const client = new Client(`ws://127.0.0.1:${server.port}/world`);
   try {
     await client.connect(character, token); await client.state(s => s.snapshot.combat.phase === 'preparation');
-    for (const destination of [{ x: 100, y: 0, z: 8 }, { x: 0, y: 1, z: 8 }, { x: 0, y: 0, z: '8' }, { x: 0, z: 8 }, { x: null, y: 0, z: 8 }]) {
+    for (const destination of [{ x: 100, y: 0, z: 28 }, { x: 0, y: 1, z: 28 }, { x: 0, y: 0, z: '8' }, { x: 0, z: 28 }, { x: null, y: 0, z: 28 }]) {
       expect(await client.invalid({ type: 'bait', destination })).toBe(false);
     }
-    expect(await client.command({ type: 'bait', destination: { x: 4, y: 0, z: 20 } })).toBe(false);
-    const destination = { x: 0, y: 0, z: 8 };
+    expect(await client.command({ type: 'bait', destination: { x: 4, y: 0, z: 40 } })).toBe(false);
+    const destination = { x: 0, y: 0, z: 28 };
     expect(await client.command({ type: 'bait', destination })).toBe(true);
     const planned = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait'));
     expect(planned.snapshot.combat.queued[0]!.destination).toEqual(destination);

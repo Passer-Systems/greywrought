@@ -6,7 +6,7 @@ import { earnedChapter, tap } from "./yard-test-fixtures.js";
 
 function seed(archetype: CharacterArchetype = "mage") {
   const saved = JSON.parse(createAdventure({ archetype }).save());
-  Object.assign(saved.state, { phase: "expedition", position: { x: -3, y: 0, z: 8.1 } });
+  Object.assign(saved.state, { phase: "expedition", position: { x: -3, y: 0, z: 28.1 } });
   for (const enemy of saved.state.threats) {
     enemy.rng = 9844;
     if (enemy.active && enemy.id !== "scout") Object.assign(enemy, { health: 0, phase: "cleared", lootClaimed: true });
@@ -83,12 +83,12 @@ describe("personal combat feedback", () => {
   });
 
   test("misses describe resolved attacks and unreachable strikes emit nothing", () => {
-    const waitingSave = seed("warrior"); waitingSave.state.position.z = 5;
+    const waitingSave = seed("warrior"); waitingSave.state.position.z = 24.9;
     const waiting = createAdventure({ save: JSON.stringify(waitingSave) }); tap(waiting, "strike"); waiting.readyCombat(); waiting.advance(.1);
     expect(waiting.snapshot.combatFeedback).toEqual([]);
     const saved = seed();
     Object.assign(saved.state.threats[0], { aggro: true, phase: "preparation", remainingSeconds: .1, castDuration: 3 });
-    saved.state.position = { x: -3, y: 0, z: 21 };
+    saved.state.position = { x: -3, y: 0, z: 41 };
     saved.state.combat.clock = { phase: "active", cycle: 1, elapsedSeconds: 2.9 };
     Object.assign(saved.state.threats[0], { windowCycle: 1, joinCycle: 1 });
     const missed = createAdventure({ save: JSON.stringify(saved) }); missed.advance(.2);
@@ -98,7 +98,7 @@ describe("personal combat feedback", () => {
   test("shared characters see only their own hits and received outcomes", () => {
     const initial = createSharedAdventure(); initial.join("a", "Ada", "mage"); initial.join("b", "Bram", "hunter");
     const saved = JSON.parse(initial.save()), solo = seed().state;
-    for (const entry of saved.characters) Object.assign(entry.state, { phase: "expedition", position: { x: -3, y: 0, z: entry.id === "a" ? 8.1 : 7 } });
+    for (const entry of saved.characters) Object.assign(entry.state, { phase: "expedition", position: { x: -3, y: 0, z: entry.id === "a" ? 28.1 : 27 } });
     saved.world.threats = solo.threats;
     const world = createSharedAdventure({ save: JSON.stringify(saved) });
     const a = world.join("a", "Ada", "mage"), b = world.join("b", "Bram", "hunter");

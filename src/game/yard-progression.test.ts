@@ -13,7 +13,7 @@ test("Cold Hands requires nearby acceptance, gathered cargo, physical return and
   game.quest("cold-hands","accept"); expect(game.snapshot.quests[0]!.status).toBe("available");
   game=at(game,3.4,-7.5,"town"); game.quest("cold-hands","accept");
   game.quest("roll-call","accept"); expect(game.snapshot.quests[1]!.status).toBe("locked");
-  game=at(game,-2,12,"expedition"); tap(game,"gather");
+  game=at(game,-2,32,"expedition"); tap(game,"gather");
   expect(game.snapshot.cargo).toBe(3); expect(game.snapshot.quests[0]!.status).toBe("ready");
   game.quest("cold-hands","turnIn"); expect(game.snapshot.progression.level).toBe(1);
   game=at(game,0,0.02,"expedition");game.setCameraForward(0,-1);game.setAction("forward",true);game.advance(.05);game.setAction("forward",false);
@@ -28,7 +28,7 @@ test("Cold Hands requires nearby acceptance, gathered cargo, physical return and
   game.advance(1.5);game.equip("chest",null);expect(game.snapshot.progression.damageReduction).toBe(0);
 });
 test("locked skills reject activation; earned lessons and level bonuses persist",()=>{
-  let game=at(createAdventure(),-3,8,"expedition");tap(game,"disengage");tap(game,"bloodRage");expect(game.snapshot.player.currentAction).toBeNull();expect(game.snapshot.player.stamina).toBe(5);
+  let game=at(createAdventure(),-3,28,"expedition");tap(game,"disengage");tap(game,"bloodRage");expect(game.snapshot.player.currentAction).toBeNull();expect(game.snapshot.player.stamina).toBe(5);
   const c=earnedChapter();expect(c.level).toBe(3);expect(c.completed).toEqual(["cold-hands","roll-call","last-shift"]);
   const save=JSON.parse(game.save());save.state.chapter=c;
   game=createAdventure({save:JSON.stringify(save)});expect(game.snapshot.progression.attackBonus).toBe(4);expect(game.snapshot.progression.unlockedActions).toContain("bloodRage");
@@ -42,7 +42,7 @@ test("legacy character inventory survives while the new chapter becomes availabl
 test("shared scout kills grant saved credit to current contributors, excluding bystanders and private encounters",()=>{
   const seed=createSharedAdventure();for(const id of ["a","b","c"])seed.join(id,id,"mage");
   const save=JSON.parse(seed.save());
-  for(const p of save.characters){p.state.chapter=earnedChapter(1);p.state.chapter.accepted.push("roll-call");p.state.phase="expedition";p.state.position={x:-3,y:0,z:8};}
+  for(const p of save.characters){p.state.chapter=earnedChapter(1);p.state.chapter.accepted.push("roll-call");p.state.phase="expedition";p.state.position={x:-3,y:0,z:28};}
   save.world.threats[0].health=33;
   const world=createSharedAdventure({save:JSON.stringify(save)}),a=world.join("a","a","mage"),b=world.join("b","b","mage"),c=world.join("c","c","mage");
   tap(a,"strike");tap(b,"strike");readyParty(a,b,c);world.advance(.01);
@@ -74,7 +74,7 @@ test("coat applies after Block, preserves complete blocks, and enforces one dama
 test("each participating quest holder loots a personal Roll; replay waits for claims and preserves turn-in",()=>{
   const seed=createSharedAdventure();for(const id of ["a","b","c"])seed.join(id,id,"mage");
   const save=JSON.parse(seed.save());save.world.ritualCalled=true;
-  for(const p of save.characters){p.state.chapter=earnedChapter(2);p.state.chapter.accepted.push("last-shift");p.state.phase="expedition";p.state.position={x:2,y:0,z:38.5};p.state.cargo=6;}
+  for(const p of save.characters){p.state.chapter=earnedChapter(2);p.state.chapter.accepted.push("last-shift");p.state.phase="expedition";p.state.position={x:2,y:0,z:58.5};p.state.cargo=6;}
   for(const t of save.world.threats)if(t.id==="ritual-guardian")Object.assign(t,{active:true,health:22});else Object.assign(t,{health:0,phase:"cleared",lootClaimed:true});
   let world=createSharedAdventure({save:JSON.stringify(save)});const a=world.join("a","a","mage"),b=world.join("b","b","mage"),c=world.join("c","c","mage");
   a.selectTarget("ritual-guardian");b.selectTarget("ritual-guardian");
@@ -103,7 +103,7 @@ test("each participating quest holder loots a personal Roll; replay waits for cl
 test("Blood Rage adds its earned damage to both ranged attacks",()=>{
   for(const archetype of ["mage","hunter"] as const){
     const save=JSON.parse(createAdventure({archetype}).save());
-    save.state.chapter=earnedChapter();Object.assign(save.state,{phase:"expedition",position:{x:-3,y:0,z:8},bloodRage:2,rageDrainSeconds:5});
+    save.state.chapter=earnedChapter();Object.assign(save.state,{phase:"expedition",position:{x:-3,y:0,z:28},bloodRage:2,rageDrainSeconds:5});
     const game=createAdventure({save:JSON.stringify(save)});tap(game,"strike");game.readyCombat();game.advance(.01);
     expect(game.snapshot.threats.find(t=>t.id==="scout")!.health).toBe(96-9-4-8);
   }

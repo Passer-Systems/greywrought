@@ -4,7 +4,7 @@ import type { AdventureGame } from "./adventure-types.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
 import { finishCycle, tap } from "./yard-test-fixtures.js";
 
-function setup(archetype: CharacterArchetype = "mage", z = 8.1): AdventureGame {
+function setup(archetype: CharacterArchetype = "mage", z = 28.1): AdventureGame {
   const saved = JSON.parse(createAdventure({ archetype }).save());
   Object.assign(saved.state, { phase: "expedition", position: { x: -3, y: 0, z } });
   for (const enemy of saved.state.threats) {
@@ -61,7 +61,7 @@ describe("committed attack resources", () => {
   });
 
   test("an out-of-range melee strike is rejected without lunging or banking damage", () => {
-    const game = setup("warrior", 5), position = game.snapshot.player.position;
+    const game = setup("warrior", 24.9), position = game.snapshot.player.position;
     tap(game, "strike"); game.readyCombat(); game.advance(.01);
     expect(scout(game).health).toBe(96);
     expect(game.snapshot.combat.queued).toEqual([]);

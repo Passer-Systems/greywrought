@@ -14,7 +14,7 @@ describe("private paused encounters", () => {
     for (const character of saved.characters) {
       const chapter = earnedChapter(2); chapter.accepted.push("last-shift");
       chapter.equipment = { chest: "insulated-coat", mainhand: "yard-weapon" };
-      Object.assign(character.state, { phase: "expedition", position: { x: 2, y: 0, z: 38.5 }, chapter, potions: 6 });
+      Object.assign(character.state, { phase: "expedition", position: { x: 2, y: 0, z: 58.5 }, chapter, potions: 6 });
     }
     saved.world.ritualCalled = true;
     for (const threat of saved.world.threats) {
@@ -49,10 +49,10 @@ describe("private paused encounters", () => {
       bob.setCameraForward(x - position.x, z - position.z); bob.setAction("forward", true);
       world.advance(Math.hypot(x - position.x, z - position.z) / 4.5); bob.setAction("forward", false);
     };
-    walkBob(-2, 12);
+    walkBob(-2, 32);
     tap(bob, "gather"); world.advance(2); tap(bob, "gather");
     expect(bob.snapshot.cargo).toBe(6);
-    walkBob(2, 38.5);
+    walkBob(2, 58.5);
     tap(bob, "ritual"); world.advance(1);
     expect(bob.snapshot.cargo).toBe(0);
     expect(bob.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 200, aggro: true });
@@ -75,7 +75,7 @@ describe("private paused encounters", () => {
     const saved = JSON.parse(seed.save());
     const chapter = earnedChapter(2); chapter.accepted.push("last-shift");
     Object.assign(saved.characters[0].state, {
-      phase: "expedition", position: { x: 2, y: 0, z: 38.5 }, cargo: 12,
+      phase: "expedition", position: { x: 2, y: 0, z: 58.5 }, cargo: 12,
       chapter,
     });
     let world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
@@ -109,7 +109,7 @@ describe("private paused encounters", () => {
     const seed = createSharedAdventure({ now: () => 1000 });
     seed.join("alice", "Alice", "mage");
     const saved = JSON.parse(seed.save());
-    Object.assign(saved.characters[0].state, { phase: "expedition", position: { x: 2, y: 0, z: 38.5 }, cargo: 6 });
+    Object.assign(saved.characters[0].state, { phase: "expedition", position: { x: 2, y: 0, z: 58.5 }, cargo: 6 });
     saved.world.ritualCalled = true;
     Object.assign(saved.world.threats.find((t: { id: string }) => t.id === "ritual-guardian"), { active: true, phase });
     const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
@@ -126,7 +126,7 @@ describe("private paused encounters", () => {
     seed.join("alice", "Alice", "mage"); seed.join("bob", "Bob", "mage");
     const saved = JSON.parse(seed.save());
     for (const character of saved.characters) Object.assign(character.state, {
-      phase: "expedition", position: { x: 2, y: 0, z: 38.5 }, cargo: 6,
+      phase: "expedition", position: { x: 2, y: 0, z: 58.5 }, cargo: 6,
     });
     saved.world.ritualCalled = true;
     Object.assign(saved.world.threats.find((t: { id: string }) => t.id === "ritual-guardian"), {
@@ -151,7 +151,7 @@ describe("private paused encounters", () => {
   test('forks preserve corpses and distinguish character names from the shared instance', () => {
     const seed = createSharedAdventure(); seed.join('shared', 'Shared', 'mage');
     const saved = JSON.parse(seed.save());
-    Object.assign(saved.characters[0].state, {phase:'expedition', position:{x:-3,y:0,z:8}});
+    Object.assign(saved.characters[0].state, {phase:'expedition', position:{x:-3,y:0,z:28}});
     const corpse = saved.world.threats.find((t: {id:string}) => t.id === 'nest');
     Object.assign(corpse, {health:0, phase:'cleared', lootClaimed:true, respawnAt:Date.now()+1000});
     const world = createSharedAdventure({save:JSON.stringify(saved)}), game = world.join('shared','Shared','mage');
@@ -168,7 +168,7 @@ describe("private paused encounters", () => {
     const world = createSharedAdventure({ now: () => 1000 });
     const alice = world.join("alice", "Alice", "warrior");
     const bob = world.join("bob", "Bob", "mage");
-    alice.setCameraForward(-3, 16); alice.setAction("forward", true); world.advance(Math.hypot(3, 16) / 4.5); alice.setAction("forward", false);
+    alice.setCameraForward(-3, 36); alice.setAction("forward", true); world.advance(Math.hypot(3, 36) / 4.5); alice.setAction("forward", false);
     alice.selectTarget("scout"); tap(alice, "strike"); world.advance(0.25);
     expect(world.session("alice").mode).toBe("shared");
     expect(alice.snapshot.threats.find(t => t.id === "scout")?.aggro).toBe(true);
@@ -198,9 +198,9 @@ describe("private paused encounters", () => {
   test("disconnecting the sole fighter releases the shared threat back home", () => {
     const world = createSharedAdventure({ now: () => 1000 });
     const alice = world.join("alice", "Alice", "warrior");
-    alice.setCameraForward(-3, 16);
+    alice.setCameraForward(-3, 36);
     alice.setAction("forward", true);
-    world.advance(Math.hypot(3, 16) / 4.5);
+    world.advance(Math.hypot(3, 36) / 4.5);
     alice.setAction("forward", false);
     alice.selectTarget("scout");
     tap(alice, "strike");
@@ -215,10 +215,10 @@ describe("private paused encounters", () => {
     expect(released.combatants).toEqual([]);
     expect(released.health).toBe(96);
     expect(released.phase).toBe("patrol");
-    expect(released.position).toEqual({ x: -3, y: 0, z: 10 });
+    expect(released.position).toEqual({ x: -3, y: 0, z: 30 });
     world.advance(10);
     const afterAdvance = JSON.parse(world.save()).world.threats.find((t: { id: string }) => t.id === "scout");
-    expect(afterAdvance.position).toEqual({ x: -3, y: 0, z: 10 });
+    expect(afterAdvance.position).toEqual({ x: -3, y: 0, z: 30 });
     expect(world.session("alice").mode).toBe("paused");
   });
 
@@ -231,7 +231,7 @@ describe("private paused encounters", () => {
     for (const character of saved.characters) {
       if (character.id === "alice" || character.id === "bob") {
         character.state.phase = "expedition";
-        character.state.position = { x: -3, y: 0, z: 8 };
+        character.state.position = { x: -3, y: 0, z: 28 };
       }
     }
     const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
@@ -260,7 +260,7 @@ describe("private paused encounters", () => {
   test("private save reopens paused and rejoin is gated by combat", () => {
     const world = createSharedAdventure({ now: () => 1000 });
     const alice = world.join("alice", "Alice", "warrior");
-    alice.setCameraForward(-3, 16); alice.setAction("forward", true); world.advance(Math.hypot(3, 16) / 4.5); alice.setAction("forward", false);
+    alice.setCameraForward(-3, 36); alice.setAction("forward", true); world.advance(Math.hypot(3, 36) / 4.5); alice.setAction("forward", false);
     alice.selectTarget("scout"); tap(alice, "strike"); world.advance(0.2);
     world.pause("alice");
     const restored = createSharedAdventure({ save: world.save(), now: () => 1000 });
@@ -280,10 +280,10 @@ describe("private paused encounters", () => {
     const alice = world.join("alice", "Alice", "warrior");
     const bob = world.join("bob", "Bob", "mage");
     for (const player of [alice, bob]) {
-      player.setCameraForward(-3, 16);
+      player.setCameraForward(-3, 36);
       player.setAction("forward", true);
     }
-    world.advance(Math.hypot(3, 16) / 4.5);
+    world.advance(Math.hypot(3, 36) / 4.5);
     alice.setAction("forward", false); bob.setAction("forward", false);
     alice.selectTarget("scout"); tap(alice, "strike"); world.advance(0.25);
     expect(alice.snapshot.player.inCombat).toBe(true);
@@ -313,12 +313,12 @@ describe("private paused encounters", () => {
       characters: Array<{ state: Record<string, unknown> }>;
     };
     saved.characters[0]!.state.phase = "expedition";
-    saved.characters[0]!.state.position = { x: 0, y: 0, z: 5 };
+    saved.characters[0]!.state.position = { x: 0, y: 0, z: 25 };
     for (const id of ["scout", "patrol"]) {
       const threat = saved.world.threats.find(entry => entry.id === id)!;
       threat.health = 5; threat.phase = "preparation"; threat.aggro = true;
       threat.targetPlayerId = "alice"; threat.combatants = ["alice"];
-      threat.position = { x: 0, y: 0, z: 5 }; threat.targetPosition = { x: 0, y: 0, z: 5 };
+      threat.position = { x: 0, y: 0, z: 25 }; threat.targetPosition = { x: 0, y: 0, z: 25 };
       threat.castDuration = 3; threat.remainingSeconds = 3;
     }
     const world = createSharedAdventure({ save: JSON.stringify(saved) });

@@ -10,13 +10,13 @@ const character = { id: 'combat-loop-fixture', name: 'Combat Tester', archetype:
 const token = 'combat-loop-fixture-token-0000000000000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
-Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 8 } });
+Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 28 } });
 saved.characters[0].state.combat.phase = 'preparation';
 Object.assign(saved.clock, { phase: 'preparation', elapsedSeconds: 0, cycle: 1 });
 for (const enemy of saved.world.threats) {
   if (['scout', 'nest', 'patrol'].includes(enemy.id)) {
     const offset = enemy.id === 'scout' ? 0 : enemy.id === 'nest' ? 1 : 2;
-    const position = enemy.id === 'scout' ? { x: -1, y: 0, z: 10 } : enemy.id === 'nest' ? { x: 0, y: 0, z: 13 } : { x: -5, y: 0, z: 14 };
+    const position = enemy.id === 'scout' ? { x: -1, y: 0, z: 30 } : enemy.id === 'nest' ? { x: 0, y: 0, z: 33 } : { x: -5, y: 0, z: 34 };
     Object.assign(enemy, { position, targetPosition: { ...position }, aggro: true, targetPlayerId: character.id, combatants: [character.id], phase: 'preparation', joinCycle: 1, windowCycle: 1, specialOffset: offset, castDuration: offset, remainingSeconds: offset });
     if (enemy.id === 'scout') Object.assign(enemy.head, { ability: 'fireball', opened: true, volley: 2, castVolley: 2 });
   }

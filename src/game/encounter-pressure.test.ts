@@ -14,10 +14,10 @@ test('all available creatures patrol, including the bee; pauses stay brief',()=>
  const saved=g.save();expect(JSON.parse(createAdventure({save:saved}).save())).toEqual(JSON.parse(saved));
 });
 test('social aggro reaches a nearby ally outside player detection; neutral bee stays neutral',()=>{
- const data=JSON.parse(createAdventure().save());data.state.phase='expedition';data.state.position={x:-3,y:0,z:20};
+ const data=JSON.parse(createAdventure().save());data.state.phase='expedition';data.state.position={x:-3,y:0,z:40};
  for(const t of data.state.threats){
-  if(t.id==='warder')t.position={x:-3,y:0,z:27};
-  if(t.id==='patrol')t.position={x:-8,y:0,z:28};
+  if(t.id==='warder')t.position={x:-3,y:0,z:47};
+  if(t.id==='patrol')t.position={x:-8,y:0,z:48};
  }
  const g=createAdventure({save:JSON.stringify(data)});g.advance(.01);
  expect(g.snapshot.threats.find(t=>t.id==='warder')!.aggro).toBe(true);
@@ -36,11 +36,11 @@ test('threat views expose the gameplay detection and call-for-help radii',()=>{
 function sharedSocialPull(){
  const seed=createSharedAdventure();seed.join('attacker','Attacker','mage');seed.join('bystander','Bystander','mage');
  const data=JSON.parse(seed.save());
- for(const entry of data.characters)Object.assign(entry.state,{phase:'expedition',position:entry.id==='attacker'?{x:-3,y:0,z:20}:{x:-8,y:0,z:21}});
+ for(const entry of data.characters)Object.assign(entry.state,{phase:'expedition',position:entry.id==='attacker'?{x:-3,y:0,z:40}:{x:-8,y:0,z:41}});
  for(const t of data.world.threats){
   if(t.id==='scout')Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
-  if(t.id==='warder')t.position={x:-3,y:0,z:27};
-  if(t.id==='patrol')t.position={x:-8,y:0,z:28};
+  if(t.id==='warder')t.position={x:-3,y:0,z:47};
+  if(t.id==='patrol')t.position={x:-8,y:0,z:48};
  }
  const world=createSharedAdventure({save:JSON.stringify(data)});
  const attacker=world.join('attacker','Attacker','mage'),bystander=world.join('bystander','Bystander','mage');
@@ -72,12 +72,12 @@ test('pausing a pull keeps new helpers out of the private encounter',()=>{
 test('calls cannot recruit a distant, returning, or defeated helper',()=>{
  for(const excluded of ['distant','returning','defeated']){
   const data=JSON.parse(createAdventure({archetype:'mage'}).save());
-  Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:20}});
+  Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:40}});
   for(const t of data.state.threats){
    if(t.id==='scout')Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
-   if(t.id==='warder')t.position={x:-3,y:0,z:27};
+   if(t.id==='warder')t.position={x:-3,y:0,z:47};
    if(t.id==='patrol'){
-    t.position={x:-8,y:0,z:excluded==='distant'?36:28};
+    t.position={x:-8,y:0,z:excluded==='distant'?56:48};
     if(excluded==='returning')t.phase='returning';
     if(excluded==='defeated')Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
    }
@@ -90,9 +90,9 @@ test('calls cannot recruit a distant, returning, or defeated helper',()=>{
 
 test('calls cannot wake the inactive Foreman before summoning',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
- Object.assign(data.state,{phase:'expedition',position:{x:0,y:0,z:30}});
+ Object.assign(data.state,{phase:'expedition',position:{x:0,y:0,z:50}});
  for(const t of data.state.threats){
-  if(t.id==='warder')t.position={x:0,y:0,z:35};
+  if(t.id==='warder')t.position={x:0,y:0,z:55};
   else if(t.active)Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
  }
  const game=createAdventure({save:JSON.stringify(data)});game.selectTarget('warder');tap(game,'strike');game.advance(.01);
@@ -103,10 +103,10 @@ test('calls cannot wake the inactive Foreman before summoning',()=>{
 test('an attacked neutral creature can call hostile help only across a clear path',()=>{
  for(const obstructed of [false,true]){
   const data=JSON.parse(createAdventure({archetype:'mage'}).save());
-  Object.assign(data.state,{phase:'expedition',position:obstructed?{x:3,y:0,z:27}:{x:1,y:0,z:20}});
+  Object.assign(data.state,{phase:'expedition',position:obstructed?{x:3,y:0,z:47}:{x:1,y:0,z:40}});
   for(const t of data.state.threats){
-   if(t.id==='nest')t.position=obstructed?{x:3,y:0,z:25}:{x:-3,y:0,z:20};
-   else if(t.id==='patrol')t.position=obstructed?{x:3,y:0,z:17}:{x:-8,y:0,z:25};
+   if(t.id==='nest')t.position=obstructed?{x:3,y:0,z:45}:{x:-3,y:0,z:40};
+   else if(t.id==='patrol')t.position=obstructed?{x:3,y:0,z:37}:{x:-8,y:0,z:45};
    else if(t.active)Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
   }
   const game=createAdventure({save:JSON.stringify(data)});game.selectTarget('nest');tap(game,'strike');game.advance(.01);
@@ -117,10 +117,10 @@ test('an attacked neutral creature can call hostile help only across a clear pat
 
 test('a helper does not inherit an opponent beyond its own leash',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
- Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:10}});
+ Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:30}});
  for(const t of data.state.threats){
-  if(t.id==='scout')t.position={x:-3,y:0,z:16};
-  else if(t.id==='warder')t.position={x:-3,y:0,z:24};
+  if(t.id==='scout')t.position={x:-3,y:0,z:36};
+  else if(t.id==='warder')t.position={x:-3,y:0,z:44};
   else if(t.active)Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
  }
  const game=createAdventure({save:JSON.stringify(data)});game.selectTarget('scout');tap(game,'strike');game.advance(.01);
@@ -129,9 +129,9 @@ test('a helper does not inherit an opponent beyond its own leash',()=>{
 });
 test('summoning during planning preserves the existing committed cast',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
- Object.assign(data.state,{phase:'expedition',position:{x:2,y:0,z:38.5},cargo:6});
+ Object.assign(data.state,{phase:'expedition',position:{x:2,y:0,z:58.5},cargo:6});
  const warder=data.state.threats.find((t:{id:string})=>t.id==='warder');
- Object.assign(warder,{aggro:true,phase:'preparation',position:{x:0,y:0,z:36}});
+ Object.assign(warder,{aggro:true,phase:'preparation',position:{x:0,y:0,z:56}});
  const game=createAdventure({save:JSON.stringify(data)});game.advance(.01);
  const previous=game.snapshot.threats.find(t=>t.id==='warder')!.cast;
  tap(game,'ritual');
@@ -145,7 +145,7 @@ test('summoning during planning preserves the existing committed cast',()=>{
 
 test('engaging another enemy during planning preserves the existing committed cast',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
- Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:14}});
+ Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:34}});
  for(const t of data.state.threats)if(t.active&&!['scout','nest'].includes(t.id))Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
  const game=createAdventure({save:JSON.stringify(data)});game.advance(.01);
  const scout=()=>game.snapshot.threats.find(t=>t.id==='scout')!;
@@ -161,7 +161,7 @@ test('engaging another enemy during planning preserves the existing committed ca
 
 function pressure(count:number,defend:boolean,archetype:CharacterArchetype='warrior') {
  const data=JSON.parse(createAdventure({archetype}).save());
- Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:24}});
+ Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:44}});
  data.state.chapter=earnedChapter(2);data.state.chapter.equipment={chest:'insulated-coat',mainhand:'yard-weapon'};
  const ids=['warder','patrol'].slice(0,count);
  for(const t of data.state.threats){
@@ -189,7 +189,7 @@ test('ordinary pulls cause attrition, multiple enemies increase pressure, and ti
 test('ranged attacks keep Watchman aggro instead of dropping contact at distance',()=>{
  for(const archetype of ['mage','hunter','alchemist','artificer'] as const){
   const data=JSON.parse(createAdventure({archetype}).save());
-  data.state.phase='expedition'; data.state.position={x:-3,y:0,z:4};
+  data.state.phase='expedition'; data.state.position={x:-3,y:0,z:24};
   for(const t of data.state.threats) if(t.id!=='scout' && t.id!=='ritual-guardian'){t.active=true;t.health=0;t.phase='cleared';t.lootClaimed=true;}
   const game=createAdventure({archetype,save:JSON.stringify(data)}); game.selectTarget('scout'); tap(game,'strike'); game.advance(.01);
   expect(game.snapshot.threats.find(t=>t.id==='scout')!.aggro).toBe(true);
@@ -201,15 +201,15 @@ test('ranged attacks keep Watchman aggro instead of dropping contact at distance
 
 test('retreating from a committed double pull breaks contact and preserves the run',()=>{
  const data=JSON.parse(createAdventure({archetype:'warrior'}).save());
- data.state.phase='expedition'; data.state.position={x:-3,y:0,z:24};
+ data.state.phase='expedition'; data.state.position={x:-3,y:0,z:44};
  data.state.chapter=earnedChapter(2);
  data.state.chapter.equipment={chest:'insulated-coat',mainhand:'yard-weapon'};
  for(const t of data.state.threats) if(t.id==='scout') {t.health=0;t.phase='cleared';t.lootClaimed=true;}
- const hound=data.state.threats.find((t:{id:string})=>t.id==='patrol'); hound.position={x:-6,y:0,z:24};
+ const hound=data.state.threats.find((t:{id:string})=>t.id==='patrol'); hound.position={x:-6,y:0,z:44};
  const game=createAdventure({archetype:'warrior',save:JSON.stringify(data)});
  game.selectTarget('patrol'); tap(game,'brace'); game.advance(.01);
  expect(game.snapshot.threats.filter(t=>t.aggro).map(t=>t.id).sort()).toEqual(['patrol','warder']);
- game.setCameraForward(0,-1); game.setAction('forward',true); game.advance(7); game.setAction('forward',false);
+ game.setCameraForward(0,-1); game.setAction('forward',true); game.advance((game.snapshot.player.position.z + 1) / 4.5); game.setAction('forward',false);
  expect(game.snapshot.player.position.z).toBeLessThan(0);
  expect(game.snapshot.phase).toBe('town'); expect(game.snapshot.player.health).toBeGreaterThan(0);
  expect(game.snapshot.threats.filter(t=>t.aggro).length).toBe(0);

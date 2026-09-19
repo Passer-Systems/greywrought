@@ -5,7 +5,7 @@ import { tap } from "./yard-test-fixtures.js";
 function rangedBee() {
   const seed = createSharedAdventure(); seed.join("mage", "Mage", "mage");
   const save = JSON.parse(seed.save());
-  Object.assign(save.characters[0].state, { phase: "expedition", position: { x: -8, y: 0, z: 20 } });
+  Object.assign(save.characters[0].state, { phase: "expedition", position: { x: -8, y: 0, z: 40 } });
   for (const threat of save.world.threats) {
     threat.rng = 9844;
     if (threat.id !== "nest" && threat.active) Object.assign(threat, { health: 0, phase: "cleared", lootClaimed: true });

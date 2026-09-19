@@ -8,10 +8,10 @@ const token = 'aggro-demo-token-00000000000000000';
 const seed = createSharedAdventure();
 seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
-Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 20 } });
+Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 40 } });
 for (const threat of saved.world.threats) {
-  if (threat.id === 'warder') threat.position = { x: -3, y: 0, z: 27 };
-  if (threat.id === 'patrol') threat.position = { x: -8, y: 0, z: 28 };
+  if (threat.id === 'warder') threat.position = { x: -3, y: 0, z: 47 };
+  if (threat.id === 'patrol') threat.position = { x: -8, y: 0, z: 48 };
   if (threat.id === 'scout') Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
 }
 const savePath = `build/browser/aggro-ranges-${process.pid}.json`;

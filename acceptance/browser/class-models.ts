@@ -38,7 +38,7 @@ try {
     const profile=JSON.parse(localStorage.getItem("greywrought/local-profile-v1"));
     const key="greywrought/adventure-v1/"+profile.selectedCharacterId;
     const saved=JSON.parse(localStorage.getItem(key)), s=saved.state;
-    s.phase="expedition";s.position={x:-3,y:0,z:16};s.health=100;s.verticalSpeed=0;
+    s.phase="expedition";s.position={x:-3,y:0,z:36};s.health=100;s.verticalSpeed=0;
     s.actionCooldown=0;s.currentAction=null;s.actionDuration=0;s.maneuver=null;
     s.combat={phase:"idle",elapsedSeconds:0,cycle:0,queued:[],nextId:1};s.selectedThreat="patrol";
     for(const threat of s.threats) {threat.aggro=false;if(threat.id==="scout"){threat.health=0;threat.phase="cleared";threat.lootClaimed=true;}}

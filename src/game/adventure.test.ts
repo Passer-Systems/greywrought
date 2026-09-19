@@ -249,6 +249,8 @@ describe("Frostwood world and persistent rewards",()=>{
     finish(game, "scout");
     expect(game.snapshot.carriedSalvage).toBe(0);
     expect(game.snapshot.supplies).toBe(15);
+    const corpse = threat(game, "scout").position;
+    walk(game, corpse.x, corpse.z);
     const loot = game.snapshot.loot.find(item => item.sourceId === "scout")!;
     expect(loot.available).toBe(true);
     expect(loot.reachable).toBe(true);

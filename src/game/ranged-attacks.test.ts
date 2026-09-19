@@ -8,7 +8,7 @@ function tap(game: AdventureGame, action: AdventureAction): void {
 function rangedAt(archetype: "mage" | "hunter"): AdventureGame {
   const saved = JSON.parse(createAdventure({ archetype }).save());
   saved.state.phase = "expedition";
-  saved.state.position = { x: 0, y: 0, z: 2.5 };
+  saved.state.position = { x: 0, y: 0, z: 22.5 };
   for (const enemy of saved.state.threats) enemy.rng = 9844;
   return createAdventure({ archetype, save: JSON.stringify(saved) });
 }
@@ -36,7 +36,7 @@ describe("class ranged attacks", () => {
 
   test("warrior queued strike stays in melee without moving", () => {
     const saved = JSON.parse(createAdventure({ archetype: "warrior" }).save());
-    saved.state.phase = "expedition"; saved.state.position = { x: -3, y: 0, z: 8.1 };
+    saved.state.phase = "expedition"; saved.state.position = { x: -3, y: 0, z: 28.1 };
     for (const enemy of saved.state.threats) enemy.rng = 9844;
     const game = createAdventure({ archetype: "warrior", save: JSON.stringify(saved) });
     game.selectTarget("scout"); tap(game, "strike"); game.readyCombat(); game.advance(0.01);
@@ -47,7 +47,7 @@ describe("class ranged attacks", () => {
     for (const archetype of ["mage", "hunter"] as const) {
       const saved = JSON.parse(createAdventure({ archetype }).save());
       saved.state.phase = "expedition";
-      saved.state.position = { x: 0, y: 0, z: 8 };
+      saved.state.position = { x: 0, y: 0, z: 28 };
       saved.state.chapter.accepted = ["cold-hands", "roll-call"];
       saved.state.chapter.completed = ["cold-hands", "roll-call"];
       saved.state.chapter.level = 2;
@@ -58,7 +58,7 @@ describe("class ranged attacks", () => {
       expect(game.snapshot.player.maneuver).toBe("disengage");
       game.advance(.81);
       expect(game.snapshot.player.maneuver).toBe("none");
-      expect(game.snapshot.player.position.z).toBeLessThan(8);
+      expect(game.snapshot.player.position.z).toBeLessThan(28);
     }
   });
 });
