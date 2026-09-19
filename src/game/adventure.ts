@@ -101,6 +101,7 @@ interface State {
   world: WorldState;
   phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number;
   health: number; supplies: number; cargo: number;
+  bank: { supplies: number; potions: number };
   potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
   actionCooldown: number; currentAction: AdventureAction | "equip" | null; actionDuration: number; actionRemainingSeconds: number; guardSeconds: number;
   block: number; stamina: number; staminaRecoverySeconds: number; bloodRage: number; rageDrainSeconds: number; rageDecaySeconds: number; maneuver: Maneuver | null; sitting: boolean;
@@ -142,6 +143,7 @@ const PLACES: readonly PlaceView[] = [
   { id: "frost-cores", name: YARD.resource, position: point(-2, 32), kind: "resource" },
   { id: "ritual-site", name: YARD.works, position: point(2, 60), kind: "ritual" },
   { id: "mara", name: "Mara / Apothecary", position: point(3.4, -7.5), kind: "shop" },
+  { id: "bank", name: "Elian / Bank", position: point(-9, -10), kind: "bank" },
   { id: "inn", name: `Rowan / ${YARD.inn}`, position: point(5, -11), kind: "inn" },
 ];
 const PHASE_SECONDS: Record<ThreatPhase, number> = {
@@ -194,7 +196,7 @@ function nextThreatRandom(t: ThreatState): number {
 function initialState(archetype: CharacterArchetype): State {
   return {
     chapter: newChapter(), combat: newCombat(), phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, health: 100,
-    supplies: 15, cargo: 0, potions: 0, carriedRelics: 0,
+    bank: { supplies: 0, potions: 0 }, supplies: 15, cargo: 0, potions: 0, carriedRelics: 0,
     bankedRelics: 0, carriedSalvage: 0, presence: 0, actionCooldown: 0, currentAction: null, actionDuration: 0, actionRemainingSeconds: 0,
     guardSeconds: 0, block: 0, stamina: 5, staminaRecoverySeconds: 0, bloodRage: 0, rageDrainSeconds: 0, rageDecaySeconds: 0, maneuver: null, sitting: false,
     attackSequence: 0, selectedThreat: "scout",
@@ -232,6 +234,7 @@ class Adventure implements AdventureGame {
   private shopOpen = false;
   private trade: { kind: "supplies" | "potions"; quantity: number } | null = null;
   private innOpen = false;
+  private bankOpen = false;
   private readonly events: AdventureLogEntry[] = [];
   private eventId = 0;
   private readonly combatFeedback: CombatFeedback[] = [];
@@ -295,7 +298,7 @@ class Adventure implements AdventureGame {
     refresh();
     const clearInputs = (game: Adventure) => {
       game.held.clear(); game.mouseForward = false; game.moving = false; game.backpedaling = false;
-      game.enableNetworkMovement(false); game.shopOpen = false; game.innOpen = false; game.trade = null; game.lootOpenId = null;
+      game.enableNetworkMovement(false); game.shopOpen = false; game.innOpen = false; game.bankOpen = false; game.trade = null; game.lootOpenId = null;
     };
     const createPrivate = (id: string, game: Adventure): SharedContext => {
       const clone = structuredClone(game.state.world);
@@ -502,7 +505,7 @@ class Adventure implements AdventureGame {
       selectedThreat: s.selectedThreat, supplies: s.supplies, cargo: s.cargo,
       resourceRemaining: s.world.resourceRemaining, potions: s.potions, carriedRelics: s.carriedRelics,
       bankedRelics: s.bankedRelics, presence: s.presence, ritualCalled: s.world.ritualCalled,
-      shopOpen: this.shopOpen, trade: this.tradeView(), innOpen: this.innOpen, log: this.events.map(entry => ({ ...entry })), potionPrice: MARA_TRADE_RULES.suppliesPerPotion, potionHealing: 30, report: s.report,
+      bank: { ...s.bank }, bankOpen: this.bankOpen, shopOpen: this.shopOpen, trade: this.tradeView(), innOpen: this.innOpen, log: this.events.map(entry => ({ ...entry })), potionPrice: MARA_TRADE_RULES.suppliesPerPotion, potionHealing: 30, report: s.report,
     };
   }
 
@@ -528,19 +531,36 @@ class Adventure implements AdventureGame {
       return { id: q.id, status, progress, required: q.required, canAccept: nearby && status === "available", canTurnIn: nearby && status === "ready" };
     });
   }
-  interactNpc(id: "mara" | "inn"): void {
+  interactNpc(id: "mara" | "inn" | "bank"): void {
     if (this.instancePaused() || this.inPrivateInstance()) { this.report("Services are available only in the shared world."); return; }
     if (this.state.phase === "lost") return;
     if (this.state.phase !== "town" || !this.near(id, 2.5)) {
-      this.report(`Move closer to ${id === "mara" ? "Mara" : "Rowan"} to talk.`);
+      this.report(`Move closer to ${id === "mara" ? "Mara" : id === "bank" ? "Elian" : "Rowan"} to talk.`);
       return;
     }
     this.lootOpenId = null;
     this.trade = null;
     this.shopOpen = id === "mara";
     this.innOpen = id === "inn";
+    this.bankOpen = id === "bank";
     this.report(id === "mara" ? "Mara says: A little preparation goes a long way."
+      : id === "bank" ? "Elian says: Store supplies and potions for your next expedition."
       : `Rowan says: Welcome to ${YARD.inn}. Come warm yourself by the hearth; rest is on the house.`);
+  }
+  bankTransfer(operation: "deposit" | "withdraw", kind: "supplies" | "potions", quantity: number): boolean {
+    const s = this.state;
+    if (this.instancePaused() || this.inPrivateInstance() || s.phase !== "town" || !this.bankOpen || !this.near("bank", 2.5)) {
+      this.report("Visit Elian at the bank to store or collect your goods."); return false;
+    }
+    if ((operation !== "deposit" && operation !== "withdraw") || (kind !== "supplies" && kind !== "potions") || !Number.isSafeInteger(quantity) || quantity <= 0) return false;
+    const source = operation === "deposit" ? s : s.bank;
+    const destination = operation === "deposit" ? s.bank : s;
+    if (source[kind] < quantity || !Number.isSafeInteger(destination[kind] + quantity)) {
+      this.report("That quantity is not available. Check your bags and bank balance."); return false;
+    }
+    source[kind] -= quantity; destination[kind] += quantity;
+    this.report(`You ${operation === "deposit" ? "store" : "collect"} ${quantity} ${kind === "potions" ? "health potion" + (quantity === 1 ? "" : "s") : "supplies"}.`);
+    return true;
   }
   quest(id: QuestId, operation: QuestOperation): void {
     if (this.instancePaused() || this.inPrivateInstance()) { this.report("Quest progress is available only in the shared world."); return; }
@@ -834,7 +854,7 @@ class Adventure implements AdventureGame {
   openLoot(sourceId: string): void {
     const corpse = this.state.world.threats.find(t => t.id === sourceId);
     this.lootOpenId = corpse && this.canLoot(corpse) ? corpse.id : null;
-    if (this.lootOpenId) { this.shopOpen = false; this.innOpen = false; }
+    if (this.lootOpenId) { this.shopOpen = false; this.innOpen = false; this.bankOpen = false; }
   }
   private takeLoot(): void {
     const s = this.state;
@@ -874,6 +894,7 @@ class Adventure implements AdventureGame {
       this.report("Services and world rewards are unavailable during a private encounter.");
       return;
     }
+    if (action === "closeBank") { this.bankOpen = false; return; }
     if (action === "closeShop") { this.shopOpen = false; this.trade = null; return; }
     if (action === "closeTrade") { this.trade = null; return; }
     if (action === "openTrade") { if (this.shopOpen && this.near("mara", 2.5) && s.phase === "town") this.trade = { kind: "supplies", quantity: 3 }; return; }
@@ -906,15 +927,15 @@ class Adventure implements AdventureGame {
       case "takeLoot": this.takeLoot(); break;
       case "interact": {
         this.lootOpenId = null;
-        const service = s.phase === "town" ? PLACES.filter(p => (p.kind === "shop" || p.kind === "inn") && this.near(p.id, 2.5))
+        const service = s.phase === "town" ? PLACES.filter(p => (p.kind === "shop" || p.kind === "inn" || p.kind === "bank") && this.near(p.id, 2.5))
           .sort((a,b) => distance(s.position,a.position) - distance(s.position,b.position))[0] : undefined;
-        if (service) this.interactNpc(service.kind === "shop" ? "mara" : "inn");
+        if (service) this.interactNpc(service.kind === "shop" ? "mara" : service.kind === "bank" ? "bank" : "inn");
         else {
-          this.shopOpen = false; this.innOpen = false; this.trade = null;
+          this.shopOpen = false; this.innOpen = false; this.bankOpen = false; this.trade = null;
           const corpse = s.world.threats.filter(t => this.canLoot(t))
             .sort((a, b) => distance(s.position, a.position) - distance(s.position, b.position))[0];
           if (corpse) this.openLoot(corpse.id);
-          else this.report(s.phase === "town" ? "Approach Mara to trade or Rowan at the inn to rest." : "Move beside a glinting body to search it.");
+          else this.report(s.phase === "town" ? "Approach Mara to trade, Elian to bank your goods, or Rowan at the inn to rest." : "Move beside a glinting body to search it.");
         }
         break;
       }
@@ -1277,6 +1298,7 @@ class Adventure implements AdventureGame {
     this.closeMissingLoot();
     if (this.shopOpen && !this.near("mara", 2.5)) { this.shopOpen = false; this.trade = null; }
     if (this.innOpen && !this.near("inn", 2.5)) this.innOpen = false;
+    if (this.bankOpen && !this.near("bank", 2.5)) this.bankOpen = false;
     if (s.phase === "town" && !inTown(s.position)) {
       s.phase = "expedition"; s.carriedSalvage = 0; s.presence = 0;
       if (!this.shared) {
@@ -1288,7 +1310,7 @@ class Adventure implements AdventureGame {
         }
         s.world.threats = fresh;
       }
-      s.actionCooldown = 0; s.guardSeconds = 0; s.block = 0; this.shopOpen = false; this.trade = null; this.innOpen = false;
+      s.actionCooldown = 0; s.guardSeconds = 0; s.block = 0; this.shopOpen = false; this.trade = null; this.innOpen = false; this.bankOpen = false;
       this.report("You leave Nine-Bell Yard. Return to town to secure what you carry.");
     } else if (s.phase === "expedition" && inTown(s.position) && !this.inPrivateInstance()) {
       const reservedCrystals = s.chapter.accepted.includes("cold-hands") && !s.chapter.completed.includes("cold-hands") ? Math.min(3, s.cargo) : 0;
@@ -1797,7 +1819,7 @@ class Adventure implements AdventureGame {
     s.phase = "lost"; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.supplies = 0; s.bankedRelics = 0;
     if (!this.shared) for (const enemy of s.world.threats) if (enemy.aggro) this.releaseThreat(enemy);
     this.lootOpenId = null;
-    s.potions = 0; this.shopOpen = false; this.innOpen = false; this.moving = false; this.backpedaling = false;
+    s.bank = { supplies: 0, potions: 0 }; s.potions = 0; this.shopOpen = false; this.innOpen = false; this.bankOpen = false; this.moving = false; this.backpedaling = false;
     this.report("You fall. Your journey ends; carried rewards and personal stores are lost.", "combat");
   }
 }
@@ -1892,6 +1914,7 @@ function readSave(serialized: string, now = Date.now()): State {
     archetype: choice(s.archetype, ["warrior", "mage", "hunter", "alchemist", "artificer"] as const),
     position: { x: number(p.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX), y: number(p.y, 0, 2), z: number(p.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ) },
     verticalSpeed: number(s.verticalSpeed, -6, 5.5), health: number(s.health, 0, 100),
+    bank: s.bank === undefined ? { supplies: 0, potions: 0 } : { supplies: number(record(s.bank).supplies, 0, Number.MAX_SAFE_INTEGER, true), potions: number(record(s.bank).potions, 0, Number.MAX_SAFE_INTEGER, true) },
     supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, Number.MAX_SAFE_INTEGER, true),
     world: { threats, resourceRemaining: number(s.resourceRemaining, 0, 12, true), resourceRespawns: readResourceRespawns(s.resourceRespawns, number(s.resourceRemaining, 0, 12, true), now), ritualCalled: boolean(s.ritualCalled) },
     potions: number(s.potions, 0, Number.MAX_SAFE_INTEGER, true),

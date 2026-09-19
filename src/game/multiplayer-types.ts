@@ -13,7 +13,7 @@ export type WorldCommand =
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'rejoin' }
-  | { type: "interactNpc"; id: "mara" | "inn" }
+  | { type: "interactNpc"; id: "mara" | "inn" | "bank" }
   | { type: "quest"; id: QuestId; operation: QuestOperation }
   | { type: "equip"; slot: GearSlot; item: GearItemId | null }
   | { type: 'movement'; frames: readonly MovementFrame[] }
@@ -28,6 +28,7 @@ export type WorldCommand =
   | { type: 'remove'; id: number }
   | { type: 'clear' }
   | { type: 'loot'; id: string }
+  | { type: 'bank'; operation: 'deposit' | 'withdraw'; kind: 'supplies' | 'potions'; quantity: number }
   | { type: 'trade'; kind: 'supplies' | 'potions'; quantity: number }
   | { type: 'sit' }
   | { type: 'chat'; text: string };

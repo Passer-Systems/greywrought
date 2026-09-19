@@ -173,6 +173,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     clearQueuedActions() { send({type:'clear'}); },
     openLoot(id) { if (inputEnabled()) send({type:'loot',id}); },
     setTradeOffer(kind,quantity) { if (inputEnabled()) send({type:'trade',kind,quantity}); },
+    bankTransfer(operation,kind,quantity) { return inputEnabled() && send({type:"bank",operation,kind,quantity}) !== null; },
     interactNpc(id) { if (inputEnabled()) send({type:"interactNpc",id}); },
     quest(id, operation) { if (inputEnabled()) send({type:"quest",id,operation}); },
     equip(slot, item) { if (inputEnabled()) send({type:"equip",slot,item}); },

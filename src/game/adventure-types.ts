@@ -23,7 +23,7 @@ export interface CombatFeedback {
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
   | "bait" | "shove" | "finish" | "strike" | "disengage" | "brace" | "bloodRage" | "jab" | "guard" | "gather" | "ritual" | "interact"
-  | "buyPotion" | "drinkPotion" | "rest" | "target" | "openTrade" | "closeTrade" | "acceptTrade" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn";
+  | "buyPotion" | "drinkPotion" | "rest" | "target" | "openTrade" | "closeTrade" | "acceptTrade" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn" | "closeBank";
 export interface TradeView {
   readonly kind: "supplies" | "potions"; readonly quantity: number; readonly receivedQuantity: number;
   readonly available: number; readonly canAccept: boolean; readonly reason: string; readonly step: number;
@@ -136,7 +136,7 @@ export interface PlaceView {
   readonly id: string;
   readonly name: string;
   readonly position: Position;
-  readonly kind: "town" | "gate" | "resource" | "ritual" | "shop" | "inn";
+  readonly kind: "town" | "gate" | "resource" | "ritual" | "shop" | "inn" | "bank";
 }
 export interface AdventureSnapshot {
   readonly quests: readonly QuestView[];
@@ -179,6 +179,8 @@ export interface AdventureSnapshot {
   readonly ritualCalled: boolean;
   readonly shopOpen: boolean; readonly trade: TradeView | null;
   readonly innOpen: boolean;
+  readonly bankOpen: boolean;
+  readonly bank: { readonly supplies: number; readonly potions: number };
   readonly log: readonly AdventureLogEntry[];
   readonly potionPrice: number;
   readonly potionHealing: number;
@@ -211,7 +213,8 @@ export interface AdventureGame {
   clearQueuedActions(): void;
   openLoot(sourceId: string): void;
   setTradeOffer(kind: "supplies" | "potions", quantity: number): void;
-  interactNpc(id: "mara" | "inn"): void;
+  interactNpc(id: "mara" | "inn" | "bank"): void;
+  bankTransfer(operation: "deposit" | "withdraw", kind: "supplies" | "potions", quantity: number): boolean;
   quest(id: QuestId, operation: QuestOperation): void;
   equip(slot: GearSlot, item: GearItemId | null): void;
   save(): string;

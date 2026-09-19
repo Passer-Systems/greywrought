@@ -335,3 +335,35 @@ test('slash emotes replicate actions and chat while unknown commands stay privat
     await watcher.wait(message => message.type === 'error' && message.text.includes('/train'));
   } finally {dancer.socket.close();watcher.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true});}
 });
+
+test('bank socket commands reject invalid quantities, remote access, and another character balance', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-bank-'));
+  const service = await createWorldService({ savePath: join(directory, 'world.json') });
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
+  const alice = new Client(`ws://127.0.0.1:${server.port}/world`), bob = new Client(`ws://127.0.0.1:${server.port}/world`);
+  try {
+    await alice.connect({ id: 'bank-alice', name: 'Alice', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
+    await bob.connect({ id: 'bank-bob', name: 'Bob', archetype: 'mage', createdAtMillis: 1 }, crypto.randomUUID());
+    await alice.state(); await bob.state();
+    const deposit = { type: 'bank', operation: 'deposit', kind: 'supplies', quantity: 10 } as const;
+    expect(await alice.command(deposit)).toBe(false);
+    for (const quantity of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) expect(await alice.invalid({ ...deposit, quantity })).toBe(false);
+    expect(await alice.invalid({ ...deposit, kind: 'relics' })).toBe(false);
+    await alice.command({ type: 'camera', x: -1, z: 0 });
+    await alice.command({ type: 'action', action: 'forward', pressed: true });
+    await alice.state(state => state.snapshot.player.position.x < -8.5);
+    await alice.command({ type: 'action', action: 'forward', pressed: false });
+    await alice.command({ type: 'interactNpc', id: 'bank' });
+    await alice.state(state => state.snapshot.bankOpen);
+    expect(await alice.command(deposit)).toBe(true);
+    expect(await alice.command(deposit)).toBe(false);
+    await alice.state(state => state.snapshot.bank.supplies === 10 && state.snapshot.supplies === 5);
+    expect(await bob.command({ type: 'bank', operation: 'withdraw', kind: 'supplies', quantity: 10 })).toBe(false);
+    expect((await bob.state()).snapshot.bank.supplies).toBe(0);
+    expect(await alice.command({ type: 'bank', operation: 'withdraw', kind: 'supplies', quantity: 4 })).toBe(true);
+    await alice.state(state => state.snapshot.bank.supplies === 6 && state.snapshot.supplies === 9);
+  } finally {
+    alice.socket.close(); bob.socket.close(); await service.close(); server.stop(true);
+    await rm(directory, { recursive: true });
+  }
+}, 10_000);

@@ -205,11 +205,13 @@ describe("Frostwood world and persistent rewards",()=>{
   });
 
   test("loss is permanent and saved: stores are gone and neither rest nor movement revives", () => {
-    const game = approachWarder();
+    const seed = JSON.parse(approachWarder().save()); seed.state.bank = { supplies: 10, potions: 2 };
+    const game = createAdventure({ save: JSON.stringify(seed) });
     for (let cycle = 0; cycle < 100 && game.snapshot.player.health > 0; cycle++) { game.readyCombat(); finishCycle(game); game.advance(.01); }
     expect(game.snapshot.phase).toBe("lost");
     expect(game.snapshot.player.health).toBe(0);
     expect(game.snapshot.supplies).toBe(0);
+    expect(game.snapshot.bank).toEqual({ supplies: 0, potions: 0 });
     const lost = createAdventure({ save: game.save() });
     const position = lost.snapshot.player.position;
     tap(lost, "rest"); tap(lost, "drinkPotion"); lost.setAction("forward", true); lost.advance(1);

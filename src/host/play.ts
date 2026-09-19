@@ -15,6 +15,7 @@ import { createCorpseLoot } from "./corpse-loot.js";
 import { createBagPanel } from "./bag-panel.js";
 import { createChatLog } from "./chat-log.js";
 import { createUnitFrames } from "./unit-frames.js";
+import { createBankPanel } from "./bank-panel.js";
 import { createInnPanel } from "./inn-panel.js";
 import { createLorebook } from "./lorebook.js";
 import { createShopPanel } from "./shop-panel.js";
@@ -87,6 +88,13 @@ const hudSize = new ResizeObserver(() => {
   running?.world.setCombatHudHeight(element("combat-plan-mount").parentElement!.getBoundingClientRect().height);
 });
 hudSize.observe(element("combat-plan-mount").parentElement!);
+const bank = createBankPanel(element("adventure-hud"), {
+  onTransfer: (operation, kind, quantity) => {
+    if (!running?.ready || paused) return;
+    running.game.bankTransfer(operation, kind, quantity);
+  },
+  onClose: () => { pulse("closeBank"); running?.world.canvas.focus(); },
+});
 const inn = createInnPanel(element("adventure-hud"), {
   onQuest: submitQuest,
   onRest: () => pulse("rest"),
@@ -485,6 +493,7 @@ function returnToRoster(): void {
   lastEncounterState = '';
   route = "roster";
   element("pause-panel").hidden = true;
+  element("bank-panel").hidden = true;
   element("shop-panel").hidden = true;
   element("death-panel").hidden = true;
   renderEntry();
@@ -680,6 +689,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   chatLog.update([...snapshot.log, ...sharedChat]);
   data.gameOnline = String(running?.game.online ?? false);
   data.gameRemotePlayers = JSON.stringify(running?.game.players ?? []);
+  bank.update(snapshot);
   inn.update(snapshot, snapshot.innOpen);
   shop.update(snapshot);
   trade.update(snapshot);
@@ -1041,6 +1051,7 @@ listen(window, "keydown", (event) => {
       else if (running?.game.snapshot.lootOpenId) pulse("closeLoot");
       else if (running?.game.snapshot.trade) pulse("closeTrade");
       else if (running?.game.snapshot.shopOpen) pulse("closeShop");
+      else if (running?.game.snapshot.bankOpen) pulse("closeBank");
       else if (running?.game.snapshot.innOpen) pulse("closeInn");
       else setMenuOpen(true);
     }
@@ -1119,6 +1130,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   chatLog.dispose();
   unitFrames.dispose();
   combatPlan.dispose();
+  bank.dispose();
   inn.dispose();
   shop.dispose();
   trade.dispose();

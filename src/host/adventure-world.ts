@@ -46,7 +46,7 @@ interface ThreatRig {
 }
 
 export type WorldPick = { readonly kind: "threat"; readonly id: string }
-  | { readonly kind: "npc"; readonly id: "mara" | "inn" }
+  | { readonly kind: "npc"; readonly id: "mara" | "inn" | "bank" }
   | { readonly kind: "resource"; readonly id: "frost-cores" }
   | { readonly kind: "place"; readonly id: string };
 
@@ -209,6 +209,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const innPosition = innPlace.position;
   const rowan = new Group(); rowan.position.set(innPosition.x, innPosition.y, innPosition.z); rowan.rotation.y = -Math.PI / 3;
   terrain.add(rowan);
+  const bankPosition = initial.places.find(place => place.id === "bank")!.position;
+  const elian = new Group(); elian.position.set(bankPosition.x, bankPosition.y, bankPosition.z); elian.rotation.y = Math.PI / 2;
+  terrain.add(elian);
   const coreRoot = new Group();
   const corePlace = initial.places.find(place => place.id === "frost-cores")!;
   coreRoot.position.set(corePlace.position.x, 0, corePlace.position.z);
@@ -235,6 +238,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const hoverTargets: HoverTarget[] = [
     { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(corePlace.position.x, 1.4, corePlace.position.z) },
     { root: mara, pick: { kind: "npc", id: "mara" }, name: "Mara · Supplies", anchor: new Vector3(3.4, 2.45, -7.5) },
+    { root: elian, pick: { kind: "npc", id: "bank" }, name: "Elian · Banker", anchor: new Vector3(bankPosition.x, 2.45, bankPosition.z) },
     { root: rowan, pick: { kind: "npc", id: "inn" }, name: "Rowan · Innkeeper", anchor: new Vector3(innPosition.x, 2.45, innPosition.z) },
     { root: ritual, pick: { kind: "place", id: "ritual" }, name: YARD.works, anchor: new Vector3(ritualPosition.x, 0.4, ritualPosition.z) },
   ];
@@ -277,6 +281,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const playerAnimation = playerArchetype === "mage" ? { attack: "Staff_Attack", hit: "RecieveHit", jump: "Roll" } : playerArchetype === "hunter" ? { attack: "Bow_Shoot", hit: "RecieveHit", jump: "Roll" } : playerArchetype === "alchemist" || playerArchetype === "artificer" ? { attack: "Shoot_OneHanded", hit: "RecieveHit", jump: "Roll" } : { attack: "Sword_Attack", hit: "RecieveHit", jump: "Roll" };
   let merchant: ForestActor | null = null;
   let innkeeper: ForestActor | null = null;
+  let banker: ForestActor | null = null;
   let playerAttackRemaining = 0;
   const playSocialAnimation = createSocialAnimation();
   let disposed = false;
@@ -306,6 +311,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const merchantReady = actor("Cleric", 1.85).then(mounted => {
     if (disposed) { mounted.dispose(); return; }
     merchant = mounted; mara.add(mounted.root); mounted.play("Idle");
+  });
+  const bankerReady = actor("Cleric", 1.95).then(mounted => {
+    if (disposed) { mounted.dispose(); return; }
+    banker = mounted; elian.add(mounted.root); mounted.play("Idle");
+    document.body.dataset.bankerState = "ready";
   });
   const innkeeperReady = actor("Chef_Male", 1.95).then(mounted => {
     if (disposed) { mounted.dispose(); return; }
@@ -351,7 +361,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let combatPreview: CombatPreview | null = null;
   let combatHudHeight = 0;
   const aggroRanges = createAggroRanges(scene, canvas);
-  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, creaturesReady, coresReady, natureReady]).then(()=>undefined);
+  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, creaturesReady, coresReady, natureReady]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
   const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
@@ -491,6 +501,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         mara.rotation.y = snapshot.shopOpen ? Math.atan2(position.x - mara.position.x, position.z - mara.position.z) : -Math.PI / 2;
         merchant.play(snapshot.shopOpen ? "Idle_Weapon" : "Idle"); merchant.mixer.update(delta);
       }
+      if (banker) {
+        elian.rotation.y = snapshot.bankOpen ? Math.atan2(position.x - bankPosition.x, position.z - bankPosition.z) : Math.PI / 2;
+        banker.mixer.update(delta);
+      }
       if (innkeeper) {
         rowan.rotation.y = snapshot.innOpen ? Math.atan2(position.x - innPosition.x, position.z - innPosition.z) : -Math.PI / 3;
         innkeeper.mixer.update(delta);
@@ -614,6 +628,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       updateHover();
       overheadNames.begin();
       overheadNames.show("npc:mara", "Mara", mara, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"mara"));
+      overheadNames.show("npc:elian", "Elian · Bank", elian, 2.35, "friendly", true);
       overheadNames.show("npc:rowan", "Rowan", rowan, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"inn"));
       for (const [id, rig] of remotePlayers.entries()) overheadNames.show(`player:${id}`, rig.name, rig.root, 2.35, "player", rig.alive);
       for (const threat of snapshot.threats) {
@@ -646,7 +661,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       aggroRanges.dispose();
       telegraphs.dispose();
       combatEffects.dispose();
-      knight?.dispose(); merchant?.dispose(); innkeeper?.dispose();
+      knight?.dispose(); merchant?.dispose(); innkeeper?.dispose(); banker?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();
       disposeObjects(scene);
       scene.clear();
