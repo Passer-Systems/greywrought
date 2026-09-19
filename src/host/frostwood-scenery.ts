@@ -42,8 +42,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const ctx = canvas.getContext("2d")!;
   ctx.fillStyle = "#54664d"; ctx.fillRect(0,0,128,128);
   for (let i=0;i<1500;i++) { const a=Math.sin(i*127.1)*43758.5453; const b=Math.sin(i*269.5)*19234.324; ctx.fillStyle=i%2?"#627453":"#485d46"; ctx.fillRect((a-Math.floor(a))*128,(b-Math.floor(b))*128,2,2); }
-  const map = new CanvasTexture(canvas); map.colorSpace=SRGBColorSpace; map.wrapS=map.wrapT=RepeatWrapping; map.repeat.set(38,50);
-  const ground = new Mesh(new PlaneGeometry(132,170),new MeshStandardMaterial({ map, roughness:1 })); ground.rotation.x=-Math.PI/2; ground.position.set(28,-0.06,-5); terrain.add(ground);
+  const map = new CanvasTexture(canvas); map.colorSpace=SRGBColorSpace; map.wrapS=map.wrapT=RepeatWrapping; map.repeat.set(48,64);
+  const ground = new Mesh(new PlaneGeometry(168,214),new MeshStandardMaterial({ map, roughness:1 })); ground.rotation.x=-Math.PI/2; ground.position.set(10,-0.06,-27); terrain.add(ground);
   const paving = document.createElement("canvas"); paving.width=paving.height=256;
   const pavingCtx=paving.getContext("2d")!; pavingCtx.fillStyle="#8c8871"; pavingCtx.fillRect(0,0,256,256);
   for(let row=0;row<10;row++) for(let col=-1;col<10;col++) {
@@ -114,15 +114,15 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   // Canopies begin outside the accessible combat corridor, with lower edge planting.
   for(const side of [-1,1]) for(let i=0;i<14;i++) {
     const z=5+i*3.4;
-    forestPlace(i%3===0?"nature/CommonTree_2":"nature/Pine_5",side*(13.8+i%3*2.2),z,5.6+i%4*0.65,i*2.1);
-    if(i%2===0) forestPlace("nature/Pine_5",side*(19+i%2),z+1.8,7.5,i);
+    forestPlace(i%3===0?"nature/CommonTree_2":"nature/Pine_5",side*(24+i%3*2.2),z,5.6+i%4*0.65,i*2.1);
+    if(i%2===0) forestPlace("nature/Pine_5",side*(30+i%2),z+1.8,7.5,i);
     forestPlace("nature/Fern_1",side*(7.8+i%3),z,0.55,i);
     if(i%3===0) forestPlace("nature/Rock_Medium_3",side*(9.2+i%2),z+0.8,1.1,i);
   }
   for(const side of [-1,1]) for(let grove=0;grove<5;grove++) {
     const z=8+grove*8.5;
-    forestPlace("nature/Pine_5",side*(9.2+grove%2),z,4.6+grove%2*0.4,grove);
-    forestPlace("nature/CommonTree_2",side*(11.4+grove%2),z+2,4.3,grove*2);
+    forestPlace("nature/Pine_5",side*(22+grove%2),z,4.6+grove%2*0.4,grove);
+    forestPlace("nature/CommonTree_2",side*(25+grove%2),z+2,4.3,grove*2);
     for(let plant=0;plant<4;plant++) forestPlace("nature/Fern_1",side*(7.8+plant*0.7),z+Math.sin(plant*2)*1.1,0.55+plant*0.09,plant);
   }
   for(let i=0;i<45;i++) {
@@ -146,16 +146,16 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     const mesh = new Mesh(new PlaneGeometry(width, length), new MeshStandardMaterial({ color: 0x827952, roughness: 1 }));
     mesh.rotation.set(-Math.PI / 2, 0, rotation); mesh.position.set(x, 0.008, z); terrain.add(mesh);
   }
-  path(0, -48, 3.4, 48);
+  path(0, -75, 3.4, 102);
   path(14, -46, 28, 3.4);
-  for (const side of [-1, 1]) for (let i = 0; i < 9; i++) {
-    const x = side < 0 ? -32 : 25, z = -29 - i * 6;
+  for (const side of [-1, 1]) for (let i = 0; i < 12; i++) {
+    const x = side < 0 ? -66 : 25, z = -29 - i * 8;
     if (side > 0 && z > -53 && z < -39) continue;
     place(i % 3 ? "nature/Pine_5" : "nature/CommonTree_2", x, z, 4.8 + i % 3, i);
     if (i % 2 === 0) place("nature/Rock_Medium_3", x + (side < 0 ? 2 : -2), z + 1, 1.1, i);
   }
-  for (let i = 0; i < 7; i++) place("nature/CommonTree_2", -28 + i * 8, -84, 5.5, i);
-  for (const [x, z] of [[-23,-38],[-25,-65],[19,-70],[20,-31]]) {
+  for (let i = 0; i < 12; i++) place("nature/CommonTree_2", -64 + i * 8, -128, 5.5, i);
+  for (const [x, z] of [[-58,-38],[-60,-89],[19,-108],[20,-31]]) {
     place("nature/Grass_Common_Short", x!, z!, 0.35);
     place("nature/Fern_1", x! + 0.7, z! + 0.5, 0.55);
   }

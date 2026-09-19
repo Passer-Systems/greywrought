@@ -1,7 +1,7 @@
 import type { Position } from './adventure-types.js';
 
 export const FOREST_OFFSET = 20;
-export const WORLD_BOUNDS = { minX: -34, maxX: 90, minZ: -86, maxZ: 76 } as const;
+export const WORLD_BOUNDS = { minX: -70, maxX: 90, minZ: -130, maxZ: 76 } as const;
 export const TOWN_BOUNDS = { minX: -22, maxX: 22, minZ: -24, maxZ: 0 } as const;
 export function inTown(position: Pick<Position, 'x' | 'z'>): boolean {
   return position.x >= TOWN_BOUNDS.minX && position.x <= TOWN_BOUNDS.maxX
