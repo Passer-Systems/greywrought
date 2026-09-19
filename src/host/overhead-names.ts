@@ -33,8 +33,13 @@ export function createOverheadNames(host: HTMLElement, camera: PerspectiveCamera
   measure.font = "600 14px system-ui";
   const widths = new Map<string, number>();
   const creatures: { element: HTMLDivElement; x: number; y: number; width: number }[] = [];
+  let viewportWidth = 0, viewportHeight = 0;
   return {
-    begin() { present.clear(); creatures.length = 0; },
+    begin() {
+      // Read the viewport before changing any labels, once for the whole frame.
+      viewportWidth = host.clientWidth; viewportHeight = host.clientHeight;
+      present.clear(); creatures.length = 0;
+    },
     show(id: string, name: string, actor: Object3D, height: number, disposition: Disposition, alive = true, quest: QuestMarker | null = null) {
       present.add(id);
       let element = names.get(id);
@@ -52,12 +57,11 @@ export function createOverheadNames(host: HTMLElement, camera: PerspectiveCamera
         }
       }
       element.dataset.disposition = disposition;
-      element.hidden = true;
-      if (!name || !alive || !actor.visible || suppressed.has(id)) return;
+      if (!name || !alive || !actor.visible || suppressed.has(id)) { element.hidden = true; return; }
       actor.getWorldPosition(anchor); anchor.y += height; anchor.project(camera);
-      if (anchor.z < -1 || anchor.z > 1 || Math.abs(anchor.x) > 1 || Math.abs(anchor.y) > 1) return;
-      const x = (anchor.x + 1) * host.clientWidth / 2;
-      const y = (1 - anchor.y) * host.clientHeight / 2;
+      if (anchor.z < -1 || anchor.z > 1 || Math.abs(anchor.x) > 1 || Math.abs(anchor.y) > 1) { element.hidden = true; return; }
+      const x = (anchor.x + 1) * viewportWidth / 2;
+      const y = (1 - anchor.y) * viewportHeight / 2;
       element.style.left = `${x}px`; element.style.top = `${y}px`;
       element.hidden = y < (quest ? 58 : 24);
       if (!element.hidden && id.startsWith("threat:")) {

@@ -1,6 +1,6 @@
 {
   "name": "greywrought",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.3.13",
@@ -22,6 +22,7 @@
     "test:emotes": "bun test src/game/emotes.test.ts && bun acceptance/browser/emotes.ts",
     "test:pause-menu": "bun acceptance/browser/pause-menu.ts",
     "test:pwa": "bun acceptance/browser/pwa.ts",
+    "test:performance": "bun acceptance/browser/performance.ts",
     "test:ability-range": "bun test src/host/combat-range.test.ts && bun acceptance/browser/ability-range.ts",
     "test:browser-barter": "bun acceptance/browser/npc-barter.ts",
     "test:browser-characters": "bun acceptance/browser/character-deletion.ts && bun acceptance/browser/class-models.ts",

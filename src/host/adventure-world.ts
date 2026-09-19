@@ -1,7 +1,7 @@
 import {
   BufferGeometry, CanvasTexture, Color, Float32BufferAttribute,
   CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
-  Material, Mesh, MeshBasicMaterial, MeshStandardMaterial,
+  Material, Mesh, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial,
   Object3D, PerspectiveCamera, Plane, Points, PointsMaterial, RingGeometry, Scene, SphereGeometry,
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
   Raycaster,
@@ -83,6 +83,7 @@ function disposeObjects(root: Object3D): void {
   const materials = new Set<Material>();
   const textures = new Set<Texture>();
   root.traverse((object) => {
+    if (object instanceof InstancedMesh) object.dispose();
     if (object instanceof Mesh) geometries.add(object.geometry);
     if (!(object instanceof Mesh || object instanceof Sprite)) return;
     for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
@@ -343,6 +344,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       : name === "Inn" ? { id: "inn", name: YARD.inn }
       : name === "Fence" ? { id: `gate-${root.id}`, name: YARD.gate } : null;
     if (place) hoverTargets.push({ root, pick: { kind: "place", id: place.id }, name: place.name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
+    return place !== null;
   }).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
   const telegraphs = createGroundTelegraphs(scene, canvas);
   const combatEffects = createCombatEffects(scene);

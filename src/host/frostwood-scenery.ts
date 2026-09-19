@@ -1,9 +1,10 @@
-import { Group, Mesh, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight } from "three";
+import { Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight } from "three";
 import { prop } from "./frostwood-assets.js";
 
-export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onPlace?: (root: Group, name: string) => void): Promise<(coolingRestored: boolean, shiftEnded: boolean) => void> {
+export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onPlace?: (root: Group, name: string) => boolean): Promise<(coolingRestored: boolean, shiftEnded: boolean) => void> {
   const jobs: Promise<void>[] = [];
   const coolingMaterials: MeshStandardMaterial[] = [];
+  const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
   function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0) {
     jobs.push(prop(name, size, axis).then(model => {
       model.position.set(x, y, z); model.rotation.y = rotation; parent.add(model);
@@ -16,8 +17,18 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
         };
         object.material = Array.isArray(object.material) ? object.material.map(coolable) : coolable(object.material);
       });
-      onPlace?.(model, name);
+      const interactive = onPlace?.(model, name);
       model.updateWorldMatrix(true, true);
+      if (!interactive) model.traverse(object => {
+        if (!(object instanceof Mesh)) return;
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        // Keep transparent sorting and independently changing surfaces intact.
+        if (materials.some(material => material.transparent || coolingMaterials.includes(material))) return;
+        const key = [parent.id, Math.floor(x / 12), Math.floor(z / 12), object.geometry.uuid, ...materials.map(material => material.uuid)].join(":");
+        let batch = batches.get(key);
+        if (!batch) { batch = { parent, meshes: [] }; batches.set(key, batch); }
+        batch.meshes.push(object);
+      });
       // Scenery never moves; actors and effects retain their animated transforms.
       model.traverse(object => { object.matrixAutoUpdate = false; object.matrixWorldAutoUpdate = false; });
     }));
@@ -117,6 +128,20 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   place("works/Details_Pipes_Long",-2.45,47.05,3.7);
   place("works/Details_Pipes_Long",6.45,47.05,3.7);
   await Promise.all(jobs);
+  const inverse = new Matrix4(), matrix = new Matrix4();
+  for (const { parent, meshes } of batches.values()) {
+    if (meshes.length < 2) continue;
+    const source = meshes[0]!;
+    const instances = new InstancedMesh(source.geometry, source.material, meshes.length);
+    inverse.copy(parent.matrixWorld).invert();
+    for (const [index, mesh] of meshes.entries()) {
+      instances.setMatrixAt(index, matrix.multiplyMatrices(inverse, mesh.matrixWorld));
+      mesh.removeFromParent();
+    }
+    // Spatial cells retain useful frustum culling without changing the authored art.
+    instances.computeBoundingSphere();
+    parent.add(instances);
+  }
   return (coolingRestored, shiftEnded) => {
     for (const material of coolingMaterials) {
       material.emissive.setHex(coolingRestored ? 0x55d9fa : 0x000000);
