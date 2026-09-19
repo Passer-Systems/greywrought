@@ -18,6 +18,7 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
     let lastHealth = view.player.health;
     let dead = false;
     let actionRemaining = 0;
+    let sittingPlayed = false;
     function disposeActor(value: ForestActor) {
       value.dispose();
       value.model.traverse(object => { if (object instanceof SkinnedMesh) object.skeleton.dispose(); });
@@ -54,7 +55,11 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
           else if (player.attackSequence !== lastAttack) {
             mounted.play(player.archetype === "mage" ? "Staff_Attack" : player.archetype === "hunter" ? "Bow_Shoot" : player.archetype === "alchemist" || player.archetype === "artificer" ? "Shoot_OneHanded" : "Sword_Attack", false, 0.4);
             actionRemaining = 0.4;
-          } else if (actionRemaining === 0) mounted.play(player.maneuver === "disengage" || !player.grounded ? "Roll" : player.moving ? "Run" : "Idle");
+          } else if (actionRemaining === 0) {
+            if (player.sitting) {
+              if (!sittingPlayed) { mounted.play("SitDown", false); sittingPlayed = true; }
+            } else { sittingPlayed = false; mounted.play(player.maneuver === "disengage" || !player.grounded ? "Roll" : player.moving ? "Run" : "Idle"); }
+          }
         }
         lastHealth = player.health; lastAttack = player.attackSequence;
         mounted.mixer.update(delta);

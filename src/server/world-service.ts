@@ -41,7 +41,7 @@ function character(value: unknown): value is LocalCharacter {
 function command(value: unknown): value is WorldCommand {
   if (!record(value)) return false;
   switch (value.type) {
-    case 'pause': case 'resume': case 'rejoin': return keys(value, ['type']);
+    case 'pause': case 'resume': case 'rejoin': case 'sit': return keys(value, ['type']);
     case 'movement': return keys(value, ['type', 'frames']) && Array.isArray(value.frames) && value.frames.length > 0 && value.frames.length <= 30 && value.frames.every((frame, index, frames) => {
       if (!record(frame) || !keys(frame, ['sequence', 'seconds', 'input']) || !finite(frame.sequence, 1, Number.MAX_SAFE_INTEGER, true)
         || !finite(frame.seconds, Number.MIN_VALUE, 0.05) || !record(frame.input)) return false;
@@ -202,6 +202,7 @@ export async function createWorldService(options: WorldServiceOptions) {
         return accepted;
       }
       case 'movement': return player.enqueueMovement!(value.frames);
+      case 'sit': player.sit(); break;
       case 'action': player.setAction(value.action, value.pressed); break;
       case 'mouseForward': player.setMouseForward(value.active); break;
       case 'camera': player.setCameraForward(value.x, value.z); break;
@@ -219,6 +220,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'quest': player.quest(value.id, value.operation); break;
       case 'equip': player.equip(value.slot, value.item); break;
       case 'chat': {
+        if (value.text.trim().toLowerCase() === '/sit') { player.sit(); broadcast(); break; }
         const now = performance.now();
         socket.data.chatsAt = socket.data.chatsAt.filter(at => now - at < 1000);
         if (socket.data.chatsAt.length >= 3) { error(socket, 'Give others a moment to speak.'); return false; }

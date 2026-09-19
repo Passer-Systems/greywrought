@@ -1,8 +1,8 @@
-import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, Vector3, type AnimationAction, type Object3D, type Material } from "three";
+import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
-import { clone } from "three/addons/utils/SkeletonUtils.js";
+import { clone, retargetClip } from "three/addons/utils/SkeletonUtils.js";
 import { publicUrl } from "./public-url.js";
 
 const root = "assets/quaternius/frostwood/";
@@ -33,6 +33,28 @@ export async function actor(name: string, height: number, playerModel?: "warrior
   const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger.glb" : playerModel === "mage" ? "Wizard.glb" : playerModel === "alchemist" ? "Alchemist.gltf" : playerModel === "artificer" ? "Artificer.gltf" : "Warrior.glb"}` : null;
   const gltf = await source(playerPath ?? `${root}actors/${name}.gltf`);
   const model = clone(gltf.scene);
+  const animations = [...gltf.animations];
+  if (playerPath !== null) {
+    const donor = await source("assets/quaternius/class-characters/Sitting.gltf");
+    const sourceModel = clone(donor.scene);
+    let targetRig: SkinnedMesh | undefined, sourceRig: SkinnedMesh | undefined;
+    model.traverse(object => { if (object instanceof SkinnedMesh) targetRig ??= object; });
+    sourceModel.traverse(object => { if (object instanceof SkinnedMesh) sourceRig ??= object; });
+    const clip = donor.animations.find(animation => animation.name === "SitDown");
+    const boneName = (bone: Object3D): string => bone.userData.name ?? bone.name;
+    const targetBody = targetRig?.skeleton.bones.find(bone => boneName(bone) === "Body"), sourceBody = sourceRig?.skeleton.bones.find(bone => boneName(bone) === "Body");
+    if (!targetRig || !sourceRig || !clip || !targetBody || !sourceBody) throw Error("Missing character sitting rig or animation");
+    model.updateMatrixWorld(true); sourceModel.updateMatrixWorld(true);
+    const scale = targetBody.getWorldPosition(new Vector3()).y / sourceBody.getWorldPosition(new Vector3()).y;
+    // Retarget rotations and hip motion while preserving each class's bind proportions.
+    const sitting = retargetClip(targetRig, sourceRig, clip, {
+      hip: sourceBody.name, scale, fps: 24,
+      names: Object.fromEntries(targetRig.skeleton.bones.map(bone => [bone.name, sourceRig!.skeleton.bones.find(sourceBone => boneName(sourceBone) === (boneName(bone) === "Root" ? "Bone" : boneName(bone)))?.name ?? bone.name])),
+    });
+    for (const track of sitting.tracks) track.name = track.name.replace(/^\.bones\[([^\]]+)\]/, "$1");
+    animations.push(sitting);
+    targetRig.skeleton.pose(); model.updateMatrixWorld(true);
+  }
   const localMaterials: Material[] = [];
   if (name === "Leela") model.traverse(object => {
     if (!(object instanceof Mesh)) return;
@@ -51,7 +73,7 @@ export async function actor(name: string, height: number, playerModel?: "warrior
   const result: ForestActor = {
     root: wrapper, model, mixer, action: null,
     play(name, loop = true, duration, fade = 0.12) {
-      const clip = gltf.animations.find(c => c.name === name);
+      const clip = animations.find(c => c.name === name);
       if (!clip) throw Error(`${name} is missing from ${model.name}`);
       const next = mixer.clipAction(clip);
       if (result.action === next && next.isRunning()) return next;

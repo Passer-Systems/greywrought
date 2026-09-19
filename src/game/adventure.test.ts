@@ -1,6 +1,6 @@
 import { earnedChapter, fightForeman, fightTarget, finishCycle } from "./yard-test-fixtures.js";
 import { describe, expect, test } from "bun:test";
-import { createAdventure, getMonsterLore } from "./adventure.js";
+import { createAdventure, createSharedAdventure, getMonsterLore } from "./adventure.js";
 import type { AdventureAction, AdventureGame, ThreatView } from "./adventure-types.js";
 
 function tap(game: AdventureGame, action: AdventureAction): void {
@@ -160,6 +160,35 @@ describe("Frostwood world and persistent rewards",()=>{
     expect(game.snapshot.player.grounded).toBe(true);
     game.setAction("jump", false); tap(game, "jump"); game.advance(0.1);
     expect(game.snapshot.player.grounded).toBe(false);
+  });
+
+  test("/sit persists in the player view and movement stands the character up", () => {
+    const game = createAdventure();
+    game.sit();
+    expect(game.snapshot.player.sitting).toBe(true);
+    game.setCameraForward(0, 1);
+    game.setAction("forward", true);
+    game.advance(0.1);
+    game.setAction("forward", false);
+    expect(game.snapshot.player.sitting).toBe(false);
+  });
+
+  test("joining another player's fight stands a seated character up", () => {
+    const seed = createSharedAdventure();
+    seed.join("alice", "Alice", "warrior"); seed.join("bob", "Bob", "warrior");
+    const save = JSON.parse(seed.save());
+    for (const character of save.characters) Object.assign(character.state, { phase: "expedition", position: { x: -3, y: 0, z: 8 } });
+    Object.assign(save.world.threats.find((threat: { id: string }) => threat.id === "scout"), {
+      aggro: true, phase: "approach", targetPlayerId: "alice", combatants: ["alice"],
+    });
+    const world = createSharedAdventure({ save: JSON.stringify(save) });
+    world.join("alice", "Alice", "warrior");
+    const bob = world.join("bob", "Bob", "warrior");
+    bob.sit();
+    expect(bob.snapshot.player.sitting).toBe(true);
+    tap(bob, "strike");
+    expect(bob.snapshot.player.inCombat).toBe(true);
+    expect(bob.snapshot.player.sitting).toBe(false);
   });
 
   test("gate walls match the opening and town is safe", () => {

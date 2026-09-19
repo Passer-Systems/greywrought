@@ -276,6 +276,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let merchant: ForestActor | null = null;
   let innkeeper: ForestActor | null = null;
   let playerAttackRemaining = 0;
+  let playerSittingPlayed = false;
   let disposed = false;
   let otherPlayers: readonly RemotePlayerView[] = [];
   let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean) => void) | undefined;
@@ -471,7 +472,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         else if(snapshot.player.health<lastHealth && snapshot.player.health>0) { playerHitRemaining=0.4; knight.play(playerAnimation.hit,false,0.4); }
         if(!playerDead) {
           playerHitRemaining=Math.max(0,playerHitRemaining-delta); playerAttackRemaining=Math.max(0,playerAttackRemaining-delta);
-          if(playerHitRemaining===0&&playerAttackRemaining===0) knight.play(snapshot.player.maneuver === "disengage" || !snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle");
+          if(playerHitRemaining===0&&playerAttackRemaining===0) {
+            if (snapshot.player.sitting) {
+              if (!playerSittingPlayed) { knight.play("SitDown", false); playerSittingPlayed = true; }
+            } else { playerSittingPlayed = false; knight.play(snapshot.player.maneuver === "disengage" || !snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle"); }
+          }
         }
         knight.mixer.update(delta);
         document.body.dataset.rigAnimationMode=playerDead?"death":playerHitRemaining>0?"hit":playerAttackRemaining>0?"attack":snapshot.player.moving?"locomotion":"idle";

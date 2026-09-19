@@ -2084,6 +2084,10 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 @media(max-width:560px) {.system-menu {bottom:180px;}}
 
 /* Range changes the artwork; costs, clocks, damage and names stay readable. */
+.adventure-actions button.action-in-range .action-art {
+  border-color:#f8dd83;box-shadow:inset 0 0 5px #f8dd8380,0 0 0 1px #f8dd83,0 0 11px #efc553b0;
+}
+.adventure-actions button.action-in-range .action-art img {filter:saturate(1.2) brightness(1.2);}
 .adventure-actions [data-range=out] .action-art img,
 .enemy-cast-bar[data-range=out] .enemy-cast-icon img {
   filter:saturate(.12) brightness(.65);opacity:.58;

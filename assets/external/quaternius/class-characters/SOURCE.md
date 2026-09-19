@@ -22,3 +22,11 @@ The archive root CC0 license is preserved as
 `greywrought:assets/external/quaternius/class-characters/ultimate-character-license.txt`.
 The matching Alchemist and Artificer portraits under
 `greywrought:assets/ui/characters/` are renders of these models and materials.
+
+The sitting animation uses `SitDown` from the same archive's
+`Characters and Animals/Ultimate Animated Character Pack - Nov 2019/glTF/Knight_Golden_Female.gltf`,
+already preserved at `greywrought:assets/external/quaternius/rig-socket-prototype/wayfarer/Knight_Golden_Female.gltf`.
+`greywrought:assets/external/quaternius/class-characters/Sitting.gltf` keeps that
+model's rig, geometry and `SitDown` clip, with unused animation records and
+buffer data removed. Three.js retargets this CC0 clip to each class's skeleton
+and proportions.

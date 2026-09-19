@@ -642,6 +642,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gameBlock = String(player.block); data.gameManeuver = player.maneuver;
   data.gameManeuverSeconds = String(player.maneuverSeconds);
   data.gameStamina = String(player.stamina); data.gameBloodRage = String(player.bloodRage); data.gameInCombat = String(player.inCombat);
+  data.gamePlayerSitting = String(player.sitting);
   data.gameCombatPhase = snapshot.combat.phase;
   data.gameCombatRemaining = String(snapshot.combat.remainingSeconds);
   const stamina = element("combat-stamina");
@@ -669,8 +670,10 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const spec = classAction(player.archetype, action);
     const cost = spec.cost ?? COMBAT_RULES[action].cost;
     const available = action === "bloodRage" ? player.inCombat : snapshot.phase === "expedition" && selected?.active && selected.health > 0;
-    const availableStamina = player.stamina;
+    const availableStamina = snapshot.combat.availableStamina;
     const planning = snapshot.combat.phase === "preparation";
+    const targeted = action === "strike" || action === "disengage";
+    const range = available ? playerRange(snapshot, action) : null;
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]');
     const unlocked = snapshot.progression.unlockedActions.includes(action);
     if (control) {
@@ -690,14 +693,14 @@ function renderHud(snapshot: AdventureSnapshot): void {
         copy.textContent = effect + "Queue this ability for the current combat sequence. " + spec.description;
       }
       control.classList.toggle("action-locked", !unlocked);
-      control.disabled = !unlocked || !available || !planning || snapshot.combat.queued.length >= 3 || availableStamina < cost;
+      control.disabled = !unlocked || !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.queued.length >= 3 || availableStamina < cost;
       control.style.setProperty("--recovery", "0");
       control.removeAttribute("data-auto-active");
       control.removeAttribute("aria-pressed");
-      control.dataset.range = available ? playerRange(snapshot, action).state : "none";
+      control.dataset.range = range?.state ?? "none";
+      control.classList.toggle("action-in-range", targeted && range?.state === "in" && !control.disabled && snapshot.combat.availableStamina >= cost && !snapshot.combat.ready);
     }
-    const detail = !unlocked ? action === "disengage" ? "Complete A Name on the Roll to unlock" : "Complete Clock Out to unlock" : !available ? action === "bloodRage" ? "Requires combat" : "Select a living enemy beyond the gate" : !planning ? "Waiting for the next planning window" : snapshot.combat.queued.length >= 3 ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " stamina" : "Queue · " + cost + " stamina";
-    const range = available ? playerRange(snapshot, action) : null;
+    const detail = !unlocked ? action === "disengage" ? "Complete A Name on the Roll to unlock" : "Complete Clock Out to unlock" : !available ? action === "bloodRage" ? "Requires combat" : "Select a living enemy beyond the gate" : !(planning || targeted && snapshot.combat.phase === "idle") ? "Waiting for the next planning window" : snapshot.combat.queued.length >= 3 ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " stamina" : "Queue · " + cost + " stamina";
     text(label, detail + (range?.text ? " · " + range.text : ""));
   }
   for (const action of ["bait", "shove", "finish"] as const) {
@@ -705,10 +708,13 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]')!;
     const targetAvailable = action === "bait" || Boolean(selected?.active && selected.health > 0);
     const cost = spec.cost ?? 1;
-    control.disabled = snapshot.combat.phase !== "preparation" || snapshot.combat.ready || snapshot.combat.queued.length >= 3 || snapshot.combat.availableStamina < cost || !targetAvailable;
+    const range = playerRange(snapshot, action);
+    control.disabled = !(snapshot.combat.phase === "preparation" || action !== "bait" && snapshot.combat.phase === "idle" && range.state === "in") || snapshot.combat.ready || snapshot.combat.queued.length >= 3 || snapshot.combat.availableStamina < cost || !targetAvailable;
+    control.dataset.range = range.state;
+    control.classList.toggle("action-in-range", range.state === "in" && !control.disabled);
     control.setAttribute("aria-pressed", String(action === "bait" && baitAiming));
     control.querySelector<HTMLElement>(".action-tooltip span:last-child")!.textContent = spec.description;
-    text(action + "-ready", !targetAvailable ? "Select a living enemy" : snapshot.combat.phase !== "preparation" ? "Plan this move when combat begins" : snapshot.combat.queued.length >= 3 ? "Three moves already planned" : snapshot.combat.availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Choose ground, then place the move on a beat" : "Queue · " + cost + " stamina · " + (spec.range ?? 0) + "m reach");
+    text(action + "-ready", (!targetAvailable ? "Select a living enemy" : !(snapshot.combat.phase === "preparation" || action !== "bait" && snapshot.combat.phase === "idle") ? "Plan this move when combat begins" : snapshot.combat.queued.length >= 3 ? "Three moves already planned" : snapshot.combat.availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Choose ground, then place the move on a beat" : "Queue · " + cost + " stamina · " + (spec.range ?? 0) + "m reach") + (range.text ? " · " + range.text : ""));
   }
   const recovery = element("player-action-bar");
   recovery.hidden = player.actionCooldown <= 0.001 || (player.currentAction !== "gather" && player.currentAction !== "ritual");

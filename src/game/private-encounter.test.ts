@@ -1,12 +1,153 @@
 import { describe, expect, test } from "bun:test";
 import { createSharedAdventure } from "./adventure.js";
-import { finishCycle, readyParty } from "./yard-test-fixtures.js";
+import { earnedChapter, finishCycle, readyParty } from "./yard-test-fixtures.js";
 
 const tap = (game: ReturnType<ReturnType<typeof createSharedAdventure>["join"]>, action: Parameters<typeof game.setAction>[0]) => {
   game.setAction(action, true); game.setAction(action, false);
 };
 
 describe("private paused encounters", () => {
+  test("a forked fighter gathers a new offering and earns a Roll from a later shared kill", () => {
+    const seed = createSharedAdventure({ now: () => 1000 });
+    for (const id of ["alice", "bob"]) seed.join(id, id, "mage");
+    const saved = JSON.parse(seed.save());
+    for (const character of saved.characters) {
+      const chapter = earnedChapter(2); chapter.accepted.push("last-shift");
+      chapter.equipment = { chest: "insulated-coat", mainhand: "yard-weapon" };
+      Object.assign(character.state, { phase: "expedition", position: { x: 2, y: 0, z: 38.5 }, chapter, potions: 6 });
+    }
+    saved.world.ritualCalled = true;
+    for (const threat of saved.world.threats) {
+      if (threat.id === "ritual-guardian") Object.assign(threat, {
+        active: true, health: 5, phase: "preparation", aggro: true, targetPlayerId: "alice",
+        contributors: ["alice", "bob"], combatants: ["alice", "bob"], castDuration: 3, remainingSeconds: 3,
+      });
+      else Object.assign(threat, { health: 0, phase: "cleared", lootClaimed: true });
+    }
+    let world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+    let alice = world.join("alice", "alice", "mage"), bob = world.join("bob", "bob", "mage");
+    expect(world.pause("bob")).toBe(true);
+    expect(world.resume("bob")).toBe(true);
+    bob.selectTarget("ritual-guardian"); tap(bob, "strike"); bob.readyCombat(); world.advance(.1);
+    expect(bob.snapshot.threats.find(t => t.id === "ritual-guardian")!.health).toBe(0);
+    bob.openLoot("ritual-guardian"); tap(bob, "takeLoot");
+    expect(bob.snapshot.carriedRelics).toBe(0);
+    expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 5, aggro: true });
+
+    alice.selectTarget("ritual-guardian"); tap(alice, "strike"); alice.readyCombat(); world.advance(.1);
+    expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")!.health).toBe(0);
+    alice.openLoot("ritual-guardian"); tap(alice, "takeLoot");
+    expect(alice.snapshot.carriedRelics).toBe(1);
+    expect(world.rejoin("bob")).toBe(true);
+    bob.openLoot("ritual-guardian"); tap(bob, "takeLoot");
+    expect(bob.snapshot.carriedRelics).toBe(0);
+    expect(bob.snapshot.cargo).toBe(0);
+    finishCycle(bob, world);
+
+    const walkBob = (x: number, z: number) => {
+      const position = bob.snapshot.player.position;
+      bob.setCameraForward(x - position.x, z - position.z); bob.setAction("forward", true);
+      world.advance(Math.hypot(x - position.x, z - position.z) / 4.5); bob.setAction("forward", false);
+    };
+    walkBob(-2, 12);
+    tap(bob, "gather"); world.advance(2); tap(bob, "gather");
+    expect(bob.snapshot.cargo).toBe(6);
+    walkBob(2, 38.5);
+    tap(bob, "ritual"); world.advance(1);
+    expect(bob.snapshot.cargo).toBe(0);
+    expect(bob.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 200, aggro: true });
+    const finalBlow = JSON.parse(world.save());
+    finalBlow.world.threats.find((t: { id: string }) => t.id === "ritual-guardian").health = 5;
+    world = createSharedAdventure({ save: JSON.stringify(finalBlow), now: () => 1000 });
+    alice = world.join("alice", "alice", "mage"); bob = world.join("bob", "bob", "mage");
+    bob.selectTarget("ritual-guardian"); tap(bob, "strike"); readyParty(alice, bob); world.advance(.1);
+    expect(bob.snapshot.player.health).toBeGreaterThan(0);
+    expect(bob.snapshot.threats.find(t => t.id === "ritual-guardian")!.health).toBe(0);
+    bob.openLoot("ritual-guardian"); tap(bob, "takeLoot");
+    expect(bob.snapshot.carriedRelics).toBe(1);
+    expect(bob.snapshot.quests.find(q => q.id === "last-shift")!.status).toBe("ready");
+    expect(alice.snapshot.carriedRelics).toBe(1);
+  });
+
+  test("a private Foreman kill leaves no rewards and permits another shared offering", () => {
+    const seed = createSharedAdventure({ now: () => 1000 });
+    seed.join("alice", "Alice", "mage");
+    const saved = JSON.parse(seed.save());
+    const chapter = earnedChapter(2); chapter.accepted.push("last-shift");
+    Object.assign(saved.characters[0].state, {
+      phase: "expedition", position: { x: 2, y: 0, z: 38.5 }, cargo: 12,
+      chapter,
+    });
+    let world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+    let alice = world.join("alice", "Alice", "mage");
+    tap(alice, "ritual"); world.advance(1);
+    expect(alice.snapshot.cargo).toBe(6);
+    expect(world.pause("alice")).toBe(true);
+    expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 200, aggro: true });
+    const forked = JSON.parse(world.save());
+    expect(forked.world.ritualCalled).toBe(false);
+    expect(forked.world.threats.find((t: { id: string }) => t.id === "ritual-guardian")).toMatchObject({ active: false, health: 200, phase: "dormant" });
+    forked.instances[0].world.threats.find((t: { id: string }) => t.id === "ritual-guardian").health = 5;
+    world = createSharedAdventure({ save: JSON.stringify(forked), now: () => 1000 });
+    alice = world.join("alice", "Alice", "mage");
+    expect(world.resume("alice")).toBe(true);
+    alice.selectTarget("ritual-guardian"); tap(alice, "strike"); alice.readyCombat(); world.advance(.1);
+    expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")!.health).toBe(0);
+    alice.openLoot("ritual-guardian"); tap(alice, "takeLoot");
+    expect(alice.snapshot.loot.every(loot => !loot.available)).toBe(true);
+    expect(alice.snapshot.carriedRelics).toBe(0);
+    expect(alice.snapshot.quests.find(q => q.id === "last-shift")!.status).toBe("active");
+    expect(world.rejoin("alice")).toBe(true);
+    world.advance(1);
+    tap(alice, "ritual");
+    expect(alice.snapshot.cargo).toBe(0);
+    expect(alice.snapshot.ritualCalled).toBe(true);
+    expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 200, aggro: true });
+  });
+
+  test.each(["dormant", "returning"])("saved abandoned Foreman in %s can be summoned again", phase => {
+    const seed = createSharedAdventure({ now: () => 1000 });
+    seed.join("alice", "Alice", "mage");
+    const saved = JSON.parse(seed.save());
+    Object.assign(saved.characters[0].state, { phase: "expedition", position: { x: 2, y: 0, z: 38.5 }, cargo: 6 });
+    saved.world.ritualCalled = true;
+    Object.assign(saved.world.threats.find((t: { id: string }) => t.id === "ritual-guardian"), { active: true, phase });
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+    const alice = world.join("alice", "Alice", "mage");
+    expect(alice.snapshot.ritualCalled).toBe(false);
+    expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: false, health: 200 });
+    tap(alice, "ritual");
+    expect(alice.snapshot.cargo).toBe(0);
+    expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 200, aggro: true });
+  });
+
+  test("a private Foreman kill cannot replace a partner's ongoing shared fight", () => {
+    const seed = createSharedAdventure({ now: () => 1000 });
+    seed.join("alice", "Alice", "mage"); seed.join("bob", "Bob", "mage");
+    const saved = JSON.parse(seed.save());
+    for (const character of saved.characters) Object.assign(character.state, {
+      phase: "expedition", position: { x: 2, y: 0, z: 38.5 }, cargo: 6,
+    });
+    saved.world.ritualCalled = true;
+    Object.assign(saved.world.threats.find((t: { id: string }) => t.id === "ritual-guardian"), {
+      active: true, health: 5, phase: "preparation", aggro: true, targetPlayerId: "alice",
+      contributors: ["alice", "bob"], combatants: ["alice", "bob"], castDuration: 3, remainingSeconds: 3,
+    });
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+    const alice = world.join("alice", "Alice", "mage");
+    const bob = world.join("bob", "Bob", "mage");
+    expect(world.pause("alice")).toBe(true);
+    expect(bob.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 5, aggro: true, targetPlayerId: "bob" });
+    expect(world.resume("alice")).toBe(true);
+    alice.selectTarget("ritual-guardian"); tap(alice, "strike"); alice.readyCombat(); world.advance(.1);
+    expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")!.health).toBe(0);
+    expect(world.rejoin("alice")).toBe(true);
+    world.advance(1);
+    tap(alice, "ritual");
+    expect(alice.snapshot.cargo).toBe(6);
+    expect(bob.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 5, aggro: true, targetPlayerId: "bob" });
+  });
+
   test('forks preserve corpses and distinguish character names from the shared instance', () => {
     const seed = createSharedAdventure(); seed.join('shared', 'Shared', 'mage');
     const saved = JSON.parse(seed.save());

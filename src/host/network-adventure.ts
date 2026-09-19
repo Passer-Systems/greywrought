@@ -153,6 +153,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       if (pressed) flushCamera(); send({type:'action',action,pressed});
     },
     setMouseForward(active) { prediction.setMouseForward(active && inputEnabled()); },
+    sit() { if (inputEnabled()) send({ type: 'sit' }); },
     setCameraForward(x,z) { prediction.setCameraForward(x,z); if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
     selectTarget(id) { send({type:'target',id}); },
     queueBait(destination) { send({type:'bait',destination}); return online; },
@@ -168,7 +169,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     quest(id, operation) { if (inputEnabled()) send({type:"quest",id,operation}); },
     equip(slot, item) { if (inputEnabled()) send({type:"equip",slot,item}); },
     save() { throw new Error('Shared journeys are saved by the world.'); },
-    sendChat(text) { send({type:'chat',text}); },
+    sendChat(text) { if (text.trim().toLowerCase() === '/sit') { if (inputEnabled()) send({ type: 'sit' }); } else send({type:'chat',text}); },
     pause() {
       if (!inputEnabled()) return;
       pauseRequest = send({type:'pause'}); notify();

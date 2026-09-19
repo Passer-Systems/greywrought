@@ -29,6 +29,7 @@ export type WorldCommand =
   | { type: 'clear' }
   | { type: 'loot'; id: string }
   | { type: 'trade'; kind: 'supplies' | 'potions'; quantity: number }
+  | { type: 'sit' }
   | { type: 'chat'; text: string };
 export type ClientWorldMessage =
   | { type: 'join'; token: string; character: LocalCharacter }

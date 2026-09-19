@@ -100,7 +100,7 @@ interface State {
   health: number; supplies: number; cargo: number;
   potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
   actionCooldown: number; currentAction: AdventureAction | "equip" | null; actionDuration: number; actionRemainingSeconds: number; guardSeconds: number;
-  block: number; stamina: number; staminaRecoverySeconds: number; bloodRage: number; rageDrainSeconds: number; rageDecaySeconds: number; maneuver: Maneuver | null;
+  block: number; stamina: number; staminaRecoverySeconds: number; bloodRage: number; rageDrainSeconds: number; rageDecaySeconds: number; maneuver: Maneuver | null; sitting: boolean;
   attackSequence: number; selectedThreat: string; report: string;
 }
 
@@ -192,7 +192,7 @@ function initialState(archetype: CharacterArchetype): State {
     chapter: newChapter(), combat: newCombat(), phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, health: 100,
     supplies: 15, cargo: 0, potions: 0, carriedRelics: 0,
     bankedRelics: 0, carriedSalvage: 0, presence: 0, actionCooldown: 0, currentAction: null, actionDuration: 0, actionRemainingSeconds: 0,
-    guardSeconds: 0, block: 0, stamina: 5, staminaRecoverySeconds: 0, bloodRage: 0, rageDrainSeconds: 0, rageDecaySeconds: 0, maneuver: null,
+    guardSeconds: 0, block: 0, stamina: 5, staminaRecoverySeconds: 0, bloodRage: 0, rageDrainSeconds: 0, rageDecaySeconds: 0, maneuver: null, sitting: false,
     attackSequence: 0, selectedThreat: "scout",
     report: "Visit Mara for potions, then take the north gate. Gather coolant crystals and return alive.",
     world: { threats: newThreats(), resourceRemaining: 12, resourceRespawns: [], ritualCalled: false },
@@ -274,6 +274,14 @@ class Adventure implements AdventureGame {
     }
     const refresh = () => {
       refreshWorld(context.world, context.now());
+      const guardian = context.world.threats.find(t => t.id === "ritual-guardian");
+      if (guardian?.active && guardian.health === definition(guardian.id).health && !guardian.aggro &&
+        guardian.targetPlayerId === null && guardian.combatants.length === 0 && guardian.contributors.length === 0 &&
+        (guardian.phase === "dormant" || guardian.phase === "returning")) {
+        // Older shared saves kept abandoned summons alive after their last fighter left.
+        Object.assign(guardian, { ...newThreat(definition(guardian.id)), rng: guardian.rng });
+        context.world.ritualCalled = false;
+      }
       for (const { game } of characters.values()) game.closeMissingLoot();
     };
     refresh();
@@ -453,7 +461,7 @@ class Adventure implements AdventureGame {
         moving: this.moving, backpedaling: this.backpedaling, attackSequence: s.attackSequence,
         actionCooldown: s.actionCooldown, currentAction: s.currentAction, actionDuration: s.actionDuration, guardSeconds: s.guardSeconds,
         block: s.block, stamina: s.stamina, maximumStamina: COMBAT_RULES.stamina.maximum, staminaRecoverySeconds: s.staminaRecoverySeconds,
-        bloodRage: s.bloodRage, rageDrainSeconds: s.rageDrainSeconds, rageDecaySeconds: s.rageDecaySeconds, inCombat: this.inCombat(), maneuver: s.maneuver?.kind ?? "none",
+        bloodRage: s.bloodRage, rageDrainSeconds: s.rageDrainSeconds, rageDecaySeconds: s.rageDecaySeconds, inCombat: this.inCombat(), sitting: s.sitting, maneuver: s.maneuver?.kind ?? "none",
         maneuverSeconds: s.maneuver?.remainingSeconds ?? 0, facing: { ...(s.maneuver?.facing ?? this.cameraForward) },
       },
       threats: s.world.threats.map((t): ThreatView => {
@@ -468,6 +476,7 @@ class Adventure implements AdventureGame {
           attackOrigin: { ...(t.wolf && t.phase === "action" && t.abilityIndex === 1 ? t.wolf.attackOrigin : t.position), y: 0 },
           block: t.head?.block ?? t.shield, blockSeconds: t.head?.blockSeconds ?? t.shieldSeconds, volley: t.head?.volley ?? 0, fireballs: t.head?.fireballs.map(p => ({ ...p, origin: { ...p.origin } })) ?? [],
           rootedSeconds: this.rootedSeconds(t), canStrike: this.canUseAttack(t, "strike"), canDisengage: this.canUseAttack(t, "disengage"), cast: this.castView(t),
+          inRangeActions: (["strike", "disengage", "jab", "shove", "finish"] as const).filter(action => this.attackInRange(t, action)),
           selected: t.id === s.selectedThreat, phaseDuration: this.phaseDuration(t), windowAction: t.aggro && t.windowCycle === s.combat.clock.cycle && t.joinCycle <= s.combat.clock.cycle ? { ability: this.ability(t), offsetSeconds: t.specialOffset, status: t.phase === "recovery" || t.phase === "approach" ? "resolved" : t.phase === "action" ? "active" : "pending" } : null, forecast: t.aggro && t.windowCycle === s.combat.clock.cycle ? [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialOffset - s.combat.clock.elapsedSeconds), status: t.phase === "recovery" || t.phase === "approach" ? "active" : "pending" }] : [],
           preparation: d.preparation,
           currentActivity: this.currentActivity(t), currentAbility: this.ability(t),
@@ -585,6 +594,10 @@ class Adventure implements AdventureGame {
     if (length > EPSILON) this.cameraForward = point(x / length, z / length);
   }
   setMouseForward(active: boolean): void { if (!this.instancePaused() && !this.executionLocked()) this.mouseForward = active; }
+  sit(): void {
+    if (this.instancePaused() || this.state.phase === "lost" || this.inCombat()) return;
+    this.state.sitting = true;
+  }
   selectTarget(id: string): void {
     definition(id);
     this.state.selectedThreat = id;
@@ -695,6 +708,7 @@ class Adventure implements AdventureGame {
     if (c.queued.length >= COMBAT_RULES.window.maximumActions) { this.report("All three slots are filled.", "combat"); return; }
     const target = ["strike", "disengage", "jab", "shove", "finish"].includes(action) ? this.state.world.threats.find(t => t.id === this.state.selectedThreat)! : null;
     if (target) {
+      this.state.sitting = false;
       if (!target.aggro) this.engage(target);
       if (!target.combatants.includes(this.playerId ?? "solo")) target.combatants.push(this.playerId ?? "solo");
       if (c.clock.phase === "idle") this.beginPlanning();
@@ -1152,6 +1166,7 @@ class Adventure implements AdventureGame {
     }
   }
   private move(dt: number): void {
+    if (this.mouseForward || this.held.has("forward") || this.held.has("backward") || this.held.has("left") || this.held.has("right") || this.held.has("jump")) this.state.sitting = false;
     const result = moveLocomotion(this.state, { forward: this.mouseForward ? 1 : Number(this.held.has("forward")) - Number(this.held.has("backward")),
       strafe: Number(this.held.has("right")) - Number(this.held.has("left")), cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt);
     this.moving = result.moving; this.backpedaling = result.backpedaling;
@@ -1164,6 +1179,7 @@ class Adventure implements AdventureGame {
       if (this.movementSequence !== frame.sequence) { this.movementSequence = frame.sequence; this.movementElapsed = 0; }
       const elapsed = Math.min(remaining, frame.seconds - this.movementElapsed);
       if (!blocked) {
+        if (Math.abs(frame.input.forward) > EPSILON || Math.abs(frame.input.strafe) > EPSILON || frame.input.jump) this.state.sitting = false;
         this.setCameraForward(frame.input.cameraX, frame.input.cameraZ);
         const result = moveLocomotion(this.state, { ...frame.input, jump: frame.input.jump && this.movementElapsed === 0 }, elapsed);
         this.moving = result.moving; this.backpedaling = result.backpedaling;
@@ -1354,6 +1370,7 @@ class Adventure implements AdventureGame {
     return s.phase === "expedition" && s.health > 0 && s.position.z > 2 && distance(s.position, d.position) <= d.leash;
   }
   private engage(t: ThreatState): void {
+    this.state.sitting = false;
     t.aggro = true; t.lastActionHit = false; t.targetPlayerId = this.playerId;
     if (this.playerId !== null && !t.combatants.includes(this.playerId)) t.combatants.push(this.playerId);
     const clock = this.state.combat.clock;
@@ -1457,6 +1474,11 @@ class Adventure implements AdventureGame {
     }
   }
   private releaseThreat(t: ThreatState): void {
+    if (t.id === "ritual-guardian" && this.shared?.mode === "shared") {
+      Object.assign(t, { ...newThreat(definition(t.id)), rng: t.rng });
+      this.state.world.ritualCalled = false;
+      return;
+    }
     if (t.health < definition(t.id).health) this.report(`${definition(t.id).name} breaks contact and recovers while returning home.`, "combat");
     t.comboOpened = false; t.staggered = false; t.swarm = null;
     t.health = definition(t.id).health;
@@ -1858,6 +1880,7 @@ function readSave(serialized: string, now = Date.now()): State {
     rageDrainSeconds: version >= 7 ? number(s.rageDrainSeconds, 0, 5) : 0,
     rageDecaySeconds: version >= 7 ? number(s.rageDecaySeconds, 0, 2) : 0,
     maneuver: realtime ? readManeuver(s.maneuver) : null,
+    sitting: s.sitting === undefined ? false : boolean(s.sitting),
     attackSequence: number(s.attackSequence, 0, Number.MAX_SAFE_INTEGER, true),
     selectedThreat: choice(s.selectedThreat, DEFINITIONS.map(t => t.id)), report: text(s.report),
   };

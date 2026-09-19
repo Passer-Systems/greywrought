@@ -8,20 +8,42 @@ const scout = { ...base.threats.find(threat => threat.id === "scout")!, position
 const snapshot = { ...base, player: { ...base.player, position: origin }, selectedThreat: scout.id, threats: [scout] };
 
 test("attack distance follows class and move, independent of readiness", () => {
-  expect(playerRange(snapshot, "strike").state).toBe("out");
-  for (const archetype of ["mage", "hunter"] as const) expect(playerRange({ ...snapshot, player: { ...snapshot.player, archetype } }, "strike").state).toBe("in");
-  const close = { ...snapshot, threats: [{ ...scout, position: { x: 1.5, y: 0, z: 0 } }] };
+  for (const archetype of ["warrior", "mage", "hunter"] as const) {
+    const saved = JSON.parse(createAdventure({ archetype }).save());
+    Object.assign(saved.state, { phase: "expedition", position: { x: -3, y: 0, z: 2 } });
+    const ranged = createAdventure({ save: JSON.stringify(saved) }).snapshot;
+    expect(playerRange(ranged, "strike").state).toBe(archetype === "warrior" ? "out" : "in");
+  }
+  const close = { ...snapshot, threats: [{ ...scout, position: { x: 1.5, y: 0, z: 0 }, inRangeActions: ["strike", "disengage", "jab"] as const }] };
   expect(playerRange(close, "strike").state).toBe("in");
   expect(playerRange(close, "disengage").state).toBe("in");
   expect(playerRange(close, "jab").state).toBe("in");
 });
 
 test("explicit target identity wins over the selected enemy; self moves have no range cue", () => {
-  const next = { ...snapshot, threats: [...snapshot.threats, { ...scout, id: "near", position: origin }], selectedThreat: "near" };
+  const next = { ...snapshot, threats: [...snapshot.threats, { ...scout, id: "near", position: origin, inRangeActions: ["strike"] as const }], selectedThreat: "near" };
   expect(playerRange(next, "strike").state).toBe("in");
   expect(playerRange(next, "strike", scout.id).state).toBe("out");
   for (const action of ["brace", "guard", "bloodRage", "drinkPotion"] as const) expect(playerRange(next, action).state).toBe("none");
   expect(enemyRange(next, scout, { ...scout.currentAbility, id: "ember-ward", range: 10, damage: 0 }).state).toBe("none");
+});
+
+test("targeted tools use their own reach and respect the game's cover check", () => {
+  const saved = JSON.parse(createAdventure({ archetype: "mage" }).save());
+  Object.assign(saved.state, { phase: "expedition", position: { x: -3, y: 0, z: 7 } });
+  const near = createAdventure({ save: JSON.stringify(saved) }).snapshot;
+  expect(playerRange(near, "shove").state).toBe("in");
+  expect(playerRange(near, "finish").state).toBe("in");
+  saved.state.position.z = 6;
+  const farther = createAdventure({ save: JSON.stringify(saved) }).snapshot;
+  expect(playerRange(farther, "strike").state).toBe("in");
+  expect(playerRange(farther, "shove").state).toBe("out");
+  expect(playerRange(farther, "finish").state).toBe("out");
+  saved.state.position = { x: 4, y: 0, z: 17 };
+  saved.state.threats.find((t: { id: string }) => t.id === "scout").position = { x: 4, y: 0, z: 25 };
+  const blocked = createAdventure({ save: JSON.stringify(saved) }).snapshot;
+  expect(playerRange(blocked, "strike").state).toBe("out");
+  expect(playerRange(blocked, "strike").text).toContain("cover");
 });
 
 test("Maul includes leap and landing radius before launch, then uses its locked area", () => {

@@ -110,6 +110,7 @@ export interface ThreatView {
   readonly rootedSeconds: number;
   readonly canStrike: boolean;
   readonly canDisengage: boolean;
+  readonly inRangeActions: readonly CombatAction[];
   readonly cast: { readonly ability: ThreatAbilityView; readonly remainingSeconds: number; readonly duration: number; readonly status: "casting" | "resolving" } | null;
   readonly windowAction: { readonly ability: ThreatAbilityView; readonly offsetSeconds: number; readonly status: "pending" | "active" | "resolved" } | null;
   readonly forecast: readonly ThreatForecastEntry[];
@@ -157,7 +158,7 @@ export interface AdventureSnapshot {
     readonly guardSeconds: number;
     readonly block: number;
     readonly stamina: number; readonly maximumStamina: number; readonly staminaRecoverySeconds: number;
-    readonly bloodRage: number; readonly rageDrainSeconds: number; readonly rageDecaySeconds: number; readonly inCombat: boolean;
+    readonly bloodRage: number; readonly rageDrainSeconds: number; readonly rageDecaySeconds: number; readonly inCombat: boolean; readonly sitting: boolean;
     readonly maneuver: "none" | "lunge" | "disengage" | "bait";
     readonly maneuverSeconds: number;
     readonly facing: Position;
@@ -197,6 +198,7 @@ export interface AdventureGame {
   advance(seconds: number): void;
   setAction(action: AdventureAction, pressed: boolean): void;
   setMouseForward(active: boolean): void;
+  sit(): void;
   setCameraForward(x: number, z: number): void;
   selectTarget(id: string): void;
   queueBait(destination: Position): boolean;
