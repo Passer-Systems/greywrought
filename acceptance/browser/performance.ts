@@ -13,6 +13,12 @@ const results: unknown[] = [];
 try {
   for (let i = 0; i < 100; i++) { try { if ((await fetch(Bun.env.GREYWROUGHT_GAME_URL)).ok) break; } catch {} await Bun.sleep(100); }
   page = await openBrowser(label, { beforeNavigate: async call => {
+    if (Bun.env.GREYWROUGHT_PERFORMANCE_WIDTH && Bun.env.GREYWROUGHT_PERFORMANCE_HEIGHT) {
+      await call('Emulation.setDeviceMetricsOverride', {
+        width: Number(Bun.env.GREYWROUGHT_PERFORMANCE_WIDTH), height: Number(Bun.env.GREYWROUGHT_PERFORMANCE_HEIGHT),
+        deviceScaleFactor: 1, mobile: false,
+      });
+    }
     await call('Page.addScriptToEvaluateOnNewDocument', { source: `
       window.frameSamples=[]; window.measuring=false; window.lastFrame=0;
       const nativeFrame=requestAnimationFrame;
@@ -26,16 +32,38 @@ try {
   } });
   await page.enter();
   await page.waitFor('document.body.dataset.creatureRigState === "ready"');
+  async function resumeSharedWorld() {
+    const browser = page!;
+    await browser.waitFor('document.body.dataset.gameOnline === "true"');
+    if ((await browser.read()).encounterMode === 'paused') {
+      await browser.click('#pause-resume');
+      await browser.waitFor('document.body.dataset.encounterMode === "private"');
+    }
+    if ((await browser.read()).encounterMode === 'private') {
+      if (await browser.evaluate('!document.getElementById("pause-panel").hidden')) await browser.press('Escape');
+      await browser.click('#encounter-rejoin');
+    }
+    await browser.waitFor('document.body.dataset.encounterMode === "shared" && document.body.dataset.gamePaused === "false"');
+  }
+  // Cold shader compilation can miss a heartbeat; measure the resumed game, never a paused menu.
+  await resumeSharedWorld();
   await page.evaluate(`(async()=>{
     const {Scene}=await import('three');
+    let rendererName;
     Scene.prototype.onAfterRender=function(renderer){
       if(renderer.domElement.id!=='world-canvas')return;
-      const gl=renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info');
+      // Driver queries can synchronize GPU work; sample identity once, outside the measured loop.
+      if(rendererName===undefined){
+        const gl=renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info');
+        rendererName=debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
+      }
       window.rendererDetails={...renderer.info.render,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,
         width:renderer.domElement.width,height:renderer.domElement.height,pixelRatio:renderer.getPixelRatio(),
-        renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER)};
+        renderer:rendererName};
     };
   })()`);
+  await page.waitFor('window.rendererDetails !== undefined');
+  await resumeSharedWorld();
   await page.call('Profiler.enable');
   await page.call('Performance.enable');
   await Bun.sleep(3000);

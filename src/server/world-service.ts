@@ -149,11 +149,14 @@ export async function createWorldService(options: WorldServiceOptions) {
   function error(socket: ServerWebSocket<WorldSocketData>, text: string): void { send(socket, { type: 'error', text }); }
   function broadcast(): void {
     const serverWallTimeMillis = Date.now();
+    // Scoped to this synchronous broadcast: never reuse stale or cross-instance views.
+    const instancePlayers = new Map<string, ReturnType<typeof world.players>>();
     for (const [id, socket] of online) {
       const player = world.getPlayer(id);
       if (!player) continue;
       const session = world.session(id);
-      const players = world.players(session.id);
+      let players = instancePlayers.get(session.id);
+      if (!players) { players = world.players(session.id); instancePlayers.set(session.id, players); }
       send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat: session.mode === 'shared' ? chat : (privateChat.get(session.id) ?? []), serverTime, serverWallTimeMillis, movement: player.movementCheckpoint!, session });
     }
   }
