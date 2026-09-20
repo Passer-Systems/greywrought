@@ -22,7 +22,7 @@ export interface CombatFeedback {
 }
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
-  | "bait" | "shove" | "finish" | "strike" | "disengage" | "brace" | "bloodRage" | "jab" | "guard" | "gather" | "ritual" | "interact"
+  | "bait" | "shove" | "finish" | "strike" | "disengage" | "brace" | "bloodRage" | "jab" | "guard" | "gather" | "cancelGather" | "ritual" | "interact"
   | "buyPotion" | "drinkPotion" | "rest" | "target" | "openTrade" | "closeTrade" | "acceptTrade" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn" | "closeBank";
 export interface TradeView {
   readonly kind: "supplies" | "potions"; readonly quantity: number; readonly receivedQuantity: number;

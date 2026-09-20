@@ -50,7 +50,7 @@ describe("private paused encounters", () => {
       world.advance(Math.hypot(x - position.x, z - position.z) / 4.5); bob.setAction("forward", false);
     };
     walkBob(-2, 32);
-    tap(bob, "gather"); world.advance(2); tap(bob, "gather");
+    tap(bob, "gather"); world.advance(2); tap(bob, "gather"); world.advance(2);
     expect(bob.snapshot.cargo).toBe(6);
     walkBob(2, 58.5);
     tap(bob, "ritual"); world.advance(1);

@@ -120,9 +120,9 @@ describe("two-minute world regrowth", () => {
     dead(saved.world.threats[0]); dead(saved.world.threats[2]); dead(saved.world.threats[3]);
     const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => time });
     const player = world.join("a", "Ada", "mage");
-    tap(player, "gather"); expect(player.snapshot.resourceRemaining).toBe(9);
+    tap(player, "gather"); world.advance(2); expect(player.snapshot.resourceRemaining).toBe(9);
     time += 2000; world.advance(2);
-    tap(player, "gather"); expect(player.snapshot.resourceRemaining).toBe(6);
+    tap(player, "gather"); world.advance(2); expect(player.snapshot.resourceRemaining).toBe(6);
     world.leave("a");
     const restored = createSharedAdventure({ save: world.save(), now: () => time });
     time = 169_999; restored.advance(0);

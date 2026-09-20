@@ -11,7 +11,7 @@ import type { LocalCharacter } from '../host/character-profile.js';
 
 const ACTIONS = [
   'forward', 'backward', 'left', 'right', 'jump', 'strike', 'disengage', 'brace',
-  'bait', 'shove', 'finish', 'bloodRage', 'jab', 'guard', 'gather', 'ritual', 'interact', 'buyPotion',
+  'bait', 'shove', 'finish', 'bloodRage', 'jab', 'guard', 'gather', 'cancelGather', 'ritual', 'interact', 'buyPotion',
   'drinkPotion', 'rest', 'target', 'openTrade', 'closeTrade', 'acceptTrade',
   'closeShop', 'takeLoot', 'closeLoot', 'closeInn', 'closeBank',
 ] as const satisfies readonly AdventureAction[];

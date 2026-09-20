@@ -103,7 +103,7 @@ interface State {
   health: number; supplies: number; cargo: number;
   bank: { supplies: number; potions: number };
   potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
-  actionCooldown: number; currentAction: AdventureAction | "equip" | null; actionDuration: number; actionRemainingSeconds: number; guardSeconds: number;
+  actionCooldown: number; currentAction: AdventureAction | "equip" | null; actionDuration: number; actionRemainingSeconds: number; gatherPending: boolean; guardSeconds: number;
   block: number; stamina: number; staminaRecoverySeconds: number; bloodRage: number; rageDrainSeconds: number; rageDecaySeconds: number; maneuver: Maneuver | null; sitting: boolean;
   attackSequence: number; selectedThreat: string; report: string;
 }
@@ -209,7 +209,7 @@ function initialState(archetype: CharacterArchetype): State {
   return {
     chapter: newChapter(), combat: newCombat(), phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, health: 100,
     bank: { supplies: 0, potions: 0 }, supplies: 15, cargo: 0, potions: 0, carriedRelics: 0,
-    bankedRelics: 0, carriedSalvage: 0, presence: 0, actionCooldown: 0, currentAction: null, actionDuration: 0, actionRemainingSeconds: 0,
+    bankedRelics: 0, carriedSalvage: 0, presence: 0, actionCooldown: 0, currentAction: null, actionDuration: 0, actionRemainingSeconds: 0, gatherPending: false,
     guardSeconds: 0, block: 0, stamina: 5, staminaRecoverySeconds: 0, bloodRage: 0, rageDrainSeconds: 0, rageDecaySeconds: 0, maneuver: null, sitting: false,
     attackSequence: 0, selectedThreat: "scout",
     report: "Visit Mara for potions, then take the north gate. Gather coolant crystals and return alive.",
@@ -309,6 +309,7 @@ class Adventure implements AdventureGame {
     };
     refresh();
     const clearInputs = (game: Adventure) => {
+      game.cancelGather();
       game.held.clear(); game.mouseForward = false; game.moving = false; game.backpedaling = false;
       game.enableNetworkMovement(false); game.shopOpen = false; game.innOpen = false; game.bankOpen = false; game.trade = null; game.lootOpenId = null;
     };
@@ -632,15 +633,17 @@ class Adventure implements AdventureGame {
     const length = Math.hypot(x, z);
     if (length > EPSILON) this.cameraForward = point(x / length, z / length);
   }
-  setMouseForward(active: boolean): void { if (!this.instancePaused() && !this.executionLocked()) this.mouseForward = active; }
+  setMouseForward(active: boolean): void { if (!this.instancePaused() && !this.executionLocked()) { if (active) this.cancelGather(); this.mouseForward = active; } }
   sit(): void {
     if (this.instancePaused() || this.state.phase === "lost" || this.inCombat()) return;
     this.activeEmote = null;
+    this.cancelGather();
     this.state.sitting = true;
   }
   emote(name: string): void {
     if (this.instancePaused() || this.state.phase === "lost" || this.inCombat()) return;
     if (name === "stand") { this.state.sitting = false; this.activeEmote = null; return; }
+    this.cancelGather();
     const definition = findEmote(name);
     if (!definition) return;
     this.state.sitting = false;
@@ -664,6 +667,7 @@ class Adventure implements AdventureGame {
     if (clock.phase !== "preparation") return;
     clock.phase = "active"; clock.elapsedSeconds = 0; clock.pendingSeconds = 0;
     for (const player of this.combatants()) {
+      player.cancelGather();
       player.held.clear(); player.mouseForward = false;
       player.state.actionCooldown = 0; player.state.currentAction = null;
       if (player.movementFrames) player.consumeMovement(2, true);
@@ -890,6 +894,7 @@ class Adventure implements AdventureGame {
     if (this.executionLocked() && ["forward", "backward", "left", "right", "jump"].includes(action)) return;
     if (this.held.has(action)) return;
     this.held.add(action);
+    if (["forward", "backward", "left", "right", "jump", "strike", "bait", "shove", "finish", "disengage", "brace", "bloodRage", "jab", "guard", "drinkPotion", "ritual", "cancelGather"].includes(action)) this.cancelGather();
     this.act(action);
   }
 
@@ -1173,7 +1178,23 @@ class Adventure implements AdventureGame {
     if (s.phase !== "expedition" || !this.ready()) return;
     if (!this.near("frost-cores", 3)) { this.report("Approach the coolant crystals in the first clearing to gather."); return; }
     if (s.world.resourceRemaining < 3) { this.report("The coolant crystals are regrowing. Return soon to gather more."); return; }
-    s.world.resourceRemaining -= 3; s.cargo += 3; s.presence += 4; this.recover("gather", 2);
+    this.recover("gather", 2); s.gatherPending = true;
+    this.report("Gathering coolant crystals. Move or press Esc to cancel.");
+  }
+  private cancelGather(): void {
+    const s = this.state;
+    if (!s.gatherPending) return;
+    s.gatherPending = false; s.currentAction = null;
+    s.actionCooldown = 0; s.actionRemainingSeconds = 0; s.actionDuration = 0;
+    this.report("Gathering cancelled.");
+  }
+  private completeGather(): void {
+    const s = this.state;
+    if (!s.gatherPending) return;
+    s.gatherPending = false;
+    if (this.inPrivateInstance() || s.phase !== "expedition" || s.health <= 0 || !this.near("frost-cores", 3)) return;
+    if (s.world.resourceRemaining < 3) { this.report("The coolant crystals are regrowing. Return soon to gather more."); return; }
+    s.world.resourceRemaining -= 3; s.cargo += 3; s.presence += 4;
     // Each harvest returns its three cores two minutes later, independently of later harvests.
     s.world.resourceRespawns.push({ at: this.now() + WORLD_RESPAWN_MILLISECONDS, quantity: 3 });
     this.report("You gather Coolant crystals × 3. Return alive to keep them.");
@@ -1222,7 +1243,7 @@ class Adventure implements AdventureGame {
     }
   }
   private move(dt: number): void {
-    if (this.mouseForward || this.held.has("forward") || this.held.has("backward") || this.held.has("left") || this.held.has("right") || this.held.has("jump")) { this.state.sitting = false; this.activeEmote = null; }
+    if (this.mouseForward || this.held.has("forward") || this.held.has("backward") || this.held.has("left") || this.held.has("right") || this.held.has("jump")) { this.cancelGather(); this.state.sitting = false; this.activeEmote = null; }
     const result = moveLocomotion(this.state, { forward: this.mouseForward ? 1 : Number(this.held.has("forward")) - Number(this.held.has("backward")),
       strafe: Number(this.held.has("right")) - Number(this.held.has("left")), cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt);
     this.moving = result.moving; this.backpedaling = result.backpedaling;
@@ -1235,7 +1256,7 @@ class Adventure implements AdventureGame {
       if (this.movementSequence !== frame.sequence) { this.movementSequence = frame.sequence; this.movementElapsed = 0; }
       const elapsed = Math.min(remaining, frame.seconds - this.movementElapsed);
       if (!blocked) {
-        if (Math.abs(frame.input.forward) > EPSILON || Math.abs(frame.input.strafe) > EPSILON || frame.input.jump) { this.state.sitting = false; this.activeEmote = null; }
+        if (Math.abs(frame.input.forward) > EPSILON || Math.abs(frame.input.strafe) > EPSILON || frame.input.jump) { this.cancelGather(); this.state.sitting = false; this.activeEmote = null; }
         this.setCameraForward(frame.input.cameraX, frame.input.cameraZ);
         const result = moveLocomotion(this.state, { ...frame.input, jump: frame.input.jump && this.movementElapsed === 0 }, elapsed);
         this.moving = result.moving; this.backpedaling = result.backpedaling;
@@ -1336,14 +1357,24 @@ class Adventure implements AdventureGame {
       this.report(`You return to ${YARD.settlement}. Salvage and spare crystals are secured.${reservedCrystals ? " Bring your coolant crystals to Mara." : ""}${reservedRoll ? " Bring the Last Shift Roll to Rowan." : ""} Visit the inn before your next trip.`);
     }
     if (s.phase === "expedition") s.presence += (this.moving ? 0.5 : 0.1) * dt;
-    if (this.inCombat() && s.combat.clock.phase === "preparation") return;
+    if (this.inCombat() && s.combat.clock.phase === "preparation") {
+      if (s.currentAction === "gather") this.advanceAction(dt);
+      return;
+    }
     s.guardSeconds = Math.max(0, s.guardSeconds - dt);
     if (s.guardSeconds <= EPSILON) { s.guardSeconds = 0; s.block = 0; }
+    this.advanceAction(dt);
+    if (s.health > 0) this.advanceResources(dt);
+  }
+  private advanceAction(dt: number): void {
+    const s = this.state;
     s.actionCooldown = Math.max(0, s.actionCooldown - dt);
     if (s.actionCooldown <= EPSILON) s.actionCooldown = 0;
     s.actionRemainingSeconds = Math.max(0, s.actionRemainingSeconds - dt);
-    if (s.actionRemainingSeconds <= EPSILON) { s.currentAction = null; s.actionDuration = 0; }
-    if (s.health > 0) this.advanceResources(dt);
+    if (s.actionRemainingSeconds <= EPSILON) {
+      if (s.currentAction === "gather") this.completeGather();
+      s.currentAction = null; s.actionDuration = 0;
+    }
   }
   private stepShared(dt: number): void {
     const players = this.participants();
@@ -1828,6 +1859,7 @@ class Adventure implements AdventureGame {
     this.feedback(null, "damage", taken);
     this.report(`${source} hits you for ${taken} damage${blocked > 0 ? ` (${blocked} blocked by Brace)` : ""}.`, "combat");
     if (s.health > 0) return;
+    this.cancelGather();
     s.maneuver = null; s.block = 0; s.guardSeconds = 0;
     s.phase = "lost"; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.supplies = 0; s.bankedRelics = 0;
     if (!this.shared) for (const enemy of s.world.threats) if (enemy.aggro) this.releaseThreat(enemy);
@@ -1941,6 +1973,8 @@ function readSave(serialized: string, now = Date.now()): State {
     currentAction: realtime && s.currentAction !== null ? choice(s.currentAction, ["bait", "shove", "finish", "strike", "disengage", "brace", "bloodRage", "jab", "guard", "drinkPotion", "gather", "ritual", "equip"] as const) : null,
     actionDuration: realtime ? number(s.actionDuration, 0, 2) : 0,
     actionRemainingSeconds: realtime ? number(s.actionRemainingSeconds, 0, 2) : 0,
+    // Older saves already awarded crystals at cast start.
+    gatherPending: realtime && s.currentAction === "gather" && s.gatherPending !== undefined ? boolean(s.gatherPending) : false,
     guardSeconds: Math.min(number(s.guardSeconds, 0, 5), COMBAT_RULES.brace.duration),
     block: version >= 4 ? number(s.block, 0, 28) : number(s.guardSeconds, 0, 3) > 0 ? 5 : 0,
     stamina: version >= 8 ? number(s.stamina, 0, 5, true) : 5,

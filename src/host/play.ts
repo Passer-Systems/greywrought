@@ -1039,6 +1039,7 @@ listen(window, "keydown", (event) => {
     if (!event.repeat) toggleBags();
     return;
   }
+  if (event.code === "Escape" && running?.game.snapshot.player.currentAction === "gather") { event.preventDefault(); if (!event.repeat) pulse("cancelGather"); return; }
   if (event.code === "Escape" && baitAiming) { event.preventDefault(); setBaitAiming(false); return; }
   if (event.code === "Escape" && questLog.isOpen()) { event.preventDefault(); closeQuestLog(); return; }
   if (event.code === "Escape" && lorebook.isOpen) { event.preventDefault(); closeLorebook(); return; }

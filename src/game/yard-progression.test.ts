@@ -13,7 +13,7 @@ test("Cold Hands requires nearby acceptance, gathered cargo, physical return and
   game.quest("cold-hands","accept"); expect(game.snapshot.quests[0]!.status).toBe("available");
   game=at(game,3.4,-7.5,"town"); game.quest("cold-hands","accept");
   game.quest("roll-call","accept"); expect(game.snapshot.quests[1]!.status).toBe("locked");
-  game=at(game,-2,32,"expedition"); tap(game,"gather");
+  game=at(game,-2,32,"expedition"); tap(game,"gather"); game.advance(2);
   expect(game.snapshot.cargo).toBe(3); expect(game.snapshot.quests[0]!.status).toBe("ready");
   game.quest("cold-hands","turnIn"); expect(game.snapshot.progression.level).toBe(1);
   game=at(game,0,0.02,"expedition");game.setCameraForward(0,-1);game.setAction("forward",true);game.advance(.05);game.setAction("forward",false);
