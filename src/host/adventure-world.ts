@@ -9,6 +9,7 @@ import {
 } from "three";
 import type { AdventureSnapshot, CombatView, CombatForecast, Position } from "../game/adventure-types.js";
 import { actor, prop, type ForestActor } from "./frostwood-assets.js";
+import { buildWorldSigns } from "./world-signs.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
 import { conformToTerrain } from "./terrain-geometry.js";
 import { terrainCameraLift } from "./terrain-camera.js";
@@ -417,13 +418,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const root = new Group(); root.position.set(x, terrainHeight(x, z) + 4 + index * .6, z); root.add(mounted.root); scene.add(root);
     mounted.play("Dance"); birds.push({ root, actor: mounted, phase: index * 2.1, centerX: x, centerZ: z });
   }));
-  const natureReady = buildFrostwood(terrain, thicket, innPosition, (root, name) => {
-    const place = name === "House_1" ? { id: "town", name: root.position.x === -14 ? "Nine-Bell Bank" : YARD.settlement }
-      : name === "Inn" ? { id: "inn", name: YARD.inn }
-      : name === "Fence" ? { id: `gate-${root.id}`, name: YARD.gate } : null;
-    if (place) hoverTargets.push({ root, pick: { kind: "place", id: place.id }, name: place.name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
-    return place !== null;
-  }).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
+  const signsReady = buildWorldSigns(terrain, (root, id, name) => {
+    hoverTargets.push({ root, pick: { kind: "place", id }, name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
+  });
+  const natureReady = buildFrostwood(terrain, thicket, innPosition).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
   let updateCave = (_position: Position, _camera: Vector3, _aimHeight?: number) => {};
   const caveReady = buildHollowdeep(terrain).then(update => { updateCave = update; });
   const telegraphs = createGroundTelegraphs(scene, canvas);
@@ -437,7 +435,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   moveOutcome.setAttribute("role", "status");
   Object.assign(moveOutcome.style, { position: "absolute", zIndex: "8", pointerEvents: "none", padding: "8px 10px", maxWidth: "280px", whiteSpace: "pre-line", background: "#112126ef", color: "#fff0cc", border: "1px solid #a9c8b4", borderRadius: "3px", font: "12px/1.45 system-ui" });
   host.append(moveOutcome);
-  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, birdsReady, coresReady, natureReady, caveReady, chestReady]).then(()=>{ lighting.collectLamps(); });
+  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, birdsReady, coresReady, signsReady, natureReady, caveReady, chestReady]).then(()=>{ lighting.collectLamps(); });
   const raycaster = new Raycaster();
   const point = new Vector2();
   const groundSurfaces: Object3D[] = [];

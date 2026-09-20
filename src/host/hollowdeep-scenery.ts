@@ -1,4 +1,4 @@
-import { Box3, CanvasTexture, Group, Mesh, MeshStandardMaterial, PointLight, Ray, RepeatWrapping, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, type Object3D } from 'three';
+import { Box3, CanvasTexture, Group, Mesh, MeshStandardMaterial, PointLight, Ray, RepeatWrapping, SRGBColorSpace, Vector3, type Object3D } from 'three';
 import { CAVE_BARRIERS, terrainHeight } from '../game/cave-layout.js';
 import type { Position } from '../game/adventure-types.js';
 import { prop } from './frostwood-assets.js';
@@ -68,16 +68,6 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
     light.position.set(x!,terrainHeight(x!,z!)+1.3,z!); terrain.add(light);
   }
   place('Cart',79,-56,1.7); place('Crate',77,-56,1); place('Barrel',80,-54,1.2);
-  function sign(text: string, x:number, z:number, color:string) {
-    const canvas=document.createElement('canvas'); canvas.width=768; canvas.height=96;
-    const ctx=canvas.getContext('2d')!; ctx.fillStyle='#171f25ee';ctx.fillRect(0,0,768,96);
-    ctx.fillStyle=color;ctx.font='bold 36px sans-serif';ctx.textAlign='center';ctx.fillText(text,384,61);
-    const map=new CanvasTexture(canvas);map.colorSpace=SRGBColorSpace;
-    const label=new Sprite(new SpriteMaterial({map,depthWrite:false}));
-    label.position.set(x,terrainHeight(x,z)+3.3,z);label.scale.set(5.2,.65,1);terrain.add(label);
-  }
-  sign('HOLLOWDEEP CAVE · DANGER',26,-41,'#ffca87');
-  sign('← EXIT TO THE MEADOW',36,-50,'#b9e8d0');
   await Promise.all(jobs);
   for (const root of [walls, roof]) {
     root.updateWorldMatrix(true, true);

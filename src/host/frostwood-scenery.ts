@@ -1,12 +1,12 @@
 import { terrainHeight } from '../game/cave-layout.js';
 import { LAKE_CENTER, LAKE_RADIUS, LAKE_WATER_LEVEL } from '../game/world-elevation.js';
 import { conformToTerrain } from './terrain-geometry.js';
-import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, CircleGeometry, RingGeometry, MeshStandardMaterial, MeshBasicMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Sprite, SpriteMaterial, Color } from "three";
+import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, CircleGeometry, RingGeometry, MeshStandardMaterial, MeshBasicMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Color } from "three";
 import type { Position } from "../game/adventure-types.js";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
 
-export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onPlace?: (root: Group, name: string) => boolean): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number) => void> {
+export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number) => void> {
   const jobs: Promise<void>[] = [];
   const coolingMaterials: MeshStandardMaterial[] = [];
   const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
@@ -32,14 +32,13 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
         };
         object.material = Array.isArray(object.material) ? object.material.map(coolable) : coolable(object.material);
       });
-      const interactive = onPlace?.(model, name);
       model.updateWorldMatrix(true, true);
       const tree = name.includes('Tree_') || name.startsWith('nature/Pine_');
       if (footprint || tree) {
         const bounds = new Box3().setFromObject(model).expandByScalar(.5);
         occluders.push({ root: model, bounds });
       }
-      if (!interactive && !footprint) model.traverse(object => {
+      if (!footprint) model.traverse(object => {
         if (!(object instanceof Mesh)) return;
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         // Keep transparent sorting and independently changing surfaces intact.
@@ -107,21 +106,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const square=new Mesh(new PlaneGeometry(44,38),new MeshStandardMaterial({map:pavingMap,roughness:1})); square.rotation.x=-Math.PI/2; square.position.set(0,-0.01,-19); terrain.add(square);
   const roadMap=pavingMap.clone(); roadMap.repeat.set(1,7);
   const road=new Mesh(new PlaneGeometry(4.2,52),new MeshStandardMaterial({map:roadMap,color:0xb0b49a,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,-18); terrain.add(road);
-  function sign(text: string, x: number, z: number, y = 3.1, tint = '#e9d5a5') {
-    const board=document.createElement('canvas'); board.width=768; board.height=112;
-    const c=board.getContext('2d')!; c.fillStyle='#322a20'; c.fillRect(0,0,768,112);
-    c.strokeStyle='#b49a65'; c.lineWidth=5; c.strokeRect(6,6,756,100);
-    c.fillStyle=tint; c.font='bold 32px Georgia'; c.textAlign='center'; c.fillText(text,384,68);
-    const texture=new CanvasTexture(board); texture.colorSpace=SRGBColorSpace;
-    const label=new Sprite(new SpriteMaterial({map:texture,depthWrite:false}));
-    label.position.set(x,terrainHeight(x,z)+y,z); label.scale.set(4.2,.61,1); terrain.add(label);
-  }
   for (const building of TOWN_BUILDINGS) {
     place(building.model, building.x, building.z, building.height, building.turn*Math.PI/2, terrain, 'height', 0, [building.width,building.depth]);
-    if (building.sign) {
-      const faceX=building.x-building.turn*(building.width/2+.2), faceZ=building.z+(building.turn===0 ? building.depth/2+.2 : 0);
-      sign(building.sign,faceX,faceZ,3.5,building.sign.includes('APOTHECARY') ? '#bcdfb0' : '#f2d69a');
-    }
   }
   // Market fronts open onto a cross street, with room for the three merchants.
   for (const [x,z,rotation] of [[-15.2,-26.2,-Math.PI/2],[15.2,-26.2,Math.PI/2],[-10,-33,0]]) {
