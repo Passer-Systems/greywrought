@@ -31,6 +31,7 @@ import { createCombatGrid } from "./combat-grid.js";
 import { combatCell } from "../game/combat-grid.js";
 import { updateThreatAnimation, type ThreatAnimationState } from "./threat-animation.js";
 import { terrainHeight } from "../game/cave-layout.js";
+import { isSwimmingPosition } from "../game/world-elevation.js";
 
 interface ThreatRig extends ThreatAnimationState {
   readonly root: Group;
@@ -539,7 +540,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           playerHitRemaining=Math.max(0,playerHitRemaining-delta); playerAttackRemaining=Math.max(0,playerAttackRemaining-delta);
           if(playerHitRemaining===0&&playerAttackRemaining===0) {
             if (!playSocialAnimation(knight, snapshot.player.sitting, snapshot.player.moving ? null : snapshot.player.emote)) {
-              knight.play(!snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle");
+              knight.play(isSwimmingPosition(position.x, position.z) ? (snapshot.player.moving ? "Swim_Fwd_Loop" : "Swim_Idle_Loop") : !snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle");
             }
           }
         }

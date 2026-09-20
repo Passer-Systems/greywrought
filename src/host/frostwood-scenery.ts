@@ -1,6 +1,7 @@
 import { terrainHeight } from '../game/cave-layout.js';
+import { LAKE_CENTER, LAKE_RADIUS, LAKE_WATER_LEVEL } from '../game/world-elevation.js';
 import { conformToTerrain } from './terrain-geometry.js';
-import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Sprite, SpriteMaterial } from "three";
+import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, CircleGeometry, RingGeometry, MeshStandardMaterial, MeshBasicMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Sprite, SpriteMaterial } from "three";
 import type { Position } from "../game/adventure-types.js";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
@@ -281,6 +282,32 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   }
   path(0, -75, 3.4, 102);
   path(14, -46, 28, 3.4);
+  const lakeWater = new Mesh(new CircleGeometry(1, 64), new MeshStandardMaterial({ color: 0x2c9bb0, emissive: 0x073a46, emissiveIntensity: 0.35, transparent: true, opacity: 0.78, roughness: 0.18, metalness: 0.05, depthWrite: false }));
+  const lakeVertices = lakeWater.geometry.getAttribute('position');
+  for (let index = 1; index < lakeVertices.count; index++) {
+    const angle = Math.atan2(lakeVertices.getY(index), lakeVertices.getX(index));
+    lakeVertices.setXY(index, lakeVertices.getX(index) * (1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4)), lakeVertices.getY(index) * (1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4)));
+  }
+  lakeVertices.needsUpdate = true;
+  lakeWater.rotation.x = -Math.PI / 2;
+  lakeWater.position.set(LAKE_CENTER.x, LAKE_WATER_LEVEL, LAKE_CENTER.z);
+  lakeWater.scale.set(LAKE_RADIUS.x, LAKE_RADIUS.z, 1);
+  lakeWater.renderOrder = 1;
+  lakeWater.userData.lakeWater = true;
+  terrain.add(lakeWater);
+  const lakeShore = new Mesh(new RingGeometry(0.96, 1.02, 64), new MeshBasicMaterial({ color: 0x9fc276, transparent: true, opacity: 0.58, side: 2, depthWrite: false }));
+  const shoreVertices = lakeShore.geometry.getAttribute('position');
+  for (let index = 0; index < shoreVertices.count; index++) {
+    const angle = Math.atan2(shoreVertices.getY(index), shoreVertices.getX(index));
+    const factor = 1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4);
+    shoreVertices.setXY(index, shoreVertices.getX(index) * factor, shoreVertices.getY(index) * factor);
+  }
+  shoreVertices.needsUpdate = true;
+  lakeShore.rotation.x = -Math.PI / 2;
+  lakeShore.position.set(LAKE_CENTER.x, LAKE_WATER_LEVEL + 0.012, LAKE_CENTER.z);
+  lakeShore.scale.set(LAKE_RADIUS.x, LAKE_RADIUS.z, 1);
+  lakeShore.renderOrder = 2;
+  terrain.add(lakeShore);
   for (const side of [-1, 1]) for (let i = 0; i < 12; i++) {
     const x = side < 0 ? -66 : 25, z = -29 - i * 8;
     if (side > 0 && z > -53 && z < -39) continue;
@@ -313,6 +340,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     parent.add(instances);
   }
   return (coolingRestored, shiftEnded, player, camera, aimHeight = 1.1) => {
+    lakeWater.material.opacity = 0.74 + Math.sin(performance.now() * 0.0012) * 0.035;
     sightline.origin.set(player.x, player.y + aimHeight, player.z);
     cameraDirection.subVectors(camera, sightline.origin);
     const cameraDistance = cameraDirection.length();

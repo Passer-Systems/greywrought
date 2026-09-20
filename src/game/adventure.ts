@@ -1,6 +1,7 @@
 import { formatMoney } from "./currency.js";
 import { snapCombatPosition, combatCell, reachableCombatCells, COMBAT_CELL_SIZE } from './combat-grid.js';
 import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
+import { lakeWaterAt, isSwimmingPosition, supportHeight } from './world-elevation.js';
 import { restoreTownPosition } from './town-layout.js';
 import { VENDORS, experienceForLevel, levelForExperience, enemyExperience, enemyCoins, type NpcId, type VendorId } from "./economy.js";
 import { inTown, WORLD_BOUNDS, migrateSpatialLayout } from './world-layout.js';
@@ -509,7 +510,7 @@ class Adventure implements AdventureGame {
     const s = this.state;
     return {
       position: { ...s.position }, cameraForward: { ...this.cameraForward }, archetype: s.archetype,
-      health: s.health, maximumHealth: 100, grounded: s.position.y === terrainHeight(s.position.x, s.position.z),
+      health: s.health, maximumHealth: 100, grounded: s.position.y === supportHeight(s.position.x, s.position.z),
       moving: this.moving, backpedaling: this.backpedaling, attackSequence: s.attackSequence,
       actionCooldown: s.actionCooldown, currentAction: s.currentAction, actionDuration: s.actionDuration, guardSeconds: s.guardSeconds,
       block: s.block, stamina: s.stamina, maximumStamina: COMBAT_RULES.stamina.maximum, staminaRecoverySeconds: s.staminaRecoverySeconds,
@@ -1389,7 +1390,9 @@ class Adventure implements AdventureGame {
     m.remainingSeconds = motion.remainingSeconds;
     this.backpedaling = false;
     if (m.remainingSeconds > EPSILON) return;
-    s.position.y = terrainHeight(s.position.x, s.position.z); s.verticalSpeed = 0; s.maneuver = null;
+    const water = lakeWaterAt(s.position.x, s.position.z);
+    s.position.y = water !== null && isSwimmingPosition(s.position.x, s.position.z) ? water : terrainHeight(s.position.x, s.position.z);
+    s.verticalSpeed = 0; s.maneuver = null;
     if (m.kind === "lunge") {
       const t = s.world.threats.find(t => t.id === m.targetId);
       if (t && t.active && t.health > 0 && distance(s.position, t.position) <= COMBAT_RULES.strike.range + EPSILON && this.attackPath(t)) this.hit(t, classAction(s.archetype, "strike").damage ?? COMBAT_RULES.strike.damage, "Attack at");
@@ -1474,7 +1477,7 @@ class Adventure implements AdventureGame {
       const reservedRoll = s.chapter.accepted.includes("last-shift") && !s.chapter.completed.includes("last-shift") ? s.carriedRelics : 0;
       s.phase = "town"; s.supplies += s.cargo - reservedCrystals + s.carriedSalvage; s.bankedRelics += s.carriedRelics - reservedRoll;
       s.cargo = reservedCrystals; s.carriedRelics = reservedRoll; s.carriedSalvage = 0; s.guardSeconds = 0; s.block = 0;
-      s.maneuver = null; s.position.y = terrainHeight(s.position.x, s.position.z); s.verticalSpeed = 0; this.lootOpenId = null; this.trade = null;
+      s.maneuver = null; s.position.y = supportHeight(s.position.x, s.position.z); s.verticalSpeed = 0; this.lootOpenId = null; this.trade = null;
       if (!this.shared) for (const t of s.world.threats) if (t.health > 0) this.releaseThreat(t);
 
       this.report(`You return to ${YARD.settlement}. Salvage and spare crystals are secured.${reservedCrystals ? " Bring your coolant crystals to Mara." : ""}${reservedRoll ? " Bring the Last Shift Roll to Rowan." : ""} Visit the inn before your next trip.`);

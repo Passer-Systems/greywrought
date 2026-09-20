@@ -44,6 +44,10 @@ function addAnimation(name, tracks) {
   original.animations.push({name,channels,samplers});
 }
 addAnimation('Dance', dance.tracks.map(t=>({bone:t.name.match(/\[([^\]]+)\]/)[1],path:t.name.endsWith('position')?'translation':'rotation',times:Array.from(t.times),values:Array.from(t.values)})));
+for (const clipName of ['Swim_Fwd_Loop', 'Swim_Idle_Loop']) {
+  const swim = retargetClip(rig, donor, source.animations.find(a=>a.name===clipName), { hip: hip.name, scale, fps:24, localOffsets, names:Object.fromEntries(rig.skeleton.bones.map(b => [b.name,mapping[semantic(b)]])) });
+  addAnimation(clipName, swim.tracks.map(t=>({bone:t.name.match(/\[([^\]]+)\]/)[1],path:t.name.endsWith('position')?'translation':'rotation',times:Array.from(t.times),values:Array.from(t.values)})));
+}
 // Author social gestures on the donor's actual idle pose, then retarget to each class.
 rig.skeleton.pose();
 const mixer = new AnimationMixer(target.scene); mixer.clipAction(target.animations.find(a=>a.name==='Idle')).play(); mixer.update(0);

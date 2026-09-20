@@ -1,5 +1,6 @@
 import { WORLD_BOUNDS } from './world-layout.js';
 import { CAVE_BARRIERS, terrainHeight } from './cave-layout.js';
+import { lakeWaterAt, isSwimmingPosition, supportHeight } from './world-elevation.js';
 import { TOWN_BUILDING_BARRIERS } from './town-layout.js';
 import type { Position } from './adventure-types.js';
 
@@ -16,17 +17,16 @@ export function blockedPosition(x: number, z: number): boolean {
   return MOVEMENT_BARRIERS.some(([left, right, bottom, top]) => x > left && x < right && z >= bottom && z <= top);
 }
 export function movePosition(p: MovementState['position'], dx: number, dz: number): void {
-  const height = p.y - terrainHeight(p.x, p.z);
   const nextX = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, p.x + dx)), nextZ = Math.max(WORLD_BOUNDS.minZ, Math.min(WORLD_BOUNDS.maxZ, p.z + dz));
   if (!blockedPosition(nextX, nextZ)) { p.x = nextX; p.z = nextZ; }
   else {
     if (!blockedPosition(nextX, p.z)) p.x = nextX;
     if (!blockedPosition(p.x, nextZ)) p.z = nextZ;
   }
-  p.y = terrainHeight(p.x, p.z) + height;
+  p.y = supportHeight(p.x, p.z);
 }
 export function startJump(state: MovementState): void {
-  if (state.position.y === terrainHeight(state.position.x, state.position.z) && state.verticalSpeed === 0) state.verticalSpeed = 5.5;
+  if (state.position.y === supportHeight(state.position.x, state.position.z) && state.verticalSpeed === 0) state.verticalSpeed = 5.5;
 }
 export function moveManeuverPosition(state: MovementState, maneuver: MovementManeuver, seconds: number): boolean {
   const old = { ...state.position }, elapsed = Math.min(seconds, maneuver.remainingSeconds);
@@ -34,7 +34,8 @@ export function moveManeuverPosition(state: MovementState, maneuver: MovementMan
     (maneuver.destination.z - maneuver.start.z) * elapsed / maneuver.duration);
   maneuver.remainingSeconds = Math.max(0, maneuver.remainingSeconds - seconds);
   const progress = 1 - maneuver.remainingSeconds / maneuver.duration;
-  const ground = terrainHeight(state.position.x, state.position.z);
+  const water = lakeWaterAt(state.position.x, state.position.z);
+  const ground = water !== null && isSwimmingPosition(state.position.x, state.position.z) ? water : terrainHeight(state.position.x, state.position.z);
   state.position.y = ground;
   if (maneuver.remainingSeconds <= 1e-9) { state.position.y = ground; state.verticalSpeed = 0; }
   return Math.hypot(state.position.x - old.x, state.position.z - old.z) > 1e-9;
@@ -50,7 +51,14 @@ export function moveLocomotion(state: MovementState, input: MovementInput, secon
   while (remaining > 1e-9) {
     const dt = Math.min(remaining, 1 / 60);
     movePosition(state.position, x * speed * dt, z * speed * dt);
-    const ground = terrainHeight(state.position.x, state.position.z);
+    const water = lakeWaterAt(state.position.x, state.position.z);
+    const ground = water !== null && isSwimmingPosition(state.position.x, state.position.z) ? water : terrainHeight(state.position.x, state.position.z);
+    if (water !== null && isSwimmingPosition(state.position.x, state.position.z) && state.position.y <= water) {
+      state.position.y = water;
+      state.verticalSpeed = 0;
+      remaining -= dt;
+      continue;
+    }
     if (state.position.y > ground || state.verticalSpeed > 0) {
       state.position.y = Math.max(ground, state.position.y + state.verticalSpeed * dt - 7 * dt * dt);
       state.verticalSpeed = state.position.y > ground ? state.verticalSpeed - 14 * dt : 0;

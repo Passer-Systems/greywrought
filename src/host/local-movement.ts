@@ -1,5 +1,6 @@
 import { classKit } from '../game/class-kit.js';
 import { terrainHeight } from '../game/cave-layout.js';
+import { supportHeight } from '../game/world-elevation.js';
 import type { AdventureAction, AdventureSnapshot } from '../game/adventure-types.js';
 import { moveLocomotion, moveManeuverPosition, blockedPosition, type MovementManeuver, type MovementCheckpoint, type MovementFrame, type MovementInput, type MovementState } from '../game/movement.js';
 
@@ -10,7 +11,7 @@ function movementState(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoi
   const position = { ...snapshot.player.position };
   // Server and browser terrain arithmetic can differ by a few ulps. A
   // grounded checkpoint belongs exactly on the receiving simulation's floor.
-  if (snapshot.player.grounded) position.y = terrainHeight(position.x, position.z);
+  if (snapshot.player.grounded) position.y = supportHeight(position.x, position.z);
   return { position, verticalSpeed: checkpoint.verticalSpeed };
 }
 
@@ -46,10 +47,10 @@ export class LocalMovement {
     if (this.snapshot.phase === 'lost') return player;
     const facing = player.maneuver !== 'none' ? player.facing : { x: this.cameraX, y: 0, z: this.cameraZ };
     const x = this.state.position.x + this.correction.x, z = this.state.position.z + this.correction.z;
-    const height = this.state.position.y - terrainHeight(this.state.position.x, this.state.position.z);
-    const position = { x, y: terrainHeight(x, z) + Math.max(0, height + this.correction.y), z };
+    const height = this.state.position.y - supportHeight(this.state.position.x, this.state.position.z);
+    const position = { x, y: supportHeight(x, z) + Math.max(0, height + this.correction.y), z };
     return { ...player, position: blockedPosition(position.x, position.z) ? { ...this.state.position } : position, cameraForward: { x: this.cameraX, y: 0, z: this.cameraZ }, facing,
-      grounded: this.state.position.y === terrainHeight(this.state.position.x, this.state.position.z), moving: this.moving, backpedaling: this.backpedaling };
+      grounded: this.state.position.y === supportHeight(this.state.position.x, this.state.position.z), moving: this.moving, backpedaling: this.backpedaling };
   }
   setAction(action: AdventureAction, pressed: boolean): void {
     if (this.combatLocked() && isLocomotionAction(action) && pressed) return;
@@ -116,7 +117,7 @@ export class LocalMovement {
     // acknowledgments never add render lag to normal predicted locomotion.
     const gap = Math.hypot(previous.x - this.state.position.x, previous.y - this.state.position.y, previous.z - this.state.position.z);
     this.correction = initialized && !enteredCombat && snapshot.phase !== 'lost' && gap < 2
-      ? { x: previous.x - this.state.position.x, y: previous.y - terrainHeight(previous.x, previous.z) - (this.state.position.y - terrainHeight(this.state.position.x, this.state.position.z)), z: previous.z - this.state.position.z }
+      ? { x: previous.x - this.state.position.x, y: previous.y - supportHeight(previous.x, previous.z) - (this.state.position.y - supportHeight(this.state.position.x, this.state.position.z)), z: previous.z - this.state.position.z }
       : { x: 0, y: 0, z: 0 };
   }
 }
