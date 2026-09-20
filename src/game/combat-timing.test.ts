@@ -18,7 +18,7 @@ describe("legacy combat save migration", () => {
     const game = createAdventure({ save: JSON.stringify(legacy) });
     expect(game.snapshot.player.health).toBe(73);
     expect(game.snapshot).toMatchObject({ supplies: 47, potions: 4, cargo: 3, bankedRelics: 2 });
-    expect(game.snapshot.progression.equipment).toEqual(legacy.state.chapter.equipment);
+    expect(game.snapshot.progression.equipment).toEqual({ ...legacy.state.chapter.equipment, offhand: null });
     expect(game.snapshot.quests.filter(q => q.status === "completed")).toHaveLength(2);
     expect(game.snapshot.combat.queued).toEqual([]);
     expect(game.snapshot.combat.phase).toBe("idle");
