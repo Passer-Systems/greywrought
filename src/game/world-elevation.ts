@@ -16,9 +16,8 @@ export function lakeWaterAt(x: number, z: number): number | null {
   const depth = lakeDepthAt(x, z);
   return depth > 0 ? LAKE_WATER_LEVEL : null;
 }
-export function isSwimmingPosition(x: number, z: number): boolean { return lakeDepthAt(x, z) >= 0.72; }
+export function isSwimmingPosition(x: number, z: number): boolean { return lakeWaterAt(x, z) !== null && LAKE_WATER_LEVEL - overworldHeight(x, z) >= 0.8; }
 export const lakeSurface = { center: LAKE_CENTER, radius: LAKE_RADIUS, waterLevel: LAKE_WATER_LEVEL } as const;
-export function supportHeight(x: number, z: number): number { return isSwimmingPosition(x, z) ? LAKE_WATER_LEVEL : overworldHeight(x, z); }
 function hill(x: number, z: number, cx: number, cz: number, radius: number, height: number): number {
   const t = Math.max(0, 1 - Math.hypot(x-cx,z-cz) / radius);
   return height * t * t * (3 - 2 * t);

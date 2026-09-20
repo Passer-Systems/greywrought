@@ -350,7 +350,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const lakeWater = new Mesh(new CircleGeometry(1, 64), new MeshStandardMaterial({ color: 0x2c9bb0, emissive: 0x073a46, emissiveIntensity: 0.35, transparent: true, opacity: 0.78, roughness: 0.18, metalness: 0.05, depthWrite: false }));
   const lakeVertices = lakeWater.geometry.getAttribute('position');
   for (let index = 1; index < lakeVertices.count; index++) {
-    const angle = Math.atan2(lakeVertices.getY(index), lakeVertices.getX(index));
+    const angle = Math.atan2(-lakeVertices.getY(index), lakeVertices.getX(index));
     lakeVertices.setXY(index, lakeVertices.getX(index) * (1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4)), lakeVertices.getY(index) * (1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4)));
   }
   lakeVertices.needsUpdate = true;
@@ -363,7 +363,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const lakeShore = new Mesh(new RingGeometry(0.96, 1.02, 64), new MeshBasicMaterial({ color: 0x9fc276, transparent: true, opacity: 0.58, side: 2, depthWrite: false }));
   const shoreVertices = lakeShore.geometry.getAttribute('position');
   for (let index = 0; index < shoreVertices.count; index++) {
-    const angle = Math.atan2(shoreVertices.getY(index), shoreVertices.getX(index));
+    const angle = Math.atan2(-shoreVertices.getY(index), shoreVertices.getX(index));
     const factor = 1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4);
     shoreVertices.setXY(index, shoreVertices.getX(index) * factor, shoreVertices.getY(index) * factor);
   }

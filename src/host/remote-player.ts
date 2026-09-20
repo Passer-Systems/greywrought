@@ -4,6 +4,7 @@ export type { RemotePlayerView } from "../game/multiplayer-types.js";
 import { actor, type ForestActor } from "./frostwood-assets.js";
 import { createSocialAnimation } from "./social-animation.js";
 import { createPhotonChair } from "./photon-chair.js";
+import { isSwimmingPosition } from "../game/world-elevation.js";
 
 export function createRemotePlayers(scene: Group | import("three").Scene) {
   const rigs = new Map<string, ReturnType<typeof createRig>>();
@@ -62,7 +63,9 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
             actionRemaining = 0.4;
           } else if (actionRemaining === 0) {
             if (!playSocialAnimation(mounted, player.sitting, player.moving ? null : player.emote)) {
-              mounted.play(!player.grounded ? "Roll" : player.moving ? "Run" : "Idle");
+              mounted.play(player.grounded && isSwimmingPosition(player.position.x, player.position.z)
+                ? player.moving ? "Swim_Fwd_Loop" : "Swim_Idle_Loop"
+                : !player.grounded ? "Roll" : player.moving ? "Run" : "Idle");
             }
           }
         }

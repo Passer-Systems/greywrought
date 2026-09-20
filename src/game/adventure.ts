@@ -1,12 +1,12 @@
 import { formatMoney } from "./currency.js";
 import { snapCombatPosition, combatCell, reachableCombatCells, COMBAT_CELL_SIZE } from './combat-grid.js';
 import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
-import { lakeWaterAt, isSwimmingPosition, supportHeight } from './world-elevation.js';
+import { lakeWaterAt, isSwimmingPosition } from './world-elevation.js';
 import { restoreTownPosition } from './town-layout.js';
 import { VENDORS, experienceForLevel, levelForExperience, enemyExperience, enemyCoins, type NpcId, type VendorId } from "./economy.js";
 import { inTown, WORLD_BOUNDS, migrateSpatialLayout } from './world-layout.js';
 import { findEmote } from './emotes.js';
-import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
+import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, supportHeight, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
 import { YARD, QUESTS, GEAR, gearName, type QuestId, type QuestOperation, type QuestView, type ProgressionView, type GearSlot, type GearItemId } from "./yard-content.js";
 import type {

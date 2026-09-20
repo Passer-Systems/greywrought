@@ -1,8 +1,7 @@
 import { classKit } from '../game/class-kit.js';
 import { terrainHeight } from '../game/cave-layout.js';
-import { supportHeight } from '../game/world-elevation.js';
 import type { AdventureAction, AdventureSnapshot } from '../game/adventure-types.js';
-import { moveLocomotion, moveManeuverPosition, blockedPosition, type MovementManeuver, type MovementCheckpoint, type MovementFrame, type MovementInput, type MovementState } from '../game/movement.js';
+import { moveLocomotion, moveManeuverPosition, blockedPosition, supportHeight, type MovementManeuver, type MovementCheckpoint, type MovementFrame, type MovementInput, type MovementState } from '../game/movement.js';
 
 const locomotionActions = new Set<AdventureAction>(['forward', 'backward', 'left', 'right', 'jump']);
 export function isLocomotionAction(action: AdventureAction): boolean { return locomotionActions.has(action); }
