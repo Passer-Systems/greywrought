@@ -16,7 +16,7 @@ import { createEquipmentPanel } from "./equipment-panel.js";
 import { createCorpseLoot } from "./corpse-loot.js";
 import { createBagPanel } from "./bag-panel.js";
 import { createChatLog } from "./chat-log.js";
-import type { UnitSelection } from "./unit-selection.js";
+import { newAttackerTarget, type UnitSelection } from "./unit-selection.js";
 import { createUnitFrames } from "./unit-frames.js";
 import { createBankPanel } from "./bank-panel.js";
 import { createInnPanel } from "./inn-panel.js";
@@ -311,6 +311,7 @@ interface RunningAdventure {
   ready: boolean;
   selection: UnitSelection;
   lastEnemyTarget: string;
+  attackers: Set<string>;
 }
 const removers: Array<() => void> = [];
 const keys = new Set<string>();
@@ -705,7 +706,14 @@ function selectedSnapshot(snapshot: AdventureSnapshot): AdventureSnapshot {
   const app = running; if (!app) return snapshot;
   if (app.lastEnemyTarget !== snapshot.selectedThreat && app.selection?.kind === "enemy") app.selection = { kind: "enemy", id: snapshot.selectedThreat };
   app.lastEnemyTarget = snapshot.selectedThreat;
+  if (app.selection?.kind === "enemy" && !snapshot.threats.some(threat => threat.id === app.selection!.id && threat.active && threat.health > 0)) app.selection = null;
   if (app.selection?.kind === "player" && app.selection.id !== app.character.id && !app.game.players.some(player => player.id === app.selection!.id)) app.selection = null;
+  const attacker = newAttackerTarget(snapshot.threats, app.selection, app.character.id, app.attackers);
+  app.attackers = new Set(snapshot.threats.filter(threat => threat.active && threat.health > 0 && threat.aggro && threat.targetPlayerId === app.character.id).map(threat => threat.id));
+  if (attacker) {
+    app.selection = { kind: "enemy", id: attacker };
+    if (snapshot.selectedThreat !== attacker) app.game.selectTarget(attacker);
+  }
   const enemyId = app.selection?.kind === "enemy" ? app.selection.id : "";
   app.world.setSelectedUnit(app.selection);
   setDataset(document.body.dataset, { selectedUnit: JSON.stringify(app.selection) });
@@ -720,6 +728,12 @@ function selectPlayerTarget(id: string): void {
 function selectEnemyTarget(id: string): void {
   if (!running?.ready) return;
   running.selection = { kind: "enemy", id }; running.game.selectTarget(id); renderHud(running.game.snapshot);
+}
+function clearUnitTarget(): void {
+  if (!running) return;
+  running.selection = null;
+  running.game.setAction("strike", false);
+  renderHud(running.game.snapshot);
 }
 function renderHud(snapshot: AdventureSnapshot): void {
   snapshot = selectedSnapshot(snapshot);
@@ -951,7 +965,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     world.setAggroRangesVisible(aggroRangesVisible);
     world.setHelpRangesVisible(helpRangesVisible);
     world.updateChat(game.chat, character.id);
-    const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false, selection: { kind: "enemy", id: game.snapshot.selectedThreat }, lastEnemyTarget: game.snapshot.selectedThreat };
+    const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false, selection: null, lastEnemyTarget: game.snapshot.selectedThreat, attackers: new Set() };
     running = app;
     bindWorld(app);
     await world.ready;
@@ -1131,6 +1145,7 @@ listen(window, "keydown", (event) => {
       else if ((running?.game.snapshot.shopOpen || running?.game.snapshot.vendorOpen)) pulse("closeShop");
       else if (running?.game.snapshot.bankOpen) pulse("closeBank");
       else if (running?.game.snapshot.innOpen) pulse("closeInn");
+      else if (running?.selection) clearUnitTarget();
       else setMenuOpen(true);
     }
     return;

@@ -28,6 +28,7 @@ try {
   }});
   await page.waitFor('document.body.dataset.entryRoute==="roster"');await page.click('#entry-enter-world');
   await page.waitFor('document.body.dataset.rigState==="ready"&&document.body.dataset.environmentState==="ready"&&JSON.parse(document.body.dataset.gameRemotePlayers||"[]").some(p=>p.id==="selection-companion")');
+  check(await page.evaluate('JSON.parse(document.body.dataset.selectedUnit)===null'),'Entering town starts without an arbitrary enemy target');
   await page.waitFor('document.querySelector(\'[data-overhead-name="player:selection-companion"]\')?.hidden===false');
   await page.click('[data-overhead-name="player:selection-companion"]');
   await page.waitFor('document.getElementById("target-frame").dataset.kind==="player"&&document.getElementById("target-frame").dataset.targetId==="selection-companion"');
@@ -63,7 +64,29 @@ try {
   await page.click('[data-overhead-name="player:selection-companion"]');
   bot.close();
   await page.waitFor('JSON.parse(document.body.dataset.selectedUnit)===null&&document.querySelector(".unit-frame-target-group").hidden');
+  await page.click('[data-overhead-name="player:selection-viewer"]');
+  await page.key('KeyW',true);
+  await page.waitFor('window.selectionState.snapshot.player.inCombat',15000);
+  await page.key('KeyW',false);
+  await page.waitFor('JSON.parse(document.body.dataset.selectedUnit)?.id==="scout"&&document.getElementById("target-frame").dataset.kind==="enemy"');
+  check(await page.evaluate('window.selectionState.snapshot.threats.some(t=>t.id==="scout"&&t.targetPlayerId==="selection-viewer"&&t.aggro)'),'The newly selected enemy is attacking this player');
+  await page.press('Escape');
+  await page.waitFor('JSON.parse(document.body.dataset.selectedUnit)===null');
+  const clearedTime=await page.evaluate<number>('window.selectionState.serverTime');
+  await page.waitFor(`window.selectionState.serverTime>${clearedTime}+.5`);
+  check(await page.evaluate('JSON.parse(document.body.dataset.selectedUnit)===null&&document.getElementById("pause-panel").hidden'),'Escape stays cleared while the same enemy attacks, without opening the menu');
+  const clearedStrikes=await page.evaluate<number>('window.selectionCommands.filter(c=>c.type==="action"&&c.action==="strike"&&c.pressed).length');
+  await page.press('Digit1');
+  check(await page.evaluate<number>('window.selectionCommands.filter(c=>c.type==="action"&&c.action==="strike"&&c.pressed).length')===clearedStrikes,'A cleared target cannot attack the earlier enemy');
+  await page.press('Tab');
+  await page.waitFor('JSON.parse(document.body.dataset.selectedUnit)?.kind==="enemy"');
+  await page.press('Escape');
+  await page.waitFor('JSON.parse(document.body.dataset.selectedUnit)===null');
+  await page.press('Escape');
+  await page.waitFor('!document.getElementById("pause-panel").hidden');
+  check(await page.evaluate('window.selectionState.session.mode==="shared"'),'Escape menu does not pause the world');
+  await page.shot('escape-cleared-target');
   check(page.errors.length===0,'No browser exceptions');
-  console.log('PASS player name/body clicks, friendly portrait, live health, blocked attack, Tab enemy selection, self selection and disconnect clearing',page.output);
+  console.log('PASS player selection, new attacker targeting, Escape clearing, blocked untargeted attacks, Tab reselection and unpaused Escape menu',page.output);
 } catch(error){await page?.shot('failure');console.error(await page?.evaluate('({state:window.selectionState,selected:document.body.dataset.selectedUnit,frame:document.getElementById("target-frame")?.outerHTML,point:window.companionPoint})'));throw error;}
 finally{bot.close();await page?.close();await service.close();server.stop(true);frontend.kill();await frontend.exited;}
