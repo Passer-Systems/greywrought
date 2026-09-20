@@ -4,7 +4,7 @@ import type { Position } from '../game/adventure-types.js';
 import { prop } from './frostwood-assets.js';
 import { caveFloorGeometry } from './terrain-geometry.js';
 
-export async function buildHollowdeep(terrain: Group): Promise<(position: Position, camera: Vector3) => void> {
+export async function buildHollowdeep(terrain: Group): Promise<(position: Position, camera: Vector3, aimHeight?: number) => void> {
   const walls = new Group(), roof = new Group(); terrain.add(walls, roof);
   const solidBounds: Box3[] = [];
   const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
@@ -83,10 +83,10 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
     root.updateWorldMatrix(true, true);
     root.traverse(object => { if (object instanceof Mesh) solidBounds.push(new Box3().setFromObject(object)); });
   }
-  return (position, camera) => {
+  return (position, camera, aimHeight = 1.1) => {
     // Keep authored cave walls and roof visible. Pull the boom in when it
     // would pass through solid rock, like a conventional third-person camera.
-    sightline.origin.set(position.x, position.y + 1.1, position.z);
+    sightline.origin.set(position.x, position.y + aimHeight, position.z);
     cameraDirection.subVectors(camera, sightline.origin);
     const cameraDistance = cameraDirection.length();
     sightline.direction.copy(cameraDirection).normalize();

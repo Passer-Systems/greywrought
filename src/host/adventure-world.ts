@@ -313,7 +313,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const playSocialAnimation = createSocialAnimation();
   let disposed = false;
   let otherPlayers: readonly RemotePlayerView[] = [];
-  let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3) => void) | undefined;
+  let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight: number) => void) | undefined;
   let elapsed = 0;
   let yaw = 0;
   let pitch = 0.7;
@@ -389,7 +389,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (place) hoverTargets.push({ root, pick: { kind: "place", id: place.id }, name: place.name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
     return place !== null;
   }).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
-  let updateCave = (_position: Position, _camera: Vector3) => {};
+  let updateCave = (_position: Position, _camera: Vector3, _aimHeight?: number) => {};
   const caveReady = buildHollowdeep(terrain).then(update => { updateCave = update; });
   const telegraphs = createGroundTelegraphs(scene, canvas);
   const combatEffects = createCombatEffects(scene);
@@ -467,7 +467,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     updatePlayers(players) { if (!disposed) otherPlayers = players; },
     updateChat(messages, selfId) { if (!disposed) chatBubbles.update(messages, selfId); },
     orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(-1.2, Math.min(1.45, pitch + dy * 0.004)); },
-    zoom(delta) { distance = Math.max(6, Math.min(21, distance * Math.exp(delta * 0.001))); },
+    zoom(delta) { distance = Math.max(0, Math.min(21, (distance + 1) * Math.exp(delta * 0.001) - 1)); },
     setThreatNameplateVisible(id, visible) { overheadNames.suppress(`threat:${id}`, visible); },
     setAggroRangesVisible(visible) { aggroRanges.setVisible("direct", visible); },
     setHelpRangesVisible(visible) { aggroRanges.setVisible("help", visible); },
@@ -660,18 +660,32 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         moveOutcome.style.left = Math.max(8, Math.min(rect.width - 290, hoverPointer.x - rect.left + 18)) + "px";
         moveOutcome.style.top = Math.max(8, Math.min(rect.height - moveOutcome.offsetHeight - 8, hoverPointer.y - rect.top + 18)) + "px";
       }
-      const target = { x: cameraTarget.x, y: cameraTarget.y + 1.1, z: cameraTarget.z };
-      camera.position.set(target.x - facing.x * Math.cos(pitch) * distance, target.y + Math.sin(pitch) * distance, target.z - facing.z * Math.cos(pitch) * distance);
-      const requiredLift = terrainCameraLift(target, camera.position);
+      // Transition the look target toward eye level as the boom reaches the
+      // player. This gives a usable first-person view without a zero-distance
+      // lookAt singularity or the character model covering the camera.
+      const firstPersonBlend = Math.max(0, Math.min(1, (1.8 - distance) / 1.2));
+      const aimHeight = 1.1 + firstPersonBlend * .55;
+      const target = { x: cameraTarget.x, y: cameraTarget.y + aimHeight, z: cameraTarget.z };
+      player.visible = firstPersonBlend < .8;
+      if (distance === 0) {
+        camera.position.set(target.x, target.y, target.z);
+      } else {
+        camera.position.set(target.x - facing.x * Math.cos(pitch) * distance, target.y + Math.sin(pitch) * distance, target.z - facing.z * Math.cos(pitch) * distance);
+      }
+      const requiredLift = distance === 0 ? 0 : terrainCameraLift(target, camera.position);
       // Raise immediately when the sightline enters terrain; ease only while
       // returning to a lower orbit so the camera never clips through a hill.
-      cameraTerrainLift = delta === 0 ? requiredLift : Math.max(requiredLift, cameraTerrainLift + (requiredLift - cameraTerrainLift) * (1 - Math.exp(-delta * 8)));
+      cameraTerrainLift = distance === 0 ? 0 : delta === 0 ? requiredLift : Math.max(requiredLift, cameraTerrainLift + (requiredLift - cameraTerrainLift) * (1 - Math.exp(-delta * 8)));
       camera.position.y += cameraTerrainLift;
-      updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position);
-      updateCave(snapshot.player.position, camera.position);
-      const collisionLift = terrainCameraLift(target, camera.position);
-      if (collisionLift > 0) camera.position.y += collisionLift;
-      camera.lookAt(target.x, target.y, target.z);
+      updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position, aimHeight);
+      updateCave(snapshot.player.position, camera.position, aimHeight);
+      if (distance === 0) {
+        camera.lookAt(target.x + facing.x * Math.cos(pitch), target.y - Math.sin(pitch), target.z + facing.z * Math.cos(pitch));
+      } else {
+        const collisionLift = terrainCameraLift(target, camera.position);
+        if (collisionLift > 0) camera.position.y += collisionLift;
+        camera.lookAt(target.x, target.y, target.z);
+      }
       const selectedPlayer = selectedUnit?.kind === "player" ? selectedUnit.id : null;
       const friendlyRoot = selectedPlayer === playerSelection?.selfId ? player : [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
       friendlySelection.visible = Boolean(friendlyRoot?.visible);

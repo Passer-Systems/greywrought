@@ -25,7 +25,7 @@ const frontend = Bun.spawn([process.execPath, before ? 'scripts/static-server.ts
   stdout: Bun.file('build/browser/camera-frontend.log'), stderr: Bun.file('build/browser/camera-frontend-errors.log'),
 });
 let page: Awaited<ReturnType<typeof openBrowser>> | undefined;
-interface CameraFrame { camera: { x: number; y: number; z: number }; player: { x: number; y: number; z: number }; direction: { x: number; y: number; z: number }; offset: { x: number; y: number }; viewOffset: boolean; }
+interface CameraFrame { camera: { x: number; y: number; z: number }; player: { x: number; y: number; z: number }; direction: { x: number; y: number; z: number }; offset: { x: number; y: number }; viewOffset: boolean; visiblePlayerMeshes: number; }
 const reports: { name: string; frame: CameraFrame }[] = [];
 try {
   for (let i = 0; i < 100; i++) { try { if ((await fetch(url)).ok) break; } catch {} await Bun.sleep(100); }
@@ -41,7 +41,8 @@ try {
       if(renderer.domElement.id!=='world-canvas')return;window.cameraScene=scene;
       let player;scene.traverse(o=>{if(o.userData.localPlayer)player=o;});if(!player)return;
       const anchor=player.position.clone().add(new Vector3(0,1.1,0)).project(camera),rect=renderer.domElement.getBoundingClientRect();
-      window.cameraFrame={camera:camera.position.clone(),player:player.position.clone(),direction:camera.getWorldDirection(new Vector3()),offset:{x:anchor.x*rect.width/2,y:-anchor.y*rect.height/2},viewOffset:!!camera.view?.enabled};
+      let visiblePlayerMeshes=0;player.traverse(o=>{if(!o.isMesh&&!o.isLine)return;let visible=true;for(let p=o;p;p=p.parent)visible&&=p.visible;if(visible)visiblePlayerMeshes++;});
+      window.cameraFrame={camera:camera.position.clone(),player:player.position.clone(),direction:camera.getWorldDirection(new Vector3()),offset:{x:anchor.x*rect.width/2,y:-anchor.y*rect.height/2},viewOffset:!!camera.view?.enabled,visiblePlayerMeshes};
       if(window.trackCamera)window.cameraFrames.push(window.cameraFrame);
     };})()`);
     await page!.click('#entry-enter-world');
@@ -69,6 +70,28 @@ try {
     for (let step = 1; step <= 10; step++) await page!.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: start.x + dx * step / 10, y: start.y + dy * step / 10, button: 'right', buttons: 2 });
     await page!.call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: start.x + dx, y: start.y + dy, button: 'right', buttons: 0, clickCount: 1 });
   }
+  async function firstPersonJourney(location: string) {
+    await page!.call('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 900, y: 450, deltaX: 0, deltaY: -10000 });
+    const first = await capture(`${location}-first-person`, false);
+    check(Math.hypot(first.camera.x-first.player.x, first.camera.z-first.player.z) < .2, 'Zoom reaches the character’s eyes');
+    check(first.camera.y-first.player.y >= 1.6 && first.camera.y-first.player.y <= 2.2, 'First-person view is at eye height');
+    check(first.visiblePlayerMeshes === 0, 'Your body and equipment cannot block the first-person view');
+    await drag(-250, 120);
+    const looking = await capture(`${location}-first-person-looking-up`, false);
+    check(looking.direction.y > .1, 'First person can look upward');
+    check(Math.abs(looking.direction.x-first.direction.x) > .1, 'First person can turn left and right');
+    await page!.key('KeyW', true); await Bun.sleep(450); await page!.key('KeyW', false);
+    const moving = await capture(`${location}-first-person-moved`, false);
+    check(Math.hypot(moving.player.x-looking.player.x,moving.player.z-looking.player.z) > .5, 'Walking still works in first person');
+    check(Math.hypot(moving.camera.x-moving.player.x,moving.camera.z-moving.player.z) < .2, 'First-person camera follows walking');
+    check(moving.visiblePlayerMeshes === 0, 'Walking does not reveal your model in first person');
+    check(await page!.evaluate('window.sceneryState()===window.initialScenery'), 'First person keeps scenery intact');
+    await drag(250, -120);
+    await page!.call('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 900, y: 450, deltaX: 0, deltaY: 10000 });
+    const restored = await capture(`${location}-third-person-restored`);
+    check(Math.hypot(restored.camera.x-restored.player.x,restored.camera.z-restored.player.z) > 3, 'Scrolling out restores third-person distance');
+    check(restored.visiblePlayerMeshes > 0, 'Scrolling out restores your character');
+  }
   await enter();
   const normal = await capture('town-default');
   await drag(-390);
@@ -90,6 +113,7 @@ try {
     await page.call('Emulation.setDeviceMetricsOverride', { width: 1100, height: 760, deviceScaleFactor: 1, mobile: false });
     await capture('town-resized');
     await page.call('Emulation.clearDeviceMetricsOverride');
+    await firstPersonJourney('town');
     for (const location of ['hill', 'cave']) {
       await page.click('#pause-open'); await page.click('#pause-tab-settings'); await page.click('#return-roster');
       await page.waitFor('document.body.dataset.entryRoute==="roster"'); await page.click(`[data-character-id="camera-${location}"]`); await enter();
@@ -107,6 +131,7 @@ try {
       await drag(-390);
       await capture(`${location}-low`);
       check(await page.evaluate('window.sceneryState()===window.initialScenery'), `${location}: trees, rocks and cave geometry remain intact during camera motion`);
+      if (location === 'cave') await firstPersonJourney('cave');
     }
   }
   await Bun.write(`${page.output}/measurements.json`, JSON.stringify(reports, null, 2));

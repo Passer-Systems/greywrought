@@ -5,7 +5,7 @@ import type { Position } from "../game/adventure-types.js";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
 
-export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onPlace?: (root: Group, name: string) => boolean): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3) => void> {
+export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onPlace?: (root: Group, name: string) => boolean): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number) => void> {
   const jobs: Promise<void>[] = [];
   const coolingMaterials: MeshStandardMaterial[] = [];
   const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
@@ -312,8 +312,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     instances.computeBoundingSphere();
     parent.add(instances);
   }
-  return (coolingRestored, shiftEnded, player, camera) => {
-    sightline.origin.set(player.x, player.y + 1.1, player.z);
+  return (coolingRestored, shiftEnded, player, camera, aimHeight = 1.1) => {
+    sightline.origin.set(player.x, player.y + aimHeight, player.z);
     cameraDirection.subVectors(camera, sightline.origin);
     const cameraDistance = cameraDirection.length();
     sightline.direction.copy(cameraDirection).normalize();
