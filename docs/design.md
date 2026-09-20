@@ -17,8 +17,8 @@ language experiments are outside this delivery.
 
 ## Product constraints
 
-- Free exploration and planning movement, with committed enemy intentions and
-  automatically executed three-beat combat sequences.
+- Free exploration with grid-based combat: one movement and one action per turn,
+  alongside committed enemy intentions.
 - Hardcore character stakes; persistent supplies and relics come from extraction.
 - No kill XP. Fighting buys safer travel, quiet, access, or removal of a hazard.
 - A physically connected safe hub, dangerous forest, and recognizable way home.
@@ -80,10 +80,10 @@ The map remains readable both in town and while an enemy is selected.
 
 ### Make Spire-style combat visible in a moving world
 
-Keep third-person exploration and planning movement. The central combat skill
-is reading committed enemy intentions and choosing how to spend action slots,
+Keep third-person exploration and planned combat movement. The central combat skill
+is reading committed enemy intentions and choosing an action, movement,
 health and resources before the sequence executes automatically. Manual movement
-is locked during execution; planned movement abilities supply combat repositioning.
+is locked throughout combat; planned movement supplies combat repositioning.
 
 Every active enemy needs a recognizable body and silhouette, a clear target
 indicator, and animation for idle, movement when moving, preparation, action,
@@ -218,7 +218,7 @@ Current upstream references checked in September 2026:
   positioning and viewport collision handling for more involved tooltips and
   popovers. Add it when those interactions exceed the current simple tooltip.
 
-## Three-beat combat loop
+## One movement and one action per turn
 
 Engaged combat repeats enemy intention selection, player planning, and execution.
 Enemies choose from the resulting fight state as soon as the previous sequence
@@ -226,8 +226,10 @@ finishes. Selection has no artificial one-second or quarter-second wait. Reveal
 the committed intentions before opening the player's planning window.
 
 The encounter has one maximum 30-second planning window, regardless of enemy
-count. Tab or left-click selects a creature. Action buttons queue moves into three
-slots, which can be rearranged before pressing Ready or its R shortcut. Ready begins execution
+count. Tab or left-click selects a creature. Plan one optional movement and one
+Attack or Defend. Selecting another destination or action replaces that part of the
+plan. Choose whether the action happens before, during, or after movement; Attack
+requires standing still, while Defend works during movement. Ready begins execution
 early; the timer begins it automatically when the planning window expires.
 In shared combat, participating players ready their own plans; execution begins
 when everyone participating is ready or the common timer expires. Unengaged
@@ -235,23 +237,17 @@ players do not delay the sequence. Private encounters keep their own clock.
 Player and target frames remain visible above the plan during both planning and
 execution. Custom frame placements stay under the player's control.
 
-The three slots start at 0, 1, and 2 seconds of the execution sequence. Multiple
-enemies can choose the same slot. A slot marks when an ability starts casting;
-impact can happen later, including after the final slot. Existing ability effects
-and ground warnings continue to describe the actual attack. A richer display
-separating cast timing from delayed danger is deferred.
+Movement starts 0.35 seconds into playback and lasts one second. The action occurs
+at 0 seconds (before), 0.85 seconds (during), or 1.5 seconds (after); with no
+movement, it happens immediately. Each enemy commits one intention per turn.
 
-Execution lasts at least three seconds and continues until committed casts,
+Execution lasts at least 2.5 seconds and continues until committed casts,
 projectiles and movement abilities finish. The next planning window opens
 after those effects settle, so planning never demands a last-second manual dodge.
 
-Players move freely during planning. Engaged enemies keep pursuing: melee
-creatures close into reach, the hound follows and circles, and the Watchman
-keeps its casting distance. Pursuit follows the current opponent without
-changing the committed ability or beat and does no damage during planning.
-Leaving an enemy's home territory or returning to town breaks contact; the
-creature recovers and returns home. Late arrivals can follow during planning
-but still wait until the next cycle to choose and attack.
+Players and enemies stay stationary during planning. Leaving an enemy's home
+territory through planned movement breaks contact; the creature recovers and
+returns home. Late arrivals wait until the next turn to attack.
 
 During execution, the chosen actions and
 movement abilities play automatically, with manual movement and new combat
@@ -301,14 +297,14 @@ Planning freezes resource recovery and defense durations.
 | Key | Action | Stamina | Effect |
 | --- | --- | --- | --- |
 | 1 | Attack | 0 | Warrior attacks within 5 metres; other classes attack within 10 metres |
-| 2 | Defend | 2, or 3 for Artificer | Absorb 24 damage for 2s. Alchemist heals 6 and blocks 16; Artificer blocks 28 |
+| 2 | Defend | 2, or 3 for Artificer | Absorb 24 damage for the remainder of the turn. Alchemist heals 6 and blocks 16; Artificer blocks 28 |
 | 3 | Move | 1 | Select a highlighted tile, then execute the plan with Ready (R) |
 
 Combat cells are 2.5 metres across. Warrior, Mage and Artificer move up to two
-tiles per action; Alchemist moves three and Ranger four. Later Move actions start
-from the earlier planned destination. Blocked, occupied and distant tiles are
+tiles per turn; Alchemist moves three and Ranger four. Changing the destination
+keeps the allowance measured from the current position. Blocked, occupied and distant tiles are
 unavailable. Escape cancels tile selection. Players can also select Move in the
-planner header. Attacks check reach when their beat executes, allowing a move or
+planner header. Attacks check reach when their action executes, allowing a move or
 an enemy charge to bring the target into range first.
 
 The action bar contains only these three labeled buttons. XP sits directly below
@@ -408,7 +404,7 @@ whether the timings, health and pressure produce decisions Tom wants to repeat.
 
 ## Intention previews and playback
 
-Committed attacks live in the three-beat planner. Inspection shows a thin path,
+Committed attacks live in the movement-and-action planner. Inspection shows a thin path,
 a landing or impact area where applicable, and predicted collisions. Homing
 attacks show their path and target without an escape circle under the player.
 The default battlefield has no permanent attack rings or floating beat badges.

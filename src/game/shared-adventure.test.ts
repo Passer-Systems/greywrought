@@ -41,15 +41,16 @@ describe("one shared Frostwood", () => {
 
   test("both characters damage one enemy and only the threatened character's defense absorbs its cast", () => {
     const world = fixture(), a = world.getPlayer("a")!, b = world.getPlayer("b")!;
-    tap(a, "strike"); tap(b, "strike"); tap(a, "brace");
-    a.moveQueuedAction(a.snapshot.combat.queued[1]!.id, enemy(a).windowAction!.offsetSeconds); readyParty(a, b); world.advance(1.01);
-    expect(enemy(a).health).toBe(78); expect(enemy(b).health).toBe(78);
+    tap(a, "strike"); tap(b, "strike"); readyParty(a, b); finishCycle(a, world);
+    const healthAfterAttack = a.snapshot.player.health;
+    tap(a, "brace"); readyParty(a, b); world.advance(1.11);
+    expect(enemy(a).health).toBe(60); expect(enemy(b).health).toBe(60);
     expect(enemy(a).targetPlayerId).toBe("a");
-    expect(enemy(a).actionSequence).toBe(1);
-    expect(a.snapshot.player.health).toBe(100); expect(b.snapshot.player.health).toBe(100);
+    expect(enemy(a).actionSequence).toBe(2);
+    expect(a.snapshot.player.health).toBe(healthAfterAttack); expect(b.snapshot.player.health).toBe(100);
     const damage = enemy(a).currentAbility.damage;
-    world.advance(.1);
-    expect(a.snapshot.player.health).toBe(100);
+    world.advance(1);
+    expect(a.snapshot.player.health).toBe(healthAfterAttack);
     expect(a.snapshot.player.block).toBe(24 - damage);
     expect(b.snapshot.player.block).toBe(0);
     expect(b.snapshot.player.stamina).toBe(5);
@@ -85,7 +86,7 @@ describe("one shared Frostwood", () => {
     expect(restored.rejoin("a")).toBe(false);
     expect(returned.snapshot.player.health).toBe(health);
     expect(returned.snapshot.player.position).toEqual(position);
-    expect(enemy(returned).health).toBe(78);
+    expect(enemy(returned).health).toBe(60);
     expect(partner.snapshot.player.health).toBe(b.snapshot.player.health);
     expect(returned.snapshot.combat).toEqual(a.snapshot.combat);
     restored.advance(0.1);

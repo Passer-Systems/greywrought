@@ -163,3 +163,10 @@ test('Bait sends its selected ground point without predicting combat movement', 
   expect(game.snapshot.player.position).toEqual(before);
   game.close();
 });
+
+test('action timing sends only its named placement', async () => {
+  const { game, socket } = await connected();
+  expect(game.setActionTiming('during')).toBe(true);
+  expect(socket.sent.at(-1)).toMatchObject({ type: 'command', command: { type: 'actionTiming', timing: 'during' } });
+  game.close();
+});

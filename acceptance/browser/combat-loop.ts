@@ -15,7 +15,7 @@ saved.characters[0].state.combat.phase = 'preparation';
 Object.assign(saved.clock, { phase: 'preparation', elapsedSeconds: 0, cycle: 1 });
 for (const enemy of saved.world.threats) {
   if (['scout', 'nest', 'patrol'].includes(enemy.id)) {
-    const offset = enemy.id === 'scout' ? 0 : enemy.id === 'nest' ? 1 : 2;
+    const offset = 1;
     const position = enemy.id === 'scout' ? { x: -1, y: 0, z: 30 } : enemy.id === 'nest' ? { x: 0, y: 0, z: 33 } : { x: -5, y: 0, z: 34 };
     Object.assign(enemy, { position, targetPosition: { ...position }, aggro: true, targetPlayerId: character.id, combatants: [character.id], phase: 'preparation', joinCycle: 1, windowCycle: 1, specialOffset: offset, castDuration: offset, remainingSeconds: offset });
     if (enemy.id === 'scout') Object.assign(enemy.head, { ability: 'fireball', opened: true, volley: 2, castVolley: 2 });
@@ -65,20 +65,20 @@ try {
   await page.waitFor('window.combatSnapshot.combat.phase==="preparation"');
   await page.waitFor('document.getElementById("combat-plan")&&!document.getElementById("combat-plan").hidden');
   check(await page.evaluate<number>('window.combatSnapshot.combat.remainingSeconds') <= 30.1, 'Planning window is capped at 30 seconds');
-  check(await page.evaluate('document.querySelectorAll(".combat-plan-tick").length===3'), 'Planner exposes three timing slots');
+  check(await page.evaluate('document.querySelectorAll(".combat-plan-row").length===2'), 'Planner exposes one Movement and one Action');
   check(await page.evaluate('document.querySelectorAll(".combat-plan-enemy-move").length>=2'), 'Planner shows committed intentions from multiple enemies');
-  check(await page.evaluate('window.combatSnapshot.threats.find(enemy=>enemy.id==="scout").windowAction.offsetSeconds===0'), 'Watchman is committed to Beat 1');
+  check(await page.evaluate('window.combatSnapshot.threats.find(enemy=>enemy.id==="scout").windowAction!==null'), 'Watchman has one committed action');
   await checkUnitFrames();
   const planningBefore = await page.evaluate<AdventureSnapshot>('window.combatSnapshot');
   await page.key('KeyS', true); await Bun.sleep(1000); await page.key('KeyS', false);
   const planningAfter = await page.evaluate<AdventureSnapshot>('window.combatSnapshot');
-  check(planningAfter.player.position.z < planningBefore.player.position.z - 1, 'Player can retreat during planning');
+  check(JSON.stringify(planningAfter.player.position) === JSON.stringify(planningBefore.player.position), 'Exploration movement stays locked during planning');
   check(planningAfter.combat.phase === 'preparation' && planningAfter.player.health === planningBefore.player.health, 'Pursuit does not attack during planning');
   for (const id of ['nest', 'patrol']) {
     const before = planningBefore.threats.find(enemy => enemy.id === id)!;
     const after = planningAfter.threats.find(enemy => enemy.id === id)!;
-    check(Math.hypot(after.position.x - before.position.x, after.position.z - before.position.z) > 0.1, `${after.name} follows during planning`);
-    check(JSON.stringify(after.windowAction) === JSON.stringify(before.windowAction) && after.actionSequence === before.actionSequence, `${after.name} keeps its committed action and beat while following`);
+    check(JSON.stringify(after.position) === JSON.stringify(before.position), `${after.name} waits while planning`);
+    check(JSON.stringify(after.windowAction) === JSON.stringify(before.windowAction) && after.actionSequence === before.actionSequence, `${after.name} keeps its committed action while planning`);
   }
   await page.click('.adventure-actions [data-action="strike"]');
   await page.waitFor('window.combatSnapshot.combat.queued.length===1');
@@ -108,9 +108,22 @@ try {
   check(await page.evaluate('window.combatSnapshot.combat.phase==="preparation"'), 'Holding R does not ready the next planning cycle');
   await page.shot('combat-loop-ready-and-active');
   check(await page.evaluate('window.enemyFrames.some(frame=>frame.phase==="active")&&window.enemyFrames.every(frame=>frame.finite&&frame.drawn)'), 'Enemy remains drawn through execution and the next planning cycle');
-  await page.key('KeyS', true);
-  await page.waitFor('window.combatSnapshot.phase==="town"', 10000);
-  await page.key('KeyS', false);
+  await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');window.combatVector=Vector3;Scene.prototype.onAfterRender=function(renderer,scene,camera){window.combatCamera=camera;};})()`);
+  for (let turn=0; turn<16 && await page.evaluate('window.combatSnapshot.player.inCombat'); turn++) {
+    await page.click('#combat-plan-aim-move');
+    await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles||"[]").length>0&&window.combatCamera');
+    const point=await page.evaluate<{x:number;y:number}>(`(()=>{const tiles=JSON.parse(document.getElementById('world-canvas').dataset.moveTiles),p=tiles.sort((a,b)=>a.z-b.z||Math.abs(a.x)-Math.abs(b.x))[0],v=new window.combatVector(p.x,p.y,p.z).project(window.combatCamera),r=document.getElementById('world-canvas').getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};})()`);
+    await page.call('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',buttons:1,clickCount:1});
+    await page.call('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',buttons:0,clickCount:1});
+    await page.waitFor('window.combatSnapshot.combat.queued.some(action=>action.action==="bait")');
+    await page.press('Digit2');
+    const turnNumber=await page.evaluate<number>('window.combatSnapshot.combat.cycle');
+    await page.press('KeyR');
+    await page.waitFor(`!window.combatSnapshot.player.inCombat||window.combatSnapshot.combat.cycle>${turnNumber}`,10000);
+  }
+  check(await page.evaluate('!window.combatSnapshot.player.inCombat'), 'Planned retreat ends pursuit');
+  await page.click('#bag-open'); await page.click('[data-bag-item="hearthstone"]'); await page.click('#bag-use-hearthstone');
+  await page.waitFor('window.combatSnapshot.phase==="town"',8000);
   check(await page.evaluate('window.combatSnapshot.threats.every(enemy=>!enemy.aggro)'), 'Retreating to town ends pursuit');
   check(await page.evaluate('window.combatSnapshot.threats.filter(enemy=>enemy.health>0).every(enemy=>enemy.health===enemy.maximumHealth)'), 'Leashed enemies recover before returning home');
   check(page.errors.length === 0, 'No browser exceptions');

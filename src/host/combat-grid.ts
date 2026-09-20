@@ -1,5 +1,5 @@
 import { BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, type Object3D } from 'three';
-import { COMBAT_CELL_SIZE, combatCell, reachableCombatCells, combatMoveOrigin } from '../game/combat-grid.js';
+import { COMBAT_CELL_SIZE, combatCell, reachableCombatCells } from '../game/combat-grid.js';
 import { terrainHeight } from '../game/cave-layout.js';
 import { blockedPosition } from '../game/movement.js';
 import { classKit } from '../game/class-kit.js';
@@ -51,7 +51,7 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
       }
       if (!cells.visible) return;
       const occupied = [...snapshot.threats.filter(t=>t.active&&t.health>0).map(t=>t.position), ...others];
-      const origin = combatMoveOrigin(snapshot.player.position, snapshot.combat.queued);
+      const origin = snapshot.player.position;
       const signature = JSON.stringify([origin, classKit(snapshot.player.archetype).movementTiles, occupied]);
       if (signature !== cellSignature) {
         cellSignature = signature;

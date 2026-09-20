@@ -57,7 +57,7 @@ try {
   await enter();
   await page.click('#equipment-open');
   await page.waitFor('document.getElementById("equipment-panel").open');
-  check(await page.evaluate('document.getElementById("equipment-summary").textContent.includes("Movement 2 (2 tiles per move)")'), 'Character stats show the class Movement allowance');
+  check(await page.evaluate('document.getElementById("equipment-summary").textContent.includes("Movement 2 (2 tiles per turn)")'), 'Character stats show the class Movement allowance');
   await page.shot('character-movement-stat');
   await page.click('#equipment-close');
   await page.key('KeyA', true);
@@ -83,6 +83,8 @@ try {
   check(gap(await page.evaluate<Position>('window.gridRendered'), entered.player.position) < .05, 'Rendered player matches the stationary server position');
   check(gap(stopped.threats.find(t => t.id === enemyId)!.position, entered.threats.find(t => t.id === enemyId)!.position) < .001, 'Enemy waits on its cell during planning');
   await page.shot('cave-grid-planning');
+  await page.click(`.enemy-nameplate[data-enemy-id="${enemyId}"] .nameplate-target`);
+  await page.waitFor(`window.gridState.selectedThreat===${JSON.stringify(enemyId)}`);
   await page.click('#combat-plan-aim-move');
   await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles||"[]").length>0');
   await clickGround(entered.player.position);
@@ -93,9 +95,23 @@ try {
   const destination = { x: entered.player.position.x + 2.5, z: entered.player.position.z };
   await clickGround({ ...destination, y: terrainHeight(destination.x, destination.z) });
   await page.waitFor('window.gridState.combat.queued.length===1');
+  await page.click('.adventure-actions [data-action="brace"]');
+  await page.waitFor('window.gridState.combat.queued.length===2&&!document.querySelector(\'.combat-plan-timing[data-timing="during"]\').disabled');
+  await page.click('.combat-plan-timing[data-timing="during"]');
+  await page.waitFor('window.gridState.combat.queued.some(action=>action.action==="brace"&&action.timing==="during")');
+  await page.click('.adventure-actions [data-action="strike"]');
+  await page.waitFor('window.gridState.combat.queued.some(action=>action.action==="strike"&&action.timing==="after")&&document.querySelector(\'.combat-plan-timing[data-timing="during"]\').disabled');
+  check(await page.evaluate('window.gridState.combat.queued.length===2&&document.querySelector(\'.combat-plan-timing[data-timing="during"]\').disabled'), 'Attack replaces Defend and cannot happen during movement');
+  await page.click('.combat-plan-timing[data-timing="before"]');
+  await page.waitFor('window.gridState.combat.queued.some(action=>action.action==="strike"&&action.timing==="before")');
+  await page.click('.adventure-actions [data-action="brace"]');
+  await page.waitFor('window.gridState.combat.queued.some(action=>action.action==="brace")&&!document.querySelector(\'.combat-plan-timing[data-timing="during"]\').disabled');
+  await page.click('.combat-plan-timing[data-timing="during"]');
+  await page.waitFor('window.gridState.combat.queued.some(action=>action.action==="brace"&&action.timing==="during")');
+  await page.shot('one-movement-one-action');
   await cycle();
   const moved = await snapshot();
-  check(gap(moved.player.position, entered.player.position) > 2, 'Planned Bait moves during its beat');
+  check(gap(moved.player.position, entered.player.position) > 2, 'Planned Move executes during the turn');
   check(moved.player.position.x % 2.5 === 0 && moved.player.position.z % 2.5 === 0, 'Planned move ends on a cell');
   check(Math.abs(moved.player.position.y - terrainHeight(moved.player.position.x, moved.player.position.z)) < .05, 'Planned movement follows the cave slope');
   await page.key('KeyD', true); await Bun.sleep(250); await page.key('KeyD', false);
@@ -113,9 +129,15 @@ try {
   await page.click('.adventure-actions [data-action="strike"]');
   await page.waitFor('window.gridState.combat.queued.length===1');
   await page.click('.adventure-actions [data-action="strike"]');
-  await page.waitFor('window.gridState.combat.queued.length===2');
+  await Bun.sleep(150);
+  check((await snapshot()).combat.queued.length === 1, 'Selecting Attack again replaces the action');
   check(await page.evaluate(`document.querySelector('.combat-plan-move-target').textContent.includes(${JSON.stringify(surface?'Cinder Watchman':'Hollowwing')})`), 'Planner names the creature being attacked');
   await cycle();
+  if ((await snapshot()).player.inCombat) {
+    await page.click('.adventure-actions [data-action="strike"]');
+    await page.waitFor('window.gridState.combat.queued.length===1');
+    await cycle();
+  }
   await page.waitFor('!window.gridState.player.inCombat&&document.getElementById("world-canvas").dataset.combatGrid==="0"');
   const cleared = await snapshot();
   check(cleared.coins === 0 && cleared.carriedSalvage === 0 && !cleared.loot.find(item => item.sourceId === enemyId)?.available, 'Finishing a private encounter grants no shared-world rewards');

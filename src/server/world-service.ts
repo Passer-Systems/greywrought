@@ -13,7 +13,7 @@ import type { LocalCharacter } from '../host/character-profile.js';
 
 const ACTIONS = [
   'forward', 'backward', 'left', 'right', 'jump', 'strike', 'brace', 'bait', 'gather', 'cancelGather', 'ritual', 'interact', 'buyPotion',
-  'rest', 'target', 'openTrade', 'closeTrade', 'acceptTrade',
+  'hearthstone', 'cancelHearthstone', 'rest', 'target', 'openTrade', 'closeTrade', 'acceptTrade',
   'closeShop', 'takeLoot', 'closeLoot', 'closeInn', 'closeBank',
 ] as const satisfies readonly AdventureAction[];
 const MAX_PAYLOAD = 16 * 1024;
@@ -59,8 +59,7 @@ function command(value: unknown): value is WorldCommand {
     case 'target': case 'loot': return keys(value, ['type', 'id']) && identifier(value.id);
     case 'bait': return keys(value, ['type', 'destination']) && record(value.destination) && keys(value.destination, ['x','y','z']) && finite(value.destination.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(value.destination.y,-100,100) && finite(value.destination.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
     case 'ready': return keys(value, ['type']);
-    case 'delay': case 'move': return keys(value, ['type','id','seconds']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true) && finite(value.seconds,0,2,true);
-    case 'replace': return keys(value,['type','id','action']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true) && member(value.action,['bait','strike','brace']);
+    case 'actionTiming': return keys(value, ['type','timing']) && member(value.timing,['before','during','after']);
     case 'remove': return keys(value,['type','id']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true);
     case 'clear': return keys(value,['type']);
     case 'bank': return keys(value, ['type', 'operation', 'kind', 'quantity']) && member(value.operation, ['deposit', 'withdraw']) && member(value.kind, ['supplies', 'potions']) && finite(value.quantity, 1, Number.MAX_SAFE_INTEGER, true);
@@ -215,9 +214,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'target': player.selectTarget(value.id); break;
       case 'bait': return player.queueBait(value.destination);
       case 'ready': return player.readyCombat();
-      case 'delay': player.setQueuedDelay(value.id,value.seconds); break;
-      case 'move': player.moveQueuedAction(value.id,value.seconds); break;
-      case 'replace': return player.replaceQueuedAction(value.id,value.action);
+      case 'actionTiming': return player.setActionTiming(value.timing);
       case 'remove': player.removeQueuedAction(value.id); break;
       case 'clear': player.clearQueuedActions(); break;
       case 'loot': player.openLoot(value.id); break;

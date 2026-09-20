@@ -21,7 +21,7 @@ describe("committed attack resources", () => {
   test("each calling executes only its queued strike without stamina cost or player movement", () => {
     for (const archetype of ["warrior", "mage", "hunter", "alchemist", "artificer"] as const) {
       const game = setup(archetype), position = game.snapshot.player.position;
-      const damage = archetype === "alchemist" ? 8 : archetype === "artificer" ? 10 : 9;
+      const damage = archetype === "alchemist" ? 16 : archetype === "artificer" ? 20 : 18;
       tap(game, "strike");
       expect(scout(game).health).toBe(96);
       game.readyCombat(); game.advance(.001);
@@ -38,17 +38,18 @@ describe("committed attack resources", () => {
     }
   });
 
-  test("Block reserves stamina during planning and spends it at the chosen slot", () => {
+  test("Block reserves stamina during planning and spends it at the chosen movement timing", () => {
     const game = setup(); game.advance(.001); tap(game, "brace");
-    game.moveQueuedAction(game.snapshot.combat.queued[0]!.id, 2);
+    expect(game.queueBait({ x: -2.5, y: 0, z: 25 })).toBe(true);
+    expect(game.setActionTiming("after")).toBe(true);
     expect(game.snapshot.player.block).toBe(0);
     expect(game.snapshot.player.stamina).toBe(5);
-    expect(game.snapshot.combat.reservedStamina).toBe(2);
-    game.readyCombat(); game.advance(1.99);
+    expect(game.snapshot.combat.reservedStamina).toBe(3);
+    game.readyCombat(); game.advance(1.49);
     expect(game.snapshot.player.block).toBe(0);
     game.advance(.02);
     expect(game.snapshot.player.block).toBe(24);
-    expect(game.snapshot.player.stamina).toBe(3);
+    expect(game.snapshot.player.stamina).toBe(2);
   });
 
   test("stamina recovers outside combat and Block works in town", () => {

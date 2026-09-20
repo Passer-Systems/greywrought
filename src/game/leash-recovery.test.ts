@@ -9,7 +9,7 @@ test('a ranged pull cannot chip an enemy down across leash resets or hit its ret
  let game=createAdventure({archetype:'mage',save:JSON.stringify(saved)});
  const bee=()=>game.snapshot.threats.find(t=>t.id==='nest')!;
  game.selectTarget('nest');tap(game,'strike');game.readyCombat();game.advance(.01);
- expect(bee().health).toBe(63);expect(bee().aggro).toBe(true);
+ expect(bee().health).toBe(54);expect(bee().aggro).toBe(true);
  finishCycle(game);
  retreatUntilReleased(game,'nest');
  expect(bee().phase).toBe('returning');expect(bee().health).toBe(72);

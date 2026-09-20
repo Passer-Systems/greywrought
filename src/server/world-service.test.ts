@@ -307,7 +307,16 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
     const planned = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait'));
     const snappedX=Math.round(destination.x/2.5)*2.5, snappedZ=Math.round(destination.z/2.5)*2.5;
     expect(planned.snapshot.combat.queued[0]!.destination).toEqual({x:snappedX,y:terrainHeight(snappedX,snappedZ),z:snappedZ});
+    expect(await client.command({ type: 'action', action: 'brace', pressed: true })).toBe(true);
+    expect(await client.command({ type: 'action', action: 'brace', pressed: false })).toBe(true);
+    expect(await client.command({ type: 'actionTiming', timing: 'during' })).toBe(true);
+    await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'brace' && e.timing === 'during'));
+    expect(await client.invalid({ type: 'actionTiming', timing: 'later' })).toBe(false);
+    expect(await client.invalid({ type: 'move', id: 1, seconds: 1 })).toBe(false);
+    expect(await client.invalid({ type: 'delay', id: 1, seconds: 1 })).toBe(false);
+    expect(await client.invalid({ type: 'replace', id: 1, action: 'strike' })).toBe(false);
     expect(await client.command({ type: 'ready' })).toBe(true);
+    expect(await client.command({ type: 'actionTiming', timing: 'before' })).toBe(false);
     expect(await client.command({ type: 'bait', destination })).toBe(false);
   } finally { client.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
 });

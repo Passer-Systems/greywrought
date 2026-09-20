@@ -23,17 +23,19 @@ export interface CombatFeedback {
 }
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
-  | "bait" | "strike" | "brace" | "gather" | "cancelGather" | "ritual" | "interact"
+  | "hearthstone" | "cancelHearthstone" | "bait" | "strike" | "brace" | "gather" | "cancelGather" | "ritual" | "interact"
   | "buyPotion" | "drinkPotion" | "rest" | "target" | "openTrade" | "closeTrade" | "acceptTrade" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn" | "closeBank";
 export interface TradeView {
   readonly kind: "supplies" | "potions"; readonly quantity: number; readonly receivedQuantity: number;
   readonly available: number; readonly canAccept: boolean; readonly reason: string; readonly step: number;
 }
+export type CombatActionTiming = "before" | "during" | "after";
 export type CombatAction = "bait" | "strike" | "brace";
 export type CombatMove = { readonly action: CombatAction } | { readonly action: "equip"; readonly gear: { readonly slot: GearSlot; readonly item: GearItemId | null } };
 export interface QueuedCombatAction {
   readonly id: number; readonly action: CombatAction; readonly targetId: string | null;
   readonly destination: Position | null;
+  readonly timing: CombatActionTiming | null;
   readonly offsetSeconds: number; readonly cost: number;
   readonly status: "pending" | "executed" | "failed"; readonly reason: string | null;
 }
@@ -208,9 +210,7 @@ export interface AdventureGame {
   selectTarget(id: string): void;
   queueBait(destination: Position): boolean;
   readyCombat(): boolean;
-  setQueuedDelay(id: number, seconds: number): void;
-  moveQueuedAction(id: number, offsetSeconds: number): void;
-  replaceQueuedAction(id: number, action: CombatAction): boolean;
+  setActionTiming(timing: CombatActionTiming): boolean;
   removeQueuedAction(id: number): void;
   clearQueuedActions(): void;
   openLoot(sourceId: string): void;

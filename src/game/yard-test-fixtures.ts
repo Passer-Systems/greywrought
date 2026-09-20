@@ -1,5 +1,5 @@
 import { terrainHeight } from "./cave-layout.js";
-import { snapCombatPosition, reachableCombatCells, combatMoveOrigin } from "./combat-grid.js";
+import { snapCombatPosition, reachableCombatCells } from "./combat-grid.js";
 import { classKit, classAction } from "./class-kit.js";
 import { createAdventure } from "./adventure.js";
 import type { AdventureAction, AdventureGame, SharedAdventure, Position } from "./adventure-types.js";
@@ -25,7 +25,7 @@ export function travel(game: AdventureGame, x: number, z: number, world?: Shared
     if (gap < .01) return;
     if (game.snapshot.player.inCombat) {
       game.clearQueuedActions();
-      for (let slot = 0; slot < 3; slot++) if (!queueMoveToward(game,goal)) break;
+      queueMoveToward(game,goal); tap(game,"brace"); game.setActionTiming("before");
       if (world) readyParty(...world.players().map(p => world.getPlayer(p.id)!)); else game.readyCombat();
       finishCycle(game, world);
     } else {
@@ -41,7 +41,8 @@ export function retreatUntilReleased(game: AdventureGame, id: string, world?: Sh
     game.clearQueuedActions();
     const p=game.snapshot.player.position;
     const destination=snapCombatPosition({x:p.x,y:terrainHeight(p.x,p.z-15),z:p.z-15},p,Infinity,game.snapshot.threats.filter(t=>t.active&&t.health>0).map(t=>t.position));
-    for(let slot=0;slot<3;slot++) if(!queueMoveToward(game,destination)) throw new Error("Retreat plan could not be queued");
+    if(!queueMoveToward(game,destination)) throw new Error("Retreat plan could not be queued");
+    tap(game,"brace"); game.setActionTiming("before");
     if(world) readyParty(...world.players().map(p=>world.getPlayer(p.id)!)); else game.readyCombat();
     for(let time=0;time<5 && game.snapshot.threats.find(t=>t.id===id)!.aggro;time+=.05)(world??game).advance(.05);
   }
@@ -55,31 +56,32 @@ export function fightTarget(game: AdventureGame, id: string, defend = true): voi
     const p = game.snapshot.player.position, dx = target.position.x - p.x, dz = target.position.z - p.z;
     const gap = Math.hypot(dx, dz);
 
-    if (!target.canStrike) {
-      if (game.snapshot.player.inCombat) {
-        const desired = {x:target.position.x-dx/gap*2.5,y:0,z:target.position.z-dz/gap*2.5};
-        const destination = snapCombatPosition(desired,p,classAction(game.snapshot.player.archetype,"bait").range!,game.snapshot.threats.filter(t=>t.active&&t.health>0).map(t=>t.position));
-        game.queueBait(destination); game.readyCombat(); finishCycle(game);
-      } else {
-        game.setCameraForward(dx,dz); game.setAction("forward",true); game.advance(Math.min(.1,(gap-2.5)/5.2));game.setAction("forward",false);
+    if (!game.snapshot.player.inCombat && !target.canStrike) {
+      game.setCameraForward(dx,dz); game.setAction("forward",true); game.advance(Math.min(.1,(gap-2.5)/5.2)); game.setAction("forward",false); continue;
+    }
+    game.clearQueuedActions(); tap(game, "strike");
+    if (defend) {
+      const view = game.snapshot;
+      const cells = reachableCombatCells(p, classKit(view.player.archetype).movementTiles, view.threats.filter(t => t.active && t.health > 0).map(t => t.position));
+      let best: { destination: Position | null; action: "strike" | "brace"; timing: "before" | "after" } = { destination: null, action: "strike", timing: "before" }, bestScore = -Infinity;
+      for (const action of (target.currentAbility.id === "foreman-pulse" ? ["brace"] : ["strike", "brace"]) as readonly ("strike" | "brace")[]) for (const destination of [null, ...cells]) for (const timing of destination && action === "strike" ? ["before", "after"] as const : ["before"] as const) {
+        game.clearQueuedActions(); tap(game, action);
+        if (!game.snapshot.combat.queued.some(entry => entry.action === action)) continue;
+        if (destination && Math.hypot(destination.x-target.homePosition.x,destination.z-target.homePosition.z) > 8) continue;
+        if (destination && !game.queueBait(destination)) continue;
+        game.setActionTiming(timing);
+        const forecast = game.snapshot.combat.forecast;
+        if (!forecast) continue;
+        const health = forecast.outcomes.find(o => o.id === "solo")!.health;
+        const damage = target.health - forecast.outcomes.find(o => o.id === id)!.health;
+        const end = forecast.paths.find(path => path.actorId === "solo" && path.kind === "move")?.points.at(-1) ?? p;
+        const score = health + damage * 3 - (id !== "ritual-guardian" && Math.hypot(end.x-target.position.x,end.z-target.position.z) > classAction(view.player.archetype,"strike").range! + 1e-8 ? 15 : 0) - Math.hypot(end.x-target.homePosition.x,end.z-target.homePosition.z) * .01 - Math.hypot(end.x-p.x,end.z-p.z) * .001;
+        if (score > bestScore) { bestScore = score; best = { destination, action, timing }; }
       }
-      continue;
+      game.clearQueuedActions(); tap(game, best.action);
+      if (best.destination) game.queueBait(best.destination);
+      game.setActionTiming(best.timing);
     }
-    tap(game, "strike");
-    if (defend && target.currentAbility.id === "foreman-shield" && gap > 2.5) {
-      const destination = snapCombatPosition({x:target.position.x-dx/gap*2.5,y:0,z:target.position.z-dz/gap*2.5},p,6,[target.position]);
-      game.queueBait(destination);
-    } else tap(game, "strike");
-    const defenseAction = "brace";
-    if (defend && target.windowAction?.ability.damage && game.snapshot.player.stamina >= 2) {
-      if (target.currentAbility.id === "foreman-press") {
-        const x=target.position.x-dx/gap*5,z=target.position.z-dz/gap*5;
-        queueMoveToward(game,{x,y:terrainHeight(x,z),z});
-      } else tap(game, defenseAction);
-      const defense = game.snapshot.combat.queued.find(e => e.action === (target.currentAbility.id === "foreman-press" ? "bait" : defenseAction));
-      if (defense && target.windowAction) game.moveQueuedAction(defense.id, target.windowAction.offsetSeconds);
-    }
-    else tap(game, "strike");
     game.readyCombat(); finishCycle(game);
   }
 }
@@ -126,7 +128,7 @@ export function fightForeman(game: AdventureGame, prepared: boolean): { health: 
 }
 
 export function queueMoveToward(game: AdventureGame, goal: Position): boolean {
-  const view=game.snapshot, origin=combatMoveOrigin(view.player.position,view.combat.queued);
+  const view=game.snapshot, origin=view.player.position;
   if (Math.hypot(origin.x-goal.x,origin.z-goal.z)<.01) return false;
   const candidates=reachableCombatCells(origin,classKit(view.player.archetype).movementTiles,view.threats.filter(t=>t.active&&t.health>0).map(t=>t.position));
   const destination=candidates.sort((a,b)=>Math.hypot(a.x-goal.x,a.z-goal.z)-Math.hypot(b.x-goal.x,b.z-goal.z))[0];

@@ -57,6 +57,7 @@ const corpseLoot = createCorpseLoot(element("adventure-hud"), {
 });
 const bags = createBagPanel(element("adventure-hud"), {
   onUsePotion: () => pulse("drinkPotion"),
+  onUseHearthstone: () => { pulse("hearthstone"); closeBags(); },
   onEquip: (slot, item) => { if (running?.ready && !paused) running.game.equip(slot, item); },
   onOpenEquipment: () => {
     if (!running?.ready || route !== "world" || running.game.snapshot.phase === "lost") return;
@@ -76,7 +77,8 @@ const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   playerName: id => running?.character.id === id ? "You" : running?.game.players.find(player => player.id === id)?.name,
   onRemove: id => { if (running?.ready && !paused) { running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
   onClear: () => { if (running?.ready && !paused) { running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
-  onMove: (id, seconds) => { if (running?.ready && !paused) { running.game.moveQueuedAction(id, seconds); combatPlan.update(running.game.snapshot); } },
+  onTiming: timing => { if (running?.ready && !paused) { running.game.setActionTiming(timing); combatPlan.update(running.game.snapshot); } },
+  onAction: action => pulse(action),
   onReady: readyCombat,
   onAimMove: () => pulse("bait"),
   onPreview: preview => running?.world.setCombatPreview(preview),
@@ -218,7 +220,7 @@ function pressAction(action: AdventureAction): void {
   if (menuOpen()) return;
   if (action === "bait") {
     const snapshot = running?.game.snapshot;
-    if (snapshot?.combat.phase === "preparation" && snapshot.combat.queued.length < 3 && snapshot.combat.availableStamina >= 1) setBaitAiming(!baitAiming);
+    if (snapshot?.combat.phase === "preparation" && !snapshot.combat.ready && snapshot.combat.availableStamina + (snapshot.combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) >= 1) setBaitAiming(!baitAiming);
     return;
   }
   if (action === "strike" || action === "brace") setBaitAiming(false);
@@ -299,7 +301,7 @@ function renderEntry(): void {
   text("entry-creator-class", classes[draft].name);
   text("entry-lore-title", classes[draft].name);
   text("entry-lore-copy", classes[draft].copy);
-  text("entry-lore-kit", `Movement ${classKit(draft).movementTiles} · ${classKit(draft).movementTiles} tiles per move · Attack · Block`);
+  text("entry-lore-kit", `Movement ${classKit(draft).movementTiles} · ${classKit(draft).movementTiles} tiles per turn · Attack · Defend`);
   text("entry-creator-preview-name", normalizedCharacterName(input("entry-character-name").value) ?? "Unnamed Adventurer");
   avatar("entry-creator", draft);
   for (const choice of document.querySelectorAll<HTMLElement>("[data-entry-archetype]")) choice.setAttribute("aria-pressed", String(choice.dataset.entryArchetype === draft));
@@ -590,7 +592,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players);
   combatPlan.update(snapshot);
-  if (snapshot.combat.phase !== "preparation" || snapshot.combat.queued.length >= 3) setBaitAiming(false);
+  if (snapshot.combat.phase !== "preparation" || snapshot.combat.ready) setBaitAiming(false);
   data.gameCombatPlan = String(!element("combat-plan").hidden);
   const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, text: entry.kind === 'emote' ? `* ${entry.name} ${entry.text}` : entry.name + ": " + entry.text })) ?? [];
   chatLog.update([...snapshot.log, ...sharedChat]);
@@ -609,7 +611,9 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const available = targeted ? Boolean(selected?.active && selected.health > 0) : player.inCombat;
     const range = playerRange(snapshot, action);
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]')!;
-    control.disabled = !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.ready || snapshot.combat.queued.length >= 3 || snapshot.combat.availableStamina < cost || targeted && range.state !== "in" && !(planning && selected?.aggro);
+    const reserved = snapshot.combat.queued.find(entry => (entry.action === "bait") === (action === "bait"))?.cost ?? 0;
+    const availableStamina = snapshot.combat.availableStamina + reserved;
+    control.disabled = !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.ready || availableStamina < cost || targeted && range.state !== "in" && !(planning && selected?.aggro);
     control.setAttribute("aria-label", spec.name);
     control.setAttribute("aria-pressed", String(action === "bait" && baitAiming));
     control.dataset.range = range.state;
@@ -619,19 +623,19 @@ function renderHud(snapshot: AdventureSnapshot): void {
     control.querySelector<HTMLElement>(".action-tooltip span:last-child")!.textContent = spec.description;
     const art = control.querySelector<HTMLImageElement>(".action-art img")!;
     const source = publicUrl(spec.icon); if (art.getAttribute("src") !== source) art.src = source;
-    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.queued.length >= 3 ? "Three actions already planned" : snapshot.combat.availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Click a highlighted tile, then Ready (R)" : "Queue · " + cost + " stamina";
+    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Click a highlighted tile, then Ready (R)" : "Plan · " + cost + " stamina";
     text(action + "-ready", detail + (range.text ? " · " + range.text : ""));
   }
   const recovery = element("player-action-bar");
-  recovery.hidden = player.actionCooldown <= 0.001 || (player.currentAction !== "gather" && player.currentAction !== "ritual");
+  recovery.hidden = player.actionCooldown <= 0.001 || (player.currentAction !== "gather" && player.currentAction !== "ritual" && player.currentAction !== "hearthstone");
   if (!recovery.hidden) {
     const actionControl = player.currentAction ? document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + player.currentAction + '"]') : null;
     const art = actionControl?.querySelector<HTMLImageElement>(".action-art img");
     const icon = element("player-action-icon") as HTMLImageElement;
-    const source = art?.src ?? publicUrl("assets/ui/icons/spells/sword-strike.png");
+    const source = player.currentAction === "hearthstone" ? publicUrl("assets/ui/icons/spells/earth-stone.png") : art?.src ?? publicUrl("assets/ui/icons/spells/sword-strike.png");
     if (icon.src !== source) icon.src = source;
     const gathering = player.currentAction === "gather";
-    const label = gathering ? "Gathering" : "Awakening the engine";
+    const label = gathering ? "Gathering" : player.currentAction === "hearthstone" ? "Returning to Nine-Bell Yard" : "Awakening the engine";
     const progress = player.actionDuration - player.actionCooldown;
     text("player-action-name", label);
     text("player-action-time", progress.toFixed(1) + " / " + player.actionDuration.toFixed(1));
@@ -914,6 +918,7 @@ listen(window, "keydown", (event) => {
     return;
   }
   if (event.code === "Escape" && running?.game.snapshot.player.currentAction === "gather") { event.preventDefault(); if (!event.repeat) pulse("cancelGather"); return; }
+  if (event.code === "Escape" && running?.game.snapshot.player.currentAction === "hearthstone") { event.preventDefault(); if (!event.repeat) pulse("cancelHearthstone"); return; }
   if (event.code === "Escape" && baitAiming) { event.preventDefault(); setBaitAiming(false); return; }
   if (event.code === "Escape" && questLog.isOpen()) { event.preventDefault(); closeQuestLog(); return; }
   if (event.code === "Escape" && lorebook.isOpen) { event.preventDefault(); closeLorebook(); return; }

@@ -1,4 +1,4 @@
-import type { Position, QueuedCombatAction } from './adventure-types.js';
+import type { Position } from './adventure-types.js';
 import { blockedPosition, MOVEMENT_BARRIERS } from './movement.js';
 import { terrainHeight } from './cave-layout.js';
 import { WORLD_BOUNDS } from './world-layout.js';
@@ -47,10 +47,4 @@ export function reachableCombatCells(origin: Position, movementTiles: number, oc
     cells.push(candidate);
   }
   return cells;
-}
-
-export function combatMoveOrigin(position: Position, queued: readonly QueuedCombatAction[]): Position {
-  const beat = [0,1,2].find(slot => !queued.some(action => action.offsetSeconds === slot)) ?? 3;
-  return queued.filter(action => action.action === 'bait' && action.offsetSeconds < beat && action.destination !== null)
-    .sort((a,b) => a.offsetSeconds-b.offsetSeconds).at(-1)?.destination ?? position;
 }

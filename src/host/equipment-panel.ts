@@ -147,7 +147,7 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     if (name.textContent !== character.name) name.textContent = character.name;
     const weaponBonus = snapshot.progression.equipment.mainhand ? GEAR[snapshot.progression.equipment.mainhand].attackBonus : 0;
     const levelBonus = snapshot.progression.attackBonus - weaponBonus;
-    const value = `Level ${snapshot.progression.level} ${classNames[character.archetype]} · ${Math.ceil(snapshot.player.health)} / ${snapshot.player.maximumHealth} health · +${levelBonus} level damage · +${weaponBonus} weapon damage · ${snapshot.progression.damageReduction} armor · Movement ${classKit(snapshot.player.archetype).movementTiles} (${classKit(snapshot.player.archetype).movementTiles} tiles per move)`;
+    const value = `Level ${snapshot.progression.level} ${classNames[character.archetype]} · ${Math.ceil(snapshot.player.health)} / ${snapshot.player.maximumHealth} health · +${levelBonus} level damage · +${weaponBonus} weapon damage · ${snapshot.progression.damageReduction} armor · Movement ${classKit(snapshot.player.archetype).movementTiles} (${classKit(snapshot.player.archetype).movementTiles} tiles per turn)`;
     if (summary.textContent !== value) summary.textContent = value;
     if (portraitClass !== character.archetype) {
       portraitClass = character.archetype;

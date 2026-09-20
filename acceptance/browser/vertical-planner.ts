@@ -45,12 +45,14 @@ try {
     companionSocket!.onmessage = event => { if (JSON.parse(String(event.data)).type === 'state') resolve(); };
   });
   page = await openBrowser('vertical-planner');
+  await page.call('Network.enable');
+  await page.call('Network.setBlockedURLs', { urls: ['http://127.0.0.1:4301/__dev/events'] });
   await page.call('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Planner',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4302/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state')window.planSnapshot=d.snapshot;});}};`});
   await page.reload(); await page.waitFor('document.body.dataset.entryRoute==="roster"');
   await page.click('#entry-enter-world');
   await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"&&document.querySelectorAll(".combat-plan-portrait[src]").length===3');
-  check(await page.evaluate(`(()=>{const rows=[...document.querySelectorAll('.combat-plan-beat')];return rows.length===3&&rows.every((row,i)=>{const p=row.querySelector('.combat-plan-player').getBoundingClientRect(),e=row.querySelector('.combat-plan-enemy').getBoundingClientRect();return Math.abs(p.top-e.top)<1&&p.right<e.left&&(i===0||p.top>rows[i-1].getBoundingClientRect().bottom);});})()`),'Three vertical beats align player and enemy actions');
-  check(await page.evaluate(`document.querySelector('.combat-plan-enemy[data-beat="2"]').children.length===3&&[...document.querySelectorAll('.combat-plan-enemy-name')].every(n=>n.textContent.length>2)`),'Three enemy identities share a beat');
+  check(await page.evaluate(`(()=>{const rows=[...document.querySelectorAll('.combat-plan-row')];return rows.length===2&&rows[0].dataset.category==='movement'&&rows[1].dataset.category==='action'&&rows[1].getBoundingClientRect().top>=rows[0].getBoundingClientRect().bottom;})()`),'One movement and one action form a vertical turn plan');
+  check(await page.evaluate(`document.querySelectorAll('.combat-plan-enemy-move').length===3&&[...document.querySelectorAll('.combat-plan-enemy-name')].every(n=>n.textContent.length>2)`),'Each enemy has one named intention');
   await page.waitFor(`[...document.querySelectorAll('.combat-plan-enemy-target')].every(n=>n.textContent==='→ Mira of Frostwood')`);
   await page.shot('companion-target');
   companionSocket.close();
@@ -64,7 +66,7 @@ try {
   await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:20,y:20,buttons:0});
   await page.shot('queued-target-desktop');
   await page.call('Emulation.setDeviceMetricsOverride',{width:600,height:800,deviceScaleFactor:1,mobile:false});
-  check(await page.evaluate(`(()=>{const label=document.querySelector('.combat-plan-move-target'),r=label.getBoundingClientRect(),cell=label.closest('.combat-plan-player').getBoundingClientRect();return r.left>=cell.left&&r.right<=cell.right&&r.top>=cell.top&&r.bottom<=cell.bottom;})()`), 'Queued enemy name fits its player beat at narrow width');
+  check(await page.evaluate(`(()=>{const label=document.querySelector('.combat-plan-move-target'),r=label.getBoundingClientRect(),cell=label.closest('.combat-plan-row').getBoundingClientRect();return r.left>=cell.left&&r.right<=cell.right&&r.top>=cell.top&&r.bottom<=cell.bottom;})()`), 'Queued enemy name fits its action row at narrow width');
   await page.shot('queued-target-narrow');
   await page.call('Emulation.clearDeviceMetricsOverride');
   await page.evaluate(`document.querySelector('#enemy-intents [data-enemy-id="scout"]').click()`);
@@ -73,10 +75,7 @@ try {
   await page.waitFor(`document.querySelectorAll('.combat-plan-move').length===0`);
   await page.press('Digit2'); await page.waitFor('document.querySelector(".combat-plan-move")');
   check(await page.evaluate(`document.querySelector('.combat-plan-move-target').textContent==='→ Self'`), 'Block labels its own player as Self');
-  await page.click('.combat-plan-delay[data-slot="3"]');
-  await page.waitFor(`document.querySelector('.combat-plan-player[data-beat="2"] .combat-plan-move')`);
-  await page.evaluate(`(()=>{const move=document.querySelector('.combat-plan-move'),target=document.querySelector('.combat-plan-player[data-beat="1"]'),data=new DataTransfer();move.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:data}));target.dispatchEvent(new DragEvent('drop',{bubbles:true,dataTransfer:data}));})()`);
-  await page.waitFor(`document.querySelector('.combat-plan-player[data-beat="1"] .combat-plan-move')`);
+  check(await page.evaluate(`document.querySelector('.combat-plan-row[data-category="action"] .combat-plan-move')!==null&&document.querySelector('.combat-plan-delay')===null`), 'Defend occupies the single action row');
   await page.click('.combat-plan-enemy-move[data-threat-id="nest"]');
   await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:20,y:20,buttons:0});
   check(await page.evaluate('!document.querySelector(".combat-plan-inspect").hidden&&!document.querySelector(".combat-plan-forecast-summary").hidden&&JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).some(t=>t.enemy==="nest")'),'Pinned preview and forecast survive pointer exit');
@@ -95,6 +94,6 @@ try {
   check(await page.evaluate('getComputedStyle(document.querySelector(\'.combat-plan-enemy-move[data-status="cancelled"] .combat-plan-enemy-art\'),"::after").content.includes("×")'), 'Interrupted action displays a red cross');
   await page.shot('cancelled-move');
   check(page.errors.length===0,'No browser exceptions');
-  console.log('PASS queued attack target, Self, named companion and target change to You, vertical geometry, identities/portraits, slot editing, drag retiming, pinned preview/forecast, narrow viewport, Ready and interrupted action',page.output);
+  console.log('PASS queued attack target, Self, named companion and target change to You, vertical movement/action rows, identities/portraits, action replacement, pinned preview/forecast, narrow viewport, Ready and interrupted action',page.output);
 } catch(error) {await page?.shot('failure');throw error;}
 finally {companionSocket?.close();await page?.close();await service.close();server.stop(true);frontend.kill();await frontend.exited;}

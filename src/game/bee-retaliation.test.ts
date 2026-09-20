@@ -20,9 +20,8 @@ test("a ranged hit enrages the bee, which closes and retaliates only after its a
     const { world, mage, bee } = rangedBee();
     expect(bee().aggro).toBe(false); expect(bee().canStrike).toBe(true);
     tap(mage, "strike");
-    if (block) tap(mage, "brace");
     mage.readyCombat(); world.advance(.01);
-    expect(bee().health).toBe(63); expect(bee().aggro).toBe(true);
+    expect(bee().health).toBe(54); expect(bee().aggro).toBe(true);
     expect(bee().targetPlayerId).toBe("mage");
     expect(mage.snapshot.log.some(entry => entry.text.includes("enrages the Briar bee"))).toBe(true);
     const cast = bee().cast!;
@@ -34,6 +33,13 @@ test("a ranged hit enrages the bee, which closes and retaliates only after its a
     for (let elapsed = 0; elapsed < 10 && bee().actionSequence === 0; elapsed += .05) world.advance(.05);
     expect(bee().actionSequence).toBe(1);
     expect(bee().lastActionHit).toBe(true);
-    expect(mage.snapshot.player.health).toBe(block ? 100 : 100 - bee().currentAbility.damage);
+    expect(mage.snapshot.player.health).toBe(100 - bee().currentAbility.damage);
+    if (block) {
+      while (mage.snapshot.combat.phase === "active") world.advance(.05);
+      const health = mage.snapshot.player.health;
+      tap(mage, "brace"); mage.readyCombat(); world.advance(2.5);
+      expect(bee().actionSequence).toBe(2);
+      expect(mage.snapshot.player.health).toBe(health);
+    }
   }
 });

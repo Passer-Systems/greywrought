@@ -22,7 +22,8 @@ test('social aggro reaches a nearby ally outside player detection; neutral bee s
  const g=createAdventure({save:JSON.stringify(data)});g.advance(.01);
  expect(g.snapshot.threats.find(t=>t.id==='warder')!.aggro).toBe(true);
  expect(g.snapshot.threats.find(t=>t.id==='patrol')!.aggro).toBe(true);
- expect([0,1,2]).toContain(g.snapshot.threats.find(t=>t.id==='patrol')!.windowAction!.offsetSeconds);
+ expect(g.snapshot.threats.find(t=>t.id==='patrol')!.windowAction!.offsetSeconds).toBeGreaterThanOrEqual(.75);
+ expect(g.snapshot.threats.find(t=>t.id==='patrol')!.windowAction!.offsetSeconds).toBeLessThanOrEqual(.95);
  expect(g.snapshot.threats.find(t=>t.id==='nest')!.aggro).toBe(false);
  expect(g.snapshot.log.some(e=>e.text.includes("ally's call"))).toBe(true);
 });
@@ -150,7 +151,7 @@ test('engaging another enemy during planning preserves the existing committed ca
  const game=createAdventure({save:JSON.stringify(data)});game.advance(.01);
  const scout=()=>game.snapshot.threats.find(t=>t.id==='scout')!;
  const bee=()=>game.snapshot.threats.find(t=>t.id==='nest')!;
- const first=scout().cast!;expect([0,1,2]).toContain(first.duration);
+ const first=scout().cast!;expect(first.duration).toBeGreaterThanOrEqual(.9);expect(first.duration).toBeLessThanOrEqual(1.1);
  game.advance(1);const remaining=scout().cast!.remainingSeconds;
  game.selectTarget('nest');tap(game,'strike');game.advance(.01);
  expect(bee().cast).toBeNull();expect(bee().joinsNextWindow).toBe(true);
@@ -169,10 +170,10 @@ function pressure(count:number,defend:boolean,archetype:CharacterArchetype='warr
   if(ids.includes(t.id))Object.assign(t,{aggro:true,combatants:['solo'],phase:'preparation',rng:2000});
  }
  const game=createAdventure({save:JSON.stringify(data)});
- for(let elapsed=0;elapsed<12&&game.snapshot.player.health>0;elapsed+=.05){
+ for(let elapsed=0;elapsed<5&&game.snapshot.player.health>0;elapsed+=.05){
   const s=game.snapshot;
   if(s.combat.phase==='preparation'){
-   if(defend&&s.player.stamina>=2){tap(game,'brace');const block=game.snapshot.combat.queued.find(e=>e.action==='brace');if(block)game.moveQueuedAction(block.id,Math.min(...s.threats.filter(t=>t.windowAction&&t.windowAction.ability.damage>0).map(t=>t.windowAction!.offsetSeconds)));}
+   if(defend&&s.player.stamina>=2){tap(game,'brace');}
    game.readyCombat();
   }
   game.advance(.05);

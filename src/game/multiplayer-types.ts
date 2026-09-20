@@ -1,6 +1,6 @@
 import type { NpcId, VendorId } from "./economy.js";
 import type { QuestId, QuestOperation, GearSlot, GearItemId } from "./yard-content.js";
-import type { AdventureAction, AdventureSnapshot, EncounterSession, CombatAction, Position } from './adventure-types.js';
+import type { AdventureAction, AdventureSnapshot, EncounterSession, CombatActionTiming, Position } from './adventure-types.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 import type { MovementFrame, MovementCheckpoint } from './movement.js';
 
@@ -25,8 +25,7 @@ export type WorldCommand =
   | { type: 'target'; id: string }
   | { type: 'bait'; destination: Position }
   | { type: 'ready' }
-  | { type: 'delay' | 'move'; id: number; seconds: number }
-  | { type: 'replace'; id: number; action: CombatAction }
+  | { type: 'actionTiming'; timing: CombatActionTiming }
   | { type: 'remove'; id: number }
   | { type: 'clear' }
   | { type: 'loot'; id: string }

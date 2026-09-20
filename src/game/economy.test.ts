@@ -63,7 +63,7 @@ test("old quest levels migrate without resetting earned lessons, gear or currenc
 });
 test("shared contributors receive XP, bystanders do not, and one corpse has one coin purse", () => {
   const seed=createSharedAdventure(); for(const id of ["a","b","c"]) seed.join(id,id,"mage");
-  const save=JSON.parse(seed.save()); save.world.threats[0].health=18;
+  const save=JSON.parse(seed.save()); save.world.threats[0].health=36;
   for(const p of save.characters) Object.assign(p.state,{phase:"expedition",position:{x:-3,y:0,z:28}});
   const world=createSharedAdventure({save:JSON.stringify(save)}),a=world.join("a","a","mage"),b=world.join("b","b","mage"),c=world.join("c","c","mage");
   tap(a,"strike");tap(b,"strike");readyParty(a,b,c);world.advance(.01);
@@ -95,7 +95,7 @@ test("personal Foreman rolls share one coin purse without duplicating it", () =>
   const seed=createSharedAdventure();for(const id of ["a","b"])seed.join(id,id,"mage");
   const save=JSON.parse(seed.save());save.world.ritualCalled=true;
   for(const p of save.characters){p.state.chapter=earnedChapter(2);p.state.chapter.accepted.push("last-shift");Object.assign(p.state,{phase:"expedition",position:{x:2,y:0,z:58.5}});}
-  for(const t of save.world.threats)if(t.id==="ritual-guardian")Object.assign(t,{active:true,health:22});else Object.assign(t,{health:0,phase:"cleared",lootClaimed:true});
+  for(const t of save.world.threats)if(t.id==="ritual-guardian")Object.assign(t,{active:true,health:40});else Object.assign(t,{health:0,phase:"cleared",lootClaimed:true});
   const world=createSharedAdventure({save:JSON.stringify(save)}),a=world.join("a","a","mage"),b=world.join("b","b","mage");
   a.selectTarget("ritual-guardian");b.selectTarget("ritual-guardian");tap(a,"strike");tap(b,"strike");readyParty(a,b);world.advance(.01);
   finishCycle(a,world);const corpse=a.snapshot.loot.find(t=>t.sourceId==="ritual-guardian")!;

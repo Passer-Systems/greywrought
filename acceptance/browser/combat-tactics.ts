@@ -61,9 +61,10 @@ try {
   await page.click('.enemy-nameplate[data-enemy-id="patrol"] .nameplate-target');
   await page.press('Digit1');
   await page.waitFor('window.combatSnapshot.combat.queued.some(move=>move.action==="strike")');
-  await page.click('.combat-plan-delay[data-slot="3"]');
+  await page.click('.combat-plan-timing[data-timing="after"]');
   await page.press('Digit2');
-  await page.waitFor('window.combatSnapshot.combat.queued.some(move=>move.action==="brace"&&move.offsetSeconds===1)');
+  await page.click('.combat-plan-timing[data-timing="during"]');
+  await page.waitFor('window.combatSnapshot.combat.queued.length===2&&window.combatSnapshot.combat.queued.some(move=>move.action==="brace"&&move.timing==="during")');
   await page.click('.combat-plan-enemy-move[data-threat-id="patrol"]');
   await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).some(item=>item.enemy==="patrol")');
   await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 20, y: 20, buttons: 0 });
@@ -83,7 +84,7 @@ try {
   await Bun.write(page.output + '/result.json', JSON.stringify(final, null, 2));
   check(await page.evaluate('window.tacticsHistory.some(s=>s.log.some(event=>event.text.includes("collides")))'), 'Enemy collision resolves in the actual networked fight');
   check(await page.evaluate('window.tacticsHistory.some(s=>s.combat.effects.some(effect=>effect.kind==="ignition"))'), 'Watchman ignites the interrupted bee swarm');
-  check(final.threats.find(enemy => enemy.id === 'patrol')!.health < initial.threats.find(enemy=>enemy.id==='patrol')!.health, 'Attack damages the hound');
+  check(final.threats.find(enemy => enemy.id === 'patrol')!.health < initial.threats.find(enemy=>enemy.id==='patrol')!.health, 'Collision damages the hound');
   check(final.player.health >= health - 40, 'Planned Block keeps the chain reaction survivable');
   check(final.player.health === planned.combat.forecast!.outcomes.find(outcome => outcome.id === character.id)!.health, 'Predicted player health agrees with actual networked playback');
   check(page.errors.length === 0, 'No browser exceptions');

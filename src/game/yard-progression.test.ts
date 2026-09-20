@@ -43,7 +43,7 @@ test("shared scout kills grant saved credit to current contributors, excluding b
   const seed=createSharedAdventure();for(const id of ["a","b","c"])seed.join(id,id,"mage");
   const save=JSON.parse(seed.save());
   for(const p of save.characters){p.state.chapter=earnedChapter(1);p.state.chapter.accepted.push("roll-call");p.state.phase="expedition";p.state.position={x:-3,y:0,z:28};}
-  save.world.threats[0].health=33;
+  save.world.threats[0].health=60;
   const world=createSharedAdventure({save:JSON.stringify(save)}),a=world.join("a","a","mage"),b=world.join("b","b","mage"),c=world.join("c","c","mage");
   tap(a,"strike");tap(b,"strike");readyParty(a,b,c);world.advance(.01);
   expect(a.snapshot.player.inCombat).toBe(true);expect(b.snapshot.player.inCombat).toBe(true);
@@ -67,7 +67,7 @@ test("coat applies after Block, preserves complete blocks, and enforces one dama
     const game=createAdventure({save:JSON.stringify(save)});
     const cast=game.snapshot.threats.find(t=>t.id==="ritual-guardian")!.cast!;
     expect(game.snapshot.player.health).toBe(100);
-    if(block){tap(game,"brace");game.moveQueuedAction(game.snapshot.combat.queued[0]!.id,game.snapshot.threats.find(t=>t.id==="ritual-guardian")!.windowAction!.offsetSeconds);}
+    if(block){tap(game,"brace");}
     game.readyCombat();game.advance(cast.remainingSeconds+.5);expect(game.snapshot.player.health).toBe(100-expected);
   }
 });
@@ -75,7 +75,7 @@ test("each participating quest holder loots a personal Roll; replay waits for cl
   const seed=createSharedAdventure();for(const id of ["a","b","c"])seed.join(id,id,"mage");
   const save=JSON.parse(seed.save());save.world.ritualCalled=true;
   for(const p of save.characters){p.state.chapter=earnedChapter(2);p.state.chapter.accepted.push("last-shift");p.state.phase="expedition";p.state.position={x:2,y:0,z:58.5};p.state.cargo=6;}
-  for(const t of save.world.threats)if(t.id==="ritual-guardian")Object.assign(t,{active:true,health:22});else Object.assign(t,{health:0,phase:"cleared",lootClaimed:true});
+  for(const t of save.world.threats)if(t.id==="ritual-guardian")Object.assign(t,{active:true,health:40});else Object.assign(t,{health:0,phase:"cleared",lootClaimed:true});
   let world=createSharedAdventure({save:JSON.stringify(save)});const a=world.join("a","a","mage"),b=world.join("b","b","mage"),c=world.join("c","c","mage");
   a.selectTarget("ritual-guardian");b.selectTarget("ritual-guardian");
   tap(a,"strike");tap(b,"strike");readyParty(a,b,c);world.advance(.01);

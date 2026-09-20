@@ -19,7 +19,7 @@ describe("class ranged attacks", () => {
     game.selectTarget("scout");
     const before = game.snapshot.player.position;
     tap(game, "strike"); game.readyCombat(); game.advance(0.01);
-    expect(game.snapshot.threats.find(t => t.id === "scout")?.health).toBe(87);
+    expect(game.snapshot.threats.find(t => t.id === "scout")?.health).toBe(78);
     expect(game.snapshot.player.position).toEqual(before);
     expect(game.snapshot.player.maneuver).toBe("none");
   });
@@ -29,7 +29,7 @@ describe("class ranged attacks", () => {
     game.selectTarget("scout");
     const before = game.snapshot.player.position;
     tap(game, "strike"); game.readyCombat(); game.advance(0.01);
-    expect(game.snapshot.threats.find(t => t.id === "scout")?.health).toBe(87);
+    expect(game.snapshot.threats.find(t => t.id === "scout")?.health).toBe(78);
     expect(game.snapshot.player.position).toEqual(before);
     expect(game.snapshot.player.maneuver).toBe("none");
   });

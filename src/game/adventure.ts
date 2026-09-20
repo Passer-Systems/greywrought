@@ -1,4 +1,4 @@
-import { snapCombatPosition, combatCell, reachableCombatCells, combatMoveOrigin } from './combat-grid.js';
+import { snapCombatPosition, combatCell, reachableCombatCells, COMBAT_CELL_SIZE } from './combat-grid.js';
 import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
 import { restoreTownPosition } from './town-layout.js';
 import { VENDORS, experienceForLevel, levelForExperience, enemyExperience, enemyCoins, type NpcId, type VendorId } from "./economy.js";
@@ -9,19 +9,20 @@ import type { CharacterArchetype } from "../host/character-profile.js";
 import { YARD, QUESTS, GEAR, gearName, type QuestId, type QuestOperation, type QuestView, type ProgressionView, type GearSlot, type GearItemId } from "./yard-content.js";
 import type {
   AdventureAction, AdventureGame, AdventureOptions, AdventureSnapshot, AdventureLogEntry, SharedAdventure, CombatFeedback,
-  CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView, ThreatAbilityView, MonsterLoreEntry, ThreatForecastEntry, CombatAction, CombatMove, EncounterSession, CombatForecast, CombatEffect,
+  CorpseLootView, PlaceView, Position, ThreatPhase, ThreatView, ThreatAbilityView, MonsterLoreEntry, ThreatForecastEntry, CombatAction, CombatActionTiming, CombatMove, EncounterSession, CombatForecast, CombatEffect,
 } from "./adventure-types.js";
+import { COMBAT_TURN, actionTimingOffset } from "./combat-turn.js";
 import { classAction, classKit, MELEE_RANGE } from "./class-kit.js";
 
 type Vector = { x: number; y: number; z: number };
 type Phase = AdventureSnapshot["phase"];
 export const COMBAT_RULES = {
   actionCooldown: 1,
-  bait: { duration: .45, cost: 1 },
+  bait: { duration: COMBAT_TURN.moveDuration, cost: 1 },
   swarm: { radius: 3, damage: 36 },
-  window: { active: 3, choosing: 0, preparation: 30, actionSlots: 3, maximumActions: 3 },
+  window: { active: COMBAT_TURN.duration, choosing: 0, preparation: 30 },
   stamina: { maximum: 5, recoverySeconds: 1.5 },
-  strike: { damage: 9, range: MELEE_RANGE, rangedRange: 10, stopDistance: 1.5, duration: 0.25, cost: 0 },
+  strike: { damage: 18, range: MELEE_RANGE, rangedRange: 10, stopDistance: 1.5, duration: 0.25, cost: 0 },
   brace: { block: 24, duration: 2, cost: 2 },
   drinkPotion: { cost: 1, recovery: 1 },
   enemy: { preparation: 3, action: 0.65, recovery: 2 },
@@ -67,7 +68,7 @@ interface ThreatState {
   rng: number;
   castDuration: number; shieldSeconds: number;
   remainingSeconds: number; actionSequence: number; lastActionHit: boolean; damage: number;
-  position: Vector; targetPosition: Vector; targetPlayerId: string | null; aggro: boolean; lootClaimed: boolean;
+  position: Vector; turnTarget: Vector; targetPosition: Vector; targetPlayerId: string | null; aggro: boolean; lootClaimed: boolean;
   patrolIndex: number; moving: boolean; abilityIndex: number;
   wolf: WolfState | null; head: HeadState | null;
 }
@@ -185,7 +186,7 @@ const newThreat = (t: ThreatDefinition): ThreatState => ({
   rng: crypto.getRandomValues(new Uint32Array(1))[0]!,
   castDuration: 0, shieldSeconds: 0,
   remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: t.behavior === "wolf" ? 18 : t.damage,
-  position: { ...t.position }, targetPosition: { ...t.position }, targetPlayerId: null, aggro: false,
+  position: { ...t.position }, turnTarget: { ...t.position }, targetPosition: { ...t.position }, targetPlayerId: null, aggro: false,
   lootClaimed: false, patrolIndex: 1, moving: false, abilityIndex: 0,
   wolf: t.behavior === "wolf" ? { ...newWolf(), attackOrigin: { ...t.position } } : null, head: t.behavior === "head" ? newHead() : null,
 });
@@ -626,6 +627,7 @@ class Adventure implements AdventureGame {
     if (s.phase === "lost" || !(slot === "chest" || slot === "mainhand" || slot === "offhand")) return;
     if (item !== null && (!Object.hasOwn(GEAR, item) || !s.chapter.ownedGear.includes(item) || GEAR[item].slot !== slot)) return;
 
+    this.cancelHearthstone();
     s.chapter.equipment[slot] = item;
   }
   private tradeView() {
@@ -661,11 +663,12 @@ class Adventure implements AdventureGame {
     const length = Math.hypot(x, z);
     if (length > EPSILON) this.cameraForward = { x: x / length, y: 0, z: z / length };
   }
-  setMouseForward(active: boolean): void { if (!active) this.mouseForward = false; else if (!this.instancePaused() && !this.inCombat()) { this.cancelGather(); this.mouseForward = true; } }
+  setMouseForward(active: boolean): void { if (!active) this.mouseForward = false; else if (!this.instancePaused() && !this.inCombat()) { this.cancelGather(); this.cancelHearthstone(); this.mouseForward = true; } }
   sit(): void {
     if (this.instancePaused() || this.state.phase === "lost" || this.inCombat()) return;
     this.activeEmote = null;
     this.cancelGather();
+    this.cancelHearthstone();
     this.state.sitting = true;
   }
   emote(name: string): void {
@@ -688,9 +691,9 @@ class Adventure implements AdventureGame {
     return [...this.participants().filter(p => p.state.health > 0).map(p => p.state.position),
       ...this.state.world.threats.filter(t => t.active && t.health > 0).map(t => t.position)].filter(p => p !== exclude);
   }
-  private settleCombatCell(): void {
+  private settleCombatCell(keepCell = false): void {
     const s = this.state;
-    s.position = snapCombatPosition(s.position, s.position, 4, this.occupiedCells(s.position));
+    s.position = snapCombatPosition(s.position, s.position, 4, keepCell ? this.participants().filter(player => player !== this && player.state.health > 0).map(player => player.state.position) : this.occupiedCells(s.position));
     s.verticalSpeed = 0; this.held.clear(); this.mouseForward = false; this.moving = false; this.backpedaling = false;
   }
   readyCombat(): boolean {
@@ -703,15 +706,23 @@ class Adventure implements AdventureGame {
     const clock = this.state.combat.clock;
     if (clock.phase !== "preparation") return;
     clock.phase = "active"; clock.elapsedSeconds = 0; clock.pendingSeconds = 0;
+    const destinations: Position[] = [];
     for (const player of this.combatants()) {
+      const move = player.state.combat.queued.find(entry => entry.action === "bait" && entry.status === "pending");
+      if (move?.destination) {
+        const reachable = reachableCombatCells(player.state.position, classKit(player.state.archetype).movementTiles, [...player.occupiedCells(player.state.position), ...destinations]);
+        if (!reachable.some(cell => cell.x === move.destination!.x && cell.z === move.destination!.z)) {
+          move.status = "failed"; move.reason = "Another combatant has claimed that destination.";
+        } else destinations.push(move.destination);
+      }
       player.cancelGather();
       player.held.clear(); player.mouseForward = false;
       player.state.actionCooldown = 0; player.state.currentAction = null;
       if (player.movementFrames) player.consumeMovement(2, true);
     }
-    this.resolveBeat();
+    this.resolveTurnActions();
   }
-  private resolveBeat(): void {
+  private resolveTurnActions(): void {
     if (this.state.combat.clock.phase !== "active") return;
     for (const player of this.combatants()) player.executeQueued();
     for (const threat of this.state.world.threats) {
@@ -724,7 +735,8 @@ class Adventure implements AdventureGame {
     clock.phase = "choosing"; clock.elapsedSeconds = 0; clock.cycle++;
     for (const player of this.participants()) {
       player.state.combat.queued = []; player.state.combat.ready = false;
-      if (player.inCombat()) player.settleCombatCell();
+      player.state.guardSeconds = 0; player.state.block = 0;
+      if (player.inCombat()) player.settleCombatCell(true);
     }
     for (const threat of this.state.world.threats) {
       threat.staggered = false; threat.cancelledWindow = false;
@@ -739,7 +751,7 @@ class Adventure implements AdventureGame {
     const trio = ["scout", "nest", "patrol"].map(id => this.state.world.threats.find(t => t.id === id)!);
     if (!trio[0]!.comboOpened && trio.every(t => t.aggro && t.health > 0 && t.joinCycle <= clock.cycle)) {
       for (const threat of trio) {
-        threat.comboOpened = true; threat.specialOffset = threat.wolf ? 1 : 2;
+        threat.comboOpened = true; threat.specialOffset = threat.wolf ? .85 : 1.7;
         threat.castDuration = threat.specialOffset; threat.remainingSeconds = threat.specialOffset;
         if (threat.head) { threat.head.ability = "fireball"; threat.damage = this.ability(threat).damage; }
       }
@@ -762,7 +774,7 @@ class Adventure implements AdventureGame {
       return;
     }
     clock.elapsedSeconds += dt;
-    this.resolveBeat();
+    this.resolveTurnActions();
     const pending = this.state.world.threats.some(t => (t.head?.fireballs.length ?? 0) > 0) || this.state.world.threats.some(t => t.aggro && t.health > 0 && t.windowCycle === clock.cycle && (t.phase === "preparation" || t.phase === "action")) || this.participants().some(p => p.state.maneuver !== null);
     if (clock.elapsedSeconds >= COMBAT_RULES.window.active - EPSILON && !pending) this.beginPlanning();
   }
@@ -773,32 +785,58 @@ class Adventure implements AdventureGame {
     if (action === "strike") {
       const target = s.world.threats.find(threat => threat.id === s.selectedThreat);
       if (!target?.active || target.health <= 0 || target.phase === "returning" || this.inPrivateInstance() && !target.aggro) return "Select a living enemy in this encounter.";
-      // Movement and enemy charges can change range before the queued beat.
+      // Movement and enemy charges can change range before the action.
       if (!(this.inCombat() && target.aggro) && !this.attackInRange(target, "strike")) return "The target is out of reach.";
     }
     return null;
   }
-  queueBait(destination: Position): boolean {
-    const c = this.state.combat;
-    if (!this.editableQueue() || !this.inCombat() || c.clock.phase !== "preparation" || this.queueReason("bait") || c.queued.length >= 3) return false;
-    if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z)) { this.report("Choose a highlighted tile.", "combat"); return false; }
-    const origin = combatMoveOrigin(this.state.position, c.queued);
-    const x = combatCell(destination.x), z = combatCell(destination.z);
-    const target = reachableCombatCells(origin, classKit(this.state.archetype).movementTiles, this.occupiedCells(this.state.position)).find(cell => cell.x === x && cell.z === z);
-    if (!target) { this.report("That tile is blocked or out of reach. Choose a highlighted tile.", "combat"); return false; }
-    const offset = [0,1,2].find(slot => !c.queued.some(entry => entry.offsetSeconds === slot))!;
-    c.queued.push({ id: c.nextId++, action: "bait", destination: target, targetId: null, offsetSeconds: offset, cost: 1, status: "pending", reason: null });
-    c.ready = false; return true;
+  private derivePlanTiming(): void {
+    const queued = this.state.combat.queued, hasMovement = queued.some(e => e.action === "bait");
+    for (const entry of queued) entry.offsetSeconds = entry.action === "bait" ? COMBAT_TURN.moveStart : actionTimingOffset(entry.timing!, hasMovement);
   }
-  private queueAction(action: CombatAction): void { if(action==="bait"){this.report("Choose a grid tile for Move.","combat");return;}if(action==="brace"&&!this.inCombat()){this.useAbility("brace");return;}const c=this.state.combat;if(this.instancePaused()||this.state.phase==="lost"||c.clock.phase==="active")return;const r=this.queueReason(action);if(r){this.report(r,"combat");return;}if(c.queued.length>=3){this.report("All three slots are filled.","combat");return;}const t=action==="strike"?this.state.world.threats.find(t=>t.id===this.state.selectedThreat)!:null;if(t){this.state.sitting=false;this.activeEmote=null;if(t.aggro&&!this.inCombat())this.settleCombatCell();if(!t.aggro)this.engage(t);if(!t.combatants.includes(this.playerId??"solo"))t.combatants.push(this.playerId??"solo");if(c.clock.phase==="idle")this.beginPlanning();}const o=[0,1,2].find(x=>!c.queued.some(e=>e.offsetSeconds===x))!;c.queued.push({id:c.nextId++,action,destination:null,targetId:t?.id??null,offsetSeconds:o,cost:this.actionCost(action),status:"pending",reason:null});c.ready=false;}
-  private editableQueue():boolean{return !this.instancePaused()&&!this.executionLocked();}
-  setQueuedDelay(id:number,seconds:number):void{const e=this.state.combat.queued.find(e=>e.id===id);if(e&&Number.isFinite(seconds))this.moveQueuedAction(id,e.offsetSeconds+seconds);}
-  moveQueuedAction(id:number,offsetSeconds:number):void{if(!this.editableQueue()||!Number.isInteger(offsetSeconds)||offsetSeconds<0||offsetSeconds>2)return;const e=this.state.combat.queued.find(e=>e.id===id&&e.status==="pending");if(!e)return;const o=this.state.combat.queued.find(e=>e.id!==id&&e.offsetSeconds===offsetSeconds);if(o)o.offsetSeconds=e.offsetSeconds;e.offsetSeconds=offsetSeconds;this.state.combat.ready=false;}
-  replaceQueuedAction(id:number,action:CombatAction):boolean{if(!this.editableQueue())return false;const e=this.state.combat.queued.find(e=>e.id===id&&e.status==="pending");if(!e||this.queueReason(action,id)||(action==="bait"&&e.destination===null))return false;e.action=action;e.cost=this.actionCost(action);if(action!=="bait")e.destination=null;e.targetId=action==="strike"?this.state.selectedThreat:null;this.state.combat.ready=false;return true;}
-  removeQueuedAction(id:number):void{if(this.editableQueue()){this.state.combat.queued=this.state.combat.queued.filter(e=>e.id!==id);this.state.combat.ready=false;}}
-  clearQueuedActions():void{if(this.editableQueue()){this.state.combat.queued=[];this.state.combat.ready=false;}}
+  queueBait(destination: Position): boolean {
+    const c = this.state.combat, existing = c.queued.find(e => e.action === "bait");
+    if (!this.editableQueue() || !this.inCombat() || c.clock.phase !== "preparation" || this.queueReason("bait", existing?.id)) return false;
+    if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z)) { this.report("Choose a highlighted tile.", "combat"); return false; }
+    const x = combatCell(destination.x), z = combatCell(destination.z);
+    const target = reachableCombatCells(this.state.position, classKit(this.state.archetype).movementTiles, this.occupiedCells(this.state.position)).find(cell => cell.x === x && cell.z === z);
+    if (!target) { this.report("That tile is blocked or out of reach. Choose a highlighted tile.", "combat"); return false; }
+    if (existing) existing.destination = target;
+    else c.queued.push({ id: c.nextId++, action: "bait", destination: target, targetId: null, timing: null, offsetSeconds: COMBAT_TURN.moveStart, cost: 1, status: "pending", reason: null });
+    this.derivePlanTiming(); c.ready = false; return true;
+  }
+  private queueAction(action: CombatAction): void {
+    if (action === "bait") { this.report("Choose a grid tile for Move.", "combat"); return; }
+    if (action === "brace" && !this.inCombat()) { this.useAbility("brace"); return; }
+    const c = this.state.combat;
+    if (this.instancePaused() || this.state.phase === "lost" || c.clock.phase === "active") return;
+    const existing = c.queued.find(e => e.action !== "bait");
+    const reason = this.queueReason(action, existing?.id);
+    if (reason) { this.report(reason, "combat"); return; }
+    const target = action === "strike" ? this.state.world.threats.find(t => t.id === this.state.selectedThreat)! : null;
+    if (target) {
+      this.state.sitting = false; this.activeEmote = null;
+      if (target.aggro && !this.inCombat()) this.settleCombatCell();
+      if (!target.aggro) this.engage(target);
+      if (!target.combatants.includes(this.playerId ?? "solo")) target.combatants.push(this.playerId ?? "solo");
+      if (c.clock.phase === "idle") this.beginPlanning();
+    }
+    const timing = existing?.timing && !(existing.timing === "during" && classAction(this.state.archetype, action).movementProfile === "stationary") ? existing.timing : "after";
+    const entry: QueueEntry = { id: existing?.id ?? c.nextId++, action, destination: null, targetId: target?.id ?? null, timing, offsetSeconds: 0, cost: this.actionCost(action), status: "pending", reason: null };
+    c.queued = [...c.queued.filter(e => e.action === "bait"), entry];
+    this.derivePlanTiming(); c.ready = false;
+  }
+  private editableQueue(): boolean { return !this.instancePaused() && !this.executionLocked(); }
+  setActionTiming(timing: CombatActionTiming): boolean {
+    const c = this.state.combat, entry = c.queued.find(e => e.action !== "bait" && e.status === "pending");
+    if (!this.editableQueue() || c.clock.phase !== "preparation" || !entry || !["before", "during", "after"].includes(timing)
+      || timing === "during" && classAction(this.state.archetype, entry.action).movementProfile === "stationary") return false;
+    entry.timing = timing; this.derivePlanTiming(); c.ready = false; return true;
+  }
+  removeQueuedAction(id: number): void { if (this.editableQueue()) { this.state.combat.queued = this.state.combat.queued.filter(e => e.id !== id); this.derivePlanTiming(); this.state.combat.ready = false; } }
+  clearQueuedActions(): void { if (this.editableQueue()) { this.state.combat.queued = []; this.state.combat.ready = false; } }
   private actionCost(action:CombatMove["action"]):number{if(action==="equip"||action==="strike")return 0;return classAction(this.state.archetype,action).cost??1;}
-  private useAbility(action:"brace"):void{const s=this.state,cost=this.actionCost(action);if(!this.ready()){this.report("You are still recovering.","combat");return;}if(s.stamina<cost){this.report("Not enough stamina.","combat");return;}this.spendStamina(cost);this.recover(action,COMBAT_RULES.actionCooldown);s.guardSeconds=COMBAT_RULES.brace.duration;s.block=classAction(s.archetype,"brace").block??COMBAT_RULES.brace.block;const h=this.inCombat()?Math.min(classAction(s.archetype,"brace").heal??0,100-s.health):0;s.health+=h;this.feedback(null,"heal",h);this.report("You gain "+s.block+" block for "+s.guardSeconds+" seconds."+(h?" Restored "+h+" health.":""),"combat");}
+  private useAbility(action:"brace", committed = false):void{const s=this.state,cost=this.actionCost(action);if(!committed&&!this.ready()){this.report("You are still recovering.","combat");return;}if(s.stamina<cost){this.report("Not enough stamina.","combat");return;}this.spendStamina(cost);this.recover(action,COMBAT_RULES.actionCooldown);s.guardSeconds=committed?COMBAT_TURN.duration:COMBAT_RULES.brace.duration;s.block=classAction(s.archetype,"brace").block??COMBAT_RULES.brace.block;const h=this.inCombat()?Math.min(classAction(s.archetype,"brace").heal??0,100-s.health):0;s.health+=h;this.feedback(null,"heal",h);this.report("You gain "+s.block+" block "+(committed?"for the rest of this turn.":"for "+s.guardSeconds+" seconds.")+(h?" Restored "+h+" health.":""),"combat");}
   private eligibleForRoll(t: ThreatState): boolean {
     return t.contributors.includes(this.playerId ?? "solo") && this.state.chapter.accepted.includes("last-shift") && !this.state.chapter.completed.includes("last-shift");
   }
@@ -856,6 +894,7 @@ class Adventure implements AdventureGame {
     if (this.inCombat() && ["forward", "backward", "left", "right", "jump"].includes(action)) return;
     if (this.held.has(action)) return;
     this.held.add(action);
+    if (action !== "hearthstone") this.cancelHearthstone();
     if (["forward", "backward", "left", "right", "jump", "strike", "bait", "brace", "drinkPotion", "ritual", "cancelGather"].includes(action)) this.cancelGather();
     this.act(action);
   }
@@ -889,6 +928,8 @@ class Adventure implements AdventureGame {
     if (action === "closeLoot") { this.lootOpenId = null; return; }
     if (s.phase === "lost") return;
     switch (action) {
+      case "hearthstone": this.hearthstone(); break;
+      case "cancelHearthstone": this.cancelHearthstone(); break;
       case "jump":
         if (s.maneuver === null) startJump(s);
         break;
@@ -1025,7 +1066,7 @@ class Adventure implements AdventureGame {
     }
   }
   private tracePath(actorId: string, kind: CombatForecast["paths"][number]["kind"], action: string, points: readonly Position[], radius: number): void {
-    this.recording?.paths.push({ actorId, kind, action, beat: Math.min(2, Math.floor(this.state.combat.clock.elapsedSeconds + EPSILON)), queueId: this.executingQueueId, points: points.map(p => ({ ...p })), radius });
+    this.recording?.paths.push({ actorId, kind, action, beat: this.state.combat.clock.elapsedSeconds, queueId: this.executingQueueId, points: points.map(p => ({ ...p })), radius });
   }
   private traceEvent(kind: CombatForecast["events"][number]["kind"], sourceId: string, targetId: string | null, position: Position, damage: number, text: string, radius = 0): void {
     this.recording?.events.push({ time: this.state.combat.clock.elapsedSeconds, kind, sourceId, targetId, position: { ...position }, damage, text, radius, queueId: this.executingQueueId });
@@ -1054,7 +1095,7 @@ class Adventure implements AdventureGame {
     });
     const driver = copies[0]!;
     driver.beginExecution();
-    // Current three-beat encounter normally ends in 180–240 ticks; cap pathological old volleys.
+    // Bound forecasts for exceptionally long enemy pursuits or volleys.
     for (let tick = 0; tick < 1800 && clock.phase === "active"; tick++) context ? driver.stepShared(1 / 60) : driver.step(1 / 60);
     if (clock.phase === "active") return null;
     driver.captureOutcomes();
@@ -1133,6 +1174,20 @@ class Adventure implements AdventureGame {
     for (const enemy of this.state.world.threats) if (enemy.active && enemy.health > 0 && distance(enemy.position, cloud.position) <= radius) this.enemyHit(enemy, COMBAT_RULES.swarm.damage, sourceId);
     for (const player of this.participants()) if (player.state.health > 0 && distance(player.state.position, cloud.position) <= radius) player.hurt(COMBAT_RULES.swarm.damage, "Burning swarm", false, sourceId);
   }
+  private hearthstone(): void {
+    const s = this.state;
+    if (this.inCombat() || this.inPrivateInstance() || s.phase === "lost") { this.report("Reach safety before using your Hearthstone."); return; }
+    if (!this.ready()) return;
+    this.cancelGather(); this.activeEmote = null; s.sitting = false;
+    this.recover("hearthstone", 5);
+    this.report("Returning to Nine-Bell Yard. Stay still for 5 seconds.");
+  }
+  private cancelHearthstone(): void {
+    const s = this.state;
+    if (s.currentAction !== "hearthstone") return;
+    s.currentAction = null; s.actionDuration = 0; s.actionRemainingSeconds = 0; s.actionCooldown = 0;
+    this.report("Hearthstone cancelled.");
+  }
   private gather(): void {
     const s = this.state;
     if (this.inPrivateInstance()) { this.report("Private encounters do not grant resources."); return; }
@@ -1191,7 +1246,7 @@ class Adventure implements AdventureGame {
   private advanceSimulation(seconds: number): void {
     let remaining = seconds;
     const clock = this.state.combat.clock, tick = 1 / 60;
-    this.resolveBeat();
+    this.resolveTurnActions();
     while (remaining > EPSILON) {
       let dt = Math.min(remaining, tick);
       if (clock.phase === "active") {
@@ -1291,6 +1346,7 @@ class Adventure implements AdventureGame {
     }
     else if (this.movementFrames) this.consumeMovement(dt, false);
     else this.move(dt);
+    if (s.currentAction === "hearthstone" && (this.moving || s.verticalSpeed !== 0 || this.inCombat() || this.inPrivateInstance())) this.cancelHearthstone();
     this.closeMissingLoot();
     if (this.vendorOpen && (this.state.phase !== "town" || !this.near(this.vendorOpen, 2.5))) this.vendorOpen = null;
     if (this.shopOpen && !this.near("mara", 2.5)) { this.shopOpen = false; this.trade = null; }
@@ -1310,6 +1366,20 @@ class Adventure implements AdventureGame {
       s.actionCooldown = 0; s.guardSeconds = 0; s.block = 0; this.shopOpen = false; this.trade = null; this.innOpen = false; this.bankOpen = false;
       this.report("You leave Nine-Bell Yard. Return to town to secure what you carry.");
     } else if (s.phase === "expedition" && inTown(s.position) && !this.inPrivateInstance()) {
+      this.returnToTown();
+    }
+    if (s.phase === "expedition") s.presence += (this.moving ? 0.5 : 0.1) * dt;
+    if (this.inCombat() && s.combat.clock.phase === "preparation") {
+      if (s.currentAction === "gather") this.advanceAction(dt);
+      return;
+    }
+    if (s.combat.clock.phase !== "active") s.guardSeconds = Math.max(0, s.guardSeconds - dt);
+    if (s.guardSeconds <= EPSILON) { s.guardSeconds = 0; s.block = 0; }
+    this.advanceAction(dt);
+    if (s.health > 0) this.advanceResources(dt);
+  }
+  private returnToTown(): void {
+    const s = this.state;
       const reservedCrystals = s.chapter.accepted.includes("cold-hands") && !s.chapter.completed.includes("cold-hands") ? Math.min(3, s.cargo) : 0;
       const reservedRoll = s.chapter.accepted.includes("last-shift") && !s.chapter.completed.includes("last-shift") ? s.carriedRelics : 0;
       s.phase = "town"; s.supplies += s.cargo - reservedCrystals + s.carriedSalvage; s.bankedRelics += s.carriedRelics - reservedRoll;
@@ -1318,16 +1388,6 @@ class Adventure implements AdventureGame {
       if (!this.shared) for (const t of s.world.threats) if (t.health > 0) this.releaseThreat(t);
 
       this.report(`You return to ${YARD.settlement}. Salvage and spare crystals are secured.${reservedCrystals ? " Bring your coolant crystals to Mara." : ""}${reservedRoll ? " Bring the Last Shift Roll to Rowan." : ""} Visit the inn before your next trip.`);
-    }
-    if (s.phase === "expedition") s.presence += (this.moving ? 0.5 : 0.1) * dt;
-    if (this.inCombat() && s.combat.clock.phase === "preparation") {
-      if (s.currentAction === "gather") this.advanceAction(dt);
-      return;
-    }
-    s.guardSeconds = Math.max(0, s.guardSeconds - dt);
-    if (s.guardSeconds <= EPSILON) { s.guardSeconds = 0; s.block = 0; }
-    this.advanceAction(dt);
-    if (s.health > 0) this.advanceResources(dt);
   }
   private advanceAction(dt: number): void {
     const s = this.state;
@@ -1336,6 +1396,10 @@ class Adventure implements AdventureGame {
     s.actionRemainingSeconds = Math.max(0, s.actionRemainingSeconds - dt);
     if (s.actionRemainingSeconds <= EPSILON) {
       if (s.currentAction === "gather") this.completeGather();
+      if (s.currentAction === "hearthstone" && !this.inCombat() && !this.inPrivateInstance() && s.phase !== "lost") {
+        s.position = point(0, -8); s.verticalSpeed = 0; this.held.clear(); this.mouseForward = false;
+        this.returnToTown();
+      }
       s.currentAction = null; s.actionDuration = 0;
     }
   }
@@ -1397,13 +1461,13 @@ class Adventure implements AdventureGame {
         s.currentAction = null;
         if (entry.action === "bait") {
           const desired = entry.destination!;
-          const end = reachableCombatCells(s.position, classKit(s.archetype).movementTiles, this.occupiedCells(s.position)).find(cell => cell.x === desired.x && cell.z === desired.z);
+          const end = reachableCombatCells(s.position, classKit(s.archetype).movementTiles).find(cell => cell.x === desired.x && cell.z === desired.z);
           if (!end) { entry.status = "failed"; entry.reason = "The destination is no longer reachable."; this.report(entry.reason, "combat"); s.selectedThreat = selected; this.executingQueueId = null; continue; }
           const facing = this.direction(s.position, end);
           this.spendStamina(1); this.recover("bait", COMBAT_RULES.bait.duration);
           s.maneuver = { kind: "bait", targetId: s.selectedThreat, start: { ...s.position }, destination: end, facing, remainingSeconds: COMBAT_RULES.bait.duration };
           this.tracePath(this.playerId ?? "solo", "move", "bait", [s.position, end], 0);
-        } else this.useAbility("brace");
+        } else this.useAbility("brace", true);
         entry.status = s.currentAction === entry.action ? "executed" : "failed";
       }
       entry.reason = entry.status === "failed" ? s.report : null;
@@ -1425,6 +1489,7 @@ class Adventure implements AdventureGame {
     return s.phase === "expedition" && s.health > 0 && !inTown(s.position) && distance(s.position, d.position) <= d.leash;
   }
   private engage(t: ThreatState): void {
+    this.cancelHearthstone();
     this.state.sitting = false; this.activeEmote = null;
     if (!this.inCombat()) this.settleCombatCell();
     t.position = snapCombatPosition(t.position, t.position, 4, this.occupiedCells(t.position));
@@ -1437,7 +1502,7 @@ class Adventure implements AdventureGame {
   private commitThreat(t: ThreatState): void {
     const clock = this.state.combat.clock;
     if (!t.aggro || t.health <= 0 || t.windowCycle === clock.cycle || t.joinCycle > clock.cycle) return;
-    t.windowCycle = clock.cycle; t.approaching = false; t.specialOffset = Math.floor(nextThreatRandom(t) * 3); t.phase = "preparation"; this.beginCast(t);
+    t.windowCycle = clock.cycle; t.approaching = false; t.specialOffset = t.wolf ? .85 : .9 + nextThreatRandom(t) * .2; t.phase = "preparation"; this.beginCast(t);
   }
   private beginCast(t: ThreatState): void {
     t.phase = "preparation"; t.lastActionHit = false;
@@ -1445,12 +1510,13 @@ class Adventure implements AdventureGame {
     t.damage = t.wolf ? 18 + Math.min(18, t.actionSequence * 2) : Math.ceil(definition(t.id).damage * (1 + this.state.presence / 100 + ramp));
     if (t.id === "ritual-guardian") {
       t.abilityIndex = t.actionSequence % 3;
-      t.damage = t.abilityIndex === 2 ? 0 : (t.abilityIndex === 0 ? 32 : 48) + Math.floor(t.actionSequence / 3) * 4;
+      t.damage = t.abilityIndex === 2 ? 0 : (t.abilityIndex === 0 ? 24 : 48);
     }
     if (t.head) {
       t.head.ability = this.chooseHeadAbility(t); t.head.castVolley = t.head.volley;
       t.damage = this.ability(t).damage;
     }
+    t.turnTarget = { ...this.state.position };
     t.castDuration = t.specialOffset;
     t.remainingSeconds = t.specialOffset;
     t.targetPosition = t.wolf ? this.wolfEndpoint(t) : { ...t.position };
@@ -1556,9 +1622,9 @@ class Adventure implements AdventureGame {
     t.targetPosition = { ...t.position };
   }
   private pursue(t: ThreatState, dt: number): void {
-    const d = definition(t.id), gap = distance(t.position, this.state.position) - this.ability(t).range;
+    const d = definition(t.id), gap = distance(t.position, t.turnTarget) - this.ability(t).range;
     const speed = d.pursuitSpeed ?? d.speed;
-    if (gap > EPSILON && speed > 0) this.moveThreat(t, this.state.position, Math.min(dt, gap / speed));
+    if (gap > EPSILON && speed > 0) this.moveThreat(t, t.turnTarget, Math.min(dt, gap / speed));
     t.targetPosition = { ...t.position };
   }
   private moveThreat(t: ThreatState, destination: Position, dt: number, speed = t.aggro ? definition(t.id).pursuitSpeed ?? definition(t.id).speed : definition(t.id).speed): void {
@@ -1583,8 +1649,13 @@ class Adventure implements AdventureGame {
     const length = distance(t.position, next);
     if (length <= EPSILON) return;
     const amount = Math.min(length, speed * dt) / length;
-    t.position.x += (next.x - t.position.x) * amount;
-    t.position.z += (next.z - t.position.z) * amount;
+    const x = t.position.x + (next.x - t.position.x) * amount, z = t.position.z + (next.z - t.position.z) * amount;
+    if (this.state.combat.clock.phase === "active" && this.participants().some(player => player.state.combat.queued.some(entry => {
+      if (entry.action !== "bait" || entry.status === "failed" || !entry.destination) return false;
+      const before = distance(t.position, entry.destination), after = Math.hypot(x-entry.destination.x, z-entry.destination.z);
+      return after < COMBAT_CELL_SIZE * .8 && after < before;
+    }))) return;
+    t.position.x = x; t.position.z = z;
     t.position.y = terrainHeight(t.position.x, t.position.z);
     t.moving = true;
     if (t.wolf) t.wolf.facing = this.direction(t.position, next);
@@ -1592,9 +1663,9 @@ class Adventure implements AdventureGame {
   private positionThreat(t: ThreatState, dt: number): void {
     if (t.wolf) { this.positionWolf(t, dt); t.targetPosition = this.wolfEndpoint(t); }
     else if (t.head) {
-      const gap = distance(t.position, this.state.position) - 8;
-      if (gap > 0) this.moveThreat(t, this.state.position, Math.min(dt, gap / definition(t.id).speed));
-      t.targetPosition = { ...this.state.position };
+      const gap = distance(t.position, t.turnTarget) - 8;
+      if (gap > 0) this.moveThreat(t, t.turnTarget, Math.min(dt, gap / definition(t.id).speed));
+      t.targetPosition = { ...t.turnTarget };
     } else this.pursue(t, dt);
   }
   private advanceThreat(t: ThreatState, dt: number): void {
@@ -1615,17 +1686,18 @@ class Adventure implements AdventureGame {
       if (t.head) this.resolveHeadCast(t);
       else if (t.wolf) this.launchMaul(t);
       else if (t.id === "ritual-guardian" && t.abilityIndex === 2) {
-        t.shield = 60; t.shieldSeconds = 5; t.actionSequence++;
-        this.report("Foreman Nine raises Safety Shield: 60 Block for 5 seconds.", "combat"); this.beginRecovery(t);
-      } else { t.phase = "action"; t.approaching = distance(t.position, this.state.position) > this.ability(t).range; t.remainingSeconds = this.ability(t).noticeSeconds; t.targetPosition = { ...t.position };
+        t.shield = 60; t.shieldSeconds = Math.max(0, COMBAT_TURN.duration - clock.elapsedSeconds); t.actionSequence++;
+        this.report("Foreman Nine raises Safety Shield: 60 Block for the rest of this turn.", "combat"); this.beginRecovery(t);
+      } else { t.phase = "action"; t.approaching = distance(t.position, t.turnTarget) > this.ability(t).range; t.remainingSeconds = this.ability(t).noticeSeconds; t.targetPosition = { ...t.position };
         if (!t.approaching) this.tracePath(t.id, "attack", this.ability(t).id, [t.position, t.targetPosition], this.ability(t).range);
       }
       return;
     }
     if (t.phase === "action") {
       if (t.approaching) {
+        const before = { ...t.position };
         this.pursue(t, dt);
-        if (distance(t.position, this.state.position) > this.ability(t).range + EPSILON) return;
+        if (distance(t.position, t.turnTarget) > this.ability(t).range + EPSILON && distance(before, t.position) > EPSILON && clock.elapsedSeconds < COMBAT_TURN.duration - this.ability(t).noticeSeconds) return;
         t.approaching = false; t.targetPosition = { ...t.position };
         this.tracePath(t.id, "attack", this.ability(t).id, [t.position, t.targetPosition], this.ability(t).range);
       }
@@ -1884,6 +1956,7 @@ function readSave(serialized: string, now = Date.now()): State {
       actionSequence: number(t.actionSequence, 0, Number.MAX_SAFE_INTEGER, true), lastActionHit: boolean(t.lastActionHit),
       damage: number(t.damage, 0, Number.MAX_SAFE_INTEGER, true),
       position: version === 1 ? { ...d.position } : groundPosition(t.position, COMBAT_RULES.wolf.lungeHeight),
+      turnTarget: t.turnTarget === undefined ? groundPosition(s.position, 2) : groundPosition(t.turnTarget, 2),
       targetPosition: version === 1 ? { ...d.position } : groundPosition(t.targetPosition, 2),
       targetPlayerId: t.targetPlayerId === undefined || t.targetPlayerId === null ? null : text(t.targetPlayerId),
       lootClaimed: version >= 3 ? boolean(t.lootClaimed) : id === "ritual-guardian" && health === 0,
@@ -1919,13 +1992,13 @@ function readSave(serialized: string, now = Date.now()): State {
     potions: number(s.potions, 0, Number.MAX_SAFE_INTEGER, true),
     carriedRelics: number(s.carriedRelics, 0, 1, true), bankedRelics: number(s.bankedRelics, 0, Number.MAX_SAFE_INTEGER, true),
     carriedSalvage: version >= 3 ? number(s.carriedSalvage, 0, Number.MAX_SAFE_INTEGER, true) : 0,
-    presence: number(s.presence), actionCooldown: realtime ? number(s.actionCooldown, 0, 2) : 0,
-    currentAction: realtime && typeof s.currentAction === "string" && ["bait", "strike", "brace", "drinkPotion", "gather", "ritual", "equip"].includes(s.currentAction) ? choice(s.currentAction, ["bait", "strike", "brace", "drinkPotion", "gather", "ritual", "equip"] as const) : null,
-    actionDuration: realtime ? number(s.actionDuration, 0, 2) : 0,
-    actionRemainingSeconds: realtime ? number(s.actionRemainingSeconds, 0, 2) : 0,
+    presence: number(s.presence), actionCooldown: realtime ? number(s.actionCooldown, 0, 5) : 0,
+    currentAction: realtime && typeof s.currentAction === "string" && ["hearthstone", "bait", "strike", "brace", "drinkPotion", "gather", "ritual", "equip"].includes(s.currentAction) ? choice(s.currentAction, ["hearthstone", "bait", "strike", "brace", "drinkPotion", "gather", "ritual", "equip"] as const) : null,
+    actionDuration: realtime ? number(s.actionDuration, 0, 5) : 0,
+    actionRemainingSeconds: realtime ? number(s.actionRemainingSeconds, 0, 5) : 0,
     // Older saves already awarded crystals at cast start.
     gatherPending: realtime && s.currentAction === "gather" && s.gatherPending !== undefined ? boolean(s.gatherPending) : false,
-    guardSeconds: Math.min(number(s.guardSeconds, 0, 5), COMBAT_RULES.brace.duration),
+    guardSeconds: number(s.guardSeconds, 0, 5),
     block: version >= 4 ? number(s.block, 0, 28) : number(s.guardSeconds, 0, 3) > 0 ? 5 : 0,
     stamina: version >= 8 ? number(s.stamina, 0, 5, true) : 5,
     staminaRecoverySeconds: realtime ? number(s.staminaRecoverySeconds, 0, COMBAT_RULES.stamina.recoverySeconds) : s.stamina === 5 ? 0 : COMBAT_RULES.stamina.recoverySeconds,
@@ -1942,9 +2015,22 @@ function readSave(serialized: string, now = Date.now()): State {
   const combatValue: Record<string, unknown> | undefined = storedCombat ? (storedCombat.clock === undefined ? storedCombat : record(storedCombat.clock) as Record<string, unknown>) : undefined;
   const clock = combatValue ? readClock(combatValue) : newClock();
   const rawCombat = storedCombat;
-  const queued: QueueEntry[] = rawCombat && Array.isArray(rawCombat.queued) ? rawCombat.queued.filter(record).filter(e => e.action === "bait" || e.action === "strike" || e.action === "brace").map(e => ({ id: number(e.id,1,Number.MAX_SAFE_INTEGER,true), action: choice(e.action,["bait","strike","brace"] as const), targetId: e.targetId === null ? null : text(e.targetId), destination: e.destination === undefined || e.destination === null ? null : groundPosition(e.destination), offsetSeconds: number(e.offsetSeconds,0,2), cost: number(e.cost,0,5), status: choice(e.status,["pending","executed","failed"] as const), reason: e.reason === null ? null : text(e.reason) })) : [];
-  if (queued.some(e => e.action === "bait" && e.destination === null || e.action !== "bait" && e.destination !== null) || queued.length > 3 || new Set(queued.map(e => e.offsetSeconds)).size !== queued.length || new Set(queued.map(e => e.id)).size !== queued.length) throw new Error("Invalid adventure save: invalid combat plan.");
-  return { ...player, combat: { clock, queued, ready: rawCombat?.ready === undefined ? false : boolean(rawCombat.ready), nextId: rawCombat ? number(rawCombat.nextId, 1, Number.MAX_SAFE_INTEGER, true) : 1 }, world: { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled } };
+  const savedQueue = rawCombat && Array.isArray(rawCombat.queued) ? rawCombat.queued.map(record) : [];
+  const legacyPlan = savedQueue.some(e => e.timing === undefined);
+  if (legacyPlan && player.maneuver?.kind === "bait") player.maneuver.remainingSeconds *= COMBAT_TURN.moveDuration / .45;
+  const queued: QueueEntry[] = [];
+  for (const e of savedQueue) {
+    if (e.action !== "bait" && e.action !== "strike" && e.action !== "brace") continue;
+    if (legacyPlan && queued.some(existing => (existing.action === "bait") === (e.action === "bait"))) continue;
+    const action = e.action;
+    const timing = action === "bait" ? null : e.timing === undefined ? "after" : choice(e.timing, ["before", "during", "after"] as const);
+    if (action === "strike" && timing === "during") throw new Error("Invalid adventure save: Attack cannot occur during movement.");
+    queued.push({ id: number(e.id,1,Number.MAX_SAFE_INTEGER,true), action, targetId: e.targetId === null ? null : text(e.targetId), destination: e.destination === undefined || e.destination === null ? null : groundPosition(e.destination), timing, offsetSeconds: number(e.offsetSeconds,0,2), cost: classAction(player.archetype, action).cost ?? 0, status: choice(e.status,["pending","executed","failed"] as const), reason: e.reason === null ? null : text(e.reason) });
+  }
+  if (queued.some(e => e.action === "bait" && e.destination === null || e.action !== "bait" && e.destination !== null) || queued.filter(e => e.action === "bait").length > 1 || queued.filter(e => e.action !== "bait").length > 1 || new Set(queued.map(e => e.id)).size !== queued.length) throw new Error("Invalid adventure save: invalid combat plan.");
+  const movement = queued.some(e => e.action === "bait");
+  for (const entry of queued) entry.offsetSeconds = entry.action === "bait" ? COMBAT_TURN.moveStart : actionTimingOffset(entry.timing!, movement);
+  return { ...player, combat: { clock, queued, ready: legacyPlan || rawCombat?.ready === undefined ? false : boolean(rawCombat.ready), nextId: rawCombat ? number(rawCombat.nextId, 1, Number.MAX_SAFE_INTEGER, true) : 1 }, world: { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled } };
 }
 
 function readClock(value: unknown): CombatClock {
@@ -2011,39 +2097,39 @@ function readHead(value: unknown, realtime: boolean): HeadState {
 }
 
 function foremanAbility(index: number, damage: number): ThreatAbilityView {
-  if (index === 2) return { id: "foreman-shield", name: "Safety Shield", description: "Raises 60 Block for 5 seconds on its chosen beat. Use Defend or Move while the shield holds.", damage: 0, range: 0, noticeSeconds: 0 };
-  if (index === 0) return { id: "foreman-pulse", name: "Roll-call Pulse", description: "Pulses within 22 metres 0.35 seconds after its beat. Cannot be dodged or stopped by cover. Plan Block on that beat.", damage, range: 22, noticeSeconds: .35 };
-  return { id: "foreman-press", name: "Final Press", description: "Strikes the marked ground 0.35 seconds after its beat. Plan a retreat or Block.", damage, range: 3.5, noticeSeconds: .35 };
+  if (index === 2) return { id: "foreman-shield", name: "Safety Shield", description: "Raises 60 Block for the rest of the turn. Attack before the shield rises.", damage: 0, range: 0, noticeSeconds: 0 };
+  if (index === 0) return { id: "foreman-pulse", name: "Roll-call Pulse", description: "Pulses within 22 metres. Cannot be dodged or stopped by cover. Defend before the pulse.", damage, range: 22, noticeSeconds: .35 };
+  return { id: "foreman-press", name: "Final Press", description: "Strikes the marked ground. Move away or Defend before impact.", damage, range: 3.5, noticeSeconds: .35 };
 }
 function headAbility(id: HeadAbilityId, volley: number): ThreatAbilityView {
-  if (id === "ember-beam") return { id, name: "Ember Beam", description: "Deals 8 damage on its chosen beat within 10 metres. Plan Block on that beat, or plan a move behind cover or out of reach before it fires.", damage: COMBAT_RULES.head.beamDamage, range: 10, noticeSeconds: 0 };
-  if (id === "ember-ward") return { id, name: "Ember Ward", description: "Raises 6 Block for 2 seconds on its beat. Attack before the shield rises or recover while it holds.", damage: 0, range: 10, noticeSeconds: 0 };
-  if (id === "kindle") return { id, name: "Kindle", description: "Adds one fireball to every later volley on its chosen beat. Use the opening to attack.", damage: 0, range: 0, noticeSeconds: 0 };
-  return { id, name: "Fireball ×" + volley, description: "Launches " + volley + " homing fireballs for 18 damage each on its beat. Travel time is 0.9 seconds; launches are 0.2 seconds apart. Plan Block for impact. Cover or leaving 10-metre reach prevents damage. Fired shots survive interruption; enemies in their path intercept them. Fire ignites spilled swarms for 36 damage within 3 metres, including you.", damage: COMBAT_RULES.head.fireballDamage * volley, range: 10, noticeSeconds: .9 };
+  if (id === "ember-beam") return { id, name: "Ember Beam", description: "Deals 8 damage during the turn within 10 metres. Defend before impact, or plan a move behind cover or out of reach before it fires.", damage: COMBAT_RULES.head.beamDamage, range: 10, noticeSeconds: 0 };
+  if (id === "ember-ward") return { id, name: "Ember Ward", description: "Raises 6 Block for 2 seconds during the turn. Attack before the shield rises or recover while it holds.", damage: 0, range: 10, noticeSeconds: 0 };
+  if (id === "kindle") return { id, name: "Kindle", description: "Adds one fireball to every later volley during the turn. Use the opening to attack.", damage: 0, range: 0, noticeSeconds: 0 };
+  return { id, name: "Fireball ×" + volley, description: "Launches " + volley + " homing fireballs for 18 damage each during the turn. Travel time is 0.9 seconds; launches are 0.2 seconds apart. Plan Block for impact. Cover or leaving 10-metre reach prevents damage. Fired shots survive interruption; enemies in their path intercept them. Fire ignites spilled swarms for 36 damage within 3 metres, including you.", damage: COMBAT_RULES.head.fireballDamage * volley, range: 10, noticeSeconds: .9 };
 }
 function maulAbility(damage = 18): ThreatAbilityView {
-  return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres on its chosen beat, landing 0.65 seconds later in a 2-metre area. Bait its leap through another enemy: the collision damages and staggers both, interrupting their attacks. Each Maul gains 2 damage, up to 36.", damage, range: COMBAT_RULES.wolf.impactRadius, noticeSeconds: .65 };
+  return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres during the turn, landing 0.65 seconds later in a 2-metre area. Bait its leap through another enemy: the collision damages and staggers both, interrupting their attacks. Each Maul gains 2 damage, up to 36.", damage, range: COMBAT_RULES.wolf.impactRadius, noticeSeconds: .65 };
 }
 function salvageQuantity(id: string): number { return id === "cave-crab" ? 6 : id === "cave-bat" ? 3 : 1; }
 function ordinaryAbility(d: ThreatDefinition, damage = d.damage): ThreatAbilityView {
-  if (d.id === "cave-bat") return { id: "echo-bite", name: d.intention, description: "Closes to 2.2 metres, then bites 0.3 seconds after its beat. Block at impact or retreat before the bite. Its next bite grows stronger.", damage, range: d.reach, noticeSeconds: .3 };
-  if (d.id === "cave-crab") return { id: "cavern-slam", name: d.intention, description: "Raises both claws and slams the marked 4.5-metre area 1.1 seconds after its beat. Retreat out of the ring or Block; one Block may not absorb the whole slam. Its next slam grows stronger.", damage, range: d.reach, noticeSeconds: 1.1 };
-  if (d.id === "nest") return { id: d.id, name: d.intention, description: "Swarm hits within 3 metres, 0.35 seconds after its beat. Collisions interrupt it and spill a cloud. Bait a hound through the bee or Move to lure enemies together. Watchman fireballs ignite the cloud; stay clear or Block.", damage, range: d.reach, noticeSeconds: .35 };
-  return { id: d.id, name: d.intention, description: d.preparation + ". Starts on its chosen beat, approaches if needed, then strikes the marked area after 0.35 seconds. Plan a retreat or Block. Each attack raises its next damage by 15% of base damage, up to double.", damage, range: d.reach, noticeSeconds: .35 };
+  if (d.id === "cave-bat") return { id: "echo-bite", name: d.intention, description: "Closes to 2.2 metres, then bites 0.3 seconds after winding up. Block at impact or retreat before the bite. Its next bite grows stronger.", damage, range: d.reach, noticeSeconds: .3 };
+  if (d.id === "cave-crab") return { id: "cavern-slam", name: d.intention, description: "Raises both claws and slams the marked 4.5-metre area 1.1 seconds after winding up. Retreat out of the ring or Block; one Block may not absorb the whole slam. Its next slam grows stronger.", damage, range: d.reach, noticeSeconds: 1.1 };
+  if (d.id === "nest") return { id: d.id, name: d.intention, description: "Swarm hits within 3 metres, 0.35 seconds after winding up. Collisions interrupt it and spill a cloud. Bait a hound through the bee or Move to lure enemies together. Watchman fireballs ignite the cloud; stay clear or Block.", damage, range: d.reach, noticeSeconds: .35 };
+  return { id: d.id, name: d.intention, description: d.preparation + ". Approaches during its windup, then strikes the marked area after 0.35 seconds. Plan a retreat or Block. Each attack raises its next damage by 15% of base damage, up to double.", damage, range: d.reach, noticeSeconds: .35 };
 }
 export function getMonsterLore(): readonly MonsterLoreEntry[] {
   return DEFINITIONS.map(d => {
     if (d.id.startsWith("cave-")) return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
       description: d.id === "cave-bat" ? "A swift winged hunter in Hollowdeep’s first chamber. Its narrow bite is quick, and it pursues fleeing explorers." : "A heavy-shelled predator in Hollowdeep’s deepest chamber. Its wide slam is slow, but stronger than a single Block.",
-      opener: d.preparation + ". Its beat is announced before you plan.", abilities: [ordinaryAbility(d)],
+      opener: d.preparation + ". Its attack is announced before you plan.", abilities: [ordinaryAbility(d)],
       sequences: [{ name: d.intention, abilityIds: [ordinaryAbility(d).id], offsetsSeconds: [], description: "One committed attack per sequence. Damage increases as the fight continues." }],
-      strategy: d.id === "cave-bat" ? "Queue Block at its beat, then strike. Take potions and return with its salvage." : "Use the long windup to retreat clear of the slam. Strike from the edge of melee reach. The western tunnel leads home.",
+      strategy: d.id === "cave-bat" ? "Defend against its bite, then attack next turn. Take potions and return with its salvage." : "Use the long windup to retreat clear of the slam. Strike from the edge of melee reach. The western tunnel leads home.",
     };
     if (d.behavior === "head") return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
       description: "A floating fire spirit wandering around the first clearing. Notices you within 6 metres and pursues within 14 metres of home.",
-      opener: "Ember Beam on its announced beat. Plan Block on the same beat.",
+      opener: "Ember Beam opens the turn. Defend before impact.",
       abilities: [headAbility("ember-beam",1), headAbility("fireball",1), headAbility("ember-ward",1), headAbility("kindle",1)],
       sequences: [
         { name: "Fireball", abilityIds: ["fireball"], offsetsSeconds: [], description: "Its usual attack, always following Kindle. Prefers attacking a wounded opponent to shielding." },
@@ -2054,23 +2140,23 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
     if (d.behavior === "wolf") return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
       description: "Patrols the western trail. Runs toward you beyond 5.5 metres, then circles at about 4.5 metres. Nearby hostile allies answer its call.",
-      opener: "Announces the beat of its first leap before you plan.", abilities: [maulAbility()],
+      opener: "Announces its first leap before you plan.", abilities: [maulAbility()],
       sequences: [{ name: "Repeated Maul", abilityIds: ["maul"], offsetsSeconds: [], description: "One committed leap per sequence, with a new choice before the next plan." }],
       strategy: "Bait Maul through the bee to cancel its swarm, then Attack the staggered hound. Block protects you if the burning swarm reaches your position.",
     };
     if (d.id === "ritual-guardian") return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
       description: "The last foreman of the Ninth Bell Engine. Six coolant crystals wake it. Search its remains for the Last Shift Roll.",
-      opener: "Announces Roll-call Pulse before your planning window.", abilities: [foremanAbility(0,32),foremanAbility(1,48),foremanAbility(2,0)],
-      sequences: [{ name: "The final shift", abilityIds: ["foreman-pulse","foreman-press","foreman-shield"], offsetsSeconds: [], description: "Pulse, Press, Shield across successive sequences. Pulse and Press gain 4 damage after each full cycle." }],
+      opener: "Announces Roll-call Pulse before your planning window.", abilities: [foremanAbility(0,24),foremanAbility(1,48),foremanAbility(2,0)],
+      sequences: [{ name: "The final shift", abilityIds: ["foreman-pulse","foreman-press","foreman-shield"], offsetsSeconds: [], description: "Pulse, Press, Shield across successive turns. Defend against Pulse, retreat from Press, and attack before Shield." }],
       strategy: "Bring your coat, weapon and potions. Plan Block for Pulse, a retreat for Press, and healing while Shield is raised.",
     };
     return { id:d.id, name:d.name, health:d.health, disposition:d.disposition,
       description: d.id === "nest" ? "A neutral bee beside the first clearing. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill its swarm; Watchman fireballs ignite the cloud." : "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes the hazard.",
-      opener: "Announces its first attack and beat before you plan.",
+      opener: "Announces its first attack before you plan.",
       abilities: [ordinaryAbility(d), ...(d.id === "warder" ? [{ id: "harvest-thorns", name: "Gathering thorns", description: "Gathering while the Cablekeeper lives deals 8 damage. Block absorbs it.", damage: 8, range: 0, noticeSeconds: 0 }] : [])],
-      sequences: [{ name: d.intention, abilityIds:[d.id], offsetsSeconds:[], description:"Commits one attack to a beat, resolves it, then chooses again before the next plan." }],
-      strategy: d.id === "nest" ? "Make a hound collide with the bee to interrupt Swarm. The spilled cloud lasts through the next sequence; Watchman fireballs ignite it for 36 damage within 3 metres. Move clear or Block the blast." : "Plan a retreat or Block for its announced beat.",
+      sequences: [{ name: d.intention, abilityIds:[d.id], offsetsSeconds:[], description:"Commits one attack per turn, then chooses again before the next plan." }],
+      strategy: d.id === "nest" ? "Make a hound collide with the bee to interrupt Swarm. The spilled cloud lasts through the next sequence; Watchman fireballs ignite it for 36 damage within 3 metres. Move clear or Block the blast." : "Plan a retreat or Block before its attack.",
     };
   });
 }

@@ -3,6 +3,7 @@ import { publicUrl } from "./public-url.js";
 import { GEAR, YARD, gearName, isGearItem, type GearSlot, type GearItemId } from "../game/yard-content.js";
 
 const itemTypes = [
+  { id: "hearthstone", name: "Hearthstone", icon: "spells/earth-stone.png" },
   { id: "potions", name: "Health potion", icon: "items/health-potion-red.png" },
   { id: "cargo", name: YARD.resource, icon: "items/blue-gem.png" },
   { id: "carriedSalvage", name: "Yard salvage", icon: "items/leather-satchel.png" },
@@ -11,7 +12,7 @@ const itemTypes = [
 ] as const;
 type Item = typeof itemTypes[number];
 
-export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): void; onEquip(slot: GearSlot, item: GearItemId): void; onOpenEquipment?(item: GearItemId): void; onClose(): void }) {
+export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): void; onUseHearthstone(): void; onEquip(slot: GearSlot, item: GearItemId): void; onOpenEquipment?(item: GearItemId): void; onClose(): void }) {
   const style = document.createElement("style");
   style.textContent = `
     #bag-panel { position:absolute; z-index:28; right:18px; bottom:154px; width:calc(4 * var(--ui-slot-size) + 5 * var(--ui-slot-gap) + 6px); max-width:calc(100% - 24px); max-height:calc(100% - 174px); overflow:auto; padding:0; border:3px ridge #78796b; border-radius:5px; color:#e5e0d1; background:repeating-linear-gradient(115deg,#171a19 0px,#171a19 2px,#191c1b 3px,#191c1b 5px); box-shadow:0 0 0 1px #171912,0 8px 28px #000b,inset 0 0 14px #000; font:var(--ui-font-body) Georgia,serif; pointer-events:auto; }
@@ -32,8 +33,8 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     #bag-details[hidden] { display:none; }
     #bag-item-name { display:block; color:#ead9a6; font:var(--ui-font-prominent) Georgia,serif; }
     #bag-item-description { margin:5px 0 0; color:#aeb7a8; font:var(--ui-font-small)/1.4 system-ui,sans-serif; }
-    #bag-use-potion { width:100%; margin:8px 0 0; padding:5px; border:2px ridge #847b59; border-radius:3px; background:linear-gradient(#3b4e37,#192618); color:#ede0b8; font:var(--ui-font-body) Georgia,serif; }
-    #bag-use-potion:disabled { color:#939989; background:#20261f; cursor:default; }
+    .bag-use-item { width:100%; margin:8px 0 0; padding:5px; border:2px ridge #847b59; border-radius:3px; background:linear-gradient(#3b4e37,#192618); color:#ede0b8; font:var(--ui-font-body) Georgia,serif; }
+    .bag-use-item:disabled { color:#939989; background:#20261f; cursor:default; }
     #bag-secured { margin:9px 10px 10px; padding-top:7px; border-top:1px solid #626658; color:#b2b8a8; font:var(--ui-font-small)/1.5 system-ui,sans-serif; }
     #bag-secured strong { display:block; color:#bfae78; font:var(--ui-font-small) Georgia,serif; }
     @media(max-width:700px) { #bag-panel { right:12px; bottom:120px; max-height:calc(100% - 140px); } }
@@ -59,8 +60,10 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
   const itemName = document.createElement("strong"); itemName.id = "bag-item-name";
   const description = document.createElement("p"); description.id = "bag-item-description";
   const usePotion = document.createElement("button");
-  usePotion.id = "bag-use-potion"; usePotion.type = "button";
-  details.append(itemName, description, usePotion);
+  usePotion.id = "bag-use-potion"; usePotion.type = "button"; usePotion.className = "bag-use-item";
+  const useHearthstone = document.createElement("button");
+  useHearthstone.id = "bag-use-hearthstone"; useHearthstone.type = "button"; useHearthstone.className = "bag-use-item";
+  details.append(itemName, description, usePotion, useHearthstone);
   const secured = document.createElement("p"); secured.id = "bag-secured";
   const securedTitle = document.createElement("strong"); securedTitle.textContent = `Secured in ${YARD.settlement}`;
   const securedValue = document.createElement("span"); secured.append(securedTitle, securedValue);
@@ -135,6 +138,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     button.addEventListener("contextmenu", event => {
       event.preventDefault();
       if (slot.item?.id === "potions") callbacks.onUsePotion();
+      else if (slot.item?.id === "hearthstone") callbacks.onUseHearthstone();
       else if (slot.item && isGearItem(slot.item.id)) callbacks.onEquip(GEAR[slot.item.id].slot, slot.item.id);
     });
     return slot;
@@ -144,7 +148,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
   }
   function update(next: AdventureSnapshot): void {
     snapshot = next;
-    const quantity = (item: Item) => isGearItem(item.id)
+    const quantity = (item: Item) => item.id === "hearthstone" ? 1 : isGearItem(item.id)
       ? Number(next.progression.ownedGear.includes(item.id) && next.progression.equipment[GEAR[item.id].slot] !== item.id)
       : next[item.id];
     const label = (item: Item) => isGearItem(item.id) ? gearName(item.id, next.player.archetype) : item.name;
@@ -186,9 +190,10 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
       }
     });
     const item = carried.find(item => item.id === selected);
-    details.style.pointerEvents = item?.id === "potions" && pinned ? "auto" : "none";
+    details.style.pointerEvents = (item?.id === "potions" || item?.id === "hearthstone") && pinned ? "auto" : "none";
     setText(itemName, item ? `${label(item)} × ${quantity(item)}` : "Your backpack is empty");
     const copy = !item ? "Gather coolant crystals, search fallen foes, or buy potions from Mara."
+      : item.id === "hearthstone" ? `Returns you to ${YARD.settlement} after 5 seconds. Moving or entering combat interrupts the cast. Reusable outside combat. Right-click to use.`
       : item.id === "potions" ? `Restores ${next.potionHealing} health. ${Math.ceil(next.player.health)} / ${next.player.maximumHealth} health.`
       : isGearItem(item.id) ? `${GEAR[item.id].description} Right-click to equip. You can change gear while planning your next moves.`
       : item.id === "carriedRelics" ? "Recovered from Foreman Nine. Bring it to Rowan and complete Clock Out."
@@ -198,6 +203,9 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     usePotion.hidden = selected !== "potions";
     usePotion.disabled = next.phase === "lost" || next.potions < 1 || next.player.health >= next.player.maximumHealth;
     setText(usePotion, next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
+    useHearthstone.hidden = selected !== "hearthstone";
+    useHearthstone.disabled = next.phase === "lost" || next.player.inCombat || next.player.currentAction === "hearthstone";
+    setText(useHearthstone, next.player.inCombat ? "Unavailable in combat" : next.player.currentAction === "hearthstone" ? "Returning…" : "Return to town");
     setText(securedValue, `${next.coins} coins · ${next.supplies} supplies${next.quests.some(q => q.id === "last-shift" && q.status === "completed") ? " · Last Shift Roll delivered" : ""}`);
     if (!details.hidden) {
       const slot = slots.find(slot => slot.item?.id === selected);
@@ -213,6 +221,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
   panel.addEventListener("pointerdown", stopPointer);
   panel.addEventListener("click", stopPointer);
   usePotion.addEventListener("click", callbacks.onUsePotion);
+  useHearthstone.addEventListener("click", callbacks.onUseHearthstone);
   closeButton.addEventListener("click", callbacks.onClose);
   panel.addEventListener("pointerleave", event => { if (!pinned && !(event.relatedTarget instanceof Node && details.contains(event.relatedTarget))) details.hidden = true; });
   details.addEventListener("pointerleave", () => { if(!pinned) details.hidden = true; });

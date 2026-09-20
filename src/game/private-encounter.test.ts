@@ -295,7 +295,7 @@ describe("private paused encounters", () => {
     bob.selectTarget("scout");
     for (let i = 0; i < 30 && bob.snapshot.threats.find(t => t.id === "scout")!.health > 0; i++) {
       if (bob.snapshot.combat.phase === "active") finishCycle(bob, world);
-      tap(bob, "strike"); tap(bob, "strike"); tap(bob, "strike"); readyParty(alice, bob); finishCycle(bob, world);
+      tap(alice, "brace"); tap(bob, "strike"); readyParty(alice, bob); finishCycle(bob, world);
     }
     expect(bob.snapshot.threats.find(t => t.id === "scout")!.health).toBe(0);
     expect(bob.snapshot.player.inCombat).toBe(false);

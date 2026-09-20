@@ -116,7 +116,7 @@ describe("Frostwood world and persistent rewards",()=>{
     for(let i=0;i<200&&!threat(game,"nest").canStrike;i++){const target=threat(game,"nest").position,p=game.snapshot.player.position;game.setCameraForward(target.x-p.x,target.z-p.z);game.setAction("forward",true);game.advance(.02);}
     game.setAction("forward",false); tap(game,"strike"); game.readyCombat(); game.advance(.01);
     expect(threat(game,"nest").aggro).toBe(true);
-    expect(threat(game,"nest").health).toBe(63);
+    expect(threat(game,"nest").health).toBe(54);
     finish(game,"nest");
     expect(threat(game,"nest").phase).toBe("cleared");
     expect(game.snapshot.supplies).toBe(15);

@@ -13,9 +13,9 @@ function seed() {
 }
 function fight() { const game=createAdventure({save:JSON.stringify(seed())}); game.advance(.01); return game; }
 
-test("intentions precede a full 30-second planning window; Ready repeats with fresh slots",()=>{
+test("intentions precede a full 30-second planning window; Ready repeats with fresh plans",()=>{
   const game=fight(), intent=game.snapshot.threats[0]!.windowAction;
-  expect(intent).not.toBeNull(); expect([0,1,2]).toContain(intent!.offsetSeconds);
+  expect(intent).not.toBeNull(); expect(intent!.offsetSeconds).toBeGreaterThanOrEqual(.9); expect(intent!.offsetSeconds).toBeLessThanOrEqual(1.1);
   expect(game.snapshot.combat.remainingSeconds).toBe(30);
   game.advance(29.99); expect(game.snapshot.combat.phase).toBe("preparation");
   expect(game.snapshot.player.health).toBe(100); expect(game.snapshot.threats[0]!.windowAction).toEqual(intent);
@@ -43,16 +43,16 @@ test("late aggro waits through this execution and chooses only next cycle",()=>{
 
 test("active sequence rejects all queue mutations and movement, but performs planned retreat",()=>{
   const game=fight(); expect(game.queueBait({x:-2.5,y:0,z:22.5})).toBe(true); tap(game,"strike");
-  const first=game.snapshot.combat.queued[0]!; game.moveQueuedAction(first.id,1);
-  expect(game.snapshot.combat.queued.map(e=>e.offsetSeconds)).toEqual([1,0]);
+  const first=game.snapshot.combat.queued[0]!; expect(game.setActionTiming("after")).toBe(true);
+  expect(game.snapshot.combat.queued.map(e=>e.offsetSeconds)).toEqual([.35,1.5]);
   game.setAction("forward",true); game.readyCombat();
   const plan=game.snapshot.combat.queued;
-  game.removeQueuedAction(first.id); game.clearQueuedActions(); game.moveQueuedAction(first.id,2);
-  expect(game.replaceQueuedAction(first.id,"brace")).toBe(false); tap(game,"drinkPotion");
+  game.removeQueuedAction(first.id); game.clearQueuedActions(); expect(game.setActionTiming("before")).toBe(false);
+  tap(game,"brace"); tap(game,"drinkPotion");
   expect(game.snapshot.combat.queued).toEqual(plan);
-  const start=game.snapshot.player.position; game.advance(.5);
+  const start=game.snapshot.player.position; game.advance(.3);
   expect(game.snapshot.player.position).toEqual(start);
-  game.advance(.55); expect(game.snapshot.player.maneuver).toBe("bait");
+  game.advance(.25); expect(game.snapshot.player.maneuver).toBe("bait");
   game.advance(.8); expect(game.snapshot.player.position.z).toBeLessThan(start.z);
   game.advance(1.2); expect(game.snapshot.combat.phase).toBe("preparation");
   const end=game.snapshot.player.position; game.setCameraForward(0,1); game.setAction("forward",true); game.advance(.1);
@@ -78,15 +78,16 @@ test("shared Ready excludes town players; pausing and saving preserve spent and 
   Object.assign(data.characters[0].state,{phase:solo.phase,position:solo.position,chapter:solo.chapter}); data.world.threats=solo.threats;
   const world=createSharedAdventure({save:JSON.stringify(data)});
   const fighter=world.join("fighter","Fighter","mage"), town=world.join("town","Town","warrior");
-  world.advance(.01); tap(fighter,"strike"); tap(fighter,"strike"); fighter.readyCombat();
+  world.advance(.01); tap(fighter,"strike"); expect(fighter.queueBait({x:-3,y:0,z:25})).toBe(true); fighter.setActionTiming("before"); fighter.readyCombat();
   expect(fighter.snapshot.combat.phase).toBe("active"); town.setAction("right",true);
   world.advance(.1); expect(town.snapshot.player.position.x).toBeLessThan(0);
-  const before=fighter.snapshot; expect(before.combat.queued[0]!.status).toBe("executed");
+  const before=fighter.snapshot; expect(before.combat.queued.find(e=>e.action==="strike")!.status).toBe("executed");
   world.pause("fighter"); world.advance(5); expect(fighter.snapshot.combat).toEqual(before.combat);
   const restored=createSharedAdventure({save:world.save()}); const player=restored.join("fighter","Fighter","mage");
   expect(player.snapshot.combat).toEqual(before.combat); expect(restored.resume("fighter")).toBe(true);
   player.clearQueuedActions(); expect(player.snapshot.combat.queued).toHaveLength(2);
-  restored.advance(1); expect(player.snapshot.threats[0]!.health).toBe(before.threats[0]!.health-11);
+  restored.advance(1.5); expect(player.snapshot.threats[0]!.health).toBe(before.threats[0]!.health);
+  expect(player.snapshot.player.position.z).toBeCloseTo(25, 8);
   expect(player.snapshot.combat.queued.every(e=>e.status==="executed")).toBe(true);
 });
 

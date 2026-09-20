@@ -1,5 +1,5 @@
-import type { AdventureSnapshot, CombatAction, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
-import { classAction, classKit } from "../game/class-kit.js";
+import type { AdventureSnapshot, CombatAction, CombatActionTiming, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
+import { classAction } from "../game/class-kit.js";
 import type { CombatPreview } from "./ground-telegraphs.js";
 import { enemyResponse } from "./enemy-response.js";
 import { publicUrl } from "./public-url.js";
@@ -30,7 +30,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   playerName: (id: string) => string | undefined;
   onRemove: (id: number) => void;
   onClear: () => void;
-  onMove: (id: number, offsetSeconds: number) => void;
+  onTiming: (timing: CombatActionTiming) => void;
+  onAction: (action: CombatAction) => void;
   onReady: () => void;
   onAimMove: () => void;
   onPreview: (preview: CombatPreview | null) => void;
@@ -41,56 +42,44 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const phase = node("strong", "combat-plan-phase", header); phase.id = "combat-plan-phase";
   const resources = node("span", "combat-plan-resources", header);
   const move = node("button", "combat-plan-move-button", header); move.id = "combat-plan-aim-move"; move.type = "button"; move.textContent = "Move";
-  move.title = "Choose a destination tile for your next open beat";
+  move.title = "Choose or change your destination";
   move.addEventListener("click", callbacks.onAimMove);
   const clear = node("button", "combat-plan-clear", header); clear.type = "button"; clear.textContent = "Clear";
   clear.addEventListener("click", callbacks.onClear);
   const ready = node("button", "combat-plan-ready", header); ready.type = "button"; ready.textContent = "Ready (R)";
   ready.setAttribute("aria-keyshortcuts", "R");
-  ready.title = "Begin this combat sequence now (R)";
+  ready.title = "Begin this turn now (R)";
   ready.addEventListener("click", callbacks.onReady);
-  const staminaHint = node("p", "combat-plan-stamina-hint", root);
-  staminaHint.setAttribute("role", "status");
-  staminaHint.textContent = "No stamina left. Attack can fill open slots.";
   const danger = node("p", "combat-plan-danger", root); danger.id = "combat-plan-danger";
   danger.setAttribute("role", "status");
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
   const grid = node("div", "combat-plan-grid", root);
-  const labels = node("div", "combat-plan-columns", grid);
-  node("span", "", labels).textContent = "You";
-  const enemyLabel = node("span", "", labels);
-  const cells: HTMLElement[] = [], enemyCells: HTMLElement[] = [];
-  for (let i = 0; i < 3; i++) {
-    const row = node("div", "combat-plan-beat", grid); row.dataset.beat = String(i);
-    const player = node("div", "combat-plan-cell combat-plan-player", row);
-    node("span", "combat-plan-tick", player).textContent = String(i + 1);
-    cells.push(player);
-    const enemies = node("div", "combat-plan-cell combat-plan-enemy", row);
-    enemies.dataset.beat = String(i); enemyCells.push(enemies);
+  const cells: HTMLElement[] = [], emptyLabels: HTMLElement[] = [];
+  for (const [index, label] of ["Movement", "Action"].entries()) {
+    const row = node("div", "combat-plan-row", grid); row.dataset.category = index === 0 ? "movement" : "action";
+    node("strong", "combat-plan-category", row).textContent = label;
+    const cell = node("div", "combat-plan-cell combat-plan-player", row); cells.push(cell);
+    emptyLabels.push(node("span", "combat-plan-empty", cell));
+    for (const kind of index === 0 ? ["bait"] as const : ["strike", "brace"] as const) {
+      const edit = node("button", "combat-plan-edit", row); edit.type = "button";
+      edit.dataset.action = kind; edit.textContent = actions[kind].name;
+      edit.addEventListener("click", () => kind === "bait" ? callbacks.onAimMove() : callbacks.onAction(kind));
+    }
+    const remove = node("button", "combat-plan-remove", row); remove.type = "button"; remove.textContent = "Remove";
+    remove.addEventListener("click", () => {
+      const entry = snapshot?.combat.queued.find(entry => (entry.action === "bait") === (index === 0));
+      if (editing() && entry) callbacks.onRemove(entry.id);
+    });
   }
-  cells.forEach((cell, offset) => {
-    cell.dataset.beat = String(offset);
-    cell.addEventListener("dragover", event => {
-      if (!event.dataTransfer?.types.includes("application/x-greywrought-move")) return;
-      event.preventDefault(); event.dataTransfer.dropEffect = "move"; cell.dataset.drop = "true";
-    });
-    cell.addEventListener("dragleave", () => { delete cell.dataset.drop; });
-    cell.addEventListener("drop", event => {
-      event.preventDefault(); delete cell.dataset.drop;
-      const raw = event.dataTransfer?.getData("application/x-greywrought-move");
-      if (raw && Number.isInteger(Number(raw))) callbacks.onMove(Number(raw), offset);
-    });
-  });
   const editor = node("div", "combat-plan-editor", root);
-  const selection = node("span", "combat-plan-selection", editor);
-  const delayButtons = Array.from({ length: 3 }, (_, seconds) => {
-    const button = node("button", "combat-plan-delay", editor); button.type = "button";
-    button.dataset.slot = String(seconds + 1); button.textContent = String(seconds + 1);
-    button.title = "Place in slot " + (seconds + 1) + " · " + seconds + " seconds";
-    button.addEventListener("click", () => moveSelected(seconds)); return button;
+  node("span", "combat-plan-selection", editor).textContent = "Action timing";
+  const timingButtons = (["before", "during", "after"] as const).map(timing => {
+    const button = node("button", "combat-plan-timing", editor); button.type = "button";
+    button.dataset.timing = timing; button.textContent = timing[0]!.toUpperCase() + timing.slice(1);
+    button.addEventListener("click", () => { if (editing()) callbacks.onTiming(timing); }); return button;
   });
-  const remove = node("button", "combat-plan-remove", editor); remove.type = "button"; remove.textContent = "Remove";
-  remove.addEventListener("click", removeSelected);
+  const enemyLabel = node("strong", "combat-plan-enemy-heading", root);
+  const enemyCells = [node("div", "combat-plan-cell combat-plan-enemy", root)];
   const inspect = node("div", "combat-plan-inspect", root);
   const inspectTitle = node("strong", "combat-plan-inspect-title", inspect);
   const forecastSummary = node("p", "combat-plan-forecast-summary", inspect);
@@ -108,7 +97,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     inspect.hidden = !editing() || !preview;
     unpin.hidden = !pinnedPreview;
     let title = "Turn their attacks against them";
-    let copy = "Attack your target, Defend against incoming damage, or Move to a highlighted tile. Choose a beat for each action, then Ready (R).";
+    let copy = "";
     if (preview && snapshot) {
       if (preview.kind === "enemy") {
         const threat = snapshot.threats.find(threat => threat.id === preview.threatId);
@@ -119,7 +108,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         }
       } else {
         const move = snapshot.combat.queued.find(move => move.id === preview.queueId);
-        if (move) { title = actionLabel(move.action) + " → " + moveTarget(move); copy = String(move.action) === "equip" ? "Change equipment on the chosen beat." : classAction(snapshot.player.archetype, move.action).description; }
+        if (move) { title = actionLabel(move.action) + " → " + moveTarget(move); copy = String(move.action) === "equip" ? "Change equipment." : classAction(snapshot.player.archetype, move.action).description; }
       }
       const events = snapshot.combat.forecast?.events.filter(event => preview.kind === "move" || event.sourceId === preview.threatId || event.targetId === preview.threatId) ?? [];
       const consequences = events.filter(event => event.kind !== "hit").slice(0, 3);
@@ -147,10 +136,9 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     }
     return actions[action].name;
   }
-  function selected(): QueuedCombatAction | undefined { return snapshot?.combat.queued.find(entry => entry.id === selectedId); }
   function moveTarget(move: QueuedCombatAction): string {
     if (move.targetId) return snapshot?.threats.find(threat => threat.id === move.targetId)?.name ?? "Unavailable target";
-    return move.destination ? "Chosen ground" : "Self";
+    return move.destination ? `Tile ${move.destination.x}, ${move.destination.z}` : "Self";
   }
   function enemyTarget(threat: ThreatView, ability: ThreatAbilityView): string {
     if (ability.damage <= 0) return "Self";
@@ -158,19 +146,29 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const id = threat.targetPlayerId ?? (snapshot?.combat.forecast?.playerId === "solo" ? "solo" : null);
     return id === "solo" ? "You" : id ? callbacks.playerName(id) ?? "Another player" : "No target";
   }
-  function editing(): boolean { return snapshot?.combat.phase === "preparation"; }
-  function removeSelected(): void { if (editing() && selectedId !== null) callbacks.onRemove(selectedId); }
-  function moveSelected(offsetSeconds: number): void { if (editing() && selectedId !== null) callbacks.onMove(selectedId, offsetSeconds); }
+  function editing(): boolean { return snapshot?.combat.phase === "preparation" && !snapshot.combat.ready; }
   function updateEditor(): void {
-    const move = selected();
-    editor.hidden = !move;
-    if (!move || !snapshot) return;
-    write(selection, actionLabel(move.action) + " → " + moveTarget(move) + (move.status === "pending" ? " · choose slot" : move.status === "executed" ? " · used" : " · failed"));
-    for (const button of delayButtons) {
-      button.disabled = move.status !== "pending" || !editing();
-      button.setAttribute("aria-pressed", String(Number(button.dataset.slot) === move.offsetSeconds + 1));
+    if (!snapshot) return;
+    const movement = snapshot.combat.queued.find(entry => entry.action === "bait");
+    const action = snapshot.combat.queued.find(entry => entry.action !== "bait");
+    editor.hidden = !movement || !action;
+    for (const button of timingButtons) {
+      const unavailable = button.dataset.timing === "during" && action && classAction(snapshot.player.archetype, action.action).movementProfile === "stationary";
+      button.disabled = !editing() || Boolean(unavailable);
+      button.title = unavailable ? "This attack needs you to stand still" : button.textContent + " movement";
+      button.setAttribute("aria-pressed", String(action?.timing === button.dataset.timing));
     }
-    remove.disabled = move.status !== "pending" || !editing();
+    for (const [index, row] of [...grid.children].entries()) {
+      const entry = index === 0 ? movement : action;
+      emptyLabels[index]!.hidden = Boolean(entry);
+      write(emptyLabels[index]!, index === 0 ? "Stay" : "None");
+      for (const button of row.querySelectorAll<HTMLButtonElement>(".combat-plan-edit")) {
+        const kind = button.dataset.action as CombatAction;
+        const available = snapshot.combat.availableStamina + (entry?.cost ?? 0);
+        button.disabled = !editing() || available < (classAction(snapshot.player.archetype, kind).cost ?? 1) || kind === "strike" && !snapshot.threats.some(threat => threat.id === snapshot!.selectedThreat && threat.active && threat.health > 0);
+      }
+      row.querySelector<HTMLButtonElement>(".combat-plan-remove")!.disabled = !editing() || !entry;
+    }
   }
   function enemyMove(cell: HTMLElement, ability: ThreatAbilityView, seconds: number, status: string, enemyName: string, threatId: string, targetId: string | null, target: string): void {
     const icon = node("button", "combat-plan-enemy-move", cell); icon.type = "button";
@@ -195,7 +193,6 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     node("span", "combat-plan-damage", actionArt).textContent = status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "";
   }
   return {
-    removeSelected, moveSelected,
     reset(): void { selectedId = lastId = null; snapshot = null; enemyKey = ""; pinnedPreview = transientPreview = null; previousCycle = -1; callbacks.onPreview(null); },
     update(next: AdventureSnapshot): void {
       snapshot = next;
@@ -213,16 +210,15 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       root.hidden = next.phase !== "expedition" || combat.phase === "idle" || attackers.length === 0;
       Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
       const choosing = combat.phase === "choosing";
-      write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Enemies choose · momentarily" : combat.phase === "preparation" ? "Planning · " + Math.ceil(combat.remainingSeconds) + "s" : "Playing sequence");
-      write(resources, combat.queued.length + "/3 · " + combat.availableStamina + " stamina");
-      move.disabled = combat.phase !== "preparation" || combat.queued.length >= 3 || combat.availableStamina < 1;
-      staminaHint.hidden = combat.availableStamina > 0 || combat.queued.length >= 3;
+      write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Enemies choose · momentarily" : combat.phase === "preparation" ? "Planning · " + Math.ceil(combat.remainingSeconds) + "s" : "Playing turn");
+      write(resources, combat.availableStamina + " stamina");
+      move.disabled = !editing() || combat.availableStamina + (combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) < 1;
       clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / (combat.elapsedSeconds + combat.remainingSeconds)) + "%";
-      clear.disabled = combat.phase !== "preparation" || !combat.queued.some(entry => entry.status === "pending");
+      clear.disabled = !editing() || !combat.queued.some(entry => entry.status === "pending");
       ready.hidden = combat.phase !== "preparation";
       ready.disabled = combat.phase !== "preparation" || combat.ready;
       write(ready, combat.ready ? "Ready ✓" : "Ready (R)");
-      ready.title = combat.ready ? "Waiting for the other players or the timer" : "Begin this combat sequence now (R)";
+      ready.title = combat.ready ? "Waiting for the other players or the timer" : "Begin this turn now (R)";
       const newest = combat.queued.reduce<QueuedCombatAction | undefined>((latest, move) => !latest || move.id > latest.id ? move : latest, undefined);
       if (newest && newest.id !== lastId) { selectedId = lastId = newest.id; }
       if (!combat.queued.some(entry => entry.id === selectedId)) selectedId = newest?.id ?? null;
@@ -230,7 +226,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       for (const [id, button] of buttons) if (!combat.queued.some(entry => entry.id === id)) { button.remove(); buttons.delete(id); }
       for (const move of combat.queued) {
         let button = buttons.get(move.id);
-        const cell = cells[Math.min(2, Math.max(0, Math.floor(move.offsetSeconds)))];
+        const cell = cells[move.action === "bait" ? 0 : 1];
         if (!cell) continue;
         if (!button) {
           button = node("button", "combat-plan-move", cell); button.type = "button";
@@ -247,13 +243,6 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
             for (const [id, control] of buttons) control.setAttribute("aria-pressed", String(id === selectedId));
             updateEditor();
           });
-          button.addEventListener("dragstart", event => {
-            if (!snapshot?.combat.queued.some(entry => entry.id === move.id && entry.status === "pending")) { event.preventDefault(); return; }
-            selectedId = move.id; updateEditor();
-            event.dataTransfer?.setData("application/x-greywrought-move", String(move.id));
-            if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-          });
-          button.addEventListener("dragend", () => { for (const cell of cells) delete cell.dataset.drop; });
           buttons.set(move.id, button);
         }
         const ranged = next.player.archetype !== "warrior" && move.action === "strike";
@@ -263,7 +252,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         if (moveImage && !moveImage.src.endsWith("/" + moveIcon)) moveImage.src = publicUrl("assets/ui/icons/" + (moveIcon.startsWith("items/") ? "" : "spells/") + moveIcon);
         if (button.parentElement !== cell) cell.append(button);
         button.dataset.status = move.status; button.dataset.queuedAction = move.action; button.dataset.offset = String(move.offsetSeconds);
-      button.draggable = combat.phase === "preparation" && move.status === "pending";
+
         button.setAttribute("aria-pressed", String(move.id === selectedId));
         const target = moveTarget(move);
         const label = moveName + " → " + target + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina · " + move.status + (move.reason ? ": " + move.reason : "");
@@ -283,12 +272,11 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         enemyKey = key;
         for (const cell of enemyCells) cell.replaceChildren();
         for (const move of shown) {
-          const cell = enemyCells[Math.min(2, Math.max(0, Math.floor(move.seconds + .02)))];
+          const cell = enemyCells[0];
           if (cell) enemyMove(cell, move.ability, Math.max(0, move.seconds), move.status, move.enemy, move.id, move.targetId, move.target);
         }
       }
       write(enemyLabel, choosing ? "Enemies · choosing next moves" : `Enemies · ${attackers.length} engaged`); enemyLabel.title = choosing ? "Enemies are choosing their next moves" : "Each icon shows one engaged enemy’s announced move";
-      for (let i = 0; i < cells.length; i++) cells[i]!.dataset.current = String(combat.phase === "active" && Math.floor(combat.elapsedSeconds) === i);
       updateEditor();
       updatePreview();
     },

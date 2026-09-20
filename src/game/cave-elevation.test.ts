@@ -101,7 +101,7 @@ test('cave combat forecasts and executes Move and a saved move at negative eleva
   for (const threat of bait.snapshot.threats.filter(t => t.id.startsWith('cave-'))) expect(height(threat.position)).toBe(0);
 
   let dodge = gameAt(41); dodge.advance(.01); dodge.selectTarget('cave-bat');
-  expect(dodge.queueBait(ground(37.5,-45))).toBe(true); dodge.readyCombat(); dodge.advance(.2);
+  expect(dodge.queueBait(ground(37.5,-45))).toBe(true); dodge.readyCombat(); dodge.advance(.5);
   expect(dodge.snapshot.player.maneuver).toBe('bait');
   expect(height(dodge.snapshot.player.position)).toBe(0);
   const saved = dodge.save(), before = dodge.snapshot.player.position;
