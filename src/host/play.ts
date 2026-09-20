@@ -4,7 +4,6 @@ import { createGearShop } from "./gear-shop.js";
 import { createAppControls } from './app-controls.js';
 import { COMBAT_RULES } from "../game/adventure.js";
 import { classAction, classKit } from "../game/class-kit.js";
-import { worldDay, formatWorldTime } from "../game/world-time.js";
 import type { AdventureAction, AdventureSnapshot } from "../game/adventure-types.js";
 import {
   archiveFallenCharacter, characterProfileStorageKey, decodeCharacterProfile, encodeCharacterProfile,
@@ -692,12 +691,6 @@ function toggleLorebook(): void {
   button("lorebook-open").setAttribute("aria-expanded", "true");
 }
 const minimap = createMinimap(element("map-terrain") as HTMLCanvasElement);
-for (const [id, direction] of [["map-zoom-in", -1], ["map-zoom-out", 1]] as const) listen(button(id), "click", () => {
-  minimap.zoom(direction);
-  button("map-zoom-in").disabled = !minimap.canZoomIn;
-  button("map-zoom-out").disabled = !minimap.canZoomOut;
-  if (running) renderHud(running.game.snapshot);
-});
 let mapCenter = { x: 0, z: -8 };
 function mapPosition(target: HTMLElement, x: number, z: number): void {
   target.style.left = `${50 + (x - mapCenter.x) * 100 / minimap.span}%`;
@@ -721,7 +714,6 @@ function makeEnemyInterface(snapshot: AdventureSnapshot): void {
     markers.set(threat.id, marker);
   });
 }
-let displayedWorldMinute = -1;
 function selectedSnapshot(snapshot: AdventureSnapshot): AdventureSnapshot {
   const app = running; if (!app) return snapshot;
   if (app.lastEnemyTarget !== snapshot.selectedThreat && app.selection?.kind === "enemy") app.selection = { kind: "enemy", id: snapshot.selectedThreat };
@@ -771,20 +763,6 @@ function clearUnitTarget(): void {
 function renderHud(snapshot: AdventureSnapshot): void {
   snapshot = selectedSnapshot(snapshot);
   updateParty();
-  const wallTime = running?.game.serverWallTimeMillis;
-  const day = running?.game.online && typeof wallTime === 'number' && Number.isFinite(wallTime) ? worldDay(wallTime) : null;
-  const minute = day ? Math.floor(day.hour * 60) : -1;
-  if (minute !== displayedWorldMinute) {
-    displayedWorldMinute = minute;
-    const clock = element('map-clock');
-    const time = day ? formatWorldTime(wallTime!) : '--:--';
-    clock.textContent = day ? `${day.phase === 'night' ? '☾' : '☀'} ${time}` : time;
-    clock.title = day ? `${day.phase[0]!.toUpperCase() + day.phase.slice(1)} · A full day lasts 40 minutes` : 'World time';
-    clock.setAttribute('aria-label', `World time ${time}${day ? ', ' + day.phase : ''}`);
-    if (!day) clock.removeAttribute('datetime');
-    else clock.setAttribute('datetime', time);
-    clock.dataset.phase = day?.phase ?? '';
-  }
   const { player } = snapshot;
   loadActionBarOrder(player.archetype);
   const data = document.body.dataset;

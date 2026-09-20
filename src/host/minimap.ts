@@ -67,12 +67,11 @@ export async function captureMinimap(renderer: WebGLRenderer, terrain: Group, im
 export function createMinimap(canvas: HTMLCanvasElement) {
   canvas.width = canvas.height = 512;
   const context = canvas.getContext("2d")!;
-  const spans = [40, 64, 96, 128];
-  let zoom = 1, atlas: HTMLCanvasElement | null = null;
+  const span = 64;
+  let atlas: HTMLCanvasElement | null = null;
   let x = 0, z = 0, drawnX = Infinity, drawnZ = Infinity, dirty = true;
   const draw = () => {
     if (!atlas || (!dirty && Math.hypot(x - drawnX, z - drawnZ) < .04)) return;
-    const span = spans[zoom]!;
     context.fillStyle = "#526342";
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(atlas, (x - span / 2 - bounds.left) / width * atlas.width, (bounds.top - z - span / 2) / height * atlas.height,
@@ -83,11 +82,8 @@ export function createMinimap(canvas: HTMLCanvasElement) {
     drawnX = x; drawnZ = z; dirty = false;
   };
   return {
-    get span() { return spans[zoom]!; },
-    get canZoomIn() { return zoom > 0; },
-    get canZoomOut() { return zoom < spans.length - 1; },
+    span,
     setAtlas(image: HTMLCanvasElement) { atlas = image; dirty = true; draw(); },
     update(centerX: number, centerZ: number) { x = centerX; z = centerZ; draw(); },
-    zoom(direction: -1 | 1) { zoom = Math.max(0, Math.min(spans.length - 1, zoom + direction)); dirty = true; draw(); },
   };
 }

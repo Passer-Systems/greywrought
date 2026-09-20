@@ -56,14 +56,14 @@ try {
     await page!.evaluate(`window.lightingHour=${hour}`);
     const expected = locations.find(entry => entry.id === location)!;
     await page!.waitFor(`window.lightingState?.snapshot.player.position.x===${expected.x}&&window.lightingState?.snapshot.player.position.z===${expected.z}`);
-    if (label !== 'before') await page!.waitFor(`document.getElementById('map-clock').getAttribute('datetime')===${JSON.stringify(String(hour).padStart(2, '0') + ':00')}`);
+    if (label !== 'before') await page!.waitFor(`Number(document.getElementById('world-canvas').dataset.worldHour)===${hour}`);
     await Bun.sleep(900);
     await page!.evaluate('window.lightSamples=[];window.lastLightFrame=0;window.measureLight=true');
     await Bun.sleep(2200);
     const data = await page!.evaluate<{ samples: { duration: number; interval: number }[]; scene: Record<string, unknown>; calls: number }>(`(()=>{
       window.measureLight=false;const scene=window.lightingScene,renderer=window.lightingRenderer,lights=[],casters=[],receivers=[];
       scene.traverse(o=>{if(o.isLight)lights.push({name:o.name,type:o.type,intensity:o.intensity,color:o.color.getHex(),position:o.position.toArray(),shadow:o.castShadow,shadowSize:o.shadow?.mapSize.toArray(),hasShadowMap:!!o.shadow?.map});if(o.isMesh){if(o.castShadow)casters.push(o.id);if(o.receiveShadow)receivers.push(o.id);}});
-      return{samples:window.lightSamples,calls:window.lightRender.calls,scene:{skyZenith:scene.getObjectByName('sky')?.material.uniforms.zenith.value.getHex(),fog:scene.fog?.color.getHex(),lights,casters:casters.length,receivers:receivers.length,shadowsEnabled:renderer.shadowMap.enabled,clock:document.getElementById('map-clock').textContent,canvas:{...renderer.domElement.dataset}}};})()`);
+      return{samples:window.lightSamples,calls:window.lightRender.calls,scene:{skyZenith:scene.getObjectByName('sky')?.material.uniforms.zenith.value.getHex(),fog:scene.fog?.color.getHex(),lights,casters:casters.length,receivers:receivers.length,shadowsEnabled:renderer.shadowMap.enabled,canvas:{...renderer.domElement.dataset}}};})()`);
     const durations = data.samples.map(sample => sample.duration).sort((a, b) => a - b);
     check(durations.length > 30, 'Lighting measurement renders actual frames');
     const report = { location, phase, hour, callbackMedianMs: durations[Math.floor(durations.length * .5)], callbackP95Ms: durations[Math.floor(durations.length * .95)], ...data.scene, calls: data.calls };

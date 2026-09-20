@@ -1,7 +1,7 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
 
-const cueNames = ["strike", "hit", "brace", "potion", "gather", "purchase", "windup", "alarm", "defeat", "extraction"] as const;
+const cueNames = ["strike", "hit", "brace", "potion", "gather", "purchase", "incoming", "alarm", "defeat", "extraction"] as const;
 type Cue = typeof cueNames[number];
 const preferenceKey = "greywrought.adventure.audio.v1";
 interface Preferences { music: number; effects: number; muted: boolean; }
@@ -156,7 +156,7 @@ export function createAdventureAudio(): AdventureAudio {
     const alarm = snapshot.threats.some(t => t.damage === 0 && t.actionSequence > (before.threats.find(old => old.id === t.id)?.actionSequence ?? t.actionSequence));
     const warning = snapshot.threats.some(t => t.active && t.phase === "preparation" && before.threats.find(old => old.id === t.id)?.phase !== "preparation" && Math.hypot(t.position.x - snapshot.player.position.x, t.position.z - snapshot.player.position.z) < Math.max(12, t.reach));
     if ((alarm || warning) && performance.now() - lastWarning >= 900) {
-      play(alarm ? "alarm" : "windup");
+      play(alarm ? "alarm" : "incoming");
       lastWarning = performance.now();
     }
   }

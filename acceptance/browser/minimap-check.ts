@@ -11,8 +11,9 @@ export async function checkMinimap(page: Awaited<ReturnType<typeof openBrowser>>
   check(sample.colors > 30, `${location}: minimap contains shaded scenery detail`);
   check(sample.centered && sample.square, `${location}: centered arrow and square map`);
   await page.shot(`minimap-${location}`);
-  await page.click('#map-zoom-in');
-  check(await page.evaluate<number>('Number(document.getElementById("map-terrain").dataset.span)') < sample.span, 'Map zoom changes visible ground span');
-  await page.click('#map-zoom-out');
-  check(await page.evaluate<number>('Number(document.getElementById("map-terrain").dataset.span)') === sample.span, 'Zoom out restores ground span');
+  check(await page.evaluate(`(() => {
+    const style=getComputedStyle(document.getElementById('map-field'));
+    return !document.querySelector('#map-clock,.map-zoom') && style.borderTopWidth==='1px' && style.borderTopStyle==='solid'
+      && getComputedStyle(document.getElementById('map-field'),'::after').content==='none';
+  })()`), 'Map has a thin edge with no clock, zoom buttons or decorative overlay');
 }

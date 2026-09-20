@@ -44,7 +44,7 @@ SHA-256: 6dbeaf8544da958d8f2adcb4a4a4b76c1ade34a05f8ab9edccd327da7375f38b
 | potion.ogg | Audio/handleSmallLeather.ogg |
 | gather.ogg | Audio/metalClick.ogg |
 | purchase.ogg | Audio/handleCoins.ogg |
-| windup.ogg | Audio/creak1.ogg |
+| incoming.ogg | Audio/cloth2.ogg; softened with a 2,400 Hz low-pass filter and half amplitude |
 
 Interface Sounds: https://kenney.nl/assets/interface-sounds
 Archive: https://kenney.nl/media/pages/assets/interface-sounds/fa43c1dd4d-1677589452/kenney_interface-sounds.zip
