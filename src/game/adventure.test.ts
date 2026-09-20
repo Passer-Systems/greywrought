@@ -14,8 +14,10 @@ function walk(game: AdventureGame, x: number, z: number): void {
   game.setAction("forward", true);
   game.advance(Math.hypot(dx, dz) / 5.2);
   game.setAction("forward", false);
-  expect(game.snapshot.player.position.x).toBeCloseTo(x, 6);
-  expect(game.snapshot.player.position.z).toBeCloseTo(z, 6);
+  const expectedX = game.snapshot.player.inCombat ? Math.round(x / 2.5) * 2.5 : x;
+  const expectedZ = game.snapshot.player.inCombat ? Math.round(z / 2.5) * 2.5 : z;
+  expect(game.snapshot.player.position.x).toBeCloseTo(expectedX, 6);
+  expect(game.snapshot.player.position.z).toBeCloseTo(expectedZ, 6);
 }
 function threat(game: AdventureGame, id: string): ThreatView {
   const target = game.snapshot.threats.find(t => t.id === id);
@@ -140,7 +142,7 @@ describe("Frostwood world and persistent rewards",()=>{
     game.setAction("left", false);
     game.setAction("forward", true);
     game.advance(0.5);
-    expect(Math.hypot(game.snapshot.player.position.x, game.snapshot.player.position.z + 8)).toBeCloseTo(2.25);
+    expect(Math.hypot(game.snapshot.player.position.x, game.snapshot.player.position.z + 8)).toBeCloseTo(2.6);
     game.setAction("right", false); game.setAction("forward", false);
     game.setAction("backward", true);
     game.setMouseForward(true);

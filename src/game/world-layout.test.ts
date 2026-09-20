@@ -6,7 +6,7 @@ import { blockedPosition, movePosition } from './movement.js';
 function walk(game: ReturnType<typeof createAdventure>, x: number, z: number) {
   const from = game.snapshot.player.position;
   game.setCameraForward(x - from.x, z - from.z); game.setAction('forward', true);
-  game.advance(Math.hypot(x - from.x, z - from.z) / 4.5); game.setAction('forward', false);
+  game.advance(Math.hypot(x - from.x, z - from.z) / 5.2); game.setAction('forward', false);
   expect(game.snapshot.player.position.x).toBeCloseTo(x, 5);
   expect(game.snapshot.player.position.z).toBeCloseTo(z, 5);
 }
