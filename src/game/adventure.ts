@@ -34,6 +34,8 @@ export const COMBAT_RULES = {
   head: { beamDamage: 8, fireballDamage: 18, fireballTravel: 0.9, fireballSpacing: 0.2, warning: 3, ward: 6, wardDuration: 2, kindleDuration: 5 },
   wolf: { circleRange: 5.5, circleRadius: 4.5, circleSpeed: 1.5, lungeDistance: 8, lungeHeight: 0.9, impactRadius: 2 },
 } as const;
+/** The player-facing combat vocabulary is intentionally limited to three choices. */
+export const PLAYER_COMBAT_ACTIONS = ["strike", "brace", "bait"] as const;
 export const MARA_TRADE_RULES = { suppliesPerPotion: 3, suppliesPerPotionSold: 2 } as const;
 export const WORLD_RESPAWN_MILLISECONDS = 120_000;
 const CALL_FOR_HELP_RANGE = 9;
@@ -541,12 +543,12 @@ class Adventure implements AdventureGame {
     const c = this.state.chapter;
     const gear = Object.values(c.equipment).filter((id): id is GearItemId => id !== null);
     return { level: c.level, experience: c.experience, levelExperience: c.experience - experienceForLevel(c.level), nextLevelExperience: experienceForLevel(c.level + 1) - experienceForLevel(c.level), ownedGear: [...c.ownedGear], equipment: { ...c.equipment },
-      unlockedActions: ["bait", "shove", "finish", "strike", "brace", "drinkPotion", ...(c.completed.includes("roll-call") ? ["disengage" as const] : []), ...(c.completed.includes("last-shift") ? ["bloodRage" as const] : [])],
+      unlockedActions: [...PLAYER_COMBAT_ACTIONS],
       attackBonus: (c.level - 1) * 2 + gear.reduce((sum, id) => sum + GEAR[id].attackBonus, 0),
       damageReduction: gear.reduce((sum, id) => sum + GEAR[id].damageReduction, 0) };
   }
   private actionUnlocked(action: CombatMove["action"]): boolean {
-    return action !== "disengage" && action !== "bloodRage" || this.progression().unlockedActions.includes(action);
+    return action === "strike" || action === "brace" || action === "bait";
   }
   private questViews(): QuestView[] {
     const s = this.state, c = s.chapter;
@@ -773,7 +775,7 @@ class Adventure implements AdventureGame {
   private reservedStamina(): number { return this.state.combat.queued.filter(e => e.status === "pending").reduce((n, e) => n + e.cost, 0); }
   private queueReason(action: CombatAction, excludedId?: number): string | null {
     const s = this.state, pending = s.combat.queued.filter(e => e.id !== excludedId && e.status === "pending");
-    if (!this.actionUnlocked(action)) return "Complete Rowan’s lessons to learn that move.";
+    if (!this.actionUnlocked(action)) return "Combat uses Attack, Defend, and Move.";
     if (s.stamina - pending.reduce((n,e) => n + e.cost, 0) < this.actionCost(action)) return "Not enough stamina.";
     if (action === "drinkPotion" && s.potions <= pending.filter(e => e.action === "drinkPotion").length) return "No health potions left to plan.";
     if (action === "bloodRage" && (!this.inCombat() || s.bloodRage + pending.filter(e => e.action === action).length >= 3)) return "That power needs a fight and cannot exceed three stacks.";
@@ -789,11 +791,14 @@ class Adventure implements AdventureGame {
     return null;
   }
   queueBait(destination: Position): boolean {
-    if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z) || destination.y !== terrainHeight(destination.x, destination.z) || destination.x < WORLD_BOUNDS.minX || destination.x > WORLD_BOUNDS.maxX || destination.z < WORLD_BOUNDS.minZ || destination.z > WORLD_BOUNDS.maxZ || this.blocked(destination.x, destination.z)) return false;
     const c = this.state.combat;
     if (!this.editableQueue() || !this.inCombat() || c.clock.phase !== "preparation" || this.queueReason("bait") || c.queued.length >= 3) return false;
+    if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z)) { this.report("Choose a reachable grid tile.", "combat"); return false; }
+    const range = classAction(this.state.archetype, "bait").range!;
+    const normalized = snapCombatPosition(destination, this.state.position, range, this.occupiedCells(this.state.position));
+    if (normalized.x === this.state.position.x && normalized.z === this.state.position.z && Math.hypot(destination.x - this.state.position.x, destination.z - this.state.position.z) > 0.01) { this.report("That grid tile is blocked or too far away.", "combat"); return false; }
     const offset = [0,1,2].find(slot => !c.queued.some(e => e.offsetSeconds === slot))!;
-    c.queued.push({ id: c.nextId++, action: "bait", destination: { ...destination }, targetId: null, offsetSeconds: offset, cost: 1, status: "pending", reason: null });
+    c.queued.push({ id: c.nextId++, action: "bait", destination: normalized, targetId: null, offsetSeconds: offset, cost: 1, status: "pending", reason: null });
     c.ready = false; return true;
   }
   private queueAction(action: CombatAction): void {
@@ -848,7 +853,7 @@ class Adventure implements AdventureGame {
     const s = this.state, cost = this.actionCost(action);
     const target = s.world.threats.find(t => t.id === s.selectedThreat);
     let reason: string | null = null;
-    if (!this.actionUnlocked(action)) reason = "Complete Rowan’s lessons to learn that move.";
+    if (!this.actionUnlocked(action)) reason = "Combat uses Attack, Defend, and Move.";
     else if (!this.ready()) reason = "You are still recovering.";
     else if (s.stamina < cost) reason = "Not enough stamina.";
     else if ((action === "disengage" || action === "jab") && (!target || !this.attackInRange(target, action))) reason = "The target is out of reach, behind cover, or no longer available.";
@@ -1002,7 +1007,7 @@ class Adventure implements AdventureGame {
       case "strike":
         if (s.phase === "expedition") this.queueAction("strike");
         break;
-      case "bait": case "shove": case "finish": case "disengage": case "brace": case "bloodRage": case "jab": case "guard": this.queueAction(action); break;
+      case "bait": case "brace": this.queueAction(action); break;
       case "gather": this.gather(); break;
       case "ritual": this.ritual(); break;
       case "takeLoot": this.takeLoot(); break;
@@ -2065,7 +2070,7 @@ function readSave(serialized: string, now = Date.now()): State {
   const combatValue: Record<string, unknown> | undefined = storedCombat ? (storedCombat.clock === undefined ? storedCombat : record(storedCombat.clock) as Record<string, unknown>) : undefined;
   const clock = combatValue ? readClock(combatValue) : newClock();
   const rawCombat = storedCombat;
-  const queued: QueueEntry[] = rawCombat && Array.isArray(rawCombat.queued) ? rawCombat.queued.filter(record).map(e => ({ id: number(e.id,1,Number.MAX_SAFE_INTEGER,true), action: choice(e.action,["bait","shove","finish","strike","brace","disengage","bloodRage","jab","guard","drinkPotion"] as const), targetId: e.targetId === null ? null : text(e.targetId), destination: e.destination === undefined || e.destination === null ? null : groundPosition(e.destination), offsetSeconds: number(e.offsetSeconds,0,2), cost: number(e.cost,0,5), status: choice(e.status,["pending","executed","failed"] as const), reason: e.reason === null ? null : text(e.reason) })) : [];
+  const queued: QueueEntry[] = rawCombat && Array.isArray(rawCombat.queued) ? rawCombat.queued.filter(record).filter(e => e.action === "bait" || e.action === "strike" || e.action === "brace").map(e => ({ id: number(e.id,1,Number.MAX_SAFE_INTEGER,true), action: choice(e.action,["bait","strike","brace"] as const), targetId: e.targetId === null ? null : text(e.targetId), destination: e.destination === undefined || e.destination === null ? null : groundPosition(e.destination), offsetSeconds: number(e.offsetSeconds,0,2), cost: number(e.cost,0,5), status: choice(e.status,["pending","executed","failed"] as const), reason: e.reason === null ? null : text(e.reason) })) : [];
   if (queued.some(e => e.action === "bait" && e.destination === null || e.action !== "bait" && e.destination !== null) || queued.length > 3 || new Set(queued.map(e => e.offsetSeconds)).size !== queued.length || new Set(queued.map(e => e.id)).size !== queued.length) throw new Error("Invalid adventure save: invalid combat plan.");
   return { ...player, combat: { clock, queued, ready: rawCombat?.ready === undefined ? false : boolean(rawCombat.ready), nextId: rawCombat ? number(rawCombat.nextId, 1, Number.MAX_SAFE_INTEGER, true) : 1 }, world: { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled } };
 }
