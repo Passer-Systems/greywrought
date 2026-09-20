@@ -115,7 +115,10 @@ export class LocalMovement {
     // Preserve continuity only for a genuine reconciliation error; matching
     // acknowledgments never add render lag to normal predicted locomotion.
     const gap = Math.hypot(previous.x - this.state.position.x, previous.y - this.state.position.y, previous.z - this.state.position.z);
-    this.correction = initialized && !enteredCombat && snapshot.phase !== 'lost' && gap < 2
+    // Keep the same visual reconciliation path when combat starts. Clearing
+    // this correction only on combat entry made the camera snap to the server
+    // checkpoint and appear to use a different follow style.
+    this.correction = initialized && snapshot.phase !== 'lost' && gap < 2
       ? { x: previous.x - this.state.position.x, y: previous.y - supportHeight(previous.x, previous.z) - (this.state.position.y - supportHeight(this.state.position.x, this.state.position.z)), z: previous.z - this.state.position.z }
       : { x: 0, y: 0, z: 0 };
   }

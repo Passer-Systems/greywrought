@@ -140,19 +140,7 @@
           <div class="adventure-sidebar">
           <section class="adventure-map" aria-label="North-up The Last Shift map">
             <div id="map-field">
-              <svg id="map-terrain" viewBox="-32 -24 64 64" aria-hidden="true">
-                <rect x="-70" y="-76" width="160" height="206" fill="#526a40"/>
-                <rect x="-70" y="-76" width="98" height="51" fill="#294b47"/>
-                <rect x="-22" y="0" width="44" height="24" fill="#927849"/>
-                <ellipse cx="16" cy="-25" rx="13" ry="12" fill="#738450"/>
-                <ellipse cx="-19" cy="-47" rx="12" ry="12" fill="#626c48"/>
-                <path d="M0 -6V55L1 77L12 89L16 104L14 124M0 46H28" fill="none" stroke="#c7b991" stroke-width="3.4"/>
-                <path d="M0 -6V-14L-1.2 -23L-3 -31L-3.6 -37L-3.7 -44L-1.5 -51L2 -60V-66M-2 -24L5 -23L10 -24L16 -25M-4 -42L-10 -43L-17 -46" fill="none" stroke="#a99a71" stroke-width="2.8" stroke-linejoin="round"/>
-                <path d="M-22 -2H-3M3 -2H22" stroke="#a4a58b" stroke-width="2"/>
-                <rect x="2" y="-44" width="10" height="6" fill="#142b26"/>
-                <rect x="28" y="30" width="58" height="34" fill="#343237"/>
-                <path d="M28 42H35V36H51V42H59V34H82V60H59V50H51V56H35V50H28Z" fill="#80756a"/>
-              </svg><span class="map-compass" aria-hidden="true">N</span>
+              <canvas id="map-terrain" aria-hidden="true"></canvas><span class="map-compass" aria-hidden="true">N</span>
               <span class="map-landmark map-town" data-map-place="hearthstead" title="Nine-Bell Yard · safe" role="img" aria-label="Nine-Bell Yard · safe">⌂</span>
               <span class="map-landmark map-gate" data-map-place="forest-gate" title="Yard gate" role="img" aria-label="Yard gate">▰</span>
               <span class="map-landmark map-cores" data-map-place="frost-cores" title="Coolant crystals" role="img" aria-label="Coolant crystals">◆</span>
@@ -161,8 +149,9 @@
               <span class="map-landmark map-inn" data-map-place="inn" title="Inn" role="img" aria-label="Inn">⌂</span>
               <span class="map-landmark map-gate" data-map-place="hollowdeep" title="Hollowdeep Cave · dangerous" role="img" aria-label="Hollowdeep Cave · dangerous">▲</span>
               <div id="map-threats"></div>
-              <div id="map-player" title="You">▲</div>
+              <div id="map-player" title="You"><svg viewBox="0 0 24 28" aria-hidden="true"><path d="M12 2 22 25 12 20 2 25Z" fill="#f8f5dc" stroke="#171a13" stroke-width="2"/><path d="M12 5 12 19 5 22Z" fill="#c4cf95"/></svg></div>
             </div>
+            <div class="map-zoom" aria-label="Map zoom"><button id="map-zoom-in" type="button" aria-label="Zoom map in" title="Zoom in">+</button><button id="map-zoom-out" type="button" aria-label="Zoom map out" title="Zoom out">−</button></div>
             <time id="map-clock" title="World time" aria-label="World time">--:--</time>
           </section>
           <section id="quest-tracker" class="adventure-objective parchment" aria-label="Current quest">

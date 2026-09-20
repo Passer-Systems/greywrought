@@ -7,6 +7,7 @@ const appearances = [
   ["scout", "Skull"], ["nest", "Armabee"], ["warder", "MushroomKing"],
   ["patrol", "Wolf"], ["ritual-guardian", "Leela"],
   ["pond-turtle", "mechanical-turtle"], ["meadow-rat", "Rat"], ["meadow-rat-2", "Rat"],
+  ["meadow-bird", "Birb"], ["meadow-bird-2", "Birb"], ["meadow-bird-3", "Birb"],
 ] as const;
 
 /** One portrait pass; model geometry and textures remain owned by the shared asset cache. */
@@ -27,7 +28,7 @@ export async function createUnitPortraits(models: readonly (readonly [string, st
       const creature = turtle ? mechanicalTurtle() : await actor(model, 2);
       if (turtle) { creature.model.scale.setScalar(1.4); creature.model.position.y = .45; }
       try {
-        creature.play(model === "Armabee" ? "Flying_Idle" : model === "Bat" ? "Flying" : "Idle");
+        creature.play(model === "Armabee" ? "Flying_Idle" : model === "Birb" ? "Dance" : model === "Bat" ? "Flying" : "Idle");
         creature.mixer.update(0.01);
         creature.model.removeFromParent();
         scene.add(creature.model);

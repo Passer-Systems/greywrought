@@ -1,4 +1,5 @@
-import { dryOverworldHeight, overworldHeight } from './world-elevation.js';
+import { overworldHeight } from './world-elevation.js';
+import { dryOverworldHeight as terrainV2, overworldHeight as terrainV3 } from './terrain-layout-v3.js';
 import type { Position } from './adventure-types.js';
 import type { Barrier } from './movement.js';
 
@@ -26,10 +27,10 @@ export function caveBlockedPosition(x: number, z: number): boolean {
 }
 
 // Preserve height above the old floor when the landscape changes.
-export const TERRAIN_LAYOUT = 3;
+export const TERRAIN_LAYOUT = 4;
 export function migrateTerrainLayout(root: Record<string, unknown>): void {
   if (root.terrainLayout === TERRAIN_LAYOUT) return;
-  const spatialKeys = new Set(['position', 'targetPosition', 'origin', 'start', 'destination', 'attackOrigin']);
+  const spatialKeys = new Set(['position', 'targetPosition', 'turnTarget', 'origin', 'start', 'destination', 'attackOrigin']);
   function visit(value: unknown): void {
     if (!value || typeof value !== 'object') return;
     if (Array.isArray(value)) { value.forEach(visit); return; }
@@ -37,8 +38,9 @@ export function migrateTerrainLayout(root: Record<string, unknown>): void {
       if (spatialKeys.has(key) && child && typeof child === 'object'
         && 'x' in child && typeof child.x === 'number' && 'y' in child && typeof child.y === 'number'
         && 'z' in child && typeof child.z === 'number') {
-          const oldFloor = root.terrainLayout === 2 ? inCave(child) ? terrainHeight(child.x, child.z) : dryOverworldHeight(child.x, child.z)
-            : root.terrainLayout === 1 && inCave(child) ? terrainHeight(child.x, child.z) : 0;
+          const oldFloor = inCave(child) && [1, 2, 3].includes(Number(root.terrainLayout)) ? terrainHeight(child.x, child.z)
+            : root.terrainLayout === 3 ? terrainV3(child.x, child.z)
+            : root.terrainLayout === 2 ? terrainV2(child.x, child.z) : 0;
           child.y = terrainHeight(child.x, child.z) + (child.y - oldFloor);
         }
       else visit(child);

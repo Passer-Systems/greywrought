@@ -2,6 +2,7 @@ import { BackSide, Color, DirectionalLight, Fog, HemisphereLight, Mesh, PCFShado
 import { inCave } from '../game/cave-layout.js';
 import type { Position } from '../game/adventure-types.js';
 import { worldDay } from '../game/world-time.js';
+import { createLampGlow } from './lamp-glow.js';
 
 /** One celestial shadow map follows the player; local lamps never allocate shadow maps. */
 export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
@@ -72,6 +73,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
   sky.name = 'sky'; sky.frustumCulled = false; sky.renderOrder = -1;
   scene.add(sky);
   const lamps: PointLight[] = [];
+  const lampGlow = createLampGlow(scene);
   const direction = new Vector3();
   const fog = scene.fog instanceof Fog ? scene.fog : new Fog(0x263d46, 58, 175);
   scene.fog = fog;
@@ -81,6 +83,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       scene.traverse(object => {
         if (object instanceof PointLight && typeof object.userData.nightIntensity === 'number') lamps.push(object);
       });
+      lampGlow.sync(lamps);
     },
     update(wallTimeMillis: number, position: Position, camera: PerspectiveCamera) {
       const day = worldDay(wallTimeMillis);
@@ -106,6 +109,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       sky.position.copy(camera.position);
       sky.visible = cave < 1;
       for (const lamp of lamps) lamp.intensity = lamp.userData.nightIntensity * (1 - day.daylight * .65);
+      lampGlow.update(wallTimeMillis * 0.001, day.daylight);
       const data = renderer.domElement.dataset;
       data.worldPhase = day.phase; data.worldHour = day.hour.toFixed(3);
       data.shadowOwner = sunUp ? 'sun' : 'moon';
@@ -113,6 +117,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
     dispose() {
       key.shadow.dispose();
       sky.removeFromParent(); sky.geometry.dispose(); material.dispose();
+      lampGlow.dispose();
       fill.removeFromParent(); key.removeFromParent(); key.target.removeFromParent();
     },
   };

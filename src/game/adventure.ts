@@ -57,6 +57,8 @@ interface HeadState {
 }
 interface ThreatDefinition {
   id: string; name: string; level: number; position: Position; health: number; behavior?: "wolf" | "head";
+  /** Small neutral wildlife whose overhead labels are optional UI clutter. */
+  critter?: boolean;
   preparation: string; intention: string; damage: number; reach: number; benefit: string;
   disposition: ThreatView["disposition"]; aggroRange: number; leash: number; speed: number; pursuitSpeed?: number; patrol?: readonly Position[];
 }
@@ -151,21 +153,36 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(69,-47),point(73,-51),point(77,-47),point(73,-41)],
     preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 52, reach: 4.5,
     benefit: "Search its shell for six pieces of cave salvage." },
-  { id: "pond-turtle", level: 1, disposition: "neutral", aggroRange: 0, leash: 10, speed: 0.45, pursuitSpeed: 0.8,
+  { id: "pond-turtle", critter: true, level: 1, disposition: "neutral", aggroRange: 0, leash: 10, speed: 0.45, pursuitSpeed: 0.8,
     name: "Lake turtle", position: point(-4, -98), health: 38,
     patrol: [point(-8, -98), point(-4, -95), point(0, -98), point(-4, -101)],
     preparation: "Tucking into its shell", intention: "Shell nudge", damage: 3, reach: 1.5,
     benefit: "A peaceful turtle gliding through the lake." },
-  { id: "meadow-rat", level: 1, disposition: "neutral", aggroRange: 0, leash: 14, speed: 1.35, pursuitSpeed: 2.2,
+  { id: "meadow-rat", critter: true, level: 1, disposition: "neutral", aggroRange: 0, leash: 14, speed: 1.35, pursuitSpeed: 2.2,
     name: "Meadow rat", position: point(8, 13), health: 24,
     patrol: [point(5, 12), point(9, 15), point(13, 12), point(9, 10)],
     preparation: "Watching the grass", intention: "Hop away", damage: 2, reach: 1.2,
     benefit: "A harmless little rat foraging at the woodland edge." },
-  { id: "meadow-rat-2", level: 1, disposition: "neutral", aggroRange: 0, leash: 14, speed: 1.2, pursuitSpeed: 2,
+  { id: "meadow-rat-2", critter: true, level: 1, disposition: "neutral", aggroRange: 0, leash: 14, speed: 1.2, pursuitSpeed: 2,
     name: "Field rat", position: point(-12, 18), health: 24,
     patrol: [point(-15, 17), point(-11, 20), point(-8, 17), point(-11, 15)],
     preparation: "Nibbling clover", intention: "Hop away", damage: 2, reach: 1.2,
     benefit: "A harmless little rat foraging in the meadow." },
+  { id: "meadow-bird", critter: true, level: 1, disposition: "neutral", aggroRange: 0, leash: 18, speed: 1.4, pursuitSpeed: 2.2,
+    name: "Scrapwing", position: point(-12, -82), health: 18,
+    patrol: [point(-15, -84), point(-10, -80), point(-6, -83), point(-10, -87)],
+    preparation: "Beating its wings", intention: "Flutter away", damage: 2, reach: 1.2,
+    benefit: "A wary scrapwing picking through the lakeside brush." },
+  { id: "meadow-bird-2", critter: true, level: 1, disposition: "neutral", aggroRange: 0, leash: 18, speed: 1.25, pursuitSpeed: 2,
+    name: "Copperfinch", position: point(-1, -106), health: 18,
+    patrol: [point(-5, -108), point(0, -104), point(4, -106), point(0, -110)],
+    preparation: "Watching the shore", intention: "Flutter away", damage: 2, reach: 1.2,
+    benefit: "A small copperfinch circling above the ruined shore." },
+  { id: "meadow-bird-3", critter: true, level: 1, disposition: "neutral", aggroRange: 0, leash: 18, speed: 1.35, pursuitSpeed: 2.1,
+    name: "Glassbeak", position: point(14, -92), health: 18,
+    patrol: [point(10, -94), point(15, -89), point(19, -93), point(15, -97)],
+    preparation: "Scanning the reeds", intention: "Flutter away", damage: 2, reach: 1.2,
+    benefit: "A pale glassbeak drifting between the reeds." },
 ];
 const IRONBACK_CHEST_ID = "ironback-chest";
 const IRONBACK_CHEST_POSITION = point(78, -52);
@@ -545,7 +562,7 @@ class Adventure implements AdventureGame {
         const d = definition(t.id);
         return {
           ...t, name: d.name, level: d.level, position: { ...t.position }, homePosition: { ...d.position },
-          staggered: t.staggered, disposition: d.disposition, joinsNextWindow: t.aggro && t.joinCycle > s.combat.clock.cycle, moving: s.phase !== "lost" && t.moving, maximumHealth: d.health,
+          staggered: t.staggered, disposition: d.disposition, critter: d.critter === true, joinsNextWindow: t.aggro && t.joinCycle > s.combat.clock.cycle, moving: s.phase !== "lost" && t.moving, maximumHealth: d.health,
           aggroRange: d.aggroRange, callForHelpRange: CALL_FOR_HELP_RANGE,
           movementMode: this.movementMode(t), motionProgress: t.wolf?.motion ? 1 - t.wolf.motion.remainingSeconds / t.wolf.motion.duration : 0,
           facing: { ...(t.wolf?.facing ?? this.direction(t.position, t.aggro ? (this.targetPlayer(t)?.state.position ?? s.position) : t.targetPosition)) },
@@ -1421,7 +1438,11 @@ class Adventure implements AdventureGame {
     return MOVEMENT_BARRIERS;
   }
   private clearPath(a: Position, b: Position): boolean {
+    const minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x);
+    const minZ = Math.min(a.z, b.z), maxZ = Math.max(a.z, b.z);
     return !this.barriers().some(([left, right, bottom, top]) => {
+      // Most world barriers are nowhere near this segment; avoid clipping them.
+      if (maxX < left + EPSILON || minX > right - EPSILON || maxZ < bottom || minZ > top) return false;
       let enter = 0, exit = 1;
       for (const [start, end, min, max] of [[a.x, b.x, left + EPSILON, right - EPSILON], [a.z, b.z, bottom, top]] as const) {
         const delta = end - start;
@@ -2108,7 +2129,7 @@ function readSave(serialized: string, now = Date.now()): State {
   });
   if (new Set(threats.map(t => t.id)).size !== threats.length) throw new Error("Invalid adventure save: duplicate threat.");
   for (const d of DEFINITIONS) if (!threats.some(t => t.id === d.id)) {
-    if (!d.id.startsWith("cave-") && !["pond-turtle", "meadow-rat", "meadow-rat-2"].includes(d.id)) throw new Error("Invalid adventure save: missing threats.");
+    if (!d.id.startsWith("cave-") && !["pond-turtle", "meadow-rat", "meadow-rat-2", "meadow-bird", "meadow-bird-2", "meadow-bird-3"].includes(d.id)) throw new Error("Invalid adventure save: missing threats.");
     threats.push(newThreat(d));
   }
   const state: State = {

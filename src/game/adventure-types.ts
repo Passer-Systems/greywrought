@@ -101,6 +101,7 @@ export interface ThreatView {
   readonly position: Position;
   readonly homePosition: Position;
   readonly disposition: "hostile" | "neutral";
+  readonly critter: boolean;
   readonly aggroRange: number;
   readonly callForHelpRange: number;
   readonly targetPlayerId?: string | null;

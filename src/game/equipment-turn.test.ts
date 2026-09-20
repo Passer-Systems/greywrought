@@ -1,3 +1,4 @@
+import { terrainHeight } from "./cave-layout.js";
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
 import { finishGathering, earnedChapter, foremanFixture, tap } from "./yard-test-fixtures.js";
@@ -6,7 +7,7 @@ test("gear outside combat changes immediately with slot and ownership validation
   for (const phase of ["town", "expedition"] as const) {
     const save = JSON.parse(createAdventure().save());
     save.state.chapter = earnedChapter(1);
-    Object.assign(save.state, { phase, position: { x: 0, y: 0, z: phase === "town" ? -5 : 3 } });
+    Object.assign(save.state, { phase, position: { x: 0, y: terrainHeight(0, phase === "town" ? -5 : 3), z: phase === "town" ? -5 : 3 } });
     const game = createAdventure({ save: JSON.stringify(save) });
     game.equip("mainhand", "insulated-coat"); game.equip("mainhand", "yard-weapon");
     expect(game.snapshot.progression.equipment.mainhand).toBeNull();

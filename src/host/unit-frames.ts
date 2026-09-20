@@ -49,8 +49,13 @@ const styles = `
 .unit-frames { position:absolute; inset:0; pointer-events:none; color:#f4e5ba; font:var(--ui-font-small)/1.2 system-ui,sans-serif; filter:drop-shadow(0 2px 2px #000b); }
 .unit-frame { position:relative; display:flex; align-items:center; height:92px; min-width:0; }
 .unit-frame-player,.unit-frame-target-group { position:absolute; width:var(--unit-frame-width); }
-.unit-frame-combat-status { position:absolute; top:calc(100% - 5px); right:3px; color:#c3c8bc; font:var(--ui-font-small)/1.2 system-ui,sans-serif; text-shadow:0 1px 2px #000,1px 0 2px #000; }
-.unit-frame-player[data-in-combat=true] .unit-frame-combat-status { color:#ffc18f; }
+.unit-frame-combat-status { position:absolute; z-index:4; left:0; bottom:0; width:30px; height:30px; display:grid; place-items:center; background:#211719; border:2px solid #8e7845; border-radius:50%; color:#dc7370; box-shadow:0 0 3px #210808; }
+.unit-frame-rest-status { color:#d9c986; font:600 16px/1 Georgia,serif; letter-spacing:-1px; }
+.unit-frame-rest-status sup { font-size:11px; }
+.unit-frame-combat-status[hidden] { display:none; }
+.unit-frame-combat-status svg { width:22px; height:22px; animation:combat-swords-pulse 2.8s ease-in-out infinite; }
+@keyframes combat-swords-pulse { 0%,100% { color:#cf7e77; opacity:.85; } 50% { color:#ed7770; opacity:1; } }
+@media(prefers-reduced-motion:reduce) { .unit-frame-combat-status svg { animation:none; } }
 .unit-frame-target-group { min-width:0; }
 .unit-frames[data-locked=false] .unit-frame-player,.unit-frames[data-locked=false] .unit-frame-target-group { pointer-events:auto; cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
 .unit-frames[data-locked=false] .unit-frame-player::after,.unit-frames[data-locked=false] .unit-frame-target::after { content:""; position:absolute; inset:-4px; border:1px dashed #e1c781; border-radius:5px; pointer-events:none; }
@@ -124,6 +129,11 @@ export function createUnitFrames(host: HTMLElement) {
   const player = makeFrame(root, "player-frame", "player");
   const combatStatus = node("span", "unit-frame-combat-status", player.root);
   combatStatus.id = "player-combat-status";
+  combatStatus.hidden = true; combatStatus.setAttribute('role','img'); combatStatus.setAttribute('aria-label','In combat'); combatStatus.title = 'In combat';
+  combatStatus.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor" stroke="#30191a" stroke-width=".6"><path d="M3 2l4 1 10 13-2 2L3 6zM12 16l2-2 6 5-2 2zM16 20l2-2 4 3-2 2z"/><path d="M21 2l-4 1L7 16l2 2L21 6zM12 16l-2-2-6 5 2 2zM8 20l-2-2-4 3 2 2z"/></g></svg>';
+  const restingStatus = node('span','unit-frame-combat-status unit-frame-rest-status',player.root);
+  restingStatus.id='player-rest-status';restingStatus.hidden=true;restingStatus.title='Resting in town';
+  restingStatus.setAttribute('role','img');restingStatus.setAttribute('aria-label','Resting');restingStatus.innerHTML='<span aria-hidden="true">z<sup>zz</sup></span>';
   const targetGroup = node("div", "unit-frame-target-group", root); targetGroup.hidden = true;
   const target = makeFrame(targetGroup, "target-frame", "target");
   const targetCast = createEnemyCastBar(target.root, "target-frame");
@@ -293,7 +303,9 @@ export function createUnitFrames(host: HTMLElement) {
       health(player, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id, snapshot.progression.level);
       stamina(player, snapshot.player);
       player.root.dataset.inCombat = String(snapshot.player.inCombat);
-      write(combatStatus, snapshot.player.inCombat ? "In combat" : "Out of combat");
+      combatStatus.hidden = !snapshot.player.inCombat;
+      restingStatus.hidden = snapshot.player.inCombat || snapshot.phase !== "town" || snapshot.player.health <= 0;
+      player.level.hidden = snapshot.player.inCombat || !restingStatus.hidden;
       if (friendly) {
         selectedId = "player:" + friendly.id; targetGroup.hidden = false;
         target.root.dataset.preview = "false"; target.root.dataset.kind = "player";

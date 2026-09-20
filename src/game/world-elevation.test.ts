@@ -1,16 +1,18 @@
 import { expect, test } from 'bun:test';
 import { createAdventure } from './adventure.js';
 import { migrateTerrainLayout, terrainHeight } from './cave-layout.js';
-import { dryOverworldHeight, overworldHeight } from './world-elevation.js';
+import { overworldHeight } from './world-elevation.js';
+import { dryOverworldHeight, overworldHeight as oldFloor } from './terrain-layout-v3.js';
 import { moveLocomotion } from './movement.js';
 
 test('hills rise gently in the meadow, mountains frame it, and authored town and cave floors stay level', () => {
-  expect(terrainHeight(-27, -79)).toBeGreaterThan(4);
+  expect(terrainHeight(-35, -60)).toBeGreaterThan(4);
   expect(terrainHeight(29, -100)).toBeGreaterThan(5);
   expect(terrainHeight(-84, -8)).toBeGreaterThan(25);
-  for (const [x,z] of [[0,-8],[-20,-30],[20,-25],[0,50],[28,-46]]) expect(Math.abs(terrainHeight(x!,z!))).toBe(0);
+  for (const [x,z] of [[0,-8],[-20,-30],[20,-25]]) expect(terrainHeight(x!,z!)).toBe(1.6);
+  for (const [x,z] of [[0,50],[28,-46]]) expect(Math.abs(terrainHeight(x!,z!))).toBe(0);
   expect(terrainHeight(72,-46)).toBe(-9);
-  const state = {position:{x:-27,y:terrainHeight(-27,-79),z:-79},verticalSpeed:0};
+  const state = {position:{x:29,y:terrainHeight(29,-100),z:-100},verticalSpeed:0};
   const start = state.position.y;
   for (let i=0;i<180;i++) {
     const previous = state.position.y;
@@ -24,7 +26,7 @@ test('hills rise gently in the meadow, mountains frame it, and authored town and
 test('existing cave-era saves rise with the meadow exactly once and retain character progress', () => {
   const saved = JSON.parse(createAdventure().save());
   for (const threat of saved.state.threats) {
-    for (const position of [threat.position, threat.targetPosition, threat.wolf?.attackOrigin].filter(Boolean)) {
+    for (const position of [threat.position, threat.targetPosition, threat.turnTarget, threat.wolf?.attackOrigin].filter(Boolean)) {
       position.y -= overworldHeight(position.x, position.z);
     }
   }
@@ -45,6 +47,23 @@ test('saved lake and stream positions follow the new bed once, preserving airbor
     migrateTerrainLayout(root);
     expect(root.state.position.y).toBeCloseTo(terrainHeight(x!,z!)+.6,10);
     expect(root.instances[0]!.members[0]!.origin.y).toBe(terrainHeight(x!,z!));
+    const once=JSON.stringify(root);migrateTerrainLayout(root);expect(JSON.stringify(root)).toBe(once);
+  }
+});
+
+
+test('deployed terrain saves migrate town, lake and private combat coordinates exactly once', () => {
+  for (const [x,z] of [[0,-8],[-12,-103],[-28,-87],[20,-25]]) {
+    const old = oldFloor(x!,z!);
+    const ground = {x:x!,y:old,z:z!};
+    const root = {terrainLayout:3,state:{position:{...ground,y:old+.5},coins:1492},instances:[{members:[{origin:{...ground}}],world:{threats:[{position:{...ground},targetPosition:{...ground},turnTarget:{...ground},wolf:{attackOrigin:{...ground},motion:{start:{...ground},destination:{...ground}}}}]}}]};
+    migrateTerrainLayout(root);
+    const expected={x:x!,y:terrainHeight(x!,z!),z:z!};
+    expect(root.state.position.y).toBeCloseTo(expected.y+.5,10);
+    expect(root.instances[0]!.members[0]!.origin).toEqual(expected);
+    const threat=root.instances[0]!.world.threats[0]!;
+    for (const position of [threat.position,threat.targetPosition,threat.turnTarget,threat.wolf.attackOrigin,threat.wolf.motion.start,threat.wolf.motion.destination]) expect(position).toEqual(expected);
+    expect(root.state.coins).toBe(1492);
     const once=JSON.stringify(root);migrateTerrainLayout(root);expect(JSON.stringify(root)).toBe(once);
   }
 });

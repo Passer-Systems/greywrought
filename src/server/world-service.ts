@@ -164,7 +164,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     return next;
   }
   function send(socket: ServerWebSocket<WorldSocketData>, message: ServerWorldMessage): void {
-    socket.send(JSON.stringify(message));
+    socket.send(JSON.stringify(message), message.type === 'state');
   }
   function error(socket: ServerWebSocket<WorldSocketData>, text: string): void { send(socket, { type: 'error', text }); }
   function partyFor(id: string): Party | undefined { return [...parties.values()].find(party => party.members.includes(id)); }
@@ -364,6 +364,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     return true;
   }
   const websocket: WebSocketHandler<WorldSocketData> = {
+    perMessageDeflate: true,
     maxPayloadLength: MAX_PAYLOAD,
     // Application broadcasts do not prove that a client can receive traffic.
     // The tick below owns an explicit native ping/pong lease instead.

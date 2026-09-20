@@ -417,7 +417,7 @@ test('coin shop transport validates stock, balance and distance and saves actual
   const character: LocalCharacter = { id: 'shop-tester', name: 'Shop Tester', archetype: 'warrior', createdAtMillis: 1 };
   const token = crypto.randomUUID(), seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
   const saved = JSON.parse(seed.save());
-  Object.assign(saved.characters[0].state, { position: { x: -9, y: 0, z: -32 }, coins: 12 });
+  Object.assign(saved.characters[0].state, { position: { x: -9, y: terrainHeight(-9, -32), z: -32 }, coins: 12 });
   await writeFile(savePath, JSON.stringify({ version: 1, accounts: [{ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') }], world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
   const service = await createWorldService({ savePath });
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });

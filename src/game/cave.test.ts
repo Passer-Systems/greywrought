@@ -20,14 +20,14 @@ test('old five-creature solo and shared saves retain progress and acquire cave c
   save.state.threats=save.state.threats.filter((t:{id:string})=>['scout','nest','warder','patrol','ritual-guardian'].includes(t.id));
   const game=createAdventure({save:JSON.stringify(save)});
   expect(game.snapshot.supplies).toBe(37);expect(game.snapshot.potions).toBe(4);
-  expect(game.snapshot.threats).toHaveLength(10);
+  expect(game.snapshot.threats).toHaveLength(13);
   const world=createSharedAdventure();world.join('caver','Caver','warrior');
   const shared=JSON.parse(world.save());shared.world.threats=shared.world.threats.filter((t:{id:string})=>['scout','nest','warder','patrol','ritual-guardian'].includes(t.id));
   const restored=createSharedAdventure({save:JSON.stringify(shared)});
   const player=restored.join('caver','Caver','warrior');
-  expect(player.snapshot.threats).toHaveLength(10);expect(restored.pause('caver')).toBe(true);
+  expect(player.snapshot.threats).toHaveLength(13);expect(restored.pause('caver')).toBe(true);
   const fork=createSharedAdventure({save:restored.save()});
-  expect(fork.join('caver','Caver','warrior').snapshot.threats).toHaveLength(10);
+  expect(fork.join('caver','Caver','warrior').snapshot.threats).toHaveLength(13);
   expect(fork.session('caver').mode).toBe('paused');
 });
 test('bat and crab announce different timings and deal their forecast damage',()=>{

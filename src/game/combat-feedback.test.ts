@@ -1,3 +1,4 @@
+import { terrainHeight } from "./cave-layout.js";
 import { describe, expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
@@ -62,7 +63,7 @@ describe("personal combat feedback", () => {
     const tonicSave = seed("alchemist"); tonicSave.state.health = 98;
     const tonic = createAdventure({ save: JSON.stringify(tonicSave) }); tonic.advance(.001); finishGathering(tonic); tap(tonic, "brace"); tonic.readyCombat(); tonic.advance(1.2);
     expect(tonic.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 2 }, { id: 2, targetId: null, kind: "block", amount: 8 }]);
-    const innSave = seed(); Object.assign(innSave.state, { phase: "town", health: 97, position: { x: 5, y: 0, z: -11 } });
+    const innSave = seed(); Object.assign(innSave.state, { phase: "town", health: 97, position: { x: 5, y: terrainHeight(5, -11), z: -11 } });
     const inn = createAdventure({ save: JSON.stringify(innSave) }); tap(inn, "rest"); tap(inn, "rest");
     expect(inn.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 3 }]);
   });

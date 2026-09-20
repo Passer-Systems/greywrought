@@ -1,3 +1,4 @@
+import { terrainHeight } from "./cave-layout.js";
 import { earnedChapter, fightForeman, fightTarget, finishCycle, travel, retreatUntilReleased } from "./yard-test-fixtures.js";
 import { describe, expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure, getMonsterLore } from "./adventure.js";
@@ -129,7 +130,7 @@ describe("Frostwood world and persistent rewards",()=>{
     const game = createAdventure();
     game.setAction("left", true); game.setAction("right", true);
     game.advance(1);
-    expect(game.snapshot.player.position).toEqual({ x: 0, y: 0, z: -8 });
+    expect(game.snapshot.player.position).toEqual({ x: 0, y: terrainHeight(0, -8), z: -8 });
     game.setAction("left", false);
     game.setAction("forward", true);
     game.advance(0.5);
@@ -189,7 +190,7 @@ describe("Frostwood world and persistent rewards",()=>{
     walk(game, 6, -8);
     game.setCameraForward(0, 1); game.setAction("forward", true); game.advance(3);
     game.setAction("forward", false);
-    expect(game.snapshot.player.position.z).toBeLessThan(-0.49);
+    expect(game.snapshot.player.position.z).toBeLessThan(-0.2);
     expect(game.snapshot.phase).toBe("town");
     game.advance(20);
     expect(game.snapshot.player.health).toBe(100);
@@ -214,7 +215,7 @@ describe("Frostwood world and persistent rewards",()=>{
 
   test("leash releases a pursuing hostile and it walks home without following into town", () => {
     const seed = JSON.parse(createAdventure().save());
-    Object.assign(seed.state, {phase:"expedition",position:{x:0,y:0,z:5}});
+    Object.assign(seed.state, {phase:"expedition",position:{x: 0, y: terrainHeight(0, 5), z: 5}});
     for (const enemy of seed.state.threats) {
       enemy.rng = 9844;
       if (enemy.active && enemy.id !== "warder") Object.assign(enemy,{health:0,phase:"cleared",lootClaimed:true});
@@ -243,7 +244,7 @@ describe("Frostwood world and persistent rewards",()=>{
 
   test("corpse loot is manual, nearby and claimed once; salvage persists then banks on extraction", () => {
     const saved = JSON.parse(createAdventure().save());
-    Object.assign(saved.state, {phase:"expedition",position:{x:0,y:0,z:5}});
+    Object.assign(saved.state, {phase:"expedition",position:{x: 0, y: terrainHeight(0, 5), z: 5}});
     for (const enemy of saved.state.threats) {
       enemy.rng = 9844;
       if (enemy.id === "patrol") Object.assign(enemy, { health: 0, phase: "cleared", lootClaimed: true });

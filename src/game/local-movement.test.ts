@@ -13,7 +13,7 @@ function near(actual: AdventureSnapshot['player']['position'], expected: Adventu
 
 function slopeServer(x: number, z: number) {
   const saved = JSON.parse(createAdventure({ now: () => 1000 }).save());
-  Object.assign(saved.state, { phase: 'expedition', position: { x, y: terrainHeight(x, z), z } });
+  Object.assign(saved.state, { phase: 'expedition', position: { x, y: terrainHeight(x!, z!), z } });
   for (const threat of saved.state.threats) if (threat.active) Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: 121000 });
   const server = createAdventure({ save: JSON.stringify(saved), now: () => 1000 });
   server.enableNetworkMovement!();
@@ -145,7 +145,7 @@ test('delayed and jittered acknowledgments preserve immediate speed, turns, rele
 test('prediction and server retain gate, thicket, world bounds and jump collision', () => {
   for (const [x, z, cameraX, cameraZ] of [[5, -1, 0, 1], [3, 17.5, 0, 1], [11.8, -8, 1, 0]]) {
     const save = JSON.parse(createAdventure().save());
-    save.state.position = { x, y: 0, z };
+    save.state.position = { x, y: terrainHeight(x!, z!), z };
     const server = createAdventure({ save: JSON.stringify(save) }); server.enableNetworkMovement!();
     const local = new LocalMovement(server.snapshot, server.movementCheckpoint!);
     local.setCameraForward(cameraX!, cameraZ!); local.setAction('forward', true); local.setAction('jump', true);
@@ -173,7 +173,7 @@ test('partial input acknowledgments replay only remaining duration and authorita
   expect(local.player.position.x).toBeCloseTo(0, 7);
   for (let i = 0; i < 60; i++) local.advance(1 / 60);
   expect(local.player.position.x).toBeCloseTo(0.5, 6);
-  const lost = { ...corrected, phase: 'lost' as const, player: { ...corrected.player, health: 0, position: { x: 0, y: 0, z: -8 } } };
+  const lost = { ...corrected, phase: 'lost' as const, player: { ...corrected.player, health: 0, position: { x: 0, y: terrainHeight(0, -8), z: -8 } } };
   local.reconcile(lost, server.movementCheckpoint!, 2);
   near(local.player.position, lost.player.position);
 });
@@ -189,7 +189,7 @@ test('authoritative physics lands a jump while network input is temporarily abse
   // A hidden tab may stop producing packets, but the server must still run
   // neutral physics rather than freezing the player in midair.
   server.advance(2);
-  expect(server.snapshot.player.position.y).toBe(0);
+  expect(server.snapshot.player.position.y).toBe(terrainHeight(server.snapshot.player.position.x, server.snapshot.player.position.z));
   expect(server.snapshot.player.grounded).toBe(true);
   expect(server.snapshot.player.position.x).toBeCloseTo(0, 8);
   expect(server.snapshot.player.position.z).toBeCloseTo(-8, 8);
@@ -207,7 +207,7 @@ test('server-announced maneuvers advance between snapshots without predicting co
   const start = local.player.position;
   local.advance(1 / 60);
   expect(local.player.position.z).toBeLessThan(start.z);
-  expect(local.player.position.y).toBe(0);
+  expect(local.player.position.y).toBe(terrainHeight(local.player.position.x, local.player.position.z));
   expect(local.player.health).toBe(snapshot.player.health);
   const first = local.player.position.z;
   local.advance(1 / 60);
@@ -215,4 +215,20 @@ test('server-announced maneuvers advance between snapshots without predicting co
   for (let tick = 2; tick < 60; tick++) local.advance(1 / 60);
   expect(local.player.position.z).toBeCloseTo(-13, 7);
   expect(local.player.grounded).toBe(true);
+});
+
+test('entering combat preserves the rendered follow position while locking locomotion', () => {
+  const game = createAdventure(); game.enableNetworkMovement!();
+  const local = new LocalMovement(game.snapshot, game.movementCheckpoint!);
+  local.reconcile(game.snapshot, game.movementCheckpoint!, 0);
+  local.setAction('forward', true); local.advance(.1);
+  const before = local.player.position;
+  const snapshot = game.snapshot;
+  const combat = { ...snapshot, player: { ...snapshot.player, inCombat: true } };
+  local.reconcile(combat, game.movementCheckpoint!, .1);
+  near(local.player.position, before);
+  local.setAction('forward', true);
+  local.advance(.25);
+  expect(local.takeOutgoing().every(frame => frame.input.forward === 0 && frame.input.strafe === 0)).toBe(true);
+  expect(Math.abs(local.player.position.z-snapshot.player.position.z)).toBeLessThan(.01);
 });

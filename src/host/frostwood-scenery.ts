@@ -1,3 +1,4 @@
+import { buildTownPerimeter } from './town-perimeter.js';
 import { terrainHeight } from '../game/cave-layout.js';
 import { buildWorldWater } from './world-water.js';
 import { buildLakeShore } from './lake-shore.js';
@@ -6,6 +7,7 @@ import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Mat
 import type { Position } from "../game/adventure-types.js";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
+import { createRuinedGroundMaterial } from "./ground-material.js";
 
 export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number, wallTimeMillis?: number) => void> {
   const jobs: Promise<void>[] = [];
@@ -64,29 +66,20 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     light.userData.nightIntensity = 19;
     light.position.set(x,terrainHeight(x,z)+height-0.2,z); terrain.add(light);
   }
-  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 256;
-  const ctx = canvas.getContext("2d")!;
-  const pixels=ctx.createImageData(256,256);
-  const hash=(x:number,y:number)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n);};
-  const tileNoise=(x:number,y:number,n:number)=>{const px=x/256*n,py=y/256*n,ix=Math.floor(px),iy=Math.floor(py),fx=px-ix,fy=py-iy,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);return (hash(ix%n,iy%n)*(1-u)+hash((ix+1)%n,iy%n)*u)*(1-v)+(hash(ix%n,(iy+1)%n)*(1-u)+hash((ix+1)%n,(iy+1)%n)*u)*v;};
-  for(let y=0;y<256;y++)for(let x=0;x<256;x++){
-    const n=tileNoise(x,y,4)*.56+tileNoise(x,y,16)*.3+tileNoise(x,y,64)*.14;
-    const earth=Math.max(0,Math.min(1,(n-.38)*5)),grain=(hash(x,y)-.5)*12,i=(y*256+x)*4;
-    pixels.data[i]=57+earth*30+grain;pixels.data[i+1]=66+earth*10+grain;pixels.data[i+2]=52+earth*17+grain;pixels.data[i+3]=255;
-  }
-  ctx.putImageData(pixels,0,0);
-  const map=new CanvasTexture(canvas);map.colorSpace=SRGBColorSpace;map.wrapS=map.wrapT=RepeatWrapping;map.repeat.set(19,25);
-  // Vertex tint keeps broad hills readable: low grass stays green, exposed
-  // steeper slopes shift toward warm soil and occasional grey rock.
-  const grassTint = new Color('#d4d5c5'), soilTint = new Color('#b5a796'), rockTint = new Color('#b8c0c2'), summitTint = new Color('#c7c2b9');
+  const groundMaterial = createRuinedGroundMaterial();
+  // Broad vertex colour still follows slopes, while the material supplies the
+  // small-scale grass, soil and litter detail.
+  const grassTint = new Color('#b0b69a'), soilTint = new Color('#8e7962'), rockTint = new Color('#a0a39b'), summitTint = new Color('#9a958b');
   function tintGround(ground: Mesh) {
-    const geometry=ground.geometry;ground.updateMatrixWorld();const world=new Vector3(),normal=new Vector3();
+    const geometry = ground.geometry; ground.updateMatrixWorld();
+    const world = new Vector3(), normal = new Vector3();
     const positions = geometry.getAttribute('position'), normals = geometry.getAttribute('normal');
     const colors = new Float32Array(positions.count * 3), color = new Color();
     for (let index = 0; index < positions.count; index++) {
-      world.fromBufferAttribute(positions,index).applyMatrix4(ground.matrixWorld);normal.fromBufferAttribute(normals,index).transformDirection(ground.matrixWorld);
-      const elevation=world.y,slope=Math.min(1,Math.max(0,1-normal.y));
-      const variation = .92 + .08 * Math.sin(world.x*.11+Math.sin(world.z*.14)*2);
+      world.fromBufferAttribute(positions, index).applyMatrix4(ground.matrixWorld);
+      normal.fromBufferAttribute(normals, index).transformDirection(ground.matrixWorld);
+      const elevation = world.y, slope = Math.min(1, Math.max(0, 1 - normal.y));
+      const variation = .84 + .16 * Math.sin(world.x * .11 + Math.sin(world.z * .14) * 2);
       const rock = Math.max(0, Math.min(1, (slope - .28) * 2.7));
       const soil = Math.max(0, Math.min(1, (slope - .08) * 1.8)) * (1 - rock);
       const summit = Math.max(0, Math.min(1, (elevation - 15) / 18));
@@ -95,7 +88,6 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     }
     geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
   }
-  const groundMaterial = new MeshStandardMaterial({ map, roughness: 1, vertexColors: true });
   // Four surfaces leave an actual opening in the earth above Hollowdeep.
   for (const [left, right, bottom, top] of [[-124,28,-190,148],[86,146,-190,148],[28,86,-190,-64],[28,86,-30,148]]) {
     const geometry = new PlaneGeometry(right!-left!, top!-bottom!, Math.ceil((right!-left!)/2), Math.ceil((top!-bottom!)/2));
@@ -113,9 +105,9 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     pavingCtx.beginPath(); pavingCtx.roundRect(x+2,y+2,26,23,4); pavingCtx.fill();
   }
   const pavingMap=new CanvasTexture(paving); pavingMap.colorSpace=SRGBColorSpace; pavingMap.wrapS=pavingMap.wrapT=RepeatWrapping; pavingMap.repeat.set(5,4);
-  const square=new Mesh(new PlaneGeometry(44,38),new MeshStandardMaterial({map:pavingMap,roughness:1})); square.rotation.x=-Math.PI/2; square.position.set(0,-0.01,-19); terrain.add(square);
+  const square=new Mesh(new PlaneGeometry(44,38,22,19),new MeshStandardMaterial({map:pavingMap,roughness:1})); square.rotation.x=-Math.PI/2; square.position.set(0,-0.01,-19); terrain.add(square); conformToTerrain(square, -.01); square.geometry.computeVertexNormals();
   const roadMap=pavingMap.clone(); roadMap.repeat.set(1,7);
-  const road=new Mesh(new PlaneGeometry(4.2,52),new MeshStandardMaterial({map:roadMap,color:0xb0b49a,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,-18); terrain.add(road);
+  const road=new Mesh(new PlaneGeometry(4.2,52,2,52),new MeshStandardMaterial({map:roadMap,color:0xb0b49a,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,-18); terrain.add(road); conformToTerrain(road, .015); road.geometry.computeVertexNormals();
   for (const building of TOWN_BUILDINGS) {
     place(building.model, building.x, building.z, building.height, building.turn*Math.PI/2, terrain, 'height', 0, [building.width,building.depth]);
   }
@@ -136,23 +128,15 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   place('Barrel',6,-9,.85); place('Crate',6.4,-8.8,.7);
   place('Bench_1',6,-15.8,.75,0); place('Barrel',6.1,-14.6,.85);
   torch(-10.4,-12.4); torch(-5.6,-5.2); torch(4.5,-8.5); torch(innPosition.x+.5,innPosition.z-1.4);
-  torch(-3.6,.15,2.7); torch(3.6,.15,2.7);
+  torch(-4.4,.15,2.7); torch(4.4,.15,2.7);
   // Residents have reused the works' vessels and pipework around their well.
   place("works/Props_Vessel",4.7,-7.45,0.65,0,terrain,"height",0.72);
   place("works/Props_Vessel",5.25,-7.45,0.55,0.3,terrain,"height",0.72);
   place("works/Pipes",-4.7,-11.75,2.1,0,terrain,"width",0.02);
-  const coldLight = new PointLight(0x70ddff,0,3,2); coldLight.position.set(4.8,1.3,-7.5); terrain.add(coldLight);
-  const homeLight = new PointLight(0xffbb65,0,5,2); homeLight.position.set(innPosition.x+0.5,1.8,innPosition.z); terrain.add(homeLight);
-  // The gate's low rock and hedge banks match the game's blocked x>3 strip.
-  for(const side of [-1,1]) {
-    for(let i=0;i<9;i++) {
-      place("nature/Rock_Medium_3",side*(4.3+i*1.9),1.75,2.1+i%2*0.3,i,terrain,"width");
-      place("nature/Bush_Common",side*(4.3+i*1.9),2.9,1.45,i);
-      place("Fence",side*(4.5+i*1.8),-0.3,1.1,0);
-    }
-  }
-  place("works/Column_1",-3.65,1.7,2.8);
-  place("works/Column_1",3.65,1.7,2.8);
+  const coldLight = new PointLight(0x70ddff,0,3,2); coldLight.position.set(4.8,terrainHeight(4.8,-7.5)+1.3,-7.5); terrain.add(coldLight);
+  const homeLight = new PointLight(0xffbb65,0,5,2); homeLight.position.set(innPosition.x+0.5,terrainHeight(innPosition.x+0.5,innPosition.z)+1.8,innPosition.z); terrain.add(homeLight);
+  buildTownPerimeter((x,z,length,rotation) => place('Fence',x,z,length,rotation,terrain,'width'));
+  for (const z of [0,-40]) for (const x of [-4.4,4.4]) place('works/Column_1',x,z,2.5);
   const forestPlace: typeof place = (name, x, z, ...rest) => place(name, x, z + 20, ...rest);
   // The broken road becomes earth before the Watchman's clearing, then winds west of the briars.
   const noise = (seed: number) => { const value=Math.sin(seed*127.1+19.7)*43758.5453; return value-Math.floor(value); };
@@ -395,8 +379,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     place("nature/Grass_Common_Short", x!, z!, 0.35);
     place("nature/Fern_1", x! + 0.7, z! + 0.5, 0.55);
   }
-  place('Fence',-4,-39,1.1); place('Fence',4,-39,1.1);
-  torch(-3.5,-39,2.4); torch(3.5,-39,2.4);
+  torch(-4.4,-40,2.4); torch(4.4,-40,2.4);
   await Promise.all(jobs);
   terrain.traverse(object => { if (object instanceof Mesh) object.receiveShadow = true; });
   const inverse = new Matrix4(), matrix = new Matrix4();
@@ -409,7 +392,15 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     inverse.copy(parent.matrixWorld).invert();
     for (const [index, mesh] of meshes.entries()) {
       instances.setMatrixAt(index, matrix.multiplyMatrices(inverse, mesh.matrixWorld));
+      let container = mesh.parent;
       mesh.removeFromParent();
+      // Instancing replaces the source meshes; their empty transform hierarchy
+      // must leave the scene too, or every render still traverses it.
+      while (container && container !== parent && container.children.length === 0 && (container instanceof Group || container.type === 'Object3D')) {
+        const ancestor = container.parent;
+        container.removeFromParent();
+        container = ancestor;
+      }
     }
     // Spatial cells retain useful frustum culling without changing the authored art.
     instances.computeBoundingSphere();

@@ -94,7 +94,9 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         const encounter = document.getElementById('encounter-status');
         encounterBounds = encounter && !encounter.hidden ? encounter.getBoundingClientRect() : null;
       }
+      const showNeutral = document.body.dataset.showNeutralCritterNames === "true";
       const visible = snapshot.threats.filter(threat => threat.active && threat.health > 0 &&
+        (showNeutral || threat.disposition !== "neutral" || threat.critter !== true || threat.aggro) &&
         Math.hypot(threat.position.x - snapshot.player.position.x, threat.position.z - snapshot.player.position.z) <= NAMEPLATE_DISTANCE)
         .map(threat => ({ threat, anchor: world.projectThreat(threat.id) })).filter(({ anchor }) => anchor);
       const visibleIds = new Set(visible.map(({ threat }) => threat.id));

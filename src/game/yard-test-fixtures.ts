@@ -95,7 +95,7 @@ export function earnedChapter(count = 3) {
   let game = createAdventure();
   for (const q of QUESTS.slice(0, count)) {
     const saved = JSON.parse(game.save());
-    saved.state.position = { x: q.giver === "mara" ? 3.4 : 5, y: 0, z: q.giver === "mara" ? -7.5 : -11 };
+    saved.state.position = { x: q.giver === "mara" ? 3.4 : 5, y: terrainHeight(q.giver === "mara" ? 3.4 : 5, q.giver === "mara" ? -7.5 : -11), z: q.giver === "mara" ? -7.5 : -11 };
     game = createAdventure({ save: JSON.stringify(saved) });
     game.quest(q.id, "accept");
     const objective = JSON.parse(game.save());

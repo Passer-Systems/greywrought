@@ -1,9 +1,10 @@
+import { terrainHeight } from "./cave-layout.js";
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
 
 function atBank() {
   const save = JSON.parse(createAdventure().save());
-  Object.assign(save.state, { position: { x: -9, y: 0, z: -10 }, potions: 3 });
+  Object.assign(save.state, { position: { x: -9, y: terrainHeight(-9, -10), z: -10 }, potions: 3 });
   return createAdventure({ save: JSON.stringify(save) });
 }
 
@@ -32,7 +33,7 @@ test("bank stays character-owned through private fork, saved pause, and rejoin",
   const seed = createSharedAdventure();
   seed.join("alice", "Alice", "warrior"); seed.join("bob", "Bob", "mage");
   const saved = JSON.parse(seed.save());
-  for (const entry of saved.characters) entry.state.position = { x: -9, y: 0, z: -10 };
+  for (const entry of saved.characters) entry.state.position = { x: -9, y: terrainHeight(-9, -10), z: -10 };
   let world = createSharedAdventure({ save: JSON.stringify(saved) });
   let alice = world.join("alice", "Alice", "warrior");
   const bob = world.join("bob", "Bob", "mage");

@@ -1,9 +1,10 @@
+import { terrainHeight } from "./cave-layout.js";
 import type { GearItemId } from "./yard-content.js";
 
 export const VENDORS = [
-  { id: "weapon-vendor", name: "Tamsin", trade: "Weapons", position: { x: -13, y: 0, z: -28 }, item: "travel-weapon", price: 9 },
-  { id: "armor-vendor", name: "Brann", trade: "Armor", position: { x: 13, y: 0, z: -28 }, item: "padded-coat", price: 6 },
-  { id: "shield-vendor", name: "Sella", trade: "Shields", position: { x: -9, y: 0, z: -32 }, item: "yard-shield", price: 12 },
+  { id: "weapon-vendor", name: "Tamsin", trade: "Weapons", position: { x: -13, y: terrainHeight(-13, -28), z: -28 }, item: "travel-weapon", price: 9 },
+  { id: "armor-vendor", name: "Brann", trade: "Armor", position: { x: 13, y: terrainHeight(13, -28), z: -28 }, item: "padded-coat", price: 6 },
+  { id: "shield-vendor", name: "Sella", trade: "Shields", position: { x: -9, y: terrainHeight(-9, -32), z: -32 }, item: "yard-shield", price: 12 },
 ] as const satisfies readonly { id: string; name: string; trade: string; position: { x: number; y: number; z: number }; item: GearItemId; price: number }[];
 export type VendorId = typeof VENDORS[number]["id"];
 export type NpcId = "mara" | "inn" | "bank" | VendorId;

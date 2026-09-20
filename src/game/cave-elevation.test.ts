@@ -25,7 +25,7 @@ function near(actual: Position, expected: Position) {
 function flatSave(serialized: string): string {
   const root = JSON.parse(serialized);
   delete root.terrainLayout;
-  const spatial = new Set(['position', 'targetPosition', 'origin', 'start', 'destination', 'attackOrigin']);
+  const spatial = new Set(['position', 'targetPosition', 'turnTarget', 'origin', 'start', 'destination', 'attackOrigin']);
   const flatten = (value: any) => {
     if (!value || typeof value !== 'object') return;
     for (const [key, child] of Object.entries(value) as [string, any][]) {
@@ -123,7 +123,7 @@ test('old solo saves migrate jump and maneuver offsets once, preserving progress
     const restored = createAdventure({ save: flatSave(game.save()), now: () => 1000 });
     const saved = JSON.parse(restored.save());
     near(saved.state.position, expected.state.position);
-    expect(saved.terrainLayout).toBe(3);
+    expect(saved.terrainLayout).toBe(4);
     expect(saved.state.maneuver).toEqual(expected.state.maneuver);
     expect(saved.state.chapter).toEqual(expected.state.chapter);
     expect(saved.state.supplies).toBe(37); expect(saved.state.potions).toBe(4);

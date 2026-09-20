@@ -10,6 +10,7 @@ import {
 import type { AdventureSnapshot, CombatView, CombatForecast, Position } from "../game/adventure-types.js";
 import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildWorldSigns } from "./world-signs.js";
+import { captureMinimap } from "./minimap.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
 import { conformToTerrain } from "./terrain-geometry.js";
 import { terrainCameraLift } from "./terrain-camera.js";
@@ -35,6 +36,9 @@ import { terrainHeight } from "../game/cave-layout.js";
 import { isSwimmingPosition, lakeWaterAt } from "../game/world-elevation.js";
 import { buildVolcanoLandmark } from "./volcano-landmark.js";
 import { mechanicalTurtle } from "./mechanical-turtle.js";
+import { selectionCircles } from './selection-circle.js';
+import { createSwimmingWake } from "./swimming-wake.js";
+import { createEnvironmentAtmosphere } from "./environment-atmosphere.js";
 
 interface ThreatRig extends ThreatAnimationState {
   readonly root: Group;
@@ -66,6 +70,7 @@ interface HoverTarget {
 
 export interface AdventureWorld {
   readonly canvas: HTMLCanvasElement;
+  readonly minimap: HTMLCanvasElement;
   readonly ready: Promise<void>;
   render(snapshot: AdventureSnapshot, delta: number, localPlayer?: AdventureSnapshot['player'], serverTime?: number, connectionRevision?: number, worldTimeMillis?: number): void;
   updatePlayers(players: readonly RemotePlayerView[]): void;
@@ -202,11 +207,13 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.outputColorSpace = SRGBColorSpace;
   const canvas = renderer.domElement;
+  const minimap = document.createElement("canvas");
   canvas.id = "world-canvas";
   canvas.tabIndex = 0;
   canvas.setAttribute("aria-label", `${YARD.region}. W A S D move, drag the mouse to turn the view.`);
   host.prepend(canvas);
   const lighting = createWorldLighting(scene, renderer);
+  const atmosphere = createEnvironmentAtmosphere(scene);
   const terrain = new Group();
   scene.add(terrain);
   const thicket = new Group(); terrain.add(thicket);
@@ -220,7 +227,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (disposed) { disposeObjects(chest); return; }
     chest.position.y = 0; chestRoot.add(chest);
   });
-  const mara = new Group(); mara.position.set(3.4, 0, -7.5); mara.rotation.y = -Math.PI/2;
+  const mara = new Group(); mara.position.set(3.4, terrainHeight(3.4, -7.5), -7.5); mara.rotation.y = -Math.PI/2;
   terrain.add(mara);
   const innPlace = initial.places.find(place => place.id === "inn");
   if (!innPlace) throw new Error("Inn service position is missing");
@@ -231,7 +238,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const elian = new Group(); elian.position.set(bankPosition.x, bankPosition.y, bankPosition.z); elian.rotation.y = Math.PI / 2;
   terrain.add(elian);
   const vendorActors = VENDORS.map(vendor => {
-    const root = new Group(); root.position.set(vendor.position.x, 0, vendor.position.z);
+    const root = new Group(); root.position.set(vendor.position.x, terrainHeight(vendor.position.x, vendor.position.z), vendor.position.z);
     root.rotation.y = vendor.position.x < 0 ? Math.PI / 2 : -Math.PI / 2;
     terrain.add(root);
     return { vendor, root, actor: null as ForestActor | null };
@@ -261,11 +268,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
 
   const hoverTargets: HoverTarget[] = [
     { root: chestRoot, pick: { kind: "chest", id: "ironback-chest" }, name: "Ironback Crab’s cache", anchor: new Vector3(chestPosition.x, chestPosition.y + 1.3, chestPosition.z) },
-    ...vendorActors.map(({vendor, root}): HoverTarget => ({ root, pick: {kind: "npc", id: vendor.id}, name: `${vendor.name} · ${vendor.trade}`, anchor: new Vector3(vendor.position.x, 2.45, vendor.position.z) })),
+    ...vendorActors.map(({vendor, root}): HoverTarget => ({ root, pick: {kind: "npc", id: vendor.id}, name: `${vendor.name} · ${vendor.trade}`, anchor: new Vector3(vendor.position.x, root.position.y + 2.45, vendor.position.z) })),
     { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(corePlace.position.x, 1.4, corePlace.position.z) },
-    { root: mara, pick: { kind: "npc", id: "mara" }, name: "Mara · Supplies", anchor: new Vector3(3.4, 2.45, -7.5) },
-    { root: elian, pick: { kind: "npc", id: "bank" }, name: "Elian · Banker", anchor: new Vector3(bankPosition.x, 2.45, bankPosition.z) },
-    { root: rowan, pick: { kind: "npc", id: "inn" }, name: "Rowan · Innkeeper", anchor: new Vector3(innPosition.x, 2.45, innPosition.z) },
+    { root: mara, pick: { kind: "npc", id: "mara" }, name: "Mara · Supplies", anchor: new Vector3(3.4, mara.position.y + 2.45, -7.5) },
+    { root: elian, pick: { kind: "npc", id: "bank" }, name: "Elian · Banker", anchor: new Vector3(bankPosition.x, bankPosition.y + 2.45, bankPosition.z) },
+    { root: rowan, pick: { kind: "npc", id: "inn" }, name: "Rowan · Innkeeper", anchor: new Vector3(innPosition.x, innPosition.y + 2.45, innPosition.z) },
     { root: ritual, pick: { kind: "place", id: "ritual" }, name: YARD.works, anchor: new Vector3(ritualPosition.x, 0.4, ritualPosition.z) },
   ];
   const tooltip = document.createElement("div");
@@ -285,6 +292,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     canvas.style.cursor = "";
   };
   const player = new Group();
+  const swimmingWake = createSwimmingWake(scene);
   const photonChair = createPhotonChair(player);
   player.userData.localPlayer = true;
   player.userData.playerId = playerSelection?.selfId;
@@ -303,7 +311,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   playerHalo.rotation.x = -Math.PI / 2;
   playerHalo.position.y = 0.04;
   player.add(playerHalo);
-  const friendlySelection = new Mesh(new RingGeometry(.65, .73, 48), new MeshBasicMaterial({ color: 0x83eeac, side: 2 }));
+  const selectionCircle = selectionCircles();
+  const friendlySelection = selectionCircle(.9, 0x63f076);
+  const npcSelection = selectionCircle(.95, 0x63f076); scene.add(npcSelection);
   friendlySelection.rotation.x = -Math.PI / 2; friendlySelection.visible = false; scene.add(friendlySelection);
   const alchemist = playerArchetype === "alchemist", artificer = playerArchetype === "artificer";
   const playerProjectile = new Mesh(new SphereGeometry(0.16, 12, 8), new MeshStandardMaterial({ color: playerArchetype === "mage" ? 0xb78cff : alchemist ? 0x7ed36d : artificer ? 0xffb347 : 0xffd36b, emissive: playerArchetype === "mage" ? 0x5420a8 : alchemist ? 0x245c28 : artificer ? 0x6d3200 : 0x8a4a00, emissiveIntensity: 1.2 }));
@@ -366,6 +376,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     "pond-turtle": {model:"Crab",height:0.9,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
     "meadow-rat": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Attack",hit:"Run"},
     "meadow-rat-2": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Attack",hit:"Run"},
+    "meadow-bird": {model:"Birb",height:0.7,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve"},
+    "meadow-bird-2": {model:"Birb",height:0.7,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve"},
+    "meadow-bird-3": {model:"Birb",height:0.7,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve"},
     scout: {model:"Skull",height:1.6,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
     nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
     warder: {model:"MushroomKing",height:2.4,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact"},
@@ -381,7 +394,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     creature.play(threat.health <= 0 ? "Death" : look.idle, threat.health > 0);
     const ring = new Mesh(new RingGeometry(0.93, 1.03, 48), new MeshBasicMaterial({ color: 0xffd278, side: 2 }));
     ring.rotation.x = -Math.PI/2; ring.position.y=0.05; root.add(ring);
-    const selection = new Mesh(new RingGeometry(1.09, 1.14, 48), new MeshBasicMaterial({ color: 0xfff6df, side: 2 }));
+    const selection = selectionCircle(Math.max(.55, look.height * .6), 0xff3232);
     selection.rotation.x = -Math.PI/2; selection.position.y=0.06; root.add(selection);
     const glint = lootGlint(); glint.visible = false; root.add(glint);
     const beam = new Mesh(new CylinderGeometry(0.045,0.045,1,8),new MeshBasicMaterial({color:0xffbc71,transparent:true,opacity:0.85,depthWrite:false})); beam.visible=false;scene.add(beam);
@@ -390,14 +403,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,ring,lootGlint:glint,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
       health:threat.health,sequence:threat.actionSequence,attackTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
-  const birds: { root: Group; actor: ForestActor; phase: number; centerX: number; centerZ: number }[] = [];
-  const birdSpawns: readonly [number, number][] = [[-12, -82], [-1, -106], [14, -92]];
-  const birdsReady = Promise.all(birdSpawns.map(async ([x, z], index) => {
-    const mounted = await actor("Birb", 0.42);
-    if (disposed) { mounted.dispose(); return; }
-    const root = new Group(); root.position.set(x, terrainHeight(x, z) + 4 + index * .6, z); root.add(mounted.root); scene.add(root);
-    mounted.play("Dance"); birds.push({ root, actor: mounted, phase: index * 2.1, centerX: x, centerZ: z });
-  }));
   const signsReady = buildWorldSigns(terrain, (root, id, name) => {
     hoverTargets.push({ root, pick: { kind: "place", id }, name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
   });
@@ -415,7 +420,14 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   moveOutcome.setAttribute("role", "status");
   Object.assign(moveOutcome.style, { position: "absolute", zIndex: "8", pointerEvents: "none", padding: "8px 10px", maxWidth: "280px", whiteSpace: "pre-line", background: "#112126ef", color: "#fff0cc", border: "1px solid #a9c8b4", borderRadius: "3px", font: "12px/1.45 system-ui" });
   host.append(moveOutcome);
-  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, birdsReady, coresReady, signsReady, natureReady, caveReady, chestReady]).then(()=>{ lighting.collectLamps(); });
+  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, coresReady, signsReady, natureReady, caveReady, chestReady]).then(async()=>{
+    if(disposed)return;
+    lighting.collectLamps();
+    await captureMinimap(renderer, terrain, minimap);
+    if(disposed)return;
+    atmosphere.attach();
+    await renderer.compileAsync(scene, camera);
+  });
   const raycaster = new Raycaster();
   const point = new Vector2();
   const groundSurfaces: Object3D[] = [];
@@ -475,7 +487,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     tooltip.style.top = `${Math.max(tooltip.offsetHeight + 8, y)}px`;
   };
   return {
-    canvas, ready, forward, pick, pickGround, clearHover,
+    canvas, minimap, ready, forward, pick, pickGround, clearHover,
     hover(x, y) { hoverPointer = { x, y }; },
     updatePlayers(players) { if (!disposed) otherPlayers = players; },
     updateChat(messages, selfId) { if (!disposed) chatBubbles.update(messages, selfId); },
@@ -500,6 +512,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (disposed) return;
       if (lastConnectionRevision !== connectionRevision) {
         interpolation = createSnapshotInterpolation();
+        swimmingWake.clear();
         combatPreview = null; movementPreview.clear();
         lastConnectionRevision = connectionRevision;
       }
@@ -514,17 +527,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       } else snapshot = {...snapshot, player: localPlayer};
       remotePlayers.update(visiblePlayers);
       remotePlayers.render(delta);
-      for (const bird of birds) {
-        bird.phase += delta;
-        const radius = 4.5;
-        bird.root.position.x = bird.centerX + Math.cos(bird.phase * .22) * 4.5;
-        bird.root.position.z = bird.centerZ + Math.sin(bird.phase * .22) * 3.2;
-        bird.root.position.y = terrainHeight(bird.root.position.x, bird.root.position.z) + 4.2 + Math.sin(bird.phase * 1.8) * .35;
-        bird.root.rotation.y = Math.atan2(Math.sin(bird.phase * .22), Math.cos(bird.phase * .22));
-        bird.actor.mixer.update(delta);
-      }
       document.body.dataset.rigRemoteAnimations = JSON.stringify(Array.from(remotePlayers.entries(), ([id, rig]) => ({ id, animation: rig.root.userData.animation, time: rig.root.userData.animationTime })));
       player.position.set(localPlayer.position.x, localPlayer.position.y, localPlayer.position.z);
+      const swimmers = [{ id: 'self', position: localPlayer.position, active: localPlayer.health > 0 && localPlayer.moving && localPlayer.grounded && isSwimmingPosition(localPlayer.position.x, localPlayer.position.z) },
+        ...visiblePlayers.map(other => ({ id: other.id, position: other.player.position, active: other.player.health > 0 && other.player.moving && other.player.grounded && isSwimmingPosition(other.player.position.x, other.player.position.z) }))];
+      swimmingWake.update(delta, swimmers, worldTimeMillis);
       const position = player.position;
       const face = snapshot.player.facing;
       if (snapshot.player.moving || snapshot.player.maneuver !== "none" || face.x !== lastFacing.x || face.z !== lastFacing.z) {
@@ -606,14 +613,16 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.lootGlint.position.set(0, 0.8 + 0.08 * Math.sin(elapsed * 2), 0);
         rig.lootGlint.scale.setScalar(0.55 + 0.08 * Math.sin(elapsed * 3));
         rig.lootGlint.material.opacity = 0.75 + 0.2 * Math.sin(elapsed * 2);
-        rig.ring.visible = threat.health > 0;
-        rig.ring.material.color.setHex(threat.disposition === "hostile" || threat.aggro ? 0xf04d4d : 0xf1d34f);
         rig.selection.visible = selectedUnit?.kind === "enemy" && selectedUnit.id === threat.id && threat.health > 0;
+        rig.ring.visible = threat.health > 0 && !rig.selection.visible;
+        const relationColor = threat.disposition === "hostile" || threat.aggro ? 0xff3232 : 0xf5df38;
+        rig.ring.material.color.setHex(relationColor);
+        rig.selection.material.color.setHex(relationColor);
         if (threat.health > 0) rig.root.rotation.y = Math.atan2(threat.facing.x, threat.facing.z);
         if (rig.root.visible && rig.ring.visible) conformToTerrain(rig.ring, 0.05);
         if (rig.root.visible && rig.selection.visible) conformToTerrain(rig.selection, 0.06);
         const preparation = updateThreatAnimation(rig, threat, delta);
-        rig.body.position.y = threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : 0;
+        rig.body.position.y = threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : threat.id.startsWith("meadow-bird") && threat.health > 0 ? 4.2 + Math.sin(elapsed * 2.1 + threat.id.length) * .25 : 0;
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;
         rig.ward.position.y = rig.height*0.55 + rig.body.position.y;
@@ -714,8 +723,13 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       const friendlyRoot = selectedPlayer === playerSelection?.selfId ? player : [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
       friendlySelection.visible = Boolean(friendlyRoot?.visible);
       if (friendlyRoot && friendlySelection.visible) { friendlySelection.position.copy(friendlyRoot.position); conformToTerrain(friendlySelection, .06); }
+      const interactingNpc = snapshot.shopOpen ? mara : snapshot.bankOpen ? elian : snapshot.innOpen ? rowan
+        : vendorActors.find(entry => entry.vendor.id === snapshot.vendorOpen)?.root;
+      npcSelection.visible = Boolean(interactingNpc);
+      if (interactingNpc) { npcSelection.position.copy(interactingNpc.position); conformToTerrain(npcSelection, .06); }
       canvas.dataset.selectedPlayer = selectedPlayer ?? "";
       lighting.update(worldTimeMillis, snapshot.player.position, camera);
+      atmosphere.update(worldTimeMillis * 0.001, delta, snapshot.player.position);
       renderer.render(scene, camera);
       updateHover();
       overheadNames.begin();
@@ -736,7 +750,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       }
       for (const threat of snapshot.threats) {
         const rig = rigs.get(threat.id);
-        if (rig) overheadNames.show(`threat:${threat.id}`, threat.name, rig.root, rig.height + rig.body.position.y + 0.25, threat.aggro ? "hostile" : threat.disposition, threat.active && threat.health > 0);
+        if (rig && (threat.disposition !== "neutral" || threat.critter !== true || threat.aggro || document.body.dataset.showNeutralCritterNames === "true")) overheadNames.show(`threat:${threat.id}`, threat.name, rig.root, rig.height + rig.body.position.y + 0.25, threat.aggro ? "hostile" : threat.disposition, threat.active && threat.health > 0);
       }
       overheadNames.end();
       chatBubbles.render();
@@ -758,6 +772,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       clearHover();
       tooltip.remove(); moveOutcome.remove(); movementPreview.clear();
       remotePlayers.dispose();
+      swimmingWake.dispose();
       chatBubbles.dispose();
       combatText.dispose();
       overheadNames.dispose();
@@ -767,10 +782,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       telegraphs.dispose();
       combatEffects.dispose();
       lighting.dispose();
+      atmosphere.dispose();
       vendorActors.forEach(entry => entry.actor?.dispose());
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose(); banker?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();
-      for (const bird of birds) bird.actor.dispose();
       disposeObjects(scene);
       scene.clear();
       renderer.dispose();

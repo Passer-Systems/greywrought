@@ -94,7 +94,18 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
   const renderReflection=lake.onBeforeRender;let nextReflection=0;
   // Ripples and glints animate every frame; the smaller scene reflection has a
   // separate update budget so nearby water does not double every frame's work.
-  lake.onBeforeRender=function(...args){const now=performance.now();if(now<nextReflection)return;nextReflection=now+1000/MEADOW_WATER.reflection.updatesPerSecond;renderReflection.apply(this,args);};
+  lake.onBeforeRender=function(...args){
+    const now=performance.now();if(now<nextReflection)return;
+    nextReflection=now+1000/MEADOW_WATER.reflection.updatesPerSecond;
+    // The stream samples this target too, so it cannot draw into the reflection
+    // while that same texture is attached as the framebuffer.
+    const streamVisible=stream.visible;stream.visible=false;
+    const scene=args[1],autoUpdate=scene.matrixWorldAutoUpdate;
+    // The outer renderer already updated every world transform before invoking
+    // this hook. The reflection changes only its camera and visibility.
+    scene.matrixWorldAutoUpdate=false;
+    try{renderReflection.apply(this,args);}finally{stream.visible=streamVisible;scene.matrixWorldAutoUpdate=autoUpdate;}
+  };
   const material=lake.material as ShaderMaterial;material.transparent=true;material.depthWrite=false;lake.renderOrder=1;parent.add(lake);
   material.addEventListener('dispose',()=>lake.getRenderTarget().dispose());
   const streamPositions:number[]=[],streamDepths:number[]=[],streamFlows:number[]=[],streamIndices:number[]=[];
@@ -104,7 +115,7 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
     const dx=after.x-before.x,dz=after.z-before.z,length=Math.hypot(dx,dz)||1;
     for(let j=0;j<=across;j++){
       const sideways=(j/across*2-1)*p.width,x=p.x-dz/length*sideways,z=p.z+dx/length*sideways;
-      streamPositions.push(x,-z,p.y-LAKE_WATER_LEVEL);streamDepths.push(lakeDepthAt(x,z)>.02?0:Math.max(0,p.y-overworldHeight(x,z)));streamFlows.push(dx/length,dz/length);
+      streamPositions.push(x,-z,p.y-LAKE_WATER_LEVEL);streamDepths.push(p.y<=LAKE_WATER_LEVEL+.02&&lakeDepthAt(x,z)>.02?0:Math.max(0,p.y-overworldHeight(x,z)));streamFlows.push(dx/length,dz/length);
     }
     if(i)for(let j=0;j<across;j++){const a=(i-1)*(across+1)+j,b=a+across+1;streamIndices.push(a,a+1,b,a+1,b+1,b);}
   }

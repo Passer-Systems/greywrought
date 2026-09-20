@@ -1,3 +1,4 @@
+import { terrainHeight } from "./cave-layout.js";
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
 import { finishGathering, earnedChapter, foremanFixture, fightForeman, tap, readyParty, finishCycle, travel } from "./yard-test-fixtures.js";
@@ -5,7 +6,7 @@ import type { AdventureGame } from "./adventure-types.js";
 
 function at(game: AdventureGame, x: number, z: number, phase: "town"|"expedition"): AdventureGame {
   const data=JSON.parse(game.save());
-  Object.assign(data.state,{position:{x,y:0,z},phase});
+  Object.assign(data.state,{position:{x, y: terrainHeight(x, z), z},phase});
   const restored=createAdventure({save:JSON.stringify(data)}); restored.advance(.01); return restored;
 }
 test("Cold Hands requires nearby acceptance, gathered cargo, physical return and a single explicit reward",()=>{
@@ -94,7 +95,7 @@ test("each participating quest holder loots a personal Roll; replay waits for cl
   b.openLoot("ritual-guardian");tap(b,"takeLoot");expect(b.snapshot.carriedRelics).toBe(1);
   travel(a,2,58.5,world);tap(a,"ritual");expect(a.snapshot.cargo).toBe(0);expect(a.snapshot.threats.find(t=>t.id==="ritual-guardian")!.health).toBe(200);
   const returned=JSON.parse(world.save());
-  for(const p of returned.characters)Object.assign(p.state,{position:{x:5,y:0,z:-11},phase:"expedition"});
+  for(const p of returned.characters)Object.assign(p.state,{position:{x: 5, y: terrainHeight(5, -11), z: -11},phase:"expedition"});
   world=createSharedAdventure({save:JSON.stringify(returned)});
   const home=world.join("a","a","mage"),partner=world.join("b","b","mage");world.advance(.01);
   expect(home.snapshot.carriedRelics).toBe(1);expect(home.snapshot.bankedRelics).toBe(0);
