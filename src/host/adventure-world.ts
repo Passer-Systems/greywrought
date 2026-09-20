@@ -573,8 +573,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.ring.material.color.setHex(threat.disposition === "hostile" || threat.aggro ? 0xf04d4d : 0xf1d34f);
         rig.selection.visible = threat.selected && threat.health > 0;
         if (threat.health > 0) rig.root.rotation.y = Math.atan2(threat.facing.x, threat.facing.z);
-        conformToTerrain(rig.ring, 0.05);
-        conformToTerrain(rig.selection, 0.06);
+        if (rig.root.visible && rig.ring.visible) conformToTerrain(rig.ring, 0.05);
+        if (rig.root.visible && rig.selection.visible) conformToTerrain(rig.selection, 0.06);
         const preparation = updateThreatAnimation(rig, threat, delta);
         rig.body.position.y = threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : 0;
         rig.body.rotation.x = -0.12*preparation;

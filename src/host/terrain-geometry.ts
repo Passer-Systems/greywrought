@@ -21,17 +21,25 @@ export function caveFloorGeometry(): BufferGeometry {
 }
 
 const flatPositions = new WeakMap<BufferGeometry, Float32Array>();
+const conformed = new WeakMap<BufferGeometry, { matrix: Matrix4; lift: number }>();
 const vertex = new Vector3(), inverse = new Matrix4();
 /** Each mesh must own its geometry: a warning follows the ground even on a slope. */
 export function conformToTerrain(mesh: Mesh, lift: number): void {
   const geometry = mesh.geometry, positions = geometry.getAttribute('position');
   let flat = flatPositions.get(geometry);
   if (!flat) { flat = new Float32Array(positions.array); flatPositions.set(geometry, flat); }
-  mesh.updateWorldMatrix(true, false); inverse.copy(mesh.matrixWorld).invert();
+  mesh.updateWorldMatrix(true, false);
+  const previous = conformed.get(geometry);
+  // Terrain is static. Include the full world transform so parent movement,
+  // rotation and radius changes invalidate the cached vertices as well.
+  if (previous?.lift === lift && previous.matrix.equals(mesh.matrixWorld)) return;
+  inverse.copy(mesh.matrixWorld).invert();
   for (let index = 0; index < positions.count; index++) {
     vertex.fromArray(flat, index * 3).applyMatrix4(mesh.matrixWorld);
     vertex.y = terrainHeight(vertex.x, vertex.z) + lift;
     vertex.applyMatrix4(inverse); positions.setXYZ(index, vertex.x, vertex.y, vertex.z);
   }
   positions.needsUpdate = true; geometry.computeBoundingSphere();
+  if (previous) { previous.matrix.copy(mesh.matrixWorld); previous.lift = lift; }
+  else conformed.set(geometry, { matrix: mesh.matrixWorld.clone(), lift });
 }
