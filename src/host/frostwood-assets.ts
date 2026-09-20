@@ -81,7 +81,8 @@ export async function actor(name: string, height: number, playerModel?: "warrior
   const result: ForestActor = {
     root: wrapper, model, mixer, action: null,
     play(name, loop = true, duration, fade = 0.12) {
-      const clip = animations.find(c => c.name === name) ?? animations[0];
+      const clip = animations.find(c => c.name === name);
+      if (!clip) throw Error(`${name} is missing from ${model.name}`);
       if (!clip) throw Error(`${name} is missing from ${model.name}`);
       const next = mixer.clipAction(clip);
       if (result.action === next && next.isRunning()) return next;

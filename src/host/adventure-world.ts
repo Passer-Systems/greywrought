@@ -363,8 +363,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     "cave-bat": {model:"Bat",height:1.5,idle:"Flying",walk:"Flying",attack:"Bite_Front",hit:"HitRecieve"},
     "cave-crab": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
     "pond-turtle": {model:"Crab",height:0.9,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
-    "meadow-rat": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
-    "meadow-rat-2": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
+    "meadow-rat": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Attack",hit:"Run"},
+    "meadow-rat-2": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Attack",hit:"Run"},
     scout: {model:"Skull",height:1.6,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
     nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
     warder: {model:"MushroomKing",height:2.4,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact"},
@@ -618,7 +618,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         const rig = rigs.get(threat.id);
         if (!rig) continue;
         rig.root.visible = threat.active || threat.phase === "cleared";
-        rig.root.position.set(threat.position.x, threat.id === "pond-turtle" ? .12 : threat.position.y, threat.position.z);
+        rig.root.position.set(threat.position.x, threat.id === "pond-turtle" ? .08 : threat.position.y, threat.position.z);
         if (threat.id === "pond-turtle") {
           const flippers = rig.body.userData.turtleFlippers as Mesh[] | undefined;
           flippers?.forEach((flipper, index) => { flipper.rotation.z = Math.sin(elapsed * 4 + index * Math.PI) * .42; });
