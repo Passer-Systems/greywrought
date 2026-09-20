@@ -66,6 +66,9 @@ export async function actor(name: string, height: number, playerModel?: "warrior
     };
     object.material = Array.isArray(object.material) ? object.material.map(lightEye) : lightEye(object.material);
   });
+  model.traverse(object => {
+    if (object instanceof Mesh) { object.castShadow = true; object.receiveShadow = true; }
+  });
   const wrapper = fit(model, height);
   const shadowCanvas = document.createElement("canvas"); shadowCanvas.width=shadowCanvas.height=64;
   const context=shadowCanvas.getContext("2d")!;
@@ -117,5 +120,12 @@ export async function prop(name: string, size: number, axis: "height" | "width" 
     })();
     props.set(name, promise);
   }
-  return fit((await promise).clone(true), size, axis);
+  const model = (await promise).clone(true);
+  model.traverse(object => {
+    if (!(object instanceof Mesh)) return;
+    object.receiveShadow = true;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    object.castShadow = !materials.some(material => material.transparent);
+  });
+  return fit(model, size, axis);
 }

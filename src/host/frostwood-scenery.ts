@@ -58,6 +58,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   function torch(x: number, z: number, height = 2.4) {
     place("WoodenTorch_Fire",x,z,height);
     const light = new PointLight(0xffa34e,19,9,2);
+    light.userData.nightIntensity = 19;
     light.position.set(x,terrainHeight(x,z)+height-0.2,z); terrain.add(light);
   }
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
@@ -297,11 +298,14 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   place('Fence',-4,-39,1.1); place('Fence',4,-39,1.1);
   torch(-3.5,-39,2.4); torch(3.5,-39,2.4);
   await Promise.all(jobs);
+  terrain.traverse(object => { if (object instanceof Mesh) object.receiveShadow = true; });
   const inverse = new Matrix4(), matrix = new Matrix4();
   for (const { parent, meshes } of batches.values()) {
     if (meshes.length < 2) continue;
     const source = meshes[0]!;
     const instances = new InstancedMesh(source.geometry, source.material, meshes.length);
+    instances.castShadow = source.castShadow;
+    instances.receiveShadow = source.receiveShadow;
     inverse.copy(parent.matrixWorld).invert();
     for (const [index, mesh] of meshes.entries()) {
       instances.setMatrixAt(index, matrix.multiplyMatrices(inverse, mesh.matrixWorld));

@@ -24,6 +24,7 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
   const stoneMap=new CanvasTexture(stone); stoneMap.colorSpace=SRGBColorSpace;
   stoneMap.wrapS=stoneMap.wrapT=RepeatWrapping; stoneMap.repeat.set(2,2);
   const floor = new Mesh(caveFloorGeometry(), new MeshStandardMaterial({ map:stoneMap, roughness: 1 }));
+  floor.receiveShadow = true;
   floor.userData.walkableGround = true; terrain.add(floor);
   // Rock reaches from the excavated floor to the hillside above; the passage is below grade.
   for (const [left,right,bottom,top] of CAVE_BARRIERS) {

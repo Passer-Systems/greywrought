@@ -1,7 +1,7 @@
 import { VENDORS, type NpcId } from "../game/economy.js";
 import {
   BufferGeometry, CanvasTexture, Color, Float32BufferAttribute,
-  CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
+  CylinderGeometry, Fog, Group,
   Material, Mesh, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial,
   Object3D, PerspectiveCamera, Points, PointsMaterial, RingGeometry, Scene, SphereGeometry,
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
@@ -13,6 +13,7 @@ import { buildFrostwood } from "./frostwood-scenery.js";
 import { conformToTerrain } from "./terrain-geometry.js";
 import { terrainCameraLift } from "./terrain-camera.js";
 import { buildHollowdeep } from "./hollowdeep-scenery.js";
+import { createWorldLighting } from "./world-lighting.js";
 import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.js";
 import { createAggroRanges } from "./aggro-ranges.js";
 import type { UnitSelection } from "./unit-selection.js";
@@ -62,7 +63,7 @@ interface HoverTarget {
 export interface AdventureWorld {
   readonly canvas: HTMLCanvasElement;
   readonly ready: Promise<void>;
-  render(snapshot: AdventureSnapshot, delta: number, localPlayer?: AdventureSnapshot['player'], serverTime?: number, connectionRevision?: number): void;
+  render(snapshot: AdventureSnapshot, delta: number, localPlayer?: AdventureSnapshot['player'], serverTime?: number, connectionRevision?: number, worldTimeMillis?: number): void;
   updatePlayers(players: readonly RemotePlayerView[]): void;
   updateChat(messages: readonly SharedChatMessage[], localPlayerId: string): void;
   orbit(dx: number, dy: number): void;
@@ -202,10 +203,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   canvas.tabIndex = 0;
   canvas.setAttribute("aria-label", `${YARD.region}. W A S D move, drag the mouse to turn the view.`);
   host.prepend(canvas);
-  scene.add(new HemisphereLight(0xc4d7df, 0x59684e, 1.65));
-  const nightFill = new DirectionalLight(0xc3d4ef, 1.6);
-  nightFill.position.set(-12, 25, -8);
-  scene.add(nightFill);
+  const lighting = createWorldLighting(scene, renderer);
   const terrain = new Group();
   scene.add(terrain);
   const thicket = new Group(); terrain.add(thicket);
@@ -406,7 +404,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   moveOutcome.setAttribute("role", "status");
   Object.assign(moveOutcome.style, { position: "absolute", zIndex: "8", pointerEvents: "none", padding: "8px 10px", maxWidth: "280px", whiteSpace: "pre-line", background: "#112126ef", color: "#fff0cc", border: "1px solid #a9c8b4", borderRadius: "3px", font: "12px/1.45 system-ui" });
   host.append(moveOutcome);
-  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, coresReady, natureReady, caveReady, chestReady]).then(()=>undefined);
+  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, coresReady, natureReady, caveReady, chestReady]).then(()=>{ lighting.collectLamps(); });
   const raycaster = new Raycaster();
   const point = new Vector2();
   const groundSurfaces: Object3D[] = [];
@@ -488,7 +486,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (head.z < -1 || head.z > 1 || Math.abs(head.x) > 1 || Math.abs(head.y) > 1) return null;
       return { x: (head.x + 1) * host.clientWidth / 2, y: (1 - head.y) * host.clientHeight / 2, feetY: (1 - feet.y) * host.clientHeight / 2 };
     },
-    render(snapshot, delta, localPlayer = snapshot.player, serverTime, connectionRevision = 0) {
+    render(snapshot, delta, localPlayer = snapshot.player, serverTime, connectionRevision = 0, worldTimeMillis = Date.now()) {
       if (disposed) return;
       if (lastConnectionRevision !== connectionRevision) {
         interpolation = createSnapshotInterpolation();
@@ -681,6 +679,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       friendlySelection.visible = Boolean(friendlyRoot?.visible);
       if (friendlyRoot && friendlySelection.visible) { friendlySelection.position.copy(friendlyRoot.position); conformToTerrain(friendlySelection, .06); }
       canvas.dataset.selectedPlayer = selectedPlayer ?? "";
+      lighting.update(worldTimeMillis, snapshot.player.position, camera);
       renderer.render(scene, camera);
       updateHover();
       overheadNames.begin();
@@ -731,6 +730,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       photonChair.dispose();
       telegraphs.dispose();
       combatEffects.dispose();
+      lighting.dispose();
       vendorActors.forEach(entry => entry.actor?.dispose());
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose(); banker?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();

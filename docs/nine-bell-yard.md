@@ -1,8 +1,8 @@
 # Nine-Bell Yard: The Last Shift
 
-Greywrought begins in a place the sun never reaches. The inhabited yard is marked
-by warm torchlight; cold reflected light leaves the road and hostile silhouettes
-readable beyond it. Darkness establishes the place without hiding combat.
+Greywrought follows a shared 40-minute day and night. Sunlight warms the yard
+through the day; moonlight and warm torches keep the road and hostile silhouettes
+readable at night. Darkness establishes the place without hiding combat.
 
 ## What happened here
 
@@ -19,7 +19,7 @@ This is new playable Greywrought material, grounded in Tom's note
 `~/Documents/my-obsidian-vault.bak/code/greywrought/what do robots represent.md`:
 robots preserve dependable structure from the loop, but that structure can
 become a cage. These local names and events are newly authored, not recovered
-canon. The permanent darkness is an explicit direction from Tom.
+canon.
 
 ## First playable story
 

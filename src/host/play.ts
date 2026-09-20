@@ -3,6 +3,7 @@ import { createGearShop } from "./gear-shop.js";
 import { createAppControls } from './app-controls.js';
 import { COMBAT_RULES } from "../game/adventure.js";
 import { classAction, classKit } from "../game/class-kit.js";
+import { worldDay, formatWorldTime } from "../game/world-time.js";
 import type { AdventureAction, AdventureSnapshot } from "../game/adventure-types.js";
 import {
   archiveFallenCharacter, characterProfileStorageKey, decodeCharacterProfile, encodeCharacterProfile,
@@ -404,7 +405,7 @@ function toggleAggroRanges(kind: "direct" | "help" = "direct"): void {
     const { world, game } = running;
     world.setAggroRangesVisible(aggroRangesVisible);
     world.setHelpRangesVisible(helpRangesVisible);
-    if (paused) world.render(game.snapshot, 0, game.renderPlayer, undefined, game.connectionRevision);
+    if (paused) world.render(game.snapshot, 0, game.renderPlayer, undefined, game.connectionRevision, game.serverWallTimeMillis);
   }
 }
 function save(_force = false): void {
@@ -587,7 +588,7 @@ function syncEncounter(): void {
     button('pause-open').setAttribute('aria-expanded', String(!element('pause-panel').hidden));
     world.updatePlayers(game.players.filter(player => player.id !== character.id));
     world.updateChat(game.chat, character.id);
-    world.render(game.snapshot, 0, game.renderPlayer, paused ? undefined : game.serverTime, game.connectionRevision);
+    world.render(game.snapshot, 0, game.renderPlayer, paused ? undefined : game.serverTime, game.connectionRevision, game.serverWallTimeMillis);
     renderHud(game.snapshot);
     nameplates?.render(selectedSnapshot(game.snapshot), world, { selfId: character.id, players: game.players });
     audio.update(game.snapshot, paused);
@@ -712,8 +713,7 @@ function makeEnemyInterface(snapshot: AdventureSnapshot): void {
     markers.set(threat.id, marker);
   });
 }
-const serverClockFormat = new Intl.DateTimeFormat('en-GB', {timeZone:'UTC',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
-let displayedServerMinute = -1;
+let displayedWorldMinute = -1;
 function selectedSnapshot(snapshot: AdventureSnapshot): AdventureSnapshot {
   const app = running; if (!app) return snapshot;
   if (app.lastEnemyTarget !== snapshot.selectedThreat && app.selection?.kind === "enemy") app.selection = { kind: "enemy", id: snapshot.selectedThreat };
@@ -764,13 +764,18 @@ function renderHud(snapshot: AdventureSnapshot): void {
   snapshot = selectedSnapshot(snapshot);
   updateParty();
   const wallTime = running?.game.serverWallTimeMillis;
-  const minute = running?.game.online && typeof wallTime === 'number' && Number.isFinite(wallTime) ? Math.floor(wallTime / 60_000) : -1;
-  if (minute !== displayedServerMinute) {
-    displayedServerMinute = minute;
+  const day = running?.game.online && typeof wallTime === 'number' && Number.isFinite(wallTime) ? worldDay(wallTime) : null;
+  const minute = day ? Math.floor(day.hour * 60) : -1;
+  if (minute !== displayedWorldMinute) {
+    displayedWorldMinute = minute;
     const clock = element('map-clock');
-    clock.textContent = minute < 0 ? '--:--' : serverClockFormat.format(minute * 60_000);
-    if (minute < 0) clock.removeAttribute('datetime');
-    else clock.setAttribute('datetime', new Date(minute * 60_000).toISOString());
+    const time = day ? formatWorldTime(wallTime!) : '--:--';
+    clock.textContent = day ? `${day.phase === 'night' ? '☾' : '☀'} ${time}` : time;
+    clock.title = day ? `${day.phase[0]!.toUpperCase() + day.phase.slice(1)} · A full day lasts 40 minutes` : 'World time';
+    clock.setAttribute('aria-label', `World time ${time}${day ? ', ' + day.phase : ''}`);
+    if (!day) clock.removeAttribute('datetime');
+    else clock.setAttribute('datetime', time);
+    clock.dataset.phase = day?.phase ?? '';
   }
   const { player } = snapshot;
   loadActionBarOrder(player.archetype);
@@ -1001,7 +1006,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     await world.ready;
     if (!alive || running !== app) { world.dispose(); return; }
     if (app.game.snapshot.phase === "lost") { showFallenCharacter(character); return; }
-    world.render(game.snapshot, 0, game.renderPlayer, game.serverTime, game.connectionRevision);
+    world.render(game.snapshot, 0, game.renderPlayer, game.serverTime, game.connectionRevision, game.serverWallTimeMillis);
     app.ready = true;
     lastTime = 0;
     const forward = world.forward(); game.setCameraForward(forward.x, forward.z);
@@ -1233,7 +1238,7 @@ function tick(now: number): void {
   running.world.updatePlayers(running.game.players.filter(player => player.id !== running!.character.id));
   running.world.updateChat(running.game.chat, running.character.id);
   selectedSnapshot(snapshot);
-  running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime, running.game.connectionRevision);
+  running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime, running.game.connectionRevision, running.game.serverWallTimeMillis);
   if (now + 0.5 >= nextHudTime) {
     renderHud(snapshot);
     nextHudTime = Math.max(nextHudTime + 50, now);
