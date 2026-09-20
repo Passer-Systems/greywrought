@@ -7,7 +7,7 @@ import {
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
   Raycaster,
 } from "three";
-import type { AdventureSnapshot, CombatView, Position, ThreatView } from "../game/adventure-types.js";
+import type { AdventureSnapshot, CombatView, Position } from "../game/adventure-types.js";
 import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
 import { conformToTerrain } from "./terrain-geometry.js";
@@ -23,30 +23,21 @@ import { createFloatingCombatText } from "./floating-combat-text.js";
 import type { SharedChatMessage } from "../game/multiplayer-types.js";
 import { YARD } from "../game/yard-content.js";
 import { createCombatGrid } from "./combat-grid.js";
+import { updateThreatAnimation, type ThreatAnimationState } from "./threat-animation.js";
 import { terrainHeight } from "../game/cave-layout.js";
 
-interface ThreatRig {
+interface ThreatRig extends ThreatAnimationState {
   readonly root: Group;
   readonly body: Group;
   readonly actor: ForestActor;
-  readonly idle: string;
-  readonly walk: string;
   readonly selection: Mesh<RingGeometry, MeshBasicMaterial>;
-  readonly attack: string;
-  readonly hit: string;
   readonly ring: Mesh<RingGeometry, MeshBasicMaterial>;
   readonly lootGlint: Sprite;
   readonly beam: Mesh<CylinderGeometry, MeshBasicMaterial>;
   readonly ward: Mesh<SphereGeometry, MeshBasicMaterial>;
   readonly fireballs: Map<number, Mesh<SphereGeometry, MeshBasicMaterial>>;
-  beamTime: number;
   readonly rootEffect: Mesh<RingGeometry, MeshBasicMaterial>;
   readonly height: number;
-  health: number;
-  sequence: number;
-  attackTime: number;
-  phase: ThreatView["phase"];
-  hitTime: number;
   lootable: boolean;
 }
 
@@ -572,36 +563,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         conformToTerrain(rig.selection, 0.06);
         conformToTerrain(rig.rootEffect, 0.12);
         rig.rootEffect.visible = threat.rootedSeconds > 0;
-        const attackClip = threat.currentAbility.id === "maul" ? "Gallop_Jump" : threat.currentAbility.id === "foreman-pulse" ? "Shoot" : threat.currentAbility.id === "foreman-shield" ? "Idle" : rig.attack;
-        const phaseProgress = threat.phaseDuration > 0 ? Math.max(0, Math.min(1, 1 - threat.remainingSeconds / threat.phaseDuration)) : 0;
-        const changed = threat.phase !== rig.phase;
-        if (threat.actionSequence > rig.sequence && ["ember-beam", "foreman-pulse"].includes(threat.currentAbility.id)) { rig.attackTime = 0.3; rig.beamTime = 0.18; }
-        if (threat.phase === "cleared") {
-          if(rig.health>0) rig.actor.play("Death",false,undefined,0.08);
-        } else if (threat.movementMode === "lunge") {
-          const action = rig.actor.action?.getClip().name === "Gallop_Jump" ? rig.actor.action : rig.actor.play("Gallop_Jump",false,undefined,0.04);
-          action.paused = true; action.time = action.getClip().duration * threat.motionProgress;
-        } else if (rig.attackTime > 0) {
-          const action = rig.actor.action?.getClip().name === attackClip ? rig.actor.action : rig.actor.play(attackClip,false,0.3,0.03);
-          action.paused = true; action.time = action.getClip().duration * (1 - rig.attackTime/0.3);
-        } else if(threat.phase === "action") {
-          const action = changed ? rig.actor.play(attackClip,false,undefined,0.035) : rig.actor.action!;
-          action.paused = true;
-          const impactStart = 0.3;
-          action.time = action.getClip().duration * (impactStart + (1-impactStart) * phaseProgress);
-        } else if(threat.health < rig.health && threat.health>0) {
-          rig.hitTime=0.3; rig.actor.play(rig.hit,false,0.3,0.04);
-        } else if(threat.phase === "preparation" && !threat.moving && rig.hitTime<=delta) {
-          const action = changed || rig.actor.action?.getClip().name !== attackClip ? rig.actor.play(attackClip,false,undefined,0.12) : rig.actor.action;
-          action.paused = true;
-          action.time = action.getClip().duration * 0.3 * phaseProgress;
-        } else if(rig.hitTime<=delta || changed) {
-          rig.actor.play(threat.movementMode === "circle" ? "Walk" : threat.moving ? rig.walk : rig.idle);
-        }
-        rig.hitTime=Math.max(0,rig.hitTime-delta);
-        rig.attackTime=Math.max(0,rig.attackTime-delta);
-        // Authored motion supplies the pose; a restrained lean makes the full windup visible.
-        const preparation = threat.phase === "preparation" && !threat.moving ? phaseProgress : 0;
+        const preparation = updateThreatAnimation(rig, threat, delta);
         rig.body.position.y = threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : 0;
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;
@@ -636,9 +598,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           canvas.dataset.foremanAnimation = rig.actor.action?.getClip().name ?? "";
           canvas.dataset.foremanAnimationTime = String(rig.actor.action?.time ?? 0);
         }
-        rig.phase = threat.phase;
-        rig.sequence = threat.actionSequence;
-        rig.health = threat.health;
       }
       const width = Math.max(1, host.clientWidth);
       const height = Math.max(1, host.clientHeight);
