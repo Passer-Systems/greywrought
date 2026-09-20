@@ -1,4 +1,4 @@
-name: Verify and publish Greywrought
+name: Check Greywrought
 on:
   push:
     branches: [main]
@@ -6,10 +6,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  pages: write
-  id-token: write
 concurrency:
-  group: pages-${{ github.ref }}
+  group: checks-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   verify:
@@ -25,7 +23,7 @@ jobs:
       - run: bun run build
       - uses: browser-actions/setup-chrome@v2
         id: chrome
-      - name: Play the static release
+      - name: Play the built game
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
           GREYWROUGHT_GAME_URL: http://127.0.0.1:4180/greywrought/
@@ -39,19 +37,3 @@ jobs:
           done
           bun run test:browser-playability
           bun run test:browser-encounter
-      - uses: actions/configure-pages@v5
-        if: github.event_name != 'pull_request'
-      - uses: actions/upload-pages-artifact@v4
-        if: github.event_name != 'pull_request'
-        with:
-          path: dist
-  deploy:
-    if: github.event_name != 'pull_request'
-    needs: verify
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/deploy-pages@v4
-        id: deployment
