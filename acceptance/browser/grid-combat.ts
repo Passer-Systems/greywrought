@@ -89,27 +89,26 @@ try {
   check((await snapshot()).player.inCombat, 'Reload retains the paused encounter');
   await page.click('#pause-resume');
   await page.waitFor('window.gridSession.mode==="private"');
-  await page.click('#encounter-rejoin');
-  await page.waitFor('window.gridSession.mode==="shared"&&window.gridState.combat.phase==="preparation"');
+  await page.waitFor('window.gridState.combat.phase==="preparation"');
   await page.click('.enemy-nameplate[data-enemy-id="cave-bat"] .nameplate-target');
+  await page.waitFor('window.gridState.selectedThreat==="cave-bat"&&!document.querySelector(\'.adventure-actions [data-action="strike"]\').disabled');
   await page.click('.adventure-actions [data-action="strike"]');
+  await page.waitFor('window.gridState.combat.queued.length===1');
   await page.click('.adventure-actions [data-action="strike"]');
   await page.waitFor('window.gridState.combat.queued.length===2');
   check(await page.evaluate('document.querySelector(".combat-plan-move-target").textContent.includes("Hollowwing")'), 'Planner names the creature being attacked');
   await cycle();
   await page.waitFor('!window.gridState.player.inCombat&&document.getElementById("world-canvas").dataset.combatGrid==="0"');
-  const cleared = await snapshot(), corpse = cleared.threats.find(t => t.id === 'cave-bat')!.position;
-  const dx = corpse.x - cleared.player.position.x;
-  if (Math.abs(dx) > 1.5) { await page.key(dx > 0 ? 'KeyA' : 'KeyD', true); await Bun.sleep((Math.abs(dx) - 1.5) / 5.2 * 1000); await page.key(dx > 0 ? 'KeyA' : 'KeyD', false); }
-  const dz = corpse.z - (await snapshot()).player.position.z;
-  if (Math.abs(dz) > 1) { await page.key(dz > 0 ? 'KeyW' : 'KeyS', true); await Bun.sleep((Math.abs(dz) - 1) / (dz > 0 ? 5.2 : 5.2 * .55) * 1000); await page.key(dz > 0 ? 'KeyW' : 'KeyS', false); }
-  await page.press('KeyF'); await page.waitFor('window.gridState.lootOpenId==="cave-bat"');
-  await page.click('#loot-item'); await page.waitFor('window.gridState.carriedSalvage===3');
+  const cleared = await snapshot();
+  check(cleared.coins === 0 && cleared.carriedSalvage === 0 && !cleared.loot.find(item => item.sourceId === 'cave-bat')?.available, 'Finishing a private encounter grants no shared-world rewards');
   const beforeWalk = (await snapshot()).player.position;
   await page.key('KeyD', true); await Bun.sleep(500); await page.key('KeyD', false);
   check(gap((await snapshot()).player.position, beforeWalk) > 1, 'Exploration movement resumes after victory');
   await page.shot('cave-grid-victory');
   check(page.errors.length === 0, 'No browser exceptions');
-  console.log('PASS cave descent, combat-entry lock, server/render agreement, mouse/jump/WASD lock, visible grid, planned movement, pause/reload, creature targeting, victory loot and exploration', page.output);
-} catch (error) { await page?.shot('failure'); throw error; }
+  console.log('PASS cave descent, combat-entry lock, server/render agreement, mouse/jump/WASD lock, visible grid, planned movement, pause/reload, creature targeting, private reward isolation and exploration', page.output);
+} catch (error) {
+  console.error('Grid journey state', await page?.evaluate('({state:window.gridState,session:window.gridSession,strike:document.querySelector(\'.adventure-actions [data-action="strike"]\')?.outerHTML})'));
+  await page?.shot('failure'); throw error;
+}
 finally { await page?.close(); await service.close(); server.stop(true); frontend.kill(); await frontend.exited; }
