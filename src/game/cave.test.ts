@@ -17,17 +17,17 @@ test('Hollowdeep entrance and chamber passage are open, rock banks block shortcu
 });
 test('old five-creature solo and shared saves retain progress and acquire cave creatures',()=>{
   const save=JSON.parse(createAdventure().save());save.state.supplies=37;save.state.potions=4;
-  save.state.threats=save.state.threats.filter((t:{id:string})=>!t.id.startsWith('cave-'));
+  save.state.threats=save.state.threats.filter((t:{id:string})=>['scout','nest','warder','patrol','ritual-guardian'].includes(t.id));
   const game=createAdventure({save:JSON.stringify(save)});
   expect(game.snapshot.supplies).toBe(37);expect(game.snapshot.potions).toBe(4);
-  expect(game.snapshot.threats).toHaveLength(7);
+  expect(game.snapshot.threats).toHaveLength(10);
   const world=createSharedAdventure();world.join('caver','Caver','warrior');
-  const shared=JSON.parse(world.save());shared.world.threats=shared.world.threats.filter((t:{id:string})=>!t.id.startsWith('cave-'));
+  const shared=JSON.parse(world.save());shared.world.threats=shared.world.threats.filter((t:{id:string})=>['scout','nest','warder','patrol','ritual-guardian'].includes(t.id));
   const restored=createSharedAdventure({save:JSON.stringify(shared)});
   const player=restored.join('caver','Caver','warrior');
-  expect(player.snapshot.threats).toHaveLength(7);expect(restored.pause('caver')).toBe(true);
+  expect(player.snapshot.threats).toHaveLength(10);expect(restored.pause('caver')).toBe(true);
   const fork=createSharedAdventure({save:restored.save()});
-  expect(fork.join('caver','Caver','warrior').snapshot.threats).toHaveLength(7);
+  expect(fork.join('caver','Caver','warrior').snapshot.threats).toHaveLength(10);
   expect(fork.session('caver').mode).toBe('paused');
 });
 test('bat and crab announce different timings and deal their forecast damage',()=>{

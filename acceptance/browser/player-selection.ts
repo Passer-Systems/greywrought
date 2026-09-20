@@ -119,5 +119,5 @@ try {
   check(await page.evaluate(`localStorage.getItem('greywrought.adventure.unit-frames.v1')===${JSON.stringify(frameLayout)}&&Math.abs(document.getElementById('player-frame').getBoundingClientRect().x+30-(${frameStart.x}-40))<2`),'Saved frame position is restored after reload');
   check(page.errors.length===0,'No browser exceptions');
   console.log('PASS unit frame appearance, live health/stamina, mirrored saved dragging, player selection, Escape clearing and Tab reselection',page.output);
-} catch(error){await page?.shot('failure');console.error(await page?.evaluate('({state:window.selectionState,selected:document.body.dataset.selectedUnit,frame:document.getElementById("target-frame")?.outerHTML,point:window.companionPoint})'));throw error;}
+} catch(error){await page?.shot('failure').catch(()=>{});console.error(await page?.evaluate('({state:window.selectionState,selected:document.body.dataset.selectedUnit,frame:document.getElementById("target-frame")?.outerHTML,point:window.companionPoint})').catch(()=>undefined));throw error;}
 finally{bot.close();await page?.close();await service.close();server.stop(true);frontend.kill();await frontend.exited;}

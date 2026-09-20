@@ -48,7 +48,9 @@ export function buildVolcanoLandmark(terrain: Group): Group {
     const ox = ring >= 2 ? -3.6 : -1.8;
     const oz = ring >= 2 ? 1.4 : 0;
     const slope = ring === 1 ? Math.sin(index * 1.7) * 1.5 : ring === 2 ? Math.sin(index * 1.9 + 0.8) * 2.2 : 0;
-    return [Math.cos(angle) * radius + ox, rings[ring]!.height + slope, Math.sin(angle) * radius * 0.86 + oz];
+    const px=Math.cos(angle)*radius+ox,pz=Math.sin(angle)*radius*.86+oz;
+    const height=ring===0?terrainHeight(x+px*Math.cos(-.18)+pz*Math.sin(-.18),z-px*Math.sin(-.18)+pz*Math.cos(-.18))-ground-.2:rings[ring]!.height+slope;
+    return [px,height,pz];
   };
   for (let ring = 0; ring < rings.length; ring++) for (let index = 0; index < segments; index++) vertices.push(...ringPoint(ring, index));
   const indices: number[] = [];
@@ -57,7 +59,7 @@ export function buildVolcanoLandmark(terrain: Group): Group {
       const next = (index + 1) % segments;
       const a = ring * segments + index, b = ring * segments + next;
       const c = (ring + 1) * segments + next, d = (ring + 1) * segments + index;
-      indices.push(a, b, d, b, c, d);
+      indices.push(a, d, b, b, d, c);
     }
   }
   const volcanoGeometry = new BufferGeometry();

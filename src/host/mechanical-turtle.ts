@@ -1,10 +1,14 @@
-import { AnimationClip, AnimationMixer, Group, KeyframeTrack, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, NumberKeyframeTrack, SphereGeometry, type AnimationAction } from "three";
+import { AnimationClip, AnimationMixer, CylinderGeometry, Group, KeyframeTrack, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, NumberKeyframeTrack, SphereGeometry, type AnimationAction } from "three";
 import type { ForestActor } from "./frostwood-assets.js";
 
 export function mechanicalTurtle(): ForestActor {
   const root = new Group();
   const shell = new Mesh(new SphereGeometry(.62, 16, 10), new MeshStandardMaterial({ color: 0x3f5b58, roughness: .72, metalness: .35 }));
   shell.name = "Shell"; shell.scale.set(1.35, .45, 1); shell.position.y = .46; root.add(shell);
+  const plateMaterial=new MeshStandardMaterial({color:0x6f8d7d,metalness:.55,roughness:.68,flatShading:true});
+  for(const [x,z,r] of [[0,0,.3],[-.34,.04,.22],[.34,.04,.22],[-.17,.32,.19],[.17,.32,.19],[-.17,-.32,.19],[.17,-.32,.19]]){
+    const plate=new Mesh(new CylinderGeometry(r!,r!*.94,.065,6),plateMaterial);plate.position.set(x!,.72-Math.hypot(x!,z!)*.18,z!);root.add(plate);
+  }
   const head = new Mesh(new SphereGeometry(.22, 12, 8), new MeshStandardMaterial({ color: 0x789b82, roughness: .6, metalness: .18 }));
   head.name = "Head"; head.scale.z = 1.25; head.position.set(0, .43, .68); root.add(head);
   const eyeMaterial = new MeshBasicMaterial({ color: 0xffd34f });
@@ -12,9 +16,10 @@ export function mechanicalTurtle(): ForestActor {
   const flippers: Mesh[] = [];
   for (const [x, z] of [[-.55, .35], [.55, .35], [-.5, -.35], [.5, -.35]] as const) {
     const flipper = new Mesh(new SphereGeometry(.2, 10, 6), new MeshStandardMaterial({ color: 0x628879, roughness: .7, metalness: .25 }));
-    flipper.name = `Flipper${flippers.length}`; flipper.scale.set(.55, .12, .2); flipper.position.set(x, .22, z); root.add(flipper); flippers.push(flipper);
+    flipper.name = `Flipper${flippers.length}`; flipper.scale.set(1.8, .22, .82); flipper.position.set(x, .22, z); root.add(flipper); flippers.push(flipper);
   }
   const tail = new Mesh(new SphereGeometry(.13, 8, 6), new MeshStandardMaterial({ color: 0x628879, metalness: .25 })); tail.name = "Tail"; tail.scale.z = 1.8; tail.position.set(0, .35, -.7); root.add(tail);
+  root.traverse(o=>{if(o instanceof Mesh){o.castShadow=true;o.receiveShadow=true;}});
   const mixer = new AnimationMixer(root);
   const times = [0, .5, 1];
   const idleTracks: KeyframeTrack[] = [new NumberKeyframeTrack(".rotation[y]", times, [0, .08, 0])];

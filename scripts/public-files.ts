@@ -1,7 +1,7 @@
 const frostwoodFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/frostwood",onlyFiles:true}));
 const pirateFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/pirate",onlyFiles:true}));
 const reclaimedRobotFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/reclaimed-robot",onlyFiles:true}));
-const rodentFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/rodents",onlyFiles:true}));
+const rodentFiles = await Array.fromAsync(new Bun.Glob("*.{glb,md}").scan({cwd:"assets/external/quaternius/rodents",onlyFiles:true}));
 const iconFiles = await Array.fromAsync(
   new Bun.Glob("**/*.{png,svg}").scan({ cwd: "assets/ui/icons", onlyFiles: true }),
 );
@@ -25,11 +25,10 @@ export const files: readonly (readonly [string, string])[] = [
   ["build/host/play.js", "dist/app/greywrought/play.js"],
   ["node_modules/three/build/three.module.js", "dist/vendor/three.module.js"],
   ["node_modules/three/build/three.core.js", "dist/vendor/three.core.js"],
+  ["node_modules/three/examples/jsm/objects/Reflector.js", "dist/vendor/three-addons/objects/Reflector.js"],
   ["node_modules/three/examples/jsm/loaders/OBJLoader.js", "dist/vendor/three-addons/loaders/OBJLoader.js"],
   ["node_modules/three/examples/jsm/loaders/MTLLoader.js", "dist/vendor/three-addons/loaders/MTLLoader.js"],
   ["node_modules/three/examples/jsm/loaders/GLTFLoader.js", "dist/vendor/three-addons/loaders/GLTFLoader.js"],
-  ["node_modules/three/examples/jsm/loaders/FBXLoader.js", "dist/vendor/three-addons/loaders/FBXLoader.js"],
-  ...["libs/fflate.module.js", "curves/NURBSCurve.js", "curves/NURBSUtils.js"].map((name): readonly [string,string] => [`node_modules/three/examples/jsm/${name}`, `dist/vendor/three-addons/${name}`]),
   ["node_modules/three/examples/jsm/utils/BufferGeometryUtils.js", "dist/vendor/three-addons/utils/BufferGeometryUtils.js"],
   ["node_modules/three/examples/jsm/utils/SkeletonUtils.js", "dist/vendor/three-addons/utils/SkeletonUtils.js"],
   ...["Warrior.glb", "Wizard.glb", "Ranger.glb", "Alchemist.gltf", "Artificer.gltf", "ultimate-character-license.txt", "LICENSE.txt", "SOURCE.md"].map((name): readonly [string, string] => [`assets/external/quaternius/class-characters/${name}`, `dist/assets/quaternius/class-characters/${name}`]),

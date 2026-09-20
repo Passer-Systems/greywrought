@@ -1,12 +1,13 @@
 import { terrainHeight } from '../game/cave-layout.js';
-import { LAKE_CENTER, LAKE_RADIUS, LAKE_WATER_LEVEL } from '../game/world-elevation.js';
+import { buildWorldWater } from './world-water.js';
+import { buildLakeShore } from './lake-shore.js';
 import { conformToTerrain } from './terrain-geometry.js';
-import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, CircleGeometry, RingGeometry, MeshStandardMaterial, MeshBasicMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Color } from "three";
+import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Color } from "three";
 import type { Position } from "../game/adventure-types.js";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
 
-export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number) => void> {
+export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number, wallTimeMillis?: number) => void> {
   const jobs: Promise<void>[] = [];
   const coolingMaterials: MeshStandardMaterial[] = [];
   const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
@@ -65,28 +66,27 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   }
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 256;
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#5d754d"; ctx.fillRect(0,0,256,256);
-  // Layered, irregular patches break up the repeated green tile at a glance.
-  // Their low contrast keeps authored props and combat telegraphs legible.
-  for (let i=0;i<260;i++) {
-    const a=Math.sin(i*127.1)*43758.5453, b=Math.sin(i*269.5)*19234.324;
-    const x=(a-Math.floor(a))*256, y=(b-Math.floor(b))*256;
-    const radius=3+(i%17)*1.8;
-    ctx.fillStyle=i%5===0?'#756649':i%3===0?'#486343':i%2?'#688157':'#80905a';
-    ctx.globalAlpha=.22+(i%4)*.08; ctx.beginPath(); ctx.ellipse(x,y,radius*(1.4+(i%3)*.3),radius,Math.sin(i)*1.7,0,Math.PI*2); ctx.fill();
+  const pixels=ctx.createImageData(256,256);
+  const hash=(x:number,y:number)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n);};
+  const tileNoise=(x:number,y:number,n:number)=>{const px=x/256*n,py=y/256*n,ix=Math.floor(px),iy=Math.floor(py),fx=px-ix,fy=py-iy,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);return (hash(ix%n,iy%n)*(1-u)+hash((ix+1)%n,iy%n)*u)*(1-v)+(hash(ix%n,(iy+1)%n)*(1-u)+hash((ix+1)%n,(iy+1)%n)*u)*v;};
+  for(let y=0;y<256;y++)for(let x=0;x<256;x++){
+    const n=tileNoise(x,y,4)*.56+tileNoise(x,y,16)*.3+tileNoise(x,y,64)*.14;
+    const earth=Math.max(0,Math.min(1,(n-.38)*5)),grain=(hash(x,y)-.5)*12,i=(y*256+x)*4;
+    pixels.data[i]=57+earth*30+grain;pixels.data[i+1]=66+earth*10+grain;pixels.data[i+2]=52+earth*17+grain;pixels.data[i+3]=255;
   }
-  ctx.globalAlpha=1;
-  for (let i=0;i<2600;i++) { const a=Math.sin(i*127.1)*43758.5453; const b=Math.sin(i*269.5)*19234.324; ctx.fillStyle=i%3?"#6f8255":i%2?"#4b6545":"#907b59"; ctx.fillRect((a-Math.floor(a))*256,(b-Math.floor(b))*256,1+(i%3),1+(i%2)); }
-  const map = new CanvasTexture(canvas); map.colorSpace=SRGBColorSpace; map.wrapS=map.wrapT=RepeatWrapping; map.repeat.set(30,40);
+  ctx.putImageData(pixels,0,0);
+  const map=new CanvasTexture(canvas);map.colorSpace=SRGBColorSpace;map.wrapS=map.wrapT=RepeatWrapping;map.repeat.set(19,25);
   // Vertex tint keeps broad hills readable: low grass stays green, exposed
   // steeper slopes shift toward warm soil and occasional grey rock.
-  const grassTint = new Color('#647d51'), soilTint = new Color('#857257'), rockTint = new Color('#77766a'), summitTint = new Color('#9b9270');
-  function tintGround(geometry: BufferGeometry) {
+  const grassTint = new Color('#d4d5c5'), soilTint = new Color('#b5a796'), rockTint = new Color('#b8c0c2'), summitTint = new Color('#c7c2b9');
+  function tintGround(ground: Mesh) {
+    const geometry=ground.geometry;ground.updateMatrixWorld();const world=new Vector3(),normal=new Vector3();
     const positions = geometry.getAttribute('position'), normals = geometry.getAttribute('normal');
     const colors = new Float32Array(positions.count * 3), color = new Color();
     for (let index = 0; index < positions.count; index++) {
-      const elevation = positions.getY(index), slope = Math.min(1, Math.max(0, 1 - normals.getY(index)));
-      const variation = .92 + .08 * Math.sin(positions.getX(index) * 1.7 + positions.getZ(index) * .83);
+      world.fromBufferAttribute(positions,index).applyMatrix4(ground.matrixWorld);normal.fromBufferAttribute(normals,index).transformDirection(ground.matrixWorld);
+      const elevation=world.y,slope=Math.min(1,Math.max(0,1-normal.y));
+      const variation = .92 + .08 * Math.sin(world.x*.11+Math.sin(world.z*.14)*2);
       const rock = Math.max(0, Math.min(1, (slope - .28) * 2.7));
       const soil = Math.max(0, Math.min(1, (slope - .08) * 1.8)) * (1 - rock);
       const summit = Math.max(0, Math.min(1, (elevation - 15) / 18));
@@ -103,7 +103,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     for(let i=0;i<uv.count;i++) uv.setXY(i, (left! + uv.getX(i)*(right!-left!) + 74)/168, (bottom! + uv.getY(i)*(top!-bottom!) + 134)/214);
     const ground = new Mesh(geometry, groundMaterial);
     ground.rotation.x=-Math.PI/2; ground.position.set((left!+right!)/2,-0.06,(bottom!+top!)/2);
-    ground.userData.walkableGround = true; terrain.add(ground); conformToTerrain(ground, -.06); geometry.computeVertexNormals(); tintGround(geometry);
+    ground.userData.walkableGround = true; terrain.add(ground); conformToTerrain(ground, -.06); geometry.computeVertexNormals(); tintGround(ground);
   }
   const paving = document.createElement("canvas"); paving.width=paving.height=256;
   const pavingCtx=paving.getContext("2d")!; pavingCtx.fillStyle="#8c8871"; pavingCtx.fillRect(0,0,256,256);
@@ -365,52 +365,32 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   forestPlace("works/Details_Pipes_Long",-2.45,47.05,3.7);
   forestPlace("works/Details_Pipes_Long",6.45,47.05,3.7);
   // A broad grassy meadow stays open between the village and the eastern trail.
-  function path(x: number, z: number, width: number, length: number, rotation = 0) {
-    const mesh = new Mesh(new PlaneGeometry(width, length, Math.ceil(width), Math.ceil(length)), new MeshStandardMaterial({ color: 0x827952, roughness: 1 }));
-    mesh.rotation.set(-Math.PI / 2, 0, rotation); mesh.position.set(x, 0.008, z); terrain.add(mesh); conformToTerrain(mesh, .008); mesh.geometry.computeVertexNormals();
+  trail([[0,-28,3.4],[0,-55,3.2],[1,-77,2.8],[12,-89,2.6],[16,-104,2.3],[14,-124,2.4]],true);
+  trail([[0,-46,3.4],[9,-45,3],[21,-46,3.2],[28,-46,3.4]],true);
+  for(let i=0;i<95;i++){
+    const x=-23+noise(i+9221)*43,z=-118+noise(i+8132)*39;
+    const shore=Math.hypot((x+4)/17,(z+98)/14);
+    if(shore<.95||shore>1.35||x>10||Math.abs(x)<2&&z> -86)continue;
+    place(i%3?'nature/Grass_Common_Short':'nature/Fern_1',x,z,.22+noise(i+522)*.4,noise(i+612)*6.28);
   }
-  // The southern trail bends east around the lake instead of drawing a road
-  // straight through the water, with an irregular worn edge at each leg.
-  path(0, -58, 3.4, 66);
-  path(8, -94, 3.4, 18, .18);
-  path(13, -113, 3.4, 24, -.08);
-  for (const [x, z, scale, rotation] of [[-3.1,-42,.24,.2],[3.2,-52,.3,1.1],[-3.4,-67,.22,2.4],[3.1,-78,.28,-.4],[4.7,-87,.24,1.7],[11,-105,.3,.6],[14.8,-119,.25,2.1]] as const) {
-    place('nature/Grass_Common_Short', x, z, scale, rotation);
+  const updateWater = buildWorldWater(terrain);
+  jobs.push(buildLakeShore(terrain));
+  for(const [cx,cz,seed] of [[-10,-64,29],[13,-76,87],[-34,-102,14],[8,-116,99],[-31,-55,54],[18,-109,42]]) {
+    for(let i=0;i<15;i++) {
+      const a=noise(seed!+i*13)*Math.PI*2,r=Math.sqrt(noise(seed!+i*29))*6;
+      const x=cx!+Math.cos(a)*r,z=cz!+Math.sin(a)*r;
+      place(i%4===0?'nature/Rock_Medium_1':'nature/Grass_Common_Short',x,z,.10+noise(seed!+i*9)*.22,a);
+    }
   }
-  path(14, -46, 28, 3.4);
-  const lakeWater = new Mesh(new CircleGeometry(1, 64), new MeshStandardMaterial({ color: 0x2c9bb0, emissive: 0x073a46, emissiveIntensity: 0.35, transparent: true, opacity: 0.78, roughness: 0.18, metalness: 0.05, depthWrite: false }));
-  const lakeVertices = lakeWater.geometry.getAttribute('position');
-  for (let index = 1; index < lakeVertices.count; index++) {
-    const angle = Math.atan2(-lakeVertices.getY(index), lakeVertices.getX(index));
-    lakeVertices.setXY(index, lakeVertices.getX(index) * (1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4)), lakeVertices.getY(index) * (1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4)));
-  }
-  lakeVertices.needsUpdate = true;
-  lakeWater.rotation.x = -Math.PI / 2;
-  lakeWater.position.set(LAKE_CENTER.x, LAKE_WATER_LEVEL, LAKE_CENTER.z);
-  lakeWater.scale.set(LAKE_RADIUS.x, LAKE_RADIUS.z, 1);
-  lakeWater.renderOrder = 1;
-  lakeWater.userData.lakeWater = true;
-  terrain.add(lakeWater);
-  const lakeShore = new Mesh(new RingGeometry(0.96, 1.02, 64), new MeshBasicMaterial({ color: 0x9fc276, transparent: true, opacity: 0.58, side: 2, depthWrite: false }));
-  const shoreVertices = lakeShore.geometry.getAttribute('position');
-  for (let index = 0; index < shoreVertices.count; index++) {
-    const angle = Math.atan2(-shoreVertices.getY(index), shoreVertices.getX(index));
-    const factor = 1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4);
-    shoreVertices.setXY(index, shoreVertices.getX(index) * factor, shoreVertices.getY(index) * factor);
-  }
-  shoreVertices.needsUpdate = true;
-  lakeShore.rotation.x = -Math.PI / 2;
-  lakeShore.position.set(LAKE_CENTER.x, LAKE_WATER_LEVEL + 0.012, LAKE_CENTER.z);
-  lakeShore.scale.set(LAKE_RADIUS.x, LAKE_RADIUS.z, 1);
-  lakeShore.renderOrder = 2;
-  terrain.add(lakeShore);
-  for (const side of [-1, 1]) for (let i = 0; i < 12; i++) {
-    const x = side < 0 ? -66 : 25, z = -29 - i * 8;
+  for (const side of [-1, 1]) for (let i = 0; i < 19; i++) {
+    const seed = i + (side < 0 ? 380 : 920);
+    const x = (side < 0 ? -65 : 29) + (noise(seed * 13) - .5) * 14, z = -29 - noise(seed * 37) * 99;
     if (side > 0 && z > -53 && z < -39) continue;
-    place(i % 3 ? "nature/Pine_5" : "nature/CommonTree_2", x, z, 4.8 + i % 3, i);
-    if (i % 2 === 0) place("nature/Rock_Medium_3", x + (side < 0 ? 2 : -2), z + 1, 1.1, i);
+    const age = noise(seed * 7);
+    place(i % 3 ? "nature/Pine_5" : "nature/CommonTree_2", x, z, 3.3 + age * age * 12, noise(seed * 11) * Math.PI * 2);
+    if (age > .6) place("nature/Rock_Medium_3", x + 1.7, z - 1.2, .5 + age, i);
   }
-  for (let i = 0; i < 12; i++) place("nature/CommonTree_2", -64 + i * 8, -128, 5.5, i);
+  for (let i = 0; i < 15; i++) place(i % 4 ? "nature/CommonTree_2" : "nature/DeadTree_2", -66 + noise(i + 2135) * 86, -123 - noise(i + 932) * 13, 3.4 + noise(i + 513) * 9, i * 2.1);
   for (const [x, z] of [[-58,-38],[-60,-89],[19,-108],[20,-31]]) {
     place("nature/Grass_Common_Short", x!, z!, 0.35);
     place("nature/Fern_1", x! + 0.7, z! + 0.5, 0.55);
@@ -435,8 +415,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     instances.computeBoundingSphere();
     parent.add(instances);
   }
-  return (coolingRestored, shiftEnded, player, camera, aimHeight = 1.1) => {
-    lakeWater.material.opacity = 0.74 + Math.sin(performance.now() * 0.0012) * 0.035;
+  return (coolingRestored, shiftEnded, player, camera, aimHeight = 1.1, wallTimeMillis = Date.now()) => {
+    updateWater(wallTimeMillis);
     sightline.origin.set(player.x, player.y + aimHeight, player.z);
     cameraDirection.subVectors(camera, sightline.origin);
     const cameraDistance = cameraDirection.length();

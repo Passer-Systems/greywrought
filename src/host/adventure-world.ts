@@ -32,7 +32,7 @@ import { createCombatGrid } from "./combat-grid.js";
 import { combatCell } from "../game/combat-grid.js";
 import { updateThreatAnimation, type ThreatAnimationState } from "./threat-animation.js";
 import { terrainHeight } from "../game/cave-layout.js";
-import { isSwimmingPosition } from "../game/world-elevation.js";
+import { isSwimmingPosition, lakeWaterAt } from "../game/world-elevation.js";
 import { buildVolcanoLandmark } from "./volcano-landmark.js";
 import { mechanicalTurtle } from "./mechanical-turtle.js";
 
@@ -318,7 +318,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const playSocialAnimation = createSocialAnimation();
   let disposed = false;
   let otherPlayers: readonly RemotePlayerView[] = [];
-  let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight: number) => void) | undefined;
+  let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight: number, wallTimeMillis: number) => void) | undefined;
   let elapsed = 0;
   let yaw = 0;
   let pitch = 0.7;
@@ -376,28 +376,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const look = appearances[threat.id]; if(!look) throw Error(`No appearance for ${threat.id}`);
     const creature = threat.id === "pond-turtle" ? mechanicalTurtle() : await actor(look.model, look.height);
     if (disposed) { creature.dispose(); return; }
-    /* turtle geometry is supplied by mechanicalTurtle */
-    if (false && threat.id === "pond-turtle") {
-      // The asset library has no turtle. Replace the temporary rig silhouette
-      // with an authored mechanical swimmer: plated shell, head, eyes and four
-      // articulated flippers. The hidden rig still supplies lifecycle timing.
-      creature.model.visible = false;
-      const shell = new Mesh(new SphereGeometry(.62, 16, 10), new MeshStandardMaterial({ color: 0x3f5b58, roughness: .72, metalness: .35 }));
-      shell.scale.set(1.35, .45, 1); shell.position.y = .46;
-      const head = new Mesh(new SphereGeometry(.22, 12, 8), new MeshStandardMaterial({ color: 0x789b82, roughness: .6, metalness: .18 }));
-      head.scale.z = 1.25; head.position.set(0, .43, .68);
-      const eyeMaterial = new MeshBasicMaterial({ color: 0xffd34f });
-      for (const x of [-.1, .1]) { const eye = new Mesh(new SphereGeometry(.035, 8, 6), eyeMaterial); eye.position.set(x, .53, .84); creature.root.add(eye); }
-      creature.root.add(shell, head);
-      const flippers: Mesh[] = [];
-      for (const [x, z] of [[-.55, .35], [.55, .35], [-.5, -.35], [.5, -.35]] as const) {
-        const flipper = new Mesh(new SphereGeometry(.2, 10, 6), new MeshStandardMaterial({ color: 0x628879, roughness: .7, metalness: .25 }));
-        flipper.scale.set(.55, .12, .2); flipper.position.set(x, .22, z); creature.root.add(flipper);
-        flippers.push(flipper);
-      }
-      shell.userData.swimmer = true;
-      creature.root.userData.turtleFlippers = flippers;
-    }
     const root = new Group(), body = creature.root;
     root.add(body); root.userData.threatId = threat.id; scene.add(root);
     creature.play(threat.health <= 0 ? "Death" : look.idle, threat.health > 0);
@@ -620,11 +598,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         const rig = rigs.get(threat.id);
         if (!rig) continue;
         rig.root.visible = threat.active || threat.phase === "cleared";
-        rig.root.position.set(threat.position.x, threat.id === "pond-turtle" ? .08 : threat.position.y, threat.position.z);
-        if (threat.id === "pond-turtle") {
-          const flippers = rig.body.userData.turtleFlippers as Mesh[] | undefined;
-          flippers?.forEach((flipper, index) => { flipper.rotation.z = Math.sin(elapsed * 4 + index * Math.PI) * .42; });
-        }
+        const water = threat.id === "pond-turtle" ? lakeWaterAt(threat.position.x, threat.position.z) : null;
+        rig.root.position.set(threat.position.x, water === null ? threat.position.y : Math.max(threat.position.y, water - .25), threat.position.z);
+
         rig.lootable = snapshot.loot.some(item => item.sourceId === threat.id && item.available);
         rig.lootGlint.visible = rig.lootable;
         rig.lootGlint.position.set(0, 0.8 + 0.08 * Math.sin(elapsed * 2), 0);
@@ -714,7 +690,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       const firstPersonBlend = Math.max(0, Math.min(1, (1.8 - distance) / 1.2));
       const aimHeight = 1.1 + firstPersonBlend * .55;
       const target = { x: cameraTarget.x, y: cameraTarget.y + aimHeight, z: cameraTarget.z };
-      player.visible = firstPersonBlend < .8;
       if (distance === 0) {
         camera.position.set(target.x, target.y, target.z);
       } else {
@@ -725,7 +700,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       // returning to a lower orbit so the camera never clips through a hill.
       cameraTerrainLift = distance === 0 ? 0 : delta === 0 ? requiredLift : Math.max(requiredLift, cameraTerrainLift + (requiredLift - cameraTerrainLift) * (1 - Math.exp(-delta * 8)));
       camera.position.y += cameraTerrainLift;
-      updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position, aimHeight);
+      updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position, aimHeight, worldTimeMillis);
       updateCave(snapshot.player.position, camera.position, aimHeight);
       if (distance === 0) {
         camera.lookAt(target.x + facing.x * Math.cos(pitch), target.y - Math.sin(pitch), target.z + facing.z * Math.cos(pitch));
@@ -734,6 +709,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         if (collisionLift > 0) camera.position.y += collisionLift;
         camera.lookAt(target.x, target.y, target.z);
       }
+      player.visible = firstPersonBlend < .8 && Math.hypot(camera.position.x-target.x, camera.position.y-target.y, camera.position.z-target.z) > 1.8;
       const selectedPlayer = selectedUnit?.kind === "player" ? selectedUnit.id : null;
       const friendlyRoot = selectedPlayer === playerSelection?.selfId ? player : [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
       friendlySelection.visible = Boolean(friendlyRoot?.visible);

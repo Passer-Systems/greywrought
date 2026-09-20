@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createAdventure } from './adventure.js';
 import { migrateTerrainLayout, terrainHeight } from './cave-layout.js';
-import { overworldHeight } from './world-elevation.js';
+import { dryOverworldHeight, overworldHeight } from './world-elevation.js';
 import { moveLocomotion } from './movement.js';
 
 test('hills rise gently in the meadow, mountains frame it, and authored town and cave floors stay level', () => {
@@ -36,4 +36,15 @@ test('existing cave-era saves rise with the meadow exactly once and retain chara
   expect(createAdventure({save:game.save()}).snapshot.player.position).toEqual(game.snapshot.player.position);
   const cave = {terrainLayout:1,state:{position:{x:72,y:-9,z:-46}}};
   migrateTerrainLayout(cave); expect(cave.state.position.y).toBe(-9);
+});
+
+test('saved lake and stream positions follow the new bed once, preserving airborne height', () => {
+  for (const [x,z] of [[-4,-98],[-25,-84]]) {
+    const before=dryOverworldHeight(x!,z!);
+    const root={terrainLayout:2,state:{position:{x:x!,y:before+.6,z:z!}},instances:[{members:[{origin:{x:x!,y:before,z:z!}}]}]};
+    migrateTerrainLayout(root);
+    expect(root.state.position.y).toBeCloseTo(terrainHeight(x!,z!)+.6,10);
+    expect(root.instances[0]!.members[0]!.origin.y).toBe(terrainHeight(x!,z!));
+    const once=JSON.stringify(root);migrateTerrainLayout(root);expect(JSON.stringify(root)).toBe(once);
+  }
 });

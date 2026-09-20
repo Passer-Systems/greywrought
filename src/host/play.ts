@@ -1,3 +1,4 @@
+import { LAKE_CENTER, LAKE_RADIUS, lakeBoundary, STREAM_POINTS } from '../game/world-elevation.js';
 import { setAttribute, setDataset, setText } from "./dom-updates.js";
 import { createGearShop } from "./gear-shop.js";
 import { createAppControls } from './app-controls.js';
@@ -690,6 +691,11 @@ function toggleLorebook(): void {
   lorebook.open(running.game.snapshot.selectedThreat);
   button("lorebook-open").setAttribute("aria-expanded", "true");
 }
+const mapTerrain=document.getElementById('map-terrain')!;
+const lakeMap=document.createElementNS('http://www.w3.org/2000/svg','path');
+lakeMap.setAttribute('fill','#437f88');lakeMap.setAttribute('stroke','#86a6a0');lakeMap.setAttribute('stroke-width','.5');
+lakeMap.setAttribute('d',Array.from({length:64},(_,i)=>{const a=i/64*Math.PI*2,r=lakeBoundary(a);return (i?'L':'M')+(LAKE_CENTER.x+Math.cos(a)*LAKE_RADIUS.x*r)+' '+(-LAKE_CENTER.z-Math.sin(a)*LAKE_RADIUS.z*r);}).join(' ')+'Z');
+const streamMap=document.createElementNS('http://www.w3.org/2000/svg','path');streamMap.setAttribute('fill','none');streamMap.setAttribute('stroke','#437f88');streamMap.setAttribute('stroke-width','1.8');streamMap.setAttribute('d',STREAM_POINTS.map((p,i)=>(i?'L':'M')+p.x+' '+(-p.z)).join(' '));mapTerrain.append(lakeMap,streamMap);
 let mapCenter = { x: 0, z: -8 };
 function mapPosition(target: HTMLElement, x: number, z: number): void {
   target.style.left = `${50 + (x - mapCenter.x) * 100 / 64}%`;

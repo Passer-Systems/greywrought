@@ -1,10 +1,10 @@
-import { AnimationClip, AnimationMixer, Box3, CanvasTexture, CircleGeometry, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
+import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { clone, retargetClip } from "three/addons/utils/SkeletonUtils.js";
 import { publicUrl } from "./public-url.js";
+import { canopyMaterial } from "./canopy-material.js";
 
 const root = "assets/quaternius/frostwood/";
 const loader = new GLTFLoader();
@@ -32,11 +32,9 @@ export interface ForestActor {
 }
 export async function actor(name: string, height: number, playerModel?: "warrior" | "mage" | "hunter" | "alchemist" | "artificer"): Promise<ForestActor> {
   const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger.glb" : playerModel === "mage" ? "Wizard.glb" : playerModel === "alchemist" ? "Alchemist.gltf" : playerModel === "artificer" ? "Artificer.gltf" : "Warrior.glb"}` : null;
-  const rat = !playerPath && name === "Rat";
-  const gltf = rat ? null : await source(playerPath ?? `${root}actors/${name}.glb`);
-  const fbx = rat ? await new FBXLoader().loadAsync(publicUrl("assets/external/quaternius/rodents/Rat.fbx")) : null;
-  const model = rat ? fbx! : clone(gltf!.scene);
-  const animations = rat ? [...fbx!.animations] : [...gltf!.animations];
+  const gltf = await source(playerPath ?? (name === "Rat" ? "assets/quaternius/rodents/Rat.glb" : `${root}actors/${name}.glb`));
+  const model = clone(gltf.scene);
+  const animations = [...gltf.animations];
   if (playerPath !== null) {
     const donor = await source("assets/quaternius/class-characters/Social.glb");
     const sourceModel = clone(donor.scene);
@@ -83,7 +81,6 @@ export async function actor(name: string, height: number, playerModel?: "warrior
     play(name, loop = true, duration, fade = 0.12) {
       const clip = animations.find(c => c.name === name);
       if (!clip) throw Error(`${name} is missing from ${model.name}`);
-      if (!clip) throw Error(`${name} is missing from ${model.name}`);
       const next = mixer.clipAction(clip);
       if (result.action === next && next.isRunning()) return next;
       result.action?.fadeOut(fade);
@@ -127,6 +124,7 @@ export async function prop(name: string, size: number, axis: "height" | "width" 
   const model = (await promise).clone(true);
   model.traverse(object => {
     if (!(object instanceof Mesh)) return;
+    object.material = Array.isArray(object.material) ? object.material.map(canopyMaterial) : canopyMaterial(object.material);
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     object.castShadow = !materials.some(material => material.transparent);

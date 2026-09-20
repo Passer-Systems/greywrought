@@ -1,4 +1,4 @@
-import { overworldHeight } from './world-elevation.js';
+import { dryOverworldHeight, overworldHeight } from './world-elevation.js';
 import type { Position } from './adventure-types.js';
 import type { Barrier } from './movement.js';
 
@@ -26,8 +26,9 @@ export function caveBlockedPosition(x: number, z: number): boolean {
 }
 
 // Preserve height above the old floor when the landscape changes.
+export const TERRAIN_LAYOUT = 3;
 export function migrateTerrainLayout(root: Record<string, unknown>): void {
-  if (root.terrainLayout === 2) return;
+  if (root.terrainLayout === TERRAIN_LAYOUT) return;
   const spatialKeys = new Set(['position', 'targetPosition', 'origin', 'start', 'destination', 'attackOrigin']);
   function visit(value: unknown): void {
     if (!value || typeof value !== 'object') return;
@@ -35,10 +36,14 @@ export function migrateTerrainLayout(root: Record<string, unknown>): void {
     for (const [key, child] of Object.entries(value)) {
       if (spatialKeys.has(key) && child && typeof child === 'object'
         && 'x' in child && typeof child.x === 'number' && 'y' in child && typeof child.y === 'number'
-        && 'z' in child && typeof child.z === 'number') child.y += root.terrainLayout === 1 ? overworldHeight(child.x, child.z) : terrainHeight(child.x, child.z);
+        && 'z' in child && typeof child.z === 'number') {
+          const oldFloor = root.terrainLayout === 2 ? inCave(child) ? terrainHeight(child.x, child.z) : dryOverworldHeight(child.x, child.z)
+            : root.terrainLayout === 1 && inCave(child) ? terrainHeight(child.x, child.z) : 0;
+          child.y = terrainHeight(child.x, child.z) + (child.y - oldFloor);
+        }
       else visit(child);
     }
   }
   visit(root);
-  root.terrainLayout = 2;
+  root.terrainLayout = TERRAIN_LAYOUT;
 }

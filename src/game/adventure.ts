@@ -1,6 +1,6 @@
 import { formatMoney } from "./currency.js";
 import { snapCombatPosition, combatCell, reachableCombatCells, COMBAT_CELL_SIZE } from './combat-grid.js';
-import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
+import { terrainHeight, migrateTerrainLayout, TERRAIN_LAYOUT } from './cave-layout.js';
 import { lakeWaterAt, isSwimmingPosition } from './world-elevation.js';
 import { restoreTownPosition } from './town-layout.js';
 import { VENDORS, experienceForLevel, levelForExperience, enemyExperience, enemyCoins, type NpcId, type VendorId } from "./economy.js";
@@ -294,7 +294,7 @@ class Adventure implements AdventureGame {
       if ((root.version !== 1 && root.version !== 2 && root.version !== 3 && root.version !== 4 && root.version !== 5) || root.kind !== "shared-adventure" || !Array.isArray(root.characters)) throw new Error("Unsupported shared adventure save.");
       const world = record(root.world), version = root.version === 1 ? 9 : root.version >= 4 ? 11 : 10;
       const template = savedState(initialState("warrior"));
-      context.world = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, forestLayout: root.forestLayout, state: { ...template, ...world, phase: "expedition" } }), context.now()).world;
+      context.world = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: TERRAIN_LAYOUT, forestLayout: root.forestLayout, state: { ...template, ...world, phase: "expedition" } }), context.now()).world;
       for (const value of root.characters) {
         const legacyClaim = record(record(value).state).chestClaimed;
         if (legacyClaim !== undefined && boolean(legacyClaim)) context.world.chestClaimed = true;
@@ -313,7 +313,7 @@ class Adventure implements AdventureGame {
           const instance: SharedContext = {
             id, now: context.now, mode: 'paused', online: new Map(), characters: new Map(), origins: new Map(),
             clock: root.version >= 4 ? readClock(entry.clock) : newClock(),
-            world: readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, forestLayout: root.forestLayout, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world,
+            world: readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: TERRAIN_LAYOUT, forestLayout: root.forestLayout, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world,
           };
           for (const value of members) {
             const member = record(value), memberId = text(member.id);
@@ -329,7 +329,7 @@ class Adventure implements AdventureGame {
         const instance = instances.get(id);
         const ownContext = instance ?? context;
         const game = new Adventure({}, ownContext, id);
-        game.state = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, forestLayout: root.forestLayout, state: { ...state, ...ownContext.world } }), context.now());
+        game.state = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: TERRAIN_LAYOUT, forestLayout: root.forestLayout, state: { ...state, ...ownContext.world } }), context.now());
         game.state.world = ownContext.world; game.state.combat.clock = ownContext.clock;
         characters.set(id, { name, game });
         ownContext.characters.set(id, game);
@@ -490,7 +490,7 @@ class Adventure implements AdventureGame {
       },
       save() {
         refresh();
-        return JSON.stringify({ version: 5, spatialLayout: 1, terrainLayout: 2, forestLayout: 1, kind: "shared-adventure", world: context.world, clock: context.clock,
+        return JSON.stringify({ version: 5, spatialLayout: 1, terrainLayout: TERRAIN_LAYOUT, forestLayout: 1, kind: "shared-adventure", world: context.world, clock: context.clock,
           characters: [...characters].map(([id, { name, game }]) => {
             const { threats, resourceRemaining, resourceRespawns, ritualCalled, chestClaimed, ...player } = savedState(game.state);
             return { id, name, state: player };
@@ -580,7 +580,7 @@ class Adventure implements AdventureGame {
     };
   }
 
-  save(): string { return JSON.stringify({ version: 11, spatialLayout: 1, terrainLayout: 2, forestLayout: 1, state: savedState(this.state) }); }
+  save(): string { return JSON.stringify({ version: 11, spatialLayout: 1, terrainLayout: TERRAIN_LAYOUT, forestLayout: 1, state: savedState(this.state) }); }
   private progression(): ProgressionView {
     const c = this.state.chapter;
     const gear = Object.values(c.equipment).filter((id): id is GearItemId => id !== null);
@@ -2108,7 +2108,7 @@ function readSave(serialized: string, now = Date.now()): State {
   });
   if (new Set(threats.map(t => t.id)).size !== threats.length) throw new Error("Invalid adventure save: duplicate threat.");
   for (const d of DEFINITIONS) if (!threats.some(t => t.id === d.id)) {
-    if (!d.id.startsWith("cave-")) throw new Error("Invalid adventure save: missing threats.");
+    if (!d.id.startsWith("cave-") && !["pond-turtle", "meadow-rat", "meadow-rat-2"].includes(d.id)) throw new Error("Invalid adventure save: missing threats.");
     threats.push(newThreat(d));
   }
   const state: State = {

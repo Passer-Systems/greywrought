@@ -68,6 +68,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       }`,
   });
   const sky = new Mesh(new SphereGeometry(1, 24, 12), material);
+  sky.onBeforeRender = (_renderer, _scene, camera) => { sky.position.copy(camera.position); sky.updateMatrixWorld(); };
   sky.name = 'sky'; sky.frustumCulled = false; sky.renderOrder = -1;
   scene.add(sky);
   const lamps: PointLight[] = [];
