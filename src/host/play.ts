@@ -1,3 +1,4 @@
+import { setAttribute, setDataset, setText } from "./dom-updates.js";
 import { createGearShop } from "./gear-shop.js";
 import { createAppControls } from './app-controls.js';
 import { COMBAT_RULES } from "../game/adventure.js";
@@ -670,38 +671,50 @@ function renderHud(snapshot: AdventureSnapshot): void {
   const { player } = snapshot;
   loadActionBarOrder(player.archetype);
   const data = document.body.dataset;
-  data.gamePhase = snapshot.phase;
-  data.gamePlayerX = String(player.position.x); data.gamePlayerY = String(player.position.y); data.gamePlayerZ = String(player.position.z);
-  data.gamePlayerVitality = String(player.health); data.gameSupplies = String(snapshot.supplies);
-  data.gameCargo = String(snapshot.cargo); data.gamePotions = String(snapshot.potions);
-  data.gameCarriedSalvage = String(snapshot.carriedSalvage);
-  data.gamePaused = String(paused);
-  data.gameCoins = String(snapshot.coins); data.gameExperience = String(snapshot.progression.experience); data.gameLevel = String(snapshot.progression.level);
-  data.gameBankedRelics = String(snapshot.bankedRelics); data.gameSelectedThreat = snapshot.selectedThreat;
-  data.gameActionCooldown = String(player.actionCooldown); data.gameGuardSeconds = String(player.guardSeconds);
-  data.gameBlock = String(player.block); data.gameManeuver = player.maneuver;
-  data.gameManeuverSeconds = String(player.maneuverSeconds);
-  data.gameStamina = String(player.stamina); data.gameInCombat = String(player.inCombat);
-  data.gamePlayerSitting = String(player.sitting);
-  data.gamePlayerEmote = JSON.stringify(player.emote);
-  data.gameCombatPhase = snapshot.combat.phase;
-  data.gameCombatRemaining = String(snapshot.combat.remainingSeconds);
+  setDataset(data, {
+    gamePhase: snapshot.phase,
+    gamePlayerX: String(player.position.x),
+    gamePlayerY: String(player.position.y),
+    gamePlayerZ: String(player.position.z),
+    gamePlayerVitality: String(player.health),
+    gameSupplies: String(snapshot.supplies),
+    gameCargo: String(snapshot.cargo),
+    gamePotions: String(snapshot.potions),
+    gameCarriedSalvage: String(snapshot.carriedSalvage),
+    gamePaused: String(paused),
+    gameCoins: String(snapshot.coins),
+    gameExperience: String(snapshot.progression.experience),
+    gameLevel: String(snapshot.progression.level),
+    gameBankedRelics: String(snapshot.bankedRelics),
+    gameSelectedThreat: snapshot.selectedThreat,
+    gameActionCooldown: String(player.actionCooldown),
+    gameGuardSeconds: String(player.guardSeconds),
+    gameBlock: String(player.block),
+    gameManeuver: player.maneuver,
+    gameManeuverSeconds: String(player.maneuverSeconds),
+    gameStamina: String(player.stamina),
+    gameInCombat: String(player.inCombat),
+    gamePlayerSitting: String(player.sitting),
+    gamePlayerEmote: JSON.stringify(player.emote),
+    gameCombatPhase: snapshot.combat.phase,
+    gameCombatRemaining: String(snapshot.combat.remainingSeconds),
+  });
   const stamina = element("combat-stamina");
-  stamina.setAttribute("aria-valuenow", String(player.stamina));
-  stamina.setAttribute("aria-valuemin", "0"); stamina.setAttribute("aria-valuemax", String(player.maximumStamina));
-  stamina.title = "Stamina " + player.stamina + " / " + player.maximumStamina;
+  setAttribute(stamina, "aria-valuenow", String(player.stamina));
+  setAttribute(stamina, "aria-valuemin", "0"); setAttribute(stamina, "aria-valuemax", String(player.maximumStamina));
+  setAttribute(stamina, "title", "Stamina " + player.stamina + " / " + player.maximumStamina);
   element("combat-stamina-fill").style.width = (100 * player.stamina / player.maximumStamina) + "%";
-  data.archetype = player.archetype;
+  setDataset(data, { archetype: player.archetype });
   text("bait-aim-hint", moveAimError || `Move · click a destination tile (up to ${classKit(player.archetype).movementTiles} tiles) · then Ready (R) · Esc cancels`);
   text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players);
   combatPlan.update(snapshot);
   if (snapshot.combat.phase !== "preparation" || snapshot.combat.ready) setBaitAiming(false);
-  data.gameCombatPlan = String(!element("combat-plan").hidden);
+  setDataset(data, { gameCombatPlan: String(!element("combat-plan").hidden) });
   const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, text: entry.kind === 'emote' ? `* ${entry.name} ${entry.text}` : entry.name + ": " + entry.text })) ?? [];
   chatLog.update([...snapshot.log, ...sharedChat]);
-  data.gameOnline = String(running?.game.online ?? false);
-  data.gameRemotePlayers = JSON.stringify(running?.game.players ?? []);
+  setDataset(data, { gameOnline: String(running?.game.online ?? false) });
+  setDataset(data, { gameRemotePlayers: JSON.stringify(running?.game.players ?? []) });
   bank.update(snapshot);
   inn.update(snapshot, snapshot.innOpen);
   shop.update(snapshot); gearShop.update(snapshot);
@@ -717,21 +730,23 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]')!;
     const reserved = snapshot.combat.queued.find(entry => (entry.action === "bait") === (action === "bait"))?.cost ?? 0;
     const availableStamina = snapshot.combat.availableStamina + reserved;
-    control.disabled = !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.ready || availableStamina < cost || targeted && range.state !== "in" && !(planning && selected?.aggro);
-    control.setAttribute("aria-label", spec.name);
-    control.setAttribute("aria-pressed", String(action === "bait" && baitAiming));
-    control.dataset.range = range.state;
+    const disabled = !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.ready || availableStamina < cost || targeted && range.state !== "in" && !(planning && selected?.aggro);
+    if (control.disabled !== disabled) control.disabled = disabled;
+    setAttribute(control, "aria-label", spec.name);
+    setAttribute(control, "aria-pressed", String(action === "bait" && baitAiming));
+    setDataset(control.dataset, { range: range.state });
     control.classList.toggle("action-in-range", targeted && range.state === "in" && !control.disabled);
-    control.querySelector<HTMLElement>(".action-label")!.textContent = spec.name;
-    control.querySelector<HTMLElement>(".action-tooltip strong")!.textContent = spec.name;
-    control.querySelector<HTMLElement>(".action-tooltip span:last-child")!.textContent = spec.description;
+    setText(control.querySelector<HTMLElement>(".action-label")!, spec.name);
+    setText(control.querySelector<HTMLElement>(".action-tooltip strong")!, spec.name);
+    setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, spec.description);
     const art = control.querySelector<HTMLImageElement>(".action-art img")!;
     const source = publicUrl(spec.icon); if (art.getAttribute("src") !== source) art.src = source;
     const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Click a highlighted tile, then Ready (R)" : "Plan · " + cost + " stamina";
     text(action + "-ready", detail + (range.text ? " · " + range.text : ""));
   }
   const recovery = element("player-action-bar");
-  recovery.hidden = player.actionCooldown <= 0.001 || (player.currentAction !== "gather" && player.currentAction !== "ritual" && player.currentAction !== "hearthstone");
+  const recoveryHidden = player.actionCooldown <= 0.001 || (player.currentAction !== "gather" && player.currentAction !== "ritual" && player.currentAction !== "hearthstone");
+  if (recovery.hidden !== recoveryHidden) recovery.hidden = recoveryHidden;
   if (!recovery.hidden) {
     const actionControl = player.currentAction ? document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + player.currentAction + '"]') : null;
     const art = actionControl?.querySelector<HTMLImageElement>(".action-art img");
@@ -744,8 +759,8 @@ function renderHud(snapshot: AdventureSnapshot): void {
     text("player-action-name", label);
     text("player-action-time", progress.toFixed(1) + " / " + player.actionDuration.toFixed(1));
     element("player-action-fill").style.width = (100 * progress / Math.max(.001, player.actionDuration)) + "%";
-    recovery.setAttribute("role", "progressbar"); recovery.setAttribute("aria-label", label);
-    recovery.setAttribute("aria-valuenow", String(progress)); recovery.setAttribute("aria-valuemin", "0"); recovery.setAttribute("aria-valuemax", String(player.actionDuration));
+    setAttribute(recovery, "role", "progressbar"); setAttribute(recovery, "aria-label", label);
+    setAttribute(recovery, "aria-valuenow", String(progress)); setAttribute(recovery, "aria-valuemin", "0"); setAttribute(recovery, "aria-valuemax", String(player.actionDuration));
   }
   corpseLoot.update(snapshot);
   bags.update(snapshot);
@@ -754,7 +769,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   questLog.update(snapshot);
   questRewards.update(snapshot);
   mapCenter = player.position;
-  element("map-terrain").setAttribute("viewBox", `${mapCenter.x - 32} ${-mapCenter.z - 32} 64 64`);
+  setAttribute(element("map-terrain"), "viewBox", `${mapCenter.x - 32} ${-mapCenter.z - 32} 64 64`);
   for (const place of snapshot.places) {
     const marker = document.querySelector<HTMLElement>(`[data-map-place="${place.id}"]`);
     if (marker) mapPosition(marker, place.position.x, place.position.z);
@@ -764,13 +779,14 @@ function renderHud(snapshot: AdventureSnapshot): void {
   for (const threat of snapshot.threats) {
     const marker = markers.get(threat.id);
     if (!marker) continue;
-    Object.assign(marker.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), x: String(threat.position.x), z: String(threat.position.z), damage: String(threat.damage), reach: String(threat.reach), actionSequence: String(threat.actionSequence), disposition: threat.disposition, aggro: String(threat.aggro), hostile: String(threat.disposition === "hostile" || threat.aggro), worldX: String(threat.position.x), worldZ: String(threat.position.z) });
+    setDataset(marker.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), x: String(threat.position.x), z: String(threat.position.z), damage: String(threat.damage), reach: String(threat.reach), actionSequence: String(threat.actionSequence), disposition: threat.disposition, aggro: String(threat.aggro), hostile: String(threat.disposition === "hostile" || threat.aggro), worldX: String(threat.position.x), worldZ: String(threat.position.z) });
     mapPosition(marker, threat.position.x, threat.position.z);
     marker.classList.toggle("selected", threat.selected);
     marker.classList.toggle("cleared", threat.phase === "cleared");
     marker.classList.toggle("dormant", !threat.active);
   }
-  element("death-panel").hidden = snapshot.phase !== "lost";
+  const deathPanel = element("death-panel");
+  if (deathPanel.hidden !== (snapshot.phase !== "lost")) deathPanel.hidden = snapshot.phase !== "lost";
 }
 function bindWorld(app: RunningAdventure): void {
   const { canvas } = app.world;
