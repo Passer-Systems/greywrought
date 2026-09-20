@@ -398,7 +398,7 @@ function renderEntry(): void {
   text("entry-creator-class", classes[draft].name);
   text("entry-lore-title", classes[draft].name);
   text("entry-lore-copy", classes[draft].copy);
-  text("entry-lore-kit", "Attack · Block · Earn new abilities");
+  text("entry-lore-kit", `Movement ${classKit(draft).movementTiles} · ${classKit(draft).movementTiles} tiles per move · Attack · Block`);
   text("entry-creator-preview-name", normalizedCharacterName(input("entry-character-name").value) ?? "Unnamed Adventurer");
   avatar("entry-creator", draft);
   for (const choice of document.querySelectorAll<HTMLElement>("[data-entry-archetype]")) choice.setAttribute("aria-pressed", String(choice.dataset.entryArchetype === draft));
@@ -686,6 +686,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   stamina.title = "Stamina " + player.stamina + " / " + player.maximumStamina;
   element("combat-stamina-fill").style.width = (100 * player.stamina / player.maximumStamina) + "%";
   data.archetype = player.archetype;
+  text("bait-aim-hint", `Bait · click your destination (up to ${classKit(player.archetype).movementTiles} tiles per move) · Esc cancels`);
   text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players);
   combatPlan.update(snapshot);

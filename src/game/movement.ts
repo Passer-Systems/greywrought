@@ -39,13 +39,13 @@ export function moveManeuverPosition(state: MovementState, maneuver: MovementMan
   if (maneuver.remainingSeconds <= 1e-9) { state.position.y = ground; state.verticalSpeed = 0; }
   return Math.hypot(state.position.x - old.x, state.position.z - old.z) > 1e-9;
 }
-export function moveLocomotion(state: MovementState, input: MovementInput, seconds: number): { moving: boolean; backpedaling: boolean } {
+export function moveLocomotion(state: MovementState, input: MovementInput, seconds: number, movementSpeed = 5.2): { moving: boolean; backpedaling: boolean } {
   if (input.jump) startJump(state);
   const length = Math.max(1, Math.hypot(input.forward, input.strafe));
   const x = (input.cameraX * input.forward - input.cameraZ * input.strafe) / length;
   const z = (input.cameraZ * input.forward + input.cameraX * input.strafe) / length;
   const old: Position = { ...state.position };
-  const speed = 5.2 * (input.forward < 0 ? 0.64 : 1);
+  const speed = movementSpeed * (input.forward < 0 ? 0.64 : 1);
   let remaining = seconds;
   while (remaining > 1e-9) {
     const dt = Math.min(remaining, 1 / 60);

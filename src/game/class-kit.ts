@@ -1,5 +1,6 @@
 import type { CharacterArchetype } from "../host/character-profile.js";
 import type { CombatAction } from "./adventure-types.js";
+import { COMBAT_CELL_SIZE } from "./combat-grid.js";
 
 export const MELEE_RANGE = 5;
 
@@ -19,16 +20,18 @@ export interface ClassActionSpec {
 
 export interface ClassKit {
   readonly archetype: CharacterArchetype;
+  readonly movementTiles: number;
+  readonly movementSpeed: number;
   readonly abilities: Readonly<Record<CombatAction, ClassActionSpec>>;
   readonly powerName: string;
   readonly powerStackName: string;
 }
 
-const tactics = {
-  bait: { name: "Bait", icon: "assets/ui/icons/spells/mobility-boots.png", description: "Move up to 6 metres toward chosen ground on this beat. Lure enemies into each other. Costs 1 stamina.", cost: 1, range: 6, duration: .45 },
+function tactics(movementTiles: number) { return {
+  bait: { name: "Bait", icon: "assets/ui/icons/spells/mobility-boots.png", description: `Movement ${movementTiles}: move up to ${movementTiles} tiles toward chosen ground on this beat. Lure enemies into each other. Costs 1 stamina.`, cost: 1, range: movementTiles * COMBAT_CELL_SIZE, duration: .45 },
   shove: { name: "Shove", icon: "assets/ui/icons/spells/sword-strike.png", description: "Push an enemy within 5 metres. Collisions hurt and stagger both enemies, interrupting their attacks. Costs 1 stamina.", cost: 1, range: MELEE_RANGE },
   finish: { name: "Finish", icon: "assets/ui/icons/spells/sword-strike.png", description: "Strike within 5 metres for 12 damage, or 54 against a staggered enemy. Costs 1 stamina.", cost: 1, range: MELEE_RANGE, damage: 12 },
-} as const;
+} as const; }
 const common = {
   brace: { name: "Block", icon: "assets/ui/icons/spells/defensive-shield.png", description: "Raise your guard and absorb incoming damage." },
   jab: { name: "Auto Attack", icon: "assets/ui/icons/spells/sword-strike.png", description: "A free close attack." },
@@ -38,9 +41,9 @@ const common = {
 
 const kits: Readonly<Record<CharacterArchetype, ClassKit>> = {
   warrior: {
-    archetype: "warrior", powerName: "Blood Rage", powerStackName: "Rage",
+    archetype: "warrior", movementTiles: 2, movementSpeed: 5.2, powerName: "Blood Rage", powerStackName: "Rage",
     abilities: {
-      ...tactics,
+      ...tactics(2),
       strike: { name: "Sword Strike", icon: "assets/ui/icons/spells/sword-strike.png", description: "Strike an enemy within 5 metres.", damage: 9, range: MELEE_RANGE, cost: 0, duration: .25 },
       brace: { ...common.brace, description: "Absorb 24 damage for 2 seconds. Costs 2 stamina." }, disengage: { name: "Disengage", icon: "assets/ui/icons/spells/mobility-boots.png", description: "Strike an enemy within 5 metres for 6, then leap backward and root it briefly. Costs 1 stamina.", damage: 6, range: MELEE_RANGE, cost: 1, duration: .8 },
       bloodRage: { name: "Blood Rage", icon: "assets/ui/icons/spells/fire-spell.png", description: "Build Rage while remaining in combat; each stack adds attack damage but drains health.", cost: 1, powerDamagePerStack: 4 },
@@ -48,9 +51,9 @@ const kits: Readonly<Record<CharacterArchetype, ClassKit>> = {
     },
   },
   mage: {
-    archetype: "mage", powerName: "Overchannel", powerStackName: "Arcane Charge",
+    archetype: "mage", movementTiles: 2, movementSpeed: 5.2, powerName: "Overchannel", powerStackName: "Arcane Charge",
     abilities: {
-      ...tactics,
+      ...tactics(2),
       strike: { name: "Arcane Bolt", icon: "assets/ui/icons/spells/wand-bolt.svg", description: "A ranged wand bolt.", damage: 9, range: 10, cost: 0, duration: .25 },
       brace: { name: "Arcane Barrier", icon: "assets/ui/icons/spells/protective-ward.png", description: "Absorb 24 damage for 2 seconds. Costs 2 stamina.", block: 24, cost: 2 },
       disengage: { name: "Froststep", icon: "assets/ui/icons/spells/frost-spell.png", description: "Blast the enemy, then blink backward and root it until you land.", damage: 6, range: 10, cost: 1, duration: .8 },
@@ -59,9 +62,9 @@ const kits: Readonly<Record<CharacterArchetype, ClassKit>> = {
     },
   },
   hunter: {
-    archetype: "hunter", powerName: "Keen Focus", powerStackName: "Focus",
+    archetype: "hunter", movementTiles: 4, movementSpeed: 6, powerName: "Keen Focus", powerStackName: "Focus",
     abilities: {
-      ...tactics,
+      ...tactics(4),
       strike: { name: "Aimed Shot", icon: "assets/ui/icons/spells/bow-shot.svg", description: "A ranged bow shot.", damage: 9, range: 10, cost: 0, duration: .25 },
       brace: { name: "Deflect", icon: "assets/ui/icons/spells/defensive-shield.png", description: "Absorb 24 damage for 2 seconds. Costs 2 stamina.", block: 24, cost: 2 },
       disengage: { name: "Parting Shot", icon: "assets/ui/icons/spells/bow-shot.svg", description: "Shoot the enemy, then leap backward and root it until you land.", damage: 6, range: 10, cost: 1, duration: .8 },
@@ -70,9 +73,9 @@ const kits: Readonly<Record<CharacterArchetype, ClassKit>> = {
     },
   },
   alchemist: {
-    archetype: "alchemist", powerName: "Volatile Mixture", powerStackName: "Reagent",
+    archetype: "alchemist", movementTiles: 3, movementSpeed: 5.6, powerName: "Volatile Mixture", powerStackName: "Reagent",
     abilities: {
-      ...tactics,
+      ...tactics(3),
       strike: { name: "Reagent Toss", icon: "assets/ui/icons/spells/poison-vial.png", description: "Throw a caustic vial from 10 metres for ranged damage.", damage: 8, range: 10, cost: 0, duration: .25 },
       brace: { name: "Protective Tonic", icon: "assets/ui/icons/spells/healing-cross.png", description: "Restore 6 health and gain 16 block for 2 seconds.", block: 16, heal: 6 },
       disengage: { name: "Caustic Escape", icon: "assets/ui/icons/spells/poison-vial.png", description: "Splash acid at the enemy, then retreat and leave it snared.", damage: 8, range: 10, cost: 1, duration: .8 },
@@ -82,9 +85,9 @@ const kits: Readonly<Record<CharacterArchetype, ClassKit>> = {
     },
   },
   artificer: {
-    archetype: "artificer", powerName: "Overclock", powerStackName: "Charge",
+    archetype: "artificer", movementTiles: 2, movementSpeed: 5.2, powerName: "Overclock", powerStackName: "Charge",
     abilities: {
-      ...tactics,
+      ...tactics(2),
       strike: { name: "Rivet Shot", icon: "assets/ui/icons/spells/lightning-bolt.png", description: "Fire a clockwork rivet from 10 metres.", damage: 10, range: 10, cost: 0, duration: .25 },
       brace: { name: "Barrier Plate", icon: "assets/ui/icons/spells/protective-ward.png", description: "Deploy 28 block for 2 seconds. The rivet tool needs 3 stamina to plate it.", block: 28, cost: 3 },
       disengage: { name: "Recoil Snare", icon: "assets/ui/icons/spells/mobility-boots.png", description: "Blast the enemy with a tool recoil, then retreat and pin it briefly.", damage: 7, range: 10, cost: 1, duration: .8 },

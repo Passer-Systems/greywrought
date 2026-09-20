@@ -1,3 +1,4 @@
+import { classKit } from '../game/class-kit.js';
 import { terrainHeight } from '../game/cave-layout.js';
 import type { AdventureAction, AdventureSnapshot } from '../game/adventure-types.js';
 import { moveLocomotion, moveManeuverPosition, blockedPosition, type MovementManeuver, type MovementCheckpoint, type MovementFrame, type MovementInput, type MovementState } from '../game/movement.js';
@@ -79,7 +80,7 @@ export class LocalMovement {
       this.maneuver = null; seconds -= elapsed;
       if (seconds <= 1e-9) return;
     }
-    const motion = moveLocomotion(this.state, { ...frame.input, jump: frame.input.jump && beginning }, seconds);
+    const motion = moveLocomotion(this.state, { ...frame.input, jump: frame.input.jump && beginning }, seconds, classKit(this.snapshot.player.archetype).movementSpeed);
     this.moving = motion.moving; this.backpedaling = motion.backpedaling;
   }
   takeOutgoing(): MovementFrame[] { return this.outgoing.splice(0, 30); }

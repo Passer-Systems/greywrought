@@ -17,7 +17,7 @@ type Vector = { x: number; y: number; z: number };
 type Phase = AdventureSnapshot["phase"];
 export const COMBAT_RULES = {
   actionCooldown: 1,
-  bait: { distance: 6, duration: .45, cost: 1 },
+  bait: { duration: .45, cost: 1 },
   shove: { range: MELEE_RANGE, distance: 4, damage: 18, cost: 1 },
   finish: { range: MELEE_RANGE, damage: 12, staggeredDamage: 54, cost: 1 },
   swarm: { radius: 3, damage: 36 },
@@ -859,8 +859,9 @@ class Adventure implements AdventureGame {
     if (reason) { this.report(reason, "combat"); return; }
     this.spendStamina(cost); this.recover(action, COMBAT_RULES.actionCooldown);
     if (action === "bait") {
-      const facing = this.direction(s.position, destination!), length = Math.min(COMBAT_RULES.bait.distance, distance(s.position, destination!));
-      const end = snapCombatPosition(point(s.position.x + facing.x * length, s.position.z + facing.z * length), s.position, COMBAT_RULES.bait.distance, this.occupiedCells(s.position));
+      const range = classAction(s.archetype, "bait").range!;
+      const facing = this.direction(s.position, destination!), length = Math.min(range, distance(s.position, destination!));
+      const end = snapCombatPosition(point(s.position.x + facing.x * length, s.position.z + facing.z * length), s.position, range, this.occupiedCells(s.position));
       s.maneuver = { kind: "bait", targetId: s.selectedThreat, start: { ...s.position }, destination: end, facing, remainingSeconds: COMBAT_RULES.bait.duration };
       this.tracePath(this.playerId ?? "solo", "move", "bait", [s.position, end], 0);
     } else if (action === "shove") {
@@ -1312,7 +1313,7 @@ class Adventure implements AdventureGame {
   private move(dt: number): void {
     if (this.mouseForward || this.held.has("forward") || this.held.has("backward") || this.held.has("left") || this.held.has("right") || this.held.has("jump")) { this.cancelGather(); this.state.sitting = false; this.activeEmote = null; }
     const result = moveLocomotion(this.state, { forward: this.mouseForward ? 1 : Number(this.held.has("forward")) - Number(this.held.has("backward")),
-      strafe: Number(this.held.has("right")) - Number(this.held.has("left")), cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt);
+      strafe: Number(this.held.has("right")) - Number(this.held.has("left")), cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt, classKit(this.state.archetype).movementSpeed);
     this.moving = result.moving; this.backpedaling = result.backpedaling;
   }
   private consumeMovement(dt: number, blocked: boolean): void {
@@ -1325,7 +1326,7 @@ class Adventure implements AdventureGame {
       if (!blocked) {
         if (Math.abs(frame.input.forward) > EPSILON || Math.abs(frame.input.strafe) > EPSILON || frame.input.jump) { this.cancelGather(); this.state.sitting = false; this.activeEmote = null; }
         this.setCameraForward(frame.input.cameraX, frame.input.cameraZ);
-        const result = moveLocomotion(this.state, { ...frame.input, jump: frame.input.jump && this.movementElapsed === 0 }, elapsed);
+        const result = moveLocomotion(this.state, { ...frame.input, jump: frame.input.jump && this.movementElapsed === 0 }, elapsed, classKit(this.state.archetype).movementSpeed);
         this.moving = result.moving; this.backpedaling = result.backpedaling;
       }
       this.movementElapsed += elapsed; remaining -= elapsed;
@@ -1338,7 +1339,7 @@ class Adventure implements AdventureGame {
     if (remaining > EPSILON && !blocked) {
       moveLocomotion(this.state, {
         forward: 0, strafe: 0, cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false,
-      }, remaining);
+      }, remaining, classKit(this.state.archetype).movementSpeed);
     }
   }
   private moveManeuver(dt: number): void {
@@ -1392,7 +1393,7 @@ class Adventure implements AdventureGame {
     if (s.maneuver) { if (this.movementFrames) this.consumeMovement(dt, true); this.moveManeuver(dt); }
     else if (this.inCombat()) {
       if (this.movementFrames) this.consumeMovement(dt, true);
-      moveLocomotion(s, { forward: 0, strafe: 0, cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt);
+      moveLocomotion(s, { forward: 0, strafe: 0, cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt, classKit(this.state.archetype).movementSpeed);
       this.moving = false; this.backpedaling = false;
     }
     else if (this.movementFrames) this.consumeMovement(dt, false);

@@ -1,5 +1,5 @@
 import type { AdventureSnapshot, CombatAction, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
-import { classAction } from "../game/class-kit.js";
+import { classAction, classKit } from "../game/class-kit.js";
 import type { CombatPreview } from "./ground-telegraphs.js";
 import { enemyResponse } from "./enemy-response.js";
 import { publicUrl } from "./public-url.js";
@@ -222,6 +222,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       const choosing = combat.phase === "choosing";
       write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Enemies choose · momentarily" : combat.phase === "preparation" ? "Planning · " + Math.ceil(combat.remainingSeconds) + "s" : "Playing sequence");
       write(resources, combat.queued.length + "/3 · " + combat.availableStamina + " stamina");
+      write(help, `Movement ${classKit(snapshot.player.archetype).movementTiles} · ${classKit(snapshot.player.archetype).movementTiles} tiles per move · inspect moves · R to start`);
       staminaHint.hidden = combat.availableStamina > 0 || combat.queued.length >= 3;
       clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / (combat.elapsedSeconds + combat.remainingSeconds)) + "%";
       clear.disabled = combat.phase !== "preparation" || !combat.queued.some(entry => entry.status === "pending");
