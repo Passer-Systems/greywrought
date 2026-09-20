@@ -52,7 +52,8 @@ test('movement reaches the larger world bounds and expanded positions survive sa
 
 test('old spatial saves move points once while preserving combat directions and progress', () => {
   const base = createSharedAdventure(); base.join('traveler', 'Traveler', 'warrior');
-  const seed = JSON.parse(base.save()); delete seed.spatialLayout;
+  const seed = JSON.parse(base.save()); delete seed.spatialLayout; delete seed.terrainLayout;
+  seed.world.threats = seed.world.threats.filter((threat: { id: string }) => !threat.id.startsWith('cave-'));
   Object.assign(seed.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 12 }, health: 73, cargo: 3, supplies: 19 });
   for (const t of seed.world.threats) {
     t.position.z -= 20; t.targetPosition.z -= 20;
