@@ -63,11 +63,21 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     light.userData.nightIntensity = 19;
     light.position.set(x,terrainHeight(x,z)+height-0.2,z); terrain.add(light);
   }
-  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
+  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 256;
   const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#54664d"; ctx.fillRect(0,0,128,128);
-  for (let i=0;i<1500;i++) { const a=Math.sin(i*127.1)*43758.5453; const b=Math.sin(i*269.5)*19234.324; ctx.fillStyle=i%2?"#627453":"#485d46"; ctx.fillRect((a-Math.floor(a))*128,(b-Math.floor(b))*128,2,2); }
-  const map = new CanvasTexture(canvas); map.colorSpace=SRGBColorSpace; map.wrapS=map.wrapT=RepeatWrapping; map.repeat.set(48,64);
+  ctx.fillStyle = "#5d754d"; ctx.fillRect(0,0,256,256);
+  // Layered, irregular patches break up the repeated green tile at a glance.
+  // Their low contrast keeps authored props and combat telegraphs legible.
+  for (let i=0;i<260;i++) {
+    const a=Math.sin(i*127.1)*43758.5453, b=Math.sin(i*269.5)*19234.324;
+    const x=(a-Math.floor(a))*256, y=(b-Math.floor(b))*256;
+    const radius=3+(i%17)*1.8;
+    ctx.fillStyle=i%5===0?'#756649':i%3===0?'#486343':i%2?'#688157':'#80905a';
+    ctx.globalAlpha=.22+(i%4)*.08; ctx.beginPath(); ctx.ellipse(x,y,radius*(1.4+(i%3)*.3),radius,Math.sin(i)*1.7,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+  for (let i=0;i<2600;i++) { const a=Math.sin(i*127.1)*43758.5453; const b=Math.sin(i*269.5)*19234.324; ctx.fillStyle=i%3?"#6f8255":i%2?"#4b6545":"#907b59"; ctx.fillRect((a-Math.floor(a))*256,(b-Math.floor(b))*256,1+(i%3),1+(i%2)); }
+  const map = new CanvasTexture(canvas); map.colorSpace=SRGBColorSpace; map.wrapS=map.wrapT=RepeatWrapping; map.repeat.set(30,40);
   // Vertex tint keeps broad hills readable: low grass stays green, exposed
   // steeper slopes shift toward warm soil and occasional grey rock.
   const grassTint = new Color('#647d51'), soilTint = new Color('#857257'), rockTint = new Color('#77766a'), summitTint = new Color('#9b9270');
@@ -228,12 +238,26 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       const px=x+Math.cos(angle)*radius,pz=z+Math.sin(angle)*radius;
       if(!clearOfPatrols(px,pz,7))continue;
       const name=(seed+tree)%4===0?'nature/Pine_5':(seed+tree)%4===1?'nature/TwistedTree_2':'nature/CommonTree_2';
-      place(name,px,pz,5.3+noise(seed*23+tree)*3.8,angle);
+      const age = noise(seed * 31 + tree * 7);
+      // Most trees stay readable around the player, with occasional saplings
+      // and canopy anchors giving the woods a much wider natural age range.
+      const height = age < .18 ? 2.7 + age * 2 : age > .86 ? 11.5 + age * 5.5 : 5.2 + age * 5.2;
+      place(name,px,pz,height,angle);
       for(let plant=0;plant<3;plant++) {
         const a=angle+plant*2.1;
         place(plant===0?'nature/Bush_Common':'nature/Fern_1',px+Math.cos(a)*1.5,pz+Math.sin(a)*1.5,plant===0?.85:.55,a);
       }
     }
+  }
+  // A few tall canopy landmarks sit beyond combat clearings and frame the
+  // horizon without making the playable lanes feel walled in.
+  for (const [x, z, size, rotation] of [[-42, 27, 15.5, .5], [-39, 72, 18, 2.1], [36, 28, 14.5, -1.2], [35, 77, 19, .8]] as const) {
+    if (clearOfPatrols(x, z, 8)) place('nature/Pine_5', x, z, size, rotation);
+  }
+  // Young saplings soften the transition from the open meadow to the mature
+  // forest while leaving the center of the field clear.
+  for (const [x, z, rotation] of [[-52, 21, .3], [-44, 58, 1.9], [42, 44, -.6], [15, 79, 2.7], [4, 72, .9]] as const) {
+    place('nature/CommonTree_2', x, z, 2.8 + noise(x * 3 + z) * 1.5, rotation);
   }
   // Low islands of flowers leave the bee's full patrol and fighting room visible.
   for(const [x,z] of [[9,17],[14,15],[22,18],[25,25],[23,32],[16,34],[8,31]]) {
@@ -345,7 +369,14 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     const mesh = new Mesh(new PlaneGeometry(width, length, Math.ceil(width), Math.ceil(length)), new MeshStandardMaterial({ color: 0x827952, roughness: 1 }));
     mesh.rotation.set(-Math.PI / 2, 0, rotation); mesh.position.set(x, 0.008, z); terrain.add(mesh); conformToTerrain(mesh, .008); mesh.geometry.computeVertexNormals();
   }
-  path(0, -75, 3.4, 102);
+  // The southern trail bends east around the lake instead of drawing a road
+  // straight through the water, with an irregular worn edge at each leg.
+  path(0, -58, 3.4, 66);
+  path(8, -94, 3.4, 18, .18);
+  path(13, -113, 3.4, 24, -.08);
+  for (const [x, z, scale, rotation] of [[-3.1,-42,.24,.2],[3.2,-52,.3,1.1],[-3.4,-67,.22,2.4],[3.1,-78,.28,-.4],[4.7,-87,.24,1.7],[11,-105,.3,.6],[14.8,-119,.25,2.1]] as const) {
+    place('nature/Grass_Common_Short', x, z, scale, rotation);
+  }
   path(14, -46, 28, 3.4);
   const lakeWater = new Mesh(new CircleGeometry(1, 64), new MeshStandardMaterial({ color: 0x2c9bb0, emissive: 0x073a46, emissiveIntensity: 0.35, transparent: true, opacity: 0.78, roughness: 0.18, metalness: 0.05, depthWrite: false }));
   const lakeVertices = lakeWater.geometry.getAttribute('position');
