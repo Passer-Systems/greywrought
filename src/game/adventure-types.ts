@@ -29,7 +29,7 @@ export interface TradeView {
   readonly kind: "supplies" | "potions"; readonly quantity: number; readonly receivedQuantity: number;
   readonly available: number; readonly canAccept: boolean; readonly reason: string; readonly step: number;
 }
-export type CombatAction = "bait" | "shove" | "finish" | "strike" | "brace" | "disengage" | "bloodRage" | "jab" | "guard" | "drinkPotion";
+export type CombatAction = "bait" | "strike" | "brace";
 export type CombatMove = { readonly action: CombatAction } | { readonly action: "equip"; readonly gear: { readonly slot: GearSlot; readonly item: GearItemId | null } };
 export interface QueuedCombatAction {
   readonly id: number; readonly action: CombatAction; readonly targetId: string | null;
@@ -39,7 +39,7 @@ export interface QueuedCombatAction {
 }
 export interface CombatForecast {
   readonly playerId: string;
-  readonly paths: readonly { readonly actorId: string; readonly kind: "move" | "attack" | "shove"; readonly action: string; readonly beat: number; readonly queueId: number | null; readonly points: readonly Position[]; readonly radius: number }[];
+  readonly paths: readonly { readonly actorId: string; readonly kind: "move" | "attack"; readonly action: string; readonly beat: number; readonly queueId: number | null; readonly points: readonly Position[]; readonly radius: number }[];
   readonly events: readonly { readonly time: number; readonly kind: "hit" | "collision" | "interruption" | "ignition" | "defeat"; readonly sourceId: string; readonly targetId: string | null; readonly position: Position; readonly damage: number; readonly text: string; readonly radius: number; readonly queueId: number | null }[];
   readonly outcomes: readonly { readonly id: string; readonly health: number; readonly staggered: boolean }[];
 }
@@ -112,7 +112,7 @@ export interface ThreatView {
   readonly rootedSeconds: number;
   readonly canStrike: boolean;
   readonly canDisengage: boolean;
-  readonly inRangeActions: readonly CombatAction[];
+  readonly inRangeActions: readonly string[];
   readonly cast: { readonly ability: ThreatAbilityView; readonly remainingSeconds: number; readonly duration: number; readonly status: "casting" | "resolving" } | null;
   readonly windowAction: { readonly ability: ThreatAbilityView; readonly offsetSeconds: number; readonly status: "pending" | "active" | "resolved" | "cancelled" } | null;
   readonly forecast: readonly ThreatForecastEntry[];

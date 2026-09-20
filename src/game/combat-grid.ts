@@ -31,3 +31,20 @@ export function snapCombatPosition(position: Position, from: Position = position
   // With no reachable empty cell the move stays at its origin.
   return best ?? { ...from };
 }
+
+/** Every legal destination for one Move action from an origin cell. */
+export function reachableCombatCells(origin: Position, movementTiles: number, occupied: readonly Position[] = []): Position[] {
+  const cells: Position[] = [];
+  const maxDistance = movementTiles * COMBAT_CELL_SIZE;
+  const centerX = combatCell(origin.x), centerZ = combatCell(origin.z);
+  for (let dx = -movementTiles; dx <= movementTiles; dx++) for (let dz = -movementTiles; dz <= movementTiles; dz++) {
+    if (dx === 0 && dz === 0 || Math.hypot(dx, dz) > movementTiles + 1e-8) continue;
+    const x = centerX + dx * COMBAT_CELL_SIZE, z = centerZ + dz * COMBAT_CELL_SIZE;
+    const candidate = { x, y: terrainHeight(x, z), z };
+    if (x < WORLD_BOUNDS.minX || x > WORLD_BOUNDS.maxX || z < WORLD_BOUNDS.minZ || z > WORLD_BOUNDS.maxZ || blockedPosition(x, z)
+      || Math.hypot(x - origin.x, z - origin.z) > maxDistance + 1e-8 || !clearCombatSegment(origin, candidate)
+      || occupied.some(p => Math.hypot(p.x - x, p.z - z) < COMBAT_CELL_SIZE * .8)) continue;
+    cells.push(candidate);
+  }
+  return cells;
+}

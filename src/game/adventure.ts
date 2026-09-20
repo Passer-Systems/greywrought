@@ -510,8 +510,8 @@ class Adventure implements AdventureGame {
           nextAttackSeconds: t.wolf?.nextAttackSeconds ?? t.remainingSeconds,
           attackOrigin: t.wolf && t.phase === "action" && t.abilityIndex === 1 ? { ...t.wolf.attackOrigin } : point(t.position.x, t.position.z),
           block: t.head?.block ?? t.shield, blockSeconds: t.head?.blockSeconds ?? t.shieldSeconds, volley: t.head?.volley ?? 0, fireballs: t.head?.fireballs.map(p => ({ ...p, origin: { ...p.origin } })) ?? [],
-          rootedSeconds: this.rootedSeconds(t), canStrike: this.canUseAttack(t, "strike"), canDisengage: this.canUseAttack(t, "disengage"), cast: this.castView(t),
-          inRangeActions: (["strike", "disengage", "jab", "shove", "finish"] as const).filter(action => this.attackInRange(t, action)),
+          rootedSeconds: this.rootedSeconds(t), canStrike: this.canUseAttack(t, "strike"), canDisengage: false, cast: this.castView(t),
+          inRangeActions: (t.active && this.attackInRange(t, "strike") ? ["strike"] : []),
           selected: t.id === s.selectedThreat, phaseDuration: this.phaseDuration(t), windowAction: (t.aggro || t.cancelledWindow && s.combat.clock.phase === "active") && t.windowCycle === s.combat.clock.cycle && t.joinCycle <= s.combat.clock.cycle ? { ability: this.ability(t), offsetSeconds: t.specialOffset, status: t.cancelledWindow ? "cancelled" : t.phase === "recovery" || t.phase === "approach" ? "resolved" : t.phase === "action" ? "active" : "pending" } : null, forecast: t.aggro && t.windowCycle === s.combat.clock.cycle ? [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialOffset - s.combat.clock.elapsedSeconds), status: t.phase === "recovery" || t.phase === "approach" ? "active" : "pending" }] : [],
           preparation: d.preparation,
           currentActivity: this.currentActivity(t), currentAbility: this.ability(t),
@@ -773,138 +773,17 @@ class Adventure implements AdventureGame {
     if (clock.elapsedSeconds >= COMBAT_RULES.window.active - EPSILON && !pending) this.beginPlanning();
   }
   private reservedStamina(): number { return this.state.combat.queued.filter(e => e.status === "pending").reduce((n, e) => n + e.cost, 0); }
-  private queueReason(action: CombatAction, excludedId?: number): string | null {
-    const s = this.state, pending = s.combat.queued.filter(e => e.id !== excludedId && e.status === "pending");
-    if (!this.actionUnlocked(action)) return "Combat uses Attack, Defend, and Move.";
-    if (s.stamina - pending.reduce((n,e) => n + e.cost, 0) < this.actionCost(action)) return "Not enough stamina.";
-    if (action === "drinkPotion" && s.potions <= pending.filter(e => e.action === "drinkPotion").length) return "No health potions left to plan.";
-    if (action === "bloodRage" && (!this.inCombat() || s.bloodRage + pending.filter(e => e.action === action).length >= 3)) return "That power needs a fight and cannot exceed three stacks.";
-    if (action === "shove" || action === "finish") {
-      const target = s.world.threats.find(t => t.id === s.selectedThreat);
-      if (!target || !target.active || target.health <= 0 || target.phase === "returning" || (this.inPrivateInstance() && !target.aggro)) return "Choose a living enemy.";
-      if (!this.inCombat() && !this.attackInRange(target, action)) return "Move within reach to start the fight.";
-    }
-    if (action === "strike" || action === "disengage" || action === "jab") {
-      const target = s.world.threats.find(t => t.id === s.selectedThreat);
-      if (!target || !this.attackInRange(target, action)) return "The target is out of reach, behind cover, or no longer available.";
-    }
-    return null;
-  }
-  queueBait(destination: Position): boolean {
-    const c = this.state.combat;
-    if (!this.editableQueue() || !this.inCombat() || c.clock.phase !== "preparation" || this.queueReason("bait") || c.queued.length >= 3) return false;
-    if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z)) { this.report("Choose a reachable grid tile.", "combat"); return false; }
-    const range = classAction(this.state.archetype, "bait").range!;
-    const normalized = snapCombatPosition(destination, this.state.position, range, this.occupiedCells(this.state.position));
-    if (normalized.x === this.state.position.x && normalized.z === this.state.position.z && Math.hypot(destination.x - this.state.position.x, destination.z - this.state.position.z) > 0.01) { this.report("That grid tile is blocked or too far away.", "combat"); return false; }
-    const offset = [0,1,2].find(slot => !c.queued.some(e => e.offsetSeconds === slot))!;
-    c.queued.push({ id: c.nextId++, action: "bait", destination: normalized, targetId: null, offsetSeconds: offset, cost: 1, status: "pending", reason: null });
-    c.ready = false; return true;
-  }
-  private queueAction(action: CombatAction): void {
-    if (action === "bait") { this.report("Choose ground for Bait.", "combat"); return; }
-    const c = this.state.combat;
-    if (this.instancePaused() || this.state.phase === "lost" || c.clock.phase === "active") return;
-    if (!this.inCombat() && action !== "strike" && action !== "disengage" && action !== "jab" && action !== "shove" && action !== "finish") { this.useAbility(action); return; }
-    const reason = this.queueReason(action);
-    if (reason) { this.report(reason, "combat"); return; }
-    if (c.queued.length >= COMBAT_RULES.window.maximumActions) { this.report("All three slots are filled.", "combat"); return; }
-    const target = ["strike", "disengage", "jab", "shove", "finish"].includes(action) ? this.state.world.threats.find(t => t.id === this.state.selectedThreat)! : null;
-    if (target) {
-      this.state.sitting = false; this.activeEmote = null;
-      if (target.aggro && !this.inCombat()) this.settleCombatCell();
-      if (!target.aggro) this.engage(target);
-      if (!target.combatants.includes(this.playerId ?? "solo")) target.combatants.push(this.playerId ?? "solo");
-      if (c.clock.phase === "idle") this.beginPlanning();
-    }
-    const offset = [0,1,2].find(slot => !c.queued.some(e => e.offsetSeconds === slot))!;
-    c.queued.push({ id: c.nextId++, action, destination: null, targetId: target?.id ?? null, offsetSeconds: offset, cost: this.actionCost(action), status: "pending", reason: null });
-    c.ready = false;
-  }
-  private editableQueue(): boolean { return !this.instancePaused() && !this.executionLocked(); }
-  setQueuedDelay(id: number, seconds: number): void {
-    const entry = this.state.combat.queued.find(e => e.id === id);
-    if (entry && Number.isFinite(seconds)) this.moveQueuedAction(id, entry.offsetSeconds + seconds);
-  }
-  moveQueuedAction(id: number, offsetSeconds: number): void {
-    if (!this.editableQueue() || !Number.isInteger(offsetSeconds) || offsetSeconds < 0 || offsetSeconds > 2) return;
-    const entry = this.state.combat.queued.find(e => e.id === id && e.status === "pending");
-    if (!entry) return;
-    const other = this.state.combat.queued.find(e => e.id !== id && e.offsetSeconds === offsetSeconds);
-    if (other) other.offsetSeconds = entry.offsetSeconds;
-    entry.offsetSeconds = offsetSeconds; this.state.combat.ready = false;
-  }
-  replaceQueuedAction(id: number, action: CombatAction): boolean {
-    if (!this.editableQueue()) return false;
-    const entry = this.state.combat.queued.find(e => e.id === id && e.status === "pending");
-    if (!entry || this.queueReason(action, id) || action === "bait" && entry.destination === null) return false;
-    entry.action = action; entry.cost = this.actionCost(action);
-    if (action !== "bait") entry.destination = null;
-    entry.targetId = ["strike", "disengage", "jab", "shove", "finish"].includes(action) ? this.state.selectedThreat : null;
-    this.state.combat.ready = false; return true;
-  }
-  removeQueuedAction(id: number): void { if (this.editableQueue()) { this.state.combat.queued = this.state.combat.queued.filter(e => e.id !== id); this.state.combat.ready = false; } }
-  clearQueuedActions(): void { if (this.editableQueue()) { this.state.combat.queued = []; this.state.combat.ready = false; } }
-  private actionCost(action: CombatMove["action"]): number {
-    if (action === "equip" || action === "strike") return 0;
-    return classAction(this.state.archetype, action).cost ?? COMBAT_RULES[action].cost;
-  }
-  private useAbility(action: Exclude<CombatAction, "strike">, destination: Position | null = null): void {
-    const s = this.state, cost = this.actionCost(action);
-    const target = s.world.threats.find(t => t.id === s.selectedThreat);
-    let reason: string | null = null;
-    if (!this.actionUnlocked(action)) reason = "Combat uses Attack, Defend, and Move.";
-    else if (!this.ready()) reason = "You are still recovering.";
-    else if (s.stamina < cost) reason = "Not enough stamina.";
-    else if ((action === "disengage" || action === "jab") && (!target || !this.attackInRange(target, action))) reason = "The target is out of reach, behind cover, or no longer available.";
-    else if ((action === "shove" || action === "finish") && (!target || !this.attackInRange(target, action))) reason = "The target is out of reach, behind cover, or no longer available.";
-    else if (action === "bait" && destination === null) reason = "Choose ground for Bait.";
-    else if (action === "drinkPotion" && (s.potions < 1 || s.health >= 100)) reason = s.potions < 1 ? "No health potions. Visit Mara." : "Your health is already full. Potion kept.";
-    else if (action === "bloodRage" && (!this.inCombat() || s.bloodRage >= COMBAT_RULES.bloodRage.maximum)) reason = classKit(s.archetype).powerName + " needs a fight and cannot exceed three stacks.";
-    if (reason) { this.report(reason, "combat"); return; }
-    this.spendStamina(cost); this.recover(action, COMBAT_RULES.actionCooldown);
-    if (action === "bait") {
-      const range = classAction(s.archetype, "bait").range!;
-      const facing = this.direction(s.position, destination!), length = Math.min(range, distance(s.position, destination!));
-      const end = snapCombatPosition(point(s.position.x + facing.x * length, s.position.z + facing.z * length), s.position, range, this.occupiedCells(s.position));
-      s.maneuver = { kind: "bait", targetId: s.selectedThreat, start: { ...s.position }, destination: end, facing, remainingSeconds: COMBAT_RULES.bait.duration };
-      this.tracePath(this.playerId ?? "solo", "move", "bait", [s.position, end], 0);
-    } else if (action === "shove") {
-      const facing = this.direction(s.position, target!.position), start = { ...target!.position };
-      const end = this.reachableEndpoint(start, point(start.x + facing.x * COMBAT_RULES.shove.distance, start.z + facing.z * COMBAT_RULES.shove.distance));
-      const victim = this.firstCollision(target!, start, end);
-      target!.position = victim ? this.contactPoint(start, end, victim.position, 1.1) : end;
-      this.tracePath(this.playerId ?? "solo", "shove", "shove", [s.position, start, target!.position], 0);
-      if (victim) this.collide(target!, victim, COMBAT_RULES.shove.damage, this.playerId ?? "solo");
-      else { this.hit(target!, 6, "shove"); this.interrupt(target!, this.playerId ?? "solo"); }
-    } else if (action === "finish") {
-      this.tracePath(this.playerId ?? "solo", "attack", "finish", [s.position, target!.position], 0);
-      this.hit(target!, target!.staggered ? COMBAT_RULES.finish.staggeredDamage : COMBAT_RULES.finish.damage, "finish");
-    } else if (action === "disengage") {
-      const facing = this.direction(s.position, target!.position);
-      const destination = snapCombatPosition(point(s.position.x - facing.x * COMBAT_RULES.disengage.distance, s.position.z - facing.z * COMBAT_RULES.disengage.distance), s.position, COMBAT_RULES.disengage.distance, this.occupiedCells(s.position));
-      s.maneuver = { kind: "disengage", targetId: target!.id, start: { ...s.position }, destination, facing, remainingSeconds: COMBAT_RULES.disengage.duration };
-      this.tracePath(this.playerId ?? "solo", "move", "disengage", [s.position, destination], 0);
-      this.hit(target!, (classAction(s.archetype, action).damage ?? COMBAT_RULES.disengage.damage) + s.bloodRage * this.powerDamagePerStack(), classAction(s.archetype, action).name + " at");
-    } else if (action === "brace" || action === "guard") {
-      s.guardSeconds = COMBAT_RULES[action].duration;
-      s.block = action === "brace" ? classAction(s.archetype, action).block ?? COMBAT_RULES.brace.block : COMBAT_RULES.guard.block;
-      const healing = action === "brace" && this.inCombat() ? Math.min(classAction(s.archetype, action).heal ?? 0, 100 - s.health) : 0;
-      s.health += healing;
-      this.feedback(null, "heal", healing);
-      this.report("You gain " + s.block + " block for " + s.guardSeconds + " seconds." + (healing ? " Restored " + healing + " health." : ""), "combat");
-    } else if (action === "drinkPotion") {
-      const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--;
-      this.feedback(null, "heal", healing);
-      this.report("Your health potion restores " + healing + " health.", "combat");
-    } else if (action === "jab") {
-      this.hit(target!, (classAction(s.archetype, action).damage ?? COMBAT_RULES.jab.damage) + s.bloodRage * this.powerDamagePerStack(), classAction(s.archetype, action).name + " at");
-    } else {
-      if (s.bloodRage === 0) s.rageDrainSeconds = COMBAT_RULES.bloodRage.drainSeconds;
-      s.bloodRage++; s.rageDecaySeconds = 0;
-      this.report(classKit(s.archetype).powerName + " rises to " + s.bloodRage + ". Attacks gain " + s.bloodRage * this.powerDamagePerStack() + " damage.", "combat");
-    }
-  }
+  private queueReason(action: CombatAction, excludedId?: number): string | null { const s=this.state,p=s.combat.queued.filter(e=>e.id!==excludedId&&e.status==="pending"); if(s.stamina-p.reduce((n,e)=>n+e.cost,0)<this.actionCost(action))return "Not enough stamina."; if(action==="strike"){const t=s.world.threats.find(t=>t.id===s.selectedThreat);if(!t||!this.attackInRange(t,"strike"))return "The target is out of reach or no longer available.";} return null; }
+  queueBait(destination: Position): boolean { const c=this.state.combat;if(!this.editableQueue()||!this.inCombat()||c.clock.phase!=="preparation"||this.queueReason("bait")||c.queued.length>=3)return false;if(!destination||!Number.isFinite(destination.x)||!Number.isFinite(destination.z)){this.report("Choose a reachable grid tile.","combat");return false;}const range=classAction(this.state.archetype,"bait").range!,n=snapCombatPosition(destination,this.state.position,range,this.occupiedCells(this.state.position));if(n.x===this.state.position.x&&n.z===this.state.position.z&&Math.hypot(destination.x-this.state.position.x,destination.z-this.state.position.z)>0.01){this.report("That grid tile is blocked or too far away.","combat");return false;}const o=[0,1,2].find(x=>!c.queued.some(e=>e.offsetSeconds===x))!;c.queued.push({id:c.nextId++,action:"bait",destination:n,targetId:null,offsetSeconds:o,cost:1,status:"pending",reason:null});c.ready=false;return true;}
+  private queueAction(action: CombatAction): void { if(action==="bait"){this.report("Choose a grid tile for Move.","combat");return;}const c=this.state.combat;if(this.instancePaused()||this.state.phase==="lost"||c.clock.phase==="active")return;const r=this.queueReason(action);if(r){this.report(r,"combat");return;}if(c.queued.length>=3){this.report("All three slots are filled.","combat");return;}const t=action==="strike"?this.state.world.threats.find(t=>t.id===this.state.selectedThreat)!:null;if(t){this.state.sitting=false;this.activeEmote=null;if(!t.aggro)this.engage(t);if(!t.combatants.includes(this.playerId??"solo"))t.combatants.push(this.playerId??"solo");if(c.clock.phase==="idle")this.beginPlanning();}const o=[0,1,2].find(x=>!c.queued.some(e=>e.offsetSeconds===x))!;c.queued.push({id:c.nextId++,action,destination:null,targetId:t?.id??null,offsetSeconds:o,cost:this.actionCost(action),status:"pending",reason:null});c.ready=false;}
+  private editableQueue():boolean{return !this.instancePaused()&&!this.executionLocked();}
+  setQueuedDelay(id:number,seconds:number):void{const e=this.state.combat.queued.find(e=>e.id===id);if(e&&Number.isFinite(seconds))this.moveQueuedAction(id,e.offsetSeconds+seconds);}
+  moveQueuedAction(id:number,offsetSeconds:number):void{if(!this.editableQueue()||!Number.isInteger(offsetSeconds)||offsetSeconds<0||offsetSeconds>2)return;const e=this.state.combat.queued.find(e=>e.id===id&&e.status==="pending");if(!e)return;const o=this.state.combat.queued.find(e=>e.id!==id&&e.offsetSeconds===offsetSeconds);if(o)o.offsetSeconds=e.offsetSeconds;e.offsetSeconds=offsetSeconds;this.state.combat.ready=false;}
+  replaceQueuedAction(id:number,action:CombatAction):boolean{if(!this.editableQueue())return false;const e=this.state.combat.queued.find(e=>e.id===id&&e.status==="pending");if(!e||this.queueReason(action,id)||(action==="bait"&&e.destination===null))return false;e.action=action;e.cost=this.actionCost(action);if(action!=="bait")e.destination=null;e.targetId=action==="strike"?this.state.selectedThreat:null;this.state.combat.ready=false;return true;}
+  removeQueuedAction(id:number):void{if(this.editableQueue()){this.state.combat.queued=this.state.combat.queued.filter(e=>e.id!==id);this.state.combat.ready=false;}}
+  clearQueuedActions():void{if(this.editableQueue()){this.state.combat.queued=[];this.state.combat.ready=false;}}
+  private actionCost(action:CombatMove["action"]):number{if(action==="equip"||action==="strike")return 0;return classAction(this.state.archetype,action).cost??1;}
+  private useAbility(action:"brace"):void{const s=this.state,cost=this.actionCost(action);if(!this.ready()){this.report("You are still recovering.","combat");return;}if(s.stamina<cost){this.report("Not enough stamina.","combat");return;}this.spendStamina(cost);this.recover(action,COMBAT_RULES.actionCooldown);s.guardSeconds=COMBAT_RULES.brace.duration;s.block=classAction(s.archetype,"brace").block??COMBAT_RULES.brace.block;const h=this.inCombat()?Math.min(classAction(s.archetype,"brace").heal??0,100-s.health):0;s.health+=h;this.feedback(null,"heal",h);this.report("You gain "+s.block+" block for "+s.guardSeconds+" seconds."+(h?" Restored "+h+" health.":""),"combat");}
   private eligibleForRoll(t: ThreatState): boolean {
     return t.contributors.includes(this.playerId ?? "solo") && this.state.chapter.accepted.includes("last-shift") && !this.state.chapter.completed.includes("last-shift");
   }
@@ -1036,7 +915,10 @@ class Adventure implements AdventureGame {
           this.report("You buy a health potion for 3 supplies.");
         }
         break;
-      case "drinkPotion": this.queueAction("drinkPotion"); break;
+      case "drinkPotion":
+        if (s.phase === "town" && s.potions > 0 && s.health < 100) { const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--; this.feedback(null, "heal", healing); this.report(`Your health potion restores ${healing} health.`); }
+        else this.report(s.potions < 1 ? "No health potions. Visit Mara." : "Your health is already full.");
+        break;
       case "rest":
         if (s.phase === "town" && this.near("inn", 2.5)) {
           const healing = 100 - s.health;
@@ -1086,15 +968,14 @@ class Adventure implements AdventureGame {
   private attackPath(t: ThreatState): boolean {
     return this.clearPath(this.state.position, t.position);
   }
-  private attackInRange(t: ThreatState, action: "strike" | "disengage" | "jab" | "shove" | "finish"): boolean {
+  private attackInRange(t: ThreatState, action: "strike"): boolean {
     const s = this.state;
-    const range = action === "jab" ? COMBAT_RULES.jab.range : classAction(s.archetype, action).range ?? COMBAT_RULES[action].range;
+    const range = classAction(s.archetype, "strike").range ?? COMBAT_RULES.strike.range;
     return s.phase === "expedition" && t.active && t.health > 0 && t.phase !== "returning" && (!this.inPrivateInstance() || t.aggro) && distance(s.position, t.position) <= range + EPSILON && this.attackPath(t);
   }
-  private canUseAttack(t: ThreatState, action: "strike" | "disengage"): boolean {
-    return this.actionUnlocked(action) && this.attackInRange(t, action) && (action === "strike" || this.ready() && this.state.stamina >= this.actionCost(action));
+  private canUseAttack(t: ThreatState, action: "strike"): boolean {
+    return this.attackInRange(t, action);
   }
-  private powerDamagePerStack(): number { return classAction(this.state.archetype, "bloodRage").powerDamagePerStack ?? COMBAT_RULES.bloodRage.damagePerStack; }
   private hit(t: ThreatState, damage: number, verb: string): void {
     if (t.phase === "returning") return;
     damage += this.progression().attackBonus;
@@ -1359,7 +1240,7 @@ class Adventure implements AdventureGame {
     s.position.y = terrainHeight(s.position.x, s.position.z); s.verticalSpeed = 0; s.maneuver = null;
     if (m.kind === "lunge") {
       const t = s.world.threats.find(t => t.id === m.targetId);
-      if (t && t.active && t.health > 0 && distance(s.position, t.position) <= COMBAT_RULES.disengage.range + EPSILON && this.attackPath(t)) this.hit(t, (classAction(s.archetype, "strike").damage ?? COMBAT_RULES.strike.damage) + s.bloodRage * this.powerDamagePerStack(), "lunge at");
+      if (t && t.active && t.health > 0 && distance(s.position, t.position) <= COMBAT_RULES.strike.range + EPSILON && this.attackPath(t)) this.hit(t, classAction(s.archetype, "strike").damage ?? COMBAT_RULES.strike.damage, "Attack at");
       else { this.feedback(m.targetId, "miss", 0); this.report("Your lunge falls short.", "combat"); }
     }
   }
@@ -1502,12 +1383,16 @@ class Adventure implements AdventureGame {
         if (target && this.attackInRange(target, "strike") && s.maneuver === null) {
           this.tracePath(this.playerId ?? "solo", "attack", "strike", [s.position, target.position], 0);
           this.recover("strike", COMBAT_RULES.strike.duration);
-          this.hit(target, (classAction(s.archetype, "strike").damage ?? COMBAT_RULES.strike.damage) + s.bloodRage * this.powerDamagePerStack(), classAction(s.archetype, "strike").name + " at");
+          this.hit(target, classAction(s.archetype, "strike").damage ?? COMBAT_RULES.strike.damage, "Attack at");
         } else this.report("The target is out of reach, behind cover, or no longer available.", "combat");
         entry.status = s.attackSequence > before ? "executed" : "failed";
       } else {
         s.currentAction = null;
-        this.useAbility(entry.action, entry.destination);
+        if (entry.action === "bait") {
+          const end = entry.destination!; const facing = this.direction(s.position, end);
+          this.spendStamina(1); this.recover("bait", COMBAT_RULES.bait.duration);
+          s.maneuver = { kind: "bait", targetId: s.selectedThreat, start: { ...s.position }, destination: end, facing, remainingSeconds: COMBAT_RULES.bait.duration };
+        } else this.useAbility("brace");
         entry.status = s.currentAction === entry.action ? "executed" : "failed";
       }
       entry.reason = entry.status === "failed" ? s.report : null;
@@ -1615,24 +1500,6 @@ class Adventure implements AdventureGame {
       if (s.staminaRecoverySeconds <= EPSILON) { s.stamina++; s.staminaRecoverySeconds = s.stamina < COMBAT_RULES.stamina.maximum ? COMBAT_RULES.stamina.recoverySeconds : 0; }
     }
 
-    if (s.bloodRage === 0) { s.rageDrainSeconds = 0; s.rageDecaySeconds = 0; return; }
-    if (s.archetype !== "hunter") {
-      s.rageDrainSeconds -= dt;
-      if (s.rageDrainSeconds <= EPSILON) {
-        s.rageDrainSeconds += COMBAT_RULES.bloodRage.drainSeconds;
-        this.hurt(s.bloodRage * COMBAT_RULES.bloodRage.drainPerStack, classKit(s.archetype).powerName, true);
-        if (s.health <= 0) return;
-      }
-    }
-    if (this.inCombat()) s.rageDecaySeconds = 0;
-    else {
-      if (s.rageDecaySeconds <= EPSILON) s.rageDecaySeconds = COMBAT_RULES.bloodRage.decaySeconds;
-      s.rageDecaySeconds -= dt;
-      if (s.rageDecaySeconds <= EPSILON) {
-        s.bloodRage--; s.rageDecaySeconds = s.bloodRage > 0 ? COMBAT_RULES.bloodRage.decaySeconds : 0;
-        if (s.bloodRage === 0) s.rageDrainSeconds = 0;
-      }
-    }
   }
   private releaseThreat(t: ThreatState): void {
     if (t.id === "ritual-guardian" && this.shared?.mode === "shared") {
