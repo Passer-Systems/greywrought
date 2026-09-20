@@ -43,7 +43,8 @@ export function migrateTerrainLayout(root: Record<string, unknown>): void {
         && 'z' in child && typeof child.z === 'number') {
           const oldCaveFloor = inCave(child) && [1, 2, 3, 4, 5].includes(Number(root.terrainLayout));
           const oldWater = root.terrainLayout === 5 ? lakeWaterAtV5(child.x, child.z) : null;
-          const swimming = oldWater !== null && Math.abs(child.y - (oldWater - .8)) < .22 && lakeWaterAt(child.x, child.z) !== null;
+          const swimming = oldWater !== null && terrainV5(child.x, child.z) < oldWater - .8
+            && child.y >= oldWater - .8 - .000001 && lakeWaterAt(child.x, child.z) !== null;
           const oldFloor = oldCaveFloor ? terrainHeight(child.x, child.z)
             : root.terrainLayout === 5 && swimming ? oldWater! - .8
             : root.terrainLayout === 5 ? terrainV5(child.x, child.z)

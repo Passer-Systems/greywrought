@@ -17,6 +17,9 @@ test('lake expansion preserves v5 hillside height and swimming support separatel
   const turtle = { terrainLayout: 5, position: { x: -28, y: oldTerrain(-28, -101), z: -101 } };
   migrateTerrainLayout(turtle);
   expect(turtle.position.y).toBeCloseTo(terrainHeight(-28, -101), 7);
+  const shallowTurtle = { terrainLayout: 5, position: { x: -.6615055790801115, y: oldTerrain(-.6615055790801115, -97.50387081568988), z: -97.50387081568988 } };
+  migrateTerrainLayout(shallowTurtle);
+  expect(shallowTurtle.position.y).toBe(terrainHeight(shallowTurtle.position.x, shallowTurtle.position.z));
 });
 
 const ground = (x: number, z = -46): Position => ({ x, y: terrainHeight(x, z), z });
