@@ -36,6 +36,7 @@ try {
   check(await page.evaluate('document.getElementById("target-frame").dataset.health==="70"&&document.querySelector("#target-frame .unit-frame-name").textContent==="Mira"'),'Friendly name and current health appear');
   check(await page.evaluate('document.querySelector("#target-frame .unit-frame-image").src.endsWith("mage.webp")'),'Friendly frame uses class portrait');
   check(await page.evaluate('!document.getElementById("combat-stamina")'),'Separate centered stamina bar is absent');
+  check(await page.evaluate('document.querySelector("#player-frame .unit-frame-level").textContent===String(window.selectionState.snapshot.progression.level)&&!document.querySelector("#player-frame .unit-frame-level").hidden'),'Player medallion shows actual level');
   check(await page.evaluate(`['player-frame','target-frame'].every(id=>{const root=document.getElementById(id),portrait=root.querySelector('.unit-frame-portrait'),health=root.querySelector('.unit-frame-health'),stamina=root.querySelector('.unit-frame-stamina');return getComputedStyle(portrait).borderRadius==='50%'&&health.clientHeight>=20&&!stamina.hidden&&stamina.clientHeight<health.clientHeight;})`),'Player and allied frames have circular portraits, larger health and thinner stamina');
   check(await page.evaluate('document.querySelector("#player-frame .unit-frame-stamina").getAttribute("aria-valuenow")===String(window.selectionState.snapshot.player.stamina)&&document.querySelector("#target-frame .unit-frame-stamina").getAttribute("aria-valuenow")===String(window.selectionState.players.find(p=>p.id==="selection-companion").player.stamina)'),'Both frames show current stamina');
   check(await page.evaluate('document.querySelector(\'.adventure-actions [data-action="strike"]\').disabled'),'Attack is disabled for friendly targets');
@@ -49,6 +50,8 @@ try {
   await page.press('Tab');
   await page.waitFor('document.getElementById("target-frame").dataset.kind==="enemy"&&JSON.parse(document.body.dataset.selectedUnit).kind==="enemy"');
   check(await page.evaluate('document.querySelector("#target-frame .unit-frame-stamina").hidden'),'Enemies without stamina have no invented energy');
+  check(await page.evaluate('document.querySelector("#target-frame .unit-frame-level").textContent===String(window.selectionState.snapshot.threats.find(t=>t.id===document.getElementById("target-frame").dataset.targetId).level)'),'Mirrored enemy medallion shows actual level');
+  await page.shot('classic-enemy-frame');
   await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){const root=this.children.find(o=>o.userData.playerId==='selection-companion');if(root){const p=root.position.clone().add(new Vector3(0,1.1,0)).project(camera),r=document.getElementById('world-canvas').getBoundingClientRect();window.companionPoint={x:r.left+(p.x+1)*r.width/2,y:r.top+(1-p.y)*r.height/2};}};})()`);
   await page.waitFor('window.companionPoint');
   const center=await page.evaluate<{x:number;y:number}>('window.companionPoint');

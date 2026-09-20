@@ -6,7 +6,7 @@ import { createEnemyCastBar } from "./enemy-nameplates.js";
 import { createUnitPortraits } from "./unit-portraits.js";
 
 interface Frame {
-  root: HTMLElement; portrait: HTMLImageElement; name: HTMLElement;
+  root: HTMLElement; portrait: HTMLImageElement; name: HTMLElement; level: HTMLElement;
   fill: HTMLElement; value: HTMLElement; stamina: HTMLElement; staminaFill: HTMLElement;
 }
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, host: HTMLElement): HTMLElementTagNameMap[K] {
@@ -17,6 +17,7 @@ function makeFrame(host: HTMLElement, id: string, kind: string): Frame {
   const root = node("section", `unit-frame unit-frame-${kind}`, host); root.id = id;
   const portraitMount = node("span", "unit-frame-portrait", root);
   const portrait = node("img", "unit-frame-image", portraitMount); portrait.alt = "";
+  const level = node("span", "unit-frame-level", root); level.hidden = true;
   const bars = node("div", "unit-frame-bars", root);
   const name = node("strong", "unit-frame-name", bars);
   const health = node("div", "unit-frame-health", bars);
@@ -24,9 +25,11 @@ function makeFrame(host: HTMLElement, id: string, kind: string): Frame {
   const stamina = node("div", "unit-frame-stamina", bars); stamina.hidden = true;
   stamina.setAttribute("role", "meter"); stamina.setAttribute("aria-label", "Stamina");
   const staminaFill = node("span", "unit-frame-stamina-fill", stamina);
-  return { root, portrait, name, fill, value, stamina, staminaFill };
+  return { root, portrait, name, level, fill, value, stamina, staminaFill };
 }
-function health(frame: Frame, name: string, current: number, maximum: number, targetId: string): void {
+function health(frame: Frame, name: string, current: number, maximum: number, targetId: string, level?: number): void {
+  frame.level.hidden = level === undefined;
+  if (level !== undefined) { write(frame.level, String(level)); frame.level.setAttribute("aria-label", "Level " + level); }
   write(frame.name, name);
   write(frame.value, current <= 0 ? "Dead" : `${Math.ceil(current)} / ${maximum}`);
   frame.fill.style.width = `${Math.max(0, Math.min(100, current / maximum * 100))}%`;
@@ -44,7 +47,7 @@ function stamina(frame: Frame, player?: AdventureSnapshot["player"]): void {
 }
 const styles = `
 .unit-frames { position:absolute; inset:0; pointer-events:none; color:#f4e5ba; font:var(--ui-font-small)/1.2 system-ui,sans-serif; filter:drop-shadow(0 2px 2px #000b); }
-.unit-frame { position:relative; display:flex; align-items:center; height:76px; min-width:0; }
+.unit-frame { position:relative; display:flex; align-items:center; height:92px; min-width:0; }
 .unit-frame-player,.unit-frame-target-group { position:absolute; width:var(--unit-frame-width); }
 .unit-frame-combat-status { position:absolute; top:calc(100% - 5px); right:3px; color:#c3c8bc; font:var(--ui-font-small)/1.2 system-ui,sans-serif; text-shadow:0 1px 2px #000,1px 0 2px #000; }
 .unit-frame-player[data-in-combat=true] .unit-frame-combat-status { color:#ffc18f; }
@@ -57,32 +60,38 @@ const styles = `
 .unit-frame-settings label { display:flex; align-items:center; gap:8px; }
 .unit-frame-settings small { line-height:1.4; }
 #pause-panel > div { max-height:calc(100dvh - 24px); overflow-y:auto; }
-.unit-frame-portrait { z-index:1; box-sizing:border-box; flex:0 0 64px; width:64px; height:64px; border:3px solid #bca263; border-radius:50%; background:#203035; box-shadow:inset 0 0 0 2px #211d18,0 0 0 1px #252721,0 2px 4px #000b; overflow:hidden; }
+.unit-frame-portrait { position:relative; z-index:2; box-sizing:border-box; flex:0 0 82px; width:82px; height:82px; border:4px solid #9b8245; border-radius:50%; background:#111711; box-shadow:inset 0 0 0 2px #15160f,0 0 0 1px #28251b,0 1px 2px #000; overflow:hidden; }
 .unit-frame-image { display:block; width:100%; height:100%; object-fit:cover; }
 .unit-frame-player .unit-frame-image,.unit-frame-tot .unit-frame-image { object-position:50% 18%; }
-.unit-frame-bars { flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; margin-left:-7px; padding:3px 4px 4px 9px; border:2px solid #888579; border-left:0; border-radius:0 4px 4px 0; background:linear-gradient(#393b36,#141b1c); box-shadow:0 0 0 1px #1a1815,inset 0 0 0 1px #b9ae7040; }
-.unit-frame-name { display:block; height:17px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; text-align:center; font:600 var(--ui-font-body)/16px Georgia,serif; color:#f4dda4; text-shadow:0 1px 2px #000; }
-.unit-frame-health { position:relative; height:22px; margin-top:1px; background:#14201a; border:1px solid #121612; box-shadow:0 0 0 1px #90855a; overflow:hidden; }
-.unit-frame-fill { display:block; height:100%; background:linear-gradient(#72c650,#3d912b 50%,#256d27); }
-.unit-frame-value { position:absolute; inset:0; display:grid; place-items:center; color:#fff; text-shadow:0 1px 2px #000,1px 0 2px #000; font:600 var(--ui-font-tiny)/1 system-ui,sans-serif; }
-.unit-frame-stamina { height:7px; margin-top:3px; background:#211d13; border:1px solid #121612; box-shadow:0 0 0 1px #90855a; overflow:hidden; }
-.unit-frame-stamina-fill { display:block; height:100%; background:linear-gradient(#ecd776,#b79a3b); transition:width .1s linear; }
+.unit-frame-level { position:absolute; z-index:3; left:-4px; bottom:0; box-sizing:border-box; display:grid; place-items:center; width:34px; height:34px; border:2px solid #a08a54; border-radius:50%; background:#141812; box-shadow:0 0 0 1px #292419,inset 0 0 0 1px #37372a; color:#f5e6b8; font:500 20px/1 Georgia,serif; text-shadow:0 1px 2px #000; }
+.unit-frame-level[hidden] { display:none; }
+.unit-frame-bars { position:relative; z-index:1; flex:1; min-width:0; display:flex; flex-direction:column; margin-left:-14px; padding:0; transform:translateY(4px); }
+.unit-frame-name { display:block; height:19px; padding-left:16px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; text-align:left; font:600 var(--ui-font-body)/18px Georgia,serif; color:#e7dd9d; text-shadow:0 1px 2px #000,1px 0 2px #000; }
+.unit-frame-health { position:relative; height:26px; background:#182314; border:2px solid #595b42; border-radius:0 4px 0 0; box-shadow:0 0 0 1px #10150f,inset 0 0 0 1px #131c0e; overflow:hidden; }
+.unit-frame-fill { display:block; height:100%; background:linear-gradient(#87ff26 0%,#64ed0d 20%,#56d807 85%,#43ae05); }
+.unit-frame-value { position:absolute; inset:0 0 0 12px; display:grid; place-items:center; color:#fff; text-shadow:0 1px 2px #000,1px 0 2px #000; font:600 var(--ui-font-tiny)/1 system-ui,sans-serif; }
+.unit-frame-stamina { height:10px; margin-top:0; background:#101b2c; border:2px solid #595b42; border-top:0; border-radius:0 0 4px 0; box-shadow:0 1px 0 1px #10150f; overflow:hidden; }
+.unit-frame-stamina-fill { display:block; height:100%; background:linear-gradient(#287fe6,#1560c8 55%,#1053ac); transition:width .1s linear; }
 .unit-frame-stamina[hidden] { display:none; }
 .unit-frame-target { flex-direction:row-reverse; }
-.unit-frame-target .unit-frame-bars { margin-left:0; margin-right:-7px; padding:3px 9px 4px 4px; border-left:2px solid #888579; border-right:0; border-radius:4px 0 0 4px; }
-.unit-frame-target[data-hostile=true] .unit-frame-fill { background:linear-gradient(#da5353,#ac3338 50%,#80202b); }
-.unit-frame-target[data-hostile=false] .unit-frame-fill { background:linear-gradient(#e0ce51,#b19a2a 50%,#8e791d); }
-.unit-frame-target[data-kind=player] .unit-frame-fill { background:linear-gradient(#72c650,#3d912b 50%,#256d27); }
+.unit-frame-target .unit-frame-bars { margin-left:0; margin-right:-14px; }
+.unit-frame-target .unit-frame-level { left:auto; right:-4px; }
+.unit-frame-target .unit-frame-name { padding-left:0; padding-right:16px; text-align:right; }
+.unit-frame-target .unit-frame-health { border-radius:4px 0 0 0; }
+.unit-frame-target .unit-frame-stamina { border-radius:0 0 0 4px; }
+.unit-frame-target .unit-frame-value { inset:0 12px 0 0; }
+.unit-frame-target[data-hostile=true] .unit-frame-name { color:#ffbc8c; }
 .unit-frame-target[data-kind=player] .unit-frame-image { object-position:50% 18%; }
-.unit-frame-tot { margin-top:24px; margin-left:auto; width:150px; height:39px; }
-.unit-frame-tot .unit-frame-portrait { flex-basis:37px; width:37px; height:37px; border-width:2px; }
-.unit-frame-tot .unit-frame-bars { padding:2px 3px 2px 9px; border-width:1px; }
-.unit-frame-tot .unit-frame-name { font-size:var(--ui-font-tiny); line-height:12px; height:12px; }
-.unit-frame-tot .unit-frame-health { height:14px; }
-.unit-frame-tot .unit-frame-stamina { height:4px; margin-top:2px; }
+.unit-frame-tot { margin-top:24px; margin-left:auto; width:150px; height:47px; }
+.unit-frame-tot .unit-frame-portrait { flex-basis:43px; width:43px; height:43px; border-width:2px; }
+.unit-frame-tot .unit-frame-bars { margin-left:-8px; transform:none; }
+.unit-frame-tot .unit-frame-name { padding-left:10px; font-size:var(--ui-font-tiny); line-height:12px; height:12px; }
+.unit-frame-tot .unit-frame-health { height:14px; border-width:1px; }
+.unit-frame-tot .unit-frame-stamina { height:5px; border-width:1px; border-top:0; }
+.unit-frame-tot .unit-frame-level { width:20px; height:20px; font-size:12px; left:-2px; }
 .unit-frame-tot .unit-frame-value { font-size:var(--ui-font-tiny); line-height:12px; }
 .unit-frame[hidden],.unit-frame-target-group[hidden] { display:none; }
-@media(max-width:700px) { .unit-frame-portrait { flex-basis:46px; width:46px; height:46px; } .unit-frame { height:64px; } .unit-frame-name { font-size:var(--ui-font-tiny); } .unit-frame-health { height:20px; } .unit-frame-tot { width:130px; height:45px; } }
+@media(max-width:700px) { .unit-frame-portrait { flex-basis:58px; width:58px; height:58px; border-width:3px; } .unit-frame { height:70px; } .unit-frame-level { width:26px; height:26px; font-size:16px; } .unit-frame-name { font-size:var(--ui-font-tiny); } .unit-frame-health { height:20px; } .unit-frame-stamina { height:7px; } .unit-frame-tot { width:130px; height:47px; } }
 `;
 
 type FramePosition = { x: number; y: number };
@@ -139,9 +148,9 @@ export function createUnitFrames(host: HTMLElement) {
   function dimensions() {
     const width = window.innerWidth, height = window.innerHeight;
     const small = width <= 700;
-    const slotWidth = small ? Math.min(250, (width - 20 - Math.max(70, width * 0.2)) / 2) : Math.min(250, (width - 188) / 2);
-    const frameHeight = small ? 64 : 76;
-    return { width, height, slotWidth, frameWidth: Math.max(1, slotWidth), frameHeight, groupHeight: frameHeight + (small ? 61 : 63) };
+    const slotWidth = small ? Math.min(280, (width - 20 - Math.max(70, width * 0.2)) / 2) : Math.min(280, (width - 188) / 2);
+    const frameHeight = small ? 70 : 92;
+    return { width, height, slotWidth, frameWidth: Math.max(1, slotWidth), frameHeight, groupHeight: frameHeight + 71 };
   }
   function fit(position: FramePosition): FramePosition {
     const { width, height, frameWidth, groupHeight } = dimensions();
@@ -198,7 +207,7 @@ export function createUnitFrames(host: HTMLElement) {
     if (selectedId) return;
     targetOfTarget.root.hidden = true;
     targetCast.root.hidden = true;
-    stamina(target);
+    stamina(target); target.level.hidden = true;
     write(target.name, "Target frame");
     write(target.value, "Hold to move");
     target.fill.style.width = "100%";
@@ -281,7 +290,7 @@ export function createUnitFrames(host: HTMLElement) {
         archetype = character.archetype;
         player.portrait.src = targetOfTarget.portrait.src = publicUrl(`assets/ui/characters/${archetype}.webp`);
       }
-      health(player, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id);
+      health(player, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id, snapshot.progression.level);
       stamina(player, snapshot.player);
       player.root.dataset.inCombat = String(snapshot.player.inCombat);
       write(combatStatus, snapshot.player.inCombat ? "In combat" : "Out of combat");
@@ -291,7 +300,7 @@ export function createUnitFrames(host: HTMLElement) {
         Object.assign(target.root.dataset, { hostile: "false", aggro: "false", disposition: "friendly", archetype: friendly.player.archetype });
         const image = publicUrl("assets/ui/characters/" + friendly.player.archetype + ".webp");
         if (target.portrait.getAttribute("src") !== image) target.portrait.src = image;
-        health(target, friendly.name, friendly.player.health, friendly.player.maximumHealth, friendly.id);
+        health(target, friendly.name, friendly.player.health, friendly.player.maximumHealth, friendly.id, friendly.id === character.id ? snapshot.progression.level : undefined);
         stamina(target, friendly.player);
         targetCast.root.hidden = true; targetOfTarget.root.hidden = true;
         return;
@@ -307,7 +316,7 @@ export function createUnitFrames(host: HTMLElement) {
         const image = portraits.get(enemy.id);
         if (image) target.portrait.src = image; else target.portrait.removeAttribute("src");
       }
-      health(target, enemy.name, enemy.health, enemy.maximumHealth, enemy.id);
+      health(target, enemy.name, enemy.health, enemy.maximumHealth, enemy.id, enemy.level);
       targetCast.render(enemy, snapshot, { selfId: character.id, players: others });
       Object.assign(target.root.dataset, { hostile: String(enemy.disposition === "hostile" || enemy.aggro), aggro: String(enemy.aggro), disposition: enemy.disposition });
       const recipient = enemy.targetPlayerId && enemy.targetPlayerId !== character.id ? others.find(other => other.id === enemy.targetPlayerId) : {id:character.id,name:character.name,player:snapshot.player};
@@ -315,7 +324,7 @@ export function createUnitFrames(host: HTMLElement) {
       targetOfTarget.root.hidden = !attackingPlayer;
       if (attackingPlayer && recipient) {
         targetOfTarget.portrait.src = publicUrl('assets/ui/characters/' + recipient.player.archetype + '.webp');
-        health(targetOfTarget, recipient.name, recipient.player.health, recipient.player.maximumHealth, recipient.id);
+        health(targetOfTarget, recipient.name, recipient.player.health, recipient.player.maximumHealth, recipient.id, recipient.id === character.id ? snapshot.progression.level : undefined);
         stamina(targetOfTarget, recipient.player);
       }
     },
