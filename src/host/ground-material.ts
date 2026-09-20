@@ -115,6 +115,19 @@ float groundNoise(vec2 p) {
   return mix(mix(groundHash(i), groundHash(i + vec2(1.0, 0.0)), u.x),
              mix(groundHash(i + vec2(0.0, 1.0)), groundHash(i + vec2(1.0)), u.x), u.y);
 }
+float stoneHash(vec3 p) {
+  p = fract(p * .1031);
+  p += dot(p, p.yzx + 33.33);
+  return fract((p.x + p.y) * p.z);
+}
+float stoneNoise(vec3 p) {
+  vec3 i = floor(p), f = fract(p), u = f * f * (3. - 2. * f);
+  return mix(
+    mix(mix(stoneHash(i), stoneHash(i + vec3(1., 0., 0.)), u.x),
+        mix(stoneHash(i + vec3(0., 1., 0.)), stoneHash(i + vec3(1., 1., 0.)), u.x), u.y),
+    mix(mix(stoneHash(i + vec3(0., 0., 1.)), stoneHash(i + vec3(1., 0., 1.)), u.x),
+        mix(stoneHash(i + vec3(0., 1., 1.)), stoneHash(i + vec3(1.)), u.x), u.y), u.z);
+}
 float groundMacro(vec2 p) {
   vec2 warp = vec2(groundNoise(p * .11 + 4.7), groundNoise(p * .09 - 8.2));
   float broad = groundNoise(p * .024 + warp * 1.8);
@@ -150,8 +163,19 @@ diffuseColor.rgb *= regionTint * (.70 + groundRegion * .7);
 float steep = 1. - normalize(groundWorldNormal).y;
 float rockMask = smoothstep(.22, .53, steep + (groundNoise(groundWorldPos.xz * .38) - .5) * .12);
 vec3 stone = mix(vec3(.145, .119, .095), vec3(.125, .151, .15), smoothstep(.3, .7, groundRegion));
-float seams = groundNoise(vec2(groundWorldPos.x * .46 + groundWorldPos.z * .17, groundWorldPos.y * 1.4));
-stone *= .62 + seams * .64 + groundNoise(groundWorldPos.xz * 4.3) * .16;
+// Equal scale on all three axes keeps cliff detail from stretching into
+// elevation bands; displaced coordinates break up aligned noise cells.
+vec3 rockPoint = groundWorldPos * .31;
+vec3 rockWarp = vec3(stoneNoise(rockPoint * .43),
+  stoneNoise(rockPoint * .43 + 17.3), stoneNoise(rockPoint * .43 - 9.1));
+vec3 brokenPoint = rockPoint + (rockWarp - .5) * 2.4;
+float blocks = stoneNoise(brokenPoint);
+float chips = stoneNoise(brokenPoint * 3.17 + 11.8);
+float grain = stoneNoise(groundWorldPos * 5.3);
+stone = mix(stone * vec3(.83, .9, .98), stone * vec3(1.16, 1.04, .87), smoothstep(.29, .72, blocks));
+stone *= .73 + blocks * .42 + chips * .22 + grain * .1;
+float fractures = (1. - smoothstep(.19, .34, chips)) * smoothstep(.44, .66, blocks);
+stone *= 1. - fractures * .21;
 diffuseColor.rgb = mix(diffuseColor.rgb, stone, rockMask);`);
   };
   return material;

@@ -11,6 +11,7 @@ import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
 import { createRuinedGroundMaterial } from "./ground-material.js";
 import { treePaletteMaterial, type TreePalette } from './tree-palette.js';
+import { groundTree } from './tree-grounding.js';
 
 export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number, wallTimeMillis?: number) => void> {
   const jobs: Promise<void>[] = [];
@@ -35,6 +36,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
           : treePaletteMaterial(object.material, palette);
       });
       parent.add(model);
+      const tree = name.includes('Tree_') || name.startsWith('nature/Pine_');
+      if (tree && Math.abs(tilt) < Math.PI / 4) groundTree(model, x, z, (px, pz) => terrainHeight(px, pz) - .06 + y);
       if (name === "works/Props_Vessel" && z < 0) model.traverse(object => {
         if (!(object instanceof Mesh)) return;
         const coolable = (material: MeshStandardMaterial) => {
@@ -45,7 +48,6 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
         object.material = Array.isArray(object.material) ? object.material.map(coolable) : coolable(object.material);
       });
       model.updateWorldMatrix(true, true);
-      const tree = name.includes('Tree_') || name.startsWith('nature/Pine_');
       if (footprint || tree) {
         const bounds = new Box3().setFromObject(model).expandByScalar(.5);
         occluders.push({ root: model, bounds });

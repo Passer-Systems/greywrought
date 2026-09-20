@@ -5,17 +5,10 @@ import { townHeight } from './town-elevation.js';
 // the normal camera.  Its eastern edge stops short of the x=16 footpath while
 // the irregular boundary leaves coves and a rocky north-west inlet.
 export const LAKE_CENTER = { x: -27, z: -95 } as const;
-export const LAKE_RADIUS = { x: 42, z: 39 } as const;
+export const LAKE_RADIUS = { x: 40, z: 35 } as const;
 export const LAKE_WATER_LEVEL = 0.08;
 export function lakeBoundary(angle: number): number {
-  const base = 1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4);
-  // Preserve the east footpath and northern waterfall bluff while opening
-  // the western and southern coves into the larger basin.
-  return base - .08 * Math.max(0, Math.cos(angle)) - .12 * Math.max(0, Math.sin(angle)) ** 4;
-}
-function deepPocket(x: number, z: number, cx: number, cz: number, rx: number, rz: number, depth: number): number {
-  const d = Math.hypot((x - cx) / rx, (z - cz) / rz);
-  return depth * (1 - smooth(d));
+  return 1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4);
 }
 export function lakeDepthAt(x: number, z: number): number {
   const radial = Math.hypot((x - LAKE_CENTER.x) / LAKE_RADIUS.x, (z - LAKE_CENTER.z) / LAKE_RADIUS.z);
@@ -28,10 +21,7 @@ export function lakeDepthAt(x: number, z: number): number {
   // swimming lane. This is shared by water rendering, stream overlap, and movement.
   const angle = Math.atan2(z - LAKE_CENTER.z, x - LAKE_CENTER.x);
   const bar = Math.max(0, Math.sin(angle * 3 + .9) * .5 + .5) * smooth((radial / boundary - .42) / .45) * .34;
-  const pockets = deepPocket(x,z,-46,-113,7,5,.9)
-    + deepPocket(x,z,-10,-120,8,5,.75)
-    + deepPocket(x,z,-4,-82,7,4,.65);
-  return (base * (1 - bar) + pockets) * (radial < boundary ? 1 : 0);
+  return base * (1 - bar);
 }
 export function lakeWaterAt(x: number, z: number): number | null {
   const depth = lakeDepthAt(x, z);

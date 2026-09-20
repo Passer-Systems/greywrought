@@ -7,7 +7,7 @@ const appearances = [
   ["cave-bat", "Bat"], ["cave-crab", "Crab"],
   ["scout", "Skull"], ["nest", "Armabee"], ["warder", "MushroomKing"],
   ["patrol", "Wolf"], ["ritual-guardian", "Leela"],
-  ["pond-turtle", "mechanical-turtle"], ["meadow-rat", "Rat"], ["meadow-rat-2", "Rat"],
+  ["lake-dreadnought", "mechanical-turtle"], ["pond-turtle", "mechanical-turtle"], ["pond-turtle-west", "mechanical-turtle"], ["pond-turtle-north", "mechanical-turtle"], ["pond-turtle-south", "mechanical-turtle"], ["meadow-rat", "Rat"], ["meadow-rat-2", "Rat"],
   ["meadow-bird", "Birb"], ["meadow-bird-2", "Birb"], ["meadow-bird-3", "Birb"],
   ['scrap-skitter', 'Crab'], ['rust-skitter', 'Crab'], ['moss-skitter', 'Crab'],
 ] as const;
@@ -28,8 +28,8 @@ export async function createUnitPortraits(models: readonly (readonly [string, st
     for (const [id, model] of models) {
       const turtle = model === "mechanical-turtle";
       const metal = Object.entries(ROBOT_CRITTER_COLORS).find(([key]) => key === id)?.[1];
-      const creature = turtle ? mechanicalTurtle() : metal !== undefined ? await robotCritter(2, metal) : await actor(model, 2);
-      if (turtle) { creature.model.scale.setScalar(1.4); creature.model.position.y = .45; }
+      const creature = turtle ? mechanicalTurtle(id === "lake-dreadnought") : metal !== undefined ? await robotCritter(2, metal) : await actor(model, 2);
+      if (turtle) { creature.model.scale.setScalar(id === "lake-dreadnought" ? 1.1 : 1.4); creature.model.position.y = .45; }
       try {
         creature.play(model === "Armabee" ? "Flying_Idle" : model === "Birb" ? "Dance" : model === "Bat" ? "Flying" : "Idle");
         creature.mixer.update(0.01);

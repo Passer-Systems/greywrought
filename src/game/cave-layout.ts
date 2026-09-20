@@ -1,6 +1,8 @@
 import { overworldHeight } from './world-elevation.js';
 import { dryOverworldHeight as terrainV2, overworldHeight as terrainV3 } from './terrain-layout-v3.js';
 import { overworldHeight as terrainV4 } from './terrain-layout-v4.js';
+import { lakeWaterAt as lakeWaterAtV5, overworldHeight as terrainV5 } from './terrain-layout-v5.js';
+import { lakeWaterAt } from './world-elevation.js';
 import type { Position } from './adventure-types.js';
 import type { Barrier } from './movement.js';
 
@@ -28,7 +30,7 @@ export function caveBlockedPosition(x: number, z: number): boolean {
 }
 
 // Preserve height above the old floor when the landscape changes.
-export const TERRAIN_LAYOUT = 5;
+export const TERRAIN_LAYOUT = 6;
 export function migrateTerrainLayout(root: Record<string, unknown>): void {
   if (root.terrainLayout === TERRAIN_LAYOUT) return;
   const spatialKeys = new Set(['position', 'targetPosition', 'turnTarget', 'origin', 'start', 'destination', 'attackOrigin']);
@@ -39,11 +41,17 @@ export function migrateTerrainLayout(root: Record<string, unknown>): void {
       if (spatialKeys.has(key) && child && typeof child === 'object'
         && 'x' in child && typeof child.x === 'number' && 'y' in child && typeof child.y === 'number'
         && 'z' in child && typeof child.z === 'number') {
-          const oldFloor = inCave(child) && [1, 2, 3, 4].includes(Number(root.terrainLayout)) ? terrainHeight(child.x, child.z)
+          const oldCaveFloor = inCave(child) && [1, 2, 3, 4, 5].includes(Number(root.terrainLayout));
+          const oldWater = root.terrainLayout === 5 ? lakeWaterAtV5(child.x, child.z) : null;
+          const swimming = oldWater !== null && Math.abs(child.y - (oldWater - .8)) < .22 && lakeWaterAt(child.x, child.z) !== null;
+          const oldFloor = oldCaveFloor ? terrainHeight(child.x, child.z)
+            : root.terrainLayout === 5 && swimming ? oldWater! - .8
+            : root.terrainLayout === 5 ? terrainV5(child.x, child.z)
             : root.terrainLayout === 4 ? terrainV4(child.x, child.z)
             : root.terrainLayout === 3 ? terrainV3(child.x, child.z)
             : root.terrainLayout === 2 ? terrainV2(child.x, child.z) : 0;
-          child.y = terrainHeight(child.x, child.z) + (child.y - oldFloor);
+          const newFloor = swimming ? Math.max(terrainHeight(child.x, child.z), lakeWaterAt(child.x, child.z)! - .8) : terrainHeight(child.x, child.z);
+          child.y = newFloor + (child.y - oldFloor);
         }
       else visit(child);
     }

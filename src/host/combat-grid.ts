@@ -1,6 +1,6 @@
 import { BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, type Object3D } from 'three';
 import { COMBAT_CELL_SIZE, combatCell, reachableCombatCells } from '../game/combat-grid.js';
-import { terrainHeight } from '../game/cave-layout.js';
+import { combatSurfaceHeight } from './terrain-geometry.js';
 import { blockedPosition } from '../game/movement.js';
 import { classKit } from '../game/class-kit.js';
 import type { AdventureSnapshot, Position } from '../game/adventure-types.js';
@@ -9,7 +9,7 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
   const geometry = new BufferGeometry(), material = new LineBasicMaterial({ color: 0xd9c16f, transparent: true, opacity: .3, depthWrite: false });
   const positions = new Float32BufferAttribute(new Float32Array(9 * 2 * 32 * 2 * 3), 3);
   geometry.setAttribute('position', positions);
-  const lines = new LineSegments(geometry, material); lines.visible = false; lines.frustumCulled = false; scene.add(lines);
+  const lines = new LineSegments(geometry, material); lines.visible = false; lines.frustumCulled = false; lines.renderOrder = 2; scene.add(lines);
   const cellsGeometry = new BufferGeometry(), cellsMaterial = new MeshBasicMaterial({ color: 0x7fe8ad, transparent: true, opacity: .25, depthWrite: false });
   const cells = new Mesh(cellsGeometry, cellsMaterial); cells.frustumCulled = false; cells.renderOrder = 2; scene.add(cells);
   const hoverGeometry = new BufferGeometry(), hoverMaterial = new MeshBasicMaterial({ color: 0xc0ffe0, transparent: true, opacity: .6, depthWrite: false });
@@ -20,7 +20,7 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
     const vertices: number[] = [], half = COMBAT_CELL_SIZE * .46;
     for (const tile of tiles) {
       const corners = [[tile.x-half,tile.z-half],[tile.x-half,tile.z+half],[tile.x+half,tile.z+half],[tile.x+half,tile.z-half]];
-      for (const index of [0,1,2,0,2,3]) { const [x,z] = corners[index]!; vertices.push(x!, terrainHeight(x!,z!) + lift, z!); }
+      for (const index of [0,1,2,0,2,3]) { const [x,z] = corners[index]!; vertices.push(x!, combatSurfaceHeight(x!,z!) + lift, z!); }
     }
     target.setAttribute('position', new Float32BufferAttribute(vertices,3));
     target.setDrawRange(0, vertices.length / 3);
@@ -38,8 +38,8 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
         let vertex = 0;
         const segment = (ax: number, az: number, bx: number, bz: number) => {
           if (blockedPosition((ax + bx) / 2, (az + bz) / 2)) return;
-          positions.setXYZ(vertex++, ax, terrainHeight(ax, az) + .05, az);
-          positions.setXYZ(vertex++, bx, terrainHeight(bx, bz) + .05, bz);
+          positions.setXYZ(vertex++, ax, combatSurfaceHeight(ax, az) + .05, az);
+          positions.setXYZ(vertex++, bx, combatSurfaceHeight(bx, bz) + .05, bz);
         };
         const startX = x - 4.5 * COMBAT_CELL_SIZE, startZ = z - 4.5 * COMBAT_CELL_SIZE;
         for (let edge = 0; edge <= 8; edge++) for (let step = 0; step < 32; step++) {

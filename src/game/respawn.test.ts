@@ -34,7 +34,13 @@ describe("two-minute world regrowth", () => {
     a.openLoot("scout"); expect(a.snapshot.lootOpenId).toBe("scout");
     b.openLoot("scout"); expect(b.snapshot.lootOpenId).toBe("scout");
     world.leave("b");
-    time += 119_999; world.advance(0);
+    time += 59_999; world.advance(0);
+    expect(a.snapshot.threats[0]!.corpseVisible).toBe(true);
+    time++; world.advance(0);
+    expect(a.snapshot.threats[0]!.corpseVisible).toBe(false);
+    expect(a.snapshot.loot.find(item => item.sourceId === "scout")).toMatchObject({ available: true, reachable: true });
+    expect(a.snapshot.lootOpenId).toBe("scout");
+    time += 59_999; world.advance(0);
     expect(a.snapshot.threats[0]!.health).toBe(0);
     time += 1; world.advance(0);
     expect(a.snapshot.threats[0]!.health).toBe(96);
@@ -42,6 +48,38 @@ describe("two-minute world regrowth", () => {
     expect(a.snapshot.loot.some(corpse => corpse.sourceId === "scout")).toBe(false);
     expect(a.snapshot.lootOpenId).toBeNull();
     expect(b.snapshot.lootOpenId).toBeNull();
+  });
+
+  test("Foreman body expires after a minute without losing loot or changing the next summon", () => {
+    let time = 10_000;
+    const saved = seed();
+    const guardian = saved.world.threats.find((threat: { id: string }) => threat.id === "ritual-guardian");
+    dead(guardian);
+    Object.assign(guardian, { lootClaimed: false, respawnAt: time + WORLD_RESPAWN_MILLISECONDS });
+    saved.world.ritualCalled = true;
+    Object.assign(saved.characters[0].state, { position: { ...guardian.position }, cargo: 6 });
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => time });
+    const player = world.join("a", "Ada", "mage");
+    expect(player.snapshot.threats.find(threat => threat.id === "ritual-guardian")!.corpseVisible).toBe(true);
+    const beforeExpiry = world.save();
+    time += 60_000;
+    const restored = createSharedAdventure({ save: beforeExpiry, now: () => time });
+    const returned = restored.join("a", "Ada", "mage");
+    expect(returned.snapshot.threats.find(threat => threat.id === "ritual-guardian")!.corpseVisible).toBe(false);
+    tap(returned, "ritual");
+    expect(returned.snapshot.cargo).toBe(6);
+    returned.openLoot("ritual-guardian");
+    expect(returned.snapshot.lootOpenId).toBe("ritual-guardian");
+    tap(returned, "takeLoot");
+    expect(returned.snapshot.carriedRelics).toBe(1);
+    const looted = restored.save();
+    time += 2 * 24 * 60 * 60 * 1000;
+    const ancient = createSharedAdventure({ save: looted, now: () => time });
+    const challenger = ancient.join("a", "Ada", "mage");
+    expect(challenger.snapshot.threats.find(threat => threat.id === "ritual-guardian")).toMatchObject({ health: 0, corpseVisible: false });
+    tap(challenger, "ritual");
+    expect(challenger.snapshot.cargo).toBe(0);
+    expect(challenger.snapshot.threats.find(threat => threat.id === "ritual-guardian")).toMatchObject({ health: 200, active: true, corpseVisible: false });
   });
 
   test("legacy dead enemies and depleted cores get deadlines without losing characters; the guardian stays dead", () => {

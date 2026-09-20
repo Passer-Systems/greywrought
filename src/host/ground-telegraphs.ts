@@ -1,4 +1,4 @@
-import { conformToTerrain } from "./terrain-geometry.js";
+import { combatSurfaceHeight, conformToTerrain } from "./terrain-geometry.js";
 import { BufferGeometry, CircleGeometry, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, RingGeometry } from "three";
 import { combatCell, COMBAT_CELL_SIZE } from "../game/combat-grid.js";
 import type { AdventureSnapshot, Position } from "../game/adventure-types.js";
@@ -28,7 +28,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
   arrowGeometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0.38, 0.17, 0, -0.16, -0.17, 0, -0.16], 3));
   let signature = "";
   function addGround(mesh: Mesh, lift: number) {
-    mesh.geometry = mesh.geometry.clone(); root.add(mesh); conformToTerrain(mesh, lift);
+    mesh.geometry = mesh.geometry.clone(); root.add(mesh); conformToTerrain(mesh, lift, combatSurfaceHeight);
   }
   function clear() {
     for (const mesh of root.children) if (mesh instanceof Mesh) mesh.geometry.dispose();

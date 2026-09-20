@@ -11,7 +11,8 @@ export const MEADOW_WATER = {
 };
 // Increasing phase sends each crest from deeper water toward the bank. Geometry,
 // wet coverage, and foam use the same wave so the waterline follows the wash.
-const shoreWave = `
+export const WATER_WAVES = `
+float surfaceLift(vec2 p,float d,float t){return waveHeight*smoothstep(0.,.5,d)*(sin(dot(p,wind)*1.65+t*1.4)+.4*sin(p.x*3.1-p.y*2.3-t*1.8));}
 float shorePhase(vec2 p,float d,float t){return d*9.+t*.9+dot(p,vec2(.86,.5))*.13;}
 float shoreLift(vec2 p,float d,float t){return shoreHeight*smoothstep(0.,.035,d)*(1.-smoothstep(.05,.5,d))*sin(shorePhase(p,d,t));}
 `;
@@ -25,12 +26,11 @@ varying vec3 world;
 varying vec4 mirror;
 varying float depth;
 varying vec2 flow;
-${shoreWave}
+${WATER_WAVES}
 void main(){
  vec3 p=position;
  vec4 w=modelMatrix*vec4(p,1.);
- float amplitude=waveHeight*smoothstep(0.,.5,waterDepth);
- p.z+=amplitude*(sin(dot(w.xz,wind)*1.65+time*1.4)+.4*sin(w.x*3.1-w.z*2.3-time*1.8));
+ p.z+=surfaceLift(w.xz,waterDepth,time);
  p.z+=shoreLift(w.xz,waterDepth,time)*(1.-smoothstep(.01,.1,length(current)));
  w=modelMatrix*vec4(p,1.);world=w.xyz;mirror=textureMatrix*vec4(p,1.);depth=waterDepth;flow=current;
  gl_Position=projectionMatrix*viewMatrix*w;
@@ -44,7 +44,7 @@ varying vec3 world;
 varying vec4 mirror;
 varying float depth;
 varying vec2 flow;
-${shoreWave}
+${WATER_WAVES}
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1)),f.x),f.y);}
 vec2 rippleGradient(vec2 p){

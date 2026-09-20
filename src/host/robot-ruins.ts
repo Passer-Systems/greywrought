@@ -1,4 +1,4 @@
-import { Box3, Color, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, } from 'three';
+import { Box3, Color, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, PointLight, Vector3 } from 'three';
 import { terrainHeight } from '../game/cave-layout.js';
 import { prop } from './frostwood-assets.js';
 
@@ -56,12 +56,12 @@ export async function buildRobotRuins(parent: Group): Promise<void> {
         const part = parts.get(key)!; part.removeFromParent(); part.geometry.dispose(); parts.delete(key);
       }
     }
-    return { root, joint, remove };
+    return { root, joint, remove, parts };
   }
   function settle(root: Group, x: number, z: number, burial: number) {
     root.updateWorldMatrix(true, true);
-    const bottom = new Box3().setFromObject(root).min.y;
-    root.position.set(x, terrainHeight(x, z) - bottom - burial, z);
+    const bottom = new Box3().setFromObject(root, true).min.y;
+    root.position.set(x, root.position.y + terrainHeight(x, z) - bottom - burial, z);
     parent.add(root);
   }
   async function growth(x: number, z: number, yaw: number, rocky: boolean) {
@@ -76,15 +76,49 @@ export async function buildRobotRuins(parent: Group): Promise<void> {
     }
   }
 
-  // The lake-bank wreck lies face-up, with its torn-off arm washed farther inland.
-  const fallen = ruin('Lake-bank fallen guardian');
-  fallen.remove(['Leg.L', 'Leg.R', 'LowerLeg.L', 'LowerLeg.R', 'Foot.L', 'Foot.R']);
-  const lostArm = fallen.joint(['Arm.L', 'Hand.L', 'Shoulder.L'], .7, 2.55, 0);
-  lostArm.removeFromParent(); lostArm.rotation.set(.3, -.8, 1.25);
-  settle(lostArm, -50.1, -107.7, .16);
-  fallen.root.rotation.set(-1.3, -.55, .18);
-  settle(fallen.root, -48, -109, .3);
-  await growth(-48, -109, -.3, true);
+  // The remaining foot stands north of the inlet, leaving shore and stream open.
+  const colossus = ruin('The broken lake guardian');
+  colossus.remove(['LowerLeg.R', 'Foot.R']);
+  const fallenArm = colossus.joint(['Arm.L', 'Hand.L'], .7, 2.55, 0);
+  fallenArm.removeFromParent(); fallenArm.scale.setScalar(6.0);
+  fallenArm.rotation.set(1.42, .2, .3);
+  settle(fallenArm, -68, -48, 1.05);
+  const bowedHelmet = colossus.joint(['Head'], 0, 2.94, 0);
+  bowedHelmet.rotation.set(.19, -.14, -.23);
+  // Buckle the helmet flank while retaining the closed authored surface.
+  const helmet = colossus.parts.get('Head')!.geometry;
+  const vertices = helmet.getAttribute('position');
+  for (let i = 0; i < vertices.count; i++) {
+    const x = vertices.getX(i), y = vertices.getY(i), z = vertices.getZ(i);
+    const dent = Math.max(0, (x - .12) / 1.4) * Math.max(0, (y - 3.3) / 1.5);
+    vertices.setXYZ(i, x - dent * .65, y - dent * .72, z + dent * .27);
+  }
+  vertices.needsUpdate = true; helmet.computeVertexNormals();
+  helmet.computeBoundingBox(); helmet.computeBoundingSphere();
+  const brokenThigh = colossus.joint(['Leg.R'], -.7, 1.48, 0);
+  brokenThigh.rotation.set(-.38, .2, -.3);
+  const hangingHand = colossus.joint(['Hand.R'], -1.05, 1.75, .1);
+  hangingHand.rotation.z = -.3;
+  colossus.root.scale.setScalar(6.0);
+  colossus.root.rotation.set(-.035, 1.25, -.095);
+  settle(colossus.root, -54, -44, .85);
+
+  // The dead shoulder socket retains a weak cold charge; eyes stay dark.
+  const socket = colossus.parts.get('Shoulder.L')!;
+  const socketMaterial = (socket.material as MeshStandardMaterial).clone();
+  socket.material = socketMaterial;
+  socketMaterial.emissive.set('#728c88'); socketMaterial.emissiveIntensity = .42;
+  colossus.root.updateWorldMatrix(true, true);
+  const socketPosition = colossus.root.localToWorld(new Vector3(.84, 2.52, .22));
+  const coreLight = new PointLight(0xa2c4c2, 24, 18, 1.4);
+  coreLight.name = 'Faint guardian shoulder light';
+  coreLight.position.copy(socketPosition); coreLight.castShadow = false;
+  parent.add(coreLight);
+  for (const [x, z, size, yaw] of [[-56,-42,3.8,.4],[-50,-43,2.6,-.7],[-59,-45,2.1,1.1]] as const) {
+    const rubble = await prop('nature/Rock_Medium_3', size);
+    rubble.rotation.y = yaw; settle(rubble, x, z, .35);
+  }
+  await growth(-51, -41, 1.1, false);
 
   // One thigh folds forward and its shin folds back, a recognizably collapsed knee.
   const kneeling = ruin('Buried kneeling guardian');

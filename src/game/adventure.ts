@@ -35,6 +35,7 @@ export const COMBAT_RULES = {
 export const PLAYER_COMBAT_ACTIONS = ["strike", "brace", "bait"] as const;
 export const MARA_TRADE_RULES = { suppliesPerPotion: 3, suppliesPerPotionSold: 2 } as const;
 export const WORLD_RESPAWN_MILLISECONDS = 120_000;
+const CORPSE_LIFETIME_MILLISECONDS = 60_000;
 const CALL_FOR_HELP_RANGE = 9;
 interface Maneuver {
   kind: "lunge" | "bait"; targetId: string; remainingSeconds: number;
@@ -154,7 +155,7 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(69,-47),point(73,-51),point(77,-47),point(73,-41)],
     preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 52, reach: 4.5,
     benefit: "Search its shell for six pieces of cave salvage." },
-  { id: "pond-turtle", critter: true, level: 1, disposition: "neutral", aggroRange: 0, leash: 10, speed: 0.45, pursuitSpeed: 0.8,
+  { id: "pond-turtle", critter: true, callsForHelp: false, level: 1, disposition: "neutral", aggroRange: 0, leash: 10, speed: 0.45, pursuitSpeed: 0.8,
     name: "Lake turtle", position: point(-4, -98), health: 38,
     patrol: [point(-8, -98), point(-4, -95), point(0, -98), point(-4, -101)],
     preparation: "Tucking into its shell", intention: "Shell nudge", damage: 3, reach: 1.5,
@@ -199,6 +200,26 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(29, 49), point(31, 50), point(32, 47), point(29, 46)],
     preparation: "Lifting its pincers", intention: "Little pinch", damage: 2, reach: 1.2,
     benefit: "A small patinated bot picking around the fallen works." },
+  { id: "pond-turtle-west", critter: true, callsForHelp: false, level: 1, disposition: "neutral", aggroRange: 0, leash: 10, speed: 0.42, pursuitSpeed: 0.8,
+    name: "Lake turtle", position: point(-48, -96), health: 38,
+    patrol: [point(-48, -96), point(-51, -92), point(-46, -90), point(-44, -95)],
+    preparation: "Tucking into its shell", intention: "Shell nudge", damage: 3, reach: 1.5,
+    benefit: "A peaceful turtle gliding through the lake." },
+  { id: "pond-turtle-north", critter: true, callsForHelp: false, level: 1, disposition: "neutral", aggroRange: 0, leash: 10, speed: 0.48, pursuitSpeed: 0.8,
+    name: "Lake turtle", position: point(-28, -77), health: 38,
+    patrol: [point(-28, -77), point(-24, -80), point(-29, -83), point(-33, -79)],
+    preparation: "Tucking into its shell", intention: "Shell nudge", damage: 3, reach: 1.5,
+    benefit: "A peaceful turtle gliding through the lake." },
+  { id: "pond-turtle-south", critter: true, callsForHelp: false, level: 1, disposition: "neutral", aggroRange: 0, leash: 10, speed: 0.4, pursuitSpeed: 0.8,
+    name: "Lake turtle", position: point(-26, -116), health: 38,
+    patrol: [point(-26, -116), point(-22, -112), point(-27, -109), point(-31, -113)],
+    preparation: "Tucking into its shell", intention: "Shell nudge", damage: 3, reach: 1.5,
+    benefit: "A peaceful turtle gliding through the lake." },
+  { id: "lake-dreadnought", callsForHelp: false, level: 4, disposition: "hostile", aggroRange: 7, leash: 12, speed: 0.7, pursuitSpeed: 2.1,
+    name: "Dredgeback", position: point(-28, -101), health: 180,
+    patrol: [point(-28, -101), point(-25, -100), point(-27, -97), point(-31, -99)],
+    preparation: "Raising its armored shell", intention: "Hullbreaker Slam", damage: 32, reach: 3.5,
+    benefit: "Defeat the armored lake guardian for four pieces of salvage." },
 ];
 const IRONBACK_CHEST_ID = "ironback-chest";
 const IRONBACK_CHEST_POSITION = point(78, -52);
@@ -578,6 +599,7 @@ class Adventure implements AdventureGame {
         const d = definition(t.id);
         return {
           ...t, name: d.name, level: d.level, position: { ...t.position }, homePosition: { ...d.position },
+          corpseVisible: t.health === 0 && t.respawnAt !== null && this.now() < t.respawnAt - WORLD_RESPAWN_MILLISECONDS + CORPSE_LIFETIME_MILLISECONDS,
           staggered: t.staggered, disposition: d.disposition, critter: d.critter === true, joinsNextWindow: t.aggro && t.joinCycle > s.combat.clock.cycle, moving: s.phase !== "lost" && t.moving, maximumHealth: d.health,
           aggroRange: d.aggroRange, callForHelpRange: d.callsForHelp === false ? 0 : CALL_FOR_HELP_RANGE,
           movementMode: this.movementMode(t), motionProgress: t.wolf?.motion ? 1 - t.wolf.motion.remainingSeconds / t.wolf.motion.duration : 0,
@@ -2068,7 +2090,7 @@ function groundPosition(value: unknown, maximumHeight = 0): Vector {
   const p = record(value);
   const x = number(p.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX), z = number(p.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
   const ground = terrainHeight(x, z);
-  return { x, y: number(p.y, ground, ground + maximumHeight), z };
+  return { x, y: number(p.y, ground, supportHeight(x, z) + maximumHeight), z };
 }
 function readSave(serialized: string, now = Date.now()): State {
   let parsed: unknown;
@@ -2145,7 +2167,7 @@ function readSave(serialized: string, now = Date.now()): State {
   });
   if (new Set(threats.map(t => t.id)).size !== threats.length) throw new Error("Invalid adventure save: duplicate threat.");
   for (const d of DEFINITIONS) if (!threats.some(t => t.id === d.id)) {
-    if (!d.id.startsWith("cave-") && !d.critter) throw new Error("Invalid adventure save: missing threats.");
+    if (!d.id.startsWith("cave-") && !d.critter && d.id !== "lake-dreadnought") throw new Error("Invalid adventure save: missing threats.");
     threats.push(newThreat(d));
   }
   const state: State = {
@@ -2278,8 +2300,9 @@ function headAbility(id: HeadAbilityId, volley: number): ThreatAbilityView {
 function maulAbility(damage = 18): ThreatAbilityView {
   return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres during the turn, landing 0.65 seconds later in a 2-metre area. Bait its leap through another enemy: the collision damages and staggers both, interrupting their attacks. Each Maul gains 2 damage, up to 36.", damage, range: COMBAT_RULES.wolf.impactRadius, noticeSeconds: .65 };
 }
-function salvageQuantity(id: string): number { return id === "cave-crab" ? 6 : id === "cave-bat" ? 3 : 1; }
+function salvageQuantity(id: string): number { return id === "lake-dreadnought" ? 4 : id === "cave-crab" ? 6 : id === "cave-bat" ? 3 : 1; }
 function ordinaryAbility(d: ThreatDefinition, damage = d.damage): ThreatAbilityView {
+  if (d.id === "lake-dreadnought") return { id: d.id, name: d.intention, description: "Raises its armored shell, then slams the marked 3.5-metre area after 1 second. Move clear before impact or Block; one Block will not absorb the whole blow. Later slams grow stronger.", damage, range: d.reach, noticeSeconds: 1 };
   if (d.id === "cave-bat") return { id: "echo-bite", name: d.intention, description: "Closes to 2.2 metres, then bites 0.3 seconds after winding up. Block at impact or retreat before the bite. Its next bite grows stronger.", damage, range: d.reach, noticeSeconds: .3 };
   if (d.id === "cave-crab") return { id: "cavern-slam", name: d.intention, description: "Raises both claws and slams the marked 4.5-metre area 1.1 seconds after winding up. Retreat out of the ring or Block; one Block may not absorb the whole slam. Its next slam grows stronger.", damage, range: d.reach, noticeSeconds: 1.1 };
   if (d.id === "nest") return { id: d.id, name: d.intention, description: "Swarm hits within 3 metres, 0.35 seconds after winding up. Collisions interrupt it and spill a cloud. Bait a hound through the bee or Move to lure enemies together. Watchman fireballs ignite the cloud; stay clear or Block.", damage, range: d.reach, noticeSeconds: .35 };
@@ -2320,7 +2343,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       strategy: "Bring your coat, weapon and potions. Plan Block for Pulse, a retreat for Press, and healing while Shield is raised.",
     };
     return { id:d.id, name:d.name, health:d.health, disposition:d.disposition,
-      description: d.id === "nest" ? "A neutral bee in the eastern flower glade. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill its swarm; Watchman fireballs ignite the cloud." : "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes the hazard.",
+      description: d.id === "lake-dreadnought" ? "An armored dredging turtle still guarding the deep lake. Notices swimmers within 7 metres and pursues within 12 metres of home. Carries four pieces of salvage." : d.critter ? d.benefit : d.id === "nest" ? "A neutral bee in the eastern flower glade. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill its swarm; Watchman fireballs ignite the cloud." : "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes the hazard.",
       opener: "Announces its first attack before you plan.",
       abilities: [ordinaryAbility(d), ...(d.id === "warder" ? [{ id: "harvest-thorns", name: "Gathering thorns", description: "Gathering while the Cablekeeper lives deals 8 damage. Block absorbs it.", damage: 8, range: 0, noticeSeconds: 0 }] : [])],
       sequences: [{ name: d.intention, abilityIds:[d.id], offsetsSeconds:[], description:"Commits one attack per turn, then chooses again before the next plan." }],

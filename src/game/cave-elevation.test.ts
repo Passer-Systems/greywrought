@@ -5,6 +5,19 @@ import { moveLocomotion, moveManeuverPosition, type MovementState } from './move
 import { LocalMovement } from '../host/local-movement.js';
 import { finishGathering, earnedChapter, finishCycle, tap } from './yard-test-fixtures.js';
 import type { Position } from './adventure-types.js';
+import { overworldHeight as oldTerrain, LAKE_WATER_LEVEL } from './terrain-layout-v5.js';
+
+test('lake expansion preserves v5 hillside height and swimming support separately', () => {
+  const hillside = { terrainLayout: 5, position: { x: -57, y: oldTerrain(-57, -70) + .6, z: -70 } };
+  migrateTerrainLayout(hillside);
+  expect(hillside.position.y).toBeCloseTo(terrainHeight(-57, -70) + .6, 7);
+  const swimmer = { terrainLayout: 5, position: { x: -28, y: LAKE_WATER_LEVEL - .8, z: -101 } };
+  migrateTerrainLayout(swimmer);
+  expect(swimmer.position.y).toBeCloseTo(LAKE_WATER_LEVEL - .8, 7);
+  const turtle = { terrainLayout: 5, position: { x: -28, y: oldTerrain(-28, -101), z: -101 } };
+  migrateTerrainLayout(turtle);
+  expect(turtle.position.y).toBeCloseTo(terrainHeight(-28, -101), 7);
+});
 
 const ground = (x: number, z = -46): Position => ({ x, y: terrainHeight(x, z), z });
 const height = (p: Position) => p.y - terrainHeight(p.x, p.z);
@@ -123,7 +136,7 @@ test('old solo saves migrate jump and maneuver offsets once, preserving progress
     const restored = createAdventure({ save: flatSave(game.save()), now: () => 1000 });
     const saved = JSON.parse(restored.save());
     near(saved.state.position, expected.state.position);
-    expect(saved.terrainLayout).toBe(5);
+    expect(saved.terrainLayout).toBe(6);
     expect(saved.state.maneuver).toEqual(expected.state.maneuver);
     expect(saved.state.chapter).toEqual(expected.state.chapter);
     expect(saved.state.supplies).toBe(37); expect(saved.state.potions).toBe(4);

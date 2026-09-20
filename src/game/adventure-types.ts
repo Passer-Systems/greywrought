@@ -124,6 +124,7 @@ export interface ThreatView {
   readonly health: number;
   readonly maximumHealth: number;
   readonly active: boolean;
+  readonly corpseVisible: boolean;
   readonly selected: boolean;
   readonly phase: ThreatPhase;
   readonly remainingSeconds: number;
