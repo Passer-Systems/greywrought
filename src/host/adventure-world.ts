@@ -363,7 +363,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     "cave-crab": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
     scout: {model:"Skull",height:1.6,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
     nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
-    warder: {model:"MushroomKing",height:2.4,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact"},
+    warder: {model:"RelicWarden",height:2.65,idle:"Idle",walk:"Run",attack:"SwordSlash",hit:"HitRecieve_1"},
     patrol: {model:"Wolf",height:1.6,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1"},
     "ritual-guardian": {model:"Leela",height:3.2,idle:"Idle",walk:"Walk",attack:"Kick",hit:"HitRecieve_1"},
   };

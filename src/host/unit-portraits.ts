@@ -3,7 +3,7 @@ import { actor } from "./frostwood-assets.js";
 
 const appearances = [
   ["cave-bat", "Bat"], ["cave-crab", "Crab"],
-  ["scout", "Skull"], ["nest", "Armabee"], ["warder", "MushroomKing"],
+  ["scout", "Skull"], ["nest", "Armabee"], ["warder", "RelicWarden"],
   ["patrol", "Wolf"], ["ritual-guardian", "Leela"],
 ] as const;
 

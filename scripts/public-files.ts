@@ -46,7 +46,9 @@ export const files: readonly (readonly [string, string])[] = [
     `assets/ui/${name}`,
     `dist/assets/ui/${name}`,
   ]),
-  ...frostwoodFiles.map((name): readonly [string, string] => [
+  ["assets/external/relic-warden/relic-warden-runtime.glb", "dist/assets/quaternius/frostwood/actors/RelicWarden.glb"],
+  ["assets/external/relic-warden/QUATERNIUS-LICENSE.txt", "dist/assets/greywrought/QUATERNIUS-LICENSE.txt"],
+  ...frostwoodFiles.filter(name => name !== "actors/MushroomKing.glb").map((name): readonly [string, string] => [
     `assets/external/quaternius/frostwood/${name}`, `dist/assets/quaternius/frostwood/${name}`,
   ]),
   ...pirateFiles.map((name): readonly [string, string] => [

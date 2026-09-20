@@ -27,7 +27,7 @@ export function createEnemyCastBar(parent: HTMLElement, id: string) {
   root.setAttribute("aria-describedby", tooltip.id);
   const artwork: Record<string, string> = {
     bite: "sword-strike", maul: "sword-strike", "ember-beam": "lightning-bolt", fireball: "fire-spell",
-    "ember-ward": "defensive-shield", kindle: "energy-burst", nest: "poison-vial", warder: "nature-leaf",
+    "ember-ward": "defensive-shield", kindle: "energy-burst", nest: "poison-vial", warder: "sword-strike",
     "ritual-guardian": "frost-spell", "foreman-pulse": "lightning-bolt", "foreman-press": "earth-stone", "foreman-shield": "defensive-shield",
   };
   return {
