@@ -106,6 +106,7 @@ interface State {
   phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number;
   health: number; supplies: number; coins: number; cargo: number;
   bank: { supplies: number; potions: number };
+  chestClaimed: boolean;
   potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
   actionCooldown: number; currentAction: AdventureAction | "equip" | null; actionDuration: number; actionRemainingSeconds: number; gatherPending: boolean; guardSeconds: number;
   block: number; stamina: number; staminaRecoverySeconds: number; bloodRage: number; rageDrainSeconds: number; rageDecaySeconds: number; maneuver: Maneuver | null; sitting: boolean;
@@ -151,6 +152,8 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 38, reach: 4.5,
     benefit: "Search its shell for six pieces of cave salvage." },
 ];
+const IRONBACK_CHEST_ID = "ironback-chest";
+const IRONBACK_CHEST_POSITION = point(82, -52);
 const PLACES: readonly PlaceView[] = [
   ...VENDORS.map(v => ({ id: v.id, name: `${v.name} / ${v.trade}`, position: v.position, kind: "shop" as const })),
   { id: "hollowdeep", name: "Hollowdeep Cave · Danger", position: point(28,-46), kind: "gate" },
@@ -213,7 +216,7 @@ function nextThreatRandom(t: ThreatState): number {
 function initialState(archetype: CharacterArchetype): State {
   return {
     chapter: newChapter(), combat: newCombat(), phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, health: 100,
-    bank: { supplies: 0, potions: 0 }, supplies: 15, coins: 0, cargo: 0, potions: 0, carriedRelics: 0,
+    bank: { supplies: 0, potions: 0 }, chestClaimed: false, supplies: 15, coins: 0, cargo: 0, potions: 0, carriedRelics: 0,
     bankedRelics: 0, carriedSalvage: 0, presence: 0, actionCooldown: 0, currentAction: null, actionDuration: 0, actionRemainingSeconds: 0, gatherPending: false,
     guardSeconds: 0, block: 0, stamina: 5, staminaRecoverySeconds: 0, bloodRage: 0, rageDrainSeconds: 0, rageDecaySeconds: 0, maneuver: null, sitting: false,
     attackSequence: 0, selectedThreat: "scout",
@@ -514,12 +517,16 @@ class Adventure implements AdventureGame {
           benefit: d.benefit, targetPosition: { ...t.targetPosition },
         };
       }),
-      loot: s.world.threats.filter(t => t.health === 0).map((t): CorpseLootView => ({
+      loot: [...s.world.threats.filter(t => t.health === 0).map((t): CorpseLootView => ({
         sourceId: t.id, sourceName: definition(t.id).name, position: { ...t.position },
         itemName: t.id === "ritual-guardian" ? "Last Shift Roll" : t.id.startsWith("cave-") ? "Cave salvage" : "Forest salvage",
         kind: t.id === "ritual-guardian" ? "relic" : "salvage", quantity: salvageQuantity(t.id), coins: t.lootClaimed ? 0 : enemyCoins(definition(t.id).level),
         available: this.lootAvailable(t), reachable: this.canLoot(t),
-      })),
+      })), {
+        sourceId: IRONBACK_CHEST_ID, sourceName: "Ironback Crab’s cache", position: { ...IRONBACK_CHEST_POSITION },
+        itemName: "18 coins and 2 health potions", kind: "salvage", quantity: 2, coins: 18,
+        available: this.chestLootAvailable(), reachable: this.canLootChest(),
+      }],
       lootOpenId: this.lootOpenId, carriedSalvage: s.carriedSalvage,
       places: PLACES.map(p => ({ ...p, position: { ...p.position } })),
       selectedThreat: s.selectedThreat, supplies: s.supplies, coins: s.coins, vendorOpen: this.vendorOpen, cargo: s.cargo,
@@ -902,17 +909,31 @@ class Adventure implements AdventureGame {
     if (this.state.chapter.accepted.includes("last-shift") && !this.state.chapter.completed.includes("last-shift") && !this.eligibleForRoll(t)) return false;
     return this.eligibleForRoll(t) ? !t.rollClaims.includes(this.playerId ?? "solo") : !t.lootClaimed;
   }
+  private chestLootAvailable(): boolean {
+    return !this.inPrivateInstance() && !this.state.chestClaimed && this.state.world.threats.find(t => t.id === "cave-crab")?.health === 0;
+  }
+  private canLootChest(): boolean {
+    return this.state.phase === "expedition" && this.chestLootAvailable() && distance(this.state.position, IRONBACK_CHEST_POSITION) <= 3 + EPSILON && this.clearPath(this.state.position, IRONBACK_CHEST_POSITION);
+  }
   private canLoot(t: ThreatState): boolean {
     return this.state.phase === "expedition" && t.health === 0 && this.lootAvailable(t) &&
       distance(this.state.position, t.position) <= 3 + EPSILON && this.clearPath(this.state.position, t.position);
   }
   openLoot(sourceId: string): void {
+    if (sourceId === IRONBACK_CHEST_ID) { this.lootOpenId = this.canLootChest() ? sourceId : null; return; }
     const corpse = this.state.world.threats.find(t => t.id === sourceId);
     this.lootOpenId = corpse && this.canLoot(corpse) ? corpse.id : null;
     if (this.lootOpenId) { this.vendorOpen = null; this.shopOpen = false; this.innOpen = false; this.bankOpen = false; }
   }
   private takeLoot(): void {
     const s = this.state;
+    if (this.lootOpenId === IRONBACK_CHEST_ID) {
+      this.lootOpenId = null;
+      if (!this.canLootChest()) return;
+      s.chestClaimed = true; s.coins += 18; s.potions += 2;
+      this.report("You open the Ironback Crab’s cache: 18 coins and 2 health potions.");
+      return;
+    }
     const corpse = s.world.threats.find(t => t.id === this.lootOpenId);
     this.lootOpenId = null;
     if (!corpse || !this.canLoot(corpse)) return;
@@ -994,6 +1015,7 @@ class Adventure implements AdventureGame {
           const corpse = s.world.threats.filter(t => this.canLoot(t))
             .sort((a, b) => distance(s.position, a.position) - distance(s.position, b.position))[0];
           if (corpse) this.openLoot(corpse.id);
+          else if (this.canLootChest()) this.openLoot(IRONBACK_CHEST_ID);
           else this.report(s.phase === "town" ? "Approach Mara to trade, Elian to bank your goods, or Rowan at the inn to rest." : "Move beside a glinting body to search it.");
         }
         break;
@@ -1357,6 +1379,7 @@ class Adventure implements AdventureGame {
     });
   }
   private closeMissingLoot(): void {
+    if (this.lootOpenId === IRONBACK_CHEST_ID) { if (!this.canLootChest()) this.lootOpenId = null; return; }
     if (this.lootOpenId !== null && !this.state.world.threats.some(t => t.id === this.lootOpenId && this.canLoot(t))) this.lootOpenId = null;
   }
   private stepPlayer(dt: number): void {
@@ -2008,6 +2031,7 @@ function readSave(serialized: string, now = Date.now()): State {
     position: restoreTownPosition(groundPosition(s.position, 2)),
     verticalSpeed: number(s.verticalSpeed, -6, 5.5), health: number(s.health, 0, 100),
     bank: s.bank === undefined ? { supplies: 0, potions: 0 } : { supplies: number(record(s.bank).supplies, 0, Number.MAX_SAFE_INTEGER, true), potions: number(record(s.bank).potions, 0, Number.MAX_SAFE_INTEGER, true) },
+    chestClaimed: s.chestClaimed === undefined ? false : boolean(s.chestClaimed),
     coins: s.coins === undefined ? 0 : number(s.coins, 0, Number.MAX_SAFE_INTEGER, true),
     supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, Number.MAX_SAFE_INTEGER, true),
     world: { threats, resourceRemaining: number(s.resourceRemaining, 0, 12, true), resourceRespawns: readResourceRespawns(s.resourceRespawns, number(s.resourceRemaining, 0, 12, true), now), ritualCalled: boolean(s.ritualCalled) },

@@ -50,3 +50,15 @@ test('cave rewards are collected once through normal corpse loot',()=>{
     game.openLoot(id);tap(game,'takeLoot');expect(game.snapshot.carriedSalvage).toBe(quantity);
   }
 });
+test('Ironback cache opens once after crab defeat and persists without private rewards',()=>{
+  const save=JSON.parse(createAdventure().save());
+  const crab=save.state.threats.find((t:{id:string})=>t.id==='cave-crab');
+  Object.assign(save.state,{phase:'expedition',position:{x:82,y:terrainHeight(82,-52),z:-52},potions:0});
+  Object.assign(crab,{health:0,phase:'cleared',active:true,lootClaimed:true,respawnAt:null});
+  const game=createAdventure({save:JSON.stringify(save)});
+  expect(game.snapshot.loot.find(t=>t.sourceId==='ironback-chest')?.available).toBe(true);
+  game.openLoot('ironback-chest');tap(game,'takeLoot');
+  expect(game.snapshot.coins).toBe(18);expect(game.snapshot.potions).toBe(2);
+  expect(game.snapshot.loot.find(t=>t.sourceId==='ironback-chest')?.available).toBe(false);
+  const restored=createAdventure({save:game.save()});expect(restored.snapshot.coins).toBe(18);expect(restored.snapshot.potions).toBe(2);
+});

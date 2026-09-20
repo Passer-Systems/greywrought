@@ -849,6 +849,9 @@ function bindWorld(app: RunningAdventure): void {
       const picked = app.world.pick(event.clientX, event.clientY);
       if (picked?.kind === "resource" && event.button === 0) pulse("gather");
       else if (picked?.kind === "npc" && event.button === 0) app.game.interactNpc(picked.id);
+      else if (picked?.kind === "chest") {
+        if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
+      }
       else if (picked?.kind === "threat") {
         if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
         else if (event.button === 0) app.game.selectTarget(picked.id);

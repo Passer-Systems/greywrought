@@ -1,7 +1,7 @@
 import { VENDORS, type NpcId } from "../game/economy.js";
 import {
   BufferGeometry, CanvasTexture, Color, Float32BufferAttribute,
-  CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
+  BoxGeometry, CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
   Material, Mesh, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial,
   Object3D, PerspectiveCamera, Points, PointsMaterial, RingGeometry, Scene, SphereGeometry,
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
@@ -50,6 +50,7 @@ interface ThreatRig {
 }
 
 export type WorldPick = { readonly kind: "threat"; readonly id: string }
+  | { readonly kind: "chest"; readonly id: "ironback-chest" }
   | { readonly kind: "npc"; readonly id: NpcId }
   | { readonly kind: "resource"; readonly id: "frost-cores" }
   | { readonly kind: "place"; readonly id: string };
@@ -206,6 +207,18 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const terrain = new Group();
   scene.add(terrain);
   const thicket = new Group(); terrain.add(thicket);
+  const chestRoot = new Group();
+  chestRoot.position.set(82, -9, -52);
+  chestRoot.userData.chestId = "ironback-chest";
+  terrain.add(chestRoot);
+  const chestReady = prop("Crate", 1.25).then(crate => {
+    if (disposed) { disposeObjects(crate); return; }
+    crate.position.y = 0.42; chestRoot.add(crate);
+    const lid = new Mesh(new BoxGeometry(1.05, 0.18, 0.78), new MeshStandardMaterial({ color: 0x8a5b2c, roughness: 0.72 }));
+    lid.position.set(0, 0.95, -0.03); chestRoot.add(lid);
+    const band = new Mesh(new BoxGeometry(0.14, 0.86, 0.86), new MeshStandardMaterial({ color: 0xd8aa4d, metalness: 0.72, roughness: 0.3 }));
+    band.position.set(0, 0.65, 0); chestRoot.add(band);
+  });
   const mara = new Group(); mara.position.set(3.4, 0, -7.5); mara.rotation.y = -Math.PI/2;
   terrain.add(mara);
   const innPlace = initial.places.find(place => place.id === "inn");
@@ -246,6 +259,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   terrain.add(ritual);
 
   const hoverTargets: HoverTarget[] = [
+    { root: chestRoot, pick: { kind: "chest", id: "ironback-chest" }, name: "Ironback Crab’s cache", anchor: new Vector3(82, -7.4, -52) },
     ...vendorActors.map(({vendor, root}): HoverTarget => ({ root, pick: {kind: "npc", id: vendor.id}, name: `${vendor.name} · ${vendor.trade}`, anchor: new Vector3(vendor.position.x, 2.45, vendor.position.z) })),
     { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(corePlace.position.x, 1.4, corePlace.position.z) },
     { root: mara, pick: { kind: "npc", id: "mara" }, name: "Mara · Supplies", anchor: new Vector3(3.4, 2.45, -7.5) },
@@ -382,7 +396,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let combatHudHeight = 0;
   const aggroRanges = createAggroRanges(scene, canvas);
   const combatGrid = createCombatGrid(scene, canvas);
-  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, coresReady, natureReady, caveReady]).then(()=>undefined);
+  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, coresReady, natureReady, caveReady, chestReady]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
   const groundSurfaces: Object3D[] = [];
