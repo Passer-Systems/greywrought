@@ -1,7 +1,7 @@
 import { terrainHeight } from '../game/cave-layout.js';
 import { LAKE_CENTER, LAKE_RADIUS, LAKE_WATER_LEVEL } from '../game/world-elevation.js';
 import { conformToTerrain } from './terrain-geometry.js';
-import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, CircleGeometry, RingGeometry, MeshStandardMaterial, MeshBasicMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Sprite, SpriteMaterial } from "three";
+import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, CircleGeometry, RingGeometry, MeshStandardMaterial, MeshBasicMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Sprite, SpriteMaterial, Color } from "three";
 import type { Position } from "../game/adventure-types.js";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
@@ -69,7 +69,24 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   ctx.fillStyle = "#54664d"; ctx.fillRect(0,0,128,128);
   for (let i=0;i<1500;i++) { const a=Math.sin(i*127.1)*43758.5453; const b=Math.sin(i*269.5)*19234.324; ctx.fillStyle=i%2?"#627453":"#485d46"; ctx.fillRect((a-Math.floor(a))*128,(b-Math.floor(b))*128,2,2); }
   const map = new CanvasTexture(canvas); map.colorSpace=SRGBColorSpace; map.wrapS=map.wrapT=RepeatWrapping; map.repeat.set(48,64);
-  const groundMaterial = new MeshStandardMaterial({ map, roughness: 1 });
+  // Vertex tint keeps broad hills readable: low grass stays green, exposed
+  // steeper slopes shift toward warm soil and occasional grey rock.
+  const grassTint = new Color('#647d51'), soilTint = new Color('#857257'), rockTint = new Color('#77766a'), summitTint = new Color('#9b9270');
+  function tintGround(geometry: BufferGeometry) {
+    const positions = geometry.getAttribute('position'), normals = geometry.getAttribute('normal');
+    const colors = new Float32Array(positions.count * 3), color = new Color();
+    for (let index = 0; index < positions.count; index++) {
+      const elevation = positions.getY(index), slope = Math.min(1, Math.max(0, 1 - normals.getY(index)));
+      const variation = .92 + .08 * Math.sin(positions.getX(index) * 1.7 + positions.getZ(index) * .83);
+      const rock = Math.max(0, Math.min(1, (slope - .28) * 2.7));
+      const soil = Math.max(0, Math.min(1, (slope - .08) * 1.8)) * (1 - rock);
+      const summit = Math.max(0, Math.min(1, (elevation - 15) / 18));
+      color.copy(grassTint).lerp(soilTint, soil).lerp(rockTint, rock).lerp(summitTint, summit).multiplyScalar(variation);
+      color.toArray(colors, index * 3);
+    }
+    geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+  }
+  const groundMaterial = new MeshStandardMaterial({ map, roughness: 1, vertexColors: true });
   // Four surfaces leave an actual opening in the earth above Hollowdeep.
   for (const [left, right, bottom, top] of [[-124,28,-190,148],[86,146,-190,148],[28,86,-190,-64],[28,86,-30,148]]) {
     const geometry = new PlaneGeometry(right!-left!, top!-bottom!, Math.ceil((right!-left!)/2), Math.ceil((top!-bottom!)/2));
@@ -77,7 +94,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     for(let i=0;i<uv.count;i++) uv.setXY(i, (left! + uv.getX(i)*(right!-left!) + 74)/168, (bottom! + uv.getY(i)*(top!-bottom!) + 134)/214);
     const ground = new Mesh(geometry, groundMaterial);
     ground.rotation.x=-Math.PI/2; ground.position.set((left!+right!)/2,-0.06,(bottom!+top!)/2);
-    ground.userData.walkableGround = true; terrain.add(ground); conformToTerrain(ground, -.06); geometry.computeVertexNormals();
+    ground.userData.walkableGround = true; terrain.add(ground); conformToTerrain(ground, -.06); geometry.computeVertexNormals(); tintGround(geometry);
   }
   const paving = document.createElement("canvas"); paving.width=paving.height=256;
   const pavingCtx=paving.getContext("2d")!; pavingCtx.fillStyle="#8c8871"; pavingCtx.fillRect(0,0,256,256);
