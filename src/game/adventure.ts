@@ -145,7 +145,7 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     preparation: "Folding its wings for a bite", intention: "Echo Bite", damage: 26, reach: 2.2,
     benefit: "Search its remains for three pieces of cave salvage." },
   { id: "cave-crab", level: 5, disposition: "hostile", aggroRange: 8, leash: 16, speed: 2.1,
-    name: "Ironback cave crab", position: point(69,-47), health: 156,
+    name: "Ironback cave crab", position: point(69,-47), health: 624,
     patrol: [point(69,-47),point(73,-51),point(77,-47),point(73,-41)],
     preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 38, reach: 4.5,
     benefit: "Search its shell for six pieces of cave salvage." },
