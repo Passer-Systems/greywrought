@@ -486,7 +486,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         const positions = combatGridGeometry.getAttribute("position") as Float32BufferAttribute;
         let vertex = 0;
         for (let i = -4; i <= 4; i++) {
-          const x = centerX + i * 2.5, z = centerZ + i * 2.5;
+          const x = centerX + i * 2.5 - 1.25, z = centerZ + i * 2.5 - 1.25;
           positions.setXYZ(vertex++, x, terrainHeight(x, centerZ - 10) + .035, centerZ - 10); positions.setXYZ(vertex++, x, terrainHeight(x, centerZ + 10) + .035, centerZ + 10);
           positions.setXYZ(vertex++, centerX - 10, terrainHeight(centerX - 10, z) + .035, z); positions.setXYZ(vertex++, centerX + 10, terrainHeight(centerX + 10, z) + .035, z);
         }
