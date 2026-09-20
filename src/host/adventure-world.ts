@@ -34,6 +34,7 @@ import { updateThreatAnimation, type ThreatAnimationState } from "./threat-anima
 import { terrainHeight } from "../game/cave-layout.js";
 import { isSwimmingPosition } from "../game/world-elevation.js";
 import { buildVolcanoLandmark } from "./volcano-landmark.js";
+import { mechanicalTurtle } from "./mechanical-turtle.js";
 
 interface ThreatRig extends ThreatAnimationState {
   readonly root: Group;
@@ -373,9 +374,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   };
   const creaturesReady = Promise.all(initial.threats.map(async threat => {
     const look = appearances[threat.id]; if(!look) throw Error(`No appearance for ${threat.id}`);
-    const creature = await actor(look.model, look.height);
+    const creature = threat.id === "pond-turtle" ? mechanicalTurtle() : await actor(look.model, look.height);
     if (disposed) { creature.dispose(); return; }
-    if (threat.id === "pond-turtle") {
+    /* turtle geometry is supplied by mechanicalTurtle */
+    if (false && threat.id === "pond-turtle") {
       // The asset library has no turtle. Replace the temporary rig silhouette
       // with an authored mechanical swimmer: plated shell, head, eyes and four
       // articulated flippers. The hidden rig still supplies lifecycle timing.
