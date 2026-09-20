@@ -1,4 +1,5 @@
 const frostwoodFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/frostwood",onlyFiles:true}));
+const pirateFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/pirate",onlyFiles:true}));
 const iconFiles = await Array.fromAsync(
   new Bun.Glob("**/*.{png,svg}").scan({ cwd: "assets/ui/icons", onlyFiles: true }),
 );
@@ -47,5 +48,8 @@ export const files: readonly (readonly [string, string])[] = [
   ]),
   ...frostwoodFiles.map((name): readonly [string, string] => [
     `assets/external/quaternius/frostwood/${name}`, `dist/assets/quaternius/frostwood/${name}`,
+  ]),
+  ...pirateFiles.map((name): readonly [string, string] => [
+    `assets/external/quaternius/pirate/${name}`, `dist/assets/quaternius/pirate/${name}`,
   ]),
 ];

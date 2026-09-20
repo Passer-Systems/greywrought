@@ -94,7 +94,7 @@ const props = new Map<string, Promise<Object3D>>();
 export async function prop(name: string, size: number, axis: "height" | "width" = "height"): Promise<Group> {
   let promise = props.get(name);
   if (!promise) {
-    promise = name.startsWith("nature/") ? source(`${root}${name}.gltf`).then(g => g.scene) : (async () => {
+    promise = name.startsWith("nature/") ? source(`${root}${name}.gltf`).then(g => g.scene) : name.startsWith("pirate/") ? source(`assets/quaternius/${name}.gltf`).then(g => g.scene) : (async () => {
       const base = publicUrl(`${root}${name.startsWith("works/") ? name : `village/${name}`}`);
       const materials = await new MTLLoader().loadAsync(`${base}.mtl`);
       const response = await fetch(`${base}.obj`);

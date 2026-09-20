@@ -153,7 +153,7 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     benefit: "Search its shell for six pieces of cave salvage." },
 ];
 const IRONBACK_CHEST_ID = "ironback-chest";
-const IRONBACK_CHEST_POSITION = point(82, -52);
+const IRONBACK_CHEST_POSITION = point(78, -52);
 const PLACES: readonly PlaceView[] = [
   ...VENDORS.map(v => ({ id: v.id, name: `${v.name} / ${v.trade}`, position: v.position, kind: "shop" as const })),
   { id: "hollowdeep", name: "Hollowdeep Cave · Danger", position: point(28,-46), kind: "gate" },
