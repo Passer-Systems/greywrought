@@ -2039,10 +2039,10 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
   #route-objective { font-size: var(--ui-font-prominent); }
 }
 
-.adventure-actions {width:100%;gap:8px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;}
-.adventure-actions button {flex:1;width:auto;height:76px;border:0;background:none;}
+.adventure-actions {width:100%;gap:4px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;}
+.adventure-actions button {flex:1;width:auto;height:auto;border:0;background:none;}
 .adventure-actions button kbd {height:14px;color:#eee3c9;font:700 var(--ui-font-small)/14px Georgia,serif;text-shadow:0 1px 3px #000;}
-.adventure-actions .action-art {inset:16px 0 20px;border:1px solid #b6aa87;border-radius:0;}
+.adventure-actions .action-art {position:relative;display:block;inset:auto;width:100%;aspect-ratio:1;margin:16px 0 20px;border:1px solid #b6aa87;border-radius:0;}
 .adventure-actions .action-label {position:absolute;bottom:0;left:0;right:0;color:#f1e7cb;font:600 12px/18px system-ui;text-shadow:0 1px 3px #000;}
 .adventure-actions .action-recovery-shade {height:calc(var(--recovery,0) * 31px);}
 .adventure-actions button:hover {background:none;border-color:transparent;}
@@ -2163,7 +2163,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-danger[data-severity="tactics"] { color: #d7c692; background: #302b1f; border-color: #655536; }
 #bait-aim-hint { margin: 4px 0; padding: 7px 12px; color: #fff1bc; background: #182d32ed; border: 1px solid #91cbb4; font: 13px system-ui; }
 body[data-bait-aiming="true"] #world-canvas { cursor: crosshair; }
-.adventure-actions button[aria-pressed="true"] { outline: 2px solid #a0e4ce; }
+.adventure-actions button[aria-pressed="true"] .action-art { outline: 2px solid #a0e4ce; }
 body[data-bait-aiming="true"] .combat-plan { visibility: hidden; pointer-events: none; }
 
 .combat-plan-forecast-summary { margin: 3px 0; color: #f2d495; font-size: 11px; }
