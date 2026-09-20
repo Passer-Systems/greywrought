@@ -12,11 +12,11 @@ function walk(game: ReturnType<typeof createAdventure>, x: number, z: number) {
 }
 
 test('town has a physical boundary; the southern meadow and east trail remain expeditions', () => {
-  expect(inTown({ x: 0, z: -23 })).toBe(true);
-  expect(inTown({ x: 0, z: -25 })).toBe(false);
+  expect(inTown({ x: 0, z: -39 })).toBe(true);
+  expect(inTown({ x: 0, z: -41 })).toBe(false);
   expect(inTown({ x: 28, z: -46 })).toBe(false);
   const game = createAdventure();
-  walk(game, 0, -26); expect(game.snapshot.phase).toBe('expedition');
+  walk(game, 0, -42); expect(game.snapshot.phase).toBe('expedition');
   walk(game, 0, -122); walk(game, -62, -122); walk(game, -62, -76); walk(game, 20, -76); walk(game, 20, -46); walk(game, 28, -46);
   expect(game.snapshot.phase).toBe('expedition');
   expect(game.snapshot.threats.some(t => t.aggro)).toBe(false);

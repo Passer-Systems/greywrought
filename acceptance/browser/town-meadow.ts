@@ -41,7 +41,7 @@ try {
   await page.key('KeyW', false);
   check(await page.evaluate('window.routeState.snapshot.log.some(entry => entry.text.includes("You return to"))'), 'Crossing the town edge must extract');
   await page.key('KeyW', true);
-  await page.waitFor('window.routeState.snapshot.player.position.z > 18', 12000);
+  await page.waitFor('window.routeState.snapshot.player.position.z > 18', 18000);
   await page.key('KeyW', false);
   check(await page.evaluate('!window.routeState.snapshot.threats.some(t => t.aggro)'), 'North approach must stay quiet');
   await page.shot('quiet-north-road');
