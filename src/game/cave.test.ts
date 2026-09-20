@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test';
 import { createAdventure, createSharedAdventure, getMonsterLore } from './adventure.js';
-import { caveBlockedPosition } from './cave-layout.js';
+import { caveBlockedPosition, terrainHeight } from './cave-layout.js';
 import { finishCycle, tap } from './yard-test-fixtures.js';
 
 function encounter(id: string) {
   const save=JSON.parse(createAdventure().save());
   const threat=save.state.threats.find((t: {id:string})=>t.id===id);
-  Object.assign(save.state,{phase:'expedition',position:{x:threat.position.x-2,y:0,z:threat.position.z},potions:5});
+  Object.assign(save.state,{phase:'expedition',position:{x:threat.position.x-2,y:terrainHeight(threat.position.x-2,threat.position.z),z:threat.position.z},potions:5});
   const game=createAdventure({save:JSON.stringify(save)});game.advance(.01);game.selectTarget(id);return game;
 }
 test('Hollowdeep entrance and chamber passage are open, rock banks block shortcuts',()=>{

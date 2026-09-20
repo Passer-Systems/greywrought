@@ -1,3 +1,4 @@
+import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
 import { inTown, WORLD_BOUNDS, migrateSpatialLayout } from './world-layout.js';
 import { findEmote } from './emotes.js';
 import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
@@ -114,7 +115,7 @@ function savedState(state: State): SavedState {
   return { ...player, ...world, combat: { ...combat.clock, queued: combat.queued, nextId: combat.nextId, ready: combat.ready } };
 }
 
-const point = (x: number, z: number): Vector => ({ x, y: 0, z });
+const point = (x: number, z: number): Vector => ({ x, y: terrainHeight(x, z), z });
 const DEFINITIONS: readonly ThreatDefinition[] = [
   { id: "scout", level: 1, behavior: "head", disposition: "hostile", aggroRange: 6, leash: 14, speed: 1.6, name: "Cinder Watchman", position: point(-3, 30), health: 96,
     patrol: [point(-3, 30), point(-5, 32), point(-3, 34), point(-1, 32)],
@@ -169,7 +170,7 @@ const definition = (id: string): ThreatDefinition => {
   if (!found) throw new Error(`Unknown threat: ${id}`);
   return found;
 };
-const newWolf = (): WolfState => ({ facing: point(0, 1), motion: null,
+const newWolf = (): WolfState => ({ facing: { x: 0, y: 0, z: 1 }, motion: null,
   nextAttackSeconds: COMBAT_RULES.enemy.preparation, circling: false, attackOrigin: point(-3, 10),
 });
 const newHead = (): HeadState => ({ opened: false, ability: "ember-beam", castVolley: 1, block: 0, blockSeconds: 0, volley: 1, projectileSequence: 0, pendingFireballs: 0, nextFireballSeconds: 0, fireballs: [] });
@@ -240,7 +241,7 @@ class Adventure implements AdventureGame {
     for (const frame of frames) if (frame.sequence > (this.movementFrames!.at(-1)?.sequence ?? this.movementSequence)) this.movementFrames!.push(frame);
     return true;
   }
-  private cameraForward = point(0, 1);
+  private cameraForward: Vector = { x: 0, y: 0, z: 1 };
   private moving = false;
   private backpedaling = false;
   private shopOpen = false;
@@ -265,10 +266,11 @@ class Adventure implements AdventureGame {
     if (options.save !== undefined) {
       const root = record(JSON.parse(options.save));
       migrateSpatialLayout(root);
+      migrateTerrainLayout(root);
       if ((root.version !== 1 && root.version !== 2 && root.version !== 3 && root.version !== 4) || root.kind !== "shared-adventure" || !Array.isArray(root.characters)) throw new Error("Unsupported shared adventure save.");
       const world = record(root.world), version = root.version === 1 ? 9 : root.version === 4 ? 11 : 10;
       const template = savedState(initialState("warrior"));
-      context.world = readSave(JSON.stringify({ version, spatialLayout: 1, state: { ...template, ...world, phase: "expedition" } }), context.now()).world;
+      context.world = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 1, state: { ...template, ...world, phase: "expedition" } }), context.now()).world;
       context.clock = root.version === 4 ? readClock(root.clock) : newClock();
       const instances = new Map<string, { id: string; origin: Vector; world: WorldState; clock: CombatClock }>();
       if (root.version === 3 || root.version === 4) {
@@ -276,7 +278,7 @@ class Adventure implements AdventureGame {
         for (const value of root.instances) {
           const entry = record(value), ownerId = text(entry.ownerId), id = text(entry.id);
           if (!id.startsWith('private:') || instances.has(ownerId) || [...instances.values()].some(instance => instance.id === id)) throw new Error("Invalid private encounter identity.");
-          instances.set(ownerId, { id, clock: root.version === 4 ? readClock(entry.clock) : newClock(), origin: groundPosition(entry.origin), world: readSave(JSON.stringify({ version, spatialLayout: 1, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world });
+          instances.set(ownerId, { id, clock: root.version === 4 ? readClock(entry.clock) : newClock(), origin: groundPosition(entry.origin), world: readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 1, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world });
         }
       }
       for (const value of root.characters) {
@@ -287,7 +289,7 @@ class Adventure implements AdventureGame {
           ? { world: instance.world, clock: instance.clock, now: context.now, online: new Map(), characters: new Map(), id: instance.id, mode: 'paused', origin: instance.origin }
           : context;
         const game = new Adventure({}, ownContext, id);
-        game.state = readSave(JSON.stringify({ version, spatialLayout: 1, state: { ...state, ...ownContext.world } }), context.now());
+        game.state = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 1, state: { ...state, ...ownContext.world } }), context.now());
         game.state.world = ownContext.world; game.state.combat.clock = ownContext.clock;
         characters.set(id, { name, game });
         ownContext.characters.set(id, game);
@@ -326,9 +328,9 @@ class Adventure implements AdventureGame {
         t.aggro = false; t.castDuration = 0; t.remainingSeconds = 0; t.moving = false;
         t.phase = !t.active ? 'dormant' : t.health === 0 ? 'cleared' : 'returning';
         if (t.head) { t.head.fireballs = []; t.head.pendingFireballs = 0; t.head.nextFireballSeconds = 0; }
-        if (t.wolf) { t.wolf.motion = null; t.wolf.circling = false; t.position.y = 0; }
+        if (t.wolf) { t.wolf.motion = null; t.wolf.circling = false; t.position.y = terrainHeight(t.position.x, t.position.z); }
       }
-      const privateContext: SharedContext = { world: clone, clock: structuredClone(game.state.combat.clock), now: context.now, online: new Map(), characters: new Map(), id: `private:${crypto.randomUUID()}`, mode: "paused", origin: { x: game.state.position.x, y: 0, z: game.state.position.z } };
+      const privateContext: SharedContext = { world: clone, clock: structuredClone(game.state.combat.clock), now: context.now, online: new Map(), characters: new Map(), id: `private:${crypto.randomUUID()}`, mode: "paused", origin: point(game.state.position.x, game.state.position.z) };
       privateContext.characters.set(id, game); sessions.set(id, privateContext);
       return privateContext;
     };
@@ -385,7 +387,7 @@ class Adventure implements AdventureGame {
       if (!privateContext || !game || (privateContext.mode !== "private" && privateContext.mode !== "paused") || game.state.health <= 0 || game.inCombat()) return false;
       const origin = privateContext.origin ?? game.state.position;
       game.shared = context; game.state.world = context.world; game.state.combat = newCombat(context.clock);
-      const destination = { x: origin.x, y: 0, z: origin.z };
+      const destination = point(origin.x, origin.z);
       if (!game.blocked(destination.x, destination.z)) game.state.position = destination;
       game.state.verticalSpeed = 0; game.state.maneuver = null;
       game.state.phase = inTown(game.state.position) ? 'town' : 'expedition';
@@ -442,7 +444,7 @@ class Adventure implements AdventureGame {
       },
       save() {
         refresh();
-        return JSON.stringify({ version: 4, spatialLayout: 1, kind: "shared-adventure", world: context.world, clock: context.clock,
+        return JSON.stringify({ version: 4, spatialLayout: 1, terrainLayout: 1, kind: "shared-adventure", world: context.world, clock: context.clock,
           characters: [...characters].map(([id, { name, game }]) => {
             const { threats, resourceRemaining, resourceRespawns, ritualCalled, ...player } = savedState(game.state);
             return { id, name, state: player };
@@ -480,7 +482,7 @@ class Adventure implements AdventureGame {
       phase: s.phase, combat: { forecast: this.forecast(), hazards: s.world.threats.flatMap(t => t.swarm ? [{ id: t.id + ":swarm", kind: "swarm" as const, position: { ...t.swarm.position }, radius: COMBAT_RULES.swarm.radius }] : []), effects: this.effects.map(e => ({ ...e, position: { ...e.position } })), ready: s.combat.ready, phase: s.combat.clock.phase, remainingSeconds: s.combat.clock.phase === "idle" ? 0 : Math.max(0, (s.combat.clock.phase === "active" ? COMBAT_RULES.window.active : COMBAT_RULES.window.preparation) - s.combat.clock.elapsedSeconds), elapsedSeconds: s.combat.clock.elapsedSeconds, cycle: s.combat.clock.cycle, queued: s.combat.queued.map(e => ({ ...e })), reservedStamina: this.reservedStamina(), availableStamina: s.stamina - this.reservedStamina() },
       player: {
         position: { ...s.position }, cameraForward: { ...this.cameraForward }, archetype: s.archetype,
-        health: s.health, maximumHealth: 100, grounded: s.position.y === 0,
+        health: s.health, maximumHealth: 100, grounded: s.position.y === terrainHeight(s.position.x, s.position.z),
         moving: this.moving, backpedaling: this.backpedaling, attackSequence: s.attackSequence,
         actionCooldown: s.actionCooldown, currentAction: s.currentAction, actionDuration: s.actionDuration, guardSeconds: s.guardSeconds,
         block: s.block, stamina: s.stamina, maximumStamina: COMBAT_RULES.stamina.maximum, staminaRecoverySeconds: s.staminaRecoverySeconds,
@@ -496,7 +498,7 @@ class Adventure implements AdventureGame {
           movementMode: this.movementMode(t), motionProgress: t.wolf?.motion ? 1 - t.wolf.motion.remainingSeconds / t.wolf.motion.duration : 0,
           facing: { ...(t.wolf?.facing ?? this.direction(t.position, t.aggro ? (this.targetPlayer(t)?.state.position ?? s.position) : t.targetPosition)) },
           nextAttackSeconds: t.wolf?.nextAttackSeconds ?? t.remainingSeconds,
-          attackOrigin: { ...(t.wolf && t.phase === "action" && t.abilityIndex === 1 ? t.wolf.attackOrigin : t.position), y: 0 },
+          attackOrigin: t.wolf && t.phase === "action" && t.abilityIndex === 1 ? { ...t.wolf.attackOrigin } : point(t.position.x, t.position.z),
           block: t.head?.block ?? t.shield, blockSeconds: t.head?.blockSeconds ?? t.shieldSeconds, volley: t.head?.volley ?? 0, fireballs: t.head?.fireballs.map(p => ({ ...p, origin: { ...p.origin } })) ?? [],
           rootedSeconds: this.rootedSeconds(t), canStrike: this.canUseAttack(t, "strike"), canDisengage: this.canUseAttack(t, "disengage"), cast: this.castView(t),
           inRangeActions: (["strike", "disengage", "jab", "shove", "finish"] as const).filter(action => this.attackInRange(t, action)),
@@ -522,7 +524,7 @@ class Adventure implements AdventureGame {
     };
   }
 
-  save(): string { return JSON.stringify({ version: 11, spatialLayout: 1, state: savedState(this.state) }); }
+  save(): string { return JSON.stringify({ version: 11, spatialLayout: 1, terrainLayout: 1, state: savedState(this.state) }); }
   private progression(): ProgressionView {
     const c = this.state.chapter;
     const gear = Object.values(c.equipment).filter((id): id is GearItemId => id !== null);
@@ -631,7 +633,7 @@ class Adventure implements AdventureGame {
   setCameraForward(x: number, z: number): void {
     if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error("Camera direction must be finite.");
     const length = Math.hypot(x, z);
-    if (length > EPSILON) this.cameraForward = point(x / length, z / length);
+    if (length > EPSILON) this.cameraForward = { x: x / length, y: 0, z: z / length };
   }
   setMouseForward(active: boolean): void { if (!this.instancePaused() && !this.executionLocked()) { if (active) this.cancelGather(); this.mouseForward = active; } }
   sit(): void {
@@ -744,7 +746,7 @@ class Adventure implements AdventureGame {
     return null;
   }
   queueBait(destination: Position): boolean {
-    if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z) || destination.y !== 0 || destination.x < WORLD_BOUNDS.minX || destination.x > WORLD_BOUNDS.maxX || destination.z < WORLD_BOUNDS.minZ || destination.z > WORLD_BOUNDS.maxZ || this.blocked(destination.x, destination.z)) return false;
+    if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z) || destination.y !== terrainHeight(destination.x, destination.z) || destination.x < WORLD_BOUNDS.minX || destination.x > WORLD_BOUNDS.maxX || destination.z < WORLD_BOUNDS.minZ || destination.z > WORLD_BOUNDS.maxZ || this.blocked(destination.x, destination.z)) return false;
     const c = this.state.combat;
     if (!this.editableQueue() || !this.inCombat() || c.clock.phase !== "preparation" || this.queueReason("bait") || c.queued.length >= 3) return false;
     const offset = [0,1,2].find(slot => !c.queued.some(e => e.offsetSeconds === slot))!;
@@ -988,7 +990,7 @@ class Adventure implements AdventureGame {
   }
   private direction(from: Position, to: Position): Vector {
     const length = distance(from, to);
-    return length > EPSILON ? point((to.x - from.x) / length, (to.z - from.z) / length) : point(0, 1);
+    return length > EPSILON ? { x: (to.x - from.x) / length, y: 0, z: (to.z - from.z) / length } : { x: 0, y: 0, z: 1 };
   }
   private movementMode(t: ThreatState): ThreatView["movementMode"] {
     if (t.health === 0 || this.state.phase === "lost") return "idle";
@@ -1057,7 +1059,7 @@ class Adventure implements AdventureGame {
       t.respawnAt = this.now() + WORLD_RESPAWN_MILLISECONDS;
       if (!t.head?.fireballs.length) t.targetPlayerId = null; t.phase = "cleared"; t.remainingSeconds = 0; t.lastActionHit = false; t.aggro = false; t.moving = false; t.combatants = [];
       if (t.head) { t.head.pendingFireballs = 0; t.head.block = 0; t.head.blockSeconds = 0; }
-      if (t.wolf) { t.wolf.motion = null; t.wolf.circling = false; t.position.y = 0; }
+      if (t.wolf) { t.wolf.motion = null; t.wolf.circling = false; t.position.y = terrainHeight(t.position.x, t.position.z); }
       this.report(`${definition(t.id).name} dies. ${definition(t.id).benefit}`, "combat");
       if (t.id === "ritual-guardian") {
         this.report("The guardian falls. Search its body for the Last Shift Roll, then carry it home.");
@@ -1125,7 +1127,7 @@ class Adventure implements AdventureGame {
     if (t.health <= 0) return;
     if (this.hasUnresolvedCast(t)) t.cancelledWindow = true;
     const interrupted = t.phase === "preparation" || t.phase === "action";
-    t.staggered = true; t.approaching = false; t.position.y = 0;
+    t.staggered = true; t.approaching = false; t.position.y = terrainHeight(t.position.x, t.position.z);
     if (t.wolf) { t.wolf.motion = null; t.wolf.circling = false; }
     if (t.head) t.head.pendingFireballs = 0;
     t.phase = "recovery"; t.remainingSeconds = 0;
@@ -1283,7 +1285,7 @@ class Adventure implements AdventureGame {
     m.remainingSeconds = motion.remainingSeconds;
     this.backpedaling = m.kind === "disengage" && this.moving;
     if (m.remainingSeconds > EPSILON) return;
-    s.position.y = 0; s.verticalSpeed = 0; s.maneuver = null;
+    s.position.y = terrainHeight(s.position.x, s.position.z); s.verticalSpeed = 0; s.maneuver = null;
     if (m.kind === "lunge") {
       const t = s.world.threats.find(t => t.id === m.targetId);
       if (t && t.active && t.health > 0 && distance(s.position, t.position) <= COMBAT_RULES.disengage.range + EPSILON && this.attackPath(t)) this.hit(t, (classAction(s.archetype, "strike").damage ?? COMBAT_RULES.strike.damage) + s.bloodRage * this.powerDamagePerStack(), "lunge at");
@@ -1351,7 +1353,7 @@ class Adventure implements AdventureGame {
       const reservedRoll = s.chapter.accepted.includes("last-shift") && !s.chapter.completed.includes("last-shift") ? s.carriedRelics : 0;
       s.phase = "town"; s.supplies += s.cargo - reservedCrystals + s.carriedSalvage; s.bankedRelics += s.carriedRelics - reservedRoll;
       s.cargo = reservedCrystals; s.carriedRelics = reservedRoll; s.carriedSalvage = 0; s.guardSeconds = 0; s.block = 0;
-      s.maneuver = null; s.position.y = 0; s.verticalSpeed = 0; this.lootOpenId = null; this.trade = null;
+      s.maneuver = null; s.position.y = terrainHeight(s.position.x, s.position.z); s.verticalSpeed = 0; this.lootOpenId = null; this.trade = null;
       if (!this.shared) for (const t of s.world.threats) if (t.health > 0) this.releaseThreat(t);
 
       this.report(`You return to ${YARD.settlement}. Salvage and spare crystals are secured.${reservedCrystals ? " Bring your coolant crystals to Mara." : ""}${reservedRoll ? " Bring the Last Shift Roll to Rowan." : ""} Visit the inn before your next trip.`);
@@ -1489,7 +1491,7 @@ class Adventure implements AdventureGame {
     t.castDuration = t.specialOffset;
     t.remainingSeconds = t.specialOffset;
     t.targetPosition = t.wolf ? this.wolfEndpoint(t) : { ...t.position };
-    if (t.wolf) { t.wolf.nextAttackSeconds = t.remainingSeconds; t.wolf.motion = null; t.position.y = 0; }
+    if (t.wolf) { t.wolf.nextAttackSeconds = t.remainingSeconds; t.wolf.motion = null; t.position.y = terrainHeight(t.position.x, t.position.z); }
   }
   private chooseHeadAbility(t: ThreatState): HeadAbilityId {
     const h = t.head!, s = this.state;
@@ -1582,7 +1584,7 @@ class Adventure implements AdventureGame {
     t.damage = definition(t.id).damage;
     if (t.wolf) {
       t.wolf.motion = null; t.wolf.circling = false;
-      t.wolf.nextAttackSeconds = COMBAT_RULES.enemy.preparation; t.position.y = 0;
+      t.wolf.nextAttackSeconds = COMBAT_RULES.enemy.preparation; t.position.y = terrainHeight(t.position.x, t.position.z);
       t.damage = 18;
     }
     if (t.head) t.head = newHead();
@@ -1638,6 +1640,7 @@ class Adventure implements AdventureGame {
     const amount = Math.min(length, speed * dt) / length;
     t.position.x += (next.x - t.position.x) * amount;
     t.position.z += (next.z - t.position.z) * amount;
+    t.position.y = terrainHeight(t.position.x, t.position.z);
     t.moving = true;
     if (t.wolf) t.wolf.facing = this.direction(t.position, next);
   }
@@ -1777,7 +1780,7 @@ class Adventure implements AdventureGame {
   private launchMaul(t: ThreatState): void {
     const w = t.wolf;
     if (!w) return;
-    t.position.y = 0;
+    t.position.y = terrainHeight(t.position.x, t.position.z);
     w.facing = this.direction(t.position, this.state.position); w.circling = false;
     w.attackOrigin = { ...t.position };
     t.targetPosition = this.wolfEndpoint(t);
@@ -1807,11 +1810,11 @@ class Adventure implements AdventureGame {
       t.position = this.contactPoint(old, t.position, victim.position, 1.1);
       this.collide(t, victim, t.damage, t.id); return;
     }
-    t.position.y = 4 * COMBAT_RULES.wolf.lungeHeight * progress * (1 - progress);
+    t.position.y = terrainHeight(t.position.x, t.position.z) + 4 * COMBAT_RULES.wolf.lungeHeight * progress * (1 - progress);
     t.moving = Math.hypot(t.position.x - old.x, t.position.y - old.y, t.position.z - old.z) > EPSILON;
     if (distance(motion.start, motion.destination) > EPSILON) w.facing = this.direction(motion.start, motion.destination);
     if (motion.remainingSeconds > EPSILON) return;
-    t.position.y = 0; w.motion = null;
+    t.position.y = terrainHeight(t.position.x, t.position.z); w.motion = null;
   }
   private positionWolf(t: ThreatState, dt: number): void {
     const w = t.wolf;
@@ -1894,15 +1897,18 @@ function choice<T extends string>(value: unknown, choices: readonly T[]): T {
 }
 function groundPosition(value: unknown, maximumHeight = 0): Vector {
   const p = record(value);
-  return { x: number(p.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX), y: number(p.y, 0, maximumHeight), z: number(p.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ) };
+  const x = number(p.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX), z = number(p.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
+  const ground = terrainHeight(x, z);
+  return { x, y: number(p.y, ground, ground + maximumHeight), z };
 }
 function readSave(serialized: string, now = Date.now()): State {
   let parsed: unknown;
   try { parsed = JSON.parse(serialized); } catch { throw new Error("Invalid adventure save: unreadable saved data."); }
   const root = record(parsed);
   migrateSpatialLayout(root);
+  migrateTerrainLayout(root);
   const version = number(root.version, 1, 11, true), realtime = version >= 10;
-  const s = record(root.state), p = record(s.position);
+  const s = record(root.state);
   if (!Array.isArray(s.threats)) throw new Error("Invalid adventure save: missing threats.");
   const threats: ThreatState[] = s.threats.map(value => {
     const t = record(value), id = choice(t.id, DEFINITIONS.map(d => d.id)), d = definition(id);
@@ -1936,7 +1942,7 @@ function readSave(serialized: string, now = Date.now()): State {
       actionSequence: number(t.actionSequence, 0, Number.MAX_SAFE_INTEGER, true), lastActionHit: boolean(t.lastActionHit),
       damage: number(t.damage, 0, Number.MAX_SAFE_INTEGER, true),
       position: version === 1 ? { ...d.position } : groundPosition(t.position, COMBAT_RULES.wolf.lungeHeight),
-      targetPosition: version === 1 ? { ...d.position } : groundPosition(t.targetPosition),
+      targetPosition: version === 1 ? { ...d.position } : groundPosition(t.targetPosition, 2),
       targetPlayerId: t.targetPlayerId === undefined || t.targetPlayerId === null ? null : text(t.targetPlayerId),
       lootClaimed: version >= 3 ? boolean(t.lootClaimed) : id === "ritual-guardian" && health === 0,
       patrolIndex: t.patrolIndex === undefined ? 1 : number(t.patrolIndex, 0, d.patrol?.length ?? 1, true), moving: t.moving === undefined ? false : boolean(t.moving),
@@ -1945,7 +1951,7 @@ function readSave(serialized: string, now = Date.now()): State {
       head: id === "scout" ? t.head ? readHead(t.head, realtime) : newHead() : null,
     };
     if (!realtime) {
-      result.position.y = 0; result.shield = 0;
+      result.position.y = terrainHeight(result.position.x, result.position.z); result.shield = 0;
       result.phase = health === 0 ? "cleared" : !active ? "dormant" : aggro ? "preparation" : phase === "returning" ? "returning" : d.patrol ? "patrol" : "dormant";
     }
     if (id === "nest" && result.position.x > THICKET[0] && result.position.z >= THICKET[2] && result.position.z <= THICKET[3]) { result.position.x = THICKET[0] - 0.5; result.targetPosition = { ...result.position }; }
@@ -1961,7 +1967,7 @@ function readSave(serialized: string, now = Date.now()): State {
   const state: State = {
     chapter: readChapter(s.chapter), combat: newCombat(), phase: choice(s.phase, ["town", "expedition", "lost"] as const),
     archetype: choice(s.archetype, ["warrior", "mage", "hunter", "alchemist", "artificer"] as const),
-    position: { x: number(p.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX), y: number(p.y, 0, 2), z: number(p.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ) },
+    position: groundPosition(s.position, 2),
     verticalSpeed: number(s.verticalSpeed, -6, 5.5), health: number(s.health, 0, 100),
     bank: s.bank === undefined ? { supplies: 0, potions: 0 } : { supplies: number(record(s.bank).supplies, 0, Number.MAX_SAFE_INTEGER, true), potions: number(record(s.bank).potions, 0, Number.MAX_SAFE_INTEGER, true) },
     supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, Number.MAX_SAFE_INTEGER, true),
@@ -2036,7 +2042,7 @@ function readManeuver(value: unknown): Maneuver | null {
   if (value === null) return null;
   const m = record(value), kind = choice(m.kind, ["lunge", "disengage", "bait"] as const), f = record(m.facing);
   return { kind, targetId: choice(m.targetId, DEFINITIONS.map(t => t.id)),
-    start: groundPosition(m.start), destination: groundPosition(m.destination),
+    start: groundPosition(m.start, 2), destination: groundPosition(m.destination),
     facing: { x: number(f.x, -1, 1), y: number(f.y, 0, 0), z: number(f.z, -1, 1) },
     remainingSeconds: number(m.remainingSeconds, 0, kind === "bait" ? COMBAT_RULES.bait.duration : kind === "lunge" ? COMBAT_RULES.strike.duration : COMBAT_RULES.disengage.duration) };
 }

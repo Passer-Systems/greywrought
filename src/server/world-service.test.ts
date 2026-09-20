@@ -1,3 +1,4 @@
+import { terrainHeight } from '../game/cave-layout.js';
 import { expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createConnection, type Socket } from 'node:net';
@@ -283,14 +284,14 @@ test('two seconds without native pong forks a joined socket despite continuous b
   }
 }, 12_000);
 
-test('Bait transport rejects invalid ground and queues a valid destination in the real encounter', async () => {
+test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and queues a real destination from (%s, %s)', async (x, z, destinationX) => {
   const { createSharedAdventure } = await import('../game/adventure.js');
   const directory = await mkdtemp(join(tmpdir(), 'greywrought-bait-'));
   const savePath = join(directory, 'world.json');
   const character: LocalCharacter = { id: 'bait-tester', name: 'Bait Tester', archetype: 'warrior', createdAtMillis: 1 };
   const token = crypto.randomUUID(), seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
   const saved = JSON.parse(seed.save());
-  Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 28 } });
+  Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x, y: terrainHeight(x, z), z } });
   await writeFile(savePath, JSON.stringify({ version: 1, accounts: [{ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') }], world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
   const service = await createWorldService({ savePath });
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
@@ -301,7 +302,8 @@ test('Bait transport rejects invalid ground and queues a valid destination in th
       expect(await client.invalid({ type: 'bait', destination })).toBe(false);
     }
     expect(await client.command({ type: 'bait', destination: { x: 4, y: 0, z: 40 } })).toBe(false);
-    const destination = { x: 0, y: 0, z: 28 };
+    const destination = { x: destinationX, y: terrainHeight(destinationX, z), z };
+    if (z < 0) expect(await client.command({ type: 'bait', destination: { ...destination, y: 0 } })).toBe(false);
     expect(await client.command({ type: 'bait', destination })).toBe(true);
     const planned = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait'));
     expect(planned.snapshot.combat.queued[0]!.destination).toEqual(destination);

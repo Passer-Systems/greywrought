@@ -1,5 +1,5 @@
 import { WORLD_BOUNDS } from './world-layout.js';
-import { CAVE_BARRIERS } from './cave-layout.js';
+import { CAVE_BARRIERS, terrainHeight } from './cave-layout.js';
 import type { Position } from './adventure-types.js';
 
 export type Barrier = readonly [left: number, right: number, bottom: number, top: number];
@@ -15,15 +15,17 @@ export function blockedPosition(x: number, z: number): boolean {
   return MOVEMENT_BARRIERS.some(([left, right, bottom, top]) => x > left && x < right && z >= bottom && z <= top);
 }
 export function movePosition(p: MovementState['position'], dx: number, dz: number): void {
+  const height = p.y - terrainHeight(p.x, p.z);
   const nextX = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, p.x + dx)), nextZ = Math.max(WORLD_BOUNDS.minZ, Math.min(WORLD_BOUNDS.maxZ, p.z + dz));
   if (!blockedPosition(nextX, nextZ)) { p.x = nextX; p.z = nextZ; }
   else {
     if (!blockedPosition(nextX, p.z)) p.x = nextX;
     if (!blockedPosition(p.x, nextZ)) p.z = nextZ;
   }
+  p.y = terrainHeight(p.x, p.z) + height;
 }
 export function startJump(state: MovementState): void {
-  if (state.position.y === 0 && state.verticalSpeed === 0) state.verticalSpeed = 5.5;
+  if (state.position.y === terrainHeight(state.position.x, state.position.z) && state.verticalSpeed === 0) state.verticalSpeed = 5.5;
 }
 export function moveManeuverPosition(state: MovementState, maneuver: MovementManeuver, seconds: number): boolean {
   const old = { ...state.position }, elapsed = Math.min(seconds, maneuver.remainingSeconds);
@@ -31,8 +33,9 @@ export function moveManeuverPosition(state: MovementState, maneuver: MovementMan
     (maneuver.destination.z - maneuver.start.z) * elapsed / maneuver.duration);
   maneuver.remainingSeconds = Math.max(0, maneuver.remainingSeconds - seconds);
   const progress = 1 - maneuver.remainingSeconds / maneuver.duration;
-  state.position.y = maneuver.kind === 'disengage' ? 4 * 1.2 * progress * (1 - progress) : 0;
-  if (maneuver.remainingSeconds <= 1e-9) { state.position.y = 0; state.verticalSpeed = 0; }
+  const ground = terrainHeight(state.position.x, state.position.z);
+  state.position.y = ground + (maneuver.kind === 'disengage' ? 4 * 1.2 * progress * (1 - progress) : 0);
+  if (maneuver.remainingSeconds <= 1e-9) { state.position.y = ground; state.verticalSpeed = 0; }
   return Math.hypot(state.position.x - old.x, state.position.z - old.z) > 1e-9;
 }
 export function moveLocomotion(state: MovementState, input: MovementInput, seconds: number): { moving: boolean; backpedaling: boolean } {
@@ -46,9 +49,10 @@ export function moveLocomotion(state: MovementState, input: MovementInput, secon
   while (remaining > 1e-9) {
     const dt = Math.min(remaining, 1 / 60);
     movePosition(state.position, x * speed * dt, z * speed * dt);
-    if (state.position.y > 0 || state.verticalSpeed > 0) {
-      state.position.y = Math.max(0, state.position.y + state.verticalSpeed * dt - 7 * dt * dt);
-      state.verticalSpeed = state.position.y > 0 ? state.verticalSpeed - 14 * dt : 0;
+    const ground = terrainHeight(state.position.x, state.position.z);
+    if (state.position.y > ground || state.verticalSpeed > 0) {
+      state.position.y = Math.max(ground, state.position.y + state.verticalSpeed * dt - 7 * dt * dt);
+      state.verticalSpeed = state.position.y > ground ? state.verticalSpeed - 14 * dt : 0;
     }
     remaining -= dt;
   }

@@ -23,3 +23,21 @@ export function inCave(position: Pick<Position, 'x' | 'z'>): boolean {
 export function caveBlockedPosition(x: number, z: number): boolean {
   return CAVE_BARRIERS.some(([left, right, bottom, top]) => x > left && x < right && z >= bottom && z <= top);
 }
+
+// Flat-cave saves store height above ground; spatial points acquire their floor once.
+export function migrateTerrainLayout(root: Record<string, unknown>): void {
+  if (root.terrainLayout === 1) return;
+  const spatialKeys = new Set(['position', 'targetPosition', 'origin', 'start', 'destination', 'attackOrigin']);
+  function visit(value: unknown): void {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    for (const [key, child] of Object.entries(value)) {
+      if (spatialKeys.has(key) && child && typeof child === 'object'
+        && 'x' in child && typeof child.x === 'number' && 'y' in child && typeof child.y === 'number'
+        && 'z' in child && typeof child.z === 'number') child.y += terrainHeight(child.x, child.z);
+      else visit(child);
+    }
+  }
+  visit(root);
+  root.terrainLayout = 1;
+}

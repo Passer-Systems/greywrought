@@ -1,3 +1,4 @@
+import { terrainHeight } from '../game/cave-layout.js';
 import { EMOTE_HELP, emoteText, findEmote } from '../game/emotes.js';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -56,7 +57,7 @@ function command(value: unknown): value is WorldCommand {
     case 'mouseForward': return keys(value, ['type', 'active']) && typeof value.active === 'boolean';
     case 'camera': return keys(value, ['type', 'x', 'z']) && finite(value.x, -1, 1) && finite(value.z, -1, 1) && Math.hypot(value.x, value.z) > 0.001;
     case 'target': case 'loot': return keys(value, ['type', 'id']) && identifier(value.id);
-    case 'bait': return keys(value, ['type', 'destination']) && record(value.destination) && keys(value.destination, ['x','y','z']) && finite(value.destination.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(value.destination.y,0,0) && finite(value.destination.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
+    case 'bait': return keys(value, ['type', 'destination']) && record(value.destination) && keys(value.destination, ['x','y','z']) && finite(value.destination.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(value.destination.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ) && value.destination.y === terrainHeight(value.destination.x,value.destination.z);
     case 'ready': return keys(value, ['type']);
     case 'delay': case 'move': return keys(value, ['type','id','seconds']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true) && finite(value.seconds,0,2,true);
     case 'replace': return keys(value,['type','id','action']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true) && member(value.action,['bait','shove','finish','strike','brace','disengage','bloodRage','jab','guard','drinkPotion']);
