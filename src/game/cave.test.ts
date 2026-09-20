@@ -57,6 +57,9 @@ test('Ironback cache opens once after crab defeat and persists without private r
   Object.assign(crab,{health:0,phase:'cleared',active:true,lootClaimed:true,respawnAt:null});
   const game=createAdventure({save:JSON.stringify(save)});
   expect(game.snapshot.loot.find(t=>t.sourceId==='ironback-chest')?.available).toBe(true);
+  game.openLoot('ironback-chest');tap(game,'takeLoot');expect(game.snapshot.coins).toBe(0);
+  const chest=game.snapshot.loot.find(t=>t.sourceId==='ironback-chest')!;
+  travel(game,chest.position.x,chest.position.z);
   game.openLoot('ironback-chest');tap(game,'takeLoot');
   expect(game.snapshot.coins).toBe(18);expect(game.snapshot.potions).toBe(2);
   expect(game.snapshot.loot.find(t=>t.sourceId==='ironback-chest')?.available).toBe(false);

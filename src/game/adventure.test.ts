@@ -1,4 +1,4 @@
-import { earnedChapter, fightForeman, fightTarget, finishCycle } from "./yard-test-fixtures.js";
+import { earnedChapter, fightForeman, fightTarget, finishCycle, travel, retreatUntilReleased } from "./yard-test-fixtures.js";
 import { describe, expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure, getMonsterLore } from "./adventure.js";
 import type { AdventureAction, AdventureGame, ThreatView } from "./adventure-types.js";
@@ -8,16 +8,7 @@ function tap(game: AdventureGame, action: AdventureAction): void {
   game.setAction(action, false);
 }
 function walk(game: AdventureGame, x: number, z: number): void {
-  const from = game.snapshot.player.position;
-  const dx = x - from.x, dz = z - from.z;
-  game.setCameraForward(dx, dz);
-  game.setAction("forward", true);
-  game.advance(Math.hypot(dx, dz) / 5.2);
-  game.setAction("forward", false);
-  const expectedX = game.snapshot.player.inCombat ? Math.round(x / 2.5) * 2.5 : x;
-  const expectedZ = game.snapshot.player.inCombat ? Math.round(z / 2.5) * 2.5 : z;
-  expect(game.snapshot.player.position.x).toBeCloseTo(expectedX, 6);
-  expect(game.snapshot.player.position.z).toBeCloseTo(expectedZ, 6);
+  travel(game, x, z);
 }
 function threat(game: AdventureGame, id: string): ThreatView {
   const target = game.snapshot.threats.find(t => t.id === id);
@@ -148,7 +139,7 @@ describe("Frostwood world and persistent rewards",()=>{
     game.setMouseForward(true);
     const before = game.snapshot.player.position.z;
     game.advance(0.5);
-    expect(game.snapshot.player.position.z - before).toBeCloseTo(2.25);
+    expect(game.snapshot.player.position.z - before).toBeCloseTo(2.6);
     expect(game.snapshot.player.backpedaling).toBe(false);
     game.setMouseForward(false); game.advance(0.1);
     expect(game.snapshot.player.backpedaling).toBe(true);
@@ -227,7 +218,7 @@ describe("Frostwood world and persistent rewards",()=>{
     game.advance(1);
     const moved = threat(game, "warder").position;
     expect(moved).not.toEqual(threat(game, "warder").homePosition);
-    walk(game, -8, 40);
+    retreatUntilReleased(game, "warder");
     const returning = threat(game, "warder");
     expect(returning.aggro).toBe(false);
     expect(returning.phase).toBe("returning");
@@ -237,7 +228,7 @@ describe("Frostwood world and persistent rewards",()=>{
     for(let i=0;i<300&&threat(reloaded,"warder").phase==="returning";i++)reloaded.advance(.05);
     expect(threat(reloaded, "warder").phase).toBe("patrol");
     expect(Math.hypot(threat(reloaded,"warder").position.x-returning.homePosition.x,threat(reloaded,"warder").position.z-returning.homePosition.z)).toBeLessThan(.1);
-    walk(reloaded, 0, 25); walk(reloaded, 0, -1);
+    walk(reloaded, -10, 15); walk(reloaded, 0, 15); walk(reloaded, 0, -1);
     const returnedHealth=reloaded.snapshot.player.health;
     reloaded.advance(10);
     expect(reloaded.snapshot.player.health).toBe(returnedHealth);
@@ -245,8 +236,13 @@ describe("Frostwood world and persistent rewards",()=>{
   });
 
   test("corpse loot is manual, nearby and claimed once; salvage persists then banks on extraction", () => {
-    const game = createAdventure();
-    enter(game); walk(game, -3, 28);
+    const saved = JSON.parse(createAdventure().save());
+    for (const enemy of saved.state.threats) {
+      enemy.rng = 9844;
+      if (enemy.id === "patrol") Object.assign(enemy, { health: 0, phase: "cleared", lootClaimed: true });
+    }
+    const game = createAdventure({ save: JSON.stringify(saved) });
+    enter(game);
     game.openLoot("scout"); tap(game, "takeLoot");
     expect(game.snapshot.lootOpenId).toBe(null);
     expect(game.snapshot.carriedSalvage).toBe(0);
@@ -264,7 +260,7 @@ describe("Frostwood world and persistent rewards",()=>{
     game.selectTarget("warder");
     tap(game, "interact");
     expect(game.snapshot.lootOpenId).toBe("scout");
-    walk(game, -3, 26);
+    walk(game, corpse.x, corpse.z - 5);
     expect(game.snapshot.lootOpenId).toBe(null);
     game.openLoot("scout"); tap(game, "takeLoot");
     expect(game.snapshot.carriedSalvage).toBe(0);
@@ -284,10 +280,15 @@ describe("Frostwood world and persistent rewards",()=>{
     expect(claimed.snapshot.supplies).toBe(16);
     expect(claimed.snapshot.carriedSalvage).toBe(0);
     enter(claimed);
-    expect(claimed.snapshot.loot).toEqual([]);
+    expect(claimed.snapshot.loot).toEqual([expect.objectContaining({ sourceId: "ironback-chest", available: false, reachable: false })]);
     expect(claimed.snapshot.carriedSalvage).toBe(0);
     expect(claimed.snapshot.supplies).toBe(16);
-    walk(game, -8, 28); walk(game, -8, 44); walk(game, -3, 46.6);
+    walk(game, -8, 28);
+    for (let step=0;step<60&&!threat(game,"warder").aggro;step++) {
+      const target=threat(game,"warder").position, player=game.snapshot.player.position;
+      game.setCameraForward(target.x-player.x,target.z-player.z);game.setAction("forward",true);game.advance(.1);game.setAction("forward",false);
+    }
+    expect(threat(game,"warder").aggro).toBe(true);
     for (let cycle = 0; cycle < 100 && game.snapshot.player.health > 0; cycle++) { game.readyCombat(); finishCycle(game); game.advance(.01); }
     expect(game.snapshot.phase).toBe("lost");
     expect(game.snapshot.carriedSalvage).toBe(0);

@@ -42,12 +42,14 @@ test('walking into both chambers and returning follows the same floor on server 
   const local = new LocalMovement(server.snapshot, server.movementCheckpoint!);
   for (const direction of [1, -1]) {
     local.setCameraForward(direction, 0); local.setAction('forward', true);
-    for (let tick = 0; tick < 360; tick++) {
-      local.advance(1 / 30); server.enqueueMovement!(local.takeOutgoing()); server.advance(1 / 30);
+    const duration=54/5.2;
+    for (let tick = 0; tick < Math.ceil(duration*30); tick++) {
+      const dt=Math.min(1/30,duration-tick/30);
+      local.advance(dt); server.enqueueMovement!(local.takeOutgoing()); server.advance(dt);
       near(local.player.position, server.snapshot.player.position);
       expect(height(server.snapshot.player.position)).toBe(0);
       expect(local.player.grounded).toBe(true);
-      local.reconcile(server.snapshot, server.movementCheckpoint!, (direction === 1 ? 0 : 12) + tick / 30);
+      local.reconcile(server.snapshot, server.movementCheckpoint!, (direction === 1 ? 0 : duration) + tick / 30);
     }
     expect(server.snapshot.player.position.x).toBeCloseTo(direction === 1 ? 81 : 27, 7);
     expect(server.snapshot.player.position.y).toBe(direction === 1 ? -9 : 0);
@@ -95,7 +97,7 @@ test('cave combat forecasts and executes Bait and a saved disengage at negative 
   expect(bait.queueBait(ground(35))).toBe(true);
   const forecast = bait.snapshot.combat.forecast!.outcomes.find(outcome => outcome.id === 'solo')!;
   bait.readyCombat(); finishCycle(bait);
-  near(bait.snapshot.player.position, ground(35));
+  near(bait.snapshot.player.position, {x:35,y:terrainHeight(35,-45),z:-45});
   expect(bait.snapshot.player.health).toBe(forecast.health);
   for (const threat of bait.snapshot.threats.filter(t => t.id.startsWith('cave-'))) expect(height(threat.position)).toBe(0);
 

@@ -2,7 +2,7 @@ import { createAdventure, createSharedAdventure } from './adventure.js';
 import {test,expect} from 'bun:test';
 import type {AdventureGame, AdventureAction} from './adventure-types.js';
 import type {CharacterArchetype} from '../host/character-profile.js';
-import { earnedChapter } from './yard-test-fixtures.js';
+import { earnedChapter, travel } from './yard-test-fixtures.js';
 function tap(g:AdventureGame,a:AdventureAction){g.setAction(a,true);g.setAction(a,false);}
 test('all available creatures patrol, including the bee; pauses stay brief',()=>{
  const g=createAdventure(),before=g.snapshot;
@@ -209,7 +209,7 @@ test('retreating from a committed double pull breaks contact and preserves the r
  const game=createAdventure({archetype:'warrior',save:JSON.stringify(data)});
  game.selectTarget('patrol'); tap(game,'brace'); game.advance(.01);
  expect(game.snapshot.threats.filter(t=>t.aggro).map(t=>t.id).sort()).toEqual(['patrol','warder']);
- game.setCameraForward(0,-1); game.setAction('forward',true); game.advance((game.snapshot.player.position.z + 1) / 4.5); game.setAction('forward',false);
+ travel(game,0,25); travel(game,0,-1);
  expect(game.snapshot.player.position.z).toBeLessThan(0);
  expect(game.snapshot.phase).toBe('town'); expect(game.snapshot.player.health).toBeGreaterThan(0);
  expect(game.snapshot.threats.filter(t=>t.aggro).length).toBe(0);

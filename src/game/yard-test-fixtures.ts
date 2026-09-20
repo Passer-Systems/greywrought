@@ -1,3 +1,6 @@
+import { terrainHeight } from "./cave-layout.js";
+import { snapCombatPosition } from "./combat-grid.js";
+import { classKit, classAction } from "./class-kit.js";
 import { createAdventure } from "./adventure.js";
 import type { AdventureAction, AdventureGame, SharedAdventure } from "./adventure-types.js";
 import { QUESTS } from "./yard-content.js";
@@ -12,6 +15,37 @@ export function finishCycle(game: AdventureGame, world?: SharedAdventure): void 
   for (let elapsed = 0; game.snapshot.combat.phase === "active" && elapsed < 30; elapsed += .05) (world ?? game).advance(.05);
   if (game.snapshot.combat.phase === "active") throw new Error("Committed combat did not finish within 30 seconds");
 }
+export function travel(game: AdventureGame, x: number, z: number, world?: SharedAdventure): void {
+  const advance = (seconds: number) => (world ?? game).advance(seconds);
+  for (let step = 0; step < 100 && game.snapshot.player.health > 0; step++) {
+    if (game.snapshot.combat.phase === "active") { finishCycle(game, world); continue; }
+    const p = game.snapshot.player.position;
+    const goal = game.snapshot.player.inCombat ? snapCombatPosition({x,y:terrainHeight(x,z),z},p,Infinity,game.snapshot.threats.filter(t=>t.active&&t.health>0).map(t=>t.position)) : {x,y:terrainHeight(x,z),z};
+    const gap = Math.hypot(goal.x-p.x,goal.z-p.z);
+    if (gap < .01) return;
+    if (game.snapshot.player.inCombat) {
+      game.clearQueuedActions();
+      for (let slot = 0; slot < Math.min(3, Math.ceil(gap / 5)); slot++) game.queueBait(goal);
+      if (world) readyParty(...world.players().map(p => world.getPlayer(p.id)!)); else game.readyCombat();
+      finishCycle(game, world);
+    } else {
+      game.setCameraForward(x-p.x,z-p.z); game.setAction("forward",true);
+      advance(Math.min(.1,gap/classKit(game.snapshot.player.archetype).movementSpeed)); game.setAction("forward",false);
+    }
+  }
+  throw new Error(`Could not travel to ${x},${z}: ${JSON.stringify(game.snapshot.player.position)}; ${game.snapshot.report}`);
+}
+export function retreatUntilReleased(game: AdventureGame, id: string, world?: SharedAdventure): void {
+  for (let cycle=0;cycle<15 && game.snapshot.threats.find(t=>t.id===id)!.aggro;cycle++) {
+    if(game.snapshot.combat.phase==="active") { finishCycle(game,world); continue; }
+    game.clearQueuedActions();
+    const p=game.snapshot.player.position;
+    const destination=snapCombatPosition({x:p.x,y:terrainHeight(p.x,p.z-15),z:p.z-15},p,Infinity,game.snapshot.threats.filter(t=>t.active&&t.health>0).map(t=>t.position));
+    for(let slot=0;slot<3;slot++) if(!game.queueBait(destination)) throw new Error("Retreat plan could not be queued");
+    if(world) readyParty(...world.players().map(p=>world.getPlayer(p.id)!)); else game.readyCombat();
+    for(let time=0;time<5 && game.snapshot.threats.find(t=>t.id===id)!.aggro;time+=.05)(world??game).advance(.05);
+  }
+}
 export function fightTarget(game: AdventureGame, id: string, defend = true): void {
   game.selectTarget(id);
   for (let cycle = 0; cycle < 100 && game.snapshot.player.health > 0; cycle++) {
@@ -20,23 +54,30 @@ export function fightTarget(game: AdventureGame, id: string, defend = true): voi
     if (game.snapshot.combat.phase === "active") { finishCycle(game); continue; }
     const p = game.snapshot.player.position, dx = target.position.x - p.x, dz = target.position.z - p.z;
     const gap = Math.hypot(dx, dz);
-    if (defend && target.currentAbility.id === "foreman-press" && gap < 1.9) {
-      game.setCameraForward(-dx, -dz); game.setAction("forward", true);
-      game.advance((1.95 - gap) / 4.5); game.setAction("forward", false);
-      continue;
-    }
+
     if (!target.canStrike) {
-      game.setCameraForward(dx, dz); game.setAction("forward", true);
-      game.advance(Math.min(1, Math.max(.05, (gap - 1.5) / 4.5))); game.setAction("forward", false);
+      if (game.snapshot.player.inCombat) {
+        const desired = {x:target.position.x-dx/gap*2.5,y:0,z:target.position.z-dz/gap*2.5};
+        const destination = snapCombatPosition(desired,p,classAction(game.snapshot.player.archetype,"bait").range!,game.snapshot.threats.filter(t=>t.active&&t.health>0).map(t=>t.position));
+        game.queueBait(destination); game.readyCombat(); finishCycle(game);
+      } else {
+        game.setCameraForward(dx,dz); game.setAction("forward",true); game.advance(Math.min(.1,(gap-2.5)/5.2));game.setAction("forward",false);
+      }
       continue;
     }
     tap(game, "strike");
     if (defend && game.snapshot.player.health <= 65 && game.snapshot.potions > 0) tap(game, "drinkPotion");
-    else tap(game, "strike");
-    const defenseAction = target.currentAbility.id === "foreman-press" ? "disengage" : "brace";
+    else if (defend && target.currentAbility.id === "foreman-shield" && gap > 2.5) {
+      const destination = snapCombatPosition({x:target.position.x-dx/gap*2.5,y:0,z:target.position.z-dz/gap*2.5},p,6,[target.position]);
+      game.queueBait(destination);
+    } else tap(game, "strike");
+    const defenseAction = target.currentAbility.id === "foreman-press" && gap <= target.currentAbility.range ? "disengage" : "brace";
     if (defend && target.windowAction?.ability.damage && game.snapshot.player.stamina >= 2) {
-      tap(game, defenseAction);
-      const defense = game.snapshot.combat.queued.find(e => e.action === defenseAction);
+      if (target.currentAbility.id === "foreman-press") {
+        const x=target.position.x-dx/gap*5,z=target.position.z-dz/gap*5;
+        game.queueBait({x,y:terrainHeight(x,z),z});
+      } else tap(game, defenseAction);
+      const defense = game.snapshot.combat.queued.find(e => e.action === (target.currentAbility.id === "foreman-press" ? "bait" : defenseAction));
       if (defense && target.windowAction) game.moveQueuedAction(defense.id, target.windowAction.offsetSeconds);
     }
     else tap(game, "strike");

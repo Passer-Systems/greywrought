@@ -1,3 +1,4 @@
+import { finishCycle, travel } from "./yard-test-fixtures.js";
 import { describe, expect, test } from "bun:test";
 import { createSharedAdventure, WORLD_RESPAWN_MILLISECONDS } from "./adventure.js";
 import type { AdventureAction, AdventureGame } from "./adventure-types.js";
@@ -28,6 +29,8 @@ describe("two-minute world regrowth", () => {
     tap(a, "strike"); a.readyCombat(); b.readyCombat(); world.advance(0.01);
     expect(a.snapshot.threats[0]!.health).toBe(0);
     expect(JSON.parse(world.save()).world.threats[0].respawnAt).toBe(time + WORLD_RESPAWN_MILLISECONDS);
+    finishCycle(a,world);
+    const corpse=a.snapshot.loot.find(t=>t.sourceId==="scout")!;travel(a,corpse.position.x,corpse.position.z,world);travel(b,corpse.position.x,corpse.position.z,world);
     a.openLoot("scout"); expect(a.snapshot.lootOpenId).toBe("scout");
     b.openLoot("scout"); expect(b.snapshot.lootOpenId).toBe("scout");
     world.leave("b");

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
 import { VENDORS } from "./economy.js";
-import { tap, earnedChapter, readyParty, finishCycle, foremanFixture } from "./yard-test-fixtures.js";
+import { tap, travel, earnedChapter, readyParty, finishCycle, foremanFixture } from "./yard-test-fixtures.js";
 
 function soloFixture(coins = 30, experience = 0) {
   const save = JSON.parse(createAdventure({archetype:"mage"}).save());
@@ -98,7 +98,9 @@ test("personal Foreman rolls share one coin purse without duplicating it", () =>
   for(const t of save.world.threats)if(t.id==="ritual-guardian")Object.assign(t,{active:true,health:22});else Object.assign(t,{health:0,phase:"cleared",lootClaimed:true});
   const world=createSharedAdventure({save:JSON.stringify(save)}),a=world.join("a","a","mage"),b=world.join("b","b","mage");
   a.selectTarget("ritual-guardian");b.selectTarget("ritual-guardian");tap(a,"strike");tap(b,"strike");readyParty(a,b);world.advance(.01);
-  a.openLoot("ritual-guardian");tap(a,"takeLoot");b.openLoot("ritual-guardian");tap(b,"takeLoot");
+  finishCycle(a,world);const corpse=a.snapshot.loot.find(t=>t.sourceId==="ritual-guardian")!;
+  travel(a,corpse.position.x,corpse.position.z,world);a.openLoot("ritual-guardian");tap(a,"takeLoot");
+  travel(b,corpse.position.x,corpse.position.z,world);b.openLoot("ritual-guardian");tap(b,"takeLoot");
   expect(a.snapshot.carriedRelics).toBe(1);expect(b.snapshot.carriedRelics).toBe(1);
   expect(a.snapshot.coins+b.snapshot.coins).toBe(12);
   expect(a.snapshot.progression.experience).toBe(140);expect(b.snapshot.progression.experience).toBe(140);

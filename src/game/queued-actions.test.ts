@@ -12,7 +12,7 @@ function setup(archetype: CharacterArchetype = "mage", z = 28.1): AdventureGame 
     if (enemy.active && enemy.id !== "scout") Object.assign(enemy, { health: 0, phase: "cleared", lootClaimed: true });
   }
   const game = createAdventure({ archetype, save: JSON.stringify(saved) });
-  game.selectTarget("scout");
+  game.selectTarget("scout"); game.advance(.01);
   return game;
 }
 const scout = (game: AdventureGame) => game.snapshot.threats.find(t => t.id === "scout")!;
@@ -61,13 +61,13 @@ describe("committed attack resources", () => {
   });
 
   test("an out-of-range melee strike is rejected without lunging or banking damage", () => {
-    const game = setup("warrior", 24.9), position = game.snapshot.player.position;
+    const game = setup("warrior", 24), position = game.snapshot.player.position;
     tap(game, "strike"); game.readyCombat(); game.advance(.01);
     expect(scout(game).health).toBe(96);
     expect(game.snapshot.combat.queued).toEqual([]);
     expect(game.snapshot.player.position).toEqual(position);
     finishCycle(game);
-    game.setCameraForward(0, 1); game.setAction("forward", true); game.advance(3.1 / 4.5); game.setAction("forward", false);
+    game.setCameraForward(0,1);game.setAction("forward",true);game.advance(.5);game.setAction("forward",false);
     game.readyCombat(); game.advance(.1);
     expect(scout(game).health).toBe(96);
   });

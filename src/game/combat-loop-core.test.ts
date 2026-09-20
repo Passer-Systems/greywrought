@@ -56,7 +56,7 @@ test("active sequence rejects all queue mutations and movement, but performs pla
   game.advance(.8); expect(game.snapshot.player.position.z).toBeLessThan(start.z);
   game.advance(1.2); expect(game.snapshot.combat.phase).toBe("preparation");
   const end=game.snapshot.player.position; game.setCameraForward(0,1); game.setAction("forward",true); game.advance(.1);
-  expect(game.snapshot.player.position).not.toEqual(end);
+  expect(game.snapshot.player.position).toEqual(end);
 });
 
 test("final-slot volleys finish before a new planning window opens",()=>{

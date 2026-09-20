@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
-import { earnedChapter, foremanFixture, fightForeman, tap, readyParty, finishCycle } from "./yard-test-fixtures.js";
+import { earnedChapter, foremanFixture, fightForeman, tap, readyParty, finishCycle, travel } from "./yard-test-fixtures.js";
 import type { AdventureGame } from "./adventure-types.js";
 
 function at(game: AdventureGame, x: number, z: number, phase: "town"|"expedition"): AdventureGame {
   const data=JSON.parse(game.save());
   Object.assign(data.state,{position:{x,y:0,z},phase});
-  return createAdventure({save:JSON.stringify(data)});
+  const restored=createAdventure({save:JSON.stringify(data)}); restored.advance(.01); return restored;
 }
 test("Cold Hands requires nearby acceptance, gathered cargo, physical return and a single explicit reward",()=>{
   let game=createAdventure();
@@ -85,12 +85,14 @@ test("each participating quest holder loots a personal Roll; replay waits for cl
   world.advance(1);tap(a,"ritual");expect(a.snapshot.cargo).toBe(6);
   const waiting=world.save(),deadline=JSON.parse(waiting).world.threats.find((t:{id:string})=>t.id==="ritual-guardian").respawnAt;
   const expired=createSharedAdventure({save:waiting,now:()=>deadline+1});
-  const next=expired.join("a","a","mage");tap(next,"ritual");expect(next.snapshot.cargo).toBe(0);
+  const next=expired.join("a","a","mage");finishCycle(next,expired);travel(next,2,58.5,expired);tap(next,"ritual");expect(next.snapshot.cargo).toBe(0);
   const live=JSON.parse(expired.save());live.characters.find((p:{id:string})=>p.id==="a").state.cargo=6;
   const stillFighting=createSharedAdventure({save:JSON.stringify(live),now:()=>deadline+1_000_000});
   const challenger=stillFighting.join("a","a","mage");tap(challenger,"ritual");expect(challenger.snapshot.cargo).toBe(6);
+  finishCycle(b,world);
+  const corpse=b.snapshot.threats.find(t=>t.id==="ritual-guardian")!.position;travel(b,corpse.x,corpse.z,world);
   b.openLoot("ritual-guardian");tap(b,"takeLoot");expect(b.snapshot.carriedRelics).toBe(1);
-  tap(a,"ritual");expect(a.snapshot.cargo).toBe(0);expect(a.snapshot.threats.find(t=>t.id==="ritual-guardian")!.health).toBe(200);
+  travel(a,2,58.5,world);tap(a,"ritual");expect(a.snapshot.cargo).toBe(0);expect(a.snapshot.threats.find(t=>t.id==="ritual-guardian")!.health).toBe(200);
   const returned=JSON.parse(world.save());
   for(const p of returned.characters)Object.assign(p.state,{position:{x:5,y:0,z:-11},phase:"expedition"});
   world=createSharedAdventure({save:JSON.stringify(returned)});

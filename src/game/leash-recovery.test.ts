@@ -1,6 +1,6 @@
 import {test,expect} from 'bun:test';
 import {createAdventure} from './adventure.js';
-import {tap, finishCycle} from './yard-test-fixtures.js';
+import {tap, finishCycle, retreatUntilReleased} from './yard-test-fixtures.js';
 
 test('a ranged pull cannot chip an enemy down across leash resets or hit its retreat',()=>{
  const saved=JSON.parse(createAdventure({archetype:'mage'}).save());
@@ -11,9 +11,7 @@ test('a ranged pull cannot chip an enemy down across leash resets or hit its ret
  game.selectTarget('nest');tap(game,'strike');game.readyCombat();game.advance(.01);
  expect(bee().health).toBe(63);expect(bee().aggro).toBe(true);
  finishCycle(game);
- game.setCameraForward(8,-15);game.setAction('forward',true);
- for(let step=0;step<100&&bee().phase!=='returning';step++)game.advance(.05);
- game.setAction('forward',false);
+ retreatUntilReleased(game,'nest');
  expect(bee().phase).toBe('returning');expect(bee().health).toBe(72);
  const returning=JSON.parse(game.save());
  returning.state.position={x:bee().position.x+5,y:0,z:bee().position.z};

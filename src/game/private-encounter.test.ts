@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createSharedAdventure } from "./adventure.js";
-import { earnedChapter, finishCycle, readyParty } from "./yard-test-fixtures.js";
+import { earnedChapter, finishCycle, readyParty, travel } from "./yard-test-fixtures.js";
 
 const tap = (game: ReturnType<ReturnType<typeof createSharedAdventure>["join"]>, action: Parameters<typeof game.setAction>[0]) => {
   game.setAction(action, true); game.setAction(action, false);
@@ -44,11 +44,7 @@ describe("private paused encounters", () => {
     expect(bob.snapshot.cargo).toBe(0);
     finishCycle(bob, world);
 
-    const walkBob = (x: number, z: number) => {
-      const position = bob.snapshot.player.position;
-      bob.setCameraForward(x - position.x, z - position.z); bob.setAction("forward", true);
-      world.advance(Math.hypot(x - position.x, z - position.z) / 4.5); bob.setAction("forward", false);
-    };
+    const walkBob = (x: number, z: number) => travel(bob,x,z,world);
     walkBob(-2, 32);
     tap(bob, "gather"); world.advance(2); tap(bob, "gather"); world.advance(2);
     expect(bob.snapshot.cargo).toBe(6);
@@ -63,6 +59,7 @@ describe("private paused encounters", () => {
     bob.selectTarget("ritual-guardian"); tap(bob, "strike"); readyParty(alice, bob); world.advance(.1);
     expect(bob.snapshot.player.health).toBeGreaterThan(0);
     expect(bob.snapshot.threats.find(t => t.id === "ritual-guardian")!.health).toBe(0);
+    finishCycle(bob,world);const corpse=bob.snapshot.loot.find(t=>t.sourceId==="ritual-guardian")!;travel(bob,corpse.position.x,corpse.position.z,world);
     bob.openLoot("ritual-guardian"); tap(bob, "takeLoot");
     expect(bob.snapshot.carriedRelics).toBe(1);
     expect(bob.snapshot.quests.find(q => q.id === "last-shift")!.status).toBe("ready");

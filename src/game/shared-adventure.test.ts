@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createSharedAdventure } from "./adventure.js";
-import { readyParty } from "./yard-test-fixtures.js";
+import { readyParty, travel, finishCycle } from "./yard-test-fixtures.js";
 import type { AdventureAction, AdventureGame, SharedAdventure } from "./adventure-types.js";
 
 function tap(player: AdventureGame, action: AdventureAction): void {
@@ -33,8 +33,8 @@ describe("one shared Frostwood", () => {
     a.setCameraForward(1, 0); b.setCameraForward(-1, 0);
     a.setAction("forward", true); b.setAction("forward", true);
     world.advance(1);
-    expect(a.snapshot.player.position.x).toBeCloseTo(4.5);
-    expect(b.snapshot.player.position.x).toBeCloseTo(-4.5);
+    expect(a.snapshot.player.position.x).toBeCloseTo(5.2);
+    expect(b.snapshot.player.position.x).toBeCloseTo(-6);
     expect(world.players().map(p => p.name)).toEqual(["Ada", "Bram"]);
     expect(() => a.advance(1)).toThrow("shared adventure");
   });
@@ -72,7 +72,7 @@ describe("one shared Frostwood", () => {
 
   test("disconnect retains the character and shared save retains online and offline progress", () => {
     const world = fixture(), a = world.getPlayer("a")!, b = world.getPlayer("b")!;
-    tap(a, "strike"); readyParty(a, b); world.advance(0.02);
+    tap(a, "strike"); tap(b,"strike"); readyParty(a, b); world.advance(0.02);
     const health = a.snapshot.player.health, position = a.snapshot.player.position;
     a.setAction("forward", true); world.leave("a"); world.advance(0.1);
     expect(world.getPlayer("a")?.snapshot.player.health).toBe(health);
@@ -85,7 +85,7 @@ describe("one shared Frostwood", () => {
     expect(restored.rejoin("a")).toBe(false);
     expect(returned.snapshot.player.health).toBe(health);
     expect(returned.snapshot.player.position).toEqual(position);
-    expect(enemy(returned).health).toBe(87);
+    expect(enemy(returned).health).toBe(78);
     expect(partner.snapshot.player.health).toBe(b.snapshot.player.health);
     expect(returned.snapshot.combat).toEqual(a.snapshot.combat);
     restored.advance(0.1);
@@ -98,11 +98,12 @@ describe("one shared Frostwood", () => {
     const world = createSharedAdventure({ save: JSON.stringify(seed) });
     const a = world.join("a", "Ada", "mage"), b = world.join("b", "Bram", "hunter");
     tap(a, "strike"); readyParty(a, b); world.advance(0.01);
+    finishCycle(a,world); travel(a,enemy(a).position.x,enemy(a).position.z,world);
     a.openLoot("scout"); b.openLoot("scout");
     tap(a, "takeLoot"); tap(b, "takeLoot");
     expect(a.snapshot.carriedSalvage).toBe(1);
     expect(b.snapshot.carriedSalvage).toBe(0);
-    a.setCameraForward(0, -1); a.setAction("forward", true); world.advance((a.snapshot.player.position.z + 1) / 4.5); a.setAction("forward", false);
+    travel(a,0,25,world); travel(a,0,-1,world);
     expect(a.snapshot.phase).toBe("town");
     expect(b.snapshot.phase).toBe("expedition");
     expect(a.snapshot.supplies).toBe(16);

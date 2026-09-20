@@ -6,7 +6,7 @@ import { tap } from "./yard-test-fixtures.js";
 /** Reachable first-clearing positions, with the trio's announced opening beats. */
 function fixture() {
   const data = JSON.parse(createAdventure().save());
-  Object.assign(data.state, { phase: "expedition", position: { x: -3, y: 0, z: 35 } });
+  Object.assign(data.state, { phase: "expedition", position: { x: -2.5, y: 0, z: 35 } });
   data.state.combat = { phase: "preparation", cycle: 1, elapsedSeconds: 0, queued: [], nextId: 1, ready: false };
   for (const t of data.state.threats) {
     if (t.id === "warder") { Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true }); continue; }
@@ -14,13 +14,13 @@ function fixture() {
     const offset = t.id === "patrol" ? 1 : 2;
     Object.assign(t, { aggro: true, phase: "preparation", joinCycle: 1, windowCycle: 1, specialOffset: offset, remainingSeconds: offset, castDuration: offset, comboOpened: true });
     if (t.id === "nest") t.position = { x: 0, y: 0, z: 35 };
-    if (t.id === "patrol") t.position = { x: -6, y: 0, z: 36 };
+    if (t.id === "patrol") t.position = { x: -7.5, y: 0, z: 35 };
     if (t.id === "scout") { t.position = { x: -4, y: 0, z: 32 }; t.head.ability = "fireball"; t.head.opened = true; }
   }
   return data;
 }
 function combo(game: AdventureGame) {
-  expect(game.queueBait({ x: 1, y: 0, z: 35 })).toBe(true);
+  expect(game.queueBait({ x: 2.5, y: 0, z: 35 })).toBe(true);
   game.selectTarget("patrol"); tap(game, "finish");
   game.moveQueuedAction(game.snapshot.combat.queued[1]!.id, 2);
 }
@@ -94,11 +94,11 @@ test("interrupting a volley cancels unlaunched shots and preserves its already-f
 
 test("enemy-caused Watchman kills grant quest credit and normal loot to engaged players", () => {
   const data = fixture(); data.state.chapter.accepted = ["cold-hands", "roll-call"];
-  data.state.position = { x: -3, y: 0, z: 35 };
+  data.state.position = { x: -2.5, y: 0, z: 35 };
   const scout = data.state.threats[0]; scout.health = 10; scout.position = { x: -1, y: 0, z: 35 };
   data.state.threats[1].position = { x: 1, y: 0, z: 37 };
   const game = createAdventure({ save: JSON.stringify(data) });
-  expect(game.queueBait({ x: 1, y: 0, z: 35 })).toBe(true);
+  expect(game.queueBait({ x: 2.5, y: 0, z: 35 })).toBe(true);
   const forecast = game.snapshot.combat.forecast!;
   expect(forecast.events.some(e => e.kind === "defeat" && e.sourceId === "patrol" && e.targetId === "scout")).toBe(true);
   game.readyCombat(); game.advance(3);
@@ -119,7 +119,7 @@ test("Bait plan and interrupted swarm survive pause/save; shared forecast change
   expect(forecast.playerId).toBe("a"); expect(world.save()).toBe(before); expect(town.snapshot.player.health).toBe(100);
   world.pause("a");
   const reopened = createSharedAdventure({ save: world.save() }); const restored = reopened.join("a", "Ada", "warrior");
-  expect(restored.snapshot.combat.queued[0]!.destination).toEqual({ x: 1, y: 0, z: 35 });
+  expect(restored.snapshot.combat.queued[0]!.destination).toEqual({ x: 2.5, y: 0, z: 35 });
   expect(reopened.resume("a")).toBe(true); restored.readyCombat(); reopened.advance(1.8);
   expect(restored.snapshot.threats.find(t => t.id === "nest")!.staggered).toBe(true);
   expect(restored.snapshot.combat.hazards).toHaveLength(1);
