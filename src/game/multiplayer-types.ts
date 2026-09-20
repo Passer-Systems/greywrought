@@ -1,3 +1,4 @@
+import type { NpcId, VendorId } from "./economy.js";
 import type { QuestId, QuestOperation, GearSlot, GearItemId } from "./yard-content.js";
 import type { AdventureAction, AdventureSnapshot, EncounterSession, CombatAction, Position } from './adventure-types.js';
 import type { LocalCharacter } from '../host/character-profile.js';
@@ -13,7 +14,8 @@ export type WorldCommand =
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'rejoin' }
-  | { type: "interactNpc"; id: "mara" | "inn" | "bank" }
+  | { type: "interactNpc"; id: NpcId }
+  | { type: "buyGear"; vendor: VendorId; item: GearItemId }
   | { type: "quest"; id: QuestId; operation: QuestOperation }
   | { type: "equip"; slot: GearSlot; item: GearItemId | null }
   | { type: 'movement'; frames: readonly MovementFrame[] }

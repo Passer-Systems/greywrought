@@ -1,3 +1,4 @@
+import { createGearShop } from "./gear-shop.js";
 import { createAppControls } from './app-controls.js';
 import { COMBAT_RULES } from "../game/adventure.js";
 import { classAction, classKit } from "../game/class-kit.js";
@@ -105,6 +106,10 @@ const shop = createShopPanel(element("adventure-hud"), {
   onQuest: submitQuest,
   onBuyPotion: () => pulse("buyPotion"),
   onTrade: () => pulse("openTrade"),
+  onClose: () => { pulse("closeShop"); running?.world.canvas.focus(); },
+});
+const gearShop = createGearShop(element("adventure-hud"), {
+  onBuy: (vendor, item) => { if (running?.ready && !paused) running.game.buyGear(vendor, item); },
   onClose: () => { pulse("closeShop"); running?.world.canvas.focus(); },
 });
 const trade = createTradePanel(element("adventure-hud"), {
@@ -494,7 +499,7 @@ function returnToRoster(): void {
   route = "roster";
   element("pause-panel").hidden = true;
   element("bank-panel").hidden = true;
-  element("shop-panel").hidden = true;
+  element("shop-panel").hidden = true; gearShop.reset();
   element("death-panel").hidden = true;
   renderEntry();
 }
@@ -665,6 +670,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gameCargo = String(snapshot.cargo); data.gamePotions = String(snapshot.potions);
   data.gameCarriedSalvage = String(snapshot.carriedSalvage);
   data.gamePaused = String(paused);
+  data.gameCoins = String(snapshot.coins); data.gameExperience = String(snapshot.progression.experience); data.gameLevel = String(snapshot.progression.level);
   data.gameBankedRelics = String(snapshot.bankedRelics); data.gameSelectedThreat = snapshot.selectedThreat;
   data.gameActionCooldown = String(player.actionCooldown); data.gameGuardSeconds = String(player.guardSeconds);
   data.gameBlock = String(player.block); data.gameManeuver = player.maneuver;
@@ -691,7 +697,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gameRemotePlayers = JSON.stringify(running?.game.players ?? []);
   bank.update(snapshot);
   inn.update(snapshot, snapshot.innOpen);
-  shop.update(snapshot);
+  shop.update(snapshot); gearShop.update(snapshot);
   trade.update(snapshot);
   const selected = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat);
   for (const [action, label] of [
@@ -874,7 +880,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     const game = await connectAdventure(character);
     if (game.snapshot.phase === "lost") { game.close(); showFallenCharacter(character); return; }
     audio.reset();
-    const world = createAdventureWorld(element("world-wrap"), game.snapshot);
+    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); });
     world.setAggroRangesVisible(aggroRangesVisible);
     world.updateChat(game.chat, character.id);
     const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false };
@@ -1051,7 +1057,7 @@ listen(window, "keydown", (event) => {
       if (!element("pause-panel").hidden) setMenuOpen(false);
       else if (running?.game.snapshot.lootOpenId) pulse("closeLoot");
       else if (running?.game.snapshot.trade) pulse("closeTrade");
-      else if (running?.game.snapshot.shopOpen) pulse("closeShop");
+      else if ((running?.game.snapshot.shopOpen || running?.game.snapshot.vendorOpen)) pulse("closeShop");
       else if (running?.game.snapshot.bankOpen) pulse("closeBank");
       else if (running?.game.snapshot.innOpen) pulse("closeInn");
       else setMenuOpen(true);
@@ -1133,7 +1139,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   combatPlan.dispose();
   bank.dispose();
   inn.dispose();
-  shop.dispose();
+  shop.dispose(); gearShop.dispose();
   trade.dispose();
   lorebook.dispose();
   questLog.dispose();

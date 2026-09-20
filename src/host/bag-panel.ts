@@ -1,14 +1,13 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
-import { GEAR, YARD, gearName, type GearSlot, type GearItemId } from "../game/yard-content.js";
+import { GEAR, YARD, gearName, isGearItem, type GearSlot, type GearItemId } from "../game/yard-content.js";
 
 const itemTypes = [
   { id: "potions", name: "Health potion", icon: "items/health-potion-red.png" },
   { id: "cargo", name: YARD.resource, icon: "items/blue-gem.png" },
   { id: "carriedSalvage", name: "Yard salvage", icon: "items/leather-satchel.png" },
   { id: "carriedRelics", name: "Last Shift Roll", icon: "items/purple-crystal.png" },
-  { id: "insulated-coat", name: GEAR["insulated-coat"].name, icon: GEAR["insulated-coat"].icon + ".png" },
-  { id: "yard-weapon", name: GEAR["yard-weapon"].name, icon: GEAR["yard-weapon"].icon + ".png" },
+  ...Object.entries(GEAR).map(([id, gear]) => ({ id: id as GearItemId, name: gear.name, icon: gear.icon + ".png" })),
 ] as const;
 type Item = typeof itemTypes[number];
 
@@ -91,7 +90,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
       details.hidden = true; pinned = false;
       event.dataTransfer?.setData("application/x-greywrought-bag-item", slot.item.id);
       if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-      if (slot.item.id === "insulated-coat" || slot.item.id === "yard-weapon") {
+      if (isGearItem(slot.item.id)) {
         event.dataTransfer?.setData("application/x-greywrought-gear", slot.item.id);
         callbacks.onOpenEquipment?.(slot.item.id);
         document.dispatchEvent(new CustomEvent("greywrought-gear-dragstart", { detail: slot.item.id }));
@@ -136,7 +135,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     button.addEventListener("contextmenu", event => {
       event.preventDefault();
       if (slot.item?.id === "potions") callbacks.onUsePotion();
-      else if (slot.item?.id === "insulated-coat" || slot.item?.id === "yard-weapon") callbacks.onEquip(GEAR[slot.item.id].slot, slot.item.id);
+      else if (slot.item && isGearItem(slot.item.id)) callbacks.onEquip(GEAR[slot.item.id].slot, slot.item.id);
     });
     return slot;
   });
@@ -145,10 +144,10 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
   }
   function update(next: AdventureSnapshot): void {
     snapshot = next;
-    const quantity = (item: Item) => item.id === "insulated-coat" || item.id === "yard-weapon"
+    const quantity = (item: Item) => isGearItem(item.id)
       ? Number(next.progression.ownedGear.includes(item.id) && next.progression.equipment[GEAR[item.id].slot] !== item.id)
       : next[item.id];
-    const label = (item: Item) => item.id === "insulated-coat" || item.id === "yard-weapon" ? gearName(item.id, next.player.archetype) : item.name;
+    const label = (item: Item) => isGearItem(item.id) ? gearName(item.id, next.player.archetype) : item.name;
     const carried = itemTypes.filter(item => quantity(item) > 0);
     const known = new Set(carried.map(item => item.id));
     bagOrder = bagOrder.map(id => id && known.has(id) ? id : null);
@@ -174,7 +173,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
         slot.image.draggable = false;
         slot.button.dataset.quantity = String(quantity(item));
         slot.button.setAttribute("aria-label", `${label(item)} × ${quantity(item)}`);
-        const icon = item.id === "yard-weapon" ? next.player.archetype === "mage" || next.player.archetype === "alchemist" ? "spells/wand-bolt.svg" : next.player.archetype === "hunter" ? "spells/bow-shot.svg" : next.player.archetype === "artificer" ? "spells/lightning-bolt.png" : item.icon : item.icon;
+        const icon = (item.id === "yard-weapon" || item.id === "travel-weapon") ? next.player.archetype === "mage" || next.player.archetype === "alchemist" ? "spells/wand-bolt.svg" : next.player.archetype === "hunter" ? "spells/bow-shot.svg" : next.player.archetype === "artificer" ? "spells/lightning-bolt.png" : item.icon : item.icon;
         const src = publicUrl(`assets/ui/icons/${icon}`);
         if (slot.image.src !== src) slot.image.src = src;
         setText(slot.count, String(quantity(item)));
@@ -191,7 +190,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     setText(itemName, item ? `${label(item)} × ${quantity(item)}` : "Your backpack is empty");
     const copy = !item ? "Gather coolant crystals, search fallen foes, or buy potions from Mara."
       : item.id === "potions" ? `Restores ${next.potionHealing} health. ${Math.ceil(next.player.health)} / ${next.player.maximumHealth} health.`
-      : item.id === "insulated-coat" || item.id === "yard-weapon" ? `${GEAR[item.id].description} Right-click to equip. Changing gear in combat uses a 1.5-second recovery and costs no stamina.`
+      : isGearItem(item.id) ? `${GEAR[item.id].description} Right-click to equip. You can change gear while planning your next moves.`
       : item.id === "carriedRelics" ? "Recovered from Foreman Nine. Bring it to Rowan and complete Clock Out."
       : item.id === "cargo" ? "Three are kept for Mara while her task is active. Other crystals become supplies on entering town. Carry six straight to the engine for its offering."
       : `Recovered from fallen foes. Return alive to ${YARD.settlement} to turn each salvage into a supply.`;
@@ -199,7 +198,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     usePotion.hidden = selected !== "potions";
     usePotion.disabled = next.phase === "lost" || next.potions < 1 || next.player.health >= next.player.maximumHealth;
     setText(usePotion, next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
-    setText(securedValue, `${next.supplies} supplies${next.quests.some(q => q.id === "last-shift" && q.status === "completed") ? " · Last Shift Roll delivered" : ""}`);
+    setText(securedValue, `${next.coins} coins · ${next.supplies} supplies${next.quests.some(q => q.id === "last-shift" && q.status === "completed") ? " · Last Shift Roll delivered" : ""}`);
     if (!details.hidden) {
       const slot = slots.find(slot => slot.item?.id === selected);
       if (!slot || panel.hidden) details.hidden = true;

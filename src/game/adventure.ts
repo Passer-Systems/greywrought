@@ -1,5 +1,6 @@
 import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
 import { restoreTownPosition } from './town-layout.js';
+import { VENDORS, experienceForLevel, levelForExperience, enemyExperience, enemyCoins, type NpcId, type VendorId } from "./economy.js";
 import { inTown, WORLD_BOUNDS, migrateSpatialLayout } from './world-layout.js';
 import { findEmote } from './emotes.js';
 import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
@@ -94,15 +95,15 @@ interface SharedContext {
 }
 interface ChapterState {
   accepted: QuestId[]; completed: QuestId[]; scoutDefeated: boolean;
-  level: number; ownedGear: GearItemId[]; equipment: Record<GearSlot, GearItemId | null>;
+  level: number; experience: number; ownedGear: GearItemId[]; equipment: Record<GearSlot, GearItemId | null>;
 }
-const newChapter = (): ChapterState => ({ accepted: [], completed: [], scoutDefeated: false, level: 1, ownedGear: [], equipment: { chest: null, mainhand: null } });
+const newChapter = (): ChapterState => ({ accepted: [], completed: [], scoutDefeated: false, level: 1, experience: 0, ownedGear: [], equipment: { chest: null, mainhand: null, offhand: null } });
 interface State {
   chapter: ChapterState;
   combat: CombatState;
   world: WorldState;
   phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number;
-  health: number; supplies: number; cargo: number;
+  health: number; supplies: number; coins: number; cargo: number;
   bank: { supplies: number; potions: number };
   potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
   actionCooldown: number; currentAction: AdventureAction | "equip" | null; actionDuration: number; actionRemainingSeconds: number; gatherPending: boolean; guardSeconds: number;
@@ -150,6 +151,7 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     benefit: "Search its shell for six pieces of cave salvage." },
 ];
 const PLACES: readonly PlaceView[] = [
+  ...VENDORS.map(v => ({ id: v.id, name: `${v.name} / ${v.trade}`, position: v.position, kind: "shop" as const })),
   { id: "hollowdeep", name: "Hollowdeep Cave · Danger", position: point(28,-46), kind: "gate" },
   { id: "hollowdeep-exit", name: "Exit to the meadow", position: point(30,-46), kind: "gate" },
   { id: "hearthstead", name: YARD.settlement, position: point(0, -8), kind: "town" },
@@ -210,7 +212,7 @@ function nextThreatRandom(t: ThreatState): number {
 function initialState(archetype: CharacterArchetype): State {
   return {
     chapter: newChapter(), combat: newCombat(), phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, health: 100,
-    bank: { supplies: 0, potions: 0 }, supplies: 15, cargo: 0, potions: 0, carriedRelics: 0,
+    bank: { supplies: 0, potions: 0 }, supplies: 15, coins: 0, cargo: 0, potions: 0, carriedRelics: 0,
     bankedRelics: 0, carriedSalvage: 0, presence: 0, actionCooldown: 0, currentAction: null, actionDuration: 0, actionRemainingSeconds: 0, gatherPending: false,
     guardSeconds: 0, block: 0, stamina: 5, staminaRecoverySeconds: 0, bloodRage: 0, rageDrainSeconds: 0, rageDecaySeconds: 0, maneuver: null, sitting: false,
     attackSequence: 0, selectedThreat: "scout",
@@ -246,6 +248,7 @@ class Adventure implements AdventureGame {
   private moving = false;
   private backpedaling = false;
   private shopOpen = false;
+  private vendorOpen: VendorId | null = null;
   private trade: { kind: "supplies" | "potions"; quantity: number } | null = null;
   private innOpen = false;
   private bankOpen = false;
@@ -314,7 +317,7 @@ class Adventure implements AdventureGame {
     const clearInputs = (game: Adventure) => {
       game.cancelGather();
       game.held.clear(); game.mouseForward = false; game.moving = false; game.backpedaling = false;
-      game.enableNetworkMovement(false); game.shopOpen = false; game.innOpen = false; game.bankOpen = false; game.trade = null; game.lootOpenId = null;
+      game.enableNetworkMovement(false); game.vendorOpen = null; game.shopOpen = false; game.innOpen = false; game.bankOpen = false; game.trade = null; game.lootOpenId = null;
     };
     const createPrivate = (id: string, game: Adventure): SharedContext => {
       const clone = structuredClone(game.state.world);
@@ -513,12 +516,12 @@ class Adventure implements AdventureGame {
       loot: s.world.threats.filter(t => t.health === 0).map((t): CorpseLootView => ({
         sourceId: t.id, sourceName: definition(t.id).name, position: { ...t.position },
         itemName: t.id === "ritual-guardian" ? "Last Shift Roll" : t.id.startsWith("cave-") ? "Cave salvage" : "Forest salvage",
-        kind: t.id === "ritual-guardian" ? "relic" : "salvage", quantity: salvageQuantity(t.id),
+        kind: t.id === "ritual-guardian" ? "relic" : "salvage", quantity: salvageQuantity(t.id), coins: t.lootClaimed ? 0 : enemyCoins(definition(t.id).level),
         available: this.lootAvailable(t), reachable: this.canLoot(t),
       })),
       lootOpenId: this.lootOpenId, carriedSalvage: s.carriedSalvage,
       places: PLACES.map(p => ({ ...p, position: { ...p.position } })),
-      selectedThreat: s.selectedThreat, supplies: s.supplies, cargo: s.cargo,
+      selectedThreat: s.selectedThreat, supplies: s.supplies, coins: s.coins, vendorOpen: this.vendorOpen, cargo: s.cargo,
       resourceRemaining: s.world.resourceRemaining, potions: s.potions, carriedRelics: s.carriedRelics,
       bankedRelics: s.bankedRelics, presence: s.presence, ritualCalled: s.world.ritualCalled,
       bank: { ...s.bank }, bankOpen: this.bankOpen, shopOpen: this.shopOpen, trade: this.tradeView(), innOpen: this.innOpen, log: this.events.map(entry => ({ ...entry })), potionPrice: MARA_TRADE_RULES.suppliesPerPotion, potionHealing: 30, report: s.report,
@@ -529,7 +532,7 @@ class Adventure implements AdventureGame {
   private progression(): ProgressionView {
     const c = this.state.chapter;
     const gear = Object.values(c.equipment).filter((id): id is GearItemId => id !== null);
-    return { level: c.level, ownedGear: [...c.ownedGear], equipment: { ...c.equipment },
+    return { level: c.level, experience: c.experience, levelExperience: c.experience - experienceForLevel(c.level), nextLevelExperience: experienceForLevel(c.level + 1) - experienceForLevel(c.level), ownedGear: [...c.ownedGear], equipment: { ...c.equipment },
       unlockedActions: ["bait", "shove", "finish", "strike", "brace", "drinkPotion", ...(c.completed.includes("roll-call") ? ["disengage" as const] : []), ...(c.completed.includes("last-shift") ? ["bloodRage" as const] : [])],
       attackBonus: (c.level - 1) * 2 + gear.reduce((sum, id) => sum + GEAR[id].attackBonus, 0),
       damageReduction: gear.reduce((sum, id) => sum + GEAR[id].damageReduction, 0) };
@@ -547,21 +550,39 @@ class Adventure implements AdventureGame {
       return { id: q.id, status, progress, required: q.required, canAccept: nearby && status === "available", canTurnIn: nearby && status === "ready" };
     });
   }
-  interactNpc(id: "mara" | "inn" | "bank"): void {
+  interactNpc(id: NpcId): void {
+    const vendor = VENDORS.find(v => v.id === id);
     if (this.instancePaused() || this.inPrivateInstance()) { this.report("Services are available only in the shared world."); return; }
     if (this.state.phase === "lost") return;
     if (this.state.phase !== "town" || !this.near(id, 2.5)) {
-      this.report(`Move closer to ${id === "mara" ? "Mara" : id === "bank" ? "Elian" : "Rowan"} to talk.`);
+      this.report(`Move closer to ${vendor?.name ?? (id === "mara" ? "Mara" : id === "bank" ? "Elian" : "Rowan")} to talk.`);
       return;
     }
     this.lootOpenId = null;
     this.trade = null;
+    this.vendorOpen = vendor?.id ?? null;
     this.shopOpen = id === "mara";
     this.innOpen = id === "inn";
     this.bankOpen = id === "bank";
-    this.report(id === "mara" ? "Mara says: A little preparation goes a long way."
+    this.report(vendor ? `${vendor.name} says: Good gear earns its keep. Take a look.` : id === "mara" ? "Mara says: A little preparation goes a long way."
       : id === "bank" ? "Elian says: Store supplies and potions for your next expedition."
       : `Rowan says: Welcome to ${YARD.inn}. Come warm yourself by the hearth; rest is on the house.`);
+  }
+  buyGear(vendorId: VendorId, item: GearItemId): boolean {
+    const s = this.state, vendor = VENDORS.find(v => v.id === vendorId);
+    if (!vendor || vendor.item !== item || this.instancePaused() || this.inPrivateInstance() || s.phase !== "town" || this.vendorOpen !== vendorId || !this.near(vendorId, 2.5)) return false;
+    if (s.chapter.ownedGear.includes(item)) { this.report("You already own this item. Equip it from your bags."); return false; }
+    if (s.coins < vendor.price) { this.report(`You need ${vendor.price} coins for ${gearName(item, s.archetype)}.`); return false; }
+    s.coins -= vendor.price; s.chapter.ownedGear.push(item);
+    this.report(`You buy ${gearName(item, s.archetype)} for ${vendor.price} coins. Equip it from your bags.`);
+    return true;
+  }
+  private gainExperience(amount: number): void {
+    if (amount <= 0) return;
+    const c = this.state.chapter, previous = c.level;
+    c.experience += amount; c.level = levelForExperience(c.experience);
+    this.report(`You gain ${amount} experience.`, "combat");
+    if (c.level > previous) this.report(`Level up! You reach level ${c.level}. Your attacks deal ${2 * (c.level - 1)} extra damage.`, "combat");
   }
   bankTransfer(operation: "deposit" | "withdraw", kind: "supplies" | "potions", quantity: number): boolean {
     const s = this.state;
@@ -590,7 +611,7 @@ class Adventure implements AdventureGame {
     const s = this.state, c = s.chapter;
     if (id === "cold-hands") s.cargo -= q.required;
     if (id === "last-shift") { s.carriedRelics--; s.bankedRelics++; }
-    c.completed.push(id); c.level = Math.max(c.level, q.reward.level);
+    c.completed.push(id); this.gainExperience(Math.max(0, experienceForLevel(q.reward.level) - c.experience));
     s.potions += q.reward.potions; s.supplies += q.reward.supplies;
     if (q.reward.gear && !c.ownedGear.includes(q.reward.gear)) c.ownedGear.push(q.reward.gear);
     this.report(q.completion);
@@ -598,7 +619,7 @@ class Adventure implements AdventureGame {
   equip(slot: GearSlot, item: GearItemId | null): void {
     const s = this.state;
     if (this.instancePaused() || this.executionLocked()) return;
-    if (s.phase === "lost" || !(slot === "chest" || slot === "mainhand")) return;
+    if (s.phase === "lost" || !(slot === "chest" || slot === "mainhand" || slot === "offhand")) return;
     if (item !== null && (!Object.hasOwn(GEAR, item) || !s.chapter.ownedGear.includes(item) || GEAR[item].slot !== slot)) return;
 
     s.chapter.equipment[slot] = item;
@@ -873,22 +894,24 @@ class Adventure implements AdventureGame {
   openLoot(sourceId: string): void {
     const corpse = this.state.world.threats.find(t => t.id === sourceId);
     this.lootOpenId = corpse && this.canLoot(corpse) ? corpse.id : null;
-    if (this.lootOpenId) { this.shopOpen = false; this.innOpen = false; this.bankOpen = false; }
+    if (this.lootOpenId) { this.vendorOpen = null; this.shopOpen = false; this.innOpen = false; this.bankOpen = false; }
   }
   private takeLoot(): void {
     const s = this.state;
     const corpse = s.world.threats.find(t => t.id === this.lootOpenId);
     this.lootOpenId = null;
     if (!corpse || !this.canLoot(corpse)) return;
+    const coins = corpse.lootClaimed ? 0 : enemyCoins(definition(corpse.id).level);
+    s.coins += coins;
     corpse.lootClaimed = true;
     if (corpse.id === "ritual-guardian") {
       if (!corpse.rollClaims.includes(this.playerId ?? "solo")) corpse.rollClaims.push(this.playerId ?? "solo");
       s.carriedRelics += 1;
-      this.report("You receive loot: Last Shift Roll × 1. Reach Nine-Bell Yard alive to keep it.");
+      this.report(`You receive loot: Last Shift Roll × 1 and ${coins} coins. Reach Nine-Bell Yard alive to keep it.`);
     } else {
       const quantity = salvageQuantity(corpse.id);
       s.carriedSalvage += quantity;
-      this.report(`You receive loot: ${corpse.id.startsWith("cave-") ? "Cave" : "Forest"} salvage × ${quantity}. Return alive to exchange it for supplies.`);
+      this.report(`You receive loot: ${corpse.id.startsWith("cave-") ? "Cave" : "Forest"} salvage × ${quantity} and ${coins} coins. Return alive to exchange it for supplies.`);
     }
   }
   setAction(action: AdventureAction, pressed: boolean): void {
@@ -916,7 +939,7 @@ class Adventure implements AdventureGame {
       return;
     }
     if (action === "closeBank") { this.bankOpen = false; return; }
-    if (action === "closeShop") { this.shopOpen = false; this.trade = null; return; }
+    if (action === "closeShop") { this.vendorOpen = null; this.shopOpen = false; this.trade = null; return; }
     if (action === "closeTrade") { this.trade = null; return; }
     if (action === "openTrade") { if (this.shopOpen && this.near("mara", 2.5) && s.phase === "town") this.trade = { kind: "supplies", quantity: 3 }; return; }
     if (action === "acceptTrade") {
@@ -950,9 +973,9 @@ class Adventure implements AdventureGame {
         this.lootOpenId = null;
         const service = s.phase === "town" ? PLACES.filter(p => (p.kind === "shop" || p.kind === "inn" || p.kind === "bank") && this.near(p.id, 2.5))
           .sort((a,b) => distance(s.position,a.position) - distance(s.position,b.position))[0] : undefined;
-        if (service) this.interactNpc(service.kind === "shop" ? "mara" : service.kind === "bank" ? "bank" : "inn");
+        if (service) this.interactNpc(service.id as NpcId);
         else {
-          this.shopOpen = false; this.innOpen = false; this.bankOpen = false; this.trade = null;
+          this.vendorOpen = null; this.shopOpen = false; this.innOpen = false; this.bankOpen = false; this.trade = null;
           const corpse = s.world.threats.filter(t => this.canLoot(t))
             .sort((a, b) => distance(s.position, a.position) - distance(s.position, b.position))[0];
           if (corpse) this.openLoot(corpse.id);
@@ -1050,7 +1073,10 @@ class Adventure implements AdventureGame {
     this.defeat(t, this.playerId ?? "solo");
   }
   private defeat(t: ThreatState, sourceId: string): void {
-    if (t.health === 0) {
+    if (t.health === 0 && t.phase !== "cleared") {
+      if (!this.inPrivateInstance()) for (const player of this.shared ? this.shared.characters.values() : [this]) {
+        if (player.state.health > 0 && t.contributors.includes(player.playerId ?? "solo")) player.gainExperience(enemyExperience(definition(t.id).level));
+      }
       if (this.hasUnresolvedCast(t)) t.cancelledWindow = true;
       this.traceEvent("defeat", sourceId, t.id, t.position, 0, definition(t.id).name + " falls.");
       if (t.id === "scout" && !this.inPrivateInstance()) for (const player of this.shared ? this.shared.characters.values() : [this]) {
@@ -1151,8 +1177,9 @@ class Adventure implements AdventureGame {
   }
   private enemyHit(t: ThreatState, damage: number, sourceId: string): void {
     if (t.health <= 0) return;
-    const engaged = this.combatants();
-    for (const player of engaged) if (!t.contributors.includes(player.playerId ?? "solo")) t.contributors.push(player.playerId ?? "solo");
+    const sourceThreat = this.state.world.threats.find(enemy => enemy.id === sourceId);
+    const contributor = sourceThreat ? this.targetPlayer(sourceThreat) : this.participants().find(player => (player.playerId ?? "solo") === sourceId);
+    if (contributor && !t.contributors.includes(contributor.playerId ?? "solo")) t.contributors.push(contributor.playerId ?? "solo");
     const blocked = Math.min(damage, t.head?.block ?? t.shield);
     if (t.head) { t.head.block -= blocked; if (!t.head.block) t.head.blockSeconds = 0; } else t.shield -= blocked;
     const dealt = Math.min(t.health, damage - blocked); t.health -= dealt;
@@ -1333,6 +1360,7 @@ class Adventure implements AdventureGame {
     else if (this.movementFrames) this.consumeMovement(dt, false);
     else this.move(dt);
     this.closeMissingLoot();
+    if (this.vendorOpen && (this.state.phase !== "town" || !this.near(this.vendorOpen, 2.5))) this.vendorOpen = null;
     if (this.shopOpen && !this.near("mara", 2.5)) { this.shopOpen = false; this.trade = null; }
     if (this.innOpen && !this.near("inn", 2.5)) this.innOpen = false;
     if (this.bankOpen && !this.near("bank", 2.5)) this.bankOpen = false;
@@ -1865,10 +1893,10 @@ class Adventure implements AdventureGame {
     if (s.health > 0) return;
     this.cancelGather();
     s.maneuver = null; s.block = 0; s.guardSeconds = 0;
-    s.phase = "lost"; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.supplies = 0; s.bankedRelics = 0;
+    s.phase = "lost"; s.coins = 0; s.cargo = 0; s.carriedRelics = 0; s.carriedSalvage = 0; s.supplies = 0; s.bankedRelics = 0;
     if (!this.shared) for (const enemy of s.world.threats) if (enemy.aggro) this.releaseThreat(enemy);
     this.lootOpenId = null;
-    s.bank = { supplies: 0, potions: 0 }; s.potions = 0; this.shopOpen = false; this.innOpen = false; this.bankOpen = false; this.moving = false; this.backpedaling = false;
+    s.bank = { supplies: 0, potions: 0 }; s.potions = 0; this.vendorOpen = null; this.shopOpen = false; this.innOpen = false; this.bankOpen = false; this.moving = false; this.backpedaling = false;
     this.report("You fall. Your journey ends; carried rewards and personal stores are lost.", "combat");
   }
 }
@@ -1971,6 +1999,7 @@ function readSave(serialized: string, now = Date.now()): State {
     position: restoreTownPosition(groundPosition(s.position, 2)),
     verticalSpeed: number(s.verticalSpeed, -6, 5.5), health: number(s.health, 0, 100),
     bank: s.bank === undefined ? { supplies: 0, potions: 0 } : { supplies: number(record(s.bank).supplies, 0, Number.MAX_SAFE_INTEGER, true), potions: number(record(s.bank).potions, 0, Number.MAX_SAFE_INTEGER, true) },
+    coins: s.coins === undefined ? 0 : number(s.coins, 0, Number.MAX_SAFE_INTEGER, true),
     supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, Number.MAX_SAFE_INTEGER, true),
     world: { threats, resourceRemaining: number(s.resourceRemaining, 0, 12, true), resourceRespawns: readResourceRespawns(s.resourceRespawns, number(s.resourceRemaining, 0, 12, true), now), ritualCalled: boolean(s.ritualCalled) },
     potions: number(s.potions, 0, Number.MAX_SAFE_INTEGER, true),
@@ -2142,8 +2171,14 @@ function readChapter(value: unknown): ChapterState {
   const c = record(value), equipment = record(c.equipment);
   const accepted = stringList(c.accepted).map(id => choice(id, QUESTS.map(q => q.id)));
   const completed = stringList(c.completed).map(id => choice(id, QUESTS.map(q => q.id)));
-  const ownedGear = stringList(c.ownedGear).map(id => choice(id, ["insulated-coat", "yard-weapon"] as const));
-  const slots = { chest: equipment.chest === null ? null : choice(equipment.chest, ["insulated-coat"] as const), mainhand: equipment.mainhand === null ? null : choice(equipment.mainhand, ["yard-weapon"] as const) };
+  const ownedGear = stringList(c.ownedGear).map(id => choice(id, Object.keys(GEAR) as GearItemId[]));
+  const slots = Object.fromEntries((["chest", "mainhand", "offhand"] as const).map(slot => {
+    const item = equipment[slot] == null ? null : choice(equipment[slot], Object.keys(GEAR) as GearItemId[]);
+    if (item && GEAR[item].slot !== slot) throw new Error("Invalid adventure save: wrong gear slot.");
+    return [slot, item];
+  })) as ChapterState["equipment"];
+  const oldLevel = number(c.level, 1, 10_000_000, true);
+  const experience = Math.max(experienceForLevel(oldLevel), c.experience === undefined ? 0 : number(c.experience, 0, Number.MAX_SAFE_INTEGER, true));
   if (completed.some(id => !accepted.includes(id)) || Object.values(slots).some(id => id && !ownedGear.includes(id))) throw new Error("Invalid adventure save: inconsistent chapter.");
-  return { accepted, completed, scoutDefeated: boolean(c.scoutDefeated), level: number(c.level,1,3,true), ownedGear, equipment: slots };
+  return { accepted, completed, scoutDefeated: boolean(c.scoutDefeated), level: levelForExperience(experience), experience, ownedGear, equipment: slots };
 }

@@ -14,8 +14,8 @@ export const YARD = {
 export type QuestId = "cold-hands" | "roll-call" | "last-shift";
 export type QuestStatus = "locked" | "available" | "active" | "ready" | "completed";
 export type QuestOperation = "accept" | "turnIn";
-export type GearItemId = "insulated-coat" | "yard-weapon";
-export type GearSlot = "chest" | "mainhand";
+export type GearItemId = "insulated-coat" | "yard-weapon" | "travel-weapon" | "padded-coat" | "yard-shield";
+export type GearSlot = "chest" | "mainhand" | "offhand";
 export interface QuestView {
   readonly id: QuestId;
   readonly status: QuestStatus;
@@ -26,6 +26,9 @@ export interface QuestView {
 }
 export interface ProgressionView {
   readonly level: number;
+  readonly experience: number;
+  readonly levelExperience: number;
+  readonly nextLevelExperience: number;
   readonly ownedGear: readonly GearItemId[];
   readonly equipment: Readonly<Record<GearSlot, GearItemId | null>>;
   readonly unlockedActions: readonly CombatAction[];
@@ -79,12 +82,16 @@ export const QUESTS: readonly QuestDefinition[] = [
 ];
 
 export const GEAR = {
+  "travel-weapon": { slot: "mainhand", name: "Trail weapon", icon: "spells/sword-strike", attackBonus: 2, damageReduction: 0, description: "A dependable weapon for the road. Adds 2 damage to attacks." },
+  "padded-coat": { slot: "chest", name: "Padded Coat", icon: "items/shield-emblem", attackBonus: 0, damageReduction: 1, description: "Reduces each incoming hit by 1 after Block, to a minimum of 1 damage." },
+  "yard-shield": { slot: "offhand", name: "Yard Shield", icon: "items/shield-emblem", attackBonus: 0, damageReduction: 2, description: "Reduces each incoming hit by 2 after Block, to a minimum of 1 damage. Works alongside your coat." },
   "insulated-coat": { slot: "chest", name: "Line Inspector's Coat", icon: "items/shield-emblem", attackBonus: 0, damageReduction: 2, description: "Mara's patched work coat. Reduces each incoming hit by 2 after Block, to a minimum of 1 damage." },
   "yard-weapon": { slot: "mainhand", name: "Yard weapon", icon: "spells/sword-strike", attackBonus: 3, damageReduction: 0, description: "A maintained working weapon from Rowan's crew. Adds 3 damage to attacks." },
 } as const;
 
 export function gearName(id: GearItemId, archetype: CharacterArchetype): string {
-  if (id === "insulated-coat") return GEAR[id].name;
+  if (id !== "yard-weapon" && id !== "travel-weapon") return GEAR[id].name;
+  if (id === "travel-weapon") return archetype === "mage" ? "Trail Wand" : archetype === "hunter" ? "Trail Bow" : archetype === "alchemist" ? "Trail Reagent Kit" : archetype === "artificer" ? "Trail Rivet Tool" : "Trail Blade";
   if (archetype === "mage") return "Linemender's Wand";
   if (archetype === "hunter") return "Yardwatch Bow";
   if (archetype === "alchemist") return "Glasswork Reagent Kit";
@@ -95,3 +102,5 @@ export function gearName(id: GearItemId, archetype: CharacterArchetype): string 
 export function questDefinition(id: QuestId): QuestDefinition {
   return QUESTS.find(quest => quest.id === id)!;
 }
+
+export function isGearItem(value: unknown): value is GearItemId { return typeof value === "string" && Object.hasOwn(GEAR, value); }

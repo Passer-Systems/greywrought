@@ -369,3 +369,33 @@ test('bank socket commands reject invalid quantities, remote access, and another
     await rm(directory, { recursive: true });
   }
 }, 10_000);
+
+test('coin shop transport validates stock, balance and distance and saves actual shield equipment', async () => {
+  const { createSharedAdventure } = await import('../game/adventure.js');
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-shop-'));
+  const savePath = join(directory, 'world.json');
+  const character: LocalCharacter = { id: 'shop-tester', name: 'Shop Tester', archetype: 'warrior', createdAtMillis: 1 };
+  const token = crypto.randomUUID(), seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
+  const saved = JSON.parse(seed.save());
+  Object.assign(saved.characters[0].state, { position: { x: -9, y: 0, z: -32 }, coins: 12 });
+  await writeFile(savePath, JSON.stringify({ version: 1, accounts: [{ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') }], world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
+  const service = await createWorldService({ savePath });
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
+  const client = new Client(`ws://127.0.0.1:${server.port}/world`);
+  try {
+    await client.connect(character, token); await client.state();
+    expect(await client.invalid({ type: 'buyGear', vendor: 'shield-vendor', item: 'free-shield' })).toBe(false);
+    expect(await client.command({ type: 'buyGear', vendor: 'shield-vendor', item: 'yard-shield' })).toBe(false);
+    await client.command({ type: 'interactNpc', id: 'shield-vendor' });
+    expect(await client.command({ type: 'buyGear', vendor: 'shield-vendor', item: 'yard-weapon' })).toBe(false);
+    expect(await client.command({ type: 'buyGear', vendor: 'shield-vendor', item: 'yard-shield' })).toBe(true);
+    expect(await client.command({ type: 'buyGear', vendor: 'shield-vendor', item: 'yard-shield' })).toBe(false);
+    expect(await client.command({ type: 'buyGear', vendor: 'armor-vendor', item: 'padded-coat' })).toBe(false);
+    await client.command({ type: 'equip', slot: 'offhand', item: 'yard-shield' });
+    const state = await client.state(s => s.snapshot.progression.equipment.offhand === 'yard-shield');
+    expect(state.snapshot.coins).toBe(0); expect(state.snapshot.progression.damageReduction).toBe(2);
+    await service.close();
+    const stored = JSON.parse(JSON.parse(await readFile(savePath, 'utf8')).world).characters[0].state;
+    expect(stored.coins).toBe(0); expect(stored.chapter.equipment.offhand).toBe('yard-shield');
+  } finally { client.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
+});

@@ -1,4 +1,6 @@
 import { terrainHeight } from '../game/cave-layout.js';
+import { NPC_IDS, VENDORS } from "../game/economy.js";
+import { isGearItem } from "../game/yard-content.js";
 import { EMOTE_HELP, emoteText, findEmote } from '../game/emotes.js';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -65,9 +67,10 @@ function command(value: unknown): value is WorldCommand {
     case 'clear': return keys(value,['type']);
     case 'bank': return keys(value, ['type', 'operation', 'kind', 'quantity']) && member(value.operation, ['deposit', 'withdraw']) && member(value.kind, ['supplies', 'potions']) && finite(value.quantity, 1, Number.MAX_SAFE_INTEGER, true);
     case 'trade': return keys(value, ['type', 'kind', 'quantity']) && member(value.kind, ['supplies', 'potions']) && finite(value.quantity, 0, 100_000, true);
-    case 'interactNpc': return keys(value, ['type', 'id']) && member(value.id, ['mara', 'inn', 'bank']);
+    case 'interactNpc': return keys(value, ['type', 'id']) && member(value.id, NPC_IDS);
+    case 'buyGear': return keys(value, ['type', 'vendor', 'item']) && member(value.vendor, VENDORS.map(v => v.id)) && isGearItem(value.item);
     case 'quest': return keys(value, ['type', 'id', 'operation']) && member(value.id, ['cold-hands', 'roll-call', 'last-shift']) && member(value.operation, ['accept', 'turnIn']);
-    case 'equip': return keys(value, ['type', 'slot', 'item']) && member(value.slot, ['chest', 'mainhand']) && (value.item === null || member(value.item, ['insulated-coat', 'yard-weapon']));
+    case 'equip': return keys(value, ['type', 'slot', 'item']) && member(value.slot, ['chest', 'mainhand', 'offhand']) && (value.item === null || isGearItem(value.item));
     case 'chat': return keys(value, ['type', 'text']) && typeof value.text === 'string' && value.text.trim().length > 0 && value.text.length <= 280 && !/[\u0000-\u001f\u007f]/.test(value.text);
     default: return false;
   }
@@ -222,6 +225,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'loot': player.openLoot(value.id); break;
       case 'bank': return player.bankTransfer(value.operation, value.kind, value.quantity);
       case 'trade': player.setTradeOffer(value.kind, value.quantity); break;
+      case 'buyGear': return player.buyGear(value.vendor, value.item);
       case 'interactNpc': player.interactNpc(value.id); break;
       case 'quest': player.quest(value.id, value.operation); break;
       case 'equip': player.equip(value.slot, value.item); break;

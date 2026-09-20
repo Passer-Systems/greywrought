@@ -1,7 +1,7 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import type { CharacterArchetype, LocalCharacter } from "./character-profile.js";
 import { publicUrl } from "./public-url.js";
-import { GEAR, gearName, type GearItemId, type GearSlot } from "../game/yard-content.js";
+import { GEAR, gearName, isGearItem, type GearItemId, type GearSlot } from "../game/yard-content.js";
 
 const slots = [
   ["head", "Head", "left"], ["neck", "Neck", "left"],
@@ -50,35 +50,31 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     detailSignature = signature;
     const label = slots.find(slot => slot[0] === id)![1];
     const archetype = snapshot.player.archetype;
-    const gearId: GearItemId | null = id === "chest" ? "insulated-coat" : id === "mainhand" ? "yard-weapon" : null;
-    const owned = gearId && snapshot.progression.ownedGear.includes(gearId);
-    const equipped = gearId && snapshot.progression.equipment[GEAR[gearId].slot] === gearId;
+    const owned = snapshot.progression.ownedGear.filter(gear => GEAR[gear].slot === id);
     details.replaceChildren();
-    const heading = document.createElement("h3");
-    heading.textContent = owned ? gearName(gearId, archetype) : id === "mainhand" ? starterName(archetype) : label;
-    const kind = document.createElement("span");
-    kind.className = "equipment-detail-kind";
-    kind.textContent = `${label} · ${owned ? equipped ? "Equipped" : "Owned · Not equipped" : id === "mainhand" ? "Starter weapon" : "Empty"}`;
-    const description = document.createElement("p");
-    description.textContent = owned ? GEAR[gearId].description : id === "mainhand"
-      ? "Your first weapon. Complete Rowan’s task to earn a working weapon with 3 extra attack damage."
-      : id === "chest" ? "Complete Mara’s task to earn the Line Inspector’s Coat, with 2 armor."
-      : "No item is equipped in this slot.";
-    details.append(kind, heading, description);
-    if (owned) {
-      const action = document.createElement("button"); action.type = "button"; action.id = "equipment-toggle";
-      action.textContent = (equipped ? "Unequip" : "Equip") + (snapshot.phase === "expedition" && snapshot.player.inCombat ? " · 1.5s recovery" : "");
-      action.disabled = snapshot.phase === "lost";
-      action.dataset.gearItem = gearId;
+    const heading = document.createElement("h3"); heading.textContent = label; details.append(heading);
+    if (!owned.length) {
+      const description = document.createElement("p");
+      description.textContent = id === "mainhand" ? starterName(archetype) + ". Visit Tamsin for weapons or earn Rowan’s weapon." : id === "chest" ? "Visit Brann for armor or earn Mara’s coat." : id === "offhand" ? "Visit Sella for a shield." : "No item is equipped in this slot.";
+      details.append(description);
+    }
+    for (const gearId of owned) {
+      const equipped = snapshot.progression.equipment[GEAR[gearId].slot] === gearId;
+      const name = document.createElement("strong"); name.textContent = gearName(gearId, archetype) + (equipped ? " · Equipped" : "");
+      const description = document.createElement("p"); description.textContent = GEAR[gearId].description;
+      const action = document.createElement("button"); action.type = "button";
+      if (owned[0] === gearId) action.id = "equipment-toggle";
+      action.textContent = equipped ? "Unequip" : "Equip";
+      action.disabled = snapshot.phase === "lost"; action.dataset.gearItem = gearId;
       action.addEventListener("click", () => onEquip(GEAR[gearId].slot, equipped ? null : gearId));
-      details.append(action);
+      details.append(name, description, action);
     }
     root.dataset.selectedSlot = id;
   }
 
   const draggedGear = (event: DragEvent): GearItemId | null => {
     const value = event.dataTransfer?.getData("application/x-greywrought-gear");
-    return value === "insulated-coat" || value === "yard-weapon" ? value : null;
+    return isGearItem(value) ? value : null;
   };
   const clearDropHighlights = (): void => {
     for (const control of buttons.values()) {
@@ -88,7 +84,7 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
   };
   const showCompatibleSlots = (event: Event): void => {
     const gear = (event as CustomEvent).detail as GearItemId;
-    if (gear !== "insulated-coat" && gear !== "yard-weapon") return;
+    if (!isGearItem(gear)) return;
     activeDraggedGear = gear;
     clearDropHighlights();
     for (const [slotId, control] of buttons) {
@@ -131,9 +127,10 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     button.addEventListener("click", () => select(id));
     button.addEventListener("contextmenu", event => {
       event.preventDefault();
-      if (!snapshot || snapshot.phase === "lost" || (id !== "chest" && id !== "mainhand")) return;
-      const gearId = id === "chest" ? "insulated-coat" : "yard-weapon";
-      if (snapshot.progression.ownedGear.includes(gearId)) onEquip(id, snapshot.progression.equipment[id] === gearId ? null : gearId);
+      if (!snapshot || snapshot.phase === "lost" || (id !== "chest" && id !== "mainhand" && id !== "offhand")) return;
+      const equipped = snapshot.progression.equipment[id];
+      const gearId = snapshot.progression.ownedGear.find(gear => GEAR[gear].slot === id);
+      if (equipped || gearId) onEquip(id, equipped ? null : gearId!);
     });
     find(`[data-equipment-column="${column}"]`, HTMLElement).append(button);
     buttons.set(id, button);
@@ -157,7 +154,7 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
       portrait.alt = `${classNames[character.archetype]} portrait`;
     }
     for (const [slotId, control] of buttons) {
-      const gearId = slotId === "chest" || slotId === "mainhand" ? snapshot.progression.equipment[slotId] : null;
+      const gearId = slotId === "chest" || slotId === "mainhand" || slotId === "offhand" ? snapshot.progression.equipment[slotId] : null;
       const caption = gearId ? gearName(gearId, character.archetype) : slotId === "mainhand" ? starterName(character.archetype) : "Empty";
       const small = control.querySelector("small")!;
       if (small.textContent !== caption) small.textContent = caption;

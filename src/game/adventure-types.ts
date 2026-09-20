@@ -1,3 +1,4 @@
+import type { NpcId, VendorId } from "./economy.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
 import type { QuestId, QuestOperation, QuestView, ProgressionView, GearSlot, GearItemId } from "./yard-content.js";
 import type { MovementFrame, MovementCheckpoint } from "./movement.js";
@@ -60,6 +61,7 @@ export interface CorpseLootView {
   readonly itemName: string;
   readonly kind: "salvage" | "relic";
   readonly quantity: number;
+  readonly coins: number;
   readonly available: boolean;
   readonly reachable: boolean;
 }
@@ -170,6 +172,8 @@ export interface AdventureSnapshot {
   readonly places: readonly PlaceView[];
   readonly selectedThreat: string;
   readonly supplies: number;
+  readonly coins: number;
+  readonly vendorOpen: VendorId | null;
   readonly cargo: number;
   readonly resourceRemaining: number;
   readonly potions: number;
@@ -213,7 +217,8 @@ export interface AdventureGame {
   clearQueuedActions(): void;
   openLoot(sourceId: string): void;
   setTradeOffer(kind: "supplies" | "potions", quantity: number): void;
-  interactNpc(id: "mara" | "inn" | "bank"): void;
+  interactNpc(id: NpcId): void;
+  buyGear(vendor: VendorId, item: GearItemId): boolean;
   bankTransfer(operation: "deposit" | "withdraw", kind: "supplies" | "potions", quantity: number): boolean;
   quest(id: QuestId, operation: QuestOperation): void;
   equip(slot: GearSlot, item: GearItemId | null): void;

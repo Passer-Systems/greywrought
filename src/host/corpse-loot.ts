@@ -76,7 +76,7 @@ export function createCorpseLoot(host: HTMLElement, callbacks: { onTake(): void;
         quantity.textContent = String(loot.quantity);
         const itemSrc = publicUrl(`assets/ui/icons/items/${loot.kind === "relic" ? "blue-gem" : "leather-satchel"}.png`);
         if (itemImage.getAttribute("src") !== itemSrc) itemImage.src = itemSrc;
-        category.textContent = loot.kind === "relic" ? "Relic · carry home" : `${loot.quantity} supply on safe return`;
+        category.textContent = (loot.kind === "relic" ? "Relic · carry home" : `${loot.quantity} supply on safe return`) + (loot.coins ? ` · ${loot.coins} coins` : "");
       } else {
         delete panel.dataset.lootSource; delete panel.dataset.lootQuantity;
       }

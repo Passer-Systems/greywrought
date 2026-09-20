@@ -1,3 +1,4 @@
+import { VENDORS, type NpcId } from "../game/economy.js";
 import {
   BufferGeometry, CanvasTexture, Color, Float32BufferAttribute,
   CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
@@ -48,7 +49,7 @@ interface ThreatRig {
 }
 
 export type WorldPick = { readonly kind: "threat"; readonly id: string }
-  | { readonly kind: "npc"; readonly id: "mara" | "inn" | "bank" }
+  | { readonly kind: "npc"; readonly id: NpcId }
   | { readonly kind: "resource"; readonly id: "frost-cores" }
   | { readonly kind: "place"; readonly id: string };
 
@@ -181,7 +182,7 @@ function createCombatEffects(scene: Scene) {
   };
 }
 
-export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot): AdventureWorld {
+export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
   let interpolation = createSnapshotInterpolation();
@@ -214,6 +215,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const bankPosition = initial.places.find(place => place.id === "bank")!.position;
   const elian = new Group(); elian.position.set(bankPosition.x, bankPosition.y, bankPosition.z); elian.rotation.y = Math.PI / 2;
   terrain.add(elian);
+  const vendorActors = VENDORS.map(vendor => {
+    const root = new Group(); root.position.set(vendor.position.x, 0, vendor.position.z);
+    root.rotation.y = vendor.position.x < 0 ? Math.PI / 2 : -Math.PI / 2;
+    terrain.add(root);
+    return { vendor, root, actor: null as ForestActor | null };
+  });
   const coreRoot = new Group();
   const corePlace = initial.places.find(place => place.id === "frost-cores")!;
   coreRoot.position.set(corePlace.position.x, 0, corePlace.position.z);
@@ -238,6 +245,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   terrain.add(ritual);
 
   const hoverTargets: HoverTarget[] = [
+    ...vendorActors.map(({vendor, root}): HoverTarget => ({ root, pick: {kind: "npc", id: vendor.id}, name: `${vendor.name} · ${vendor.trade}`, anchor: new Vector3(vendor.position.x, 2.45, vendor.position.z) })),
     { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(corePlace.position.x, 1.4, corePlace.position.z) },
     { root: mara, pick: { kind: "npc", id: "mara" }, name: "Mara · Supplies", anchor: new Vector3(3.4, 2.45, -7.5) },
     { root: elian, pick: { kind: "npc", id: "bank" }, name: "Elian · Banker", anchor: new Vector3(bankPosition.x, 2.45, bankPosition.z) },
@@ -314,6 +322,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (disposed) { mounted.dispose(); return; }
     merchant = mounted; mara.add(mounted.root); mounted.play("Idle");
   });
+  const vendorsReady = Promise.all(vendorActors.map(async (entry, index) => {
+    const mounted = await actor(index === 1 ? "Knight" : "Cleric", index === 1 ? 2 : 1.85, index === 1 ? "warrior" : undefined);
+    if (disposed) { mounted.dispose(); return; }
+    entry.actor = mounted; entry.root.add(mounted.root); mounted.play("Idle");
+  })).then(() => { document.body.dataset.vendorsState = "ready"; });
   const bankerReady = actor("Cleric", 1.95).then(mounted => {
     if (disposed) { mounted.dispose(); return; }
     banker = mounted; elian.add(mounted.root); mounted.play("Idle");
@@ -367,7 +380,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let combatPreview: CombatPreview | null = null;
   let combatHudHeight = 0;
   const aggroRanges = createAggroRanges(scene, canvas);
-  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, creaturesReady, coresReady, natureReady, caveReady]).then(()=>undefined);
+  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, coresReady, natureReady, caveReady]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
   const groundSurfaces: Object3D[] = [];
@@ -507,6 +520,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         mara.rotation.y = snapshot.shopOpen ? Math.atan2(position.x - mara.position.x, position.z - mara.position.z) : -Math.PI / 2;
         merchant.play(snapshot.shopOpen ? "Idle_Weapon" : "Idle"); merchant.mixer.update(delta);
       }
+      for (const entry of vendorActors) {
+        if (snapshot.vendorOpen === entry.vendor.id) entry.root.rotation.y = Math.atan2(position.x - entry.root.position.x, position.z - entry.root.position.z);
+        entry.actor?.mixer.update(delta);
+      }
       if (banker) {
         elian.rotation.y = snapshot.bankOpen ? Math.atan2(position.x - bankPosition.x, position.z - bankPosition.z) : Math.PI / 2;
         banker.mixer.update(delta);
@@ -634,6 +651,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       renderer.render(scene, camera);
       updateHover();
       overheadNames.begin();
+      for (const {vendor, root} of vendorActors) overheadNames.show(`npc:${vendor.id}`, `${vendor.name} · ${vendor.trade}`, root, 2.35, "friendly", true, null, onNpcInteract ? () => onNpcInteract(vendor.id) : undefined);
       overheadNames.show("npc:mara", "Mara", mara, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"mara"));
       overheadNames.show("npc:elian", "Elian · Bank", elian, 2.35, "friendly", true);
       overheadNames.show("npc:rowan", "Rowan", rowan, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"inn"));
@@ -668,6 +686,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       aggroRanges.dispose();
       telegraphs.dispose();
       combatEffects.dispose();
+      vendorActors.forEach(entry => entry.actor?.dispose());
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose(); banker?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();
       disposeObjects(scene);

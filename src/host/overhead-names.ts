@@ -40,12 +40,19 @@ export function createOverheadNames(host: HTMLElement, camera: PerspectiveCamera
       viewportWidth = host.clientWidth; viewportHeight = host.clientHeight;
       present.clear(); creatures.length = 0;
     },
-    show(id: string, name: string, actor: Object3D, height: number, disposition: Disposition, alive = true, quest: QuestMarker | null = null) {
+    show(id: string, name: string, actor: Object3D, height: number, disposition: Disposition, alive = true, quest: QuestMarker | null = null, onActivate?: () => void) {
       present.add(id);
       let element = names.get(id);
       if (!element) {
         element = document.createElement("div");
         element.dataset.overheadName = id;
+        if (onActivate) {
+          root.removeAttribute("aria-hidden");
+          element.setAttribute("role", "button"); element.tabIndex = 0; element.style.pointerEvents = "auto"; element.style.cursor = "pointer";
+          element.addEventListener("pointerdown", event => event.stopPropagation());
+          element.addEventListener("click", event => { event.stopPropagation(); onActivate(); });
+          element.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); onActivate(); } });
+        }
         names.set(id, element); root.append(element);
       }
       if (element.dataset.label !== name || element.dataset.quest !== (quest ?? "")) {
