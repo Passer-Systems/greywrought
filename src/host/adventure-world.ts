@@ -2,7 +2,7 @@ import { VENDORS, type NpcId } from "../game/economy.js";
 import {
   BufferGeometry, CanvasTexture, Color, Float32BufferAttribute,
   CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
-  Material, Mesh, InstancedMesh, LineBasicMaterial, LineSegments, MeshBasicMaterial, MeshStandardMaterial,
+  Material, Mesh, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial,
   Object3D, PerspectiveCamera, Points, PointsMaterial, RingGeometry, Scene, SphereGeometry,
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
   Raycaster,
@@ -22,7 +22,7 @@ import { createChatBubbles } from "./chat-bubbles.js";
 import { createFloatingCombatText } from "./floating-combat-text.js";
 import type { SharedChatMessage } from "../game/multiplayer-types.js";
 import { YARD } from "../game/yard-content.js";
-import { terrainHeight } from "../game/cave-layout.js";
+import { createCombatGrid } from "./combat-grid.js";
 
 interface ThreatRig {
   readonly root: Group;
@@ -204,12 +204,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   nightFill.position.set(-12, 25, -8);
   scene.add(nightFill);
   const terrain = new Group();
-  const combatGrid = new Group();
-  const combatGridMaterial = new LineBasicMaterial({ color: 0xd9c16f, transparent: true, opacity: 0.3, depthWrite: false });
-  const combatGridGeometry = new BufferGeometry();
-  combatGridGeometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(108), 3));
-  combatGrid.add(new LineSegments(combatGridGeometry, combatGridMaterial));
-  combatGrid.visible = false; scene.add(combatGrid);
   scene.add(terrain);
   const thicket = new Group(); terrain.add(thicket);
   const mara = new Group(); mara.position.set(3.4, 0, -7.5); mara.rotation.y = -Math.PI/2;
@@ -387,6 +381,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let combatPreview: CombatPreview | null = null;
   let combatHudHeight = 0;
   const aggroRanges = createAggroRanges(scene, canvas);
+  const combatGrid = createCombatGrid(scene, canvas);
   const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, coresReady, natureReady, caveReady]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
@@ -480,17 +475,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       document.body.dataset.rigRemoteAnimations = JSON.stringify(Array.from(remotePlayers.entries(), ([id, rig]) => ({ id, animation: rig.root.userData.animation, time: rig.root.userData.animationTime })));
       player.position.set(localPlayer.position.x, localPlayer.position.y, localPlayer.position.z);
       const position = player.position;
-      combatGrid.visible = snapshot.player.inCombat;
-      if (combatGrid.visible) {
-        const centerX = Math.round(position.x / 2.5) * 2.5, centerZ = Math.round(position.z / 2.5) * 2.5;
-        const positions = combatGridGeometry.getAttribute("position") as Float32BufferAttribute;
-        let vertex = 0;
-        for (let i = -4; i <= 4; i++) {
-          const x = centerX + i * 2.5 - 1.25, z = centerZ + i * 2.5 - 1.25;
-          positions.setXYZ(vertex++, x, terrainHeight(x, centerZ - 10) + .035, centerZ - 10); positions.setXYZ(vertex++, x, terrainHeight(x, centerZ + 10) + .035, centerZ + 10);
-          positions.setXYZ(vertex++, centerX - 10, terrainHeight(centerX - 10, z) + .035, z); positions.setXYZ(vertex++, centerX + 10, terrainHeight(centerX + 10, z) + .035, z);
-        }
-      }
       const face = snapshot.player.facing;
       if (snapshot.player.moving || snapshot.player.maneuver !== "none" || face.x !== lastFacing.x || face.z !== lastFacing.z) {
         player.rotation.y = Math.atan2(face.x, face.z);
@@ -662,6 +646,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       telegraphs.update(snapshot, combatPreview);
       combatEffects.update(snapshot.combat, elapsed, delta, connectionRevision);
       aggroRanges.update(snapshot);
+      combatGrid.update(snapshot);
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
       camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
       updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position);
@@ -702,6 +687,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       combatText.dispose();
       overheadNames.dispose();
       aggroRanges.dispose();
+      combatGrid.dispose();
       telegraphs.dispose();
       combatEffects.dispose();
       vendorActors.forEach(entry => entry.actor?.dispose());

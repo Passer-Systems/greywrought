@@ -22,7 +22,6 @@ export class LocalMovement {
   private maneuver: MovementManeuver | null = null;
   private correction = { x: 0, y: 0, z: 0 };
 
-  private executionLocked(snapshot = this.snapshot): boolean { return snapshot.player.inCombat && snapshot.combat.phase === 'active'; }
   private combatLocked(snapshot = this.snapshot): boolean { return snapshot.player.inCombat; }
 
   constructor(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoint) {
@@ -87,8 +86,8 @@ export class LocalMovement {
   reconcile(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoint, serverTime: number): void {
     if (serverTime < this.serverTime) return;
     const previous = this.player.position;
-    const enteredExecution = !this.combatLocked() && this.combatLocked(snapshot);
-    if (enteredExecution) {
+    const enteredCombat = !this.combatLocked() && this.combatLocked(snapshot);
+    if (enteredCombat) {
       this.held.clear(); this.mouseForward = false; this.jump = false;
       this.history = []; this.outgoing = [];
     }
@@ -106,7 +105,7 @@ export class LocalMovement {
     // Preserve continuity only for a genuine reconciliation error; matching
     // acknowledgments never add render lag to normal predicted locomotion.
     const gap = Math.hypot(previous.x - this.state.position.x, previous.y - this.state.position.y, previous.z - this.state.position.z);
-    this.correction = initialized && snapshot.phase !== 'lost' && gap < 2
+    this.correction = initialized && !enteredCombat && snapshot.phase !== 'lost' && gap < 2
       ? { x: previous.x - this.state.position.x, y: previous.y - terrainHeight(previous.x, previous.z) - (this.state.position.y - terrainHeight(this.state.position.x, this.state.position.z)), z: previous.z - this.state.position.z }
       : { x: 0, y: 0, z: 0 };
   }

@@ -658,7 +658,7 @@ class Adventure implements AdventureGame {
     const length = Math.hypot(x, z);
     if (length > EPSILON) this.cameraForward = { x: x / length, y: 0, z: z / length };
   }
-  setMouseForward(active: boolean): void { if (!this.instancePaused() && !this.executionLocked()) { if (active) this.cancelGather(); this.mouseForward = active; } }
+  setMouseForward(active: boolean): void { if (!active) this.mouseForward = false; else if (!this.instancePaused() && !this.inCombat()) { this.cancelGather(); this.mouseForward = true; } }
   sit(): void {
     if (this.instancePaused() || this.state.phase === "lost" || this.inCombat()) return;
     this.activeEmote = null;
@@ -681,6 +681,15 @@ class Adventure implements AdventureGame {
   }
   private executionLocked(): boolean { return this.inCombat() && this.state.combat.clock.phase === "active"; }
   private combatants(): Adventure[] { return this.participants().filter(player => player.inCombat()); }
+  private occupiedCells(exclude: Position): Position[] {
+    return [...this.participants().filter(p => p.state.health > 0).map(p => p.state.position),
+      ...this.state.world.threats.filter(t => t.active && t.health > 0).map(t => t.position)].filter(p => p !== exclude);
+  }
+  private settleCombatCell(): void {
+    const s = this.state;
+    s.position = snapCombatPosition(s.position, s.position, 4, this.occupiedCells(s.position));
+    s.verticalSpeed = 0; this.held.clear(); this.mouseForward = false; this.moving = false; this.backpedaling = false;
+  }
   readyCombat(): boolean {
     if (this.instancePaused() || !this.inCombat() || this.state.combat.clock.phase !== "preparation") return false;
     this.state.combat.ready = true;
@@ -708,18 +717,22 @@ class Adventure implements AdventureGame {
     }
   }
   private beginPlanning(): void {
-    if (this.recording) this.captureOutcomes();
     const clock = this.state.combat.clock;
     clock.phase = "choosing"; clock.elapsedSeconds = 0; clock.cycle++;
     for (const player of this.participants()) {
       player.state.combat.queued = []; player.state.combat.ready = false;
+      if (player.inCombat()) player.settleCombatCell();
     }
     for (const threat of this.state.world.threats) {
       threat.staggered = false; threat.cancelledWindow = false;
       if (threat.swarm && threat.swarm.expiresCycle < clock.cycle) threat.swarm = null;
       const target = this.targetPlayer(threat);
-      if (target && threat.aggro && threat.health > 0) target.commitThreat(threat);
+      if (target && threat.aggro && threat.health > 0) {
+        threat.position = snapCombatPosition(threat.position, threat.position, 4, this.occupiedCells(threat.position));
+        target.commitThreat(threat);
+      }
     }
+    if (this.recording) this.captureOutcomes();
     const trio = ["scout", "nest", "patrol"].map(id => this.state.world.threats.find(t => t.id === id)!);
     if (!trio[0]!.comboOpened && trio.every(t => t.aggro && t.health > 0 && t.joinCycle <= clock.cycle)) {
       for (const threat of trio) {
@@ -773,7 +786,7 @@ class Adventure implements AdventureGame {
     const c = this.state.combat;
     if (!this.editableQueue() || !this.inCombat() || c.clock.phase !== "preparation" || this.queueReason("bait") || c.queued.length >= 3) return false;
     const offset = [0,1,2].find(slot => !c.queued.some(e => e.offsetSeconds === slot))!;
-    c.queued.push({ id: c.nextId++, action: "bait", destination: snapCombatPosition(destination), targetId: null, offsetSeconds: offset, cost: 1, status: "pending", reason: null });
+    c.queued.push({ id: c.nextId++, action: "bait", destination: { ...destination }, targetId: null, offsetSeconds: offset, cost: 1, status: "pending", reason: null });
     c.ready = false; return true;
   }
   private queueAction(action: CombatAction): void {
@@ -787,6 +800,7 @@ class Adventure implements AdventureGame {
     const target = ["strike", "disengage", "jab", "shove", "finish"].includes(action) ? this.state.world.threats.find(t => t.id === this.state.selectedThreat)! : null;
     if (target) {
       this.state.sitting = false; this.activeEmote = null;
+      if (target.aggro && !this.inCombat()) this.settleCombatCell();
       if (!target.aggro) this.engage(target);
       if (!target.combatants.includes(this.playerId ?? "solo")) target.combatants.push(this.playerId ?? "solo");
       if (c.clock.phase === "idle") this.beginPlanning();
@@ -839,7 +853,7 @@ class Adventure implements AdventureGame {
     this.spendStamina(cost); this.recover(action, COMBAT_RULES.actionCooldown);
     if (action === "bait") {
       const facing = this.direction(s.position, destination!), length = Math.min(COMBAT_RULES.bait.distance, distance(s.position, destination!));
-      const end = snapCombatPosition(this.reachableEndpoint(s.position, point(s.position.x + facing.x * length, s.position.z + facing.z * length)));
+      const end = snapCombatPosition(point(s.position.x + facing.x * length, s.position.z + facing.z * length), s.position, COMBAT_RULES.bait.distance, this.occupiedCells(s.position));
       s.maneuver = { kind: "bait", targetId: s.selectedThreat, start: { ...s.position }, destination: end, facing, remainingSeconds: COMBAT_RULES.bait.duration };
       this.tracePath(this.playerId ?? "solo", "move", "bait", [s.position, end], 0);
     } else if (action === "shove") {
@@ -855,7 +869,7 @@ class Adventure implements AdventureGame {
       this.hit(target!, target!.staggered ? COMBAT_RULES.finish.staggeredDamage : COMBAT_RULES.finish.damage, "finish");
     } else if (action === "disengage") {
       const facing = this.direction(s.position, target!.position);
-      const destination = snapCombatPosition(this.reachableEndpoint(s.position, point(s.position.x - facing.x * COMBAT_RULES.disengage.distance, s.position.z - facing.z * COMBAT_RULES.disengage.distance)));
+      const destination = snapCombatPosition(point(s.position.x - facing.x * COMBAT_RULES.disengage.distance, s.position.z - facing.z * COMBAT_RULES.disengage.distance), s.position, COMBAT_RULES.disengage.distance, this.occupiedCells(s.position));
       s.maneuver = { kind: "disengage", targetId: target!.id, start: { ...s.position }, destination, facing, remainingSeconds: COMBAT_RULES.disengage.duration };
       this.tracePath(this.playerId ?? "solo", "move", "disengage", [s.position, destination], 0);
       this.hit(target!, (classAction(s.archetype, action).damage ?? COMBAT_RULES.disengage.damage) + s.bloodRage * this.powerDamagePerStack(), classAction(s.archetype, action).name + " at");
@@ -918,7 +932,7 @@ class Adventure implements AdventureGame {
   setAction(action: AdventureAction, pressed: boolean): void {
     if (this.instancePaused()) { if (!pressed) this.held.delete(action); return; }
     if (!pressed) { this.held.delete(action); return; }
-    if (this.executionLocked() && ["forward", "backward", "left", "right", "jump"].includes(action)) return;
+    if (this.inCombat() && ["forward", "backward", "left", "right", "jump"].includes(action)) return;
     if (this.held.has(action)) return;
     this.held.add(action);
     if (["forward", "backward", "left", "right", "jump", "strike", "bait", "shove", "finish", "disengage", "brace", "bloodRage", "jab", "guard", "drinkPotion", "ritual", "cancelGather"].includes(action)) this.cancelGather();
@@ -1353,8 +1367,7 @@ class Adventure implements AdventureGame {
     }
     if (s.phase === "lost") { if (this.movementFrames) this.consumeMovement(dt, true); this.moving = false; this.backpedaling = false; return; }
     if (s.maneuver) { if (this.movementFrames) this.consumeMovement(dt, true); this.moveManeuver(dt); }
-    else if (this.inCombat()) { if (this.movementFrames) this.consumeMovement(dt, true); this.moving = false; this.backpedaling = false; }
-    else if (this.executionLocked()) {
+    else if (this.inCombat()) {
       if (this.movementFrames) this.consumeMovement(dt, true);
       moveLocomotion(s, { forward: 0, strafe: 0, cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt);
       this.moving = false; this.backpedaling = false;
@@ -1417,15 +1430,13 @@ class Adventure implements AdventureGame {
       if (t.aggro && target && t.targetPlayerId !== target.playerId) {
         // A departing player does not rewind the creature's current cast or
         // ramp. The replacement target inherits the live encounter beat.
+        if (!target.inCombat()) target.settleCombatCell();
         t.targetPlayerId = target.playerId;
         if (target.playerId !== null && !t.combatants.includes(target.playerId)) t.combatants.push(target.playerId);
         t.targetPosition = { ...target.state.position };
       }
       if (t.aggro && target?.playerId !== null && target?.playerId !== undefined && !t.combatants.includes(target.playerId)) t.combatants.push(target.playerId);
       if (t.aggro && !target) this.releaseThreat(t); else (target ?? this).acquireOrRelease(t, dt);
-    }
-    if (this.state.combat.clock.phase === "preparation") {
-
     }
     if (this.state.combat.clock.phase === "active") {
       for (const player of players) if (player.inCombat()) player.executeQueued();
@@ -1441,9 +1452,6 @@ class Adventure implements AdventureGame {
     this.stepPlayer(dt);
     if (this.state.health <= 0) { this.finishCombatStep(0); return; }
     for (const threat of this.state.world.threats) { threat.moving = false; this.acquireOrRelease(threat, dt); }
-    if (this.state.combat.clock.phase === "preparation") {
-
-    }
     if (this.state.combat.clock.phase === "active") {
       this.executeQueued();
       for (const threat of this.state.world.threats) {
@@ -1493,8 +1501,8 @@ class Adventure implements AdventureGame {
   }
   private engage(t: ThreatState): void {
     this.state.sitting = false; this.activeEmote = null;
-    this.state.position = snapCombatPosition(this.state.position);
-    t.position = snapCombatPosition(t.position);
+    if (!this.inCombat()) this.settleCombatCell();
+    t.position = snapCombatPosition(t.position, t.position, 4, this.occupiedCells(t.position));
     t.aggro = true; t.lastActionHit = false; t.targetPlayerId = this.playerId;
     if (this.playerId !== null && !t.combatants.includes(this.playerId)) t.combatants.push(this.playerId);
     const clock = this.state.combat.clock;
