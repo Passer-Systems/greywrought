@@ -360,8 +360,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     "cave-bat": {model:"Bat",height:1.5,idle:"Flying",walk:"Flying",attack:"Bite_Front",hit:"HitRecieve"},
     "cave-crab": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
     "pond-turtle": {model:"Crab",height:0.9,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
-    "meadow-rabbit": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
-    "meadow-rabbit-2": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
+    "meadow-rat": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
+    "meadow-rat-2": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
     scout: {model:"Skull",height:1.6,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
     nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
     warder: {model:"MushroomKing",height:2.4,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact"},
@@ -384,11 +384,14 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       const eyeMaterial = new MeshBasicMaterial({ color: 0xffd34f });
       for (const x of [-.1, .1]) { const eye = new Mesh(new SphereGeometry(.035, 8, 6), eyeMaterial); eye.position.set(x, .53, .84); creature.root.add(eye); }
       creature.root.add(shell, head);
+      const flippers: Mesh[] = [];
       for (const [x, z] of [[-.55, .35], [.55, .35], [-.5, -.35], [.5, -.35]] as const) {
         const flipper = new Mesh(new SphereGeometry(.2, 10, 6), new MeshStandardMaterial({ color: 0x628879, roughness: .7, metalness: .25 }));
         flipper.scale.set(.55, .12, .2); flipper.position.set(x, .22, z); creature.root.add(flipper);
+        flippers.push(flipper);
       }
       shell.userData.swimmer = true;
+      creature.root.userData.turtleFlippers = flippers;
     }
     const root = new Group(), body = creature.root;
     root.add(body); root.userData.threatId = threat.id; scene.add(root);
@@ -405,12 +408,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       health:threat.health,sequence:threat.actionSequence,attackTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const birds: { root: Group; actor: ForestActor; phase: number; centerX: number; centerZ: number }[] = [];
-  const birdSpawns: readonly [number, number][] = [[-6, 8], [4, 20], [18, 14]];
+  const birdSpawns: readonly [number, number][] = [[-12, -82], [-1, -106], [14, -92]];
   const birdsReady = Promise.all(birdSpawns.map(async ([x, z], index) => {
     const mounted = await actor("Birb", 0.42);
     if (disposed) { mounted.dispose(); return; }
     const root = new Group(); root.position.set(x, terrainHeight(x, z) + 4 + index * .6, z); root.add(mounted.root); scene.add(root);
-    mounted.play("Walk"); birds.push({ root, actor: mounted, phase: index * 2.1, centerX: x, centerZ: z });
+    mounted.play("Dance"); birds.push({ root, actor: mounted, phase: index * 2.1, centerX: x, centerZ: z });
   }));
   const natureReady = buildFrostwood(terrain, thicket, innPosition, (root, name) => {
     const place = name === "House_1" ? { id: "town", name: root.position.x === -14 ? "Nine-Bell Bank" : YARD.settlement }
@@ -615,7 +618,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         const rig = rigs.get(threat.id);
         if (!rig) continue;
         rig.root.visible = threat.active || threat.phase === "cleared";
-        rig.root.position.set(threat.position.x, threat.position.y, threat.position.z);
+        rig.root.position.set(threat.position.x, threat.id === "pond-turtle" ? .12 : threat.position.y, threat.position.z);
+        if (threat.id === "pond-turtle") {
+          const flippers = rig.body.userData.turtleFlippers as Mesh[] | undefined;
+          flippers?.forEach((flipper, index) => { flipper.rotation.z = Math.sin(elapsed * 4 + index * Math.PI) * .42; });
+        }
         rig.lootable = snapshot.loot.some(item => item.sourceId === threat.id && item.available);
         rig.lootGlint.visible = rig.lootable;
         rig.lootGlint.position.set(0, 0.8 + 0.08 * Math.sin(elapsed * 2), 0);

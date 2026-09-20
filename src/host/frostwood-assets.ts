@@ -1,5 +1,6 @@
 import { AnimationClip, AnimationMixer, Box3, CanvasTexture, CircleGeometry, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { FBXLoader } from "three/addons/loaders/FBXLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { clone, retargetClip } from "three/addons/utils/SkeletonUtils.js";
@@ -33,14 +34,9 @@ export async function actor(name: string, height: number, playerModel?: "warrior
   const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger.glb" : playerModel === "mage" ? "Wizard.glb" : playerModel === "alchemist" ? "Alchemist.gltf" : playerModel === "artificer" ? "Artificer.gltf" : "Warrior.glb"}` : null;
   const rat = !playerPath && name === "Rat";
   const gltf = rat ? null : await source(playerPath ?? `${root}actors/${name}.glb`);
-  const model = rat ? await (async () => {
-    const base = publicUrl("assets/external/quaternius/rodents/Rat");
-    const materials = await new MTLLoader().loadAsync(`${base}.mtl`);
-    const response = await fetch(`${base}.obj`);
-    if (!response.ok) throw Error(`Unable to load ${base}.obj: ${response.status}`);
-    return new OBJLoader().setMaterials(materials).parse(await response.text());
-  })() : clone(gltf!.scene);
-  const animations = rat ? ["Idle", "Walk", "Death", "Bite_InPlace", "HitRecieve"].map(name => new AnimationClip(name, 1, [])) : [...gltf!.animations];
+  const fbx = rat ? await new FBXLoader().loadAsync(publicUrl("assets/external/quaternius/rodents/Rat.fbx")) : null;
+  const model = rat ? fbx! : clone(gltf!.scene);
+  const animations = rat ? [...fbx!.animations] : [...gltf!.animations];
   if (playerPath !== null) {
     const donor = await source("assets/quaternius/class-characters/Social.glb");
     const sourceModel = clone(donor.scene);
@@ -85,7 +81,7 @@ export async function actor(name: string, height: number, playerModel?: "warrior
   const result: ForestActor = {
     root: wrapper, model, mixer, action: null,
     play(name, loop = true, duration, fade = 0.12) {
-      const clip = animations.find(c => c.name === name);
+      const clip = animations.find(c => c.name === name) ?? animations[0];
       if (!clip) throw Error(`${name} is missing from ${model.name}`);
       const next = mixer.clipAction(clip);
       if (result.action === next && next.isRunning()) return next;
