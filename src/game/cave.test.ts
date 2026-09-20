@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createAdventure, createSharedAdventure, getMonsterLore } from './adventure.js';
 import { caveBlockedPosition, terrainHeight } from './cave-layout.js';
-import { finishCycle, tap } from './yard-test-fixtures.js';
+import { finishCycle, travel, tap } from './yard-test-fixtures.js';
 
 function encounter(id: string) {
   const save=JSON.parse(createAdventure().save());
@@ -46,7 +46,7 @@ test('cave rewards are collected once through normal corpse loot',()=>{
     const save=JSON.parse(encounter(id).save());const threat=save.state.threats.find((t:{id:string})=>t.id===id);threat.health=1;
     const game=createAdventure({save:JSON.stringify(save)});tap(game,'strike');game.readyCombat();finishCycle(game);
     const loot=game.snapshot.loot.find(t=>t.sourceId===id)!;expect(loot.quantity).toBe(quantity);
-    game.openLoot(id);tap(game,'takeLoot');expect(game.snapshot.carriedSalvage).toBe(quantity);
+    travel(game,loot.position.x,loot.position.z); game.openLoot(id);tap(game,'takeLoot');expect(game.snapshot.carriedSalvage).toBe(quantity);
     game.openLoot(id);tap(game,'takeLoot');expect(game.snapshot.carriedSalvage).toBe(quantity);
   }
 });
