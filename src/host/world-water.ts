@@ -1,63 +1,86 @@
 import { BufferGeometry, Color, Float32BufferAttribute, Group, Matrix4, Mesh, ShaderMaterial, Vector2, Vector3 } from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
-import { LAKE_CENTER, LAKE_RADIUS, LAKE_WATER_LEVEL, STREAM_POINTS, lakeBoundary, lakeDepthAt, overworldHeight } from '../game/world-elevation.js';
+import { LAKE_CENTER, LAKE_RADIUS, LAKE_WATER_LEVEL, lakeBoundary, lakeDepthAt, overworldHeight } from '../game/world-elevation.js';
 import { worldDay } from '../game/world-time.js';
+import { buildStreamGeometry } from './stream-geometry.js';
 
 export const MEADOW_WATER = {
-  movement: { speed: .65, waveHeight: .03, wind: new Vector2(.86, .5) },
+  movement: { speed: .65, waveHeight: .03, shoreHeight: .09, wind: new Vector2(.86, .5) },
   look: { shallow: 0x568e97, deep: 0x123548, absorption: 1.35 },
   reflection: { strength: .8, resolution: 512, updatesPerSecond: 15 },
 };
+// Increasing phase sends each crest from deeper water toward the bank. Geometry,
+// wet coverage, and foam use the same wave so the waterline follows the wash.
+const shoreWave = `
+float shorePhase(vec2 p,float d,float t){return d*9.+t*1.8+dot(p,vec2(.86,.5))*.13;}
+float shoreLift(vec2 p,float d,float t){return shoreHeight*smoothstep(0.,.035,d)*(1.-smoothstep(.05,.5,d))*sin(shorePhase(p,d,t));}
+`;
 const vertexShader = `
 attribute float waterDepth;
 attribute vec2 current;
-uniform float time, waveHeight;
+uniform float time, waveHeight, shoreHeight;
 uniform vec2 wind;
 uniform mat4 textureMatrix;
 varying vec3 world;
 varying vec4 mirror;
 varying float depth;
 varying vec2 flow;
+${shoreWave}
 void main(){
  vec3 p=position;
  vec4 w=modelMatrix*vec4(p,1.);
  float amplitude=waveHeight*smoothstep(0.,.5,waterDepth);
  p.z+=amplitude*(sin(dot(w.xz,wind)*1.65+time*1.4)+.4*sin(w.x*3.1-w.z*2.3-time*1.8));
+ p.z+=shoreLift(w.xz,waterDepth,time)*(1.-smoothstep(.01,.1,length(current)));
  w=modelMatrix*vec4(p,1.);world=w.xyz;mirror=textureMatrix*vec4(p,1.);depth=waterDepth;flow=current;
  gl_Position=projectionMatrix*viewMatrix*w;
 }`;
 const fragmentShader = `
 uniform sampler2D tDiffuse;
 uniform vec3 shallowColor, deepColor, sunDirection, sunColor, horizon;
-uniform float time, absorption, reflectionStrength, daylight, waveHeight;
+uniform float time, absorption, reflectionStrength, daylight, waveHeight, shoreHeight;
 uniform vec2 wind;
 varying vec3 world;
 varying vec4 mirror;
 varying float depth;
 varying vec2 flow;
+${shoreWave}
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1)),f.x),f.y);}
+vec2 rippleGradient(vec2 p){
+ vec2 i=floor(p),f=fract(p),u=f*f*(3.-2.*f),du=6.*f*(1.-f);
+ float a=hash(i),b=hash(i+vec2(1,0)),c=hash(i+vec2(0,1)),d=hash(i+vec2(1));
+ return du*vec2(mix(b-a,d-c,u.y),mix(c-a,d-b,u.x));
+}
 void main(){
- if(depth<=.015)discard;
- vec2 uv=world.xz-flow*time*.85;
- float phase=dot(uv,wind)*1.65+time*1.4;
- vec2 slope=wind*cos(phase)*.12+vec2(3.1,-2.3)*cos(uv.x*3.1-uv.y*2.3-time*1.8)*.023;
- slope+=vec2(sin(uv.x*13.+time*2.),cos(uv.y*11.-time*1.3))*.025;
+ float lake=1.-smoothstep(.01,.1,length(flow));
+ float wetDepth=depth+shoreLift(world.xz,depth,time)*lake;
+ vec2 dx=dFdx(world.xz),dy=dFdy(world.xz);
+ float determinant=dx.x*dy.y-dx.y*dy.x;
+ vec2 gradient=abs(determinant)>.000001?vec2(dFdx(depth)*dy.y-dFdy(depth)*dx.y,dx.x*dFdy(depth)-dy.x*dFdx(depth))/determinant:vec2(0.);
+ vec2 landward=-gradient/max(length(gradient),.001);
+ if(wetDepth<=.002)discard;
+ float shallow=1.-smoothstep(.06,.3,depth);
+ vec2 drift=mix(flow*.85,mix(wind*.32,landward*.48,shallow),lake);
+ vec2 uv=world.xz-drift*time;
+ vec2 slope=rippleGradient(uv*.85)*.055+rippleGradient(uv*2.7+vec2(13.,7.))*.022;
  slope*=waveHeight/.055;
  vec3 n=normalize(vec3(-slope.x,1.,-slope.y));
  vec3 view=normalize(cameraPosition-world);
  float fresnel=.035+.965*pow(1.-max(dot(n,view),0.),5.);
- float attenuation=1.-exp(-depth*absorption);
+ float attenuation=1.-exp(-max(0.,wetDepth)*absorption);
  vec3 base=mix(shallowColor,deepColor,attenuation)*mix(.38,1.,daylight);
  vec2 reflectUv=mirror.xy/mirror.w+slope*.015;
  vec3 reflected=texture2D(tDiffuse,clamp(reflectUv,vec2(.002),vec2(.998))).rgb;
  float glint=pow(max(dot(reflect(-sunDirection,n),view),0.),220.);
  vec3 color=mix(base,reflected,clamp(fresnel*reflectionStrength*(1.-.6*min(length(flow),1.)),0.,.94))+sunColor*glint*.24;
- float shore=(1.-smoothstep(.035,.14,depth))*smoothstep(.015,.035,depth);
- float foam=shore*smoothstep(.55,.76,noise(uv*3.1+time*.16)+.12*sin(time*1.7+depth*38.));
- color=mix(color,vec3(.72,.80,.74)*mix(.4,1.,daylight),foam*.35);
- float mist=smoothstep(65.,175.,distance(cameraPosition,world));color=mix(color,horizon,mist);
- gl_FragColor=vec4(color,clamp(.22+attenuation*.65+fresnel*.45+foam*.25,0.,.97));
+ float crest=smoothstep(.72,.98,sin(shorePhase(world.xz,depth,time)));
+ float washEdge=1.-smoothstep(.01,.045,wetDepth);
+ float breakup=smoothstep(.36,.74,noise(uv*5.1)+noise(uv*11.3)*.2);
+ float foam=shallow*max(crest*.38*lake,washEdge*.65)*breakup*smoothstep(.002,.025,wetDepth);
+ color=mix(color,vec3(.72,.80,.74)*mix(.4,1.,daylight),foam*.38);
+ float mist=smoothstep(115.,320.,distance(cameraPosition,world));color=mix(color,horizon,mist);
+ gl_FragColor=vec4(color,clamp(.22+attenuation*.65+fresnel*.45+foam*.25,0.,.97)*smoothstep(.002,.024,wetDepth));
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
 }`;
@@ -66,13 +89,13 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
   const positions:number[]=[],depths:number[]=[],flows:number[]=[],indices:number[]=[];
   function vertex(x:number,z:number,y:number,depth:number,flowX=0,flowZ=0){
     // The reflector's local XY plane maps onto world XZ, with local +Z pointing up.
-    positions.push(x,-z,y-LAKE_WATER_LEVEL);depths.push(Math.max(0,depth));flows.push(flowX,flowZ);
+    positions.push(x,-z,y-LAKE_WATER_LEVEL);depths.push(depth);flows.push(flowX,flowZ);
   }
-  const rings=26,segments=96;
+  const rings=64,segments=384;
   for(let ring=0;ring<=rings;ring++)for(let segment=0;segment<segments;segment++){
-    const a=segment/segments*Math.PI*2,r=ring/rings*lakeBoundary(a);
+    const a=segment/segments*Math.PI*2,r=Math.sqrt(ring/rings)*lakeBoundary(a);
     const x=LAKE_CENTER.x+Math.cos(a)*LAKE_RADIUS.x*r,z=LAKE_CENTER.z+Math.sin(a)*LAKE_RADIUS.z*r;
-    vertex(x,z,LAKE_WATER_LEVEL,LAKE_WATER_LEVEL-overworldHeight(x,z));
+    vertex(x,z,LAKE_WATER_LEVEL,Math.min(lakeDepthAt(x,z),LAKE_WATER_LEVEL-overworldHeight(x,z)));
   }
   for(let ring=0;ring<rings;ring++)for(let s=0;s<segments;s++){
     const a=ring*segments+s,b=ring*segments+(s+1)%segments,c=a+segments,d=b+segments;
@@ -84,7 +107,7 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
   lakeGeometry.setAttribute('current',new Float32BufferAttribute(flows,2));lakeGeometry.setIndex(indices);lakeGeometry.computeVertexNormals();
   const shader={name:'MeadowWater',uniforms:{
     color:{value:new Color()},tDiffuse:{value:null},textureMatrix:{value:new Matrix4()},
-    time:{value:0},waveHeight:{value:MEADOW_WATER.movement.waveHeight},wind:{value:MEADOW_WATER.movement.wind},
+    time:{value:0},waveHeight:{value:MEADOW_WATER.movement.waveHeight},shoreHeight:{value:MEADOW_WATER.movement.shoreHeight},wind:{value:MEADOW_WATER.movement.wind},
     shallowColor:{value:new Color(MEADOW_WATER.look.shallow)},deepColor:{value:new Color(MEADOW_WATER.look.deep)},
     absorption:{value:MEADOW_WATER.look.absorption},reflectionStrength:{value:MEADOW_WATER.reflection.strength},
     sunDirection:{value:new Vector3()},sunColor:{value:new Color()},horizon:{value:new Color()},daylight:{value:1},
@@ -108,18 +131,7 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
   };
   const material=lake.material as ShaderMaterial;material.transparent=true;material.depthWrite=false;lake.renderOrder=1;parent.add(lake);
   material.addEventListener('dispose',()=>lake.getRenderTarget().dispose());
-  const streamPositions:number[]=[],streamDepths:number[]=[],streamFlows:number[]=[],streamIndices:number[]=[];
-  const across=8;
-  for(let i=0;i<STREAM_POINTS.length;i++){
-    const p=STREAM_POINTS[i]!,before=STREAM_POINTS[Math.max(0,i-1)]!,after=STREAM_POINTS[Math.min(STREAM_POINTS.length-1,i+1)]!;
-    const dx=after.x-before.x,dz=after.z-before.z,length=Math.hypot(dx,dz)||1;
-    for(let j=0;j<=across;j++){
-      const sideways=(j/across*2-1)*p.width,x=p.x-dz/length*sideways,z=p.z+dx/length*sideways;
-      streamPositions.push(x,-z,p.y-LAKE_WATER_LEVEL);streamDepths.push(p.y<=LAKE_WATER_LEVEL+.02&&lakeDepthAt(x,z)>.02?0:Math.max(0,p.y-overworldHeight(x,z)));streamFlows.push(dx/length,dz/length);
-    }
-    if(i)for(let j=0;j<across;j++){const a=(i-1)*(across+1)+j,b=a+across+1;streamIndices.push(a,a+1,b,a+1,b+1,b);}
-  }
-  const streamGeometry=new BufferGeometry();streamGeometry.setAttribute('position',new Float32BufferAttribute(streamPositions,3));streamGeometry.setAttribute('waterDepth',new Float32BufferAttribute(streamDepths,1));streamGeometry.setAttribute('current',new Float32BufferAttribute(streamFlows,2));streamGeometry.setIndex(streamIndices);streamGeometry.computeVertexNormals();
+  const streamGeometry=buildStreamGeometry();
   const stream=new Mesh(streamGeometry,material);stream.name='meadow-stream';stream.rotation.x=-Math.PI/2;stream.position.y=LAKE_WATER_LEVEL;stream.renderOrder=2;parent.add(stream);
   // The stream shares the lake reflection rather than rendering the whole scene a second time.
   return wallTimeMillis=>{
@@ -128,7 +140,7 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
     u.sunDirection!.value.copy(day.sunDirection.y>=0?day.sunDirection:day.moonDirection);
     u.sunColor!.value.set(day.sunDirection.y>=0?0xffedcf:0x7189ad);
     u.daylight!.value=day.daylight;
-    u.horizon!.value.set(0x27354c).lerp(new Color(0xb5c7c4),day.daylight);
+    u.horizon!.value.set(0x27354c).lerp(new Color(0x8fc4e6),day.daylight);
     u.waveHeight!.value=MEADOW_WATER.movement.waveHeight*(.8+.2*Math.sin(wallTimeMillis*.00004));
   };
 }

@@ -1,27 +1,32 @@
 # Frostwood audio
 
-Downloaded 2026-09-09. Only the files listed below are included; original
-archives stay outside the release. The music is transcoded to 96 kbps MP3 for the
-prototype's download budget; the original source identity and license remain unchanged.
+Only the files listed below are included; original recordings and archives stay
+outside the release.
 
 ## Music
 
-“Frost Waltz” Kevin MacLeod (incompetech.com)
+“Shadowlands 7 - Codex” Kevin MacLeod (incompetech.com)
 Licensed under Creative Commons: By Attribution 4.0 License
 https://creativecommons.org/licenses/by/4.0/
 
-- Track: https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100516
-- Original: https://incompetech.com/music/royalty-free/mp3-royaltyfree/Frost%20Waltz.mp3
-- Identity: ISRC USUAN1100516; official catalogue UUID
-  6d80c57d-1f05-4471-bd90-767ce0addb0e; uploaded 2008-11-21.
-- Saved as greywrought:assets/audio/frost-waltz.mp3 after 96 kbps transcoding,
-  SHA-256 cf48c505396a6710d9adba17d64bfb16d581e0dbc7d452c7b67cd70def47b634.
-- Official track page attribution block specifies CC BY 4.0, verified against
+- Downloaded 2026-09-20.
+- Track: https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1700040
+- Original: https://incompetech.com/music/royalty-free/mp3-royaltyfree/Shadowlands%207%20-%20Codex.mp3
+- Identity: ISRC and official catalogue UUID USUAN1700040; uploaded 2017-05-29.
+- Instrumentation: basses, cellos, violins, violas and percussion. The official
+  catalogue describes an acoustic, eerie and unnerving piece.
+- Saved as greywrought:assets/audio/shadowlands-codex.mp3. Full 3:32 recording
+  transcoded to 64 kbps, 32 kHz stereo MP3 for the download budget; metadata
+  stripped. No compositional edits.
+- Shipped SHA-256: 22860d60f81c7e4e87bed1bf51c3f615ded0bcdaafdb146b8640a10c8d2a3a9c.
+- Official track page attribution block specifies CC BY 4.0, verified with
   https://incompetech.com/music/royalty-free/pieces.json on download date.
-- Required creator, title, source and license credit is visible in the game's
+- Required creator, title, source and license credit is visible in the game’s
   pause menu. This notice ships alongside the recording. No endorsement implied.
 
 ## Sampled effects
+
+Downloaded 2026-09-09.
 
 Kenney Vleugels (Kenney.nl), Creative Commons Zero (CC0 1.0 Universal).
 https://creativecommons.org/publicdomain/zero/1.0/

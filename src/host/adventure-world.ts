@@ -39,6 +39,7 @@ import { mechanicalTurtle } from "./mechanical-turtle.js";
 import { selectionCircles } from './selection-circle.js';
 import { createSwimmingWake } from "./swimming-wake.js";
 import { createEnvironmentAtmosphere } from "./environment-atmosphere.js";
+import { Reflector } from "three/addons/objects/Reflector.js";
 
 interface ThreatRig extends ThreatAnimationState {
   readonly root: Group;
@@ -426,6 +427,17 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     await captureMinimap(renderer, terrain, minimap);
     if(disposed)return;
     atmosphere.attach();
+    const lake = terrain.getObjectByName('meadow-lake');
+    if (lake instanceof Reflector) {
+      // Reflections use linear output and therefore a different shader variant
+      // from the screen. Prepare it without blocking the first playable frame.
+      const previousTarget = renderer.getRenderTarget();
+      try {
+        renderer.setRenderTarget(lake.getRenderTarget());
+        await renderer.compileAsync(scene, camera);
+      } finally { renderer.setRenderTarget(previousTarget); }
+    }
+    if(disposed)return;
     await renderer.compileAsync(scene, camera);
   });
   const raycaster = new Raycaster();

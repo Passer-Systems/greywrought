@@ -28,7 +28,7 @@ export function createAdventureAudio(): AdventureAudio {
   const prefs = preferences();
   const music = document.createElement("audio");
   music.id = "adventure-music";
-  music.src = publicUrl("assets/audio/frost-waltz.mp3");
+  music.src = publicUrl("assets/audio/shadowlands-codex.mp3");
   music.loop = true;
   music.preload = "metadata";
   music.hidden = true;
@@ -51,7 +51,7 @@ export function createAdventureAudio(): AdventureAudio {
     <label style="display:flex;align-items:center;gap:10px">Music <input data-volume="music" aria-label="Music volume" type="range" min="0" max="100" style="flex:1;min-width:70px"><output data-level="music"></output></label>
     <label style="display:flex;align-items:center;gap:10px">Effects <input data-volume="effects" aria-label="Effects volume" type="range" min="0" max="100" style="flex:1;min-width:70px"><output data-level="effects"></output></label>
     <label style="display:flex;align-items:center;gap:8px"><input data-mute type="checkbox"> Mute all sound</label>
-    <small style="line-height:1.4">“Frost Waltz” by <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100516" target="_blank" rel="noopener noreferrer" style="color:inherit">Kevin MacLeod (incompetech.com)</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style="color:inherit">CC BY 4.0</a><br>Sound effects: Kenney · CC0</small>`;
+    <small style="line-height:1.4">“Shadowlands 7 – Codex” by <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1700040" target="_blank" rel="noopener noreferrer" style="color:inherit">Kevin MacLeod (incompetech.com)</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style="color:inherit">CC BY 4.0</a><br>Sound effects: Kenney · CC0</small>`;
   document.querySelector("#pause-settings")?.append(panel);
   const listeners = new AbortController();
   function stopEffects(): void {

@@ -88,15 +88,77 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     }
     geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
   }
-  // Four surfaces leave an actual opening in the earth above Hollowdeep.
-  for (const [left, right, bottom, top] of [[-124,28,-190,148],[86,146,-190,148],[28,86,-190,-64],[28,86,-30,148]]) {
-    const geometry = new PlaneGeometry(right!-left!, top!-bottom!, Math.ceil((right!-left!)/2), Math.ceil((top!-bottom!)/2));
+  // Four surfaces leave an actual opening in the earth above Hollowdeep. The
+  // southern panel is split around the lake and stream so the rendered ground
+  // follows their carved floor at sub-metre resolution instead of bridging
+  // the channel with the old two-metre triangles.
+  const makeGroundSurface = (left: number, right: number, bottom: number, top: number, sample: number) => {
+    const geometry = new PlaneGeometry(right-left, top-bottom, Math.ceil((right-left)/sample), Math.ceil((top-bottom)/sample));
     const uv = geometry.getAttribute('uv');
-    for(let i=0;i<uv.count;i++) uv.setXY(i, (left! + uv.getX(i)*(right!-left!) + 74)/168, (bottom! + uv.getY(i)*(top!-bottom!) + 134)/214);
+    for(let i=0;i<uv.count;i++) uv.setXY(i, (left + uv.getX(i)*(right-left) + 74)/168, (bottom + uv.getY(i)*(top-bottom) + 134)/214);
     const ground = new Mesh(geometry, groundMaterial);
-    ground.rotation.x=-Math.PI/2; ground.position.set((left!+right!)/2,-0.06,(bottom!+top!)/2);
-    ground.userData.walkableGround = true; terrain.add(ground); conformToTerrain(ground, -.06); geometry.computeVertexNormals(); tintGround(ground);
-  }
+    ground.rotation.x=-Math.PI/2; ground.position.set((left+right)/2,-0.06,(bottom+top)/2);
+    ground.userData.walkableGround = true; terrain.add(ground); conformToTerrain(ground, -.06);
+    if (sample < 2) {
+      const position = geometry.getAttribute('position');
+      for (let i=0;i<position.count;i++) {
+        const x=position.getX(i)+(left+right)/2,z=-position.getY(i)+(bottom+top)/2;
+        let height: number | undefined;
+        if (Math.abs(x+72)<.001 || Math.abs(x-18)<.001) {
+          const a=-190+Math.floor((z+190)/2)*2,t=(z-a)/2;
+          height=terrainHeight(x,a)*(1-t)+terrainHeight(x,a+2)*t;
+        } else if (Math.abs(z+132)<.001 || Math.abs(z+56)<.001) {
+          const a=-72+Math.floor((x+72)/2)*2,t=(x-a)/2;
+          height=terrainHeight(a,z)*(1-t)+terrainHeight(a+2,z)*t;
+        }
+        if(height!==undefined)position.setZ(i,height);
+      }
+    }
+    geometry.computeVertexNormals(); tintGround(ground);
+  };
+  const makeStreamSurface = (left: number, right: number, bottom: number, top: number) => {
+    const positions: number[] = [], uvs: number[] = [], indices: number[] = [];
+    const fine = .125, columns = Math.round((right - left) / fine), rows = Math.round((top - bottom) / fine);
+    const vertices = new Map<string, number>();
+    const coarseEdge = (x: number, z: number) => {
+      const coarse = Math.abs(x-left)<.001 ? 2 : .75;
+      if (Math.abs(x - left) < .001 || Math.abs(x - right) < .001) {
+        const z0 = bottom + Math.floor((z - bottom) / coarse) * coarse, z1 = Math.min(top, z0 + coarse), t = (z - z0) / Math.max(.001, z1 - z0);
+        return terrainHeight(x, z0) * (1 - t) + terrainHeight(x, z1) * t;
+      }
+      const step=(right-left)/Math.ceil((right-left)/.75);
+      const x0 = left + Math.floor((x - left) / step) * step, x1 = Math.min(right, x0 + step), t = (x - x0) / Math.max(.001, x1 - x0);
+      return terrainHeight(x0, z) * (1 - t) + terrainHeight(x1, z) * t;
+    };
+    const vertex = (ix: number, iz: number) => {
+      const x = left + ix * fine, z = bottom + iz * fine, key = `${ix}:${iz}`;
+      const existing = vertices.get(key); if (existing !== undefined) return existing;
+      const boundary = ix === 0 || ix === columns || iz === 0 || iz === rows;
+      const y = (boundary ? coarseEdge(x, z) : terrainHeight(x, z)) - .06;
+      const index = positions.length / 3; vertices.set(key, index); positions.push(x, y, z); uvs.push((x + 74) / 168, (z + 134) / 214); return index;
+    };
+    for (let ix = 0; ix < columns; ix++) for (let iz = 0; iz < rows; iz++) {
+      const a = vertex(ix, iz), b = vertex(ix + 1, iz), c = vertex(ix, iz + 1), d = vertex(ix + 1, iz + 1);
+      indices.push(a, c, b, b, c, d);
+    }
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2)); geometry.setIndex(indices);
+    const ground = new Mesh(geometry, groundMaterial); ground.userData.walkableGround = true; terrain.add(ground);
+    geometry.computeVertexNormals(); tintGround(ground);
+  };
+  const lakeRefined = [-72, 18, -132, -56] as const;
+  const streamRefined = [-72, -20, -100, -58] as const;
+  for (const [left, right, bottom, top, sample] of [
+    [-124, -72, -190, 148, 2], [-72, 18, -190, -132, 2], [-72, 18, -56, 148, 2], [18, 28, -190, 148, 2],
+    [lakeRefined[0], streamRefined[1], lakeRefined[2], streamRefined[2], .75],
+    [streamRefined[1], lakeRefined[1], lakeRefined[2], streamRefined[2], .75],
+    [lakeRefined[0], streamRefined[1], streamRefined[3], lakeRefined[3], .75],
+    [streamRefined[1], lakeRefined[1], streamRefined[3], lakeRefined[3], .75],
+    [streamRefined[1], lakeRefined[1], streamRefined[2], streamRefined[3], .75],
+  ] as const) makeGroundSurface(left, right, bottom, top, sample);
+  makeStreamSurface(streamRefined[0], streamRefined[1], streamRefined[2], streamRefined[3]);
+  for (const [left, right, bottom, top] of [[86,146,-190,148],[28,86,-190,-64],[28,86,-30,148]] as const) makeGroundSurface(left, right, bottom, top, 2);
   const paving = document.createElement("canvas"); paving.width=paving.height=256;
   const pavingCtx=paving.getContext("2d")!; pavingCtx.fillStyle="#8c8871"; pavingCtx.fillRect(0,0,256,256);
   for(let row=0;row<10;row++) for(let col=-1;col<10;col++) {

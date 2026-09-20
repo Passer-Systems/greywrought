@@ -42,6 +42,19 @@ on flat ground, hills, and the lake approach.
 
 ## Server and traffic
 
+The 0.21.17 river/shore correction adds finer terrain and water geometry. A
+focused repeat at the lake measured callback median/p95 of 11.1/15.4 ms while
+standing and 15.3/23.2 ms while moving (previous moving sample: 12.0/19.7 ms).
+GPU median/p95 was 4.81/5.05 ms and 5.17/5.79 ms respectively. The finer geometry
+therefore carries a measurable moving-frame cost; no callback exceeded 28 ms in
+this short sample. Movement remained 5.2 m/s. The same headless frame-presentation
+limitation below applies. Evidence: `greywrought:build/browser/visual02117-lake-2130359/`.
+
+Reflection shader variants now compile asynchronously for their render target
+before the first playable frame, in addition to the screen variants. The final
+visual journey had no heartbeat-expiry disconnect and confirmed the new music
+plays. Evidence: `greywrought:build/browser/water-shore-2128401/`.
+
 An early bounds rejection removes unnecessary obstacle clipping during combat
 forecasts. In the initial five-player planning comparison, CPU use fell from
 57.5% to 49.9% of one core. Later compression measurements used a separate baseline.

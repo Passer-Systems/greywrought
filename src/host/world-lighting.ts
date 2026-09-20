@@ -20,8 +20,8 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
   scene.add(fill, key, key.target);
 
   const colors = {
-    day: new Color(0x77afcb), night: new Color(0x101b34), dawn: new Color(0xb67d79),
-    horizonDay: new Color(0xb5c7c4), horizonNight: new Color(0x27354c), horizonDawn: new Color(0xd39b71),
+    day: new Color(0x4f9bd2), night: new Color(0x101b34), dawn: new Color(0xb67d79),
+    horizonDay: new Color(0x8fc4e6), horizonNight: new Color(0x27354c), horizonDawn: new Color(0xd39b71),
     fillDay: new Color(0xc4d7df), fillNight: new Color(0x7895c4),
     groundDay: new Color(0x59684e), groundNight: new Color(0x35414a),
     sun: new Color(0xffefd4), lowSun: new Color(0xffb779), moon: new Color(0xa7bff0),
@@ -49,16 +49,16 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       }
       float cloud(vec2 p) {
         float n = noise(p) * .58 + noise(p * 2.1 + 9.0) * .28 + noise(p * 4.4 - 3.0) * .14;
-        return smoothstep(.55, .74, n);
+        return smoothstep(.52, .70, n);
       }
       void main() {
         vec3 direction = normalize(skyDirection);
         vec3 color = mix(horizon, zenith, smoothstep(-0.1, 0.8, direction.y));
-        float cloudBand = smoothstep(0.04, 0.22, direction.y) * (1.0 - smoothstep(0.58, 0.88, direction.y));
+        float cloudBand = smoothstep(0.06, 0.22, direction.y);
         vec2 cloudUv = direction.xz / max(0.18, direction.y + 0.2) * 1.7 + vec2(cloudTime * 0.003, cloudTime * 0.0012);
         float clouds = cloud(cloudUv);
-        float cloudLight = mix(0.22, 0.72, daylight) * clouds * cloudBand;
-        color = mix(color, vec3(0.84, 0.88, 0.86), cloudLight * 0.34);
+        float cloudLight = mix(0.10, 0.90, daylight) * clouds * cloudBand;
+        color = mix(color, vec3(0.92, 0.94, 0.93), cloudLight);
         float sun = dot(direction, sunDirection);
         float moon = dot(direction, -sunDirection);
         color += vec3(1.0, 0.65, 0.28) * pow(max(0.0, sun), 48.0) * 0.35;
@@ -75,7 +75,8 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
   const lamps: PointLight[] = [];
   const lampGlow = createLampGlow(scene);
   const direction = new Vector3();
-  const fog = scene.fog instanceof Fog ? scene.fog : new Fog(0x263d46, 58, 175);
+  const fog = scene.fog instanceof Fog ? scene.fog : new Fog(0x8fc4e6, 115, 320);
+  fog.color.copy(colors.horizonDay); fog.near = 115; fog.far = 320;
   scene.fog = fog;
   return {
     collectLamps() {
@@ -104,7 +105,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       material.uniforms.horizon!.value.copy(colors.horizonNight).lerp(colors.horizonDay, day.daylight).lerp(colors.horizonDawn, day.twilight * .7);
       material.uniforms.sunDirection!.value.copy(day.sunDirection);
       material.uniforms.daylight!.value = day.daylight;
-      material.uniforms.cloudTime!.value = wallTimeMillis * 0.001;
+      material.uniforms.cloudTime!.value = (wallTimeMillis % 86_400_000) * 0.001;
       fog.color.copy(material.uniforms.horizon!.value);
       sky.position.copy(camera.position);
       sky.visible = cave < 1;

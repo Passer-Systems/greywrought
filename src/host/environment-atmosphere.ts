@@ -48,12 +48,12 @@ vec3 gwMist(vec3 color){
    if(float(s)>=count)break;
    vec3 p=cameraPosition+ray*(enter+(float(s)+.5)*stepLength),q=(p-gwCenters[v])/gwRadii[v];
    float edge=max(0.,1.-dot(q,q));
-   float density=edge*edge*(.45+.55*gwNoise(p*.24-vec3(gwTime*.16,0.,gwTime*.07)))*.045*stepLength;
+   float density=edge*edge*(.45+.55*gwNoise(p*.24-vec3(gwTime*.16,0.,gwTime*.07)))*.024*stepLength;
    optical+=density;lit+=density*(.45+.55*gwSun(p));
   }
  }
  float opacity=1.-exp(-optical);
- return mix(color,gwTint*(optical>0.?lit/optical:1.),min(.56,opacity));
+ return mix(color,gwTint*(optical>0.?lit/optical:1.),min(.30,opacity));
 }
 `;
 
@@ -63,7 +63,7 @@ export function createEnvironmentAtmosphere(scene: Scene) {
   const root=new Group();root.name='environment-atmosphere';scene.add(root);
   const uniforms={
     gwCenters:{value:[new Vector3(-19,1,-107),new Vector3(-36,1.8,-69),new Vector3(-9,3.8,43)]},
-    gwRadii:{value:[new Vector3(22,2.8,14),new Vector3(8,4.5,8),new Vector3(20,6,17)]},
+    gwRadii:{value:[new Vector3(22,2.0,14),new Vector3(8,3.0,8),new Vector3(20,3.5,17)]},
     gwTint:{value:new Color()},gwTime:{value:0},gwQuality:{value:2},gwLightMatrix:{value:new Matrix4()},
   };
   const patched=new Map<Material,{compile:Material['onBeforeCompile'];key:Material['customProgramCacheKey']}>();
