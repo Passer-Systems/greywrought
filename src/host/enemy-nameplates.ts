@@ -5,6 +5,7 @@ import { COMBAT_RULES } from "../game/adventure.js";
 import { publicUrl } from "./public-url.js";
 import { enemyRange, type RangeAudience } from "./combat-range.js";
 import { enemyResponse, enemyResponseLabel } from "./enemy-response.js";
+import { NAMEPLATE_DISTANCE } from "./nameplate-range.js";
 
 interface Plate {
   width: number; height: number;
@@ -94,7 +95,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         encounterBounds = encounter && !encounter.hidden ? encounter.getBoundingClientRect() : null;
       }
       const visible = snapshot.threats.filter(threat => threat.active && threat.health > 0 &&
-        Math.hypot(threat.position.x - snapshot.player.position.x, threat.position.z - snapshot.player.position.z) < 18)
+        Math.hypot(threat.position.x - snapshot.player.position.x, threat.position.z - snapshot.player.position.z) <= NAMEPLATE_DISTANCE)
         .map(threat => ({ threat, anchor: world.projectThreat(threat.id) })).filter(({ anchor }) => anchor);
       const visibleIds = new Set(visible.map(({ threat }) => threat.id));
       const measure: Plate[] = [];

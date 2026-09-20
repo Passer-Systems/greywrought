@@ -286,7 +286,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let selectedUnit: UnitSelection = { kind: "enemy", id: initial.selectedThreat };
   let partyMembers = new Set<string>();
   scene.add(player);
-  const overheadNames = createOverheadNames(host, camera);
+  const overheadNames = createOverheadNames(host, camera, player);
   const chatBubbles = createChatBubbles(host, scene, camera, player);
   const combatText = createFloatingCombatText(host);
   const combatAnchor = new Vector3();

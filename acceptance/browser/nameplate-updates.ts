@@ -75,12 +75,18 @@ try {
       host.style.width = '500px'; render();
       const bounds = plate.getBoundingClientRect();
       assert(bounds.left >= 0 && bounds.right <= 500, 'Resize keeps nameplate inside viewport');
+      threats[0].position = { x: 36.576, y: 0, z: 0 }; render();
+      assert(!plate.hidden && plate.querySelector('.nameplate-name').textContent === threats[0].name && plate.querySelector('.nameplate-health-value').textContent === '19 (19%)', 'Full enemy name and health are visible at exactly 40 yards');
+      threats[0].position.x = 36.586; render();
+      assert(plate.hidden, 'Nameplate hides beyond 40 yards');
+      snapshot.player.position.x = 1; render();
+      assert(!plate.hidden, 'Walking back within 40 yards restores name and health');
       threats[0].health = 0; render();
       assert(plate.hidden, 'Dead enemy plate hides');
       return { mutations, elapsedMs, checks };
     } finally { observer.disconnect(); delete performance.now; }
   })()`);
-  check(result.checks === 14, 'All freshness and visibility checks must run');
+  check(result.checks === 17, 'All freshness and visibility checks must run');
   check(page.errors.length === 0, 'No browser exceptions');
   await Bun.write(`${page.output}/result.json`, JSON.stringify(result, null, 2));
   console.log('PASS nameplate DOM stability, health, selection, shield, casts, visibility and resize', result, page.output);
