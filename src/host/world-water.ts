@@ -5,14 +5,14 @@ import { worldDay } from '../game/world-time.js';
 import { buildStreamGeometry } from './stream-geometry.js';
 
 export const MEADOW_WATER = {
-  movement: { speed: .65, waveHeight: .03, shoreHeight: .09, wind: new Vector2(.86, .5) },
+  movement: { speed: .65, waveHeight: .03, shoreHeight: .012, wind: new Vector2(.86, .5) },
   look: { shallow: 0x568e97, deep: 0x123548, absorption: 1.35 },
   reflection: { strength: .8, resolution: 512, updatesPerSecond: 15 },
 };
 // Increasing phase sends each crest from deeper water toward the bank. Geometry,
 // wet coverage, and foam use the same wave so the waterline follows the wash.
 const shoreWave = `
-float shorePhase(vec2 p,float d,float t){return d*9.+t*1.8+dot(p,vec2(.86,.5))*.13;}
+float shorePhase(vec2 p,float d,float t){return d*9.+t*.9+dot(p,vec2(.86,.5))*.13;}
 float shoreLift(vec2 p,float d,float t){return shoreHeight*smoothstep(0.,.035,d)*(1.-smoothstep(.05,.5,d))*sin(shorePhase(p,d,t));}
 `;
 const vertexShader = `
@@ -74,10 +74,9 @@ void main(){
  vec3 reflected=texture2D(tDiffuse,clamp(reflectUv,vec2(.002),vec2(.998))).rgb;
  float glint=pow(max(dot(reflect(-sunDirection,n),view),0.),220.);
  vec3 color=mix(base,reflected,clamp(fresnel*reflectionStrength*(1.-.6*min(length(flow),1.)),0.,.94))+sunColor*glint*.24;
- float crest=smoothstep(.72,.98,sin(shorePhase(world.xz,depth,time)));
- float washEdge=1.-smoothstep(.01,.045,wetDepth);
+ float washEdge=1.-smoothstep(mix(.01,.006,lake),mix(.045,.02,lake),wetDepth);
  float breakup=smoothstep(.36,.74,noise(uv*5.1)+noise(uv*11.3)*.2);
- float foam=shallow*max(crest*.38*lake,washEdge*.65)*breakup*smoothstep(.002,.025,wetDepth);
+ float foam=shallow*washEdge*mix(.65,.12,lake)*breakup*smoothstep(.002,mix(.025,.012,lake),wetDepth);
  color=mix(color,vec3(.72,.80,.74)*mix(.4,1.,daylight),foam*.38);
  float mist=smoothstep(115.,320.,distance(cameraPosition,world));color=mix(color,horizon,mist);
  gl_FragColor=vec4(color,clamp(.22+attenuation*.65+fresnel*.45+foam*.25,0.,.97)*smoothstep(.002,.024,wetDepth));
