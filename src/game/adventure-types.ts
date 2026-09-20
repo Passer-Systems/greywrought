@@ -226,8 +226,8 @@ export interface AdventureGame {
 
 export interface SharedAdventure {
   join(id: string, name: string, archetype: CharacterArchetype): AdventureGame;
-  leave(id: string): void;
-  pause(id: string): boolean;
+  leave(id: string, memberIds?: readonly string[]): void;
+  pause(id: string, memberIds?: readonly string[]): boolean;
   resume(id: string): boolean;
   rejoin(id: string): boolean;
   session(id: string): EncounterSession;

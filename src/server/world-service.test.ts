@@ -260,8 +260,8 @@ test('native transport liveness keeps a background socket shared, while close fo
     visitor.socket.close();
     await new Promise(resolve => setTimeout(resolve, 100));
     const saved = JSON.parse(await readFile(savePath, 'utf8')) as { world: string };
-    const world = JSON.parse(saved.world) as { instances?: readonly { ownerId: string; mode: string }[] };
-    expect(world.instances?.some(instance => instance.ownerId === 'heartbeat' && instance.mode === 'paused')).toBe(true);
+    const world = JSON.parse(saved.world) as { instances?: readonly { members: readonly { id: string }[]; mode: string }[] };
+    expect(world.instances?.some(instance => instance.members.some(member => member.id === 'heartbeat') && instance.mode === 'paused')).toBe(true);
   } finally {
     visitor.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true, force: true });
   }
@@ -279,8 +279,8 @@ test('two seconds without native pong forks a joined socket despite continuous b
     // still occur, so this proves they do not reset the native lease.
     await new Promise(resolve => setTimeout(resolve, 2_500));
     const saved = JSON.parse(await readFile(savePath, 'utf8')) as { world: string };
-    const world = JSON.parse(saved.world) as { instances?: readonly { ownerId: string; mode: string }[] };
-    expect(world.instances?.some(instance => instance.ownerId === 'silent' && instance.mode === 'paused')).toBe(true);
+    const world = JSON.parse(saved.world) as { instances?: readonly { members: readonly { id: string }[]; mode: string }[] };
+    expect(world.instances?.some(instance => instance.members.some(member => member.id === 'silent') && instance.mode === 'paused')).toBe(true);
   } finally {
     socket?.destroy(); await service.close(); server.stop(true); await rm(directory, { recursive: true, force: true });
   }
@@ -349,6 +349,31 @@ test('slash emotes replicate actions and chat while unknown commands stay privat
   } finally {dancer.socket.close();watcher.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true});}
 });
 
+test('/roll produces one shared 1–100 result and remains usable in paused encounters', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-roll-'));
+  const service = await createWorldService({ savePath: join(directory, 'world.json') });
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
+  const roller = new Client(`ws://127.0.0.1:${server.port}/world`), watcher = new Client(`ws://127.0.0.1:${server.port}/world`);
+  try {
+    await roller.connect({ id: 'roller', name: 'Roller', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
+    await watcher.connect({ id: 'roll-watcher', name: 'Watcher', archetype: 'mage', createdAtMillis: 1 }, crypto.randomUUID());
+    await roller.state(); await watcher.state();
+    expect(await roller.command({ type: 'chat', text: '/roll' })).toBe(true);
+    const observed = await watcher.state(state => state.chat.some(entry => entry.text.startsWith('rolls ')));
+    const result = observed.chat.at(-1)!;
+    expect(result).toMatchObject({ speakerId: 'roller', name: 'Roller', kind: 'emote' });
+    expect(result.text).toMatch(/^rolls ([1-9]|[1-9]\d|100) \(1–100\)\.$/);
+    expect((await roller.state(state => state.chat.some(entry => entry.id === result.id))).chat.at(-1)).toEqual(result);
+    expect(await roller.command({ type: 'chat', text: '/roll 100' })).toBe(false);
+    await roller.wait(message => message.type === 'error' && message.text.includes('Use /roll'));
+    expect(await roller.command({ type: 'pause' })).toBe(true);
+    expect(await roller.command({ type: 'chat', text: '/ROLL' })).toBe(true);
+    const paused = await roller.state(state => state.session.mode === 'paused' && state.chat.some(entry => entry.text.startsWith('rolls ')));
+    expect(paused.chat.at(-1)!.text).toMatch(/^rolls ([1-9]|[1-9]\d|100) \(1–100\)\.$/);
+    expect(paused.chat.at(-1)!.id).toBeGreaterThan(result.id);
+  } finally { roller.socket.close(); watcher.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
+});
+
 test('bank socket commands reject invalid quantities, remote access, and another character balance', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'greywrought-bank-'));
   const service = await createWorldService({ savePath: join(directory, 'world.json') });
@@ -409,4 +434,106 @@ test('coin shop transport validates stock, balance and distance and saves actual
     const stored = JSON.parse(JSON.parse(await readFile(savePath, 'utf8')).world).characters[0].state;
     expect(stored.coins).toBe(0); expect(stored.chapter.equipment.offhand).toBe('yard-shield');
   } finally { client.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
+});
+
+test('parties require consent, enforce leadership and capacity, and share encounters across disconnect and restart', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-party-'));
+  const savePath = join(directory, 'world.json');
+  const clients: Client[] = [];
+  let service = await createWorldService({ savePath });
+  let server!: Server<WorldSocketData>;
+  const characters: LocalCharacter[] = ['Alden', 'Briar', 'Cedar', 'Dorian', 'Ember', 'Fern'].map((name, index) => ({ id: `party-${index}`, name, archetype: 'mage', createdAtMillis: index + 1 }));
+  const tokens = characters.map(() => crypto.randomUUID());
+  function listen() {
+    const current = service;
+    server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: current.websocket, fetch: (request, host) => current.fetch(request, host) });
+  }
+  async function connect(index: number) {
+    const client = new Client(`ws://127.0.0.1:${server.port}/world`); clients.push(client);
+    await client.connect(characters[index]!, tokens[index]!); await client.state(); return client;
+  }
+  async function invite(from: Client, to: Client, recipient: number) {
+    to.messages.length = 0;
+    expect(await from.command({ type: 'partyInvite', playerId: characters[recipient]!.id })).toBe(true);
+    return (await to.state(state => state.partyInvites.length > 0)).partyInvites[0]!.id;
+  }
+  try {
+    listen();
+    let alice = await connect(0), bob = await connect(1);
+    const observer = await connect(2), fourth = await connect(3), fifth = await connect(4), sixth = await connect(5);
+    expect(await alice.command({ type: 'partyInvite', playerId: 'absent' })).toBe(false);
+    expect(await alice.invalid({ type: 'partyInvite', playerId: characters[1]!.id, actorId: characters[2]!.id })).toBe(false);
+    let invitation = await invite(alice, bob, 1);
+    expect((await bob.state(state => state.partyInvites.length > 0)).party).toBeNull();
+    expect(await observer.command({ type: 'partyAccept', inviteId: invitation })).toBe(false);
+    expect(await bob.command({ type: 'partyDecline', inviteId: invitation })).toBe(true);
+    expect(await bob.command({ type: 'partyAccept', inviteId: invitation })).toBe(false);
+    invitation = await invite(alice, bob, 1);
+    expect(await bob.command({ type: 'partyAccept', inviteId: invitation })).toBe(true);
+    expect((await alice.state(state => state.party?.members.length === 2)).party!.leaderId).toBe(characters[0]!.id);
+    expect(await bob.command({ type: 'partyInvite', playerId: characters[2]!.id })).toBe(false);
+    expect(await bob.command({ type: 'partyKick', playerId: characters[0]!.id })).toBe(false);
+    alice.messages.length = 0; bob.messages.length = 0;
+    expect(await bob.command({ type: 'pause' })).toBe(true);
+    const aPaused = await alice.state(state => state.session.mode === 'paused');
+    const bPaused = await bob.state(state => state.session.mode === 'paused');
+    expect(aPaused.session.id).toBe(bPaused.session.id);
+    expect(aPaused.players.map(player => player.id)).toEqual([characters[1]!.id]);
+    expect(aPaused.party!.members.every(member => member.sameEncounter)).toBe(true);
+    expect(await bob.command({ type: 'partyLeave' })).toBe(false);
+    expect(await alice.command({ type: 'partyKick', playerId: characters[1]!.id })).toBe(false);
+    expect(await alice.command({ type: 'partyInvite', playerId: characters[2]!.id })).toBe(false);
+    expect(await alice.command({ type: 'resume' })).toBe(true);
+    await bob.state(state => state.session.mode === 'private');
+    observer.messages.length = 0;
+    expect((await observer.state()).session.mode).toBe('shared');
+    alice.messages.length = 0;
+    bob.socket.close();
+    const disconnected = await alice.state(state => state.session.mode === 'paused' && state.party?.members.some(member => !member.online) === true);
+    expect(disconnected.players).toEqual([]);
+    expect(await alice.command({ type: 'resume' })).toBe(true);
+    alice.messages.length = 0;
+    expect((await alice.state(state => state.session.mode === 'private')).players).toEqual([]);
+    bob = await connect(1);
+    expect((await bob.state()).session.id).toBe(aPaused.session.id);
+    expect((await bob.state()).session.mode).toBe('private');
+    await service.close(); server.stop(true);
+    const saved = JSON.parse(await readFile(savePath, 'utf8'));
+    expect(saved.parties).toHaveLength(1);
+    expect(JSON.parse(saved.world).instances.filter((instance: { members: unknown[] }) => instance.members.length === 2)).toHaveLength(1);
+    service = await createWorldService({ savePath }); listen();
+    alice = await connect(0); bob = await connect(1);
+    const restored = await alice.state();
+    expect(restored.party!.members).toHaveLength(2);
+    expect(restored.session.id).toBe(aPaused.session.id);
+    expect(restored.session.mode).toBe('paused');
+    expect(await bob.command({ type: 'rejoin' })).toBe(true);
+    await alice.state(state => state.session.mode === 'shared');
+    const remaining = [await connect(2), await connect(3), await connect(4), await connect(5)];
+    for (const member of remaining) expect(await member.command({ type: 'rejoin' })).toBe(true);
+    for (let index = 0; index < 3; index++) {
+      const target = remaining[index]!;
+      const id = await invite(alice, target, index + 2);
+      expect(await target.command({ type: 'partyAccept', inviteId: id })).toBe(true);
+    }
+    expect(await alice.command({ type: 'partyInvite', playerId: characters[5]!.id })).toBe(false);
+    expect(await alice.command({ type: 'partyKick', playerId: characters[4]!.id })).toBe(true);
+    expect(await alice.command({ type: 'partyLeave' })).toBe(true);
+    bob.messages.length = 0;
+    expect((await bob.state(state => state.party?.leaderId === characters[1]!.id)).party!.members).toHaveLength(3);
+    expect(await bob.command({ type: 'partyKick', playerId: characters[3]!.id })).toBe(true);
+    expect(await bob.command({ type: 'partyLeave' })).toBe(true);
+    remaining[0]!.messages.length = 0;
+    expect((await remaining[0]!.state(state => state.party === null)).party).toBeNull();
+    const expires = await invite(alice, remaining[3]!, 5);
+    const originalNow = Date.now;
+    try {
+      const later = originalNow() + 61_000; Date.now = () => later;
+      expect(await remaining[3]!.command({ type: 'partyAccept', inviteId: expires })).toBe(false);
+    } finally { Date.now = originalNow; }
+  } finally {
+    for (const client of clients) client.socket.close();
+    await service.close(); server?.stop(true);
+    await rm(directory, { recursive: true, force: true });
+  }
 });

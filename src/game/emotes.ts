@@ -183,4 +183,4 @@ export function findEmote(command: string): EmoteDefinition | undefined {
 export function emoteText(emote: EmoteDefinition, target?: string): string {
   return target ? `${emote.text.slice(0, -1)} (to ${target}).` : emote.text;
 }
-export const EMOTE_HELP = `Emotes: ${EMOTES.map(emote => `/${emote.name}`).join(', ')}. Also /sit, /stand and /e your action. Add a character or creature name to address them.`;
+export const EMOTE_HELP = `Emotes: ${EMOTES.map(emote => `/${emote.name}`).join(', ')}. Also /sit, /stand and /e your action. Add a character or creature name to address them. Use /roll for a roll from 1 to 100.`;

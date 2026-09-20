@@ -32,7 +32,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   onClear: () => void;
   onTiming: (timing: CombatActionTiming) => void;
   onAction: (action: CombatAction) => void;
-  onReady: () => void;
+  onReady: () => boolean | void;
   onAimMove: () => void;
   onPreview: (preview: CombatPreview | null) => void;
 }) {
@@ -50,6 +50,16 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   ready.setAttribute("aria-keyshortcuts", "R");
   ready.title = "Begin this turn now (R)";
   ready.addEventListener("click", callbacks.onReady);
+  const autoReadyLabel = node("label", "combat-plan-auto-ready", header);
+  autoReadyLabel.title = "Ready automatically after choosing both movement and an action. Turn off to adjust action timing before starting.";
+  const autoReady = node("input", "", autoReadyLabel); autoReady.type = "checkbox"; autoReady.id = "combat-plan-auto-ready";
+  const autoReadyStorageKey = "greywrought/combat-auto-ready-v1";
+  try { autoReady.checked = localStorage.getItem(autoReadyStorageKey) !== "false"; } catch { autoReady.checked = true; }
+  node("span", "", autoReadyLabel).textContent = "Auto-ready";
+  autoReady.addEventListener("change", () => {
+    try { localStorage.setItem(autoReadyStorageKey, String(autoReady.checked)); } catch { /* The choice still applies for this visit. */ }
+    scheduleAutoReady();
+  });
   const danger = node("p", "combat-plan-danger", root); danger.id = "combat-plan-danger";
   danger.setAttribute("role", "status");
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
@@ -91,6 +101,23 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   let snapshot: AdventureSnapshot | null = null, enemyKey = "";
   let pinnedPreview: CombatPreview | null = null, transientPreview: CombatPreview | null = null;
   let previousCycle = -1;
+  let autoReadyScheduled = false, autoReadyGeneration = 0, lastAutoReadyPlan = "", disposed = false;
+  function scheduleAutoReady(): void {
+    if (autoReadyScheduled || disposed) return;
+    autoReadyScheduled = true;
+    const generation = autoReadyGeneration;
+    queueMicrotask(() => {
+      if (generation !== autoReadyGeneration || disposed) return;
+      autoReadyScheduled = false;
+      if (!autoReady.checked || !snapshot || snapshot.phase !== "expedition" || !editing()) return;
+      const pending = snapshot.combat.queued.filter(entry => entry.status === "pending");
+      if (!pending.some(entry => entry.action === "bait") || !pending.some(entry => entry.action !== "bait")) return;
+      const plan = JSON.stringify([snapshot.combat.cycle, pending.map(entry => [entry.id, entry.action, entry.timing, entry.destination, entry.targetId])]);
+      if (plan === lastAutoReadyPlan) return;
+      lastAutoReadyPlan = plan;
+      if (callbacks.onReady() === false) lastAutoReadyPlan = "";
+    });
+  }
   function updatePreview(): void {
     const preview = editing() ? transientPreview ?? pinnedPreview : null;
     callbacks.onPreview(preview);
@@ -193,7 +220,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     node("span", "combat-plan-damage", actionArt).textContent = status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "";
   }
   return {
-    reset(): void { selectedId = lastId = null; snapshot = null; enemyKey = ""; pinnedPreview = transientPreview = null; previousCycle = -1; callbacks.onPreview(null); },
+    reset(): void { autoReadyGeneration++; autoReadyScheduled = false; lastAutoReadyPlan = ""; selectedId = lastId = null; snapshot = null; enemyKey = ""; pinnedPreview = transientPreview = null; previousCycle = -1; callbacks.onPreview(null); },
     update(next: AdventureSnapshot): void {
       snapshot = next;
       const combat = next.combat;
@@ -279,7 +306,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       write(enemyLabel, choosing ? "Enemies · choosing next moves" : `Enemies · ${attackers.length} engaged`); enemyLabel.title = choosing ? "Enemies are choosing their next moves" : "Each icon shows one engaged enemy’s announced move";
       updateEditor();
       updatePreview();
+      scheduleAutoReady();
     },
-    dispose(): void { root.remove(); },
+    dispose(): void { disposed = true; autoReadyGeneration++; root.remove(); },
   };
 }

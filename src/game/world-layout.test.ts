@@ -55,7 +55,7 @@ test('returning characters resume clear of newly built town walls, including pri
   const world = createSharedAdventure(); world.join('resident', 'Resident', 'warrior'); world.pause('resident');
   const saved = JSON.parse(world.save());
   Object.assign(saved.characters[0].state, { position: { x: -14, y: 0, z: -10 }, supplies: 37, health: 71 });
-  saved.instances[0].origin = { x: -14, y: 0, z: -10 };
+  saved.instances[0].members[0].origin = { x: -14, y: 0, z: -10 };
   const restored = createSharedAdventure({ save: JSON.stringify(saved) });
   const resident = restored.join('resident', 'Resident', 'warrior');
   expect(blockedPosition(resident.snapshot.player.position.x, resident.snapshot.player.position.z)).toBe(false);

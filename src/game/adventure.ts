@@ -62,7 +62,7 @@ interface ThreatDefinition {
 interface ThreatState {
   cancelledWindow: boolean;
   comboOpened: boolean; staggered: boolean; swarm: { position: Vector; expiresCycle: number } | null;
-  id: string; health: number; active: boolean; phase: ThreatPhase;
+  id: string; health: number; maximumHealth: number; active: boolean; phase: ThreatPhase;
   contributors: string[]; combatants: string[]; rollClaims: string[]; shield: number;
   respawnAt: number | null;
   joinCycle: number; windowCycle: number; specialOffset: number; approaching: boolean;
@@ -80,7 +80,7 @@ interface CombatState { clock: CombatClock; queued: QueueEntry[]; nextId: number
 const newClock = (): CombatClock => ({ pendingSeconds: 0, phase: "idle", elapsedSeconds: 0, cycle: 0 });
 const newCombat = (clock = newClock()): CombatState => ({ clock, queued: [], nextId: 1, ready: false });
 interface WorldState {
-  threats: ThreatState[]; resourceRemaining: number; ritualCalled: boolean;
+  threats: ThreatState[]; resourceRemaining: number; ritualCalled: boolean; chestClaimed: boolean;
   resourceRespawns: { at: number; quantity: number }[];
 }
 interface ForecastCache { key: string; value: CombatForecast }
@@ -92,7 +92,7 @@ interface SharedContext {
   characters: Map<string, Adventure>;
   readonly id: string;
   mode: "shared" | "paused" | "private";
-  readonly origin: Vector | null;
+  readonly origins: Map<string, Vector>;
 }
 interface ChapterState {
   accepted: QuestId[]; completed: QuestId[]; scoutDefeated: boolean;
@@ -106,7 +106,6 @@ interface State {
   phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number;
   health: number; supplies: number; coins: number; cargo: number;
   bank: { supplies: number; potions: number };
-  chestClaimed: boolean;
   potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
   actionCooldown: number; currentAction: AdventureAction | "equip" | null; actionDuration: number; actionRemainingSeconds: number; gatherPending: boolean; guardSeconds: number;
   block: number; stamina: number; staminaRecoverySeconds: number; maneuver: Maneuver | null; sitting: boolean;
@@ -146,10 +145,10 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(43,-46),point(45,-50),point(48,-46),point(43,-42)],
     preparation: "Folding its wings for a bite", intention: "Echo Bite", damage: 26, reach: 2.2,
     benefit: "Search its remains for three pieces of cave salvage." },
-  { id: "cave-crab", level: 5, disposition: "hostile", aggroRange: 8, leash: 16, speed: 2.1,
+  { id: "cave-crab", level: 5, disposition: "hostile", aggroRange: 8, leash: 16, speed: 2.1, pursuitSpeed: 4.2,
     name: "Ironback cave crab", position: point(69,-47), health: 624,
     patrol: [point(69,-47),point(73,-51),point(77,-47),point(73,-41)],
-    preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 38, reach: 4.5,
+    preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 52, reach: 4.5,
     benefit: "Search its shell for six pieces of cave salvage." },
 ];
 const IRONBACK_CHEST_ID = "ironback-chest";
@@ -183,7 +182,7 @@ const newWolf = (): WolfState => ({ facing: { x: 0, y: 0, z: 1 }, motion: null,
 const newHead = (): HeadState => ({ opened: false, ability: "ember-beam", castVolley: 1, block: 0, blockSeconds: 0, volley: 1, projectileSequence: 0, pendingFireballs: 0, nextFireballSeconds: 0, fireballs: [] });
 const newThreat = (t: ThreatDefinition): ThreatState => ({
   cancelledWindow: false,
-  id: t.id, health: t.health, active: t.id !== "ritual-guardian", phase: t.patrol && t.id !== "ritual-guardian" ? "patrol" : "dormant",
+  id: t.id, health: t.health, maximumHealth: t.health, active: t.id !== "ritual-guardian", phase: t.patrol && t.id !== "ritual-guardian" ? "patrol" : "dormant",
   comboOpened: false, staggered: false, swarm: null, contributors: [], combatants: [], rollClaims: [], shield: 0,
   respawnAt: null, joinCycle: 0, windowCycle: 0, specialOffset: 0, approaching: false,
   rng: crypto.getRandomValues(new Uint32Array(1))[0]!,
@@ -216,12 +215,12 @@ function nextThreatRandom(t: ThreatState): number {
 function initialState(archetype: CharacterArchetype): State {
   return {
     chapter: newChapter(), combat: newCombat(), phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, health: 100,
-    bank: { supplies: 0, potions: 0 }, chestClaimed: false, supplies: 15, coins: 0, cargo: 0, potions: 0, carriedRelics: 0,
+    bank: { supplies: 0, potions: 0 }, supplies: 15, coins: 0, cargo: 0, potions: 0, carriedRelics: 0,
     bankedRelics: 0, carriedSalvage: 0, presence: 0, actionCooldown: 0, currentAction: null, actionDuration: 0, actionRemainingSeconds: 0, gatherPending: false,
     guardSeconds: 0, block: 0, stamina: 5, staminaRecoverySeconds: 0, maneuver: null, sitting: false,
     attackSequence: 0, selectedThreat: "scout",
     report: "Visit Mara for potions, then take the north gate. Gather coolant crystals and return alive.",
-    world: { threats: newThreats(), resourceRemaining: 12, resourceRespawns: [], ritualCalled: false },
+    world: { threats: newThreats(), resourceRemaining: 12, resourceRespawns: [], ritualCalled: false, chestClaimed: false },
   };
 }
 
@@ -269,34 +268,50 @@ class Adventure implements AdventureGame {
   private lootOpenId: string | null = null;
 
   static sharedAdventure(options: Pick<AdventureOptions, "save" | "now">): SharedAdventure {
-    const context: SharedContext = { world: initialState("warrior").world, clock: newClock(), now: options.now ?? Date.now, online: new Map(), characters: new Map(), id: "shared", mode: "shared", origin: null };
+    const context: SharedContext = { world: initialState("warrior").world, clock: newClock(), now: options.now ?? Date.now, online: new Map(), characters: new Map(), id: "shared", mode: "shared", origins: new Map() };
     const sessions = new Map<string, SharedContext>();
     const characters = new Map<string, { name: string; game: Adventure }>();
     if (options.save !== undefined) {
       const root = record(JSON.parse(options.save));
       migrateSpatialLayout(root);
       migrateTerrainLayout(root);
-      if ((root.version !== 1 && root.version !== 2 && root.version !== 3 && root.version !== 4) || root.kind !== "shared-adventure" || !Array.isArray(root.characters)) throw new Error("Unsupported shared adventure save.");
-      const world = record(root.world), version = root.version === 1 ? 9 : root.version === 4 ? 11 : 10;
+      if ((root.version !== 1 && root.version !== 2 && root.version !== 3 && root.version !== 4 && root.version !== 5) || root.kind !== "shared-adventure" || !Array.isArray(root.characters)) throw new Error("Unsupported shared adventure save.");
+      const world = record(root.world), version = root.version === 1 ? 9 : root.version >= 4 ? 11 : 10;
       const template = savedState(initialState("warrior"));
       context.world = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, forestLayout: root.forestLayout, state: { ...template, ...world, phase: "expedition" } }), context.now()).world;
-      context.clock = root.version === 4 ? readClock(root.clock) : newClock();
-      const instances = new Map<string, { id: string; origin: Vector; world: WorldState; clock: CombatClock }>();
-      if (root.version === 3 || root.version === 4) {
+      for (const value of root.characters) {
+        const legacyClaim = record(record(value).state).chestClaimed;
+        if (legacyClaim !== undefined && boolean(legacyClaim)) context.world.chestClaimed = true;
+      }
+      context.clock = root.version >= 4 ? readClock(root.clock) : newClock();
+      const instances = new Map<string, SharedContext>();
+      const instanceIds = new Set<string>();
+      if (root.version >= 3) {
         if (!Array.isArray(root.instances)) throw new Error("Missing saved private encounters.");
         for (const value of root.instances) {
-          const entry = record(value), ownerId = text(entry.ownerId), id = text(entry.id);
-          if (!id.startsWith('private:') || instances.has(ownerId) || [...instances.values()].some(instance => instance.id === id)) throw new Error("Invalid private encounter identity.");
-          instances.set(ownerId, { id, clock: root.version === 4 ? readClock(entry.clock) : newClock(), origin: restoreTownPosition(groundPosition(entry.origin)), world: readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, forestLayout: root.forestLayout, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world });
+          const entry = record(value), id = text(entry.id);
+          if (!id.startsWith('private:') || instanceIds.has(id)) throw new Error("Invalid private encounter identity.");
+          instanceIds.add(id);
+          const members = root.version >= 5 ? entry.members : [{ id: entry.ownerId, origin: entry.origin }];
+          if (!Array.isArray(members) || members.length === 0) throw new Error("Missing private encounter members.");
+          const instance: SharedContext = {
+            id, now: context.now, mode: 'paused', online: new Map(), characters: new Map(), origins: new Map(),
+            clock: root.version >= 4 ? readClock(entry.clock) : newClock(),
+            world: readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, forestLayout: root.forestLayout, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world,
+          };
+          for (const value of members) {
+            const member = record(value), memberId = text(member.id);
+            if (!memberId || instances.has(memberId)) throw new Error("Invalid private encounter member.");
+            instance.origins.set(memberId, restoreTownPosition(groundPosition(member.origin)));
+            instances.set(memberId, instance);
+          }
         }
       }
       for (const value of root.characters) {
         const entry = record(value), id = text(entry.id), name = text(entry.name), state = record(entry.state);
         if (!id || characters.has(id)) throw new Error("Invalid shared character identity.");
         const instance = instances.get(id);
-        const ownContext: SharedContext = instance
-          ? { world: instance.world, clock: instance.clock, now: context.now, online: new Map(), characters: new Map(), id: instance.id, mode: 'paused', origin: instance.origin }
-          : context;
+        const ownContext = instance ?? context;
         const game = new Adventure({}, ownContext, id);
         game.state = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, forestLayout: root.forestLayout, state: { ...state, ...ownContext.world } }), context.now());
         game.state.world = ownContext.world; game.state.combat.clock = ownContext.clock;
@@ -324,54 +339,58 @@ class Adventure implements AdventureGame {
       game.held.clear(); game.mouseForward = false; game.moving = false; game.backpedaling = false;
       game.enableNetworkMovement(false); game.vendorOpen = null; game.shopOpen = false; game.innOpen = false; game.bankOpen = false; game.trade = null; game.lootOpenId = null;
     };
-    const createPrivate = (id: string, game: Adventure): SharedContext => {
-      const clone = structuredClone(game.state.world);
-      for (const t of clone.threats) {
-        if (t.aggro && (t.targetPlayerId === id || t.combatants.includes(id) || t.contributors.includes(id))) {
-          t.targetPlayerId = id;
-          t.combatants = [id];
-          continue;
-        }
-        t.targetPlayerId = null;
-        if (!t.aggro) continue;
-        t.aggro = false; t.castDuration = 0; t.remainingSeconds = 0; t.moving = false;
-        t.phase = !t.active ? 'dormant' : t.health === 0 ? 'cleared' : 'returning';
-        if (t.head) { t.head.fireballs = []; t.head.pendingFireballs = 0; t.head.nextFireballSeconds = 0; }
-        if (t.wolf) { t.wolf.motion = null; t.wolf.circling = false; t.position.y = terrainHeight(t.position.x, t.position.z); }
-      }
-      const privateContext: SharedContext = { world: clone, clock: structuredClone(game.state.combat.clock), now: context.now, online: new Map(), characters: new Map(), id: `private:${crypto.randomUUID()}`, mode: "paused", origin: point(game.state.position.x, game.state.position.z) };
-      privateContext.characters.set(id, game); sessions.set(id, privateContext);
-      return privateContext;
-    };
-    const pause = (id: string): boolean => {
+    const pause = (id: string, memberIds: readonly string[] = [id]): boolean => {
       const existing = sessions.get(id);
       if (existing) {
-        const existingGame = existing.characters.get(id);
-        if (!existingGame) return false;
-        clearInputs(existingGame);
-        existing.online.delete(id); existing.mode = "paused";
+        for (const game of existing.characters.values()) clearInputs(game);
+        existing.mode = "paused";
         return true;
       }
       const game = context.online.get(id);
-      if (!game || game.shared?.id !== "shared") return false;
-      const privateContext = createPrivate(id, game);
+      const members = new Set([id, ...memberIds]);
+      if (!game || [...members].some(memberId => !context.characters.has(memberId) || sessions.has(memberId))) return false;
+      const clone = structuredClone(context.world);
+      for (const threat of clone.threats) {
+        threat.contributors = threat.contributors.filter(memberId => members.has(memberId));
+        threat.combatants = threat.combatants.filter(memberId => members.has(memberId));
+        if (threat.aggro && (members.has(threat.targetPlayerId ?? '') || threat.combatants.length > 0 || threat.contributors.length > 0)) {
+          if (!members.has(threat.targetPlayerId ?? '')) threat.targetPlayerId = threat.combatants[0] ?? threat.contributors[0] ?? id;
+          if (!threat.combatants.includes(threat.targetPlayerId!)) threat.combatants.push(threat.targetPlayerId!);
+          continue;
+        }
+        threat.targetPlayerId = null;
+        if (!threat.aggro) continue;
+        threat.aggro = false; threat.castDuration = 0; threat.remainingSeconds = 0; threat.moving = false;
+        threat.phase = !threat.active ? 'dormant' : threat.health === 0 ? 'cleared' : 'returning';
+        if (threat.head) { threat.head.fireballs = []; threat.head.pendingFireballs = 0; threat.head.nextFireballSeconds = 0; }
+        if (threat.wolf) { threat.wolf.motion = null; threat.wolf.circling = false; threat.position.y = terrainHeight(threat.position.x, threat.position.z); }
+      }
+      const privateContext: SharedContext = {
+        world: clone, clock: structuredClone(context.clock), now: context.now, online: new Map(), characters: new Map(),
+        id: 'private:' + crypto.randomUUID(), mode: "paused", origins: new Map(),
+      };
+      for (const memberId of members) {
+        const member = context.characters.get(memberId)!;
+        privateContext.origins.set(memberId, point(member.state.position.x, member.state.position.z));
+        privateContext.characters.set(memberId, member);
+        if (context.online.has(memberId)) privateContext.online.set(memberId, member);
+        context.online.delete(memberId); context.characters.delete(memberId);
+        sessions.set(memberId, privateContext);
+      }
       for (const threat of context.world.threats) {
-        threat.contributors = threat.contributors.filter(contributor => contributor !== id);
-        threat.combatants = threat.combatants.filter(combatant => combatant !== id);
-        // Detach before publishing the fork, even when no shared tick will run.
-        if (threat.targetPlayerId === id) threat.targetPlayerId = null;
+        threat.contributors = threat.contributors.filter(contributor => !members.has(contributor));
+        threat.combatants = threat.combatants.filter(combatant => !members.has(combatant));
+        if (members.has(threat.targetPlayerId ?? '')) threat.targetPlayerId = null;
         if (threat.aggro && threat.combatants.length > 0 && threat.targetPlayerId === null) {
           const replacement = threat.combatants.find(combatant => context.online.has(combatant));
           if (replacement !== undefined) {
             threat.targetPlayerId = replacement;
-            const replacementGame = context.online.get(replacement);
-            if (replacementGame) threat.targetPosition = { ...replacementGame.state.position };
+            threat.targetPosition = { ...context.online.get(replacement)!.state.position };
           }
         }
         if (threat.aggro && threat.combatants.length === 0) {
           game.releaseThreat(threat);
-          // Empty zones do not tick; complete the unobserved reset before saving.
-          if (context.online.size === 1 && threat.phase === "returning") {
+          if (context.online.size === 0 && threat.phase === "returning") {
             threat.position = { ...definition(threat.id).position };
             threat.targetPosition = { ...threat.position };
             threat.patrolIndex = 1;
@@ -379,28 +398,36 @@ class Adventure implements AdventureGame {
           }
         }
       }
-      game.shared = privateContext;
       if (!context.world.threats.some(t => t.aggro && t.health > 0)) { context.clock.phase = "idle"; context.clock.elapsedSeconds = 0; }
-      game.state.world = privateContext.world; game.state.combat.clock = privateContext.clock;
-      clearInputs(game); context.online.delete(id); context.characters.delete(id); privateContext.mode = "paused";
+      for (const member of privateContext.characters.values()) {
+        member.shared = privateContext;
+        member.state.world = privateContext.world; member.state.combat.clock = privateContext.clock;
+        clearInputs(member);
+      }
       return true;
     };
     const resume = (id: string): boolean => {
       const privateContext = sessions.get(id);
-      const game = privateContext?.characters.get(id);
-      if (!privateContext || !game || privateContext.mode !== "paused" || game.state.health <= 0) return false;
-      privateContext.mode = "private"; privateContext.online.set(id, game); clearInputs(game); return true;
+      if (!privateContext || !privateContext.online.has(id) || privateContext.characters.get(id)!.state.health <= 0 || privateContext.mode !== "paused") return false;
+      privateContext.mode = "private";
+      for (const game of privateContext.characters.values()) clearInputs(game);
+      return true;
     };
     const rejoin = (id: string): boolean => {
-      const privateContext = sessions.get(id), game = privateContext?.characters.get(id);
-      if (!privateContext || !game || (privateContext.mode !== "private" && privateContext.mode !== "paused") || game.state.health <= 0 || game.inCombat()) return false;
-      const origin = privateContext.origin ?? game.state.position;
-      game.shared = context; game.state.world = context.world; game.state.combat = newCombat(context.clock);
-      const destination = point(origin.x, origin.z);
-      if (!game.blocked(destination.x, destination.z)) game.state.position = destination;
-      game.state.verticalSpeed = 0; game.state.maneuver = null;
-      game.state.phase = inTown(game.state.position) ? 'town' : 'expedition';
-      clearInputs(game); sessions.delete(id); context.characters.set(id, game); context.online.set(id, game); return true;
+      const privateContext = sessions.get(id);
+      if (!privateContext || !privateContext.online.has(id) || privateContext.characters.get(id)!.state.health <= 0
+        || [...privateContext.characters.values()].some(game => game.state.health > 0 && game.inCombat())) return false;
+      for (const [memberId, game] of privateContext.characters) {
+        const origin = privateContext.origins.get(memberId) ?? game.state.position;
+        game.shared = context; game.state.world = context.world; game.state.combat = newCombat(context.clock);
+        const destination = point(origin.x, origin.z);
+        if (!game.blocked(destination.x, destination.z)) game.state.position = destination;
+        game.state.verticalSpeed = 0; game.state.maneuver = null;
+        game.state.phase = game.state.health <= 0 ? 'lost' : inTown(game.state.position) ? 'town' : 'expedition';
+        clearInputs(game); sessions.delete(memberId); context.characters.set(memberId, game);
+        if (privateContext.online.has(memberId)) context.online.set(memberId, game);
+      }
+      return true;
     };
     const session = (id: string): EncounterSession => {
       const game = characters.get(id)?.game, privateContext = sessions.get(id);
@@ -425,22 +452,19 @@ class Adventure implements AdventureGame {
         } else if (entry.game.state.archetype !== archetype) throw new Error("The saved character has a different calling.");
         entry.name = name;
         const privateContext = sessions.get(id);
-        if (privateContext) { entry.game.shared = privateContext; entry.game.state.world = privateContext.world; entry.game.state.combat.clock = privateContext.clock; }
+        if (privateContext) { entry.game.shared = privateContext; entry.game.state.world = privateContext.world; entry.game.state.combat.clock = privateContext.clock; privateContext.online.set(id, entry.game); }
         else context.online.set(id, entry.game);
         return entry.game;
       },
-      leave(id) {
-        const privateContext = sessions.get(id);
-        if (privateContext) {
-          const game = privateContext.characters.get(id);
-          if (game) clearInputs(game);
-          privateContext.online.delete(id); privateContext.mode = "paused";
-          return;
-        }
-        if (!pause(id)) { const game = context.online.get(id); if (game) clearInputs(game); context.online.delete(id); }
+      leave(id, memberIds) {
+        pause(id, memberIds);
+        const ownContext = sessions.get(id) ?? context;
+        const game = ownContext.characters.get(id);
+        if (game) clearInputs(game);
+        ownContext.online.delete(id);
       },
       pause, resume, rejoin, session,
-      getPlayer(id) { return context.online.get(id) ?? sessions.get(id)?.characters.get(id); },
+      getPlayer(id) { return characters.get(id)?.game; },
       players(instanceId?: string) {
         const ctx = instanceId && instanceId !== "shared" ? [...sessions.values()].find(instance => instance.id === instanceId) : context;
         return [...(ctx?.online ?? new Map())].map(([id, game]) => ({ id, name: characters.get(id)!.name, player: game.playerView() }));
@@ -449,16 +473,16 @@ class Adventure implements AdventureGame {
         if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Elapsed time must be finite and nonnegative.");
         refresh();
         stepContext(context, seconds);
-        for (const privateContext of sessions.values()) stepContext(privateContext, seconds);
+        for (const privateContext of new Set(sessions.values())) stepContext(privateContext, seconds);
       },
       save() {
         refresh();
-        return JSON.stringify({ version: 4, spatialLayout: 1, terrainLayout: 2, forestLayout: 1, kind: "shared-adventure", world: context.world, clock: context.clock,
+        return JSON.stringify({ version: 5, spatialLayout: 1, terrainLayout: 2, forestLayout: 1, kind: "shared-adventure", world: context.world, clock: context.clock,
           characters: [...characters].map(([id, { name, game }]) => {
-            const { threats, resourceRemaining, resourceRespawns, ritualCalled, ...player } = savedState(game.state);
+            const { threats, resourceRemaining, resourceRespawns, ritualCalled, chestClaimed, ...player } = savedState(game.state);
             return { id, name, state: player };
           }),
-          instances: [...sessions].map(([ownerId, instance]) => ({ id: instance.id, ownerId, origin: instance.origin, mode: instance.mode, world: instance.world, clock: instance.clock })) });
+          instances: [...new Set(sessions.values())].map(instance => ({ id: instance.id, members: [...instance.origins].map(([id, origin]) => ({ id, origin })), mode: instance.mode, world: instance.world, clock: instance.clock })) });
       },
     };
   }
@@ -480,7 +504,8 @@ class Adventure implements AdventureGame {
   private sessionView(): EncounterSession {
     const c = this.shared;
     if (!c || c.id === "shared") return { id: "shared", mode: "shared", canRejoin: false, origin: null };
-    return { id: c.id, mode: c.mode, canRejoin: (c.mode === "paused" || c.mode === "private") && this.state.health > 0 && !this.inCombat(), origin: c.origin ? { ...c.origin } : null };
+    const origin = c.origins.get(this.playerId!);
+    return { id: c.id, mode: c.mode, canRejoin: this.state.health > 0 && [...c.characters.values()].every(game => game.state.health <= 0 || !game.inCombat()), origin: origin ? { ...origin } : null };
   }
 
   private playerView(): AdventureSnapshot["player"] {
@@ -863,7 +888,7 @@ class Adventure implements AdventureGame {
     return this.eligibleForRoll(t) ? !t.rollClaims.includes(this.playerId ?? "solo") : !t.lootClaimed;
   }
   private chestLootAvailable(): boolean {
-    return !this.inPrivateInstance() && !this.state.chestClaimed && this.state.world.threats.find(t => t.id === "cave-crab")?.health === 0;
+    return !this.inPrivateInstance() && !this.state.world.chestClaimed && this.state.world.threats.find(t => t.id === "cave-crab")?.health === 0;
   }
   private canLootChest(): boolean {
     return this.state.phase === "expedition" && this.chestLootAvailable() && distance(this.state.position, IRONBACK_CHEST_POSITION) <= 3 + EPSILON && this.clearPath(this.state.position, IRONBACK_CHEST_POSITION);
@@ -883,7 +908,7 @@ class Adventure implements AdventureGame {
     if (this.lootOpenId === IRONBACK_CHEST_ID) {
       this.lootOpenId = null;
       if (!this.canLootChest()) return;
-      s.chestClaimed = true; s.coins += 18; s.potions += 2;
+      s.world.chestClaimed = true; s.coins += 18; s.potions += 2;
       this.report(`You open the Ironback Crab’s cache: ${formatMoney(18)} and 2 health potions.`);
       return;
     }
@@ -1972,7 +1997,8 @@ function readSave(serialized: string, now = Date.now()): State {
   if (!Array.isArray(s.threats)) throw new Error("Invalid adventure save: missing threats.");
   const threats: ThreatState[] = s.threats.map(value => {
     const t = record(value), id = choice(t.id, DEFINITIONS.map(d => d.id)), d = definition(id);
-    const health = id === "ritual-guardian" && t.active === false && s.chapter === undefined ? d.health : number(t.health, 0, d.health);
+    const savedMaximum = t.maximumHealth === undefined ? (id === "cave-crab" ? 156 : d.health) : number(t.maximumHealth, 1);
+    const health = id === "ritual-guardian" && t.active === false && s.chapter === undefined ? d.health : Math.min(d.health, number(t.health, 0, Math.max(savedMaximum, d.health)));
     const active = boolean(t.active);
     let phase = choice(t.phase, ["dormant", "patrol", "approach", "preparation", "action", "recovery", "returning", "cleared"] as const);
     if (!active && id === "ritual-guardian" && phase === "patrol" && t.aggro === false) phase = "dormant";
@@ -2011,6 +2037,13 @@ function readSave(serialized: string, now = Date.now()): State {
       wolf: id === "patrol" ? realtime ? readWolf(t.wolf, true) : newWolf() : null,
       head: id === "scout" ? t.head ? readHead(t.head, realtime) : newHead() : null,
     };
+    // Old saves lack the spawn maximum; the crab's original full health was 156.
+    // Only an untouched idle spawn may adopt new balance without erasing damage.
+    if (savedMaximum !== d.health && health === savedMaximum && !aggro && (phase === "patrol" || phase === "dormant")
+      && result.targetPlayerId === null && result.combatants.length === 0 && result.contributors.length === 0 && result.actionSequence === 0) {
+      result.health = d.health;
+      result.damage = d.behavior === "wolf" ? 18 : d.damage;
+    }
     if (!realtime) {
       result.position.y = terrainHeight(result.position.x, result.position.z); result.shield = 0;
       result.phase = health === 0 ? "cleared" : !active ? "dormant" : aggro ? "preparation" : phase === "returning" ? "returning" : d.patrol ? "patrol" : "dormant";
@@ -2037,10 +2070,9 @@ function readSave(serialized: string, now = Date.now()): State {
     position: restoreTownPosition(groundPosition(s.position, 2)),
     verticalSpeed: number(s.verticalSpeed, -6, 5.5), health: number(s.health, 0, 100),
     bank: s.bank === undefined ? { supplies: 0, potions: 0 } : { supplies: number(record(s.bank).supplies, 0, Number.MAX_SAFE_INTEGER, true), potions: number(record(s.bank).potions, 0, Number.MAX_SAFE_INTEGER, true) },
-    chestClaimed: s.chestClaimed === undefined ? false : boolean(s.chestClaimed),
     coins: s.coins === undefined ? 0 : number(s.coins, 0, Number.MAX_SAFE_INTEGER, true),
     supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, Number.MAX_SAFE_INTEGER, true),
-    world: { threats, resourceRemaining: number(s.resourceRemaining, 0, 12, true), resourceRespawns: readResourceRespawns(s.resourceRespawns, number(s.resourceRemaining, 0, 12, true), now), ritualCalled: boolean(s.ritualCalled) },
+    world: { threats, chestClaimed: s.chestClaimed === undefined ? false : boolean(s.chestClaimed), resourceRemaining: number(s.resourceRemaining, 0, 12, true), resourceRespawns: readResourceRespawns(s.resourceRespawns, number(s.resourceRemaining, 0, 12, true), now), ritualCalled: boolean(s.ritualCalled) },
     potions: number(s.potions, 0, Number.MAX_SAFE_INTEGER, true),
     carriedRelics: number(s.carriedRelics, 0, 1, true), bankedRelics: number(s.bankedRelics, 0, Number.MAX_SAFE_INTEGER, true),
     carriedSalvage: version >= 3 ? number(s.carriedSalvage, 0, Number.MAX_SAFE_INTEGER, true) : 0,
@@ -2061,7 +2093,7 @@ function readSave(serialized: string, now = Date.now()): State {
   };
   if ((state.phase === "lost") !== (state.health === 0) || threats.find(t => t.id === "ritual-guardian")?.active !== state.world.ritualCalled) throw new Error("Invalid adventure save: inconsistent expedition.");
   if ((state.block === 0) !== (state.guardSeconds === 0) || (state.maneuver !== null && state.phase !== "expedition")) throw new Error("Invalid adventure save: inconsistent combat state.");
-  const { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled } = state.world;
+  const { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled, chestClaimed } = state.world;
   const { world: _world, ...player } = state;
   const storedCombat: Record<string, unknown> | undefined = version < 11 || s.combat === undefined ? undefined : record(s.combat) as Record<string, unknown>;
   const combatValue: Record<string, unknown> | undefined = storedCombat ? (storedCombat.clock === undefined ? storedCombat : record(storedCombat.clock) as Record<string, unknown>) : undefined;
@@ -2082,7 +2114,7 @@ function readSave(serialized: string, now = Date.now()): State {
   if (queued.some(e => e.action === "bait" && e.destination === null || e.action !== "bait" && e.destination !== null) || queued.filter(e => e.action === "bait").length > 1 || queued.filter(e => e.action !== "bait").length > 1 || new Set(queued.map(e => e.id)).size !== queued.length) throw new Error("Invalid adventure save: invalid combat plan.");
   const movement = queued.some(e => e.action === "bait");
   for (const entry of queued) entry.offsetSeconds = entry.action === "bait" ? COMBAT_TURN.moveStart : actionTimingOffset(entry.timing!, movement);
-  return { ...player, combat: { clock, queued, ready: legacyPlan || rawCombat?.ready === undefined ? false : boolean(rawCombat.ready), nextId: rawCombat ? number(rawCombat.nextId, 1, Number.MAX_SAFE_INTEGER, true) : 1 }, world: { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled } };
+  return { ...player, combat: { clock, queued, ready: legacyPlan || rawCombat?.ready === undefined ? false : boolean(rawCombat.ready), nextId: rawCombat ? number(rawCombat.nextId, 1, Number.MAX_SAFE_INTEGER, true) : 1 }, world: { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled, chestClaimed } };
 }
 
 function readClock(value: unknown): CombatClock {
@@ -2173,7 +2205,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
   return DEFINITIONS.map(d => {
     if (d.id.startsWith("cave-")) return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
-      description: d.id === "cave-bat" ? "A swift winged hunter in Hollowdeep’s first chamber. Its narrow bite is quick, and it pursues fleeing explorers." : "A heavy-shelled predator in Hollowdeep’s deepest chamber. Its wide slam is slow, but stronger than a single Block.",
+      description: d.id === "cave-bat" ? "A swift winged hunter in Hollowdeep’s first chamber. Its narrow bite is quick, and it pursues fleeing explorers." : "A heavy-shelled predator in Hollowdeep’s deepest chamber. It closes quickly before raising its claws for a crushing slam.",
       opener: d.preparation + ". Its attack is announced before you plan.", abilities: [ordinaryAbility(d)],
       sequences: [{ name: d.intention, abilityIds: [ordinaryAbility(d).id], offsetsSeconds: [], description: "One committed attack per sequence. Damage increases as the fight continues." }],
       strategy: d.id === "cave-bat" ? "Defend against its bite, then attack next turn. Take potions and return with its salvage." : "Use the long windup to retreat clear of the slam. Strike from the edge of melee reach. The western tunnel leads home.",

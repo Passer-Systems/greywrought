@@ -39,7 +39,7 @@ describe("legacy combat save migration", () => {
     expect(player.snapshot).toMatchObject({ supplies: 39, potions: 3, resourceRemaining: 6 });
     expect(player.snapshot.progression.ownedGear).toEqual(["insulated-coat", "yard-weapon"]);
     const saved = JSON.parse(game.save());
-    expect(saved.version).toBe(4);
+    expect(saved.version).toBe(5);
     expect(saved.instances).toEqual([]);
     expect(saved.clock.phase).toBe("idle");
     expect(saved.characters[0].state.combat.queued).toEqual([]);

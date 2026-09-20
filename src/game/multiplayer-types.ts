@@ -1,7 +1,7 @@
 import type { NpcId, VendorId } from "./economy.js";
 import type { QuestId, QuestOperation, GearSlot, GearItemId } from "./yard-content.js";
 import type { AdventureAction, AdventureSnapshot, CombatForecast, EncounterSession, CombatActionTiming, Position } from './adventure-types.js';
-import type { LocalCharacter } from '../host/character-profile.js';
+import type { CharacterArchetype, LocalCharacter } from '../host/character-profile.js';
 import type { MovementFrame, MovementCheckpoint } from './movement.js';
 
 export interface RemotePlayerView {
@@ -10,7 +10,34 @@ export interface RemotePlayerView {
   readonly player: AdventureSnapshot['player'];
 }
 export interface SharedChatMessage { readonly id: number; readonly speakerId: string | null; readonly name: string; readonly text: string; readonly kind?: 'emote'; }
+export interface PartyMemberView {
+  readonly id: string;
+  readonly name: string;
+  readonly archetype: CharacterArchetype;
+  readonly health: number;
+  readonly maximumHealth: number;
+  readonly online: boolean;
+  readonly sameEncounter: boolean;
+}
+export interface PartyView {
+  readonly id: string;
+  readonly leaderId: string;
+  readonly members: readonly PartyMemberView[];
+}
+export interface PartyInviteView {
+  readonly id: string;
+  readonly inviterId: string;
+  readonly inviterName: string;
+  readonly expiresAtMillis: number;
+}
+export type PartyCommand =
+  | { type: 'partyInvite'; playerId: string }
+  | { type: 'partyAccept'; inviteId: string }
+  | { type: 'partyDecline'; inviteId: string }
+  | { type: 'partyLeave' }
+  | { type: 'partyKick'; playerId: string };
 export type WorldCommand =
+  | PartyCommand
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'rejoin' }
@@ -38,7 +65,7 @@ export type ClientWorldMessage =
   | { type: 'join'; token: string; character: LocalCharacter }
   | { type: 'command'; sequence: number; command: WorldCommand };
 export type ServerWorldMessage =
-  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; movement: MovementCheckpoint; session: EncounterSession }
+  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; movement: MovementCheckpoint; session: EncounterSession; party: PartyView | null; partyInvites: readonly PartyInviteView[] }
   | { type: 'result'; sequence: number; accepted: boolean }
   | { type: 'movePreview'; sequence: number; forecast: CombatForecast | null }
   | { type: 'error'; text: string };

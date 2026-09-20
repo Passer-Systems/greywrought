@@ -18,6 +18,7 @@ import { createBagPanel } from "./bag-panel.js";
 import { createChatLog } from "./chat-log.js";
 import { newAttackerTarget, type UnitSelection } from "./unit-selection.js";
 import { createUnitFrames } from "./unit-frames.js";
+import { createPartyPanel } from "./party-panel.js";
 import { createBankPanel } from "./bank-panel.js";
 import { createInnPanel } from "./inn-panel.js";
 import { createLorebook } from "./lorebook.js";
@@ -74,6 +75,10 @@ const questRewards = createQuestRewardNotice(element("adventure-hud"), {
 const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => unitFrames.portrait(id));
 const chatLog = createChatLog(element("adventure-hud"), text => running?.game.sendChat(text));
 const unitFrames = createUnitFrames(element("adventure-hud"));
+const partyPanel = createPartyPanel(element("adventure-hud"), {
+  onSelect: id => { selectPlayerTarget(id); running?.world.canvas.focus(); },
+  onCommand: command => { if (running?.ready) running.game.partyCommand(command); },
+});
 const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   portrait: id => unitFrames.portrait(id),
   playerName: id => running?.character.id === id ? "You" : running?.game.players.find(player => player.id === id)?.name,
@@ -85,9 +90,11 @@ const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   onAimMove: () => pulse("bait"),
   onPreview: preview => running?.world.setCombatPreview(preview),
 });
-function readyCombat(): void {
+function readyCombat(): boolean {
   setBaitAiming(false);
-  if (running?.ready && !paused) { running.game.readyCombat(); combatPlan.update(running.game.snapshot); }
+  if (!running?.ready || paused) return false;
+  running.game.readyCombat(); combatPlan.update(running.game.snapshot);
+  return true;
 }
 const hudSize = new ResizeObserver(() => {
   unitFrames.layout();
@@ -541,6 +548,8 @@ function returnToRoster(): void {
   combatPlan.reset();
   closeQuestLog();
   chatLog.reset();
+  partyPanel.closeMenu();
+  partyPanel.update("", null, [], null);
   if (running) audio.update(running.game.snapshot, true);
   audio.reset();
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
@@ -557,6 +566,8 @@ function returnToRoster(): void {
 function syncEncounter(): void {
   if (!running?.ready || route !== "world") return;
   const { game, world, character } = running;
+  updateParty();
+  world.setPartyMembers(game.party?.members.map(member => member.id) ?? []);
   if (game.snapshot.phase === 'lost') { showFallenCharacter(character); return; }
   const state = `${game.online}:${game.session.id}:${game.session.mode}:${game.inputEnabled}:${game.pendingTransition}:${backgrounded}`;
   const changed = state !== lastEncounterState;
@@ -582,14 +593,15 @@ function syncEncounter(): void {
     audio.update(game.snapshot, paused);
     if (!paused && !menuOpen()) world.canvas.focus();
   }
+  const grouped = (game.party?.members.length ?? 0) > 1;
   const waiting = game.online && !game.inputEnabled && game.session.mode !== 'paused';
   text('pause-title', !game.online ? 'Connection lost' : game.pendingTransition === 'resume' ? 'Resuming encounter…' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : game.session.mode === 'shared' ? 'Shared world' : 'Private encounter');
   text('pause-copy', !game.online
     ? 'Reconnecting… Your encounter pauses when the connection loss is detected. It will stay paused when you return.'
-    : waiting ? 'Saving your encounter while the world continues.'
-    : game.session.mode === 'shared' ? 'The world keeps running while this menu is open. Pause creates a private encounter without rewards; the rest of the world continues.'
-    : game.session.mode === 'paused' ? 'Your private encounter is paused. The rest of the world continues without you.'
-    : 'Your private encounter keeps running while this menu is open.');
+    : waiting ? grouped ? 'Pausing your party’s encounter while the world continues.' : 'Saving your encounter while the world continues.'
+    : game.session.mode === 'shared' ? grouped ? 'The world keeps running while this menu is open. When any party member pauses, everyone enters the same private encounter without rewards.' : 'The world keeps running while this menu is open. Pause creates a private encounter without rewards; the rest of the world continues.'
+    : game.session.mode === 'paused' ? grouped ? 'Your party’s encounter is paused. Resume continues it for everyone. The rest of the world keeps running.' : 'Your private encounter is paused. The rest of the world continues without you.'
+    : grouped ? 'Your party shares this private encounter. Pausing, resuming, and returning to the main world affect everyone.' : 'Your private encounter keeps running while this menu is open.');
   element('pause-private-warning').hidden = game.session.mode === 'shared';
   element('pause-rejoin-hint').hidden = game.session.mode === 'shared';
   button('pause-action').disabled = !game.online || !game.inputEnabled;
@@ -725,6 +737,19 @@ function selectPlayerTarget(id: string): void {
   app.selection = { kind: "player", id }; app.game.setAction("strike", false);
   setBaitAiming(false); renderHud(app.game.snapshot);
 }
+function updateParty(): void {
+  if (!running) return;
+  partyPanel.update(running.character.id, running.game.party, running.game.partyInvites,
+    running.selection?.kind === "player" ? running.selection.id : null);
+}
+function openPlayerMenu(id: string, x: number, y: number): void {
+  if (!running?.ready || route !== "world") return;
+  const player = id === running.character.id ? running.character
+    : running.game.players.find(player => player.id === id) ?? running.game.party?.members.find(member => member.id === id);
+  if (!player) return;
+  selectPlayerTarget(id);
+  partyPanel.openPlayerMenu(player, x, y);
+}
 function selectEnemyTarget(id: string): void {
   if (!running?.ready) return;
   running.selection = { kind: "enemy", id }; running.game.selectTarget(id); renderHud(running.game.snapshot);
@@ -737,6 +762,7 @@ function clearUnitTarget(): void {
 }
 function renderHud(snapshot: AdventureSnapshot): void {
   snapshot = selectedSnapshot(snapshot);
+  updateParty();
   const wallTime = running?.game.serverWallTimeMillis;
   const minute = running?.game.online && typeof wallTime === 'number' && Number.isFinite(wallTime) ? Math.floor(wallTime / 60_000) : -1;
   if (minute !== displayedServerMinute) {
@@ -783,7 +809,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   setAttribute(stamina, "title", "Stamina " + player.stamina + " / " + player.maximumStamina);
   element("combat-stamina-fill").style.width = (100 * player.stamina / player.maximumStamina) + "%";
   setDataset(data, { archetype: player.archetype });
-  text("bait-aim-hint", moveAimError || `Move · click a destination tile (up to ${classKit(player.archetype).movementTiles} tiles) · then Ready (R) · Esc cancels`);
+  text("bait-aim-hint", moveAimError || `Move · click a destination tile (up to ${classKit(player.archetype).movementTiles} tiles) · Esc cancels`);
   text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players, running.selection?.kind === "player" ? running.selection.id === running.character.id ? { id: running.character.id, name: running.character.name, player: snapshot.player } : running.game.players.find(player => player.id === running!.selection!.id) : undefined);
   combatPlan.update(snapshot);
@@ -818,7 +844,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
     setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, spec.description);
     const art = control.querySelector<HTMLImageElement>(".action-art img")!;
     const source = publicUrl(spec.icon); if (art.getAttribute("src") !== source) art.src = source;
-    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Click a highlighted tile, then Ready (R)" : "Plan · " + cost + " stamina";
+    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Click a highlighted tile to plan your movement" : "Plan · " + cost + " stamina";
     text(action + "-ready", detail + (range.text ? " · " + range.text : ""));
   }
   const potionControl = actionBar().querySelector<HTMLButtonElement>('[data-action="drinkPotion"]');
@@ -929,7 +955,10 @@ function bindWorld(app: RunningAdventure): void {
       else if (picked?.kind === "chest") {
         if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
       }
-      else if (picked?.kind === "player" && event.button === 0) selectPlayerTarget(picked.id);
+      else if (picked?.kind === "player") {
+        if (event.button === 0) selectPlayerTarget(picked.id);
+        else if (event.button === 2) openPlayerMenu(picked.id, event.clientX, event.clientY);
+      }
       else if (picked?.kind === "threat") {
         if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
         else if (event.button === 0) selectEnemyTarget(picked.id);
@@ -961,7 +990,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     const game = await connectAdventure(character);
     if (game.snapshot.phase === "lost") { game.close(); showFallenCharacter(character); return; }
     audio.reset();
-    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); }, destination => game.previewBait(destination), { selfId: character.id, selfName: character.name, onSelect: selectPlayerTarget });
+    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); }, destination => game.previewBait(destination), { selfId: character.id, selfName: character.name, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu });
     world.setAggroRangesVisible(aggroRangesVisible);
     world.setHelpRangesVisible(helpRangesVisible);
     world.updateChat(game.chat, character.id);
@@ -1089,7 +1118,7 @@ for (const control of document.querySelectorAll<HTMLElement>("[data-action]:not(
 });
 bindActionBar();
 listen(window, "click", (event) => {
-  if (menuOpen() && event.target instanceof Element && !event.target.closest('#pause-panel, #pause-open, #pause-toggle')) { event.preventDefault(); event.stopImmediatePropagation(); }
+  if (menuOpen() && event.target instanceof Element && !event.target.closest('#pause-panel, #pause-open, #pause-toggle, #party-panel, #party-invite, #party-context-menu')) { event.preventDefault(); event.stopImmediatePropagation(); }
 }, removers, true);
 listen(window, "keydown", (event) => {
   if (event.isTrusted) void audio.unlock();
@@ -1100,6 +1129,7 @@ listen(window, "keydown", (event) => {
     return;
   }
   if (route !== "world") return;
+  if (event.code === "Escape" && partyPanel.closeMenu()) { event.preventDefault(); return; }
   if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
   if (event.target instanceof HTMLElement && event.target.isContentEditable) return;
   if (menuOpen() && event.code !== "Escape" && event.code !== "KeyH" && event.code !== "KeyV") return;
@@ -1223,6 +1253,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   bags.dispose();
   chatLog.dispose();
   unitFrames.dispose();
+  partyPanel.dispose();
   combatPlan.dispose();
   bank.dispose();
   inn.dispose();

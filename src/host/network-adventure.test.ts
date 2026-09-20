@@ -53,7 +53,7 @@ afterEach(() => {
 const character = { id: 'client-test', name: 'Tester', archetype: 'warrior' as const, createdAtMillis: 1 };
 function state(mode: EncounterSession['mode']): Extract<ServerWorldMessage, { type: 'state' }> {
   const game = createAdventure();
-  return { type: 'state', snapshot: game.snapshot, players: [], chat: [], serverTime: 1, serverWallTimeMillis: 1,
+  return { type: 'state', snapshot: game.snapshot, players: [], chat: [], party: null, partyInvites: [], serverTime: 1, serverWallTimeMillis: 1,
     movement: game.movementCheckpoint!, session: { id: mode === 'shared' ? 'shared' : 'private:test', mode, canRejoin: mode !== 'shared', origin: mode === 'shared' ? null : { x: 0, y: 0, z: -8 } } };
 }
 async function connected(mode: EncounterSession['mode'] = 'shared') {
@@ -168,5 +168,17 @@ test('action timing sends only its named placement', async () => {
   const { game, socket } = await connected();
   expect(game.setActionTiming('during')).toBe(true);
   expect(socket.sent.at(-1)).toMatchObject({ type: 'command', command: { type: 'actionTiming', timing: 'during' } });
+  game.close();
+});
+
+test('party state and invitations stay available while paused and social commands reach the server', async () => {
+  const { game, socket } = await connected('paused');
+  const update = state('paused');
+  socket.receive({ ...update, party: { id: 'party', leaderId: character.id, members: [] },
+    partyInvites: [{ id: 'invite', inviterId: 'other', inviterName: 'Other', expiresAtMillis: 60000 }] });
+  expect(game.party?.id).toBe('party');
+  expect(game.partyInvites[0]!.id).toBe('invite');
+  game.partyCommand({ type: 'partyDecline', inviteId: 'invite' });
+  expect(socket.sent.at(-1)).toMatchObject({ type: 'command', command: { type: 'partyDecline', inviteId: 'invite' } });
   game.close();
 });

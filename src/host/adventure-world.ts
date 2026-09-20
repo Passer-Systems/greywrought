@@ -76,6 +76,7 @@ export interface AdventureWorld {
   setHelpRangesVisible(visible: boolean): void;
   setCombatPreview(preview: CombatPreview | null): void;
   setSelectedUnit(selection: UnitSelection): void;
+  setPartyMembers(ids: readonly string[]): void;
   setCombatHudHeight(height: number): void;
   setMoveAiming(active: boolean): void;
   canMoveTo(destination: Position): boolean;
@@ -184,7 +185,7 @@ function createCombatEffects(scene: Scene) {
   };
 }
 
-export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; onSelect: (id: string) => void }): AdventureWorld {
+export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; onSelect: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void }): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
   let interpolation = createSnapshotInterpolation();
@@ -285,6 +286,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   player.userData.localPlayer = true;
   player.userData.playerId = playerSelection?.selfId;
   let selectedUnit: UnitSelection = { kind: "enemy", id: initial.selectedThreat };
+  let partyMembers = new Set<string>();
   scene.add(player);
   const overheadNames = createOverheadNames(host, camera);
   const chatBubbles = createChatBubbles(host, scene, camera, player);
@@ -476,6 +478,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     canMoveTo(destination) { return combatGrid.accepts(destination); },
     setCombatPreview(preview) { combatPreview = preview; },
     setSelectedUnit(selection) { selectedUnit = selection; },
+    setPartyMembers(ids) { partyMembers = new Set(ids); },
     projectThreat(id) {
       const rig = rigs.get(id); if (!rig || !rig.root.visible) return null;
       const head = rig.root.position.clone().add(new Vector3(0, rig.height + rig.body.position.y + 0.25, 0)).project(camera);
@@ -680,8 +683,17 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       overheadNames.show("npc:mara", "Mara", mara, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"mara"));
       overheadNames.show("npc:elian", "Elian · Bank", elian, 2.35, "friendly", true);
       overheadNames.show("npc:rowan", "Rowan", rowan, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"inn"));
-      if (playerSelection) overheadNames.show(`player:${playerSelection.selfId}`, playerSelection.selfName, player, 2.35, "player", snapshot.player.health > 0, null, () => playerSelection.onSelect(playerSelection.selfId));
-      for (const [id, rig] of remotePlayers.entries()) overheadNames.show(`player:${id}`, rig.name, rig.root, 2.35, "player", rig.alive, null, playerSelection ? () => playerSelection.onSelect(id) : undefined);
+      if (playerSelection) overheadNames.show(`player:${playerSelection.selfId}`, playerSelection.selfName, player, 2.35, "player", snapshot.player.health > 0, null, () => playerSelection.onSelect(playerSelection.selfId), {
+        health: snapshot.player.health, maximumHealth: snapshot.player.maximumHealth, selected: selectedPlayer === playerSelection.selfId, party: partyMembers.has(playerSelection.selfId),
+        onContextMenu: (x, y) => playerSelection.onContextMenu?.(playerSelection.selfId, x, y),
+      });
+      for (const [id, rig] of remotePlayers.entries()) {
+        const view = visiblePlayers.find(other => other.id === id);
+        overheadNames.show(`player:${id}`, rig.name, rig.root, 2.35, "player", rig.alive, null, playerSelection ? () => playerSelection.onSelect(id) : undefined, view && playerSelection ? {
+          health: view.player.health, maximumHealth: view.player.maximumHealth, selected: selectedPlayer === id, party: partyMembers.has(id),
+          onContextMenu: (x, y) => playerSelection.onContextMenu?.(id, x, y),
+        } : undefined);
+      }
       for (const threat of snapshot.threats) {
         const rig = rigs.get(threat.id);
         if (rig) overheadNames.show(`threat:${threat.id}`, threat.name, rig.root, rig.height + rig.body.position.y + 0.25, threat.aggro ? "hostile" : threat.disposition, threat.active && threat.health > 0);

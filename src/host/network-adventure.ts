@@ -1,6 +1,6 @@
 import type { AdventureGame, AdventureSnapshot, CombatForecast, EncounterSession } from '../game/adventure-types.js';
 import type { LocalCharacter } from './character-profile.js';
-import type { ClientWorldMessage, RemotePlayerView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
+import type { PartyCommand, PartyView, PartyInviteView, ClientWorldMessage, RemotePlayerView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
 import { LocalMovement, isLocomotionAction } from './local-movement.js';
 
 export interface NetworkAdventure extends AdventureGame {
@@ -14,6 +14,9 @@ export interface NetworkAdventure extends AdventureGame {
   readonly pendingTransition: 'resume' | 'rejoin' | null;
   readonly players: readonly RemotePlayerView[];
   readonly chat: readonly SharedChatMessage[];
+  readonly party: PartyView | null;
+  readonly partyInvites: readonly PartyInviteView[];
+  partyCommand(command: PartyCommand): void;
   sendChat(text: string): void;
   pause(): void;
   resume(): void;
@@ -35,6 +38,8 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let prediction: LocalMovement;
   let serverTime = 0, serverWallTimeMillis = 0, lastMovementAt = 0;
   let players: readonly RemotePlayerView[] = [], chat: readonly SharedChatMessage[] = [];
+  let party: PartyView | null = null;
+  let partyInvites: readonly PartyInviteView[] = [];
   const notices: SharedChatMessage[] = [];
   let noticeId = -1_000_000_000;
   const previews = new Map<number, (forecast: CombatForecast | null) => void>();
@@ -108,7 +113,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
         const changed = !online || session?.id !== message.session.id || session?.mode !== message.session.mode;
         session = message.session;
         if (session.mode === 'paused') pauseRequest = null;
-        snapshot = message.snapshot; players = message.players; chat = message.chat;
+        snapshot = message.snapshot; players = message.players; chat = message.chat; party = message.party; partyInvites = message.partyInvites;
         serverTime = message.serverTime;
         serverWallTimeMillis = message.serverWallTimeMillis;
         clearTimeout(handshakeTimeout); handshakeTimeout = undefined;
@@ -150,6 +155,9 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     get inputEnabled() { return inputEnabled(); },
     get pendingTransition() { return pendingTransition; },
     get players() { return players; },
+    get party() { return party; },
+    get partyInvites() { return partyInvites; },
+    partyCommand(command) { send(command); },
     get chat() { return [...chat, ...notices]; },
     advance(seconds) {
       if (!inputEnabled()) return;

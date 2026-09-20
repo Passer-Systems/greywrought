@@ -3,11 +3,12 @@ import { isGearItem } from "../game/yard-content.js";
 import { EMOTE_HELP, emoteText, findEmote } from '../game/emotes.js';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { randomInt } from 'node:crypto';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import { createSharedAdventure } from '../game/adventure.js';
 import { WORLD_BOUNDS } from '../game/world-layout.js';
 import type { AdventureAction, AdventureGame } from '../game/adventure-types.js';
-import type { ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
+import type { PartyCommand, PartyView, PartyInviteView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
 import { normalizedCharacterName } from '../host/character-profile.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 
@@ -44,7 +45,9 @@ function character(value: unknown): value is LocalCharacter {
 function command(value: unknown): value is WorldCommand {
   if (!record(value)) return false;
   switch (value.type) {
-    case 'pause': case 'resume': case 'rejoin': case 'sit': return keys(value, ['type']);
+    case 'partyInvite': case 'partyKick': return keys(value, ['type', 'playerId']) && identifier(value.playerId);
+    case 'partyAccept': case 'partyDecline': return keys(value, ['type', 'inviteId']) && identifier(value.inviteId);
+    case 'partyLeave': case 'pause': case 'resume': case 'rejoin': case 'sit': return keys(value, ['type']);
     case 'movement': return keys(value, ['type', 'frames']) && Array.isArray(value.frames) && value.frames.length > 0 && value.frames.length <= 30 && value.frames.every((frame, index, frames) => {
       if (!record(frame) || !keys(frame, ['sequence', 'seconds', 'input']) || !finite(frame.sequence, 1, Number.MAX_SAFE_INTEGER, true)
         || !finite(frame.seconds, Number.MIN_VALUE, 0.05) || !record(frame.input)) return false;
@@ -74,7 +77,9 @@ function command(value: unknown): value is WorldCommand {
 }
 
 interface Account { character: LocalCharacter; tokenHash: string; }
-interface SavedService { version: 1; accounts: Account[]; world: string; chat: SharedChatMessage[]; nextChatId: number; }
+interface Party { id: string; leaderId: string; members: string[]; }
+interface PartyInvite extends PartyInviteView { recipientId: string; }
+interface SavedService { version: 1; parties: Party[]; accounts: Account[]; world: string; chat: SharedChatMessage[]; nextChatId: number; }
 export interface WorldSocketData {
   id: string | null;
   openedAt: number;
@@ -112,7 +117,20 @@ function decodeSave(source: string): SavedService {
       || (entry.speakerId !== undefined && entry.speakerId !== null && (!identifier(entry.speakerId) || !ids.has(entry.speakerId)))) throw new Error('Invalid saved shared chat');
     chat.push({ id: entry.id, speakerId: typeof entry.speakerId === 'string' ? entry.speakerId : null, name: entry.name, text: entry.text, ...(entry.kind === 'emote' ? { kind: 'emote' as const } : {}) });
   }
-  return { version: 1, accounts, world: value.world, chat, nextChatId: value.nextChatId };
+  const parties: Party[] = [], grouped = new Set<string>(), partyIds = new Set<string>();
+  if (value.parties !== undefined && !Array.isArray(value.parties)) throw new Error('Invalid saved parties');
+  for (const valueParty of value.parties ?? []) {
+    if (!record(valueParty) || !identifier(valueParty.id) || partyIds.has(valueParty.id) || !identifier(valueParty.leaderId)
+      || !Array.isArray(valueParty.members) || valueParty.members.length < 2 || valueParty.members.length > 5
+      || !valueParty.members.includes(valueParty.leaderId)) throw new Error('Invalid saved party');
+    const members: string[] = [];
+    for (const id of valueParty.members) {
+      if (!identifier(id) || !ids.has(id) || grouped.has(id)) throw new Error('Invalid saved party member');
+      grouped.add(id); members.push(id);
+    }
+    partyIds.add(valueParty.id); parties.push({ id: valueParty.id, leaderId: valueParty.leaderId, members });
+  }
+  return { version: 1, accounts, world: value.world, chat, nextChatId: value.nextChatId, parties };
 }
 
 export async function createWorldService(options: WorldServiceOptions) {
@@ -122,6 +140,8 @@ export async function createWorldService(options: WorldServiceOptions) {
   const world = createSharedAdventure(saved ? { save: saved.world } : {});
   const accounts = new Map((saved?.accounts ?? []).map(account => [account.character.id, account]));
   const chat = saved?.chat ?? [];
+  const parties = new Map((saved?.parties ?? []).map(party => [party.id, party]));
+  const invites = new Map<string, PartyInvite>();
   let nextChatId = saved?.nextChatId ?? 1;
   let serverTime = 0;
   const clients = new Set<ServerWebSocket<WorldSocketData>>();
@@ -132,7 +152,7 @@ export async function createWorldService(options: WorldServiceOptions) {
   const onPersistenceError = options.onPersistenceError ?? (() => console.error('Shared world could not be saved.'));
 
   function persist(): Promise<void> {
-    const data: SavedService = { version: 1, accounts: [...accounts.values()], world: world.save(), chat: [...chat], nextChatId };
+    const data: SavedService = { version: 1, accounts: [...accounts.values()], world: world.save(), chat: [...chat], nextChatId, parties: [...parties.values()] };
     const source = JSON.stringify(data);
     const next = saveQueue.catch(() => {}).then(async () => {
       await mkdir(dirname(options.savePath), { recursive: true, mode: 0o700 });
@@ -147,7 +167,72 @@ export async function createWorldService(options: WorldServiceOptions) {
     socket.send(JSON.stringify(message));
   }
   function error(socket: ServerWebSocket<WorldSocketData>, text: string): void { send(socket, { type: 'error', text }); }
+  function partyFor(id: string): Party | undefined { return [...parties.values()].find(party => party.members.includes(id)); }
+  function cohort(id: string): readonly string[] { return partyFor(id)?.members ?? [id]; }
+  function expireInvites(): void { for (const [id, invite] of invites) if (invite.expiresAtMillis <= Date.now()) invites.delete(id); }
+  function partyView(id: string): PartyView | null {
+    const party = partyFor(id);
+    if (!party) return null;
+    return { id: party.id, leaderId: party.leaderId, members: party.members.map(memberId => {
+      const account = accounts.get(memberId)!, player = world.getPlayer(memberId)!.snapshot.player;
+      return { id: memberId, name: account.character.name, archetype: account.character.archetype,
+        health: player.health, maximumHealth: player.maximumHealth, online: online.has(memberId), sameEncounter: world.session(memberId).id === world.session(id).id };
+    }) };
+  }
+  function applyParty(id: string, value: PartyCommand, socket: ServerWebSocket<WorldSocketData>): boolean {
+    expireInvites();
+    const party = partyFor(id);
+    const reject = (text: string) => { error(socket, text); return false; };
+    if (value.type === 'partyDecline') {
+      const invite = invites.get(value.inviteId);
+      if (!invite || invite.recipientId !== id) return reject('That invitation is no longer available.');
+      invites.delete(invite.id); return true;
+    }
+    if (world.session(id).mode !== 'shared') return reject('Return to the shared world before changing your party.');
+    switch (value.type) {
+      case 'partyInvite': {
+        if (party && party.leaderId !== id) return reject('Only the party leader can invite adventurers.');
+        if (party && party.members.length >= 5) return reject('Your party is full. Five adventurers can travel together.');
+        if (value.playerId === id) return reject('Choose another adventurer to invite.');
+        if (!online.has(value.playerId) || world.session(value.playerId).mode !== 'shared') return reject('That adventurer must be here in the shared world to receive an invitation.');
+        if (partyFor(value.playerId)) return reject('That adventurer already belongs to a party.');
+        if ([...invites.values()].some(invite => invite.inviterId === id && invite.recipientId === value.playerId)) return reject('That adventurer already has your invitation.');
+        const invite: PartyInvite = { id: crypto.randomUUID(), inviterId: id, inviterName: accounts.get(id)!.character.name, recipientId: value.playerId, expiresAtMillis: Date.now() + 60_000 };
+        invites.set(invite.id, invite); return true;
+      }
+      case 'partyAccept': {
+        const invite = invites.get(value.inviteId);
+        if (!invite || invite.recipientId !== id) return reject('That invitation is no longer available.');
+        if (party) return reject('Leave your current party before accepting another invitation.');
+        if (!online.has(invite.inviterId) || world.session(invite.inviterId).mode !== 'shared') return reject('The inviting adventurer must return to the shared world first.');
+        const target = partyFor(invite.inviterId);
+        if (target && target.leaderId !== invite.inviterId) return reject('That adventurer is no longer the party leader.');
+        if (target && target.members.length >= 5) return reject('That party is full. Five adventurers can travel together.');
+        if (target) target.members.push(id);
+        else {
+          const created: Party = { id: crypto.randomUUID(), leaderId: invite.inviterId, members: [invite.inviterId, id] };
+          parties.set(created.id, created);
+        }
+        for (const [inviteId, pending] of invites) if (pending.recipientId === id || pending.inviterId === id) invites.delete(inviteId);
+        return true;
+      }
+      case 'partyLeave': case 'partyKick': {
+        if (!party) return reject('You are not in a party.');
+        if (value.type === 'partyKick' && party.leaderId !== id) return reject('Only the party leader can remove adventurers.');
+        const targetId = value.type === 'partyLeave' ? id : value.playerId;
+        if (value.type === 'partyKick' && targetId === id) return reject('Choose Leave Party to leave your companions.');
+        if (!party.members.includes(targetId)) return reject('That adventurer is not in your party.');
+        if (party.members.some(memberId => world.session(memberId).mode !== 'shared')) return reject('Return to the shared world together before changing your party.');
+        party.members = party.members.filter(memberId => memberId !== targetId);
+        if (party.members.length < 2) parties.delete(party.id);
+        else if (party.leaderId === targetId) party.leaderId = party.members[0]!;
+        for (const [inviteId, invite] of invites) if (invite.inviterId === targetId) invites.delete(inviteId);
+        return true;
+      }
+    }
+  }
   function broadcast(): void {
+    expireInvites();
     const serverWallTimeMillis = Date.now();
     // Scoped to this synchronous broadcast: never reuse stale or cross-instance views.
     const instancePlayers = new Map<string, ReturnType<typeof world.players>>();
@@ -157,7 +242,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       const session = world.session(id);
       let players = instancePlayers.get(session.id);
       if (!players) { players = world.players(session.id); instancePlayers.set(session.id, players); }
-      send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat: session.mode === 'shared' ? chat : (privateChat.get(session.id) ?? []), serverTime, serverWallTimeMillis, movement: player.movementCheckpoint!, session });
+      send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat: session.mode === 'shared' ? chat : (privateChat.get(session.id) ?? []), serverTime, serverWallTimeMillis, movement: player.movementCheckpoint!, session, party: partyView(id), partyInvites: [...invites.values()].filter(invite => invite.recipientId === id).map(({ recipientId, ...invite }) => invite) });
     }
   }
   function disconnect(socket: ServerWebSocket<WorldSocketData>): void {
@@ -169,7 +254,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       for (const action of ACTIONS) player.setAction(action, false);
       player.setMouseForward(false);
     }
-    world.leave(id);
+    world.leave(id, cohort(id));
     online.delete(id);
     socket.data.id = null;
     if (!closed) { void persist().catch(onPersistenceError); broadcast(); }
@@ -201,12 +286,14 @@ export async function createWorldService(options: WorldServiceOptions) {
     if (id === null) return false;
     const session = world.session(id);
     switch (value.type) {
-      case 'pause': return world.pause(id);
+      case 'partyInvite': case 'partyAccept': case 'partyDecline': case 'partyLeave': case 'partyKick': return applyParty(id, value, socket);
+      case 'pause': return world.pause(id, cohort(id));
       case 'resume': return world.resume(id);
       case 'rejoin': {
         const previous = session.id;
         const accepted = world.rejoin(id);
         if (accepted && previous !== 'shared') privateChat.delete(previous);
+        if (!accepted) error(socket, 'Everyone in your party must finish fighting before returning to the shared world.');
         return accepted;
       }
       case 'movement': return player.enqueueMovement!(value.frames);
@@ -241,23 +328,28 @@ export async function createWorldService(options: WorldServiceOptions) {
           if (!match) { error(socket, 'Type /emotes to see the available actions.'); return false; }
           const name = match[1]!.toLowerCase(), argument = match[2]?.trim();
           if (name === 'emotes') { error(socket, EMOTE_HELP); return true; }
-          if (session.mode === 'paused') { error(socket, 'Resume your journey to perform an emote.'); return false; }
-          if (name === 'sit') { player.sit(); broadcast(); return true; }
-          if (name === 'stand') { player.emote('stand'); broadcast(); return true; }
-          if (['e', 'em', 'emote', 'me'].includes(name)) {
-            if (!argument) { error(socket, 'Try /e followed by what your character does.'); return false; }
-            player.emote('stand'); text = argument; kind = 'emote';
+          if (name === 'roll') {
+            if (argument) { error(socket, 'Use /roll to roll from 1 to 100.'); return false; }
+            text = `rolls ${randomInt(1, 101)} (1–100).`; kind = 'emote';
           } else {
-            const emote = findEmote(name);
-            if (!emote) { error(socket, 'Unknown command. Type /emotes to see the available actions.'); return false; }
-            let addressed: string | undefined;
-            if (argument) {
-              const names = [...world.players(session.id).map(other => other.name), ...player.snapshot.threats.map(threat => threat.name)];
-              const matches = names.filter(candidate => candidate.toLowerCase() === argument.toLowerCase());
-              if (matches.length !== 1) { error(socket, 'Use the full name of one character or creature here.'); return false; }
-              addressed = matches[0];
+            if (session.mode === 'paused') { error(socket, 'Resume your journey to perform an emote.'); return false; }
+            if (name === 'sit') { player.sit(); broadcast(); return true; }
+            if (name === 'stand') { player.emote('stand'); broadcast(); return true; }
+            if (['e', 'em', 'emote', 'me'].includes(name)) {
+              if (!argument) { error(socket, 'Try /e followed by what your character does.'); return false; }
+              player.emote('stand'); text = argument; kind = 'emote';
+            } else {
+              const emote = findEmote(name);
+              if (!emote) { error(socket, 'Unknown command. Type /emotes to see the available actions.'); return false; }
+              let addressed: string | undefined;
+              if (argument) {
+                const names = [...world.players(session.id).map(other => other.name), ...player.snapshot.threats.map(threat => threat.name)];
+                const matches = names.filter(candidate => candidate.toLowerCase() === argument.toLowerCase());
+                if (matches.length !== 1) { error(socket, 'Use the full name of one character or creature here.'); return false; }
+                addressed = matches[0];
+              }
+              player.emote(emote.name); text = emoteText(emote, addressed); kind = 'emote';
             }
-            player.emote(emote.name); text = emoteText(emote, addressed); kind = 'emote';
           }
         }
         const message: SharedChatMessage = { id: nextChatId++, speakerId: account.character.id, name: account.character.name, text, ...(kind ? { kind } : {}) };
@@ -298,7 +390,7 @@ export async function createWorldService(options: WorldServiceOptions) {
         const stopping = (value.command.type === 'action' && !value.command.pressed) || (value.command.type === 'mouseForward' && !value.command.active);
         const session = world.session(socket.data.id!);
         const priority = value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin' || stopping;
-        const allowedWhilePaused = priority || value.command.type === 'chat' || value.command.type === 'camera' || value.command.type === 'target';
+        const allowedWhilePaused = priority || value.command.type === 'chat' || value.command.type === 'camera' || value.command.type === 'target' || value.command.type.startsWith('party');
         if ((session.mode !== 'paused' || allowedWhilePaused) && (priority || socket.data.commandsAt.length < 120)) {
           socket.data.lastSequence = sequence;
           if (!stopping) socket.data.commandsAt.push(now);
@@ -306,7 +398,7 @@ export async function createWorldService(options: WorldServiceOptions) {
             accepted = true;
             void player.previewBait(value.command.destination).then(forecast => send(socket, { type: 'movePreview', sequence, forecast }));
           } else accepted = apply(player, value.command, socket);
-          if (accepted && (value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin')) {
+          if (accepted && (value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin' || value.command.type.startsWith('party'))) {
             void persist().catch(onPersistenceError);
             broadcast();
           }

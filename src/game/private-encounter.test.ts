@@ -334,3 +334,128 @@ describe("private paused encounters", () => {
     expect(reopened.rejoin("alice")).toBe(true);
   });
 });
+
+describe('party encounter cohorts', () => {
+  test('members share one paused world, advance once, restore together, and return to individual origins', () => {
+    const seed = createSharedAdventure({ now: () => 1000 });
+    seed.join('alice', 'Alice', 'mage'); seed.join('bob', 'Bob', 'warrior'); seed.join('observer', 'Observer', 'hunter');
+    const saved = JSON.parse(seed.save());
+    saved.characters[1].state.position.z = -9;
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+    const alice = world.join('alice', 'Alice', 'mage'), bob = world.join('bob', 'Bob', 'warrior');
+    const observer = world.join('observer', 'Observer', 'hunter');
+    const origins = [alice.snapshot.player.position, bob.snapshot.player.position];
+    expect(world.pause('bob', ['alice', 'bob'])).toBe(true);
+    const sessionId = world.session('alice').id;
+    expect(world.session('bob').id).toBe(sessionId);
+    expect(world.players(sessionId).map(player => player.id).sort()).toEqual(['alice', 'bob']);
+    expect(world.players().map(player => player.id)).toEqual(['observer']);
+    expect(JSON.parse(world.save()).instances).toHaveLength(1);
+    expect(world.resume('alice')).toBe(true);
+    for (const player of [alice, bob, observer]) { player.setCameraForward(0, 1); player.setAction('forward', true); }
+    world.advance(.2);
+    expect(alice.snapshot.player.position.z - origins[0]!.z).toBeCloseTo(1.04, 5);
+    expect(bob.snapshot.player.position.z - origins[1]!.z).toBeCloseTo(1.04, 5);
+    expect(observer.snapshot.player.position.z).toBeCloseTo(-6.8, 5);
+    expect(world.pause('bob')).toBe(true);
+    const frozen = alice.snapshot.player.position;
+    world.advance(.5);
+    expect(alice.snapshot.player.position).toEqual(frozen);
+    expect(world.session('alice').mode).toBe('paused');
+    expect(world.session('bob').mode).toBe('paused');
+    const restored = createSharedAdventure({ save: world.save(), now: () => 1000 });
+    const returned = restored.join('alice', 'Alice', 'mage');
+    expect(restored.session('bob').id).toBe(sessionId);
+    expect(restored.resume('alice')).toBe(true);
+    expect(restored.players(sessionId).map(player => player.id)).toEqual(['alice']);
+    expect(restored.rejoin('alice')).toBe(true);
+    expect(returned.snapshot.player.position).toEqual(origins[0]!);
+    expect(restored.getPlayer('bob')!.snapshot.player.position).toEqual(origins[1]!);
+    expect(restored.session('bob').mode).toBe('shared');
+    expect(restored.players().map(player => player.id)).toEqual(['alice']);
+    restored.join('bob', 'Bob', 'warrior');
+    restored.leave('bob', ['alice', 'bob']);
+    expect(restored.session('alice').id).toBe(restored.session('bob').id);
+    expect(restored.session('alice').mode).toBe('paused');
+    expect(restored.resume('alice')).toBe(true);
+    expect(restored.players(restored.session('alice').id).map(player => player.id)).toEqual(['alice']);
+    restored.join('bob', 'Bob', 'warrior');
+    expect(restored.players(restored.session('alice').id)).toHaveLength(2);
+  });
+
+  test('party targets and clock stay shared, every fighter gates return, and private kills grant no rewards', () => {
+    const seed = createSharedAdventure({ now: () => 1000 });
+    for (const id of ['alice', 'bob', 'observer']) seed.join(id, id, 'mage');
+    const saved = JSON.parse(seed.save());
+    for (const member of saved.characters.slice(0, 2)) {
+      const chapter = earnedChapter(2); chapter.accepted.push('last-shift');
+      Object.assign(member.state, { phase: 'expedition', position: { x: 2, y: 0, z: 58.5 }, chapter });
+    }
+    saved.world.ritualCalled = true;
+    for (const threat of saved.world.threats) {
+      if (threat.id === 'ritual-guardian') Object.assign(threat, {
+        active: true, health: 5, phase: 'preparation', aggro: true, targetPlayerId: 'bob',
+        contributors: ['alice', 'bob'], combatants: ['bob'], castDuration: 3, remainingSeconds: 3,
+      });
+      else Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true });
+    }
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+    const alice = world.join('alice', 'alice', 'mage'), bob = world.join('bob', 'bob', 'mage');
+    const observer = world.join('observer', 'observer', 'mage');
+    const experienceBefore = new Map([alice, bob].map(player => [player, player.snapshot.progression.experience]));
+    expect(world.pause('alice', ['alice', 'bob'])).toBe(true);
+    expect(alice.snapshot.threats.find(t => t.id === 'ritual-guardian')!.targetPlayerId).toBe('bob');
+    expect(world.session('alice').canRejoin).toBe(false);
+    expect(world.rejoin('alice')).toBe(false);
+    expect(observer.snapshot.threats.find(t => t.id === 'ritual-guardian')!.active).toBe(false);
+    expect(world.resume('bob')).toBe(true);
+    tap(bob, 'brace'); readyParty(alice, bob); world.advance(.1);
+    const clockBefore = alice.snapshot.combat.elapsedSeconds;
+    world.advance(.1);
+    expect(alice.snapshot.combat.elapsedSeconds - clockBefore).toBeCloseTo(.1, 5);
+    expect(bob.snapshot.combat.elapsedSeconds).toBe(alice.snapshot.combat.elapsedSeconds);
+    finishCycle(bob, world);
+    bob.selectTarget('ritual-guardian'); tap(bob, 'strike'); readyParty(alice, bob); world.advance(.1);
+    expect(alice.snapshot.threats.find(t => t.id === 'ritual-guardian')!.health).toBe(0);
+    for (const player of [alice, bob]) {
+      player.openLoot('ritual-guardian'); tap(player, 'takeLoot');
+      expect(player.snapshot.carriedRelics).toBe(0);
+      expect(player.snapshot.progression.experience).toBe(experienceBefore.get(player)!);
+      expect(player.snapshot.quests.find(q => q.id === 'last-shift')!.status).toBe('active');
+    }
+    expect(world.rejoin('alice')).toBe(true);
+    expect(world.session('bob').mode).toBe('shared');
+  });
+
+  test('a legacy single-owner private save migrates without losing its return position', () => {
+    const seed = createSharedAdventure({ now: () => 1000 });
+    seed.join('alice', 'Alice', 'mage'); seed.pause('alice');
+    const saved = JSON.parse(seed.save()), instance = saved.instances[0];
+    saved.version = 4; instance.ownerId = instance.members[0].id; instance.origin = instance.members[0].origin; delete instance.members;
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+    world.join('alice', 'Alice', 'mage');
+    expect(world.session('alice').origin).toEqual(instance.origin);
+    expect(world.rejoin('alice')).toBe(true);
+    expect(JSON.parse(world.save()).version).toBe(5);
+  });
+});
+
+test('a surviving party member can return a dead companion without reviving them', () => {
+  const seed = createSharedAdventure({ now: () => 1000 });
+  seed.join('alice', 'Alice', 'mage'); seed.join('bob', 'Bob', 'warrior');
+  seed.pause('alice', ['alice', 'bob']);
+  const saved = JSON.parse(seed.save());
+  Object.assign(saved.characters.find((member: { id: string }) => member.id === 'bob').state, { health: 0, phase: 'lost' });
+  const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+  const alice = world.join('alice', 'Alice', 'mage'), bob = world.join('bob', 'Bob', 'warrior');
+  expect(world.session('bob').canRejoin).toBe(false);
+  expect(world.resume('bob')).toBe(false); expect(world.rejoin('bob')).toBe(false);
+  expect(world.session('alice').canRejoin).toBe(true);
+  expect(world.resume('alice')).toBe(true); expect(world.rejoin('alice')).toBe(true);
+  expect(world.session('alice').mode).toBe('shared'); expect(world.session('bob').mode).toBe('shared');
+  expect(alice.snapshot.player.health).toBe(100);
+  expect(bob.snapshot.player.health).toBe(0); expect(bob.snapshot.phase).toBe('lost');
+  const restored = createSharedAdventure({ save: world.save(), now: () => 1000 });
+  const dead = restored.join('bob', 'Bob', 'warrior');
+  expect(dead.snapshot.player.health).toBe(0); expect(dead.snapshot.phase).toBe('lost');
+});

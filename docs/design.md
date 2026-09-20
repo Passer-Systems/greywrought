@@ -231,6 +231,9 @@ Attack or Defend. Selecting another destination or action replaces that part of 
 plan. Choose whether the action happens before, during, or after movement; Attack
 requires standing still, while Defend works during movement. Ready begins execution
 early; the timer begins it automatically when the planning window expires.
+Auto-ready is on by default and readies the player after both movement and an
+action are selected. Its planner checkbox remembers the choice; turn it off to
+adjust timing before pressing Ready.
 In shared combat, participating players ready their own plans; execution begins
 when everyone participating is ready or the common timer expires. Unengaged
 players do not delay the sequence. Private encounters keep their own clock.
@@ -439,15 +442,21 @@ intentions, combat clock, gathered resources and corpse claims. Character health
 movement, inventory and abilities remain individual. The first nearby player
 to loot receives that corpse's reward. Returning to town never resets the shared
 forest. Ordinary enemies and harvested resources respawn after two minutes.
+The Ironback cache has one shared set of contents: the first player to loot it
+empties it for everyone, permanently, including after a server restart.
 
 The action bar has individual squares labelled 1–9, 0, -, =. Attack is 1, block
 is 2, and health potion is =; the remaining slots are empty. Attack art is sword
 for warrior, wand for mage, bow for ranger. Stamina costs are explained in hover tooltips; bottom-right numbers are consumable quantities. Enter opens
 shared text chat. Chat typing never triggers movement or ability keys.
+`/roll` posts a server-generated roll from 1 through 100 to the current encounter’s chat.
 
 The public server stores character/world progress. Browser character access is
 retained with an opaque browser token; old single-player saves are left intact.
-No voice chat or party management is implemented. Server positions update at
+Parties support up to five players. Right-click a player nameplate or model to
+invite them; invitations require acceptance. Party frames show health and select
+allies. The leader can invite and remove members; anyone can leave. Membership
+survives reconnects and server restarts. Voice chat is not implemented. Server positions update at
 20 Hz; scene positions interpolate each rendered frame. Rendering never resolves
 combat outcomes.
 
@@ -458,13 +467,16 @@ GREYWROUGHT_WORLD_SAVE path. Never test combat against the live shared save.
 
 ## Private encounters and pause — 0.12.0
 
-Escape pauses by taking the character into a private copy of the zone. The same
+Escape clears the selected target, then opens the menu without pausing the world.
+The dedicated Pause control takes the character into a private copy of the zone. The same
 thing happens on disconnect; a lost connection is detected after two seconds
 of the last WebSocket pong. The browser answers pings automatically, without a
 gameplay heartbeat timer or focus check. Existing combat, damage, warnings and
 supplies are kept.
-Other players remain in the shared world with its own enemies and clock. The
-current build has no parties, so only the character and enemies enter the copy.
+When any party member pauses or disconnects, the whole party enters the same
+paused encounter. Anyone can resume it for everyone. Returning to the main world
+also moves the party together and requires everyone to be out of combat.
+Unrelated players remain in the shared world with its own enemies and clock.
 When the departing character was an enemy's last combatant, that main-world
 enemy clears combat, recovers, and returns to its home. With nobody left in the
 main world to observe the return, the reset finishes immediately. If another
