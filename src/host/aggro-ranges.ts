@@ -18,6 +18,7 @@ export function createAggroRanges(scene: Object3D, canvas: HTMLCanvasElement) {
   const directMaterial = new MeshBasicMaterial({ color: 0xff655c, transparent: true, opacity: 0.9, side: DoubleSide, depthWrite: false });
   const helpMaterial = new MeshBasicMaterial({ color: 0xffc45c, transparent: true, opacity: 0.9, side: DoubleSide, depthWrite: false });
   const ranges = new Map<string, { direct: Mesh<RingGeometry, MeshBasicMaterial>; help: Mesh<RingGeometry, MeshBasicMaterial> }>();
+  const visibility = { direct: false, help: false };
   let latest: AdventureSnapshot | undefined;
   function update(snapshot: AdventureSnapshot) {
     latest = snapshot;
@@ -36,7 +37,7 @@ export function createAggroRanges(scene: Object3D, canvas: HTMLCanvasElement) {
         ranges.set(threat.id, pair);
       }
       for (const [ring, radius, kind] of [[pair.direct, threat.aggroRange, 'direct'], [pair.help, threat.callForHelpRange, 'help']] as const) {
-        ring.visible = radius > 0;
+        ring.visible = visibility[kind] && radius > 0;
         ring.position.set(threat.position.x, 0.09, threat.position.z);
         ring.scale.setScalar(radius || 1);
         if (ring.visible) conformToTerrain(ring, 0.09);
@@ -48,7 +49,7 @@ export function createAggroRanges(scene: Object3D, canvas: HTMLCanvasElement) {
   }
   return {
     update,
-    setVisible(visible: boolean) { root.visible = visible; if (latest) update(latest); },
+    setVisible(kind: "direct" | "help", visible: boolean) { visibility[kind] = visible; root.visible = visibility.direct || visibility.help; if (latest) update(latest); },
     dispose() {
       root.removeFromParent();
       directGeometry.dispose(); helpGeometry.dispose(); directMaterial.dispose(); helpMaterial.dispose();

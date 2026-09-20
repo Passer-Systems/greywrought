@@ -47,7 +47,7 @@ try {
   await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"&&document.body.dataset.creatureRigState==="ready"&&window.tacticsCamera');
   check(await page.evaluate('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).length===0'), 'Default battlefield has no persistent attack warnings');
   check(await page.evaluate('document.querySelectorAll(".enemy-nameplate .enemy-cast-bar:not([hidden])").length===0'), 'Planning does not duplicate intentions in floating cast bars');
-  check(await page.evaluate('["strike","brace","bait"].every(action=>{const button=document.querySelector(`[data-action="${action}"]`);return button&&!button.disabled&&button.querySelector(".action-label");})'), 'Action bar exposes only Attack, Defend and Move');
+  check(await page.evaluate('[["strike","Attack"],["brace","Defend"],["bait","Move"]].every(([action,name])=>{const button=document.querySelector(`[data-action="${action}"]`);return button&&!button.disabled&&button.getAttribute("aria-label")===name&&button.querySelector(".action-art img");})'), 'Action bar exposes only Attack, Defend and Move');
   await page.press('Digit3');
   await page.waitFor('document.body.dataset.baitAiming==="true"');
   await page.press('Escape');

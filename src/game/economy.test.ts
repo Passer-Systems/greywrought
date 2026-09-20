@@ -32,7 +32,7 @@ test("shops require range, open vendor, correct stock and coins; all purchases e
     game = createAdventure({save:JSON.stringify(save)}); game.interactNpc(vendor.id);
     expect(game.buyGear(vendor.id,vendor.item)).toBe(false);
     expect(game.snapshot.coins).toBe(vendor.price-1);
-    expect(game.snapshot.report).toContain("coins");
+    expect(game.snapshot.report).toContain(`${vendor.price} copper`);
   }
 });
 test("a credited defeat awards experience before loot, crosses level four and never repeats on loot or reload", () => {

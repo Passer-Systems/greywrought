@@ -89,7 +89,7 @@ function readyCombat(): void {
 }
 const hudSize = new ResizeObserver(() => {
   unitFrames.layout();
-  running?.world.setCombatHudHeight(element("combat-plan-mount").parentElement!.getBoundingClientRect().height);
+  running?.world.setCombatHudHeight(Math.max(0, element("world-wrap").getBoundingClientRect().bottom - element("combat-plan-mount").parentElement!.getBoundingClientRect().top));
 });
 hudSize.observe(element("combat-plan-mount").parentElement!);
 const bank = createBankPanel(element("adventure-hud"), {
@@ -291,6 +291,7 @@ let nextHudTime = 0;
 const frameInterval = 1000 / 60;
 let paused = false;
 let aggroRangesVisible = false;
+let helpRangesVisible = false;
 let backgrounded = false;
 let lastEncounterState = '';
 let entering = false;
@@ -343,15 +344,22 @@ function release(): void {
   }
   keys.clear();
 }
-function toggleAggroRanges(): void {
-  aggroRangesVisible = !aggroRangesVisible;
+function toggleAggroRanges(kind: "direct" | "help" = "direct"): void {
+  if (kind === "direct") aggroRangesVisible = !aggroRangesVisible;
+  else helpRangesVisible = !helpRangesVisible;
   button('aggro-ranges-toggle').setAttribute('aria-pressed', String(aggroRangesVisible));
   text('aggro-ranges-state', aggroRangesVisible ? 'On' : 'Off');
-  element('aggro-ranges-legend').hidden = !aggroRangesVisible;
+  button('help-ranges-toggle').setAttribute('aria-pressed', String(helpRangesVisible));
+  text('help-ranges-state', helpRangesVisible ? 'On' : 'Off');
+  element('aggro-direct-legend').hidden = !aggroRangesVisible;
+  element('aggro-help-legend').hidden = !helpRangesVisible;
+  element('aggro-ranges-legend').hidden = !aggroRangesVisible && !helpRangesVisible;
+  document.body.dataset.helpRangesVisible = String(helpRangesVisible);
   document.body.dataset.aggroRangesVisible = String(aggroRangesVisible);
   if (running) {
     const { world, game } = running;
     world.setAggroRangesVisible(aggroRangesVisible);
+    world.setHelpRangesVisible(helpRangesVisible);
     if (paused) world.render(game.snapshot, 0, game.renderPlayer, undefined, game.connectionRevision);
   }
 }
@@ -722,7 +730,6 @@ function renderHud(snapshot: AdventureSnapshot): void {
     control.setAttribute("aria-pressed", String(action === "bait" && baitAiming));
     control.dataset.range = range.state;
     control.classList.toggle("action-in-range", targeted && range.state === "in" && !control.disabled);
-    control.querySelector<HTMLElement>(".action-label")!.textContent = spec.name;
     control.querySelector<HTMLElement>(".action-tooltip strong")!.textContent = spec.name;
     control.querySelector<HTMLElement>(".action-tooltip span:last-child")!.textContent = spec.description;
     const art = control.querySelector<HTMLImageElement>(".action-art img")!;
@@ -860,6 +867,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     audio.reset();
     const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); }, destination => game.previewBait(destination));
     world.setAggroRangesVisible(aggroRangesVisible);
+    world.setHelpRangesVisible(helpRangesVisible);
     world.updateChat(game.chat, character.id);
     const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false };
     running = app;
@@ -944,7 +952,8 @@ click("entry-creator-back", () => { route = profile?.characters.length ? "roster
 click("entry-change-character", () => { if (!entering) { route = "creator"; renderEntry(); } });
 click("entry-enter-world", () => { const character = selectedCharacter(); if (character) void enterWorld(character); });
 click("pause-open", () => setMenuOpen(element("pause-panel").hidden, "settings"));
-click("aggro-ranges-toggle", toggleAggroRanges);
+click("aggro-ranges-toggle", () => toggleAggroRanges());
+click("help-ranges-toggle", () => toggleAggroRanges("help"));
 for (const tab of ["encounter", "settings"] as const) {
   click(`pause-tab-${tab}`, () => selectMenuTab(tab));
   listen(button(`pause-tab-${tab}`), "keydown", (event) => {
@@ -996,11 +1005,12 @@ listen(window, "keydown", (event) => {
   }
   if (route !== "world") return;
   if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
-  if (menuOpen() && event.code !== "Escape" && event.code !== "KeyH") return;
+  if (event.target instanceof HTMLElement && event.target.isContentEditable) return;
+  if (menuOpen() && event.code !== "Escape" && event.code !== "KeyH" && event.code !== "KeyV") return;
   if (event.code === "Enter") { event.preventDefault(); release(); chatLog.focusInput(); return; }
-  if (event.code === "KeyH" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+  if ((event.code === "KeyH" || event.code === "KeyV") && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
     event.preventDefault();
-    if (!event.repeat) toggleAggroRanges();
+    if (!event.repeat) toggleAggroRanges(event.code === "KeyV" ? "help" : "direct");
     return;
   }
   if (event.code === "KeyC") {

@@ -71,6 +71,7 @@ export interface AdventureWorld {
   clearHover(): void;
   setThreatNameplateVisible(id: string, visible: boolean): void;
   setAggroRangesVisible(visible: boolean): void;
+  setHelpRangesVisible(visible: boolean): void;
   setCombatPreview(preview: CombatPreview | null): void;
   setCombatHudHeight(height: number): void;
   setMoveAiming(active: boolean): void;
@@ -308,7 +309,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3) => void) | undefined;
   let elapsed = 0;
   let yaw = 0;
-  let pitch = 0.48;
+  let pitch = 0.7;
   let distance = 15;
   let lastAttack = initial.player.attackSequence;
   let playerProjectileTime = 0;
@@ -458,7 +459,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.45, pitch + dy * 0.004)); },
     zoom(delta) { distance = Math.max(6, Math.min(21, distance * Math.exp(delta * 0.001))); },
     setThreatNameplateVisible(id, visible) { overheadNames.suppress(`threat:${id}`, visible); },
-    setAggroRangesVisible(visible) { aggroRanges.setVisible(visible); },
+    setAggroRangesVisible(visible) { aggroRanges.setVisible("direct", visible); },
+    setHelpRangesVisible(visible) { aggroRanges.setVisible("help", visible); },
     setCombatHudHeight(height) { combatHudHeight = height; },
     setMoveAiming(active) { moveAiming = active; if (!active) { movementPreview.clear(); moveOutcome.hidden = true; } },
     canMoveTo(destination) { return combatGrid.accepts(destination); },
@@ -618,10 +620,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
       }
-      const viewOffset = snapshot.player.inCombat ? Math.min(height * .45, combatHudHeight) / 2 : 0;
-      if (viewOffset > 0) {
-        if (camera.view?.offsetY !== viewOffset || camera.view.fullWidth !== width || camera.view.fullHeight !== height) camera.setViewOffset(width, height, 0, viewOffset, width, height);
-      } else if (camera.view?.enabled) camera.clearViewOffset();
+      // Keep the same field of view in the ground visible above the HUD.
+      const worldHeight = Math.max(1, height - combatHudHeight);
+      if (camera.view?.fullWidth !== width || camera.view.fullHeight !== worldHeight || camera.view.height !== height) {
+        camera.setViewOffset(width, worldHeight, 0, 0, width, height);
+      }
       if (delta === 0 || cameraTarget.distanceToSquared(position) > 100) cameraTarget.copy(position);
       else cameraTarget.lerp(position, 1 - Math.exp(-delta * 12));
       const facing = forward();
@@ -650,8 +653,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         moveOutcome.style.left = Math.max(8, Math.min(rect.width - 290, hoverPointer.x - rect.left + 18)) + "px";
         moveOutcome.style.top = Math.max(8, Math.min(rect.height - moveOutcome.offsetHeight - 8, hoverPointer.y - rect.top + 18)) + "px";
       }
-      camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
-      camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
+      camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + 1 + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
+      camera.lookAt(cameraTarget.x, cameraTarget.y + 1, cameraTarget.z);
       updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position);
       updateCave(snapshot.player.position, camera.position);
       renderer.render(scene, camera);

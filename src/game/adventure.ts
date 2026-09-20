@@ -1,3 +1,4 @@
+import { formatMoney } from "./currency.js";
 import { snapCombatPosition, combatCell, reachableCombatCells, COMBAT_CELL_SIZE } from './combat-grid.js';
 import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
 import { restoreTownPosition } from './town-layout.js';
@@ -529,7 +530,7 @@ class Adventure implements AdventureGame {
         available: this.lootAvailable(t), reachable: this.canLoot(t),
       })), {
         sourceId: IRONBACK_CHEST_ID, sourceName: "Ironback Crab’s cache", position: { ...IRONBACK_CHEST_POSITION },
-        itemName: "18 coins and 2 health potions", kind: "salvage", quantity: 2, coins: 18,
+        itemName: `${formatMoney(18)} and 2 health potions`, kind: "salvage", quantity: 2, coins: 18,
         available: this.chestLootAvailable(), reachable: this.canLootChest(),
       }],
       lootOpenId: this.lootOpenId, carriedSalvage: s.carriedSalvage,
@@ -585,9 +586,9 @@ class Adventure implements AdventureGame {
     const s = this.state, vendor = VENDORS.find(v => v.id === vendorId);
     if (!vendor || vendor.item !== item || this.instancePaused() || this.inPrivateInstance() || s.phase !== "town" || this.vendorOpen !== vendorId || !this.near(vendorId, 2.5)) return false;
     if (s.chapter.ownedGear.includes(item)) { this.report("You already own this item. Equip it from your bags."); return false; }
-    if (s.coins < vendor.price) { this.report(`You need ${vendor.price} coins for ${gearName(item, s.archetype)}.`); return false; }
+    if (s.coins < vendor.price) { this.report(`You need ${formatMoney(vendor.price)} for ${gearName(item, s.archetype)}.`); return false; }
     s.coins -= vendor.price; s.chapter.ownedGear.push(item);
-    this.report(`You buy ${gearName(item, s.archetype)} for ${vendor.price} coins. Equip it from your bags.`);
+    this.report(`You buy ${gearName(item, s.archetype)} for ${formatMoney(vendor.price)}. Equip it from your bags.`);
     return true;
   }
   private gainExperience(amount: number): void {
@@ -877,7 +878,7 @@ class Adventure implements AdventureGame {
       this.lootOpenId = null;
       if (!this.canLootChest()) return;
       s.chestClaimed = true; s.coins += 18; s.potions += 2;
-      this.report("You open the Ironback Crab’s cache: 18 coins and 2 health potions.");
+      this.report(`You open the Ironback Crab’s cache: ${formatMoney(18)} and 2 health potions.`);
       return;
     }
     const corpse = s.world.threats.find(t => t.id === this.lootOpenId);
@@ -889,11 +890,11 @@ class Adventure implements AdventureGame {
     if (corpse.id === "ritual-guardian") {
       if (!corpse.rollClaims.includes(this.playerId ?? "solo")) corpse.rollClaims.push(this.playerId ?? "solo");
       s.carriedRelics += 1;
-      this.report(`You receive loot: Last Shift Roll × 1 and ${coins} coins. Reach Nine-Bell Yard alive to keep it.`);
+      this.report(`You receive loot: Last Shift Roll × 1 and ${formatMoney(coins)}. Reach Nine-Bell Yard alive to keep it.`);
     } else {
       const quantity = salvageQuantity(corpse.id);
       s.carriedSalvage += quantity;
-      this.report(`You receive loot: ${corpse.id.startsWith("cave-") ? "Cave" : "Forest"} salvage × ${quantity} and ${coins} coins. Return alive to exchange it for supplies.`);
+      this.report(`You receive loot: ${corpse.id.startsWith("cave-") ? "Cave" : "Forest"} salvage × ${quantity} and ${formatMoney(coins)}. Return alive to exchange it for supplies.`);
     }
   }
   setAction(action: AdventureAction, pressed: boolean): void {

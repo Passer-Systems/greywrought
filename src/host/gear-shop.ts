@@ -1,3 +1,4 @@
+import { formatMoney } from "../game/currency.js";
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { VENDORS, type VendorId } from "../game/economy.js";
 import { GEAR, gearName, type GearItemId } from "../game/yard-content.js";
@@ -23,7 +24,7 @@ export function createGearShop(host: HTMLElement, experienceHost: HTMLElement, c
   `;
   const panel = document.createElement("section"); panel.id = "gear-shop"; panel.hidden = true; panel.setAttribute("aria-label", "Equipment shop");
   panel.innerHTML = `<header class="rpg-window-header"><strong id="gear-shop-title" class="rpg-window-title"></strong><button type="button" class="rpg-window-close" id="gear-shop-close" aria-label="Close equipment shop">×</button></header><div class="gear-offer"><img id="gear-shop-icon" alt=""><h3 id="gear-shop-name"></h3><p id="gear-shop-description"></p><p id="gear-shop-balance"></p><button id="gear-buy" type="button"></button></div>`;
-  const hud = document.createElement("section"); hud.id = "experience-hud"; hud.setAttribute("aria-label", "Experience and coins");
+  const hud = document.createElement("section"); hud.id = "experience-hud"; hud.setAttribute("aria-label", "Experience and money");
   hud.innerHTML = `<span id="experience-label"></span><progress id="experience-bar" aria-label="Experience to next level" value="0" max="100"></progress><span id="coin-balance"></span><output id="level-up-notice" aria-live="polite"></output>`;
   host.append(style, panel);
   experienceHost.append(hud);
@@ -41,7 +42,7 @@ export function createGearShop(host: HTMLElement, experienceHost: HTMLElement, c
       const p = snapshot.progression;
       text(label, `Level ${p.level} · ${p.levelExperience} / ${p.nextLevelExperience} XP`);
       bar.max = p.nextLevelExperience; bar.value = p.levelExperience;
-      text(coins, `${snapshot.coins} coins`);
+      text(coins, formatMoney(snapshot.coins));
       if (previousLevel !== undefined && p.level > previousLevel) { text(notice, `Level up! Level ${p.level}`); noticeUntil = performance.now() + 5000; }
       previousLevel = p.level;
       if (performance.now() > noticeUntil) text(notice, "");
@@ -49,10 +50,10 @@ export function createGearShop(host: HTMLElement, experienceHost: HTMLElement, c
       if (!current) return;
       panel.dataset.vendor = current.id;
       text(title, `${current.name} · ${current.trade}`); text(name, gearName(current.item, snapshot.player.archetype));
-      text(description, GEAR[current.item].description); text(balance, `Your purse: ${snapshot.coins} coins`);
+      text(description, GEAR[current.item].description); text(balance, `Your purse: ${formatMoney(snapshot.coins)}`);
       const src = publicUrl(`assets/ui/icons/${GEAR[current.item].icon}.png`); if (icon.getAttribute("src") !== src) icon.src = src;
       const owned = p.ownedGear.includes(current.item); buy.disabled = owned || snapshot.coins < current.price;
-      text(buy, owned ? "Owned · Equip from your bags" : snapshot.coins < current.price ? `Need ${current.price} coins` : `Buy · ${current.price} coins`);
+      text(buy, owned ? "Owned · Equip from your bags" : snapshot.coins < current.price ? `Need ${formatMoney(current.price)}` : `Buy · ${formatMoney(current.price)}`);
     },
     dispose() { buy.removeEventListener("click", purchase); close.removeEventListener("click", callbacks.onClose); panel.remove(); hud.remove(); style.remove(); },
   };

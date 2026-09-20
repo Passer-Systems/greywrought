@@ -1,3 +1,4 @@
+import { formatMoney } from "../game/currency.js";
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
 import { GEAR, YARD, gearName, isGearItem, type GearSlot, type GearItemId } from "../game/yard-content.js";
@@ -206,7 +207,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     useHearthstone.hidden = selected !== "hearthstone";
     useHearthstone.disabled = next.phase === "lost" || next.player.inCombat || next.player.currentAction === "hearthstone";
     setText(useHearthstone, next.player.inCombat ? "Unavailable in combat" : next.player.currentAction === "hearthstone" ? "Returning…" : "Return to town");
-    setText(securedValue, `${next.coins} coins · ${next.supplies} supplies${next.quests.some(q => q.id === "last-shift" && q.status === "completed") ? " · Last Shift Roll delivered" : ""}`);
+    setText(securedValue, `${formatMoney(next.coins)} · ${next.supplies} supplies${next.quests.some(q => q.id === "last-shift" && q.status === "completed") ? " · Last Shift Roll delivered" : ""}`);
     if (!details.hidden) {
       const slot = slots.find(slot => slot.item?.id === selected);
       if (!slot || panel.hidden) details.hidden = true;

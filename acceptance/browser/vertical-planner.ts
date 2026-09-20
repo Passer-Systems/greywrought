@@ -49,9 +49,25 @@ try {
   await page.call('Network.setBlockedURLs', { urls: ['http://127.0.0.1:4301/__dev/events'] });
   await page.call('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Planner',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4302/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state')window.planSnapshot=d.snapshot;});}};`});
   await page.reload(); await page.waitFor('document.body.dataset.entryRoute==="roster"');
+  await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){window.plannerCamera=camera;};window.plannerProject=p=>{const v=new Vector3(p.x,p.y,p.z).project(window.plannerCamera),r=document.getElementById('world-canvas').getBoundingClientRect();return {x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};};})()`);
   await page.click('#entry-enter-world');
   await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"&&document.querySelectorAll(".combat-plan-portrait[src]").length===3');
   check(await page.evaluate(`document.querySelectorAll('#adventure-actions > button').length===12&&document.querySelectorAll('#adventure-actions > button[data-action]').length===3`), 'Twelve hotbar slots retain only Attack, Defend and Move');
+  check(await page.evaluate(`document.querySelectorAll('#adventure-actions .action-label').length===0&&[...document.querySelectorAll('#adventure-actions .action-art')].every(art=>{const r=art.getBoundingClientRect();return Math.abs(r.width-r.height)<1;})`), 'Hotbar shows square icons without captions');
+  async function checkFraming(): Promise<void> {
+    await page!.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+    const framing = await page!.evaluate<{ centered: boolean; enemiesVisible: boolean; points: unknown }>(`(()=>{
+      const top=document.querySelector('.adventure-bottom').getBoundingClientRect().top;
+      const player=window.planSnapshot.player.position;
+      const center=window.plannerProject({...player,y:player.y+1});
+      const points=window.planSnapshot.threats.filter(t=>t.active&&t.health>0&&t.aggro).flatMap(t=>[window.plannerProject(t.position),window.plannerProject({...t.position,y:t.position.y+2.2})]);
+      return {centered:Math.abs(center.x-innerWidth/2)<2&&Math.abs(center.y-top/2)<2,enemiesVisible:points.every(p=>p.x>20&&p.x<innerWidth-20&&p.y>20&&p.y<top-10),points:{center,top,enemies:points}};
+    })()`);
+    console.log('Camera framing', JSON.stringify(framing.points));
+    check(framing.centered, 'Character stays centered in the world above the planner');
+    check(framing.enemiesVisible, 'Nearby enemies remain above the planner and inside the world');
+  }
+  await checkFraming();
   check(await page.evaluate(`document.getElementById('experience-bar').getBoundingClientRect().top>=document.getElementById('adventure-actions').getBoundingClientRect().bottom`), 'XP remains below the hotbar');
   const drag = await page.evaluate<{from:{x:number;y:number};to:{x:number;y:number}}>(`(()=>{const center=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};};return {from:center('#adventure-actions [data-action="strike"]'),to:center('#adventure-actions [data-action-slot="11"]')};})()`);
   await page.call('Input.setInterceptDrags',{enabled:true});
@@ -85,6 +101,7 @@ try {
   await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:20,y:20,buttons:0});
   await page.shot('queued-target-desktop');
   await page.call('Emulation.setDeviceMetricsOverride',{width:600,height:800,deviceScaleFactor:1,mobile:false});
+  await checkFraming();
   check(await page.evaluate(`(()=>{const label=document.querySelector('.combat-plan-move-target'),r=label.getBoundingClientRect(),cell=label.closest('.combat-plan-row').getBoundingClientRect();return r.left>=cell.left&&r.right<=cell.right&&r.top>=cell.top&&r.bottom<=cell.bottom;})()`), 'Queued enemy name fits its action row at narrow width');
   await page.shot('queued-target-narrow');
   await page.call('Emulation.clearDeviceMetricsOverride');
@@ -118,6 +135,13 @@ try {
   await page.call('Input.dispatchMouseEvent',{type:'mouseWheel',x:720,y:180,deltaX:0,deltaY:1000});
   await page.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
   await page.shot('zoomed-out-hotbar');
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:720,y:40,buttons:0});
+  await page.call('Input.dispatchMouseEvent',{type:'mousePressed',x:720,y:40,button:'right',buttons:2,clickCount:1});
+  for (const y of [70,140,230,330]) {await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:720,y,button:'right',buttons:2});await Bun.sleep(30);}
+  await page.call('Input.dispatchMouseEvent',{type:'mouseReleased',x:720,y:330,button:'right',buttons:0,clickCount:1});
+  await page.evaluate('new Promise(resolve=>requestAnimationFrame(resolve))');
+  check(await page.evaluate('Math.asin(-window.plannerCamera.getWorldDirection(new window.plannerCamera.position.constructor()).y)>1.35'), 'Camera can tilt nearly overhead');
+  await page.shot('overhead-camera');
   check(page.errors.length===0,'No browser exceptions');
   console.log('PASS queued attack target, Self, named companion and target change to You, vertical movement/action rows, identities/portraits, action replacement, pinned preview/forecast, narrow viewport, Ready and interrupted action',page.output);
 } catch(error) {await page?.shot('failure');throw error;}

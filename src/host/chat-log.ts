@@ -2,12 +2,14 @@ import type { AdventureLogEntry } from "../game/adventure-types.js";
 
 type Channel = AdventureLogEntry["channel"];
 interface ScrollPosition { following: boolean; entryId: string | null; offset: number; }
+interface Geometry { x: number; y: number; width: number; height: number; }
+const layoutKey = "greywrought/chat-layout-v1";
 
 export function createChatLog(host: HTMLElement, onSend?: (text: string) => void) {
   const style = document.createElement("style");
   style.textContent = `
     #chat-log { position:absolute; z-index:15; left:8px; bottom:8px; width:min(340px,calc(100% - 16px)); height:160px; display:flex; flex-direction:column; color:#e0d8bd; pointer-events:auto; font:var(--ui-font-body)/1.45 system-ui,sans-serif; text-shadow:0 1px 2px #000; }
-    #chat-log-tabs { display:flex; flex:0 0 25px; align-items:end; gap:3px; padding-left:5px; }
+    #chat-log-tabs { display:flex; flex:0 0 25px; align-items:end; gap:3px; padding-left:5px; cursor:grab; user-select:none; touch-action:none; }
     #chat-log [data-log-tab] { padding:3px 11px 4px; border:1px solid #8d815c88; border-bottom:0; border-radius:4px 4px 0 0; color:#b8a270; background:#101510b3; font:var(--ui-font-body) Georgia,serif; white-space:nowrap; }
     #chat-log [data-log-tab][aria-selected="true"] { color:#f1d18b; background:#1b2118e3; border-color:#b3a16d99; }
     #chat-log [data-log-tab]:hover { color:#ffe6ad; background:#293024db; }
@@ -17,6 +19,11 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
     #chat-log .log-chat { color:#dfd5ab; }
     #chat-log .log-combat { color:#e1b794; }
     #chat-log-input { box-sizing:border-box; flex:0 0 30px; width:100%; border:1px solid #78806388; border-radius:3px; background:#0d1815e8; padding:5px 9px; color:#f3e6c7; font:var(--ui-font-body) system-ui,sans-serif; }
+    #chat-log-resize { position:absolute; right:0; bottom:0; width:16px; height:16px; padding:0; border:0; background:transparent; cursor:nwse-resize; touch-action:none; }
+    #chat-log-resize::after { content:""; position:absolute; right:3px; bottom:3px; width:8px; height:8px; background:repeating-linear-gradient(135deg,transparent 0 3px,#b8a270aa 3px 4px); clip-path:polygon(100% 0,100% 100%,0 100%); }
+    #chat-log-resize:focus-visible { outline:1px solid #e4c780; }
+    #chat-log-input { padding-right:20px; }
+    #chat-log[data-adjusting="move"] #chat-log-tabs { cursor:grabbing; }
     #chat-log-input:focus { outline:1px solid #e4c780; }
     #chat-log-input::placeholder { color:#c1bea6; }
     @media(max-width:700px) { #chat-log { width:min(310px,calc(100% - 16px)); height:140px; } }
@@ -71,7 +78,6 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
     };
   }
   function render(): void {
-    const position = positions[selected];
     const rows = entries.filter(entry => entry.channel === selected).map(entry => {
       const row = document.createElement("p");
       row.dataset.logEntry = String(entry.id);
@@ -86,9 +92,13 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
     }
     view.setAttribute("aria-labelledby", `chat-log-tab-${selected}`);
     root.dataset.logChannel = selected;
+    restoreScroll();
+  }
+  function restoreScroll(): void {
+    const position = positions[selected];
     if (position.following) view.scrollTop = view.scrollHeight;
     else {
-      const anchor = rows.find(row => row.dataset.logEntry === position.entryId);
+      const anchor = Array.from(view.children).find(row => (row as HTMLElement).dataset.logEntry === position.entryId);
       if (anchor) view.scrollTop += anchor.getBoundingClientRect().top - view.getBoundingClientRect().top - position.offset;
       else view.scrollTop = 0;
     }
@@ -116,7 +126,70 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
   root.addEventListener("click", stopPointer);
   root.addEventListener("wheel", stopPointer, { passive: true });
   tabList.addEventListener("keydown", onTabKey);
-  root.append(tabList, view, input); host.append(style, root);
+  const resize = document.createElement("button"); resize.id = "chat-log-resize"; resize.type = "button";
+  resize.setAttribute("aria-label", "Resize chat log");
+  root.append(tabList, view, input, resize); host.append(style, root);
+  const events = new AbortController(), options = { signal: events.signal };
+  let geometry: Geometry | null = null;
+  let gesture: { kind: "move" | "resize"; pointerId: number; x: number; y: number; start: Geometry; active: boolean } | null = null;
+  let suppressClick = false;
+  function bounds(value: Geometry): Geometry {
+    const availableWidth = Math.max(1, innerWidth - 16), availableHeight = Math.max(1, innerHeight - 16);
+    const width = Math.max(Math.min(240, availableWidth), Math.min(value.width, 720, availableWidth));
+    const height = Math.max(Math.min(120, availableHeight), Math.min(value.height, 560, availableHeight));
+    return { x: Math.max(8, Math.min(value.x, innerWidth - width - 8)), y: Math.max(8, Math.min(value.y, innerHeight - height - 8)), width, height };
+  }
+  function currentGeometry(): Geometry {
+    const rect = root.getBoundingClientRect();
+    return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+  }
+  function applyGeometry(value: Geometry): void {
+    remember(); geometry = bounds(value);
+    Object.assign(root.style, { position: "fixed", left: geometry.x + "px", top: geometry.y + "px", bottom: "auto", width: geometry.width + "px", height: geometry.height + "px" });
+    restoreScroll();
+  }
+  function saveGeometry(): void {
+    try { localStorage.setItem(layoutKey, JSON.stringify(geometry)); } catch { /* Layout remains usable without browser storage. */ }
+  }
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(layoutKey) ?? "null");
+    if (saved && typeof saved === "object" && ["x", "y", "width", "height"].every(key => typeof Reflect.get(saved, key) === "number" && Number.isFinite(Reflect.get(saved, key)))) applyGeometry(saved as Geometry);
+  } catch { /* Use the default layout when stored preferences are unavailable. */ }
+  function begin(event: PointerEvent, kind: "move" | "resize"): void {
+    if (event.button !== 0 || gesture) return;
+    suppressClick = false;
+    gesture = { kind, pointerId: event.pointerId, x: event.clientX, y: event.clientY, start: currentGeometry(), active: false };
+  }
+  tabList.addEventListener("pointerdown", event => begin(event, "move"), options);
+  resize.addEventListener("pointerdown", event => { event.preventDefault(); begin(event, "resize"); }, options);
+  window.addEventListener("pointermove", event => {
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
+    if (!gesture.active && Math.hypot(dx, dy) < 4) return;
+    event.preventDefault();
+    if (!gesture.active) { gesture.active = true; root.setPointerCapture(event.pointerId); root.dataset.adjusting = gesture.kind; }
+    const start = gesture.start;
+    applyGeometry(gesture.kind === "move" ? { ...start, x: start.x + dx, y: start.y + dy }
+      : { ...start, width: Math.min(start.width + dx, innerWidth - start.x - 8), height: Math.min(start.height + dy, innerHeight - start.y - 8) });
+  }, options);
+  function finish(event?: PointerEvent): void {
+    if (!gesture || event && event.pointerId !== gesture.pointerId) return;
+    const ended = gesture; gesture = null;
+    delete root.dataset.adjusting;
+    if (root.hasPointerCapture(ended.pointerId)) root.releasePointerCapture(ended.pointerId);
+    if (ended.active) { suppressClick = true; saveGeometry(); }
+  }
+  window.addEventListener("pointerup", finish, options);
+  window.addEventListener("pointercancel", finish, options);
+  root.addEventListener("lostpointercapture", finish, options);
+  root.addEventListener("click", event => { if (suppressClick) { event.preventDefault(); event.stopImmediatePropagation(); suppressClick = false; } }, { ...options, capture: true });
+  resize.addEventListener("keydown", event => {
+    const changes: Record<string, [number, number]> = { ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, -10], ArrowDown: [0, 10] };
+    const delta = changes[event.key]; if (!delta) return;
+    event.preventDefault(); event.stopPropagation();
+    const current = currentGeometry(); applyGeometry({ ...current, width: current.width + delta[0], height: current.height + delta[1] }); saveGeometry();
+  }, options);
+  window.addEventListener("resize", () => { finish(); if (geometry) { applyGeometry(geometry); saveGeometry(); } }, options);
   render();
   return {
     focusInput(): void { if (onSend) { select("chat"); input.focus(); } },
@@ -136,6 +209,7 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
       render();
     },
     dispose(): void {
+      finish(); events.abort();
       input.removeEventListener("keydown", onInputKey);
       input.removeEventListener("keyup", stopKeys);
       input.removeEventListener("keypress", stopKeys);

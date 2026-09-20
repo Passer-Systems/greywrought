@@ -12,7 +12,7 @@ Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -
 for (const threat of saved.world.threats) {
   if (threat.id === 'warder') threat.position = { x: -3, y: 0, z: 47 };
   if (threat.id === 'patrol') threat.position = { x: -8, y: 0, z: 48 };
-  if (threat.id === 'scout') Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
+  if (threat.id === 'scout' || threat.id.startsWith('cave-')) Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
 }
 const savePath = `build/browser/aggro-ranges-${process.pid}.json`;
 await Bun.write(savePath, JSON.stringify({ version: 1, accounts: [
@@ -21,8 +21,8 @@ await Bun.write(savePath, JSON.stringify({ version: 1, accounts: [
 Bun.env.GREYWROUGHT_GAME_URL = 'http://127.0.0.1:4293/';
 Bun.env.GREYWROUGHT_DEBUG_PORT = '9493';
 Bun.env.GREYWROUGHT_VULKAN = '1';
-const server = Bun.spawn(['bun', 'run', 'demo'], {
-  env: { ...Bun.env, GREYWROUGHT_PORT: '4293', GREYWROUGHT_WORLD_SAVE: savePath },
+const server = Bun.spawn([process.execPath, 'scripts/dev-server.ts'], {
+  env: { ...Bun.env, GREYWROUGHT_PORT: '4293', GREYWROUGHT_LOCAL_WORLD: '1', GREYWROUGHT_WORLD_SAVE: savePath },
   stdout: Bun.file(`build/browser/aggro-ranges-${process.pid}-server.log`),
   stderr: Bun.file(`build/browser/aggro-ranges-${process.pid}-server-errors.log`),
 });
@@ -38,6 +38,8 @@ try {
   page = await openBrowser('aggro-ranges', {
     localOnly: true,
     beforeNavigate: async call => {
+      await call('Network.enable');
+      await call('Network.setBlockedURLs', { urls: [Bun.env.GREYWROUGHT_GAME_URL + '__dev/events'] });
       await call('Page.addScriptToEvaluateOnNewDocument', { source: `
         localStorage.setItem('greywrought/local-profile-v1', ${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Ranges', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});
         localStorage.setItem('greywrought/world-token', ${JSON.stringify(token)});
@@ -64,6 +66,11 @@ try {
   await page.waitFor('document.body.dataset.encounterMode === "paused"');
   await page.press('KeyH');
   await page.waitFor('document.getElementById("aggro-ranges-toggle").getAttribute("aria-pressed") === "true"');
+  const direct = await page.evaluate<Array<{kind:string}>>('JSON.parse(document.getElementById("world-canvas").dataset.aggroRanges)');
+  check(direct.length === 2 && direct.every(range => range.kind === 'direct'), 'H shows only direct aggro: ' + JSON.stringify(direct));
+  check(await page.evaluate('document.getElementById("help-ranges-toggle").textContent.includes("V")'), 'Help control visibly labels V');
+  await page.press('KeyV');
+  await page.waitFor('document.getElementById("help-ranges-toggle").getAttribute("aria-pressed")==="true"');
   const frozen = await page.evaluate<State>('window.rangeState');
   const ranges = await page.evaluate<Array<{ enemy: string; kind: string; radius: number; x: number; z: number }>>('JSON.parse(document.getElementById("world-canvas").dataset.aggroRanges)');
   check(ranges.length === 5, 'Show direct and help ranges for two hostiles, and only help for the neutral bee');
@@ -73,21 +80,33 @@ try {
     check(range.x === threat.position.x && range.z === threat.position.z, 'Rings must stay centered on creatures');
   }
   await page.press('KeyH');
-  check(await page.evaluate('document.getElementById("world-canvas").dataset.aggroRanges === "[]"'), 'H must hide ranges even while paused');
+  const help = await page.evaluate<Array<{kind:string}>>('JSON.parse(document.getElementById("world-canvas").dataset.aggroRanges)');
+  check(help.length === 3 && help.every(range => range.kind === 'help'), 'Turning H off leaves help visible');
+  check(await page.evaluate('document.getElementById("aggro-direct-legend").hidden&&!document.getElementById("aggro-help-legend").hidden'), 'Legend follows each independent display');
+  await page.press('KeyV');
+  check(await page.evaluate('document.getElementById("world-canvas").dataset.aggroRanges === "[]"'), 'V hides the remaining ranges while paused');
   await page.click('#pause-resume');
   await page.waitFor('document.body.dataset.encounterMode === "private"');
   await page.click('#aggro-ranges-toggle');
   check(await page.evaluate('!document.getElementById("aggro-ranges-legend").hidden'), 'Clicking the visible control must show the legend');
   check(await page.evaluate('!document.getElementById("aggro-ranges-private").hidden'), 'Private encounters must explain that new enemies cannot join');
-  await page.shot('ranges-in-private-encounter');
+  await page.click('#help-ranges-toggle');
+  await page.shot('independent-ranges-in-private-encounter');
   await page.press('Enter');
-  await page.press('KeyH');
-  check(await page.evaluate('document.getElementById("aggro-ranges-toggle").getAttribute("aria-pressed") === "true"'), 'Typing H must not toggle ranges');
+  await page.press('KeyH'); await page.press('KeyV');
+  check(await page.evaluate('document.getElementById("aggro-ranges-toggle").getAttribute("aria-pressed") === "true"&&document.getElementById("help-ranges-toggle").getAttribute("aria-pressed")==="true"'), 'Typing H or V must not toggle ranges');
   await page.evaluate('document.activeElement.blur()');
+  for (const code of ['KeyH', 'KeyV']) {
+    await page.call('Input.dispatchKeyEvent', { type:'keyDown', code, key:code.slice(3).toLowerCase(), modifiers:2, windowsVirtualKeyCode:code.charCodeAt(3) });
+    await page.call('Input.dispatchKeyEvent', { type:'keyUp', code, key:code.slice(3).toLowerCase(), modifiers:2, windowsVirtualKeyCode:code.charCodeAt(3) });
+  }
+  check(await page.evaluate('document.getElementById("aggro-ranges-toggle").getAttribute("aria-pressed")==="true"&&document.getElementById("help-ranges-toggle").getAttribute("aria-pressed")==="true"'), 'Modified hotkeys do not toggle ranges');
   await page.press('KeyH');
+  check(await page.evaluate('JSON.parse(document.getElementById("world-canvas").dataset.aggroRanges).every(r=>r.kind==="help")'), 'Independent toggle remains available after typing');
+  await page.press('KeyV');
   await page.waitFor('document.getElementById("world-canvas").dataset.aggroRanges === "[]"');
   check(page.errors.length === 0, 'No browser exceptions');
-  console.log('PASS visible H toggle, distinct authoritative rings, neutral/dead/dormant handling, live call for help, paused/private controls, chat typing', page.output);
+  console.log('PASS independent H/V toggles, both/help/direct/off, authoritative solid/dashed rings, live call for help, paused/private controls, typing and modifiers', page.output);
 } finally {
   await page?.close();
   server.kill('SIGTERM');

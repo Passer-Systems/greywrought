@@ -61,7 +61,7 @@ try {
   const corpse=await page.evaluate<{x:number;z:number}>('window.economyState.snapshot.loot.find(item=>item.sourceId==="scout").position');
   await move(corpse.x,corpse.z-1);
   await page.press('KeyF');await page.waitFor('!document.getElementById("loot-window").hidden');
-  check(await page.evaluate('document.getElementById("loot-item-category").textContent.includes("3 coins")'),'Corpse shows its coin reward');
+  check(await page.evaluate('document.getElementById("loot-item-category").textContent.includes("3 copper")'),'Corpse shows its copper reward');
   await page.click('#loot-item');await page.waitFor('Number(document.body.dataset.gameCoins)===6');
   await page.reload();await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.gameLevel==="4"&&document.body.dataset.gameCoins==="6"');
   check(await page.evaluate('window.economyState.snapshot.progression.equipment.offhand')==='yard-shield','Shield persists through reload');

@@ -54,7 +54,6 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
   }));
   for(const x of [32,55]) {
     place('works/Column_1',x,-50.2,4.2); place('works/Column_1',x,-41.8,4.2);
-    place('works/Pipes',x,-46,8.2,roof,4,Math.PI/2);
   }
   for(const [x,z] of [[27,-41],[36,-49],[47,-37],[59,-49],[73,-36]]) {
     place('WoodenTorch_Fire',x!,z!,2.3);

@@ -1,3 +1,4 @@
+import { formatMoney } from "../game/currency.js";
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
 
@@ -76,7 +77,7 @@ export function createCorpseLoot(host: HTMLElement, callbacks: { onTake(): void;
         quantity.textContent = String(loot.quantity);
         const itemSrc = publicUrl(`assets/ui/icons/items/${loot.kind === "relic" ? "blue-gem" : loot.sourceId === "ironback-chest" ? "treasure-chest" : "leather-satchel"}.png`);
         if (itemImage.getAttribute("src") !== itemSrc) itemImage.src = itemSrc;
-        category.textContent = (loot.sourceId === "ironback-chest" ? "Treasure · 2 health potions" : loot.kind === "relic" ? "Relic · carry home" : `${loot.quantity} supply on safe return`) + (loot.coins ? ` · ${loot.coins} coins` : "");
+        category.textContent = (loot.sourceId === "ironback-chest" ? "Treasure · 2 health potions" : loot.kind === "relic" ? "Relic · carry home" : `${loot.quantity} supply on safe return`) + (loot.coins ? ` · ${formatMoney(loot.coins)}` : "");
       } else {
         delete panel.dataset.lootSource; delete panel.dataset.lootQuantity;
       }

@@ -2042,8 +2042,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .adventure-actions {width:100%;gap:4px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;}
 .adventure-actions button {flex:1;width:auto;height:auto;border:0;background:none;}
 .adventure-actions button kbd {height:14px;color:#eee3c9;font:700 var(--ui-font-small)/14px Georgia,serif;text-shadow:0 1px 3px #000;}
-.adventure-actions .action-art {position:relative;display:block;inset:auto;width:100%;aspect-ratio:1;margin:16px 0 20px;border:1px solid #b6aa87;border-radius:0;}
-.adventure-actions .action-label {position:absolute;bottom:0;left:0;right:0;color:#f1e7cb;font:600 12px/18px system-ui;text-shadow:0 1px 3px #000;}
+.adventure-actions .action-art {position:relative;display:block;inset:auto;width:100%;aspect-ratio:1;margin:16px 0 0;border:1px solid #b6aa87;border-radius:0;}
 .adventure-actions .action-recovery-shade {height:calc(var(--recovery,0) * 31px);}
 .adventure-actions button:hover {background:none;border-color:transparent;}
 .adventure-actions button:hover .action-art {border-color:#ffe5a8;}
@@ -2064,13 +2063,14 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .system-menu-tooltip kbd {margin-left:10px;color:#ceb980;font:var(--ui-font-small) system-ui,sans-serif;}
 .system-menu > button:hover .system-menu-tooltip,.system-menu > button:focus-visible .system-menu-tooltip {display:block;}
 .aggro-controls {position:absolute;right:12px;bottom:60px;z-index:36;width:236px;display:flex;flex-direction:column;align-items:flex-end;gap:7px;pointer-events:none;font:12px/1.4 system-ui,sans-serif;}
-#aggro-ranges-toggle {display:flex;align-items:center;gap:8px;padding:6px 9px;border:1px solid #a99771;border-radius:3px;background:#142028ed;color:#f3e6c7;cursor:pointer;pointer-events:auto;font:inherit;}
-#aggro-ranges-toggle kbd {padding:1px 5px;border:1px solid #c2b18c;border-radius:2px;color:#ffe2a2;font:700 12px system-ui,sans-serif;}
-#aggro-ranges-toggle[aria-pressed=true] {border-color:#ffc45c;}
-#aggro-ranges-toggle:focus-visible {outline:2px solid #ffe3a0;outline-offset:2px;}
-#aggro-ranges-state {color:#c8d8d8;}
+.range-toggle {display:flex;align-items:center;gap:8px;padding:6px 9px;border:1px solid #a99771;border-radius:3px;background:#142028ed;color:#f3e6c7;cursor:pointer;pointer-events:auto;font:inherit;}
+.range-toggle kbd {padding:1px 5px;border:1px solid #c2b18c;border-radius:2px;color:#ffe2a2;font:700 12px system-ui,sans-serif;}
+#aggro-ranges-toggle[aria-pressed=true] {border-color:#ff655c;}
+#help-ranges-toggle[aria-pressed=true] {border-color:#ffc45c;}
+.range-toggle:focus-visible {outline:2px solid #ffe3a0;outline-offset:2px;}
+#aggro-ranges-state,#help-ranges-state {color:#c8d8d8;}
 #aggro-ranges-legend {display:flex;flex-wrap:wrap;gap:6px 12px;padding:8px 10px;border:1px solid #877b62;border-radius:3px;background:#142028ed;color:#e5e5d9;}
-#aggro-ranges-legend[hidden] {display:none;}
+#aggro-ranges-legend[hidden],#aggro-ranges-legend > span[hidden] {display:none;}
 #aggro-ranges-legend > span {display:flex;align-items:center;gap:5px;}
 #aggro-ranges-legend > span::before {content:"";width:18px;border-top:3px solid #ff655c;}
 #aggro-ranges-legend > .aggro-help::before {border-top:3px dashed #ffc45c;}
