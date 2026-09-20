@@ -2,6 +2,15 @@ import type { Position } from './adventure-types.js';
 import type { Barrier } from './movement.js';
 
 export const CAVE_ENTRANCE = { x: 28, y: 0, z: -46 } as const;
+export const CAVE_DEPTH = 9;
+export function terrainHeight(x: number, z: number): number {
+  if (!inCave({ x, z })) return 0;
+  const descent = (start: number, end: number) => {
+    const t = Math.max(0, Math.min(1, (x - start) / (end - start)));
+    return t * t * (3 - 2 * t);
+  };
+  return -5 * descent(28, 42) - 4 * descent(51, 63);
+}
 export const CAVE_BARRIERS: readonly Barrier[] = [
   [28, 86, -64, -60], [28, 86, -34, -30], [82, 86, -60, -34],
   [28, 35, -60, -50], [28, 35, -42, -34],
