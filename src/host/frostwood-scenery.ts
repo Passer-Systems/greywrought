@@ -71,7 +71,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const pavingMap=new CanvasTexture(paving); pavingMap.colorSpace=SRGBColorSpace; pavingMap.wrapS=pavingMap.wrapT=RepeatWrapping; pavingMap.repeat.set(5,4);
   const square=new Mesh(new PlaneGeometry(44,38),new MeshStandardMaterial({map:pavingMap,roughness:1})); square.rotation.x=-Math.PI/2; square.position.set(0,-0.01,-19); terrain.add(square);
   const roadMap=pavingMap.clone(); roadMap.repeat.set(1,14);
-  const road=new Mesh(new PlaneGeometry(4.2,96),new MeshStandardMaterial({map:roadMap,color:0xb0b49a,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,20); terrain.add(road);
+  const road=new Mesh(new PlaneGeometry(4.2,112),new MeshStandardMaterial({map:roadMap,color:0xb0b49a,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,12); terrain.add(road);
   function sign(text: string, x: number, z: number, y = 3.1, tint = '#e9d5a5') {
     const board=document.createElement('canvas'); board.width=768; board.height=112;
     const c=board.getContext('2d')!; c.fillStyle='#322a20'; c.fillRect(0,0,768,112);
