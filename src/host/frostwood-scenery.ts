@@ -1,13 +1,21 @@
-import { Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight } from "three";
+import { Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Sprite, SpriteMaterial } from "three";
+import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
 
 export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onPlace?: (root: Group, name: string) => boolean): Promise<(coolingRestored: boolean, shiftEnded: boolean) => void> {
   const jobs: Promise<void>[] = [];
   const coolingMaterials: MeshStandardMaterial[] = [];
   const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
-  function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0) {
+  function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0, footprint?: readonly [number, number]) {
     jobs.push(prop(name, size, axis).then(model => {
-      model.position.set(x, y, z); model.rotation.y = rotation; parent.add(model);
+      model.position.set(x, y, z); model.rotation.y = rotation;
+      if (footprint) {
+        const bounds = new Box3().setFromObject(model).getSize(new Vector3());
+        const sideways = Math.abs(Math.sin(rotation)) > 0.5;
+        model.scale.x *= footprint[sideways ? 1 : 0] / bounds[sideways ? "z" : "x"];
+        model.scale.z *= footprint[sideways ? 0 : 1] / bounds[sideways ? "x" : "z"];
+      }
+      parent.add(model);
       if (name === "works/Props_Vessel" && z < 0) model.traverse(object => {
         if (!(object instanceof Mesh)) return;
         const coolable = (material: MeshStandardMaterial) => {
@@ -43,7 +51,16 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   ctx.fillStyle = "#54664d"; ctx.fillRect(0,0,128,128);
   for (let i=0;i<1500;i++) { const a=Math.sin(i*127.1)*43758.5453; const b=Math.sin(i*269.5)*19234.324; ctx.fillStyle=i%2?"#627453":"#485d46"; ctx.fillRect((a-Math.floor(a))*128,(b-Math.floor(b))*128,2,2); }
   const map = new CanvasTexture(canvas); map.colorSpace=SRGBColorSpace; map.wrapS=map.wrapT=RepeatWrapping; map.repeat.set(48,64);
-  const ground = new Mesh(new PlaneGeometry(168,214),new MeshStandardMaterial({ map, roughness:1 })); ground.rotation.x=-Math.PI/2; ground.position.set(10,-0.06,-27); terrain.add(ground);
+  const groundMaterial = new MeshStandardMaterial({ map, roughness: 1 });
+  // Four surfaces leave an actual opening in the earth above Hollowdeep.
+  for (const [left, right, bottom, top] of [[-74,28,-134,80],[86,94,-134,80],[28,86,-134,-64],[28,86,-30,80]]) {
+    const geometry = new PlaneGeometry(right!-left!, top!-bottom!);
+    const uv = geometry.getAttribute('uv');
+    for(let i=0;i<uv.count;i++) uv.setXY(i, (left! + uv.getX(i)*(right!-left!) + 74)/168, (bottom! + uv.getY(i)*(top!-bottom!) + 134)/214);
+    const ground = new Mesh(geometry, groundMaterial);
+    ground.rotation.x=-Math.PI/2; ground.position.set((left!+right!)/2,-0.06,(bottom!+top!)/2);
+    ground.userData.walkableGround = true; terrain.add(ground);
+  }
   const paving = document.createElement("canvas"); paving.width=paving.height=256;
   const pavingCtx=paving.getContext("2d")!; pavingCtx.fillStyle="#8c8871"; pavingCtx.fillRect(0,0,256,256);
   for(let row=0;row<10;row++) for(let col=-1;col<10;col++) {
@@ -52,37 +69,43 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     pavingCtx.beginPath(); pavingCtx.roundRect(x+2,y+2,26,23,4); pavingCtx.fill();
   }
   const pavingMap=new CanvasTexture(paving); pavingMap.colorSpace=SRGBColorSpace; pavingMap.wrapS=pavingMap.wrapT=RepeatWrapping; pavingMap.repeat.set(5,4);
-  const square=new Mesh(new PlaneGeometry(42,24),new MeshStandardMaterial({map:pavingMap,roughness:1})); square.rotation.x=-Math.PI/2; square.position.set(0,-0.01,-12); terrain.add(square);
+  const square=new Mesh(new PlaneGeometry(44,38),new MeshStandardMaterial({map:pavingMap,roughness:1})); square.rotation.x=-Math.PI/2; square.position.set(0,-0.01,-19); terrain.add(square);
   const roadMap=pavingMap.clone(); roadMap.repeat.set(1,14);
   const road=new Mesh(new PlaneGeometry(4.2,96),new MeshStandardMaterial({map:roadMap,color:0xb0b49a,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,20); terrain.add(road);
-  // Houses frame the square; their doors and stalls face the walkable center.
-  place("House_1",-14,-10,5.2,-Math.PI/2);
-  place("works/Column_1",-10.8,-12,2);
-  place("works/Column_1",-10.8,-8,2);
-  torch(-10.4,-12.4);
-  place("House_1",-17,-3.5,4.6,-Math.PI/2);
-  place("House_3",16,-18,4.8,Math.PI/2);
-  place("House_1",17,-6,5,Math.PI/2);
-  place("House_3",-6,-20,4.3,0);
-  place("MarketStand_1",8,-19,2.4,0);
-  place("Cart",11,-20,1.6,0.3);
-  place("Crate",8,-21,0.8);
-  place("Barrel",9,-21,0.9);
-  place("Bench_1",-5,-15,0.75,0);
-  torch(-4,-22); torch(4,-22);
-  place("Inn",innPosition.x+3,innPosition.z,4.6,Math.PI/2);
-  place("Bench_1",innPosition.x-0.2,innPosition.z-2,0.7,Math.PI/2);
-  place("Barrel",innPosition.x-0.2,innPosition.z-1.1,0.8);
-  place("House_3",-16,-19,4.7,-Math.PI/2);
-  place("Bell_Tower",-9.5,-1.7,6.7);
-  place("House_3",10,-4,4.6,Math.PI/2);
-  place("MarketStand_1",5.8,-7.1,2.8,Math.PI/2);
-  place("Well",-4.7,-11,1.8);
-  place("Cart",6.7,-3.3,1.6,-0.4);
-  place("Barrel",5.3,-9.3,0.9); place("Crate",5.9,-9,0.8);
-  place("Bench_1",-4.9,-4.7,0.75,Math.PI/2);
-  torch(-5.6,-5.2); torch(4.5,-8.5); torch(innPosition.x+0.5,innPosition.z-1.4);
-  torch(-3.6,0.15,2.7); torch(3.6,0.15,2.7);
+  function sign(text: string, x: number, z: number, y = 3.1, tint = '#e9d5a5') {
+    const board=document.createElement('canvas'); board.width=768; board.height=112;
+    const c=board.getContext('2d')!; c.fillStyle='#322a20'; c.fillRect(0,0,768,112);
+    c.strokeStyle='#b49a65'; c.lineWidth=5; c.strokeRect(6,6,756,100);
+    c.fillStyle=tint; c.font='bold 32px Georgia'; c.textAlign='center'; c.fillText(text,384,68);
+    const texture=new CanvasTexture(board); texture.colorSpace=SRGBColorSpace;
+    const label=new Sprite(new SpriteMaterial({map:texture,depthWrite:false}));
+    label.position.set(x,y,z); label.scale.set(4.2,.61,1); terrain.add(label);
+  }
+  for (const building of TOWN_BUILDINGS) {
+    place(building.model, building.x, building.z, building.height, building.turn*Math.PI/2, terrain, 'height', 0, [building.width,building.depth]);
+    if (building.sign) {
+      const faceX=building.x-building.turn*(building.width/2+.2), faceZ=building.z+(building.turn===0 ? building.depth/2+.2 : 0);
+      sign(building.sign,faceX,faceZ,3.5,building.sign.includes('APOTHECARY') ? '#bcdfb0' : '#f2d69a');
+    }
+  }
+  // Market fronts open onto a cross street, with room for the three merchants.
+  for (const [x,z,rotation] of [[-15.2,-26.2,-Math.PI/2],[15.2,-26.2,Math.PI/2],[-10,-33,0]]) {
+    place('MarketStand_1',x!,z!,2.2,rotation!);
+    place('Barrel',x!+(x!<0?-.9:.9),z!+.8,.8);
+  }
+  place('Sword',-14.9,-26.4,1.1,0,terrain,'height',.8);
+  place('Crate',15.5,-30.9,.9); place('Crate',16.3,-30.9,.65);
+  place('Cart',-18,-34,1.5,Math.PI/2);
+  for(const x of [-12,12]) { torch(x,-24.5); torch(x,-34.5); }
+  place('Bench_1',-5,-14.4,.75,0); place('Bench_1',-5,-7,.75,Math.PI);
+  place('Bell_Tower',-9.5,-1.7,6.7);
+  place('MarketStand_1',5.8,-7.1,2.8,Math.PI/2);
+  place('Well',-4.7,-11,1.8);
+  place('Cart',6.7,-2.1,1.6,-.4);
+  place('Barrel',6,-9,.85); place('Crate',6.4,-8.8,.7);
+  place('Bench_1',6,-15.8,.75,0); place('Barrel',6.1,-14.6,.85);
+  torch(-10.4,-12.4); torch(-5.6,-5.2); torch(4.5,-8.5); torch(innPosition.x+.5,innPosition.z-1.4);
+  torch(-3.6,.15,2.7); torch(3.6,.15,2.7);
   // Residents have reused the works' vessels and pipework around their well.
   place("works/Props_Vessel",4.7,-7.45,0.65,0,terrain,"height",0.72);
   place("works/Props_Vessel",5.25,-7.45,0.55,0.3,terrain,"height",0.72);
@@ -159,8 +182,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     place("nature/Grass_Common_Short", x!, z!, 0.35);
     place("nature/Fern_1", x! + 0.7, z! + 0.5, 0.55);
   }
-  place("Fence",-3,-25,1.1); place("Fence",3,-25,1.1);
-  place("WoodenTorch_Fire",-2.7,-25,2.2); place("WoodenTorch_Fire",2.7,-25,2.2);
+  place('Fence',-4,-39,1.1); place('Fence',4,-39,1.1);
+  torch(-3.5,-39,2.4); torch(3.5,-39,2.4);
   await Promise.all(jobs);
   const inverse = new Matrix4(), matrix = new Matrix4();
   for (const { parent, meshes } of batches.values()) {

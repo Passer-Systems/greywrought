@@ -2,13 +2,14 @@ import {
   BufferGeometry, CanvasTexture, Color, Float32BufferAttribute,
   CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
   Material, Mesh, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial,
-  Object3D, PerspectiveCamera, Plane, Points, PointsMaterial, RingGeometry, Scene, SphereGeometry,
+  Object3D, PerspectiveCamera, Points, PointsMaterial, RingGeometry, Scene, SphereGeometry,
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
   Raycaster,
 } from "three";
 import type { AdventureSnapshot, CombatView, Position, ThreatView } from "../game/adventure-types.js";
 import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
+import { conformToTerrain } from "./terrain-geometry.js";
 import { buildHollowdeep } from "./hollowdeep-scenery.js";
 import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.js";
 import { createAggroRanges } from "./aggro-ranges.js";
@@ -359,7 +360,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (place) hoverTargets.push({ root, pick: { kind: "place", id: place.id }, name: place.name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
     return place !== null;
   }).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
-  let updateCave = (_position: Position) => {};
+  let updateCave = (_position: Position, _camera: Vector3) => {};
   const caveReady = buildHollowdeep(terrain).then(update => { updateCave = update; });
   const telegraphs = createGroundTelegraphs(scene, canvas);
   const combatEffects = createCombatEffects(scene);
@@ -369,8 +370,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, creaturesReady, coresReady, natureReady, caveReady]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
-  const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
-  const groundHit = new Vector3();
+  const groundSurfaces: Object3D[] = [];
+  void ready.then(() => terrain.traverse(object => { if (object.userData.walkableGround) groundSurfaces.push(object); }));
   const forward = () => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
   const pick = (x: number, y: number): WorldPick | null => {
     const rect = canvas.getBoundingClientRect();
@@ -419,8 +420,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (rect.width <= 0 || rect.height <= 0 || x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
       point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
       raycaster.setFromCamera(point, camera);
-      if (!raycaster.ray.intersectPlane(groundPlane, groundHit)) return null;
-      return { x: groundHit.x, y: 0, z: groundHit.z };
+      const hit = raycaster.intersectObjects(groundSurfaces, false)[0];
+      return hit ? { x: hit.point.x, y: hit.point.y, z: hit.point.z } : null;
     },
     hover(x, y) { hoverPointer = { x, y }; },
     updatePlayers(players) { if (!disposed) otherPlayers = players; },
@@ -537,9 +538,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.ring.material.color.setHex(threat.disposition === "hostile" || threat.aggro ? 0xf04d4d : 0xf1d34f);
         rig.selection.visible = threat.selected && threat.health > 0;
         if (threat.health > 0) rig.root.rotation.y = Math.atan2(threat.facing.x, threat.facing.z);
-        rig.ring.position.y = 0.05 - threat.position.y;
-        rig.selection.position.y = 0.06 - threat.position.y;
-        rig.rootEffect.position.y = 0.12 - threat.position.y;
+        conformToTerrain(rig.ring, 0.05);
+        conformToTerrain(rig.selection, 0.06);
+        conformToTerrain(rig.rootEffect, 0.12);
         rig.rootEffect.visible = threat.rootedSeconds > 0;
         const attackClip = threat.currentAbility.id === "maul" ? "Gallop_Jump" : threat.currentAbility.id === "foreman-pulse" ? "Shoot" : threat.currentAbility.id === "foreman-shield" ? "Idle" : rig.attack;
         const phaseProgress = threat.phaseDuration > 0 ? Math.max(0, Math.min(1, 1 - threat.remainingSeconds / threat.phaseDuration)) : 0;
@@ -624,12 +625,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       else cameraTarget.lerp(position, 1 - Math.exp(-delta * 12));
       const facing = forward();
       if (snapshot.combat.phase !== "preparation") combatPreview = null;
-      updateCave(snapshot.player.position);
       telegraphs.update(snapshot, combatPreview);
       combatEffects.update(snapshot.combat, elapsed, delta, connectionRevision);
       aggroRanges.update(snapshot);
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
       camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
+      updateCave(snapshot.player.position, camera.position);
       renderer.render(scene, camera);
       updateHover();
       overheadNames.begin();

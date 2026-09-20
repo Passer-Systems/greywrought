@@ -1,3 +1,4 @@
+import { conformToTerrain } from "./terrain-geometry.js";
 import { DoubleSide, Group, Mesh, MeshBasicMaterial, RingGeometry, type Object3D } from 'three';
 import type { AdventureSnapshot } from '../game/adventure-types.js';
 
@@ -26,7 +27,7 @@ export function createAggroRanges(scene: Object3D, canvas: HTMLCanvasElement) {
       if (!threat.active || threat.health <= 0 || threat.phase === 'returning') continue;
       let pair = ranges.get(threat.id);
       if (!pair) {
-        pair = { direct: new Mesh(directGeometry, directMaterial), help: new Mesh(helpGeometry, helpMaterial) };
+        pair = { direct: new Mesh(directGeometry.clone(), directMaterial), help: new Mesh(helpGeometry.clone(), helpMaterial) };
         for (const ring of [pair.direct, pair.help]) {
           ring.rotation.x = -Math.PI / 2;
           ring.renderOrder = 1;
@@ -37,7 +38,8 @@ export function createAggroRanges(scene: Object3D, canvas: HTMLCanvasElement) {
       for (const [ring, radius, kind] of [[pair.direct, threat.aggroRange, 'direct'], [pair.help, threat.callForHelpRange, 'help']] as const) {
         ring.visible = radius > 0;
         ring.position.set(threat.position.x, 0.09, threat.position.z);
-        ring.scale.setScalar(radius);
+        ring.scale.setScalar(radius || 1);
+        if (ring.visible) conformToTerrain(ring, 0.09);
         if (ring.visible) visible.push({ enemy: threat.id, kind, radius, x: ring.position.x, z: ring.position.z });
       }
     }
@@ -50,6 +52,7 @@ export function createAggroRanges(scene: Object3D, canvas: HTMLCanvasElement) {
     dispose() {
       root.removeFromParent();
       directGeometry.dispose(); helpGeometry.dispose(); directMaterial.dispose(); helpMaterial.dispose();
+      for (const pair of ranges.values()) { pair.direct.geometry.dispose(); pair.help.geometry.dispose(); }
       ranges.clear();
     },
   };

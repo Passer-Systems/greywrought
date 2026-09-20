@@ -1,3 +1,4 @@
+import { conformToTerrain } from "./terrain-geometry.js";
 import { BufferGeometry, CircleGeometry, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, RingGeometry } from "three";
 import type { AdventureSnapshot, Position } from "../game/adventure-types.js";
 
@@ -13,13 +14,20 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
   canvas.dataset.telegraphs = "[]";
   const stroke = new MeshBasicMaterial({ color: COLOR, transparent: true, opacity: 0.82, depthWrite: false });
   const fill = new MeshBasicMaterial({ color: COLOR, transparent: true, opacity: 0.09, depthWrite: false });
-  const lineGeometry = new PlaneGeometry(1, 1);
+  const lineGeometry = new PlaneGeometry(1, 1, 1, 32);
   const ringGeometry = new RingGeometry(0.98, 1, 48);
   const landingGeometry = new RingGeometry(0.2, 0.26, 24);
   const areaGeometry = new CircleGeometry(1, 48);
   const arrowGeometry = new BufferGeometry();
   arrowGeometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0.38, 0.17, 0, -0.16, -0.17, 0, -0.16], 3));
   let signature = "";
+  function addGround(mesh: Mesh, lift: number) {
+    mesh.geometry = mesh.geometry.clone(); root.add(mesh); conformToTerrain(mesh, lift);
+  }
+  function clear() {
+    for (const mesh of root.children) if (mesh instanceof Mesh) mesh.geometry.dispose();
+    root.clear();
+  }
 
   function line(from: Position, to: Position, width: number) {
     const length = Math.hypot(to.x - from.x, to.z - from.z);
@@ -29,7 +37,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
     mesh.scale.set(width, length, 1);
     mesh.position.set((from.x + to.x) / 2, GROUND_HEIGHT, (from.z + to.z) / 2);
     mesh.renderOrder = 3;
-    root.add(mesh);
+    addGround(mesh, GROUND_HEIGHT);
   }
 
   function marker(position: Position, radius: number, area: boolean) {
@@ -38,14 +46,14 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
     edge.position.set(position.x, GROUND_HEIGHT + 0.01, position.z);
     edge.scale.setScalar(area ? radius : 1);
     edge.renderOrder = 3;
-    root.add(edge);
+    addGround(edge, GROUND_HEIGHT + 0.01);
     if (area) {
       const disk = new Mesh(areaGeometry, fill);
       disk.rotation.x = -Math.PI / 2;
       disk.position.set(position.x, GROUND_HEIGHT, position.z);
       disk.scale.setScalar(radius);
       disk.renderOrder = 2;
-      root.add(disk);
+      addGround(disk, GROUND_HEIGHT);
     }
   }
 
@@ -61,7 +69,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
       const nextSignature = JSON.stringify({ preview, paths, events });
       if (nextSignature === signature) return;
       signature = nextSignature;
-      root.clear();
+      clear();
       const diagnostics: object[] = [];
       const selection = preview?.kind === "enemy" ? { previewKind: "enemy", enemy: preview.threatId }
         : { previewKind: "move", queueId: preview?.queueId };
@@ -75,7 +83,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
           arrow.position.set(last.x, GROUND_HEIGHT + 0.02, last.z);
           arrow.rotation.y = Math.atan2(last.x - before.x, last.z - before.z);
           arrow.renderOrder = 3;
-          root.add(arrow);
+          addGround(arrow, GROUND_HEIGHT + 0.02);
         }
         const area = path.kind === "attack" && path.radius > 0;
         if (area || path.kind !== "attack") marker(last, area ? path.radius : 0.26, area);
@@ -96,7 +104,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
       canvas.dataset.telegraphs = JSON.stringify(diagnostics);
     },
     dispose() {
-      root.clear(); root.removeFromParent();
+      clear(); root.removeFromParent();
       lineGeometry.dispose(); ringGeometry.dispose(); landingGeometry.dispose(); areaGeometry.dispose(); arrowGeometry.dispose();
       stroke.dispose(); fill.dispose();
       canvas.dataset.telegraphs = "[]";
