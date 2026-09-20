@@ -67,3 +67,38 @@ test('deployed terrain saves migrate town, lake and private combat coordinates e
     const once=JSON.stringify(root);migrateTerrainLayout(root);expect(JSON.stringify(root)).toBe(once);
   }
 });
+
+test('version four saves follow folded mountains while preserving cave and airborne offsets', async () => {
+  const { overworldHeight: floorV4 } = await import('./terrain-layout-v4.js');
+  for (const [x,z] of [[-84,-8],[99,47],[40,-109],[-60,-83],[-27,-95],[0,-8],[72,-46]]) {
+    const before = x === 72 ? -9 : floorV4(x!,z!);
+    const root = {terrainLayout:4,state:{position:{x:x!,y:before+.6,z:z!}},instances:[{members:[{origin:{x:x!,y:before,z:z!}}]}]};
+    migrateTerrainLayout(root);
+    expect(root.state.position.y).toBeCloseTo(terrainHeight(x!,z!)+.6,10);
+    expect(root.instances[0]!.members[0]!.origin.y).toBe(terrainHeight(x!,z!));
+    const once=JSON.stringify(root);migrateTerrainLayout(root);expect(JSON.stringify(root)).toBe(once);
+  }
+});
+
+test('folded mountain shoulders stay grounded across uphill and downhill travel', () => {
+  for (const [x,z] of [[-69,-8],[48,47],[-65,72]]) {
+    const state = {position:{x:x!,y:terrainHeight(x!,z!),z:z!},verticalSpeed:0};
+    for (let i=0;i<480;i++) {
+      const previous = state.position.y;
+      moveLocomotion(state,{forward:1,strafe:0,cameraX:1,cameraZ:0,jump:false},1/60);
+      expect(state.position.y).toBe(terrainHeight(state.position.x,state.position.z));
+      expect(Math.abs(state.position.y-previous)).toBeLessThan(.3);
+      expect(state.verticalSpeed).toBe(0);
+    }
+  }
+});
+
+test('stream stays downhill through the folded western mountain into the lake', async () => {
+  const { STREAM_POINTS, LAKE_WATER_LEVEL } = await import('./world-elevation.js');
+  for (let i=1;i<STREAM_POINTS.length;i++) {
+    const point = STREAM_POINTS[i]!;
+    expect(point.y).toBeLessThanOrEqual(STREAM_POINTS[i-1]!.y);
+    expect(point.y).toBeGreaterThanOrEqual(LAKE_WATER_LEVEL);
+    expect(overworldHeight(point.x,point.z)).toBeLessThanOrEqual(point.y);
+  }
+});

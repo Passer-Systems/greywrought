@@ -36,6 +36,7 @@ import { terrainHeight } from "../game/cave-layout.js";
 import { isSwimmingPosition, lakeWaterAt } from "../game/world-elevation.js";
 import { buildVolcanoLandmark } from "./volcano-landmark.js";
 import { mechanicalTurtle } from "./mechanical-turtle.js";
+import { robotCritter, ROBOT_CRITTER_COLORS } from "./robot-critter.js";
 import { selectionCircles } from './selection-circle.js';
 import { createSwimmingWake } from "./swimming-wake.js";
 import { createEnvironmentAtmosphere } from "./environment-atmosphere.js";
@@ -371,7 +372,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     innkeeper = mounted; rowan.add(mounted.root); mounted.play("Idle");
     document.body.dataset.innkeeperState = "ready";
   });
-  const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string}> = {
+  const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string; metalColor?: number}> = {
+    "scrap-skitter": {model:"Crab",height:0.62,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['scrap-skitter']},
+    "rust-skitter": {model:"Crab",height:0.55,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['rust-skitter']},
+    "moss-skitter": {model:"Crab",height:0.6,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['moss-skitter']},
     "cave-bat": {model:"Bat",height:1.5,idle:"Flying",walk:"Flying",attack:"Bite_Front",hit:"HitRecieve"},
     "cave-crab": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
     "pond-turtle": {model:"Crab",height:0.9,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
@@ -388,7 +392,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   };
   const creaturesReady = Promise.all(initial.threats.map(async threat => {
     const look = appearances[threat.id]; if(!look) throw Error(`No appearance for ${threat.id}`);
-    const creature = threat.id === "pond-turtle" ? mechanicalTurtle() : await actor(look.model, look.height);
+    const creature = threat.id === "pond-turtle" ? mechanicalTurtle() : look.metalColor !== undefined ? await robotCritter(look.height, look.metalColor) : await actor(look.model, look.height);
     if (disposed) { creature.dispose(); return; }
     const root = new Group(), body = creature.root;
     root.add(body); root.userData.threatId = threat.id; scene.add(root);

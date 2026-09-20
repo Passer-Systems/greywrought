@@ -1,4 +1,4 @@
-import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
+import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Color, Float32BufferAttribute, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
@@ -106,12 +106,27 @@ export async function prop(name: string, size: number, axis: "height" | "width" 
       // Mixed OBJ face/edge objects become LineSegments in OBJLoader; retain their surfaces.
       const surfaces = (await response.text()).replace(/^l[ \t].*$/gm, "");
       const mesh = new OBJLoader().setMaterials(materials).parse(surfaces);
+      const weathered = !name.startsWith('reclaimed/') && !['Sword', 'Crystal2', 'WoodenTorch_Fire', 'Sign_LeftRight'].includes(name);
+      const bounds = weathered ? new Box3().setFromObject(mesh) : null;
       mesh.traverse(o => {
         if (!(o instanceof Mesh)) return;
+        if (bounds) {
+          const positions = o.geometry.getAttribute('position'), colors = new Float32Array(positions.count * 3);
+          const height = Math.max(.01, bounds.max.y - bounds.min.y);
+          for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+            const grain = Math.sin(x * 37.1 + y * 17.7 + z * 91.3) * 43758.5453;
+            const damp = Math.max(0, 1 - (y - bounds.min.y) / (height * .32));
+            const value = .84 + (grain - Math.floor(grain)) * .15 - damp * .14;
+            colors.set([value * (1 - damp * .06), value, value * .97], i * 3);
+          }
+          o.geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+        }
         const surface = (m: Material) => {
-          const color = "color" in m ? (m as MeshStandardMaterial).color.clone().convertLinearToSRGB() : 0xffffff;
+          const color = "color" in m ? (m as MeshStandardMaterial).color.clone().convertLinearToSRGB() : new Color(0xffffff);
           const flame = name === "WoodenTorch_Fire" && (m.name === "Fire" || m.name === "Yellow");
-          return new MeshStandardMaterial({ name: m.name, color, roughness: 0.95, transparent: m.transparent, opacity: m.opacity,
+          if (weathered) color.lerp(new Color(name.startsWith('works/') ? '#777968' : '#858074'), .24);
+          return new MeshStandardMaterial({ name: m.name, color, vertexColors: weathered, roughness: 0.98, metalness: name.startsWith('works/') ? .16 : 0, transparent: m.transparent, opacity: m.opacity,
             emissive: flame ? m.name === "Fire" ? 0xff712b : 0xffc461 : 0x000000, emissiveIntensity: flame ? 1.5 : 0 });
         };
         // A material array requires geometry groups; preserve single-surface meshes.

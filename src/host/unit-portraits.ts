@@ -1,6 +1,7 @@
 import { Color, DirectionalLight, HemisphereLight, Mesh, OrthographicCamera, Scene, SRGBColorSpace, WebGLRenderer } from "three";
 import { actor } from "./frostwood-assets.js";
 import { mechanicalTurtle } from "./mechanical-turtle.js";
+import { robotCritter, ROBOT_CRITTER_COLORS } from "./robot-critter.js";
 
 const appearances = [
   ["cave-bat", "Bat"], ["cave-crab", "Crab"],
@@ -8,6 +9,7 @@ const appearances = [
   ["patrol", "Wolf"], ["ritual-guardian", "Leela"],
   ["pond-turtle", "mechanical-turtle"], ["meadow-rat", "Rat"], ["meadow-rat-2", "Rat"],
   ["meadow-bird", "Birb"], ["meadow-bird-2", "Birb"], ["meadow-bird-3", "Birb"],
+  ['scrap-skitter', 'Crab'], ['rust-skitter', 'Crab'], ['moss-skitter', 'Crab'],
 ] as const;
 
 /** One portrait pass; model geometry and textures remain owned by the shared asset cache. */
@@ -25,7 +27,8 @@ export async function createUnitPortraits(models: readonly (readonly [string, st
   try {
     for (const [id, model] of models) {
       const turtle = model === "mechanical-turtle";
-      const creature = turtle ? mechanicalTurtle() : await actor(model, 2);
+      const metal = Object.entries(ROBOT_CRITTER_COLORS).find(([key]) => key === id)?.[1];
+      const creature = turtle ? mechanicalTurtle() : metal !== undefined ? await robotCritter(2, metal) : await actor(model, 2);
       if (turtle) { creature.model.scale.setScalar(1.4); creature.model.position.y = .45; }
       try {
         creature.play(model === "Armabee" ? "Flying_Idle" : model === "Birb" ? "Dance" : model === "Bat" ? "Flying" : "Idle");

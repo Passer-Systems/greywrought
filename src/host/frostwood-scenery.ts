@@ -2,12 +2,15 @@ import { buildTownPerimeter } from './town-perimeter.js';
 import { terrainHeight } from '../game/cave-layout.js';
 import { buildWorldWater } from './world-water.js';
 import { buildLakeShore } from './lake-shore.js';
+import { buildRobotRuins } from './robot-ruins.js';
+import { buildRuinedSettlements } from './ruined-settlements.js';
 import { conformToTerrain } from './terrain-geometry.js';
 import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Color } from "three";
 import type { Position } from "../game/adventure-types.js";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
 import { createRuinedGroundMaterial } from "./ground-material.js";
+import { treePaletteMaterial, type TreePalette } from './tree-palette.js';
 
 export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number, wallTimeMillis?: number) => void> {
   const jobs: Promise<void>[] = [];
@@ -16,7 +19,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const occluders: { root: Group; bounds: Box3 }[] = [];
   const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
   let resolvedCameraDistance = Number.POSITIVE_INFINITY;
-  function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0, footprint?: readonly [number, number], tilt = 0, lean = 0) {
+  function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0, footprint?: readonly [number, number], tilt = 0, lean = 0, palette?: TreePalette) {
     jobs.push(prop(name, size, axis).then(model => {
       model.position.set(x, terrainHeight(x,z) + y, z); model.rotation.set(tilt, rotation, lean);
       if (footprint) {
@@ -25,6 +28,12 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
         model.scale.x *= footprint[sideways ? 1 : 0] / bounds[sideways ? "z" : "x"];
         model.scale.z *= footprint[sideways ? 0 : 1] / bounds[sideways ? "x" : "z"];
       }
+      if (palette) model.traverse(object => {
+        if (!(object instanceof Mesh)) return;
+        object.material = Array.isArray(object.material)
+          ? object.material.map(material => treePaletteMaterial(material, palette))
+          : treePaletteMaterial(object.material, palette);
+      });
       parent.add(model);
       if (name === "works/Props_Vessel" && z < 0) model.traverse(object => {
         if (!(object instanceof Mesh)) return;
@@ -54,6 +63,9 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       // Scenery never moves; actors and effects retain their animated transforms.
       model.traverse(object => { object.matrixAutoUpdate = false; object.matrixWorldAutoUpdate = false; });
     }));
+  }
+  function tree(name: string, x: number, z: number, height: number, rotation: number, palette: TreePalette, lean = 0) {
+    place(name, x, z, height, rotation, terrain, 'height', 0, undefined, 0, lean, palette);
   }
   // Damaged trees use the authored Quaternius dead-tree silhouette. A horizontal
   // placement reads as a fallen trunk while retaining the low-poly bark detail.
@@ -279,16 +291,16 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const groves: readonly (readonly [number,number,number])[]=[[-13,14,0],[-14,23,1],[-32,38,2],[-34,54,3],[-21,63,4],[-12,73,5],[14,10,6],[29,34,7],[25,49,8],[24,65,9]];
   for(const [x,z,seed] of groves) {
     clearing(x,z,14,14,mulch);
-    for(let tree=0;tree<4;tree++) {
-      const angle=tree*2.4+seed, radius=tree===0?0:2.5+noise(seed*12+tree)*3;
+    const count = [2, 6, 3, 7, 2, 5, 2, 6, 3, 5][seed]!;
+    for(let member=0;member<count;member++) {
+      const angle=member*2.4+seed, radius=member===0?0:1.8+noise(seed*12+member)*4.4;
       const px=x+Math.cos(angle)*radius,pz=z+Math.sin(angle)*radius;
       if(!clearOfPatrols(px,pz,7))continue;
-      const name=(seed+tree)%4===0?'nature/Pine_5':(seed+tree)%4===1?'nature/TwistedTree_2':'nature/CommonTree_2';
-      const age = noise(seed * 31 + tree * 7);
-      // Most trees stay readable around the player, with occasional saplings
-      // and canopy anchors giving the woods a much wider natural age range.
-      const height = age < .18 ? 2.7 + age * 2 : age > .86 ? 11.5 + age * 5.5 : 5.2 + age * 5.2;
-      place(name,px,pz,height,angle);
+      const age = noise(seed * 31 + member * 7);
+      const name = age < .23 ? 'nature/DeadTree_2' : (seed+member)%3===0 ? 'nature/Pine_5' : (seed+member)%3===1 ? 'nature/TwistedTree_2' : 'nature/CommonTree_2';
+      const height = age < .28 ? 1.6 + age * 9 : age > .8 ? 12 + (age-.8) * 30 : 4 + (age-.28) * 10;
+      const palette = (['moss', 'ochre', 'copper', 'ash', 'blue'] as const)[(seed + member * 2) % 5]!;
+      tree(name,px,pz,height,angle,palette,(noise(seed+member+911)-.5)*.13);
       for(let plant=0;plant<3;plant++) {
         const a=angle+plant*2.1;
         place(plant===0?'nature/Bush_Common':'nature/Fern_1',px+Math.cos(a)*1.5,pz+Math.sin(a)*1.5,plant===0?.85:.55,a);
@@ -297,13 +309,17 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   }
   // A few tall canopy landmarks sit beyond combat clearings and frame the
   // horizon without making the playable lanes feel walled in.
-  for (const [x, z, size, rotation] of [[-42, 27, 15.5, .5], [-39, 72, 18, 2.1], [36, 28, 14.5, -1.2], [35, 77, 19, .8]] as const) {
-    if (clearOfPatrols(x, z, 8)) place('nature/Pine_5', x, z, size, rotation);
+  for (const [name, x, z, size, rotation, palette] of [
+    ['nature/CommonTree_2', -43, 26, 27, .5, 'copper'],
+    ['nature/Pine_5', -39, 75, 30, 2.1, 'blue'],
+    ['nature/TwistedTree_2', 39, 51, 23, -1.2, 'ochre'],
+  ] as const) {
+    if (clearOfPatrols(x, z, 12)) tree(name, x, z, size, rotation, palette);
   }
   // Young saplings soften the transition from the open meadow to the mature
   // forest while leaving the center of the field clear.
   for (const [x, z, rotation] of [[-52, 21, .3], [-44, 58, 1.9], [42, 44, -.6], [15, 79, 2.7], [4, 72, .9]] as const) {
-    place('nature/CommonTree_2', x, z, 2.8 + noise(x * 3 + z) * 1.5, rotation);
+    tree('nature/CommonTree_2', x, z, 1.6 + noise(x * 3 + z) * 1.6, rotation, 'moss');
   }
   // Low islands of flowers leave the bee's full patrol and fighting room visible.
   for(const [x,z] of [[9,17],[14,15],[22,18],[25,25],[23,32],[16,34],[8,31]]) {
@@ -333,11 +349,6 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   for (const [x, z, size, rotation] of [
     [-38, 47, 1.3, .7], [-33, 67, .85, 2.2], [-17, 73, 1.15, -.3], [30, 42, .95, 1.4], [27, 65, 1.4, -.9],
   ] as const) place('nature/Rock_Medium_1', x, z, size, rotation, terrain, 'width');
-  // Old survey machines have become landmarks in the reclaimed woods. They are
-  // set beside clearings and deliberately lean at different angles.
-  for (const [x, z, size, rotation, tilt] of [
-    [-35, 46, 2.25, .35, -.14], [-20, 71, 1.9, 2.4, .09], [31, 59, 2.05, -1.1, -.1],
-  ] as const) place('reclaimed/Robot', x, z, size, rotation, terrain, 'height', 0, undefined, tilt, .06 * Math.sin(x));
   // Scrap piles reuse the existing authored industrial props and stay outside
   // encounter pads, reading as ruins being reclaimed by the surrounding growth.
   for (const [x, z, rotation] of [[-37, 44, .2], [-18, 69, 1.8], [29, 57, -.7]] as const) {
@@ -421,6 +432,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   }
   const updateWater = buildWorldWater(terrain);
   jobs.push(buildLakeShore(terrain));
+  jobs.push(buildRobotRuins(terrain), buildRuinedSettlements(terrain));
   for(const [cx,cz,seed] of [[-10,-64,29],[13,-76,87],[-34,-102,14],[8,-116,99],[-31,-55,54],[18,-109,42]]) {
     for(let i=0;i<15;i++) {
       const a=noise(seed!+i*13)*Math.PI*2,r=Math.sqrt(noise(seed!+i*29))*6;
@@ -428,15 +440,30 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       place(i%4===0?'nature/Rock_Medium_1':'nature/Grass_Common_Short',x,z,.10+noise(seed!+i*9)*.22,a);
     }
   }
-  for (const side of [-1, 1]) for (let i = 0; i < 19; i++) {
-    const seed = i + (side < 0 ? 380 : 920);
-    const x = (side < 0 ? -65 : 29) + (noise(seed * 13) - .5) * 14, z = -29 - noise(seed * 37) * 99;
-    if (side > 0 && z > -53 && z < -39) continue;
-    const age = noise(seed * 7);
-    place(i % 3 ? "nature/Pine_5" : "nature/CommonTree_2", x, z, 3.3 + age * age * 12, noise(seed * 11) * Math.PI * 2);
-    if (age > .6) place("nature/Rock_Medium_3", x + 1.7, z - 1.2, .5 + age, i);
+  // Dense, uneven copses alternate with long empty stretches around the field;
+  // the lakeshore, eastern cave approach, and central footpath stay open.
+  for (const [cx, cz, count, seed, palette] of [
+    [-66, -39, 3, 380, 'ochre'], [-62, -76, 8, 420, 'copper'],
+    [-69, -116, 5, 460, 'ash'], [34, -67, 6, 920, 'blue'],
+    [33, -116, 3, 950, 'ochre'], [-41, -133, 7, 990, 'moss'],
+    [-9, -135, 3, 1020, 'copper'],
+  ] as const) {
+    for (let i = 0; i < count; i++) {
+      const angle = noise(seed + i * 13) * Math.PI * 2;
+      const radius = i === 0 ? 0 : 1.8 + noise(seed + i * 29) * 5;
+      const x = cx + Math.cos(angle) * radius, z = cz + Math.sin(angle) * radius;
+      const age = noise(seed + i * 7);
+      const name = i % 5 === 1 ? 'nature/DeadTree_2' : i % 3 === 0 ? 'nature/Pine_5' : i % 3 === 1 ? 'nature/TwistedTree_2' : 'nature/CommonTree_2';
+      const height = i % 4 === 0 ? 11 + age * 7 : i % 4 === 1 ? 4 + age * 8 : 1.8 + age * 4;
+      tree(name, x, z, height, angle, i % 4 === 2 ? 'ochre' : palette, (age-.5)*.16);
+    }
   }
-  for (let i = 0; i < 15; i++) place(i % 4 ? "nature/CommonTree_2" : "nature/DeadTree_2", -66 + noise(i + 2135) * 86, -123 - noise(i + 932) * 13, 3.4 + noise(i + 513) * 9, i * 2.1);
+  for (const [name, x, z, height, rotation, palette] of [
+    ['nature/CommonTree_2', -57, -70, 26, .7, 'copper'],
+    ['nature/Pine_5', 37, -82, 30, 2.1, 'blue'],
+    ['nature/TwistedTree_2', -37, -135, 23, -.6, 'ochre'],
+    ['nature/DeadTree_2', -64, -112, 19, 1.8, 'ash'],
+  ] as const) tree(name, x, z, height, rotation, palette);
   for (const [x, z] of [[-58,-38],[-60,-89],[19,-108],[20,-31]]) {
     place("nature/Grass_Common_Short", x!, z!, 0.35);
     place("nature/Fern_1", x! + 0.7, z! + 0.5, 0.55);

@@ -10,6 +10,7 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
   const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
   let resolvedCameraDistance = Number.POSITIVE_INFINITY;
   const jobs: Promise<void>[] = [];
+  const noise = (x: number, z: number) => { const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return n - Math.floor(n); };
   function place(name: string, x: number, z: number, size: number, parent = terrain, lift = 0, rotation = 0) {
     jobs.push(prop(name, size).then(model => {
       model.position.set(x,terrainHeight(x,z)+lift,z); model.rotation.y=rotation; parent.add(model);
@@ -36,9 +37,10 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
     for(let col=0;col<cols;col++) for(let row=0;row<rows;row++) {
       jobs.push(prop('nature/Rock_Medium_3',1).then(model => {
         const x=left+(col+.5)*(right-left)/cols, z=bottom+(row+.5)*(top-bottom)/rows;
-        const ground=terrainHeight(x,z), height=3.8-ground+(col+row)%3*.55;
+        for (const child of model.children) child.rotation.y += Math.floor(noise(x,z)*4)*Math.PI/2;
+        const ground=terrainHeight(x,z), height=3.6-ground+noise(x+4,z)*1.5;
         const size=new Box3().setFromObject(model).getSize(new Vector3());
-        model.scale.set((right-left)/cols/size.x*1.12, height/size.y, (top-bottom)/rows/size.z*1.12);
+        model.scale.set((right-left)/cols/size.x*1.15, height/size.y, (top-bottom)/rows/size.z*1.15);
         model.position.set(x,ground-.15,z); walls.add(model);
       }));
     }
@@ -46,9 +48,11 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
   // Authored boulders bridge the mouth and form a continuous low hillside above the chambers.
   for (let x=32;x<=80;x+=8) for (const z of [-54,-44,-35]) {
     jobs.push(prop('nature/Rock_Medium_3',1).then(model => {
+      for (const child of model.children) child.rotation.y += noise(x,z)*Math.PI*2;
       const size=new Box3().setFromObject(model).getSize(new Vector3());
-      model.scale.set(11/size.x, (3.8+(x%3)*.35)/size.y, 12/size.z);
-      model.position.set(x,1.7,z); roof.add(model);
+      const crown = Math.max(0, 1 - Math.abs(x - 59) / 29);
+      model.scale.set((12.2+noise(x+3,z)*1.8)/size.x, (3.4+crown*3+noise(x,z+5)*1.8)/size.y, (13+noise(x+7,z)*2)/size.z);
+      model.position.set(x+(noise(x,z+1)-.5)*2,1.55+noise(x+2,z)*.5,z+(noise(x+1,z)-.5)*1.3); roof.add(model);
     }));
   }
   // The entrance lintel bridges the descending passage.

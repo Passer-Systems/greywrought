@@ -59,6 +59,7 @@ interface ThreatDefinition {
   id: string; name: string; level: number; position: Position; health: number; behavior?: "wolf" | "head";
   /** Small neutral wildlife whose overhead labels are optional UI clutter. */
   critter?: boolean;
+  callsForHelp?: boolean;
   preparation: string; intention: string; damage: number; reach: number; benefit: string;
   disposition: ThreatView["disposition"]; aggroRange: number; leash: number; speed: number; pursuitSpeed?: number; patrol?: readonly Position[];
 }
@@ -183,6 +184,21 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(10, -94), point(15, -89), point(19, -93), point(15, -97)],
     preparation: "Scanning the reeds", intention: "Flutter away", damage: 2, reach: 1.2,
     benefit: "A pale glassbeak drifting between the reeds." },
+  { id: "scrap-skitter", critter: true, callsForHelp: false, level: 1, disposition: "neutral", aggroRange: 0, leash: 9, speed: 0.75, pursuitSpeed: 1.2,
+    name: "Scrap skitter", position: point(17, -61), health: 24,
+    patrol: [point(17, -61), point(19, -59), point(17, -57), point(16, -59)],
+    preparation: "Lifting its pincers", intention: "Little pinch", damage: 2, reach: 1.2,
+    benefit: "A little scavenger bot sorting through forgotten scraps." },
+  { id: "rust-skitter", critter: true, callsForHelp: false, level: 1, disposition: "neutral", aggroRange: 0, leash: 9, speed: 0.65, pursuitSpeed: 1.1,
+    name: "Rust skitter", position: point(-15, 14), health: 24,
+    patrol: [point(-15, 14), point(-17, 16), point(-16, 18), point(-14, 16)],
+    preparation: "Lifting its pincers", intention: "Little pinch", damage: 2, reach: 1.2,
+    benefit: "A weathered scavenger bot nosing through old camp scraps." },
+  { id: "moss-skitter", critter: true, callsForHelp: false, level: 1, disposition: "neutral", aggroRange: 0, leash: 9, speed: 0.7, pursuitSpeed: 1.2,
+    name: "Moss skitter", position: point(29, 49), health: 24,
+    patrol: [point(29, 49), point(31, 50), point(32, 47), point(29, 46)],
+    preparation: "Lifting its pincers", intention: "Little pinch", damage: 2, reach: 1.2,
+    benefit: "A small patinated bot picking around the fallen works." },
 ];
 const IRONBACK_CHEST_ID = "ironback-chest";
 const IRONBACK_CHEST_POSITION = point(78, -52);
@@ -563,7 +579,7 @@ class Adventure implements AdventureGame {
         return {
           ...t, name: d.name, level: d.level, position: { ...t.position }, homePosition: { ...d.position },
           staggered: t.staggered, disposition: d.disposition, critter: d.critter === true, joinsNextWindow: t.aggro && t.joinCycle > s.combat.clock.cycle, moving: s.phase !== "lost" && t.moving, maximumHealth: d.health,
-          aggroRange: d.aggroRange, callForHelpRange: CALL_FOR_HELP_RANGE,
+          aggroRange: d.aggroRange, callForHelpRange: d.callsForHelp === false ? 0 : CALL_FOR_HELP_RANGE,
           movementMode: this.movementMode(t), motionProgress: t.wolf?.motion ? 1 - t.wolf.motion.remainingSeconds / t.wolf.motion.duration : 0,
           facing: { ...(t.wolf?.facing ?? this.direction(t.position, t.aggro ? (this.targetPlayer(t)?.state.position ?? s.position) : t.targetPosition)) },
           nextAttackSeconds: t.wolf?.nextAttackSeconds ?? t.remainingSeconds,
@@ -1678,7 +1694,7 @@ class Adventure implements AdventureGame {
       // the whole forest and leaves neutral creatures untouched.
       if (!t.aggro && d.disposition === "hostile" && distance(t.position, d.position) <= d.leash) {
         for (const ally of s.world.threats) {
-          if (ally === t || !ally.active || !ally.aggro || ally.health <= 0 || distance(t.position, ally.position) > CALL_FOR_HELP_RANGE || !this.clearPath(t.position, ally.position)) continue;
+          if (ally === t || definition(ally.id).callsForHelp === false || !ally.active || !ally.aggro || ally.health <= 0 || distance(t.position, ally.position) > CALL_FOR_HELP_RANGE || !this.clearPath(t.position, ally.position)) continue;
           const opponent = this.targetPlayer(ally);
           if (!opponent?.canBeTargetedBy(ally) || !opponent.canBeTargetedBy(t)) continue;
           opponent.engage(t);
@@ -2129,7 +2145,7 @@ function readSave(serialized: string, now = Date.now()): State {
   });
   if (new Set(threats.map(t => t.id)).size !== threats.length) throw new Error("Invalid adventure save: duplicate threat.");
   for (const d of DEFINITIONS) if (!threats.some(t => t.id === d.id)) {
-    if (!d.id.startsWith("cave-") && !["pond-turtle", "meadow-rat", "meadow-rat-2", "meadow-bird", "meadow-bird-2", "meadow-bird-3"].includes(d.id)) throw new Error("Invalid adventure save: missing threats.");
+    if (!d.id.startsWith("cave-") && !d.critter) throw new Error("Invalid adventure save: missing threats.");
     threats.push(newThreat(d));
   }
   const state: State = {

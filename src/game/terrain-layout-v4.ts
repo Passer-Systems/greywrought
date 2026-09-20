@@ -1,5 +1,11 @@
+// Historical floor: version 4 saves measure height relative to this exact surface.
 const smooth = (value: number) => { const t = Math.max(0, Math.min(1, value)); return t * t * (3 - 2 * t); };
-import { townHeight } from './town-elevation.js';
+function townHeight(x: number, z: number): number {
+  const dx = Math.max(-26 - x, 0, x - 26);
+  const dz = Math.max(-40 - z, 0, z);
+  const t = Math.min(1, Math.hypot(dx, dz) / 6);
+  return 1.6 * (1 - t * t * (3 - 2 * t));
+}
 /** The southern meadow lake: a shallow, walkable rim around a deeper swimming basin. */
 // The southern basin is intentionally broad enough to read as a real lake from
 // the normal camera.  Its eastern edge stops short of the x=16 footpath while
@@ -34,39 +40,6 @@ function hill(x: number, z: number, cx: number, cz: number, radius: number, heig
   return height * t * t * (3 - 2 * t);
 }
 
-// Compact domes and precomputed orientations keep the shared movement floor cheap.
-const mountainForms = [
-  [-76,-84,45,25,-.55,.9], [-84,-8,42,30,.35,1.05],
-  [-57,92,44,32,-.8,.8], [31,113,44,38,.2,1.15],
-  [99,47,48,34,1.1,.95], [112,-87,40,31,-.35,1.1],
-  [64,-156,45,28,.7,.8], [-12,-165,42,34,-1.1,1.05],
-].map(([x,z,radius,height,angle,stretch]) => ({
-  x:x!, z:z!, radius:radius!, height:height!, cos:Math.cos(angle!), sin:Math.sin(angle!), stretch:stretch!,
-}));
-function dome(x: number, z: number, cx: number, cz: number, rx: number, rz: number, height: number): number {
-  const dx = (x-cx)/rx, dz = (z-cz)/rz;
-  const cap = Math.max(0, 1-dx*dx-dz*dz);
-  return height*cap*cap;
-}
-function foldedMountain(x: number, z: number, form: typeof mountainForms[number]): number {
-  const dx = x-form.x, dz = z-form.z, r = form.radius;
-  if (Math.abs(dx)>r*1.3 || Math.abs(dz)>r*1.3) return 0;
-  const u = (dx*form.cos+dz*form.sin)/r;
-  const v = (-dx*form.sin+dz*form.cos)/(r*form.stretch);
-  const crown = dome(u,v,-.08,-.04,.48,.54,.88);
-  const east = dome(u,v,.39,.15,.39,.43,.69);
-  const west = dome(u,v,-.38,.32,.38,.46,.57);
-  const spur = dome(u,v,.06,-.48,.34,.4,.52);
-  const shoulders = dome(u,v,.54,-.23,.27,.33,.24)
-    + dome(u,v,-.45,-.3,.31,.26,.3)
-    + dome(u,v,-.12,.61,.26,.3,.23)
-    + dome(u,v,.31,.48,.23,.27,.18);
-  // A rounded union retains shoulders between overlapping masses, without
-  // either hard walking seams or the single tall peak of additive hills.
-  return form.height*(Math.sqrt(crown*crown+east*east+west*west+spur*spur) + shoulders)
-    + hill(x,z,form.x,form.z,r,.24*form.height);
-}
-
 export function dryOverworldHeight(x: number, z: number): number {
   // Keep the yard, north road and cave mouth on their authored foundations.
   const townClear = smooth((Math.hypot(x / 1.3, z + 16) - 34) / 16);
@@ -78,12 +51,10 @@ export function dryOverworldHeight(x: number, z: number): number {
     // perfectly flat ellipse while retaining a walkable southern approach.
     + hill(x,z,-35,-68,22,4.8)
     + hill(x,z,-28,-87,13,5.2)
-    + hill(x,z,33,25,24,5.5) + hill(x,z,-35,48,26,6)
-    + dome(x,z,42,31,15,18,2.4) + dome(x,z,24,18,13,16,1.5)
-    + dome(x,z,-44,55,17,20,2.7) + dome(x,z,-29,38,14,17,1.8)
-    + dome(x,z,40,-109,18,21,2.6) + dome(x,z,20,-90,16,19,1.7);
-  let mountains = 0;
-  for (const form of mountainForms) mountains += foldedMountain(x,z,form);
+    + hill(x,z,33,25,24,5.5) + hill(x,z,-35,48,26,6);
+  const mountains = hill(x,z,-76,-84,45,25) + hill(x,z,-84,-8,42,30) + hill(x,z,-57,92,44,32)
+    + hill(x,z,31,113,44,38) + hill(x,z,99,47,48,34) + hill(x,z,112,-87,40,31)
+    + hill(x,z,64,-156,45,28) + hill(x,z,-12,-165,42,34);
   const land = (field + mountains) * townClear * roadClear * caveClear;
   // Lower the meadow floor beneath the lake so the shoreline has a real slope.
   return townHeight(x, z) + land;

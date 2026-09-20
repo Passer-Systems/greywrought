@@ -98,5 +98,61 @@ export function createRuinedGroundMaterial() {
   map.colorSpace = SRGBColorSpace;
   map.wrapS = map.wrapT = RepeatWrapping;
   map.repeat.set(13, 17);
-  return new MeshStandardMaterial({ map, roughness: .98, metalness: 0, vertexColors: true });
+  const material = new MeshStandardMaterial({ map, roughness: .98, metalness: 0, vertexColors: true });
+  // Blend three independently offset samples across a triangular lattice so
+  // the authored litter and soil marks cannot repeat as recognizable tiles.
+  material.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 groundWorldPos;\nvarying vec3 groundWorldNormal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\ngroundWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\ngroundWorldNormal = normalize(mat3(modelMatrix) * normal);');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+varying vec3 groundWorldPos;
+varying vec3 groundWorldNormal;
+float groundHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float groundNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(groundHash(i), groundHash(i + vec2(1.0, 0.0)), u.x),
+             mix(groundHash(i + vec2(0.0, 1.0)), groundHash(i + vec2(1.0)), u.x), u.y);
+}
+float groundMacro(vec2 p) {
+  vec2 warp = vec2(groundNoise(p * .11 + 4.7), groundNoise(p * .09 - 8.2));
+  float broad = groundNoise(p * .024 + warp * 1.8);
+  float mid = groundNoise(p * .067 - warp * 2.3);
+  return broad * .48 + mid * .32 + groundNoise(p * .21 + warp) * .2;
+}`)
+      .replace('#include <map_fragment>', `
+#ifdef USE_MAP
+vec2 tile = groundWorldPos.xz * .083;
+vec2 cell = floor(tile), f = fract(tile);
+vec2 a = cell, b = cell + vec2(1., 0.), c = cell + vec2(0., 1.);
+vec3 weights = vec3(1. - f.x - f.y, f.x, f.y);
+if (f.x + f.y > 1.) {
+  a = cell + vec2(1.); b = cell + vec2(0., 1.); c = cell + vec2(1., 0.);
+  weights = vec3(f.x + f.y - 1., 1. - f.x, 1. - f.y);
+}
+weights = weights * weights * (3. - 2. * weights);
+weights /= dot(weights, vec3(1.));
+vec2 detail = groundWorldPos.xz * .105;
+vec2 offsetA = vec2(groundHash(a), groundHash(a + 93.));
+vec2 offsetB = vec2(groundHash(b), groundHash(b + 93.));
+vec2 offsetC = vec2(groundHash(c), groundHash(c + 93.));
+diffuseColor *= texture2D(map, detail + offsetA) * weights.x
+  + texture2D(map, detail + offsetB) * weights.y
+  + texture2D(map, detail + offsetC) * weights.z;
+#endif`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+float groundRegion = groundMacro(groundWorldPos.xz);
+vec3 ruinedMoss = vec3(.80, 1.09, .78);
+vec3 ruinedSoil = vec3(1.16, .94, .76);
+vec3 regionTint = mix(ruinedSoil, ruinedMoss, smoothstep(.36, .63, groundRegion));
+diffuseColor.rgb *= regionTint * (.70 + groundRegion * .7);
+float steep = 1. - normalize(groundWorldNormal).y;
+float rockMask = smoothstep(.22, .53, steep + (groundNoise(groundWorldPos.xz * .38) - .5) * .12);
+vec3 stone = mix(vec3(.145, .119, .095), vec3(.125, .151, .15), smoothstep(.3, .7, groundRegion));
+float seams = groundNoise(vec2(groundWorldPos.x * .46 + groundWorldPos.z * .17, groundWorldPos.y * 1.4));
+stone *= .62 + seams * .64 + groundNoise(groundWorldPos.xz * 4.3) * .16;
+diffuseColor.rgb = mix(diffuseColor.rgb, stone, rockMask);`);
+  };
+  return material;
 }
