@@ -213,7 +213,13 @@ describe("Frostwood world and persistent rewards",()=>{
   });
 
   test("leash releases a pursuing hostile and it walks home without following into town", () => {
-    const game = createAdventure();
+    const seed = JSON.parse(createAdventure().save());
+    Object.assign(seed.state, {phase:"expedition",position:{x:0,y:0,z:5}});
+    for (const enemy of seed.state.threats) {
+      enemy.rng = 9844;
+      if (enemy.active && enemy.id !== "warder") Object.assign(enemy,{health:0,phase:"cleared",lootClaimed:true});
+    }
+    const game = createAdventure({save:JSON.stringify(seed)});
     enter(game); walk(game, -8, 25); walk(game, -8, 44);
     game.advance(1);
     const moved = threat(game, "warder").position;
@@ -237,6 +243,7 @@ describe("Frostwood world and persistent rewards",()=>{
 
   test("corpse loot is manual, nearby and claimed once; salvage persists then banks on extraction", () => {
     const saved = JSON.parse(createAdventure().save());
+    Object.assign(saved.state, {phase:"expedition",position:{x:0,y:0,z:5}});
     for (const enemy of saved.state.threats) {
       enemy.rng = 9844;
       if (enemy.id === "patrol") Object.assign(enemy, { health: 0, phase: "cleared", lootClaimed: true });

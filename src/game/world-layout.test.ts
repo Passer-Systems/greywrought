@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { createAdventure, createSharedAdventure } from './adventure.js';
 import { inTown, migrateSpatialLayout, WORLD_BOUNDS } from './world-layout.js';
 import { blockedPosition, movePosition } from './movement.js';
+import { terrainHeight } from './cave-layout.js';
 
 function walk(game: ReturnType<typeof createAdventure>, x: number, z: number) {
   const from = game.snapshot.player.position;
@@ -44,7 +45,7 @@ test('salvage extracts only on returning to town and quest items stay carried', 
 test('movement reaches the larger world bounds and expanded positions survive save reload', () => {
   const p = { x: 20, y: 0, z: -70 };
   movePosition(p, 1000, -1000);
-  expect(p).toEqual({ x: WORLD_BOUNDS.maxX, y: 0, z: WORLD_BOUNDS.minZ });
+  expect(p).toEqual({ x: WORLD_BOUNDS.maxX, y: terrainHeight(WORLD_BOUNDS.maxX, WORLD_BOUNDS.minZ), z: WORLD_BOUNDS.minZ });
   const seed = JSON.parse(createAdventure().save());
   seed.state.phase = 'expedition'; seed.state.position = p;
   expect(createAdventure({ save: JSON.stringify(seed) }).snapshot.player.position).toEqual(p);

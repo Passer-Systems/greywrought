@@ -8,7 +8,7 @@ export const THICKET: Barrier = [2, 12, 38, 44];
 export const MOVEMENT_BARRIERS: readonly Barrier[] = [[-22, -3, -0.5, 4], [3, 22, -0.5, 4], THICKET, ...CAVE_BARRIERS, ...TOWN_BUILDING_BARRIERS];
 export interface MovementInput { forward: number; strafe: number; cameraX: number; cameraZ: number; jump: boolean; }
 export interface MovementFrame { sequence: number; seconds: number; input: MovementInput; }
-export interface MovementManeuver { kind: 'lunge' | 'disengage' | 'bait'; start: Position; destination: Position; remainingSeconds: number; duration: number; }
+export interface MovementManeuver { kind: 'lunge' | 'bait'; start: Position; destination: Position; remainingSeconds: number; duration: number; }
 export interface MovementCheckpoint { sequence: number; elapsed: number; verticalSpeed: number; maneuver?: MovementManeuver | null; }
 export interface MovementState { position: { x: number; y: number; z: number }; verticalSpeed: number; }
 
@@ -35,7 +35,7 @@ export function moveManeuverPosition(state: MovementState, maneuver: MovementMan
   maneuver.remainingSeconds = Math.max(0, maneuver.remainingSeconds - seconds);
   const progress = 1 - maneuver.remainingSeconds / maneuver.duration;
   const ground = terrainHeight(state.position.x, state.position.z);
-  state.position.y = ground + (maneuver.kind === 'disengage' ? 4 * 1.2 * progress * (1 - progress) : 0);
+  state.position.y = ground;
   if (maneuver.remainingSeconds <= 1e-9) { state.position.y = ground; state.verticalSpeed = 0; }
   return Math.hypot(state.position.x - old.x, state.position.z - old.z) > 1e-9;
 }

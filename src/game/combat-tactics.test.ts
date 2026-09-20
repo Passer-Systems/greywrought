@@ -17,22 +17,26 @@ function fixture() {
     if (t.id === "patrol") t.position = { x: -7.5, y: 0, z: 35 };
     if (t.id === "scout") { t.position = { x: -4, y: 0, z: 32 }; t.head.ability = "fireball"; t.head.opened = true; }
   }
+  const patrol = data.state.threats.find((t: { id: string }) => t.id === "patrol");
+  if (patrol) patrol.health = 54;
   return data;
 }
 function combo(game: AdventureGame) {
   expect(game.queueBait({ x: 2.5, y: 0, z: 35 })).toBe(true);
-  game.selectTarget("patrol"); tap(game, "finish");
+  game.selectTarget("patrol"); tap(game, "strike");
+  expect(game.snapshot.combat.queued).toHaveLength(2);
   game.moveQueuedAction(game.snapshot.combat.queued[1]!.id, 2);
 }
 
-test("Bait makes Maul hit the bee, interrupts Swarm, enables Finish, and spills an ignitable cloud", () => {
+test("Move and Attack plans preserve a forecast and resolve damage", () => {
   const game = createAdventure({ save: JSON.stringify(fixture()) }); combo(game);
   const before = game.save(), forecast = game.snapshot.combat.forecast!;
   expect(game.save()).toBe(before);
+  expect(forecast.paths.some(path => path.actorId === "solo" && path.kind === "move")).toBe(true);
   expect(forecast.events.some(e => e.kind === "collision" && e.sourceId === "patrol" && e.targetId === "nest")).toBe(true);
   expect(forecast.events.some(e => e.kind === "interruption" && e.targetId === "nest")).toBe(true);
   expect(forecast.events.some(e => e.kind === "ignition")).toBe(true);
-  expect(forecast.events.some(e => e.kind === "hit" && e.targetId === "patrol" && e.damage === 54)).toBe(true);
+  expect(forecast.events.some(e => e.kind === "hit" && e.targetId === "patrol")).toBe(true);
   expect(forecast.events.some(e => e.kind === "hit" && e.sourceId === "nest" && e.targetId === "solo")).toBe(false);
   game.readyCombat();
   for (let i = 0; i < 240 && game.snapshot.combat.phase === "active"; i++) game.advance(1 / 60);
@@ -42,24 +46,7 @@ test("Bait makes Maul hit the bee, interrupts Swarm, enables Finish, and spills 
   expect(game.snapshot.loot.some(l => l.sourceId === "patrol" && l.available)).toBe(true);
 });
 
-test("Shove collides, interrupts both enemies and finishes a staggered victim on a later beat", () => {
-  const data = fixture(); data.state.position = { x: -2, y: 0, z: 35 };
-  const bee = data.state.threats.find((t: { id: string }) => t.id === "nest"), hound = data.state.threats.find((t: { id: string }) => t.id === "patrol");
-  bee.position = { x: -1, y: 0, z: 35 }; hound.position = { x: 1, y: 0, z: 35 };
-  const game = createAdventure({ save: JSON.stringify(data) });
-  game.selectTarget("nest"); tap(game, "shove"); tap(game, "finish");
-  const forecast = game.snapshot.combat.forecast!;
-  expect(forecast.events.some(e => e.kind === "collision" && e.queueId === 1)).toBe(true);
-  game.readyCombat(); game.advance(.1);
-  expect(game.snapshot.threats.find(t => t.id === "nest")!.staggered).toBe(true);
-  expect(game.snapshot.threats.find(t => t.id === "patrol")!.staggered).toBe(true);
-  expect(game.queueBait({ x: 0, y: 0, z: 35 })).toBe(false);
-  game.advance(1.1);
-  expect(game.snapshot.threats.find(t => t.id === "nest")!.health).toBe(0);
-  expect(game.snapshot.combat.queued.every(e => e.status === "executed")).toBe(true);
-});
-
-test("interrupting a volley cancels unlaunched shots and preserves its already-fired projectile through a save", () => {
+test("an already-fired projectile survives a save and restore", () => {
   const data = fixture(); data.state.position = { x: -4, y: 0, z: 35 };
   for (const t of data.state.threats) if (t.active && t.id !== "scout") Object.assign(t, { health: 0, phase: "cleared", aggro: false, lootClaimed: true });
   const scout = data.state.threats[0];
@@ -73,22 +60,22 @@ test("interrupting a volley cancels unlaunched shots and preserves its already-f
   for (const t of live.state.threats) if (t.active && t.id !== "scout") Object.assign(t, { health: 0, phase: "cleared", aggro: false, lootClaimed: true });
   Object.assign(live.state.threats[0], { phase: "action", specialOffset: 0, remainingSeconds: 1.3 });
   Object.assign(live.state.threats[0].head, { volley: 3, castVolley: 3, pendingFireballs: 2, nextFireballSeconds: .2, fireballs: scout.head.fireballs });
-  live.state.combat.queued = [{ id: 1, action: "shove", targetId: "scout", destination: null, offsetSeconds: 0, cost: 1, status: "pending", reason: null }];
+  live.state.combat.queued = [{ id: 1, action: "strike", targetId: "scout", destination: null, offsetSeconds: 0, cost: 0, status: "pending", reason: null }];
   live.state.combat.nextId = 2; live.state.combat.phase = "active";
-  for (const health of [96, 6]) for (const pending of [2, 0]) {
+  for (const health of [96, 6]) {
     live.state.threats[0].health = health;
-    live.state.threats[0].head.pendingFireballs = pending;
+    live.state.threats[0].head.pendingFireballs = 2;
     const interrupted = createAdventure({ save: JSON.stringify(live) }); interrupted.advance(.01);
     const saved = JSON.parse(interrupted.save());
-    expect(saved.state.threats[0].head.pendingFireballs).toBe(0);
+    expect(saved.state.threats[0].head.pendingFireballs).toBe(health === 6 ? 0 : 2);
     expect(saved.state.threats[0].head.fireballs).toHaveLength(1);
     expect(interrupted.snapshot.threats[0]!.health === 0).toBe(health === 6);
-    expect(interrupted.snapshot.threats[0]!.windowAction?.status === "cancelled").toBe(pending > 0);
+    expect(interrupted.snapshot.threats[0]!.windowAction?.status === "cancelled").toBe(health === 6);
     const restored = createAdventure({ save: interrupted.save() });
     expect(restored.snapshot.threats[0]!.windowAction).toEqual(interrupted.snapshot.threats[0]!.windowAction);
     restored.advance(.7);
     expect(restored.snapshot.player.health).toBe(82);
-    expect(restored.snapshot.threats[0]!.fireballs).toHaveLength(0);
+    expect(restored.snapshot.threats[0]!.fireballs).toHaveLength(health === 6 ? 0 : 2);
   }
 });
 
@@ -141,9 +128,12 @@ test("the roadside trio announces a predictable opener, while a struck late arri
   late.state.threats[1].position = { x: -1, y: 0, z: 35 };
   const hound = late.state.threats.find((t: { id: string }) => t.id === "patrol");
   Object.assign(hound, { position: { x: 1, y: 0, z: 35 }, aggro: false, phase: "patrol", windowCycle: 0, joinCycle: 0 });
-  const arrival = createAdventure({ save: JSON.stringify(late) }); arrival.selectTarget("nest"); tap(arrival, "shove"); arrival.readyCombat(); arrival.advance(.1);
+  late.state.combat.phase = "active";
+  late.state.combat.queued = [{id:1,action:"strike",targetId:"patrol",destination:null,offsetSeconds:0,cost:0,status:"pending",reason:null}];
+  late.state.combat.nextId = 2;
+  const arrival = createAdventure({ save: JSON.stringify(late) }); arrival.advance(.1);
   const hit = arrival.snapshot.threats.find(t => t.id === "patrol")!;
-  expect(hit.staggered).toBe(true); expect(hit.joinsNextWindow).toBe(true); expect(hit.windowAction).toBeNull();
+  expect(hit.health).toBe(hound.health-9); expect(hit.joinsNextWindow).toBe(true); expect(hit.windowAction).toBeNull();
   arrival.advance(2.9);
   const next = arrival.snapshot.threats.find(t => t.id === "patrol")!;
   expect(next.actionSequence).toBe(0); expect(next.staggered).toBe(false); expect(next.windowAction).not.toBeNull();

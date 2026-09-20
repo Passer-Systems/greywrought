@@ -13,10 +13,10 @@ function expedition(archetype: CharacterArchetype): AdventureGame {
 }
 
 describe("new class kits", () => {
-  test("kits expose distinct identity and ranged signature moves", () => {
-    expect(classKit("alchemist").abilities.strike.name).toBe("Reagent Toss");
-    expect(classKit("alchemist").abilities.disengage.name).toBe("Caustic Escape");
-    expect(classKit("artificer").abilities.strike.name).toBe("Rivet Shot");
+  test("every class has exactly Attack, Defend and Move", () => {
+    expect(classKit("alchemist").abilities.strike.name).toBe("Attack");
+    expect(classKit("artificer").abilities.strike.name).toBe("Attack");
+    for (const kind of ["warrior","mage","hunter","alchemist","artificer"] as const) expect(Object.values(classKit(kind).abilities).map(a=>a.name).sort()).toEqual(["Attack","Defend","Move"]);
     expect(classKit("artificer").abilities.brace.block).toBeGreaterThan(24);
   });
 
@@ -31,43 +31,4 @@ describe("new class kits", () => {
       expect(restored.snapshot.player.archetype).toBe(archetype);
     }
   });
-
-  test("class powers preserve spent stamina through a save", () => {
-    for (const archetype of ["warrior", "mage", "hunter", "alchemist", "artificer"] as const) {
-      const game = expedition(archetype); game.selectTarget("scout"); game.advance(.01);
-      game.setAction("bloodRage", true); game.setAction("bloodRage", false); game.readyCombat(); game.advance(.001);
-      expect(game.snapshot.player.stamina).toBe(4);
-      expect(game.snapshot.player.bloodRage).toBe(1);
-      const restored = createAdventure({ archetype, save: game.save() });
-      expect(restored.snapshot.player.stamina).toBe(4);
-      expect(restored.snapshot.player.bloodRage).toBe(1);
-    }
-  });
-});
-
-test("class powers preserve their distinct health costs through Block and can end a journey", () => {
-  for (const archetype of ["warrior", "mage", "hunter", "alchemist", "artificer"] as const) {
-    const game = expedition(archetype); game.advance(.01);
-    const saved = JSON.parse(game.save());
-    Object.assign(saved.state.threats[0], { specialOffset: 2, remainingSeconds: 2, castDuration: 2 });
-    Object.assign(saved.state, { health: 50, bloodRage: 3, rageDrainSeconds: .1, block: 24, guardSeconds: 2 });
-    const charged = createAdventure({ save: JSON.stringify(saved) }); charged.readyCombat(); charged.advance(.1);
-    expect(charged.snapshot.player.health).toBe(archetype === "hunter" ? 50 : 47);
-    expect(charged.snapshot.player.block).toBe(24);
-    if (archetype !== "hunter") {
-      saved.state.health = 1;
-      const dying = createAdventure({ save: JSON.stringify(saved) }); dying.readyCombat(); dying.advance(.1);
-      expect(dying.snapshot.phase).toBe("lost"); expect(dying.snapshot.player.health).toBe(0);
-    }
-  }
-});
-
-test("power stacks decay after leaving combat while their remaining health cost applies", () => {
-  const saved = JSON.parse(createAdventure().save());
-  Object.assign(saved.state, { bloodRage: 3, rageDrainSeconds: 5 });
-  const safe = createAdventure({ save: JSON.stringify(saved) });
-  safe.advance(1.999); expect(safe.snapshot.player.bloodRage).toBe(3);
-  safe.advance(.001); expect(safe.snapshot.player.bloodRage).toBe(2);
-  safe.advance(4); expect(safe.snapshot.player.bloodRage).toBe(0);
-  expect(safe.snapshot.player.health).toBe(99);
 });

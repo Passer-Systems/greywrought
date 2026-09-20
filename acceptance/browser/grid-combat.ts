@@ -4,6 +4,8 @@ import { createWorldService, type WorldSocketData } from '../../src/server/world
 import type { AdventureSnapshot, Position } from '../../src/game/adventure-types.js';
 import { check, openBrowser } from './session.js';
 
+const surface = Bun.env.GREYWROUGHT_GRID_SURFACE === '1';
+const enemyId = surface ? 'scout' : 'cave-bat';
 const url = 'http://127.0.0.1:4321/';
 Bun.env.GREYWROUGHT_GAME_URL = url;
 Bun.env.GREYWROUGHT_DEBUG_PORT = '9521';
@@ -12,10 +14,10 @@ const character = { id: 'grid-fixture', name: 'Grid Explorer', archetype: 'mage'
 const token = 'grid-fixture-token-000000000000000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
-Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: 26, y: 0, z: -46 } });
+Object.assign(saved.characters[0].state, { phase: 'expedition', position: surface ? {x:-7.5,y:0,z:27.5} : { x: 26, y: 0, z: -46 } });
 // A wounded bat keeps the input/render journey short; the rules tests cover full fights.
 for (const threat of saved.world.threats) {
-  if (threat.id === 'cave-bat') threat.health = 18;
+  if (threat.id === enemyId) threat.health = 18;
   else if (threat.active) Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
 }
 const savePath = `${process.cwd()}/build/browser/grid-${process.pid}.json`;
@@ -27,7 +29,7 @@ let page: Awaited<ReturnType<typeof openBrowser>> | undefined;
 const gap = (a: Position, b: Position) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 try {
   for (let i = 0; i < 100; i++) { try { if ((await fetch(url)).ok) break; } catch {} await Bun.sleep(100); }
-  page = await openBrowser('grid-combat', { beforeNavigate: async call => {
+  page = await openBrowser(surface ? 'surface-grid-combat' : 'cave-grid-combat', { beforeNavigate: async call => {
     await call('Network.enable');
     await call('Network.setBlockedURLs', { urls: [url + '__dev/events'] });
     await call('Page.addScriptToEvaluateOnNewDocument', { source: `localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Grid Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4322/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state'){window.gridState=d.snapshot;window.gridSession=d.session;}});}};` });
@@ -62,8 +64,10 @@ try {
   await page.waitFor('window.gridState.player.inCombat');
   await page.waitFor('window.gridState.combat.phase==="preparation"&&document.getElementById("world-canvas").dataset.combatGrid==="2.5"');
   const entered = await snapshot();
-  check(await page.evaluate('document.getElementById("combat-plan").textContent.includes("2 tiles per move")'), 'Planner displays the same Movement allowance');
-  check(entered.player.position.y < -1, 'Walking into the cave descends before combat');
+  check(await page.evaluate('Array.from(document.querySelectorAll(".adventure-actions button[data-action]")).map(b=>b.textContent.includes("Attack")?"Attack":b.textContent.includes("Defend")?"Defend":"Move").join(",")==="Attack,Defend,Move"'), 'Only three named combat buttons');
+  check(await page.evaluate('!document.querySelector(".combat-plan-help,.combat-plan-feedback")'), 'No planner footer instructions or combat-message text');
+  check(await page.evaluate('(()=>{const p=document.getElementById("combat-plan").getBoundingClientRect();return Array.from(document.querySelectorAll(".unit-frame")).every(f=>{const r=f.getBoundingClientRect();return r.bottom<=p.top||r.top>=p.bottom||r.right<=p.left||r.left>=p.right;});})()'), 'Player and target frames are not covered by planner');
+  check(surface ? entered.player.position.y===0 : entered.player.position.y < -1, 'Combat entry follows surface or cave terrain');
   check(entered.player.position.x % 2.5 === 0 && entered.player.position.z % 2.5 === 0, 'Combat entry settles on a cell');
   await Bun.sleep(450); await page.key('KeyA', false);
   check(gap((await snapshot()).player.position, entered.player.position) < .001, 'Held exploration input stops immediately on combat entry');
@@ -77,9 +81,15 @@ try {
   const stopped = await snapshot();
   check(gap(stopped.player.position, entered.player.position) < .001, 'WASD, jump and mouse-forward stay locked while planning');
   check(gap(await page.evaluate<Position>('window.gridRendered'), entered.player.position) < .05, 'Rendered player matches the stationary server position');
-  check(gap(stopped.threats.find(t => t.id === 'cave-bat')!.position, entered.threats.find(t => t.id === 'cave-bat')!.position) < .001, 'Enemy waits on its cell during planning');
+  check(gap(stopped.threats.find(t => t.id === enemyId)!.position, entered.threats.find(t => t.id === enemyId)!.position) < .001, 'Enemy waits on its cell during planning');
   await page.shot('cave-grid-planning');
-  await page.click('.adventure-actions [data-action="bait"]');
+  await page.click('#combat-plan-aim-move');
+  await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles||"[]").length>0');
+  await clickGround(entered.player.position);
+  await page.waitFor('document.getElementById("bait-aim-hint").textContent.includes("blocked or out of reach")');
+  await Bun.sleep(300);
+  check(await page.evaluate('document.body.dataset.baitAiming==="true"&&document.getElementById("bait-aim-hint").textContent.includes("blocked or out of reach")'), 'Invalid tile keeps aiming and useful feedback');
+  await page.shot('highlighted-move-tiles');
   const destination = { x: entered.player.position.x + 2.5, z: entered.player.position.z };
   await clickGround({ ...destination, y: terrainHeight(destination.x, destination.z) });
   await page.waitFor('window.gridState.combat.queued.length===1');
@@ -98,17 +108,17 @@ try {
   await page.click('#pause-resume');
   await page.waitFor('window.gridSession.mode==="private"');
   await page.waitFor('window.gridState.combat.phase==="preparation"');
-  await page.click('.enemy-nameplate[data-enemy-id="cave-bat"] .nameplate-target');
-  await page.waitFor('window.gridState.selectedThreat==="cave-bat"&&!document.querySelector(\'.adventure-actions [data-action="strike"]\').disabled');
+  await page.click(`.enemy-nameplate[data-enemy-id="${enemyId}"] .nameplate-target`);
+  await page.waitFor(`window.gridState.selectedThreat===${JSON.stringify(enemyId)}&&!document.querySelector('.adventure-actions [data-action="strike"]').disabled`);
   await page.click('.adventure-actions [data-action="strike"]');
   await page.waitFor('window.gridState.combat.queued.length===1');
   await page.click('.adventure-actions [data-action="strike"]');
   await page.waitFor('window.gridState.combat.queued.length===2');
-  check(await page.evaluate('document.querySelector(".combat-plan-move-target").textContent.includes("Hollowwing")'), 'Planner names the creature being attacked');
+  check(await page.evaluate(`document.querySelector('.combat-plan-move-target').textContent.includes(${JSON.stringify(surface?'Cinder Watchman':'Hollowwing')})`), 'Planner names the creature being attacked');
   await cycle();
   await page.waitFor('!window.gridState.player.inCombat&&document.getElementById("world-canvas").dataset.combatGrid==="0"');
   const cleared = await snapshot();
-  check(cleared.coins === 0 && cleared.carriedSalvage === 0 && !cleared.loot.find(item => item.sourceId === 'cave-bat')?.available, 'Finishing a private encounter grants no shared-world rewards');
+  check(cleared.coins === 0 && cleared.carriedSalvage === 0 && !cleared.loot.find(item => item.sourceId === enemyId)?.available, 'Finishing a private encounter grants no shared-world rewards');
   const beforeWalk = (await snapshot()).player.position;
   await page.key('KeyD', true); await Bun.sleep(500); await page.key('KeyD', false);
   check(gap((await snapshot()).player.position, beforeWalk) > 1, 'Exploration movement resumes after victory');

@@ -1,6 +1,5 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { QUESTS, GEAR, gearName, type QuestId, type QuestStatus } from "../game/yard-content.js";
-import { classAction } from "../game/class-kit.js";
 
 /** A read-only journal of accepted, completed, and currently available quests. */
 export interface QuestLog {
@@ -23,7 +22,6 @@ function rewardText(snapshot: AdventureSnapshot, id: QuestId): string {
     reward.potions ? `${reward.potions} healing potion${reward.potions === 1 ? "" : "s"}` : "",
     reward.supplies ? `${reward.supplies} supplies` : "",
     reward.level > 1 ? `Level ${reward.level}` : "",
-    reward.ability ? `${classAction(snapshot.player.archetype, reward.ability).name} (${reward.ability === "disengage" ? "3" : "4"})` : "",
   ].filter(Boolean);
   return parts.join(" · ") || "No reward listed";
 }

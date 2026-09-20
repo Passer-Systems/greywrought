@@ -23,7 +23,7 @@ export interface CombatFeedback {
 }
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump"
-  | "bait" | "shove" | "finish" | "strike" | "disengage" | "brace" | "bloodRage" | "jab" | "guard" | "gather" | "cancelGather" | "ritual" | "interact"
+  | "bait" | "strike" | "brace" | "gather" | "cancelGather" | "ritual" | "interact"
   | "buyPotion" | "drinkPotion" | "rest" | "target" | "openTrade" | "closeTrade" | "acceptTrade" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn" | "closeBank";
 export interface TradeView {
   readonly kind: "supplies" | "potions"; readonly quantity: number; readonly receivedQuantity: number;
@@ -109,9 +109,7 @@ export interface ThreatView {
   readonly attackOrigin: Position;
   readonly block: number; readonly blockSeconds: number; readonly volley: number;
   readonly fireballs: readonly FireballView[];
-  readonly rootedSeconds: number;
   readonly canStrike: boolean;
-  readonly canDisengage: boolean;
   readonly inRangeActions: readonly string[];
   readonly cast: { readonly ability: ThreatAbilityView; readonly remainingSeconds: number; readonly duration: number; readonly status: "casting" | "resolving" } | null;
   readonly windowAction: { readonly ability: ThreatAbilityView; readonly offsetSeconds: number; readonly status: "pending" | "active" | "resolved" | "cancelled" } | null;
@@ -160,8 +158,8 @@ export interface AdventureSnapshot {
     readonly guardSeconds: number;
     readonly block: number;
     readonly stamina: number; readonly maximumStamina: number; readonly staminaRecoverySeconds: number;
-    readonly bloodRage: number; readonly rageDrainSeconds: number; readonly rageDecaySeconds: number; readonly inCombat: boolean; readonly sitting: boolean; readonly emote: { readonly name: string; readonly sequence: number } | null;
-    readonly maneuver: "none" | "lunge" | "disengage" | "bait";
+    readonly inCombat: boolean; readonly sitting: boolean; readonly emote: { readonly name: string; readonly sequence: number } | null;
+    readonly maneuver: "none" | "lunge" | "bait";
     readonly maneuverSeconds: number;
     readonly facing: Position;
   };

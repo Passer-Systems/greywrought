@@ -5,16 +5,9 @@ import { enemyResponse } from "./enemy-response.js";
 import { publicUrl } from "./public-url.js";
 
 const actions: Record<CombatAction, { name: string; icon: string }> = {
-  bait: { name: "Bait", icon: "mobility-boots" },
-  shove: { name: "Shove", icon: "earth-stone" },
-  finish: { name: "Finish", icon: "sword-strike" },
-  strike: { name: "Lunge", icon: "sword-strike" },
-  brace: { name: "Block", icon: "defensive-shield" },
-  disengage: { name: "Disengage", icon: "mobility-boots" },
-  bloodRage: { name: "Blood Rage", icon: "energy-burst" },
-  jab: { name: "Jab", icon: "sword-strike" },
-  guard: { name: "Guard", icon: "protective-ward" },
-  drinkPotion: { name: "Health potion", icon: "items/health-potion-red" },
+  bait: { name: "Move", icon: "mobility-boots" },
+  strike: { name: "Attack", icon: "sword-strike" },
+  brace: { name: "Defend", icon: "defensive-shield" },
 };
 const enemyArt: Record<string, string> = {
   "ember-beam": "lightning-bolt", fireball: "fire-spell", "ember-ward": "defensive-shield",
@@ -39,6 +32,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   onClear: () => void;
   onMove: (id: number, offsetSeconds: number) => void;
   onReady: () => void;
+  onAimMove: () => void;
   onPreview: (preview: CombatPreview | null) => void;
 }) {
   const root = node("section", "combat-plan", host); root.id = "combat-plan"; root.hidden = true;
@@ -46,6 +40,9 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const header = node("header", "combat-plan-heading", root);
   const phase = node("strong", "combat-plan-phase", header); phase.id = "combat-plan-phase";
   const resources = node("span", "combat-plan-resources", header);
+  const move = node("button", "combat-plan-move-button", header); move.id = "combat-plan-aim-move"; move.type = "button"; move.textContent = "Move";
+  move.title = "Choose a destination tile for your next open beat";
+  move.addEventListener("click", callbacks.onAimMove);
   const clear = node("button", "combat-plan-clear", header); clear.type = "button"; clear.textContent = "Clear";
   clear.addEventListener("click", callbacks.onClear);
   const ready = node("button", "combat-plan-ready", header); ready.type = "button"; ready.textContent = "Ready (R)";
@@ -54,7 +51,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   ready.addEventListener("click", callbacks.onReady);
   const staminaHint = node("p", "combat-plan-stamina-hint", root);
   staminaHint.setAttribute("role", "status");
-  staminaHint.textContent = "No stamina left. Free attacks and defenses can fill open slots.";
+  staminaHint.textContent = "No stamina left. Attack can fill open slots.";
   const danger = node("p", "combat-plan-danger", root); danger.id = "combat-plan-danger";
   danger.setAttribute("role", "status");
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
@@ -100,10 +97,6 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const inspectCopy = node("p", "combat-plan-inspect-copy", inspect);
   const unpin = node("button", "combat-plan-unpin", inspect); unpin.type = "button"; unpin.textContent = "Clear preview";
   unpin.addEventListener("click", () => { pinnedPreview = transientPreview = null; updatePreview(); });
-  const help = node("p", "combat-plan-help", root);
-  help.textContent = "Plan your moves · inspect enemy attacks · R to start";
-  const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
-  feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();
   let selectedId: number | null = null, lastId: number | null = null;
   let snapshot: AdventureSnapshot | null = null, enemyKey = "";
@@ -115,7 +108,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     inspect.hidden = !editing() || !preview;
     unpin.hidden = !pinnedPreview;
     let title = "Turn their attacks against them";
-    let copy = "Bait into a better position, Shove enemies together, then Finish a staggered foe. Beats mark the cast; impacts may come later.";
+    let copy = "Attack your target, Defend against incoming damage, or Move to a highlighted tile. Choose a beat for each action, then Ready (R).";
     if (preview && snapshot) {
       if (preview.kind === "enemy") {
         const threat = snapshot.threats.find(threat => threat.id === preview.threatId);
@@ -222,7 +215,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       const choosing = combat.phase === "choosing";
       write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Enemies choose · momentarily" : combat.phase === "preparation" ? "Planning · " + Math.ceil(combat.remainingSeconds) + "s" : "Playing sequence");
       write(resources, combat.queued.length + "/3 · " + combat.availableStamina + " stamina");
-      write(help, `Movement: ${classKit(snapshot.player.archetype).movementTiles} tiles per move · inspect enemy attacks · R to start`);
+      move.disabled = combat.phase !== "preparation" || combat.queued.length >= 3 || combat.availableStamina < 1;
       staminaHint.hidden = combat.availableStamina > 0 || combat.queued.length >= 3;
       clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / (combat.elapsedSeconds + combat.remainingSeconds)) + "%";
       clear.disabled = combat.phase !== "preparation" || !combat.queued.some(entry => entry.status === "pending");
@@ -298,7 +291,6 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       for (let i = 0; i < cells.length; i++) cells[i]!.dataset.current = String(combat.phase === "active" && Math.floor(combat.elapsedSeconds) === i);
       updateEditor();
       updatePreview();
-      write(feedback, next.report);
     },
     dispose(): void { root.remove(); },
   };

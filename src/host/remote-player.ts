@@ -3,11 +3,13 @@ import type { RemotePlayerView } from "../game/multiplayer-types.js";
 export type { RemotePlayerView } from "../game/multiplayer-types.js";
 import { actor, type ForestActor } from "./frostwood-assets.js";
 import { createSocialAnimation } from "./social-animation.js";
+import { createPhotonChair } from "./photon-chair.js";
 
 export function createRemotePlayers(scene: Group | import("three").Scene) {
   const rigs = new Map<string, ReturnType<typeof createRig>>();
   function createRig(view: RemotePlayerView) {
     const root = new Group();
+    const photonChair = createPhotonChair(root);
     root.userData.playerId = view.id;
     const target = new Vector3(view.player.position.x, view.player.position.y, view.player.position.z);
     root.position.copy(target);
@@ -42,6 +44,7 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
       update(next: RemotePlayerView) { current = next; target.set(next.player.position.x, next.player.position.y, next.player.position.z); },
       render(delta: number) {
         const player = current.player;
+        photonChair.update(player.sitting && player.health > 0 && !player.moving);
         root.position.copy(target);
         const facing = Math.atan2(player.facing.x, player.facing.z);
         root.rotation.y = facing;
@@ -58,7 +61,7 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
             actionRemaining = 0.4;
           } else if (actionRemaining === 0) {
             if (!playSocialAnimation(mounted, player.sitting, player.moving ? null : player.emote)) {
-              mounted.play(player.maneuver === "disengage" || !player.grounded ? "Roll" : player.moving ? "Run" : "Idle");
+              mounted.play(!player.grounded ? "Roll" : player.moving ? "Run" : "Idle");
             }
           }
         }
@@ -67,7 +70,7 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
         root.userData.animation = mounted.action?.getClip().name ?? '';
         root.userData.animationTime = mounted.action?.time ?? 0;
       },
-      dispose() { disposed = true; if (mounted) disposeActor(mounted); root.removeFromParent(); },
+      dispose() { disposed = true; if (mounted) disposeActor(mounted); photonChair.dispose(); root.removeFromParent(); },
     };
   }
   return {

@@ -149,13 +149,13 @@ test('authoritative physics lands a jump while network input is temporarily abse
 
 test('server-announced maneuvers advance between snapshots without predicting combat outcomes', () => {
   const snapshot = createAdventure().snapshot;
-  const player = { ...snapshot.player, maneuver: 'disengage' as const, maneuverSeconds: 0.8 };
+  const player = { ...snapshot.player, maneuver: 'bait' as const, maneuverSeconds: 0.45 };
   const local = new LocalMovement({ ...snapshot, player }, { sequence: 0, elapsed: 0, verticalSpeed: 0,
-    maneuver: { kind: 'disengage', start: player.position, destination: { ...player.position, z: -13 }, remainingSeconds: 0.8, duration: 0.8 } });
+    maneuver: { kind: 'bait', start: player.position, destination: { ...player.position, z: -13 }, remainingSeconds: 0.45, duration: 0.45 } });
   const start = local.player.position;
   local.advance(1 / 60);
   expect(local.player.position.z).toBeLessThan(start.z);
-  expect(local.player.position.y).toBeGreaterThan(0);
+  expect(local.player.position.y).toBe(0);
   expect(local.player.health).toBe(snapshot.player.health);
   const first = local.player.position.z;
   local.advance(1 / 60);

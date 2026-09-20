@@ -78,6 +78,7 @@ const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   onClear: () => { if (running?.ready && !paused) { running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
   onMove: (id, seconds) => { if (running?.ready && !paused) { running.game.moveQueuedAction(id, seconds); combatPlan.update(running.game.snapshot); } },
   onReady: readyCombat,
+  onAimMove: () => pulse("bait"),
   onPreview: preview => running?.world.setCombatPreview(preview),
 });
 function readyCombat(): void {
@@ -108,7 +109,7 @@ const shop = createShopPanel(element("adventure-hud"), {
   onTrade: () => pulse("openTrade"),
   onClose: () => { pulse("closeShop"); running?.world.canvas.focus(); },
 });
-const gearShop = createGearShop(element("adventure-hud"), {
+const gearShop = createGearShop(element("adventure-hud"), element("experience-mount"), {
   onBuy: (vendor, item) => { if (running?.ready && !paused) running.game.buyGear(vendor, item); },
   onClose: () => { pulse("closeShop"); running?.world.canvas.focus(); },
 });
@@ -142,104 +143,8 @@ function input(id: string): HTMLInputElement {
   return found;
 }
 function actionBar(): HTMLElement { return element("adventure-actions"); }
-function actionBarStorageKey(archetype: CharacterArchetype): string { return `greywrought/action-bar/${archetype}`; }
-function actionBarControls(): HTMLButtonElement[] {
-  return [...actionBar().querySelectorAll<HTMLButtonElement>(":scope > button")];
-}
-function normalActionBarOrder(): ActionBarEntry[] {
-  return actionBarControls().map(control => control.dataset.action as AdventureAction | undefined ?? null);
-}
-let authoredActionBarOrder: ActionBarEntry[] | null = null;
-function loadActionBarOrder(archetype: CharacterArchetype): void {
-  if (actionBarArchetype === archetype && actionBarOrder.length) return;
-  const defaults = authoredActionBarOrder ?? (authoredActionBarOrder = normalActionBarOrder());
-  let saved: unknown = null;
-  try { saved = JSON.parse(localStorage.getItem(actionBarStorageKey(archetype)) ?? "null"); } catch { /* Use the authored order when storage is unavailable. */ }
-  const allowed = new Set(defaults.filter((action): action is AdventureAction => action !== null));
-  const parsed = Array.isArray(saved) ? saved.map(value => typeof value === "string" && allowed.has(value as AdventureAction) ? value as AdventureAction : null) : [];
-  const order: ActionBarEntry[] = [];
-  for (const action of parsed) if (action === null || !order.includes(action)) order.push(action);
-  for (const action of defaults) if (action !== null && !order.includes(action)) {
-    const empty = order.indexOf(null);
-    if (empty >= 0) order[empty] = action; else order.push(action);
-  }
-  while (order.length < defaults.length) order.push(null);
-  actionBarOrder = order.slice(0, defaults.length);
-  actionBarArchetype = archetype;
-  applyActionBarOrder();
-}
-function persistActionBarOrder(): void {
-  if (!actionBarArchetype) return;
-  try { localStorage.setItem(actionBarStorageKey(actionBarArchetype), JSON.stringify(actionBarOrder)); } catch { /* The bar still works for this session. */ }
-}
-function applyActionBarOrder(): void {
-  const controls = actionBarControls();
-  const byAction = new Map<string, HTMLButtonElement>();
-  const empties: HTMLButtonElement[] = [];
-  for (const control of controls) {
-    if (control.dataset.action) byAction.set(control.dataset.action, control);
-    else empties.push(control);
-  }
-  for (const [index, action] of actionBarOrder.entries()) {
-    const control = action ? byAction.get(action) : empties.shift();
-    if (!control) continue;
-    control.dataset.actionSlot = String(index);
-    control.querySelector("kbd")!.textContent = actionBarLabels[index] ?? "";
-    actionBar().append(control);
-  }
-}
 function actionForBarCode(code: string): AdventureAction | null {
-  const index = actionBarKeys.indexOf(code as typeof actionBarKeys[number]);
-  if (index < 0) return null;
-  return actionBarOrder[index] ?? null;
-}
-function resetActionBarDragState(): void {
-  for (const control of actionBarControls()) control.classList.remove("action-dragging", "action-drag-over");
-}
-function bindActionBar(): void {
-  const bar = actionBar();
-  for (const control of actionBarControls()) {
-    control.draggable = Boolean(control.dataset.action);
-    for (const image of control.querySelectorAll<HTMLImageElement>("img")) image.draggable = false;
-    if (!control.dataset.action) control.disabled = false;
-  }
-  let dragged: HTMLButtonElement | null = null;
-  listen(bar, "dragstart", event => {
-    if (!(event instanceof DragEvent) || !(event.target instanceof Element)) return;
-    const source = event.target.closest<HTMLButtonElement>("button");
-    if (!source || !bar.contains(source) || !source.dataset.action) return;
-    dragged = source;
-    event.dataTransfer?.setData("text/plain", source.dataset.action);
-    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-    source.classList.add("action-dragging");
-  });
-  listen(bar, "dragover", event => {
-    if (!(event instanceof DragEvent) || !dragged) return;
-    const target = (event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null);
-    if (!target || target === dragged) return;
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-    for (const control of actionBarControls()) control.classList.toggle("action-drag-over", control === target);
-  });
-  listen(bar, "drop", event => {
-    if (!(event instanceof DragEvent) || !dragged) return;
-    const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null;
-    if (!target || target === dragged) return;
-    event.preventDefault();
-    const from = Number(dragged.dataset.actionSlot);
-    const to = Number(target.dataset.actionSlot);
-    if (Number.isInteger(from) && Number.isInteger(to) && from !== to) {
-      const source = actionBarOrder[from] ?? null;
-      actionBarOrder[from] = actionBarOrder[to] ?? null;
-      actionBarOrder[to] = source;
-      applyActionBarOrder();
-      persistActionBarOrder();
-      suppressActionClickUntil = performance.now() + 250;
-    }
-    dragged = null;
-    resetActionBarDragState();
-  });
-  listen(bar, "dragend", () => { dragged = null; resetActionBarDragState(); });
+  return code === "Digit1" ? "strike" : code === "Digit2" ? "brace" : code === "Digit3" ? "bait" : null;
 }
 function text(id: string, value: string): void {
   const target = element(id);
@@ -248,7 +153,7 @@ function text(id: string, value: string): void {
 const classes: Record<CharacterArchetype, { name: string; copy: string }> = {
   warrior: { name: "Warrior", copy: "A steadfast wayfarer who meets the forest with courage and a ready blade." },
   mage: { name: "Mage", copy: "A curious seeker drawn to the old mysteries sleeping beneath the frost." },
-  hunter: { name: "Hunter", copy: "A patient trailfinder who reads the forest and knows when to return home." },
+  hunter: { name: "Ranger", copy: "A patient trailfinder who reads the forest and knows when to return home." },
   alchemist: { name: "Alchemist", copy: "A field chemist who turns scarce reagents into healing, acid, and volatile power." },
   artificer: { name: "Artificer", copy: "A works engineer who answers danger with a rivet tool, plated wards, and overclocked machinery." },
 };
@@ -257,13 +162,8 @@ const keyActions: Readonly<Record<string, AdventureAction>> = {
   KeyG: "gather", KeyR: "ritual",
   KeyF: "interact", KeyT: "rest", Tab: "target",
 };
-const actionBarKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9", "Digit0", "Minus", "Equal"] as const;
-const actionBarLabels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "="] as const;
-type ActionBarEntry = AdventureAction | null;
-let actionBarOrder: ActionBarEntry[] = [];
-let actionBarArchetype: CharacterArchetype | null = null;
-let suppressActionClickUntil = 0;
 let baitAiming = false;
+let moveAimError = "";
 const resumeKey = "greywrought/adventure-active-character";
 interface RunningAdventure {
   readonly character: LocalCharacter;
@@ -308,6 +208,8 @@ function combatExecutionLocked(): boolean {
 }
 function setBaitAiming(value: boolean): void {
   baitAiming = value;
+  moveAimError = "";
+  running?.world.setMoveAiming(value);
   document.body.dataset.baitAiming = String(value);
   element("bait-aim-hint").hidden = !value;
 }
@@ -319,9 +221,8 @@ function pressAction(action: AdventureAction): void {
     if (snapshot?.combat.phase === "preparation" && snapshot.combat.queued.length < 3 && snapshot.combat.availableStamina >= 1) setBaitAiming(!baitAiming);
     return;
   }
-  if (["shove", "finish"].includes(action)) setBaitAiming(false);
-  if ((action === "disengage" || action === "bloodRage") && !running?.game.snapshot.progression.unlockedActions.includes(action)) return;
-  if (combatExecutionLocked() && ["forward", "backward", "left", "right", "jump", "strike", "brace", "disengage", "bloodRage", "jab", "guard", "drinkPotion", "shove", "finish"].includes(action)) return;
+  if (action === "strike" || action === "brace") setBaitAiming(false);
+  if (combatExecutionLocked() && ["forward", "backward", "left", "right", "jump", "strike", "brace", "drinkPotion"].includes(action)) return;
   running?.game.setAction(action, true);
 }
 function pulse(action: AdventureAction): void {
@@ -332,7 +233,7 @@ function pulse(action: AdventureAction): void {
 function release(): void {
   setBaitAiming(false);
   if (running) {
-    for (const action of new Set([...Object.values(keyActions), ...actionBarOrder.filter((action): action is AdventureAction => action !== null)])) running.game.setAction(action, false);
+    for (const action of new Set<AdventureAction>([...Object.values(keyActions), "strike", "brace", "bait"])) running.game.setAction(action, false);
     running.game.setMouseForward(false);
   }
   keys.clear();
@@ -662,7 +563,6 @@ function renderHud(snapshot: AdventureSnapshot): void {
     else clock.setAttribute('datetime', new Date(minute * 60_000).toISOString());
   }
   const { player } = snapshot;
-  loadActionBarOrder(player.archetype);
   const data = document.body.dataset;
   data.gamePhase = snapshot.phase;
   data.gamePlayerX = String(player.position.x); data.gamePlayerY = String(player.position.y); data.gamePlayerZ = String(player.position.z);
@@ -675,7 +575,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   data.gameActionCooldown = String(player.actionCooldown); data.gameGuardSeconds = String(player.guardSeconds);
   data.gameBlock = String(player.block); data.gameManeuver = player.maneuver;
   data.gameManeuverSeconds = String(player.maneuverSeconds);
-  data.gameStamina = String(player.stamina); data.gameBloodRage = String(player.bloodRage); data.gameInCombat = String(player.inCombat);
+  data.gameStamina = String(player.stamina); data.gameInCombat = String(player.inCombat);
   data.gamePlayerSitting = String(player.sitting);
   data.gamePlayerEmote = JSON.stringify(player.emote);
   data.gameCombatPhase = snapshot.combat.phase;
@@ -686,7 +586,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   stamina.title = "Stamina " + player.stamina + " / " + player.maximumStamina;
   element("combat-stamina-fill").style.width = (100 * player.stamina / player.maximumStamina) + "%";
   data.archetype = player.archetype;
-  text("bait-aim-hint", `Bait · click your destination (up to ${classKit(player.archetype).movementTiles} tiles per move) · Esc cancels`);
+  text("bait-aim-hint", moveAimError || `Move · click a destination tile (up to ${classKit(player.archetype).movementTiles} tiles) · then Ready (R) · Esc cancels`);
   text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players);
   combatPlan.update(snapshot);
@@ -701,57 +601,26 @@ function renderHud(snapshot: AdventureSnapshot): void {
   shop.update(snapshot); gearShop.update(snapshot);
   trade.update(snapshot);
   const selected = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat);
-  for (const [action, label] of [
-    ["strike", "strike-ready"], ["brace", "block-ready"], ["disengage", "disengage-ready"], ["bloodRage", "rage-ready"],
-  ] as const) {
+  for (const action of ["strike", "brace", "bait"] as const) {
     const spec = classAction(player.archetype, action);
-    const cost = spec.cost ?? COMBAT_RULES[action].cost;
-    const available = action === "bloodRage" ? player.inCombat : snapshot.phase === "expedition" && selected?.active && selected.health > 0;
-    const availableStamina = snapshot.combat.availableStamina;
-    const planning = snapshot.combat.phase === "preparation";
-    const targeted = action === "strike" || action === "disengage";
-    const range = available ? playerRange(snapshot, action) : null;
-    const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]');
-    const unlocked = snapshot.progression.unlockedActions.includes(action);
-    if (control) {
-      control.setAttribute("aria-label", !unlocked ? `Locked ability · ${spec.name}` : spec.name);
-      const art = control.querySelector<HTMLImageElement>(".action-art img");
-      if (art) { const source = publicUrl(spec.icon); if (art.src !== source) art.src = source; }
-      const heading = control.querySelector<HTMLElement>(".action-tooltip strong");
-      if (heading) heading.textContent = spec.name;
-      const copy = control.querySelector<HTMLElement>(".action-tooltip span:last-child");
-      if (copy) {
-        const power = classAction(player.archetype, "bloodRage").powerDamagePerStack ?? COMBAT_RULES.bloodRage.damagePerStack;
-        const effect = action === "strike" || action === "disengage"
-          ? ((spec.damage ?? COMBAT_RULES[action].damage) + snapshot.progression.attackBonus + player.bloodRage * power) + " damage · " + (spec.range ?? COMBAT_RULES[action].range) + "m reach. "
-          : action === "brace"
-            ? (spec.block ?? COMBAT_RULES.brace.block) + " block for " + COMBAT_RULES.brace.duration + "s. " + (spec.heal ? "Restores " + spec.heal + " health in combat. " : "")
-            : "+" + power + " damage per " + classKit(player.archetype).powerStackName + "; maximum 3 stacks. " + (player.archetype === "hunter" ? "" : "Each stack drains 1 health every 5s. ") + "Lose one stack every 2s outside combat. ";
-        copy.textContent = effect + "Queue this ability for the current combat sequence. " + spec.description;
-      }
-      control.classList.toggle("action-locked", !unlocked);
-      control.disabled = !unlocked || !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.queued.length >= 3 || availableStamina < cost;
-      control.style.setProperty("--recovery", "0");
-      control.removeAttribute("data-auto-active");
-      control.removeAttribute("aria-pressed");
-      control.dataset.range = range?.state ?? "none";
-      control.classList.toggle("action-in-range", targeted && range?.state === "in" && !control.disabled && snapshot.combat.availableStamina >= cost && !snapshot.combat.ready);
-    }
-    const detail = !unlocked ? action === "disengage" ? "Complete A Name on the Roll to unlock" : "Complete Clock Out to unlock" : !available ? action === "bloodRage" ? "Requires combat" : "Select a living enemy beyond the gate" : !(planning || targeted && snapshot.combat.phase === "idle") ? "Waiting for the next planning window" : snapshot.combat.queued.length >= 3 ? "Three moves already planned" : availableStamina < cost ? "Need " + cost + " stamina" : "Queue · " + cost + " stamina";
-    text(label, detail + (range?.text ? " · " + range.text : ""));
-  }
-  for (const action of ["bait", "shove", "finish"] as const) {
-    const spec = classAction(player.archetype, action);
-    const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]')!;
-    const targetAvailable = action === "bait" || Boolean(selected?.active && selected.health > 0);
     const cost = spec.cost ?? 1;
+    const targeted = action === "strike";
+    const planning = snapshot.combat.phase === "preparation";
+    const available = targeted ? Boolean(selected?.active && selected.health > 0) : player.inCombat;
     const range = playerRange(snapshot, action);
-    control.disabled = !(snapshot.combat.phase === "preparation" || action !== "bait" && snapshot.combat.phase === "idle" && range.state === "in") || snapshot.combat.ready || snapshot.combat.queued.length >= 3 || snapshot.combat.availableStamina < cost || !targetAvailable;
-    control.dataset.range = range.state;
-    control.classList.toggle("action-in-range", range.state === "in" && !control.disabled);
+    const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]')!;
+    control.disabled = !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.ready || snapshot.combat.queued.length >= 3 || snapshot.combat.availableStamina < cost || targeted && range.state !== "in" && !(planning && selected?.aggro);
+    control.setAttribute("aria-label", spec.name);
     control.setAttribute("aria-pressed", String(action === "bait" && baitAiming));
+    control.dataset.range = range.state;
+    control.classList.toggle("action-in-range", targeted && range.state === "in" && !control.disabled);
+    control.querySelector<HTMLElement>(".action-label")!.textContent = spec.name;
+    control.querySelector<HTMLElement>(".action-tooltip strong")!.textContent = spec.name;
     control.querySelector<HTMLElement>(".action-tooltip span:last-child")!.textContent = spec.description;
-    text(action + "-ready", (!targetAvailable ? "Select a living enemy" : !(snapshot.combat.phase === "preparation" || action !== "bait" && snapshot.combat.phase === "idle") ? "Plan this move when combat begins" : snapshot.combat.queued.length >= 3 ? "Three moves already planned" : snapshot.combat.availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Choose ground, then place the move on a beat" : "Queue · " + cost + " stamina · " + (spec.range ?? 0) + "m reach") + (range.text ? " · " + range.text : ""));
+    const art = control.querySelector<HTMLImageElement>(".action-art img")!;
+    const source = publicUrl(spec.icon); if (art.getAttribute("src") !== source) art.src = source;
+    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.queued.length >= 3 ? "Three actions already planned" : snapshot.combat.availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Click a highlighted tile, then Ready (R)" : "Queue · " + cost + " stamina";
+    text(action + "-ready", detail + (range.text ? " · " + range.text : ""));
   }
   const recovery = element("player-action-bar");
   recovery.hidden = player.actionCooldown <= 0.001 || (player.currentAction !== "gather" && player.currentAction !== "ritual");
@@ -770,13 +639,6 @@ function renderHud(snapshot: AdventureSnapshot): void {
     recovery.setAttribute("role", "progressbar"); recovery.setAttribute("aria-label", label);
     recovery.setAttribute("aria-valuenow", String(progress)); recovery.setAttribute("aria-valuemin", "0"); recovery.setAttribute("aria-valuemax", String(player.actionDuration));
   }
-  const potion = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="drinkPotion"]');
-  if (potion) {
-    potion.disabled = snapshot.potions <= 0 || player.health >= player.maximumHealth || snapshot.phase === "lost";
-    potion.style.setProperty("--recovery", "0");
-  }
-  text("potion-count", `${snapshot.potions} carried · heals ${snapshot.potionHealing}`);
-  text("potion-stack", String(snapshot.potions));
   corpseLoot.update(snapshot);
   bags.update(snapshot);
   if (equipment.isOpen && running) equipment.update(running.character, snapshot);
@@ -842,7 +704,11 @@ function bindWorld(app: RunningAdventure): void {
       if (baitAiming) {
         if (event.button === 0) {
           const destination = app.world.pickGround(event.clientX, event.clientY);
-          if (destination) { app.game.queueBait(destination); setBaitAiming(false); }
+          if (destination && app.world.canMoveTo(destination)) {
+            if (app.game.queueBait(destination)) setBaitAiming(false);
+          } else {
+            moveAimError = "That tile is blocked or out of reach. Choose one of the highlighted tiles · Esc cancels";
+          }
         } else setBaitAiming(false);
         if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
         return;
@@ -1004,11 +870,9 @@ for (const target of [element("map-threats"), element("enemy-intents")]) listen(
   if (id) { running.game.selectTarget(id); running.world.canvas.focus(); }
 });
 for (const control of document.querySelectorAll<HTMLElement>("[data-action]")) listen(control, "click", () => {
-  if (performance.now() < suppressActionClickUntil) return;
   const action = control.dataset.action;
-  if (action && ["strike", "disengage", "brace", "bloodRage", "bait", "shove", "finish", "jab", "guard", "drinkPotion", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
+  if (action && ["strike", "brace", "bait", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
 });
-bindActionBar();
 listen(window, "click", (event) => {
   if (menuOpen() && event.target instanceof Element && !event.target.closest('#pause-panel, #pause-open, #pause-toggle')) { event.preventDefault(); event.stopImmediatePropagation(); }
 }, removers, true);

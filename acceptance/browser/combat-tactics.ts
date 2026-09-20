@@ -39,7 +39,7 @@ async function groundClick(destination: Position) {
   await page.call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', buttons: 0, clickCount: 1 });
 }
 try {
-  await page.call('Page.addScriptToEvaluateOnNewDocument', { source: `localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Tactics Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});localStorage.setItem('greywrought/action-bar/warrior',JSON.stringify(['strike','brace','disengage','bloodRage',null,null,null,null,null,null,null,'drinkPotion']));const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4195/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state'){window.combatSnapshot=d.snapshot;(window.tacticsHistory??=[]).push(d.snapshot);}});}};` });
+  await page.call('Page.addScriptToEvaluateOnNewDocument', { source: `localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Tactics Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4195/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state'){window.combatSnapshot=d.snapshot;(window.tacticsHistory??=[]).push(d.snapshot);}});}};` });
   await page.reload();
   await page.waitFor('document.body.dataset.entryRoute==="roster"');
   await page.evaluate(`(async () => {const {Scene,Vector3}=await import('three');window.tacticsVector=Vector3;Scene.prototype.onAfterRender=function(renderer,scene,camera){window.tacticsCamera=camera;};})()`);
@@ -47,8 +47,8 @@ try {
   await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"&&document.body.dataset.creatureRigState==="ready"&&window.tacticsCamera');
   check(await page.evaluate('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).length===0'), 'Default battlefield has no persistent attack warnings');
   check(await page.evaluate('document.querySelectorAll(".enemy-nameplate .enemy-cast-bar:not([hidden])").length===0'), 'Planning does not duplicate intentions in floating cast bars');
-  check(await page.evaluate('["bait","shove","finish"].every(action=>{const button=document.querySelector(`[data-action="${action}"]`);return button&&!button.disabled&&button.dataset.actionSlot;})'), 'Existing saved hotbar gains all three tactical moves');
-  await page.press('Digit5');
+  check(await page.evaluate('["strike","brace","bait"].every(action=>{const button=document.querySelector(`[data-action="${action}"]`);return button&&!button.disabled&&button.querySelector(".action-label");})'), 'Action bar exposes only Attack, Defend and Move');
+  await page.press('Digit3');
   await page.waitFor('document.body.dataset.baitAiming==="true"');
   await page.press('Escape');
   check(await page.evaluate('document.body.dataset.baitAiming==="false"&&document.getElementById("pause-panel").hidden'), 'Escape cancels Bait without pausing');
@@ -56,11 +56,11 @@ try {
   const hound = initial.threats.find(enemy => enemy.id === 'patrol')!, bee = initial.threats.find(enemy => enemy.id === 'nest')!;
   const length = Math.hypot(bee.position.x - hound.position.x, bee.position.z - hound.position.z);
   const destination = { x: bee.position.x + (bee.position.x - hound.position.x) / length * 1.4, y: 0, z: bee.position.z + (bee.position.z - hound.position.z) / length * 1.4 };
-  await page.press('Digit5'); await groundClick(destination);
+  await page.press('Digit3'); await groundClick(destination);
   await page.waitFor('window.combatSnapshot.combat.queued.some(move=>move.action==="bait")');
   await page.click('.enemy-nameplate[data-enemy-id="patrol"] .nameplate-target');
-  await page.press('Digit7');
-  await page.waitFor('window.combatSnapshot.combat.queued.some(move=>move.action==="finish")');
+  await page.press('Digit1');
+  await page.waitFor('window.combatSnapshot.combat.queued.some(move=>move.action==="strike")');
   await page.click('.combat-plan-delay[data-slot="3"]');
   await page.press('Digit2');
   await page.waitFor('window.combatSnapshot.combat.queued.some(move=>move.action==="brace"&&move.offsetSeconds===1)');
@@ -83,11 +83,11 @@ try {
   await Bun.write(page.output + '/result.json', JSON.stringify(final, null, 2));
   check(await page.evaluate('window.tacticsHistory.some(s=>s.log.some(event=>event.text.includes("collides")))'), 'Enemy collision resolves in the actual networked fight');
   check(await page.evaluate('window.tacticsHistory.some(s=>s.combat.effects.some(effect=>effect.kind==="ignition"))'), 'Watchman ignites the interrupted bee swarm');
-  check(final.threats.find(enemy => enemy.id === 'patrol')!.health === 0, 'Finish defeats the staggered hound');
+  check(final.threats.find(enemy => enemy.id === 'patrol')!.health < initial.threats.find(enemy=>enemy.id==='patrol')!.health, 'Attack damages the hound');
   check(final.player.health >= health - 40, 'Planned Block keeps the chain reaction survivable');
   check(final.player.health === planned.combat.forecast!.outcomes.find(outcome => outcome.id === character.id)!.health, 'Predicted player health agrees with actual networked playback');
   check(page.errors.length === 0, 'No browser exceptions');
   await page.shot('roadside-result');
-  console.log('PASS Bait ground click, existing bar migration, Escape cancel, intention preview pin/clear, R playback, collision, swarm interruption, Finish, ignition', page.output);
+  console.log('PASS Bait ground click, existing bar migration, Escape cancel, intention preview pin/clear, R playback, collision, swarm interruption, Attack, ignition', page.output);
 } catch (error) { await page.shot('failure'); throw error; }
 finally { await page.close(); await service.close(); server.stop(true); }

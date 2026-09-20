@@ -1,3 +1,5 @@
+import { terrainHeight } from '../game/cave-layout.js';
+import { conformToTerrain } from './terrain-geometry.js';
 import { Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Sprite, SpriteMaterial } from "three";
 import type { Position } from "../game/adventure-types.js";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
@@ -11,7 +13,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
   function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0, footprint?: readonly [number, number]) {
     jobs.push(prop(name, size, axis).then(model => {
-      model.position.set(x, y, z); model.rotation.y = rotation;
+      model.position.set(x, terrainHeight(x,z) + y, z); model.rotation.y = rotation;
       if (footprint) {
         const bounds = new Box3().setFromObject(model).getSize(new Vector3());
         const sideways = Math.abs(Math.sin(rotation)) > 0.5;
@@ -48,7 +50,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   function torch(x: number, z: number, height = 2.4) {
     place("WoodenTorch_Fire",x,z,height);
     const light = new PointLight(0xffa34e,19,9,2);
-    light.position.set(x,height-0.2,z); terrain.add(light);
+    light.position.set(x,terrainHeight(x,z)+height-0.2,z); terrain.add(light);
   }
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
   const ctx = canvas.getContext("2d")!;
@@ -57,13 +59,13 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const map = new CanvasTexture(canvas); map.colorSpace=SRGBColorSpace; map.wrapS=map.wrapT=RepeatWrapping; map.repeat.set(48,64);
   const groundMaterial = new MeshStandardMaterial({ map, roughness: 1 });
   // Four surfaces leave an actual opening in the earth above Hollowdeep.
-  for (const [left, right, bottom, top] of [[-74,28,-134,80],[86,94,-134,80],[28,86,-134,-64],[28,86,-30,80]]) {
-    const geometry = new PlaneGeometry(right!-left!, top!-bottom!);
+  for (const [left, right, bottom, top] of [[-124,28,-190,148],[86,146,-190,148],[28,86,-190,-64],[28,86,-30,148]]) {
+    const geometry = new PlaneGeometry(right!-left!, top!-bottom!, Math.ceil((right!-left!)/2), Math.ceil((top!-bottom!)/2));
     const uv = geometry.getAttribute('uv');
     for(let i=0;i<uv.count;i++) uv.setXY(i, (left! + uv.getX(i)*(right!-left!) + 74)/168, (bottom! + uv.getY(i)*(top!-bottom!) + 134)/214);
     const ground = new Mesh(geometry, groundMaterial);
     ground.rotation.x=-Math.PI/2; ground.position.set((left!+right!)/2,-0.06,(bottom!+top!)/2);
-    ground.userData.walkableGround = true; terrain.add(ground);
+    ground.userData.walkableGround = true; terrain.add(ground); conformToTerrain(ground, -.06); geometry.computeVertexNormals();
   }
   const paving = document.createElement("canvas"); paving.width=paving.height=256;
   const pavingCtx=paving.getContext("2d")!; pavingCtx.fillStyle="#8c8871"; pavingCtx.fillRect(0,0,256,256);
@@ -83,7 +85,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     c.fillStyle=tint; c.font='bold 32px Georgia'; c.textAlign='center'; c.fillText(text,384,68);
     const texture=new CanvasTexture(board); texture.colorSpace=SRGBColorSpace;
     const label=new Sprite(new SpriteMaterial({map:texture,depthWrite:false}));
-    label.position.set(x,y,z); label.scale.set(4.2,.61,1); terrain.add(label);
+    label.position.set(x,terrainHeight(x,z)+y,z); label.scale.set(4.2,.61,1); terrain.add(label);
   }
   for (const building of TOWN_BUILDINGS) {
     place(building.model, building.x, building.z, building.height, building.turn*Math.PI/2, terrain, 'height', 0, [building.width,building.depth]);
@@ -170,8 +172,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   forestPlace("works/Details_Pipes_Long",6.45,47.05,3.7);
   // A broad grassy meadow stays open between the village and the eastern trail.
   function path(x: number, z: number, width: number, length: number, rotation = 0) {
-    const mesh = new Mesh(new PlaneGeometry(width, length), new MeshStandardMaterial({ color: 0x827952, roughness: 1 }));
-    mesh.rotation.set(-Math.PI / 2, 0, rotation); mesh.position.set(x, 0.008, z); terrain.add(mesh);
+    const mesh = new Mesh(new PlaneGeometry(width, length, Math.ceil(width), Math.ceil(length)), new MeshStandardMaterial({ color: 0x827952, roughness: 1 }));
+    mesh.rotation.set(-Math.PI / 2, 0, rotation); mesh.position.set(x, 0.008, z); terrain.add(mesh); conformToTerrain(mesh, .008); mesh.geometry.computeVertexNormals();
   }
   path(0, -75, 3.4, 102);
   path(14, -46, 28, 3.4);

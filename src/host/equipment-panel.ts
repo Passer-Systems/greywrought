@@ -17,7 +17,7 @@ const slots = [
   ["ranged", "Ranged / Relic", "weapons"],
 ] as const;
 type SlotId = typeof slots[number][0];
-const classNames: Record<CharacterArchetype, string> = { warrior: "Warrior", mage: "Mage", hunter: "Hunter", alchemist: "Alchemist", artificer: "Artificer" };
+const classNames: Record<CharacterArchetype, string> = { warrior: "Warrior", mage: "Mage", hunter: "Ranger", alchemist: "Alchemist", artificer: "Artificer" };
 
 export function createEquipmentPanel(element: HTMLElement, onClose: () => void, onEquip: (slot: GearSlot, item: GearItemId | null) => void) {
   if (!(element instanceof HTMLDialogElement)) throw new Error("Equipment panel must be a dialog");

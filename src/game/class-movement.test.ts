@@ -1,3 +1,4 @@
+import { queueMoveToward } from './yard-test-fixtures.js';
 import { expect, test } from 'bun:test';
 import { createAdventure } from './adventure.js';
 import { classKit } from './class-kit.js';
@@ -28,7 +29,7 @@ for (const [archetype, tiles, speed] of classes) {
     const game = combat(archetype), start = game.snapshot.player.position;
     expect(classKit(archetype).movementTiles).toBe(tiles);
     expect(classKit(archetype).abilities.bait.description).toContain(`${tiles} tiles`);
-    expect(game.queueBait({ ...start, x: start.x + 20 })).toBe(true);
+    expect(queueMoveToward(game, { ...start, x: start.x + 20 })).toBe(true);
     const path = game.snapshot.combat.forecast!.paths.find(path => path.actorId === 'solo' && path.action === 'bait')!;
     const end = path.points.at(-1)!;
     expect(gap(start, end)).toBeCloseTo(tiles * COMBAT_CELL_SIZE, 7);
@@ -40,7 +41,7 @@ for (const [archetype, tiles, speed] of classes) {
 
   test(`${archetype} diagonal snapping never exceeds Movement`, () => {
     const game = combat(archetype), start = game.snapshot.player.position;
-    expect(game.queueBait({ ...start, x: start.x + 20, z: start.z - 20 })).toBe(true);
+    expect(queueMoveToward(game, { ...start, x: start.x + 20, z: start.z - 20 })).toBe(true);
     const end = game.snapshot.combat.forecast!.paths.find(path => path.actorId === 'solo' && path.action === 'bait')!.points.at(-1)!;
     expect(gap(start, end)).toBeLessThanOrEqual(tiles * COMBAT_CELL_SIZE + 1e-8);
     expect(gap(start, end)).toBeGreaterThan(0);
@@ -65,3 +66,16 @@ for (const [archetype, tiles, speed] of classes) {
     expect(gap(local.player.position, server.snapshot.player.position)).toBeCloseTo(0, 7);
   });
 }
+
+test('Move rejects distant and occupied tiles, then chains later beats from the planned destination', () => {
+  const game = combat('mage'), start = game.snapshot.player.position;
+  expect(game.queueBait({...start,x:start.x+20})).toBe(false);
+  expect(game.queueBait(game.snapshot.threats[0]!.position)).toBe(false);
+  expect(game.snapshot.combat.queued).toHaveLength(0);
+  expect(game.queueBait({...start,z:start.z-5,y:-.06})).toBe(true);
+  expect(game.queueBait({...start,z:start.z-10,y:-.06})).toBe(true);
+  expect(game.snapshot.combat.queued.map(move=>move.destination?.z)).toEqual([start.z-5,start.z-10]);
+  game.readyCombat(); game.advance(1.5);
+  expect(game.snapshot.player.position.z).toBeCloseTo(start.z-10,8);
+  expect(game.snapshot.combat.queued.every(move=>move.status==='executed')).toBe(true);
+});

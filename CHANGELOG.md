@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.20.0 — 2026-09-19
+
+- Limit combat to Attack, Defend and Move, with three labeled buttons and reachable destination tiles.
+- Fix surface ground clicks, chained movement plans, and attacks planned after movement.
+- Keep Ash hounds grounded during planning and play their leap during the actual charge.
+- Put XP below the action bar, show Ranger in the interface, and keep frames and nameplates clear of overlapping panels.
+- Remove the planner's bottom instruction and combat-message text.
+- Add rolling meadow hills and mountains while preserving town foundations and the cave descent.
+- Show a translucent photon chair when a player sits, including other players.
+
 ## 0.5.0 — 2026-09-09
 
 - Queue moves on a shared five-second active window with five seconds to prepare. Additional enemies inherit the fight’s clock; each announces only one move per active window.

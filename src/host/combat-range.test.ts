@@ -14,17 +14,15 @@ test("attack distance follows class and move, independent of readiness", () => {
     const ranged = createAdventure({ save: JSON.stringify(saved) }).snapshot;
     expect(playerRange(ranged, "strike").state).toBe(archetype === "warrior" ? "out" : "in");
   }
-  const close = { ...snapshot, threats: [{ ...scout, position: { x: 1.5, y: 0, z: 0 }, inRangeActions: ["strike", "disengage", "jab"] as const }] };
+  const close = { ...snapshot, threats: [{ ...scout, position: { x: 1.5, y: 0, z: 0 }, inRangeActions: ["strike"] as const }] };
   expect(playerRange(close, "strike").state).toBe("in");
-  expect(playerRange(close, "disengage").state).toBe("in");
-  expect(playerRange(close, "jab").state).toBe("in");
 });
 
 test("explicit target identity wins over the selected enemy; self moves have no range cue", () => {
   const next = { ...snapshot, threats: [...snapshot.threats, { ...scout, id: "near", position: origin, inRangeActions: ["strike"] as const }], selectedThreat: "near" };
   expect(playerRange(next, "strike").state).toBe("in");
   expect(playerRange(next, "strike", scout.id).state).toBe("out");
-  for (const action of ["brace", "guard", "bloodRage", "drinkPotion"] as const) expect(playerRange(next, action).state).toBe("none");
+  for (const action of ["brace", "bait"] as const) expect(playerRange(next, action).state).toBe("none");
   expect(enemyRange(next, scout, { ...scout.currentAbility, id: "ember-ward", range: 10, damage: 0 }).state).toBe("none");
 });
 
@@ -32,13 +30,9 @@ test("targeted tools use their own reach and respect the game's cover check", ()
   const saved = JSON.parse(createAdventure({ archetype: "mage" }).save());
   Object.assign(saved.state, { phase: "expedition", position: { x: -3, y: 0, z: 25 } });
   const near = createAdventure({ save: JSON.stringify(saved) }).snapshot;
-  expect(playerRange(near, "shove").state).toBe("in");
-  expect(playerRange(near, "finish").state).toBe("in");
   saved.state.position.z = 24.990000000000002;
   const farther = createAdventure({ save: JSON.stringify(saved) }).snapshot;
   expect(playerRange(farther, "strike").state).toBe("in");
-  expect(playerRange(farther, "shove").state).toBe("out");
-  expect(playerRange(farther, "finish").state).toBe("out");
   saved.state.position = { x: 4, y: 0, z: 37 };
   saved.state.threats.find((t: { id: string }) => t.id === "scout").position = { x: 4, y: 0, z: 45 };
   const blocked = createAdventure({ save: JSON.stringify(saved) }).snapshot;
@@ -52,7 +46,7 @@ test("all melee actions reach exactly five metres and stop beyond it", () => {
   for (const z of [25, 24.99]) {
     saved.state.position.z = z;
     const view = createAdventure({ save: JSON.stringify(saved) }).snapshot;
-    for (const action of ["strike", "shove", "finish", "disengage", "jab"] as const) {
+    for (const action of ["strike"] as const) {
       expect(playerRange(view, action).state).toBe(z === 25 ? "in" : "out");
       expect(view.threats.find(threat => threat.id === "scout")!.inRangeActions.includes(action)).toBe(z === 25);
     }
@@ -64,7 +58,6 @@ test("Maul includes leap and landing radius before launch, then uses its locked 
   expect(enemyRange(snapshot, hound, hound.currentAbility).state).toBe("in");
   expect(enemyRange(snapshot, { ...hound, position: { x: 11.01, y: 0, z: 0 } }, hound.currentAbility).state).toBe("out");
   expect(enemyRange(snapshot, { ...hound, phase: "action", position: origin }, hound.currentAbility).state).toBe("out");
-  expect(enemyRange(snapshot, { ...hound, rootedSeconds: 1 }, hound.currentAbility).state).toBe("out");
 });
 
 test("homing range tracks attacker, while ordinary committed areas stay locked", () => {

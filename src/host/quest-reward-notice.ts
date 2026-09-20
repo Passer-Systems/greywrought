@@ -1,6 +1,5 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { GEAR, QUESTS, gearName, type GearItemId, type GearSlot, type QuestId } from "../game/yard-content.js";
-import { classAction } from "../game/class-kit.js";
 
 /**
  * A small, transient reward card shown once when a quest is turned in.
@@ -26,7 +25,6 @@ function rewardLine(snapshot: AdventureSnapshot, questId: QuestId): string[] {
   if (reward.potions) lines.push(`${reward.potions} healing potion${reward.potions === 1 ? "" : "s"}`);
   if (reward.supplies) lines.push(`${reward.supplies} supplies`);
   if (reward.level > 1) lines.push(`Level ${reward.level}`);
-  if (reward.ability) lines.push(`${classAction(snapshot.player.archetype, reward.ability).name} · key ${reward.ability === "disengage" ? "3" : "4"}`);
   return lines;
 }
 

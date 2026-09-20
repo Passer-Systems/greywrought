@@ -27,11 +27,11 @@ test("Cold Hands requires nearby acceptance, gathered cargo, physical return and
   const restored=createAdventure({save:game.save()});expect(restored.snapshot.progression).toEqual(game.snapshot.progression);
   game.advance(1.5);game.equip("chest",null);expect(game.snapshot.progression.damageReduction).toBe(0);
 });
-test("locked skills reject activation; earned lessons and level bonuses persist",()=>{
-  let game=at(createAdventure(),-3,28,"expedition");tap(game,"disengage");tap(game,"bloodRage");expect(game.snapshot.player.currentAction).toBeNull();expect(game.snapshot.player.stamina).toBe(5);
+test("three combat actions and earned level bonuses persist",()=>{
+  let game=at(createAdventure(),-3,28,"expedition");expect(game.snapshot.player.currentAction).toBeNull();expect(game.snapshot.player.stamina).toBe(5);
   const c=earnedChapter();expect(c.level).toBe(3);expect(c.completed).toEqual(["cold-hands","roll-call","last-shift"]);
   const save=JSON.parse(game.save());save.state.chapter=c;
-  game=createAdventure({save:JSON.stringify(save)});expect(game.snapshot.progression.attackBonus).toBe(4);expect(game.snapshot.progression.unlockedActions).toContain("bloodRage");
+  game=createAdventure({save:JSON.stringify(save)});expect(game.snapshot.progression.attackBonus).toBe(4);expect(game.snapshot.progression.unlockedActions).toEqual(["strike","brace","bait"]);
 });
 test("legacy character inventory survives while the new chapter becomes available",()=>{
   const save=JSON.parse(createAdventure().save());delete save.state.chapter;
@@ -101,14 +101,6 @@ test("each participating quest holder loots a personal Roll; replay waits for cl
   home.quest("last-shift","turnIn");expect(home.snapshot.progression.level).toBe(3);expect(home.snapshot.supplies).toBe(27);expect(home.snapshot.carriedRelics).toBe(0);
   expect(partner.snapshot.progression.level).toBe(2);expect(partner.snapshot.carriedRelics).toBe(1);
   home.quest("last-shift","turnIn");expect(home.snapshot.supplies).toBe(27);
-});
-test("Blood Rage adds its earned damage to both ranged attacks",()=>{
-  for(const archetype of ["mage","hunter"] as const){
-    const save=JSON.parse(createAdventure({archetype}).save());
-    save.state.chapter=earnedChapter();Object.assign(save.state,{phase:"expedition",position:{x:-3,y:0,z:28},bloodRage:2,rageDrainSeconds:5});
-    const game=createAdventure({save:JSON.stringify(save)});tap(game,"strike");game.readyCombat();game.advance(.01);
-    expect(game.snapshot.threats.find(t=>t.id==="scout")!.health).toBe(96-9-4-8);
-  }
 });
 
 test("clicking an NPC addresses that NPC when both are nearby; range still applies",()=>{

@@ -12,7 +12,7 @@ function reach(from: Position, to: Position, metres: number, target = ""): Range
 }
 
 export function playerRange(snapshot: AdventureSnapshot, action: CombatAction, targetId: string | null = snapshot.selectedThreat): RangeCue {
-  if (action !== "strike" && action !== "disengage" && action !== "jab" && action !== "shove" && action !== "finish") return none;
+  if (action !== "strike") return none;
   const target = snapshot.threats.find(threat => threat.id === targetId && threat.active && threat.health > 0);
   if (!target) return { state: "unknown", text: "No living target selected." };
   if (target.phase === "returning") return { state: "out", text: "Returning home and recovering. Cannot be attacked until it returns." };
@@ -36,6 +36,6 @@ export function enemyRange(snapshot: AdventureSnapshot, threat: ThreatView, abil
   if (homing) return reach(threat.position, position, ability.range, targetLabel);
   if (threat.phase === "action") return reach(threat.targetPosition, position, ability.range, targetLabel);
   // Maul's range is its landing radius, in addition to the distance it leaps.
-  const leap = ability.id === "maul" && threat.rootedSeconds <= 0 ? COMBAT_RULES.wolf.lungeDistance : 0;
+  const leap = ability.id === "maul" ? COMBAT_RULES.wolf.lungeDistance : 0;
   return reach(threat.position, position, ability.range + leap, targetLabel);
 }

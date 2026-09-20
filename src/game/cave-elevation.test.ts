@@ -78,23 +78,22 @@ test('jumping down and up the ramp retains airtime and lands on the local floor'
   expect(height(game.snapshot.player.position)).toBe(0);
 });
 
-test('Bait, lunges and disengages cross a slope and settle on its floor', () => {
-  for (const kind of ['bait', 'lunge', 'disengage'] as const) {
+test('Moves and lunges cross a slope and settle on its floor', () => {
+  for (const kind of ['bait', 'lunge'] as const) {
     const state: MovementState = { position: { ...ground(38) }, verticalSpeed: 0 };
     const motion = { kind, start: ground(38), destination: ground(33), remainingSeconds: .8, duration: .8 };
     moveManeuverPosition(state, motion, .4);
     expect(state.position.x).toBeCloseTo(35.5, 7);
-    expect(height(state.position)).toBeCloseTo(kind === 'disengage' ? 1.2 : 0, 7);
+    expect(height(state.position)).toBeCloseTo(0, 7);
     moveManeuverPosition(state, motion, .4);
     near(state.position, ground(33));
     expect(state.verticalSpeed).toBe(0);
   }
 });
 
-test('cave combat forecasts and executes Bait and a saved disengage at negative elevation', () => {
+test('cave combat forecasts and executes Move and a saved move at negative elevation', () => {
   const bait = gameAt(40); bait.advance(.01); bait.selectTarget('cave-bat');
-  expect(bait.queueBait({ x: 35, y: 0, z: -46 })).toBe(false);
-  expect(bait.queueBait(ground(35))).toBe(true);
+  expect(bait.queueBait({ x: 35, y: 0, z: -46 })).toBe(true);
   const forecast = bait.snapshot.combat.forecast!.outcomes.find(outcome => outcome.id === 'solo')!;
   bait.readyCombat(); finishCycle(bait);
   near(bait.snapshot.player.position, {x:35,y:terrainHeight(35,-45),z:-45});
@@ -102,9 +101,9 @@ test('cave combat forecasts and executes Bait and a saved disengage at negative 
   for (const threat of bait.snapshot.threats.filter(t => t.id.startsWith('cave-'))) expect(height(threat.position)).toBe(0);
 
   let dodge = gameAt(41); dodge.advance(.01); dodge.selectTarget('cave-bat');
-  tap(dodge, 'disengage'); dodge.readyCombat(); dodge.advance(.2);
-  expect(dodge.snapshot.player.maneuver).toBe('disengage');
-  expect(height(dodge.snapshot.player.position)).toBeGreaterThan(0);
+  expect(dodge.queueBait(ground(37.5,-45))).toBe(true); dodge.readyCombat(); dodge.advance(.2);
+  expect(dodge.snapshot.player.maneuver).toBe('bait');
+  expect(height(dodge.snapshot.player.position)).toBe(0);
   const saved = dodge.save(), before = dodge.snapshot.player.position;
   const destination = JSON.parse(saved).state.maneuver.destination;
   dodge = createAdventure({ save: saved, now: () => 1000 });
@@ -117,14 +116,14 @@ test('cave combat forecasts and executes Bait and a saved disengage at negative 
 test('old solo saves migrate jump and maneuver offsets once, preserving progress and directions', () => {
   for (const maneuver of [false, true]) {
     const game = gameAt(maneuver ? 41 : 35, !maneuver);
-    if (maneuver) { game.advance(.01); game.selectTarget('cave-bat'); tap(game, 'disengage'); game.readyCombat(); }
+    if (maneuver) { game.advance(.01); game.selectTarget('cave-bat'); expect(game.queueBait(ground(37.5,-45))).toBe(true); game.readyCombat(); }
     else tap(game, 'jump');
     game.advance(.2);
     const expected = JSON.parse(game.save());
     const restored = createAdventure({ save: flatSave(game.save()), now: () => 1000 });
     const saved = JSON.parse(restored.save());
     near(saved.state.position, expected.state.position);
-    expect(saved.terrainLayout).toBe(1);
+    expect(saved.terrainLayout).toBe(2);
     expect(saved.state.maneuver).toEqual(expected.state.maneuver);
     expect(saved.state.chapter).toEqual(expected.state.chapter);
     expect(saved.state.supplies).toBe(37); expect(saved.state.potions).toBe(4);

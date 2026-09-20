@@ -13,9 +13,10 @@ function seed(archetype: CharacterArchetype = "mage") {
   }
   return saved;
 }
-function beam(game: AdventureGame, defense: "guard" | "brace") {
-  game.advance(.001); tap(game, defense);
-  game.moveQueuedAction(game.snapshot.combat.queued[0]!.id, game.snapshot.threats[0]!.windowAction!.offsetSeconds);
+function beam(game: AdventureGame, defense: "brace") {
+  game.advance(.001); tap(game, "strike"); tap(game, defense);
+  const queued = game.snapshot.combat.queued.find(action => action.action === defense)!;
+  game.moveQueuedAction(queued.id, game.snapshot.threats[0]!.windowAction!.offsetSeconds);
   game.readyCombat(); game.advance(2.9);
 }
 
@@ -24,11 +25,13 @@ describe("personal combat feedback", () => {
     const saved = seed();
     saved.state.chapter = earnedChapter(1);
     saved.state.chapter.equipment.chest = "insulated-coat";
+    saved.state.block = 2; saved.state.guardSeconds = 1;
     const game = createAdventure({ save: JSON.stringify(saved) });
-    beam(game, "guard");
+    game.advance(.001); tap(game, "strike"); game.readyCombat(); game.advance(2.9);
     expect(game.snapshot.combatFeedback).toEqual([
-      { id: 1, targetId: null, kind: "block", amount: 2 },
-      { id: 2, targetId: null, kind: "damage", amount: 4 },
+      { id: 1, targetId: "scout", kind: "damage", amount: 11 },
+      { id: 2, targetId: null, kind: "block", amount: 2 },
+      { id: 3, targetId: null, kind: "damage", amount: 4 },
     ]);
     expect(game.snapshot.player.health).toBe(96);
   });
@@ -58,8 +61,9 @@ describe("personal combat feedback", () => {
 
   test("potions, Protective Tonic, and inn healing report capped recovery", () => {
     const potionSave = seed(); potionSave.state.health = 95; potionSave.state.potions = 1;
-    const potion = createAdventure({ save: JSON.stringify(potionSave) }); potion.advance(.001); tap(potion, "drinkPotion"); potion.readyCombat(); potion.advance(.001);
-    expect(potion.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 5 }, { id: 2, targetId: null, kind: "damage", amount: 8 }]);
+    potionSave.state.phase = "town";
+    const potion = createAdventure({ save: JSON.stringify(potionSave) }); potion.setAction("drinkPotion", true); potion.setAction("drinkPotion", false);
+    expect(potion.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 5 }]);
     const tonicSave = seed("alchemist"); tonicSave.state.health = 98;
     const tonic = createAdventure({ save: JSON.stringify(tonicSave) }); tonic.advance(.001); tap(tonic, "brace"); tonic.readyCombat(); tonic.advance(.001);
     expect(tonic.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 2 }, { id: 2, targetId: null, kind: "block", amount: 8 }]);
@@ -102,13 +106,12 @@ describe("personal combat feedback", () => {
     saved.world.threats = solo.threats;
     const world = createSharedAdventure({ save: JSON.stringify(saved) });
     const a = world.join("a", "Ada", "mage"), b = world.join("b", "Bram", "hunter");
-    tap(a, "strike"); tap(b, "strike"); tap(a, "guard");
-    a.moveQueuedAction(a.snapshot.combat.queued[1]!.id, a.snapshot.threats[0]!.windowAction!.offsetSeconds);
+    tap(a, "strike"); tap(b, "strike"); tap(a, "brace");
+    a.moveQueuedAction(a.snapshot.combat.queued.find(action => action.action === "brace")!.id, a.snapshot.threats[0]!.windowAction!.offsetSeconds);
     a.readyCombat(); b.readyCombat(); world.advance(2.9);
     expect(a.snapshot.combatFeedback).toEqual([
-      { id: 1, targetId: null, kind: "block", amount: 2 },
-      { id: 2, targetId: null, kind: "damage", amount: 6 },
-      { id: 3, targetId: "scout", kind: "damage", amount: 9 },
+      { id: 1, targetId: null, kind: "block", amount: 8 },
+      { id: 2, targetId: "scout", kind: "damage", amount: 9 },
     ]);
     expect(b.snapshot.combatFeedback).toEqual([{ id: 1, targetId: "scout", kind: "damage", amount: 9 }]);
     const restored = createSharedAdventure({ save: world.save() });

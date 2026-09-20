@@ -1,10 +1,11 @@
+import { overworldHeight } from './world-elevation.js';
 import type { Position } from './adventure-types.js';
 import type { Barrier } from './movement.js';
 
 export const CAVE_ENTRANCE = { x: 28, y: 0, z: -46 } as const;
 export const CAVE_DEPTH = 9;
 export function terrainHeight(x: number, z: number): number {
-  if (!inCave({ x, z })) return 0;
+  if (!inCave({ x, z })) return overworldHeight(x, z);
   const descent = (start: number, end: number) => {
     const t = Math.max(0, Math.min(1, (x - start) / (end - start)));
     return t * t * (3 - 2 * t);
@@ -24,9 +25,9 @@ export function caveBlockedPosition(x: number, z: number): boolean {
   return CAVE_BARRIERS.some(([left, right, bottom, top]) => x > left && x < right && z >= bottom && z <= top);
 }
 
-// Flat-cave saves store height above ground; spatial points acquire their floor once.
+// Preserve height above the old floor when the landscape changes.
 export function migrateTerrainLayout(root: Record<string, unknown>): void {
-  if (root.terrainLayout === 1) return;
+  if (root.terrainLayout === 2) return;
   const spatialKeys = new Set(['position', 'targetPosition', 'origin', 'start', 'destination', 'attackOrigin']);
   function visit(value: unknown): void {
     if (!value || typeof value !== 'object') return;
@@ -34,10 +35,10 @@ export function migrateTerrainLayout(root: Record<string, unknown>): void {
     for (const [key, child] of Object.entries(value)) {
       if (spatialKeys.has(key) && child && typeof child === 'object'
         && 'x' in child && typeof child.x === 'number' && 'y' in child && typeof child.y === 'number'
-        && 'z' in child && typeof child.z === 'number') child.y += terrainHeight(child.x, child.z);
+        && 'z' in child && typeof child.z === 'number') child.y += root.terrainLayout === 1 ? overworldHeight(child.x, child.z) : terrainHeight(child.x, child.z);
       else visit(child);
     }
   }
   visit(root);
-  root.terrainLayout = 1;
+  root.terrainLayout = 2;
 }

@@ -293,92 +293,48 @@ contact. Returning enemies cannot be attacked until they reach home. Retreat
 saves the character but forfeits damage dealt, preventing repeated ranged chip
 attacks from defeating an enemy without committing to its encounter.
 
-All five classes have their own attacks, defenses, retreat moves and powers.
-The combat plan shows available and reserved stamina. Abilities spend their
-displayed cost when the chosen move executes; changing an unexecuted plan does
-not spend a potion or stamina. Basic attacks occupy a chosen beat instead of
-repeating automatically. Ordinary movement is available during planning and
-locked during execution, while queued movement abilities run automatically.
-Planning freezes combat resource drain, stamina recovery and defense durations;
-the time spent choosing a plan does not change those values.
+All five classes have exactly three combat actions. The plan shows available and
+reserved stamina. Stamina is spent when a queued action executes. Combat stops
+ordinary movement during planning and playback; Move selects a destination cell.
+Planning freezes resource recovery and defense durations.
 
-| Key | Ability | Stamina | Effect |
+| Key | Action | Stamina | Effect |
 | --- | --- | --- | --- |
-| 1 | Class attack | 0 | Queue a strike within 2m or a ranged attack from up to 10m |
-| 2 | Class defense | 2, or 3 for Artificer | Absorb 24 damage for 2s. Alchemist heals 6 and blocks 16; Artificer blocks 28 |
-| = | Health potion | 1 in combat | Drink a carried potion for 30 health |
+| 1 | Attack | 0 | Warrior attacks within 5 metres; other classes attack within 10 metres |
+| 2 | Defend | 2, or 3 for Artificer | Absorb 24 damage for 2s. Alchemist heals 6 and blocks 16; Artificer blocks 28 |
+| 3 | Move | 1 | Select a highlighted tile, then execute the plan with Ready (R) |
 
-The starting loadout contains attack, defense and potion. Slots 3 and 4 show
-locked icons until Rowan teaches retreat and power. Action-bar dragging changes
-slot order and the corresponding keys. Potions are consumed only on activation.
+Combat cells are 2.5 metres across. Warrior, Mage and Artificer move up to two
+tiles per action; Alchemist moves three and Ranger four. Later Move actions start
+from the earlier planned destination. Blocked, occupied and distant tiles are
+unavailable. Escape cancels tile selection. Players can also select Move in the
+planner header. Attacks check reach when their beat executes, allowing a move or
+an enemy charge to bring the target into range first.
 
-| Class | Retreat (3) | Power (4) | Damage added per power stack |
-| --- | --- | --- | --- |
-| Warrior | Disengage | Blood Rage | 4 |
-| Mage | Froststep | Overchannel | 4 |
-| Ranger | Parting Shot | Keen Focus | 4 |
-| Alchemist | Caustic Escape | Volatile Mixture | 3 |
-| Artificer | Recoil Snare | Overclock | 5 |
+The action bar contains only these three labeled buttons. XP sits directly below
+it. Player and target frames stay clear of the vertical planner. The planner
+shows the target of each action without a permanent instruction footer.
 
-Retreat attacks cost 1 stamina, damage and snare their target, then move the
-player backward. Warrior needs 5-metre melee reach; ranged classes use their ranged
-reach. Each power costs 1 stamina and occupies a chosen beat. Up to three
-stacks strengthen attacks. Each stack drains 1 health every
-5 seconds, bypassing Block, except Ranger Focus, which does not drain health.
-The drain can kill you. Outside combat lose one stack
-every 2 seconds; re-engaging in time preserves momentum. The cap and health
-cost bound farming on a weak enemy. Stamina and Rage, including their timers,
-are saved. Older adventure saves initialize these resources without erasing
-characters, health, loot or secured rewards.
-
-Player and enemy frames have matching dimensions and contain only portrait,
-name and health. The player frame has no stamina, Rage or location/status
-section. The compact painted-icon hotbar has key labels, recovery shading and
-hover explanations. The combat plan shows each queued move alongside enemy casts
-on the same beat. A separate player cast bar appears for gathering or awakening
-the engine, never for an instant attack.
-
-## Roadside sabotage — 0.14.0
+## Roadside encounters
 
 The first roadside clearing groups the Briar bee, Ash hound and Cinder Watchman.
-The player can deliberately recruit enemy attacks into their plan. All classes
-start with three shared tools, using existing authored actors and animations:
-
-- **Bait (5):** click a destination, then choose its beat. Move up to 6 metres
-  automatically over 0.45 seconds. Costs 1 stamina.
-- **Shove (6):** push a selected enemy within 5 metres up to 4 metres. A
-  collision damages and staggers both creatures, disrupting their attacks.
-  Costs 1 stamina.
-- **Finish (7):** attack within 5 metres for 12 damage, or 54 if the enemy
-  is staggered. Costs 1 stamina.
-
-These are default hotkeys; existing custom bar arrangements stay usable.
-The player can cancel Bait aiming with Escape before clicking ground.
-The same three action slots, 30-second planning cap and Ready (R) apply.
-
-The teaching combination is Bait on Beat 1, the hound's charge on Beat 2,
-then Finish on Beat 3. A hound that collides with the bee staggers both and
-interrupts its swarm. The interrupted bee spills a swarm cloud. The Watchman's
-fireball can hit other creatures and ignite the cloud. Friendly-fire kills
-retain normal engaged-player credit in the shared world; private encounters
-still grant no rewards. Already launched projectiles continue after an interrupt.
+Move can lure a charging hound into another creature. Their collision staggers
+both and interrupts attacks. An interrupted bee spills a swarm cloud; Watchman
+fireballs can strike other creatures and ignite it. Friendly-fire kills retain
+normal engaged-player credit in the shared world; private encounters grant no
+rewards. Already launched projectiles continue after an interruption.
 
 Hover, focus or click a committed enemy card to inspect its predicted path;
 select a queued move to inspect its movement. Clicking pins a preview until it
 is cleared, the cycle changes or playback begins. Predictions execute the same
-combat rules on a copy of the encounter with everyone ready. “If started now”
-is conditional: enemies still stalk during planning, so moving changes the plan.
-
-The playtest question is whether pulling another creature feels like gaining
-a useful weapon. The prototype proves the interactions; difficulty and how
-satisfying the setup feels still need playtesting.
+combat rules on a copy of the encounter with everyone ready.
 
 ## Later encounter: Ash hound
 
 The animated Ash hound patrols the western edge of the first clearing, runs toward its target
 on the ground, and circles nearby. The planning window shows its committed Maul
 and cast beat. It leaps to a fixed landing point in 0.65 seconds, facing its
-travel direction with running animation frozen. Plan a movement ability or Block
+travel direction with its authored leap animation. Between leaps it plays a grounded idle. Plan a movement ability or Block
 to handle its 2m impact area. Ordinary manual dodging during execution is locked.
 Maul starts at 18 damage and grows by 2 per attack, capped at 36.
 There are no approach hops. Disengage offers a deliberate escape.

@@ -75,7 +75,7 @@ export class LocalMovement {
     if (this.maneuver) {
       const elapsed = Math.min(seconds, this.maneuver.remainingSeconds);
       this.moving = moveManeuverPosition(this.state, this.maneuver, elapsed);
-      this.backpedaling = this.moving && this.maneuver.kind === 'disengage';
+      this.backpedaling = false;
       if (this.maneuver.remainingSeconds > 1e-9) return;
       this.maneuver = null; seconds -= elapsed;
       if (seconds <= 1e-9) return;

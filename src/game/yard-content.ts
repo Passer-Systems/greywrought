@@ -48,7 +48,7 @@ export interface QuestDefinition {
   readonly underway: string;
   readonly completion: string;
   readonly after: string;
-  readonly reward: { readonly gear: GearItemId | null; readonly potions: number; readonly supplies: number; readonly level: number; readonly ability: CombatAction | null };
+  readonly reward: { readonly gear: GearItemId | null; readonly potions: number; readonly supplies: number; readonly level: number };
 }
 
 export const QUESTS: readonly QuestDefinition[] = [
@@ -59,7 +59,7 @@ export const QUESTS: readonly QuestDefinition[] = [
     underway: "Three coolant crystals, from the broken line beyond the gate. The roots still carry a charge while the linekeeper is alive. Bring the crystals here. I'll have a coat ready for you.",
     completion: "There. Hear the water stop boiling? That buys us a night. This coat belonged to the last line inspector. I stitched the burn holes shut. Wear it—you have to come back for it to be worth my time. Rowan knows who restarted the bell. He has been pretending not to hear it.",
     after: "The jars are cold again. I can leave the beds long enough to work. Ask Rowan about the ninth bell.",
-    reward: { gear: "insulated-coat", potions: 2, supplies: 0, level: 2, ability: null },
+    reward: { gear: "insulated-coat", potions: 2, supplies: 0, level: 2 },
   },
   {
     id: "roll-call", giver: "inn", giverName: "Rowan", title: "A Name on the Roll",
@@ -68,7 +68,7 @@ export const QUESTS: readonly QuestDefinition[] = [
     underway: "The Cinder Watchman guards the broken coolant line. Have your block ready before it sees you. After it falls, bring me word of its collar number. You won't quiet the foreman by racing past everything it still commands.",
     completion: "Nine. Of course it is. My last roll. I wrote 'all accounted for' because the gate wouldn't open until I did. Some of them were still inside. Take my working weapon. I'll show you how we backed away from a live press: strike, leave the reach, never wait for the second stroke. The foreman still holds the roll. Bring it home. I will read every name this time.",
     after: "I put the old roll book on the table. No more empty lines. When you bring the last one home, I'll be here.",
-    reward: { gear: "yard-weapon", potions: 0, supplies: 3, level: 2, ability: null },
+    reward: { gear: "yard-weapon", potions: 0, supplies: 3, level: 2 },
   },
   {
     id: "last-shift", giver: "inn", giverName: "Rowan", title: "Clock Out",
@@ -77,7 +77,7 @@ export const QUESTS: readonly QuestDefinition[] = [
     underway: "Wake the engine with six carried crystals. Defeat Foreman Nine, take the Last Shift Roll from its remains, and bring it to me. We are ending a shift, not collecting a trophy.",
     completion: "Give it here. No—stay. Someone should hear them. Hessa Venn. Parel Doss. Idren Vale. Senn, who never used a second name. I should have waited at the gate. I can't do that night again. I can stop asking the living to finish it. Your place at this table is paid for. As long as the roof holds.",
     after: "The ninth bell is quiet. I still count everyone who comes through that door. Now I ask their names first.",
-    reward: { gear: null, potions: 2, supplies: 12, level: 3, ability: null },
+    reward: { gear: null, potions: 2, supplies: 12, level: 3 },
   },
 ];
 

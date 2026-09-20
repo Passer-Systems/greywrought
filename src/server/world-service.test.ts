@@ -113,7 +113,7 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(firstState.serverWallTimeMillis).toBeGreaterThanOrEqual(joinedAt);
     expect(firstState.serverWallTimeMillis).toBeLessThanOrEqual(Date.now());
     const initial = firstState.snapshot.player.position;
-    expect(firstState.snapshot.progression.unlockedActions).toEqual(['bait', 'shove', 'finish', 'strike', 'brace', 'drinkPotion']);
+    expect(firstState.snapshot.progression.unlockedActions).toEqual(['strike', 'brace', 'bait']);
     expect(await first.command({ type: 'quest', id: 'cold-hands', operation: 'accept' })).toBe(true);
     expect(await first.invalid({ type: 'quest', id: 'cold-hands', operation: 'complete' })).toBe(false);
     expect(await first.invalid({ type: 'equip', slot: 'head', item: 'yard-weapon' })).toBe(false);
@@ -298,15 +298,15 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
   const client = new Client(`ws://127.0.0.1:${server.port}/world`);
   try {
     await client.connect(character, token); await client.state(s => s.snapshot.combat.phase === 'preparation');
-    for (const destination of [{ x: 100, y: 0, z: 28 }, { x: 0, y: 1, z: 28 }, { x: 0, y: 0, z: '8' }, { x: 0, z: 28 }, { x: null, y: 0, z: 28 }]) {
+    for (const destination of [{ x: 100, y: 0, z: 28 }, { x: 0, y: 0, z: '8' }, { x: 0, z: 28 }, { x: null, y: 0, z: 28 }]) {
       expect(await client.invalid({ type: 'bait', destination })).toBe(false);
     }
     expect(await client.command({ type: 'bait', destination: { x: 4, y: 0, z: 40 } })).toBe(false);
     const destination = { x: destinationX, y: terrainHeight(destinationX, z), z };
-    if (z < 0) expect(await client.command({ type: 'bait', destination: { ...destination, y: 0 } })).toBe(false);
-    expect(await client.command({ type: 'bait', destination })).toBe(true);
+    expect(await client.command({ type: 'bait', destination: {...destination, y: -.06} })).toBe(true);
     const planned = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait'));
-    expect(planned.snapshot.combat.queued[0]!.destination).toEqual(destination);
+    const snappedX=Math.round(destination.x/2.5)*2.5, snappedZ=Math.round(destination.z/2.5)*2.5;
+    expect(planned.snapshot.combat.queued[0]!.destination).toEqual({x:snappedX,y:terrainHeight(snappedX,snappedZ),z:snappedZ});
     expect(await client.command({ type: 'ready' })).toBe(true);
     expect(await client.command({ type: 'bait', destination })).toBe(false);
   } finally { client.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }

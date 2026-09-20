@@ -122,8 +122,7 @@ try {
   check((await page.evaluate<State>('window.encounterState')).snapshot.threats.find(t=>t.id==='scout')!.cast!.remainingSeconds === repeated.snapshot.threats.find(t=>t.id==='scout')!.cast!.remainingSeconds, 'A resumed encounter must pause again without advancing its cast');
   await page.click('#pause-resume');
   await page.waitFor('document.body.dataset.encounterMode==="private"&&document.body.dataset.gamePaused==="false"');
-  await page.click('.adventure-actions [data-action="drinkPotion"]');
-  await page.waitFor('window.encounterState.snapshot.potions===0');
+  check(await page.evaluate('document.querySelectorAll(".adventure-actions [data-action]").length===3'),'Private combat has only Attack, Defend and Move');
   await page.waitFor('document.body.dataset.gameCombatPhase==="preparation"');
   await page.click('.adventure-actions [data-action="strike"]');
   await page.click('.combat-plan-ready');
@@ -140,7 +139,7 @@ try {
   await page.click('#encounter-rejoin');
   await page.waitFor('document.body.dataset.encounterMode==="shared"');
   const rejoined = await page.evaluate<State>('window.encounterState');
-  check(rejoined.snapshot.potions === 0 && rejoined.snapshot.player.health === finished.snapshot.player.health, 'Rejoin must retain potion use and remaining health');
+  check(rejoined.snapshot.potions === frozen.snapshot.potions && rejoined.snapshot.player.health === finished.snapshot.player.health, 'Rejoin must retain inventory and remaining health');
   check(Math.hypot(rejoined.snapshot.player.position.x-frozen.snapshot.player.position.x,rejoined.snapshot.player.position.z-frozen.snapshot.player.position.z)<3, 'Rejoin must return near original position');
   check(rejoined.snapshot.threats.find(t=>t.id==='scout')!.health > 0, 'Private kill cannot kill the main-world enemy');
   check(rejoined.players.some(p=>p.id===observer.id), 'Rejoin restores main-world visibility');

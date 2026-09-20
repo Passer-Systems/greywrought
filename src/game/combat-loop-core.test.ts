@@ -42,7 +42,7 @@ test("late aggro waits through this execution and chooses only next cycle",()=>{
 });
 
 test("active sequence rejects all queue mutations and movement, but performs planned retreat",()=>{
-  const game=fight(); tap(game,"disengage"); tap(game,"strike");
+  const game=fight(); expect(game.queueBait({x:-2.5,y:0,z:22.5})).toBe(true); tap(game,"strike");
   const first=game.snapshot.combat.queued[0]!; game.moveQueuedAction(first.id,1);
   expect(game.snapshot.combat.queued.map(e=>e.offsetSeconds)).toEqual([1,0]);
   game.setAction("forward",true); game.readyCombat();
@@ -52,7 +52,7 @@ test("active sequence rejects all queue mutations and movement, but performs pla
   expect(game.snapshot.combat.queued).toEqual(plan);
   const start=game.snapshot.player.position; game.advance(.5);
   expect(game.snapshot.player.position).toEqual(start);
-  game.advance(.55); expect(game.snapshot.player.maneuver).toBe("disengage");
+  game.advance(.55); expect(game.snapshot.player.maneuver).toBe("bait");
   game.advance(.8); expect(game.snapshot.player.position.z).toBeLessThan(start.z);
   game.advance(1.2); expect(game.snapshot.combat.phase).toBe("preparation");
   const end=game.snapshot.player.position; game.setCameraForward(0,1); game.setAction("forward",true); game.advance(.1);

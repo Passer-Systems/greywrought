@@ -8,7 +8,7 @@ export function enemyResponse(abilityId: string): string {
     case "maul": return "Bait the charge through another enemy. Their collision staggers both and can interrupt attacks.";
     case "kindle": return "Queue an attack while it powers up. The next volley will be stronger.";
     case "ember-ward":
-    case "foreman-shield": return "Let the shield expire. Use this opening to heal or power up.";
+    case "foreman-shield": return "Let the shield expire. Use Defend or Move while it holds.";
     case "foreman-pulse": return "Plan Block on the pulse’s beat. It follows its target.";
     case "foreman-press": return "Plan a retreat or Block before the press lands.";
     default: return "";

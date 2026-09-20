@@ -9,7 +9,6 @@ interface Plate {
   width: number; height: number;
   root: HTMLDivElement; target: HTMLButtonElement; health: HTMLElement; healthFill: HTMLElement;
   status: HTMLElement; level: HTMLElement; cast: ReturnType<typeof createEnemyCastBar>; shield: HTMLElement;
-  effect: HTMLElement; effectClock: HTMLElement;
 }
 function span(className: string, parent: HTMLElement): HTMLSpanElement {
   const node = document.createElement("span"); node.className = className; parent.append(node); return node;
@@ -79,18 +78,20 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
     root.append(target);
     const cast = createEnemyCastBar(root, threat.id);
     const shield = span("nameplate-shield", root); shield.hidden = true;
-    const effect = span("nameplate-rooted", root); effect.hidden = true; effect.title = "Rooted until you land";
-    span("nameplate-effect-icon", effect).textContent = "\u2744";
-    const effectClock = span("nameplate-effect-clock", effect);
-    plates.set(threat.id, { width: 0, height: 0, root, target, health, healthFill, status, level, cast, shield, effect, effectClock });
+    plates.set(threat.id, { width: 0, height: 0, root, target, health, healthFill, status, level, cast, shield });
   });
   let nextContentTime = 0;
   let bounds = { width: 0, height: 0 };
+  let encounterBounds: DOMRect | null = null;
   return {
     render(snapshot: AdventureSnapshot, world: AdventureWorld, audience?: RangeAudience) {
       const now = performance.now();
       const refresh = now >= nextContentTime;
-      if (refresh) { nextContentTime = now + 50; bounds = host.getBoundingClientRect(); }
+      if (refresh) {
+        nextContentTime = now + 50; bounds = host.getBoundingClientRect();
+        const encounter = document.getElementById('encounter-status');
+        encounterBounds = encounter && !encounter.hidden ? encounter.getBoundingClientRect() : null;
+      }
       const visible = snapshot.threats.map(threat => ({ threat, anchor: world.projectThreat(threat.id) })).filter(({ threat, anchor }) =>
         anchor && threat.active && threat.health > 0 && Math.hypot(threat.position.x - snapshot.player.position.x, threat.position.z - snapshot.player.position.z) < 18);
       const visibleIds = new Set(visible.map(({ threat }) => threat.id));
@@ -98,7 +99,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
       if (refresh) for (const threat of snapshot.threats) {
         const plate = plates.get(threat.id); if (!plate) continue;
         plate.root.hidden = !visibleIds.has(threat.id);
-        Object.assign(plate.root.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), damage: String(threat.damage), actionSequence: String(threat.actionSequence), disposition: threat.disposition, aggro: String(threat.aggro), worldX: String(threat.position.x), worldZ: String(threat.position.z), staggered: String(threat.staggered), rootedSeconds: String(threat.rootedSeconds), moving: String(threat.moving), currentAbility: threat.currentAbility.id, lastActionHit: String(threat.lastActionHit), movementMode: threat.movementMode, motionProgress: String(threat.motionProgress), nextAttackSeconds: String(threat.nextAttackSeconds), worldY: String(threat.position.y), targetX: String(threat.targetPosition.x), targetZ: String(threat.targetPosition.z), originX: String(threat.attackOrigin.x), originZ: String(threat.attackOrigin.z), block: String(threat.block), volley: String(threat.volley), projectileCount: String(threat.fireballs.length), cast: JSON.stringify(threat.cast && { id: threat.cast.ability.id, seconds: threat.cast.remainingSeconds, duration: threat.cast.duration }) });
+        Object.assign(plate.root.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), damage: String(threat.damage), actionSequence: String(threat.actionSequence), disposition: threat.disposition, aggro: String(threat.aggro), worldX: String(threat.position.x), worldZ: String(threat.position.z), staggered: String(threat.staggered), moving: String(threat.moving), currentAbility: threat.currentAbility.id, lastActionHit: String(threat.lastActionHit), movementMode: threat.movementMode, motionProgress: String(threat.motionProgress), nextAttackSeconds: String(threat.nextAttackSeconds), worldY: String(threat.position.y), targetX: String(threat.targetPosition.x), targetZ: String(threat.targetPosition.z), originX: String(threat.attackOrigin.x), originZ: String(threat.attackOrigin.z), block: String(threat.block), volley: String(threat.volley), projectileCount: String(threat.fireballs.length), cast: JSON.stringify(threat.cast && { id: threat.cast.ability.id, seconds: threat.cast.remainingSeconds, duration: threat.cast.duration }) });
       }
       for (const { threat, anchor } of visible) {
         const plate = plates.get(threat.id); if (!plate || !anchor) continue;
@@ -113,18 +114,17 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
           write(plate.level, String(threat.level));
           plate.shield.hidden = threat.block <= 0;
           write(plate.shield, "⛨ " + threat.block); plate.shield.title = threat.block + " block · " + threat.blockSeconds.toFixed(1) + "s";
-          plate.effect.hidden = threat.rootedSeconds <= 0;
-          write(plate.effectClock, threat.rootedSeconds.toFixed(1));
           plate.healthFill.style.width = (100 * threat.health / threat.maximumHealth) + "%";
           plate.cast.render(threat, snapshot, audience);
           write(plate.status, threat.staggered ? "Staggered" : threat.phase === "returning" ? "↶" : threat.disposition === "neutral" && !threat.aggro ? "\u25C7" : "\u25C6");
-          plate.status.title = threat.staggered ? "Vulnerable to Finish" : threat.phase === "returning" ? "Returning home · recovering" : threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
+          plate.status.title = threat.staggered ? "Attack interrupted" : threat.phase === "returning" ? "Returning home · recovering" : threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
 
           plate.width = root.offsetWidth; plate.height = root.offsetHeight;
         }
         const { width, height } = plate;
         const x = Math.max(8, Math.min(bounds.width - width - 8, anchor.x - width / 2));
-        const y = Math.max(4, Math.min(bounds.height - height - 4, anchor.y - height - 10));
+        let y = Math.max(4, Math.min(bounds.height - height - 4, anchor.y - height - 10));
+        if (encounterBounds && x < encounterBounds.right && x + width > encounterBounds.left && y < encounterBounds.bottom && y + height > encounterBounds.top) y = encounterBounds.bottom + 6;
         const fitsViewport = y >= 4 && y + height <= bounds.height - 4;
         world.setThreatNameplateVisible(threat.id, fitsViewport);
         root.style.visibility = fitsViewport ? "visible" : "hidden";

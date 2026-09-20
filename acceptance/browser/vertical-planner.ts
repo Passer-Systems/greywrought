@@ -19,7 +19,7 @@ for (const enemy of saved.world.threats) {
   if (['scout', 'nest', 'patrol'].includes(enemy.id)) {
     const position = enemy.id === 'scout' ? { x: -4, y: 0, z: 32 } : enemy.id === 'nest' ? { x: 0, y: 0, z: 35 } : { x: -6, y: 0, z: 36 };
     Object.assign(enemy, { position, targetPosition: {...position}, aggro: true, targetPlayerId: companion.id, combatants: [character.id, companion.id], phase: 'preparation', joinCycle: 1, windowCycle: 1, specialOffset: 2, castDuration: 2, remainingSeconds: 2, comboOpened: true });
-    if (enemy.id === 'scout') Object.assign(enemy.head, { ability: 'fireball', opened: true });
+    if (enemy.id === 'scout') { enemy.health = 9; Object.assign(enemy.head, { ability: 'fireball', opened: true }); }
   } else if (enemy.active) Object.assign(enemy, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
 }
 const savePath = process.cwd() + '/build/browser/vertical-planner-' + process.pid + '.json';
@@ -88,8 +88,8 @@ try {
   check(await page.evaluate(`(()=>{const r=document.getElementById('combat-plan').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<innerHeight;})()`),'Planner remains within narrow viewport');
   await page.click('.combat-plan-enemy-move[data-threat-id="scout"]');
   await page.shot('narrow-plan');
-  await page.click('.adventure-actions [data-action="shove"]');
-  await page.waitFor('window.planSnapshot.combat.queued.some(move=>move.action==="shove")');
+  await page.click('.adventure-actions [data-action="strike"]');
+  await page.waitFor('window.planSnapshot.combat.queued.some(move=>move.action==="strike")');
   await page.press('KeyR'); await page.waitFor('window.planSnapshot.combat.phase==="active"');
   await page.waitFor('document.querySelector(\'.combat-plan-enemy-move[data-threat-id="scout"][data-status="cancelled"]\')');
   check(await page.evaluate('getComputedStyle(document.querySelector(\'.combat-plan-enemy-move[data-status="cancelled"] .combat-plan-enemy-art\'),"::after").content.includes("×")'), 'Interrupted action displays a red cross');

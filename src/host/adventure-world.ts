@@ -16,6 +16,7 @@ import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.
 import { createAggroRanges } from "./aggro-ranges.js";
 import { createRemotePlayers, type RemotePlayerView } from "./remote-player.js";
 import { createSocialAnimation } from "./social-animation.js";
+import { createPhotonChair } from "./photon-chair.js";
 import { createSnapshotInterpolation } from "./snapshot-interpolation.js";
 import { createOverheadNames, npcQuestMarker } from "./overhead-names.js";
 import { createChatBubbles } from "./chat-bubbles.js";
@@ -23,6 +24,7 @@ import { createFloatingCombatText } from "./floating-combat-text.js";
 import type { SharedChatMessage } from "../game/multiplayer-types.js";
 import { YARD } from "../game/yard-content.js";
 import { createCombatGrid } from "./combat-grid.js";
+import { combatCell } from "../game/combat-grid.js";
 import { updateThreatAnimation, type ThreatAnimationState } from "./threat-animation.js";
 import { terrainHeight } from "../game/cave-layout.js";
 
@@ -36,7 +38,6 @@ interface ThreatRig extends ThreatAnimationState {
   readonly beam: Mesh<CylinderGeometry, MeshBasicMaterial>;
   readonly ward: Mesh<SphereGeometry, MeshBasicMaterial>;
   readonly fireballs: Map<number, Mesh<SphereGeometry, MeshBasicMaterial>>;
-  readonly rootEffect: Mesh<RingGeometry, MeshBasicMaterial>;
   readonly height: number;
   lootable: boolean;
 }
@@ -71,6 +72,8 @@ export interface AdventureWorld {
   setAggroRangesVisible(visible: boolean): void;
   setCombatPreview(preview: CombatPreview | null): void;
   setCombatHudHeight(height: number): void;
+  setMoveAiming(active: boolean): void;
+  canMoveTo(destination: Position): boolean;
   projectThreat(id: string): { x: number; y: number; feetY: number } | null;
   dispose(): void;
 }
@@ -182,8 +185,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let interpolation = createSnapshotInterpolation();
   let lastConnectionRevision = -1;
   scene.background = new Color(0x16242d);
-  scene.fog = new Fog(0x16242d, 24, 66);
-  const camera = new PerspectiveCamera(48, 1, 0.1, 110);
+  scene.fog = new Fog(0x16242d, 38, 160);
+  const camera = new PerspectiveCamera(48, 1, 0.1, 210);
   const renderer = new WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.outputColorSpace = SRGBColorSpace;
@@ -273,6 +276,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     canvas.style.cursor = "";
   };
   const player = new Group();
+  const photonChair = createPhotonChair(player);
   player.userData.localPlayer = true;
   scene.add(player);
   const overheadNames = createOverheadNames(host, camera);
@@ -362,12 +366,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const selection = new Mesh(new RingGeometry(1.09, 1.14, 48), new MeshBasicMaterial({ color: 0xfff6df, side: 2 }));
     selection.rotation.x = -Math.PI/2; selection.position.y=0.06; root.add(selection);
     const glint = lootGlint(); glint.visible = false; root.add(glint);
-    const rootEffect = new Mesh(new RingGeometry(0.75, 0.92, 6), new MeshBasicMaterial({color:0x77dfc4,transparent:true,opacity:0.9,side:2,depthWrite:false}));
-    rootEffect.rotation.x = -Math.PI/2; rootEffect.position.y = 0.12; rootEffect.visible = false; root.add(rootEffect);
     const beam = new Mesh(new CylinderGeometry(0.045,0.045,1,8),new MeshBasicMaterial({color:0xffbc71,transparent:true,opacity:0.85,depthWrite:false})); beam.visible=false;scene.add(beam);
     const ward = new Mesh(new SphereGeometry(1.05,20,12),new MeshBasicMaterial({color:0x80c6ff,transparent:true,opacity:0.2,depthWrite:false}));ward.position.y=look.height*0.55;ward.visible=false;root.add(ward);
     if (threat.id === "ritual-guardian") ward.scale.setScalar(1.45);
-    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,ring,lootGlint:glint,rootEffect,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
+    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,ring,lootGlint:glint,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
       health:threat.health,sequence:threat.actionSequence,attackTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const natureReady = buildFrostwood(terrain, thicket, innPosition, (root, name) => {
@@ -385,12 +387,23 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let combatHudHeight = 0;
   const aggroRanges = createAggroRanges(scene, canvas);
   const combatGrid = createCombatGrid(scene, canvas);
+  let moveAiming = false;
   const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, coresReady, natureReady, caveReady, chestReady]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
   const groundSurfaces: Object3D[] = [];
   void ready.then(() => terrain.traverse(object => { if (object.userData.walkableGround) groundSurfaces.push(object); }));
   const forward = () => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
+  const pickGround = (x: number, y: number): Position | null => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0 || x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
+    point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
+    raycaster.setFromCamera(point, camera);
+    const hit = raycaster.intersectObjects(groundSurfaces, false)[0];
+    if (!hit) return null;
+    const cellX = combatCell(hit.point.x), cellZ = combatCell(hit.point.z);
+    return { x: cellX, y: terrainHeight(cellX, cellZ), z: cellZ };
+  };
   const pick = (x: number, y: number): WorldPick | null => {
     const rect = canvas.getBoundingClientRect();
     if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
@@ -432,15 +445,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     tooltip.style.top = `${Math.max(tooltip.offsetHeight + 8, y)}px`;
   };
   return {
-    canvas, ready, forward, pick, clearHover,
-    pickGround(x, y) {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0 || x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
-      point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
-      raycaster.setFromCamera(point, camera);
-      const hit = raycaster.intersectObjects(groundSurfaces, false)[0];
-      return hit ? { x: hit.point.x, y: hit.point.y, z: hit.point.z } : null;
-    },
+    canvas, ready, forward, pick, pickGround, clearHover,
     hover(x, y) { hoverPointer = { x, y }; },
     updatePlayers(players) { if (!disposed) otherPlayers = players; },
     updateChat(messages, selfId) { if (!disposed) chatBubbles.update(messages, selfId); },
@@ -449,6 +454,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     setThreatNameplateVisible(id, visible) { overheadNames.suppress(`threat:${id}`, visible); },
     setAggroRangesVisible(visible) { aggroRanges.setVisible(visible); },
     setCombatHudHeight(height) { combatHudHeight = height; },
+    setMoveAiming(active) { moveAiming = active; },
+    canMoveTo(destination) { return combatGrid.accepts(destination); },
     setCombatPreview(preview) { combatPreview = preview; telegraphs.update(hoverSnapshot, preview); },
     projectThreat(id) {
       const rig = rigs.get(id); if (!rig || !rig.root.visible) return null;
@@ -493,7 +500,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
             playerProjectileTime = 0.22;
           }
         }
-        const swing = snapshot.player.maneuver === "disengage" ? 0.18 : 0.4;
+        const swing = 0.4;
         knight.play(playerAnimation.attack,false,swing); playerAttackRemaining=swing; lastAttack=snapshot.player.attackSequence;
       }
       playerProjectileTime = Math.max(0, playerProjectileTime - delta);
@@ -505,6 +512,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           playerProjectile.scale.set(.3,.3,3); playerProjectile.lookAt(playerProjectileTo);
         } else playerProjectile.scale.setScalar(1 + Math.sin(progress * Math.PI) * 0.9);
       }
+      photonChair.update(snapshot.player.sitting && snapshot.player.health > 0 && !snapshot.player.moving);
       if (knight) {
         if(snapshot.player.health<=0 && !playerDead) { playerDead=true; knight.play("Death",false); }
         else if(snapshot.player.health<lastHealth && snapshot.player.health>0) { playerHitRemaining=0.4; knight.play(playerAnimation.hit,false,0.4); }
@@ -512,7 +520,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           playerHitRemaining=Math.max(0,playerHitRemaining-delta); playerAttackRemaining=Math.max(0,playerAttackRemaining-delta);
           if(playerHitRemaining===0&&playerAttackRemaining===0) {
             if (!playSocialAnimation(knight, snapshot.player.sitting, snapshot.player.moving ? null : snapshot.player.emote)) {
-              knight.play(snapshot.player.maneuver === "disengage" || !snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle");
+              knight.play(!snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle");
             }
           }
         }
@@ -561,8 +569,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         if (threat.health > 0) rig.root.rotation.y = Math.atan2(threat.facing.x, threat.facing.z);
         conformToTerrain(rig.ring, 0.05);
         conformToTerrain(rig.selection, 0.06);
-        conformToTerrain(rig.rootEffect, 0.12);
-        rig.rootEffect.visible = threat.rootedSeconds > 0;
         const preparation = updateThreatAnimation(rig, threat, delta);
         rig.body.position.y = threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : 0;
         rig.body.rotation.x = -0.12*preparation;
@@ -617,7 +623,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       telegraphs.update(snapshot, combatPreview);
       combatEffects.update(snapshot.combat, elapsed, delta, connectionRevision);
       aggroRanges.update(snapshot);
-      combatGrid.update(snapshot);
+      combatGrid.update(snapshot, moveAiming, moveAiming && hoverPointer ? pickGround(hoverPointer.x, hoverPointer.y) : null, otherPlayers.map(p => p.player.position));
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
       camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
       updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position);
@@ -659,6 +665,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       overheadNames.dispose();
       aggroRanges.dispose();
       combatGrid.dispose();
+      photonChair.dispose();
       telegraphs.dispose();
       combatEffects.dispose();
       vendorActors.forEach(entry => entry.actor?.dispose());

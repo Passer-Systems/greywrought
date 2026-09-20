@@ -12,7 +12,7 @@ test("Maul keeps its landing fixed while a committed retreat avoids it", () => {
   expect(hound().cast!.ability.id).toBe("maul");
   const standing = createAdventure({ save: game.save() }); standing.readyCombat(); standing.advance(4);
   expect(standing.snapshot.player.health).toBeLessThan(100);
-  tap(game, "disengage"); game.moveQueuedAction(game.snapshot.combat.queued[1]!.id, hound().windowAction!.offsetSeconds);
+  expect(game.queueBait({ ...game.snapshot.player.position, z: game.snapshot.player.position.z-5 })).toBe(true); game.moveQueuedAction(game.snapshot.combat.queued[1]!.id, hound().windowAction!.offsetSeconds);
   const slot = hound().windowAction!.offsetSeconds;
   game.readyCombat(); game.advance(slot + .01);
   const landing = hound().targetPosition;

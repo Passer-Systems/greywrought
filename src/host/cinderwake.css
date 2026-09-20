@@ -1943,11 +1943,6 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 
 @media(max-width:850px) { .adventure-bottom { bottom:158px; width:calc(100vw - 20px); }   }
 
-.nameplate-effects:empty {display:none;}
-.nameplate-rooted {position:absolute;right:0;top:58px;width:26px;height:26px;border:1px solid #78dec8;border-radius:3px;background:#133f40;display:grid;place-items:center;color:#b6fff0;}
-.nameplate-rooted[hidden] {display:none;}
-.nameplate-effect-icon {font-size:21px;}
-.nameplate-effect-clock {position:absolute;bottom:-4px;right:0;font-size:var(--ui-font-tiny);color:white;}
 .adventure-actions button:disabled {opacity:.55;cursor:default;}
 .rpg-window-header { position:relative; display:grid; grid-template-columns:var(--window-emblem-space,0px) minmax(0,1fr) 27px; height:var(--window-header-height,27px); align-items:stretch; }
 .rpg-window-portrait { grid-column:1; grid-row:1; display:block; width:var(--window-emblem-space); height:var(--window-header-height); border:2px ridge #a4935f; border-radius:2px 0 0 2px; object-fit:cover; background:#263732; }
@@ -1955,7 +1950,6 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .rpg-window-close { grid-column:3; display:grid; place-items:center; width:27px; height:27px; margin:0; padding:0; border:3px ridge #aca374; border-radius:3px; background:linear-gradient(#9c281b,#4c0b06); color:#e7c864; font:bold 22px/1 Georgia,serif; cursor:pointer; text-shadow:1px 2px #300; }
 .rpg-window-close:hover { background:#b53c25; }
 .rpg-window-close:focus-visible {outline:2px solid #ebcc7d;outline-offset:2px;}
-.nameplate-effects {position:absolute;right:0;top:0;display:flex;gap:3px;}
 
 .nameplate-shield {position:absolute;right:0;top:58px;width:29px;height:26px;border:1px solid #88caff;border-radius:3px;background:#102e4a;color:#b8e1ff;display:grid;place-items:center;font:bold var(--ui-font-body) system-ui;}
 .nameplate-shield[hidden] {display:none;}
@@ -1991,7 +1985,6 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .adventure-actions button kbd { display:block; position:absolute; top:0; left:0; right:0; height:12px; color:#342e23; font:700 var(--ui-font-tiny)/12px Georgia,serif; text-align:center; }
 .action-art { position:absolute; inset:12px 1px 1px; overflow:hidden; border:1px solid #151916; border-radius:2px; background:radial-gradient(at 35% 20%,#4e5038,#101b19); }
 .action-art img { display:block; width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 1px 2px #000); }
-.adventure-actions button[data-action=bloodRage]:not(.action-empty) .action-art {background:radial-gradient(at 35% 20%,#ad4c23,#371312);}
 .adventure-actions button[data-action=brace]:not(.action-empty) .action-art {background:radial-gradient(at 35% 20%,#406b86,#162736);}
 .adventure-actions button:hover {background:#f0e0b5;border-color:#fbe5a8;}
 .adventure-actions button:disabled {opacity:1;cursor:help;}
@@ -2012,7 +2005,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .adventure-bottom {width:min(720px,calc(100vw - 370px));}
 .adventure-controls {text-align:center;}
 @media(max-width:850px) {.adventure-bottom {width:calc(100vw - 20px);} .adventure-actions button {width:43px;height:56px;} .action-tooltip {width:195px;} .adventure-actions button:nth-child(1) .action-tooltip,.adventure-actions button:nth-child(2) .action-tooltip {left:0;transform:none;} .adventure-actions button:nth-last-child(1) .action-tooltip,.adventure-actions button:nth-last-child(2) .action-tooltip {left:auto;right:0;transform:none;}}
-.nameplate-rooted,.nameplate-shield {top:42px;}
+.nameplate-shield {top:42px;}
 .enemy-nameplate {width:180px;padding:0 26px 0 26px;}
 .nameplate-target {width:180px;margin:0 auto;}
 .nameplate-heading {height:16px;gap:5px;}
@@ -2046,10 +2039,11 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
   #route-objective { font-size: var(--ui-font-prominent); }
 }
 
-.adventure-actions {gap:var(--ui-slot-gap);padding:0;border:0;border-radius:0;background:none;box-shadow:none;}
-.adventure-actions button {width:var(--ui-slot-size);height:calc(var(--ui-slot-size) + 16px);border:0;background:none;}
+.adventure-actions {width:100%;gap:8px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;}
+.adventure-actions button {flex:1;width:auto;height:76px;border:0;background:none;}
 .adventure-actions button kbd {height:14px;color:#eee3c9;font:700 var(--ui-font-small)/14px Georgia,serif;text-shadow:0 1px 3px #000;}
-.adventure-actions .action-art {inset:16px 0 0;border:1px solid #b6aa87;border-radius:0;}
+.adventure-actions .action-art {inset:16px 0 20px;border:1px solid #b6aa87;border-radius:0;}
+.adventure-actions .action-label {position:absolute;bottom:0;left:0;right:0;color:#f1e7cb;font:600 12px/18px system-ui;text-shadow:0 1px 3px #000;}
 .adventure-actions .action-recovery-shade {height:calc(var(--recovery,0) * 31px);}
 .adventure-actions button:hover {background:none;border-color:transparent;}
 .adventure-actions button:hover .action-art {border-color:#ffe5a8;}
@@ -2122,7 +2116,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-phase {color:#e5d59a;font-size:13px;flex:1;}
 .combat-plan-resources {font-size:10px;color:#cabf95;white-space:nowrap;}
 .combat-plan button {font:inherit;cursor:pointer;}
-.combat-plan-clear,.combat-plan-ready,.combat-plan-remove,.combat-plan-delay {padding:2px 5px;min-height:21px;border:1px solid #756c50;border-radius:2px;background:#26322f;color:#e6d9b4;}
+.combat-plan-clear,.combat-plan-ready,.combat-plan-move-button,.combat-plan-remove,.combat-plan-delay {padding:2px 5px;min-height:21px;border:1px solid #756c50;border-radius:2px;background:#26322f;color:#e6d9b4;}
 .combat-plan button:disabled {opacity:.4;cursor:default;}
 .combat-plan button:focus-visible {outline:2px solid #f8e3a2;outline-offset:2px;}
 .combat-plan-clock {height:3px;background:#090e10;margin:4px 0 3px;}

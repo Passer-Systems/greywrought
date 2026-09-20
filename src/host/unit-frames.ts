@@ -130,10 +130,16 @@ export function createUnitFrames(host: HTMLElement) {
     const { width, height, frameWidth, groupHeight } = dimensions();
     const marginX = Math.min(8, Math.max(0, (width - frameWidth) / 2));
     const marginY = Math.min(8, Math.max(0, (height - groupHeight) / 2));
-    return {
-      x: Math.max(marginX, Math.min(width - frameWidth - marginX, position.x)),
-      y: Math.max(marginY, Math.min(height - groupHeight - marginY, position.y)),
-    };
+    const x = Math.max(marginX, Math.min(width - frameWidth - marginX, position.x));
+    let y = Math.max(marginY, Math.min(height - groupHeight - marginY, position.y));
+    const plan = host.querySelector<HTMLElement>("#combat-plan");
+    if (plan && !plan.hidden) {
+      const bounds = plan.getBoundingClientRect();
+      if (x < bounds.right && x + frameWidth > bounds.left && y < bounds.bottom && y + groupHeight + 12 > bounds.top) {
+        y = Math.max(marginY, bounds.top - groupHeight - 12);
+      }
+    }
+    return { x, y };
   }
   function paintPositions(): void {
     const { frameWidth } = dimensions();

@@ -14,12 +14,12 @@ try {
   await second.enter();
   await first.waitFor('JSON.parse(document.body.dataset.gameRemotePlayers).length===1');
   await second.waitFor('JSON.parse(document.body.dataset.gameRemotePlayers).length===1');
-  check(await first.evaluate<boolean>(`[...document.querySelectorAll('.adventure-actions kbd')].map(e=>e.textContent).join(',')==='1,2,3,4,5,6,7,8,9,0,-,='`),'Hotbar must be numbered in keyboard order');
-  check(await first.evaluate<number>(`document.querySelectorAll('.adventure-actions [data-action]:not(.action-locked)').length`)===3,'Starting bar must contain attack, block and the potion on equals');
+  check(await first.evaluate<boolean>(`[...document.querySelectorAll('.adventure-actions kbd')].map(e=>e.textContent).join(',')==='1,2,3'`),'Hotbar must be numbered in keyboard order');
+  check(await first.evaluate<number>(`document.querySelectorAll('.adventure-actions [data-action]:not(.action-locked)').length`)===3,'Bar contains Attack, Defend and Move');
   check(await first.evaluate<boolean>(`document.querySelector('[data-action="strike"] img').src.endsWith('sword-strike.png')`),'Warrior must retain sword');
   check(await second.evaluate<boolean>(`document.querySelector('[data-action="strike"] img').src.endsWith('wand-bolt.svg')`),'Mage must retain wand');
   check(await first.evaluate<boolean>(`document.querySelector('[data-action="brace"] .action-cost')===null`),'Ability icons must not have stamina badges');
-  check(await first.evaluate<string>(`document.querySelector('[data-action="drinkPotion"] kbd').textContent`)==='=','Potion must be on equals');
+  check(await first.evaluate<string>(`document.querySelector('[data-action="bait"] kbd').textContent`)==='3','Move must be on 3');
   await first.press('Enter');
   const greeting='Hello shared world '+Date.now();
   await first.call('Input.insertText',{text:greeting});await first.press('Enter');
