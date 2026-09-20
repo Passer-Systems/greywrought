@@ -6,6 +6,14 @@ import { moveLocomotion, moveManeuverPosition, blockedPosition, type MovementMan
 const locomotionActions = new Set<AdventureAction>(['forward', 'backward', 'left', 'right', 'jump']);
 export function isLocomotionAction(action: AdventureAction): boolean { return locomotionActions.has(action); }
 
+function movementState(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoint): MovementState {
+  const position = { ...snapshot.player.position };
+  // Server and browser terrain arithmetic can differ by a few ulps. A
+  // grounded checkpoint belongs exactly on the receiving simulation's floor.
+  if (snapshot.player.grounded) position.y = terrainHeight(position.x, position.z);
+  return { position, verticalSpeed: checkpoint.verticalSpeed };
+}
+
 export class LocalMovement {
   private snapshot: AdventureSnapshot;
   private state: MovementState;
@@ -28,7 +36,8 @@ export class LocalMovement {
   constructor(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoint) {
     this.snapshot = snapshot;
     this.sequence = checkpoint.sequence;
-    this.state = { position: { ...snapshot.player.position }, verticalSpeed: checkpoint.verticalSpeed };
+    this.state = movementState(snapshot, checkpoint);
+    this.moving = snapshot.player.moving; this.backpedaling = snapshot.player.backpedaling;
     this.maneuver = checkpoint.maneuver ? { ...checkpoint.maneuver } : null;
     this.cameraX = snapshot.player.cameraForward.x; this.cameraZ = snapshot.player.cameraForward.z;
   }
@@ -94,9 +103,9 @@ export class LocalMovement {
     }
     const initialized = this.serverTime !== -Infinity;
     this.serverTime = serverTime; this.snapshot = snapshot;
-    this.state = { position: { ...snapshot.player.position }, verticalSpeed: checkpoint.verticalSpeed };
+    this.state = movementState(snapshot, checkpoint);
     this.maneuver = checkpoint.maneuver ? { ...checkpoint.maneuver } : null;
-    this.moving = false; this.backpedaling = false;
+    this.moving = snapshot.player.moving; this.backpedaling = snapshot.player.backpedaling;
     this.history = this.history.filter(frame => frame.sequence > checkpoint.sequence ||
       (frame.sequence === checkpoint.sequence && frame.seconds - checkpoint.elapsed > 1e-9));
     for (const frame of this.history) {

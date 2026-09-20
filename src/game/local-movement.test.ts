@@ -3,12 +3,64 @@ import { createAdventure } from './adventure.js';
 import type { AdventureSnapshot } from './adventure-types.js';
 import type { MovementCheckpoint, MovementFrame } from './movement.js';
 import { LocalMovement } from '../host/local-movement.js';
+import { terrainHeight } from './cave-layout.js';
 
 function near(actual: AdventureSnapshot['player']['position'], expected: AdventureSnapshot['player']['position']): void {
   expect(actual.x).toBeCloseTo(expected.x, 6);
   expect(actual.y).toBeCloseTo(expected.y, 6);
   expect(actual.z).toBeCloseTo(expected.z, 6);
 }
+
+function slopeServer(x: number, z: number) {
+  const saved = JSON.parse(createAdventure({ now: () => 1000 }).save());
+  Object.assign(saved.state, { phase: 'expedition', position: { x, y: terrainHeight(x, z), z } });
+  for (const threat of saved.state.threats) if (threat.active) Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: 121000 });
+  const server = createAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+  server.enableNetworkMovement!();
+  return server;
+}
+
+test('grounded slope acknowledgments tolerate terrain rounding without interrupting locomotion', () => {
+  for (const [x, z] of [[-62, -11], [35, -46]]) for (const direction of [-1, 1]) {
+    const server = slopeServer(x!, z!), local = new LocalMovement(server.snapshot, server.movementCheckpoint!);
+    const action = direction === 1 ? 'forward' : 'backward';
+    local.setCameraForward(1, 0); local.setAction(action, true);
+    for (let tick = 0; tick < 60; tick++) {
+      local.advance(1 / 60); server.enqueueMovement!(local.takeOutgoing()); server.advance(1 / 60);
+      const snapshot = server.snapshot;
+      // Server and browser terrain arithmetic can differ by a few ulps.
+      const y = snapshot.player.position.y + (tick % 2 ? -1 : 1) * Number.EPSILON * Math.max(1, Math.abs(snapshot.player.position.y)) * 2;
+      const rounded = { ...snapshot, player: { ...snapshot.player, position: { ...snapshot.player.position, y } } };
+      local.reconcile(rounded, server.movementCheckpoint!, tick / 60);
+      expect(local.player.grounded).toBe(true);
+      expect(local.player.moving).toBe(true);
+      expect(local.player.backpedaling).toBe(direction === -1);
+      expect(local.player.position.y).toBe(terrainHeight(local.player.position.x, local.player.position.z));
+    }
+    local.setAction(action, false); local.advance(1 / 60);
+    expect(local.player.moving).toBe(false);
+    server.enqueueMovement!(local.takeOutgoing()); server.advance(1 / 60);
+    local.reconcile(server.snapshot, server.movementCheckpoint!, 2);
+    expect(local.player.moving).toBe(false);
+  }
+});
+
+test('grounded terrain rounding still permits a jump and airborne reconciliation preserves airtime', () => {
+  const server = slopeServer(-62, -11), snapshot = server.snapshot;
+  const y = snapshot.player.position.y - Number.EPSILON * Math.abs(snapshot.player.position.y) * 2;
+  const rounded = { ...snapshot, player: { ...snapshot.player, position: { ...snapshot.player.position, y } } };
+  const local = new LocalMovement(rounded, server.movementCheckpoint!);
+  local.setAction('jump', true); local.advance(.1);
+  expect(local.player.grounded).toBe(false);
+  expect(local.player.position.y - terrainHeight(local.player.position.x, local.player.position.z)).toBeGreaterThan(.4);
+  server.enqueueMovement!(local.takeOutgoing()); server.advance(.1);
+  local.reconcile(server.snapshot, server.movementCheckpoint!, .1);
+  near(local.player.position, server.snapshot.player.position);
+  expect(local.player.grounded).toBe(false);
+  local.setAction('jump', false);
+  for (let tick = 0; tick < 60; tick++) local.advance(1 / 60);
+  expect(local.player.grounded).toBe(true);
+});
 
 test('prediction rebuilt after a pause continues above the last acknowledged movement sequence', () => {
   const server = createAdventure(); server.enableNetworkMovement!();
