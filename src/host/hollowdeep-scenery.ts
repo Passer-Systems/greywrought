@@ -1,12 +1,14 @@
-import { Box3, CanvasTexture, Group, Mesh, MeshStandardMaterial, PointLight, RepeatWrapping, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, type Object3D } from 'three';
-import { CAVE_BARRIERS, inCave, terrainHeight } from '../game/cave-layout.js';
+import { Box3, CanvasTexture, Group, Mesh, MeshStandardMaterial, PointLight, Ray, RepeatWrapping, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, type Object3D } from 'three';
+import { CAVE_BARRIERS, terrainHeight } from '../game/cave-layout.js';
 import type { Position } from '../game/adventure-types.js';
 import { prop } from './frostwood-assets.js';
 import { caveFloorGeometry } from './terrain-geometry.js';
 
 export async function buildHollowdeep(terrain: Group): Promise<(position: Position, camera: Vector3) => void> {
   const walls = new Group(), roof = new Group(); terrain.add(walls, roof);
-  const wallRocks: { root: Object3D; height: number; scale: number }[] = [];
+  const solidBounds: Box3[] = [];
+  const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
+  let resolvedCameraDistance = Number.POSITIVE_INFINITY;
   const jobs: Promise<void>[] = [];
   function place(name: string, x: number, z: number, size: number, parent = terrain, lift = 0, rotation = 0) {
     jobs.push(prop(name, size).then(model => {
@@ -36,7 +38,6 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
         const size=new Box3().setFromObject(model).getSize(new Vector3());
         model.scale.set((right-left)/cols/size.x*1.12, height/size.y, (top-bottom)/rows/size.z*1.12);
         model.position.set(x,ground-.15,z); walls.add(model);
-        wallRocks.push({root:model,height,scale:model.scale.y});
       }));
     }
   }
@@ -48,7 +49,7 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
       model.position.set(x,1.7,z); roof.add(model);
     }));
   }
-  // The entrance lintel joins the roof cutaway so it cannot cover the descent camera.
+  // The entrance lintel bridges the descending passage.
   jobs.push(prop('nature/Rock_Medium_3',1).then(model => {
     const size=new Box3().setFromObject(model).getSize(new Vector3());
     model.scale.set(3.4/size.x,2/size.y,10.4/size.z); model.position.set(29,3,-46); roof.add(model);
@@ -78,13 +79,28 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
   sign('HOLLOWDEEP CAVE · DANGER',26,-41,'#ffca87');
   sign('← EXIT TO THE MEADOW',36,-50,'#b9e8d0');
   await Promise.all(jobs);
+  for (const root of [walls, roof]) {
+    root.updateWorldMatrix(true, true);
+    root.traverse(object => { if (object instanceof Mesh) solidBounds.push(new Box3().setFromObject(object)); });
+  }
   return (position, camera) => {
-    const inside=inCave(position); roof.visible=!inside;
-    const dx=camera.x-position.x,dz=camera.z-position.z, length=Math.hypot(dx,dz)||1;
-    for (const rock of wallRocks) {
-      const rx=rock.root.position.x-position.x,rz=rock.root.position.z-position.z;
-      const nearCamera=inside && rx*dx+rz*dz>0 && Math.abs(rx*dz-rz*dx)/length<11 && Math.hypot(rx,rz)<22;
-      rock.root.scale.y=rock.scale*(nearCamera ? Math.min(1,1.2/rock.height) : 1);
+    // Keep authored cave walls and roof visible. Pull the boom in when it
+    // would pass through solid rock, like a conventional third-person camera.
+    sightline.origin.set(position.x, position.y + 1.1, position.z);
+    cameraDirection.subVectors(camera, sightline.origin);
+    const cameraDistance = cameraDirection.length();
+    sightline.direction.copy(cameraDirection).normalize();
+    let nearest = cameraDistance;
+    for (const bounds of solidBounds) {
+      const hit = sightline.intersectBox(bounds, intersection);
+      if (hit) {
+        const hitDistance = sightline.origin.distanceTo(hit);
+        nearest = Math.min(nearest, hitDistance - Math.min(.6, hitDistance * .2));
+      }
     }
+    resolvedCameraDistance = Number.isFinite(resolvedCameraDistance)
+      ? Math.min(nearest, resolvedCameraDistance + (nearest - resolvedCameraDistance) * .18)
+      : nearest;
+    if (resolvedCameraDistance < cameraDistance) camera.copy(sightline.origin).addScaledVector(sightline.direction, resolvedCameraDistance);
   };
 }

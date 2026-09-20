@@ -99,7 +99,6 @@ function readyCombat(): boolean {
 }
 const hudSize = new ResizeObserver(() => {
   unitFrames.layout();
-  running?.world.setCombatHudHeight(Math.max(0, element("world-wrap").getBoundingClientRect().bottom - element("combat-plan-mount").parentElement!.getBoundingClientRect().top));
 });
 hudSize.observe(element("combat-plan-mount").parentElement!);
 const bank = createBankPanel(element("adventure-hud"), {
@@ -598,20 +597,21 @@ function syncEncounter(): void {
   const waiting = game.online && !game.inputEnabled && game.session.mode !== 'paused';
   text('pause-title', !game.online ? 'Connection lost' : game.pendingTransition === 'resume' ? 'Resuming encounter…' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : game.session.mode === 'shared' ? 'Shared world' : 'Private encounter');
   text('pause-copy', !game.online
-    ? 'Reconnecting… Your encounter pauses when the connection loss is detected. It will stay paused when you return.'
-    : waiting ? grouped ? 'Pausing your party’s encounter while the world continues.' : 'Saving your encounter while the world continues.'
-    : game.session.mode === 'shared' ? grouped ? 'The world keeps running while this menu is open. When any party member pauses, everyone enters the same private encounter without rewards.' : 'The world keeps running while this menu is open. Pause creates a private encounter without rewards; the rest of the world continues.'
-    : game.session.mode === 'paused' ? grouped ? 'Your party’s encounter is paused. Resume continues it for everyone. The rest of the world keeps running.' : 'Your private encounter is paused. The rest of the world continues without you.'
-    : grouped ? 'Your party shares this private encounter. Pausing, resuming, and returning to the main world affect everyone.' : 'Your private encounter keeps running while this menu is open.');
+    ? 'Reconnecting… your encounter will stay paused.'
+    : waiting ? grouped ? 'Pausing for your party…' : 'Saving your encounter…'
+    : game.session.mode === 'shared' ? grouped ? 'Your party is in the shared world.' : 'You are in the shared world.'
+    : game.session.mode === 'paused' ? grouped ? 'Your party’s encounter is paused.' : 'Your private encounter is paused.'
+    : grouped ? 'Your party shares this private encounter.' : 'Your private encounter is active.');
   element('pause-private-warning').hidden = game.session.mode === 'shared';
-  element('pause-rejoin-hint').hidden = game.session.mode === 'shared';
   button('pause-action').disabled = !game.online || !game.inputEnabled;
   element('pause-action').hidden = game.session.mode === 'paused';
   element('pause-resume').hidden = game.session.mode !== 'paused';
   text('pause-toggle-label', game.session.mode === 'paused' ? 'Resume' : 'Pause');
+  text('pause-toggle-tooltip', game.session.mode === 'paused' ? 'Resume' : 'Pause');
+  element('pause-toggle-pause-icon').hidden = game.session.mode === 'paused';
+  element('pause-toggle-play-icon').hidden = game.session.mode !== 'paused';
   button('pause-toggle').setAttribute('aria-label', game.session.mode === 'paused' ? 'Resume encounter' : 'Pause encounter');
   button('pause-toggle').disabled = !game.online || game.pendingTransition !== null;
-  text('pause-rejoin-hint', game.session.canRejoin ? game.session.mode === 'paused' ? 'Out of combat. Resume your encounter to rejoin the main world from the top bar.' : 'Out of combat. Close this menu to rejoin the main world from the top bar.' : 'In combat. Finish the encounter before rejoining the main world.');
   button('pause-resume').disabled = !game.online || game.session.mode !== 'paused' || game.pendingTransition !== null;
   button('encounter-rejoin').disabled = !game.online || !game.session.canRejoin || game.pendingTransition !== null;
   button('encounter-pause').disabled = game.pendingTransition !== null;
@@ -808,11 +808,6 @@ function renderHud(snapshot: AdventureSnapshot): void {
     gameCombatPhase: snapshot.combat.phase,
     gameCombatRemaining: String(snapshot.combat.remainingSeconds),
   });
-  const stamina = element("combat-stamina");
-  setAttribute(stamina, "aria-valuenow", String(player.stamina));
-  setAttribute(stamina, "aria-valuemin", "0"); setAttribute(stamina, "aria-valuemax", String(player.maximumStamina));
-  setAttribute(stamina, "title", "Stamina " + player.stamina + " / " + player.maximumStamina);
-  element("combat-stamina-fill").style.width = (100 * player.stamina / player.maximumStamina) + "%";
   setDataset(data, { archetype: player.archetype });
   text("bait-aim-hint", moveAimError || `Move · click a destination tile (up to ${classKit(player.archetype).movementTiles} tiles) · Esc cancels`);
   text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
@@ -1083,6 +1078,7 @@ click("entry-creator-back", () => { route = profile?.characters.length ? "roster
 click("entry-change-character", () => { if (!entering) { route = "creator"; renderEntry(); } });
 click("entry-enter-world", () => { const character = selectedCharacter(); if (character) void enterWorld(character); });
 click("pause-open", () => setMenuOpen(element("pause-panel").hidden, "settings"));
+click("pause-close", () => setMenuOpen(false));
 click("aggro-ranges-toggle", () => toggleAggroRanges());
 click("help-ranges-toggle", () => toggleAggroRanges("help"));
 for (const tab of ["encounter", "settings"] as const) {

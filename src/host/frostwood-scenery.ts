@@ -10,10 +10,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const coolingMaterials: MeshStandardMaterial[] = [];
   const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
   const occluders: { root: Group; bounds: Box3 }[] = [];
-  const treeBounds = new WeakMap<Mesh, Box3>();
-  const instancedTrees: { mesh: InstancedMesh; index: number; matrix: Matrix4; bounds: Box3; visible: boolean }[] = [];
-  const hiddenMatrix = new Matrix4().makeScale(0, 0, 0);
   const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
+  let resolvedCameraDistance = Number.POSITIVE_INFINITY;
   function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0, footprint?: readonly [number, number]) {
     jobs.push(prop(name, size, axis).then(model => {
       model.position.set(x, terrainHeight(x,z) + y, z); model.rotation.y = rotation;
@@ -39,7 +37,6 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       if (footprint || tree) {
         const bounds = new Box3().setFromObject(model).expandByScalar(.5);
         occluders.push({ root: model, bounds });
-        if (tree) model.traverse(object => { if (object instanceof Mesh) treeBounds.set(object, bounds); });
       }
       if (!interactive && !footprint) model.traverse(object => {
         if (!(object instanceof Mesh)) return;
@@ -309,8 +306,6 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     inverse.copy(parent.matrixWorld).invert();
     for (const [index, mesh] of meshes.entries()) {
       instances.setMatrixAt(index, matrix.multiplyMatrices(inverse, mesh.matrixWorld));
-      const bounds = treeBounds.get(mesh);
-      if (bounds) instancedTrees.push({ mesh: instances, index, matrix: matrix.clone(), bounds, visible: true });
       mesh.removeFromParent();
     }
     // Spatial cells retain useful frustum culling without changing the authored art.
@@ -318,22 +313,22 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     parent.add(instances);
   }
   return (coolingRestored, shiftEnded, player, camera) => {
-    sightline.origin.set(player.x, player.y + 1, player.z);
+    sightline.origin.set(player.x, player.y + 1.1, player.z);
     cameraDirection.subVectors(camera, sightline.origin);
     const cameraDistance = cameraDirection.length();
     sightline.direction.copy(cameraDirection).normalize();
+    let nearest = cameraDistance;
     for (const occluder of occluders) {
       const hit = sightline.intersectBox(occluder.bounds, intersection);
-      occluder.root.visible = !hit || sightline.origin.distanceTo(hit) > cameraDistance;
+      if (hit) {
+        const hitDistance = sightline.origin.distanceTo(hit);
+        nearest = Math.min(nearest, hitDistance - Math.min(.6, hitDistance * .2));
+      }
     }
-    for (const tree of instancedTrees) {
-      const hit = sightline.intersectBox(tree.bounds, intersection);
-      const visible = !hit || sightline.origin.distanceTo(hit) > cameraDistance;
-      if (tree.visible === visible) continue;
-      tree.mesh.setMatrixAt(tree.index, visible ? tree.matrix : hiddenMatrix);
-      tree.mesh.instanceMatrix.needsUpdate = true;
-      tree.visible = visible;
-    }
+    resolvedCameraDistance = Number.isFinite(resolvedCameraDistance)
+      ? Math.min(nearest, resolvedCameraDistance + (nearest - resolvedCameraDistance) * .18)
+      : nearest;
+    if (resolvedCameraDistance < cameraDistance) camera.copy(sightline.origin).addScaledVector(sightline.direction, resolvedCameraDistance);
     for (const material of coolingMaterials) {
       material.emissive.setHex(coolingRestored ? 0x55d9fa : 0x000000);
       material.emissiveIntensity = coolingRestored ? 1.1 : 0;

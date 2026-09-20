@@ -79,7 +79,6 @@ export interface AdventureWorld {
   setCombatPreview(preview: CombatPreview | null): void;
   setSelectedUnit(selection: UnitSelection): void;
   setPartyMembers(ids: readonly string[]): void;
-  setCombatHudHeight(height: number): void;
   setMoveAiming(active: boolean): void;
   canMoveTo(destination: Position): boolean;
   projectThreat(id: string): { x: number; y: number; feetY: number } | null;
@@ -395,7 +394,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const telegraphs = createGroundTelegraphs(scene, canvas);
   const combatEffects = createCombatEffects(scene);
   let combatPreview: CombatPreview | null = null;
-  let combatHudHeight = 0;
   const aggroRanges = createAggroRanges(scene, canvas);
   const combatGrid = createCombatGrid(scene, canvas);
   let moveAiming = false;
@@ -468,12 +466,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     hover(x, y) { hoverPointer = { x, y }; },
     updatePlayers(players) { if (!disposed) otherPlayers = players; },
     updateChat(messages, selfId) { if (!disposed) chatBubbles.update(messages, selfId); },
-    orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.45, pitch + dy * 0.004)); },
+    orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(-1.2, Math.min(1.45, pitch + dy * 0.004)); },
     zoom(delta) { distance = Math.max(6, Math.min(21, distance * Math.exp(delta * 0.001))); },
     setThreatNameplateVisible(id, visible) { overheadNames.suppress(`threat:${id}`, visible); },
     setAggroRangesVisible(visible) { aggroRanges.setVisible("direct", visible); },
     setHelpRangesVisible(visible) { aggroRanges.setVisible("help", visible); },
-    setCombatHudHeight(height) { combatHudHeight = height; },
     setMoveAiming(active) { moveAiming = active; if (!active) { movementPreview.clear(); moveOutcome.hidden = true; } },
     canMoveTo(destination) { return combatGrid.accepts(destination); },
     setCombatPreview(preview) { combatPreview = preview; },
@@ -634,13 +631,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
       }
-      // Keep the same field of view in the ground visible above the HUD.
-      const worldHeight = Math.max(1, height - combatHudHeight);
-      if (camera.view?.fullWidth !== width || camera.view.fullHeight !== worldHeight || camera.view.height !== height) {
-        camera.setViewOffset(width, worldHeight, 0, 0, width, height);
-      }
-      if (delta === 0 || cameraTarget.distanceToSquared(position) > 100) cameraTarget.copy(position);
-      else cameraTarget.lerp(position, 1 - Math.exp(-delta * 12));
+      // Keep the player at the actual center of the canvas. The HUD overlays
+      // the world and no longer shifts the projection with a view offset.
+      cameraTarget.copy(position);
       const facing = forward();
       if (snapshot.combat.phase !== "preparation") combatPreview = null;
 
@@ -667,13 +660,18 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         moveOutcome.style.left = Math.max(8, Math.min(rect.width - 290, hoverPointer.x - rect.left + 18)) + "px";
         moveOutcome.style.top = Math.max(8, Math.min(rect.height - moveOutcome.offsetHeight - 8, hoverPointer.y - rect.top + 18)) + "px";
       }
-      camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + 1 + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
-      const requiredLift = terrainCameraLift({ x: cameraTarget.x, y: cameraTarget.y + 1, z: cameraTarget.z }, camera.position);
+      const target = { x: cameraTarget.x, y: cameraTarget.y + 1.1, z: cameraTarget.z };
+      camera.position.set(target.x - facing.x * Math.cos(pitch) * distance, target.y + Math.sin(pitch) * distance, target.z - facing.z * Math.cos(pitch) * distance);
+      const requiredLift = terrainCameraLift(target, camera.position);
+      // Raise immediately when the sightline enters terrain; ease only while
+      // returning to a lower orbit so the camera never clips through a hill.
       cameraTerrainLift = delta === 0 ? requiredLift : Math.max(requiredLift, cameraTerrainLift + (requiredLift - cameraTerrainLift) * (1 - Math.exp(-delta * 8)));
       camera.position.y += cameraTerrainLift;
-      camera.lookAt(cameraTarget.x, cameraTarget.y + 1, cameraTarget.z);
       updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position);
       updateCave(snapshot.player.position, camera.position);
+      const collisionLift = terrainCameraLift(target, camera.position);
+      if (collisionLift > 0) camera.position.y += collisionLift;
+      camera.lookAt(target.x, target.y, target.z);
       const selectedPlayer = selectedUnit?.kind === "player" ? selectedUnit.id : null;
       const friendlyRoot = selectedPlayer === playerSelection?.selfId ? player : [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
       friendlySelection.visible = Boolean(friendlyRoot?.visible);

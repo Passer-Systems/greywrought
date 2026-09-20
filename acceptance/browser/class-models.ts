@@ -4,6 +4,7 @@ const page = await openBrowser("class-models");
 async function roster() {
   await page.press("Escape");
   await page.waitFor('!document.getElementById("pause-panel").hidden');
+  await page.click("#pause-tab-settings");
   await page.click("#return-roster");
   await page.waitFor('document.body.dataset.entryRoute === "roster"');
 }

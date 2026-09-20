@@ -81,7 +81,7 @@ try {
     await capture('town', 18, 'dusk'); await capture('town', 0, 'night'); await capture('town', 6, 'dawn');
     for (const location of ['field', 'cave']) {
       await page.click('#pause-open');
-      await page.click('#pause-tab-encounter');
+      await page.click('#pause-tab-settings');
       await page.click('#return-roster');
       await page.waitFor('document.body.dataset.entryRoute==="roster"');
       await page.click(`[data-character-id="light-${location}"]`);

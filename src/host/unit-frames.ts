@@ -7,7 +7,7 @@ import { createUnitPortraits } from "./unit-portraits.js";
 
 interface Frame {
   root: HTMLElement; portrait: HTMLImageElement; name: HTMLElement;
-  fill: HTMLElement; value: HTMLElement;
+  fill: HTMLElement; value: HTMLElement; stamina: HTMLElement; staminaFill: HTMLElement;
 }
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, host: HTMLElement): HTMLElementTagNameMap[K] {
   const element = document.createElement(tag); element.className = className; host.append(element); return element;
@@ -21,7 +21,10 @@ function makeFrame(host: HTMLElement, id: string, kind: string): Frame {
   const name = node("strong", "unit-frame-name", bars);
   const health = node("div", "unit-frame-health", bars);
   const fill = node("span", "unit-frame-fill", health), value = node("span", "unit-frame-value", health);
-  return { root, portrait, name, fill, value };
+  const stamina = node("div", "unit-frame-stamina", bars); stamina.hidden = true;
+  stamina.setAttribute("role", "meter"); stamina.setAttribute("aria-label", "Stamina");
+  const staminaFill = node("span", "unit-frame-stamina-fill", stamina);
+  return { root, portrait, name, fill, value, stamina, staminaFill };
 }
 function health(frame: Frame, name: string, current: number, maximum: number, targetId: string): void {
   write(frame.name, name);
@@ -30,9 +33,18 @@ function health(frame: Frame, name: string, current: number, maximum: number, ta
   Object.assign(frame.root.dataset, { health: String(current), max: String(maximum), targetId });
   frame.root.setAttribute("aria-label", `${name}, ${current <= 0 ? "dead" : `${Math.ceil(current)} of ${maximum} health`}`);
 }
+function stamina(frame: Frame, player?: AdventureSnapshot["player"]): void {
+  frame.stamina.hidden = !player;
+  if (!player) return;
+  frame.staminaFill.style.width = Math.max(0, Math.min(100, player.stamina / player.maximumStamina * 100)) + "%";
+  frame.stamina.setAttribute("aria-valuemin", "0");
+  frame.stamina.setAttribute("aria-valuemax", String(player.maximumStamina));
+  frame.stamina.setAttribute("aria-valuenow", String(player.stamina));
+  frame.stamina.title = "Stamina " + player.stamina + " / " + player.maximumStamina;
+}
 const styles = `
 .unit-frames { position:absolute; inset:0; pointer-events:none; color:#f4e5ba; font:var(--ui-font-small)/1.2 system-ui,sans-serif; filter:drop-shadow(0 2px 2px #000b); }
-.unit-frame { position:relative; display:flex; align-items:center; height:66px; min-width:0; }
+.unit-frame { position:relative; display:flex; align-items:center; height:76px; min-width:0; }
 .unit-frame-player,.unit-frame-target-group { position:absolute; width:var(--unit-frame-width); }
 .unit-frame-combat-status { position:absolute; top:calc(100% - 5px); right:3px; color:#c3c8bc; font:var(--ui-font-small)/1.2 system-ui,sans-serif; text-shadow:0 1px 2px #000,1px 0 2px #000; }
 .unit-frame-player[data-in-combat=true] .unit-frame-combat-status { color:#ffc18f; }
@@ -45,29 +57,32 @@ const styles = `
 .unit-frame-settings label { display:flex; align-items:center; gap:8px; }
 .unit-frame-settings small { line-height:1.4; }
 #pause-panel > div { max-height:calc(100dvh - 24px); overflow-y:auto; }
-.unit-frame-portrait { z-index:1; flex:0 0 49.5px; width:49.5px; height:49.5px; border:2px solid #a69768; border-radius:2px 0 0 2px; background:#203035; box-shadow:inset 0 0 0 2px #211d18,0 0 0 1px #252721; overflow:hidden; }
+.unit-frame-portrait { z-index:1; box-sizing:border-box; flex:0 0 64px; width:64px; height:64px; border:3px solid #bca263; border-radius:50%; background:#203035; box-shadow:inset 0 0 0 2px #211d18,0 0 0 1px #252721,0 2px 4px #000b; overflow:hidden; }
 .unit-frame-image { display:block; width:100%; height:100%; object-fit:cover; }
 .unit-frame-player .unit-frame-image,.unit-frame-tot .unit-frame-image { object-position:50% 18%; }
-.unit-frame-bars { flex:1; min-width:0; height:49.5px; display:flex; flex-direction:column; justify-content:center; padding:3px 4px; border:2px solid #888579; border-left:0; border-radius:0 2px 2px 0; background:linear-gradient(#393b36,#141b1c); box-shadow:0 0 0 1px #1a1815,inset 0 0 0 1px #b9ae7040; }
+.unit-frame-bars { flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; margin-left:-7px; padding:3px 4px 4px 9px; border:2px solid #888579; border-left:0; border-radius:0 4px 4px 0; background:linear-gradient(#393b36,#141b1c); box-shadow:0 0 0 1px #1a1815,inset 0 0 0 1px #b9ae7040; }
 .unit-frame-name { display:block; height:17px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; text-align:center; font:600 var(--ui-font-body)/16px Georgia,serif; color:#f4dda4; text-shadow:0 1px 2px #000; }
-.unit-frame-health { position:relative; height:14px; margin-top:1px; background:#14201a; border:1px solid #121612; box-shadow:0 0 0 1px #90855a; overflow:hidden; }
+.unit-frame-health { position:relative; height:22px; margin-top:1px; background:#14201a; border:1px solid #121612; box-shadow:0 0 0 1px #90855a; overflow:hidden; }
 .unit-frame-fill { display:block; height:100%; background:linear-gradient(#72c650,#3d912b 50%,#256d27); }
-.unit-frame-value { position:absolute; inset:0; text-align:center; color:#fff; text-shadow:0 1px 2px #000,1px 0 2px #000; font:600 var(--ui-font-tiny)/12px system-ui,sans-serif; }
+.unit-frame-value { position:absolute; inset:0; display:grid; place-items:center; color:#fff; text-shadow:0 1px 2px #000,1px 0 2px #000; font:600 var(--ui-font-tiny)/1 system-ui,sans-serif; }
+.unit-frame-stamina { height:7px; margin-top:3px; background:#211d13; border:1px solid #121612; box-shadow:0 0 0 1px #90855a; overflow:hidden; }
+.unit-frame-stamina-fill { display:block; height:100%; background:linear-gradient(#ecd776,#b79a3b); transition:width .1s linear; }
+.unit-frame-stamina[hidden] { display:none; }
 .unit-frame-target { flex-direction:row-reverse; }
-.unit-frame-target .unit-frame-bars { border-left:2px solid #888579; border-right:0; border-radius:2px 0 0 2px; }
-.unit-frame-target .unit-frame-portrait { border-radius:0 2px 2px 0; }
+.unit-frame-target .unit-frame-bars { margin-left:0; margin-right:-7px; padding:3px 9px 4px 4px; border-left:2px solid #888579; border-right:0; border-radius:4px 0 0 4px; }
 .unit-frame-target[data-hostile=true] .unit-frame-fill { background:linear-gradient(#da5353,#ac3338 50%,#80202b); }
 .unit-frame-target[data-hostile=false] .unit-frame-fill { background:linear-gradient(#e0ce51,#b19a2a 50%,#8e791d); }
 .unit-frame-target[data-kind=player] .unit-frame-fill { background:linear-gradient(#72c650,#3d912b 50%,#256d27); }
 .unit-frame-target[data-kind=player] .unit-frame-image { object-position:50% 18%; }
 .unit-frame-tot { margin-top:24px; margin-left:auto; width:150px; height:39px; }
 .unit-frame-tot .unit-frame-portrait { flex-basis:37px; width:37px; height:37px; border-width:2px; }
-.unit-frame-tot .unit-frame-bars { height:37px; padding:2px 3px; border-width:1px; }
+.unit-frame-tot .unit-frame-bars { padding:2px 3px 2px 9px; border-width:1px; }
 .unit-frame-tot .unit-frame-name { font-size:var(--ui-font-tiny); line-height:12px; height:12px; }
 .unit-frame-tot .unit-frame-health { height:14px; }
+.unit-frame-tot .unit-frame-stamina { height:4px; margin-top:2px; }
 .unit-frame-tot .unit-frame-value { font-size:var(--ui-font-tiny); line-height:12px; }
 .unit-frame[hidden],.unit-frame-target-group[hidden] { display:none; }
-@media(max-width:700px) { .unit-frame-portrait { flex-basis:36px; width:36px; height:36px; } .unit-frame-bars { height:36px; } .unit-frame { height:52px; } .unit-frame-name { font-size:var(--ui-font-tiny); } .unit-frame-tot { width:130px; height:37px; } }
+@media(max-width:700px) { .unit-frame-portrait { flex-basis:46px; width:46px; height:46px; } .unit-frame { height:64px; } .unit-frame-name { font-size:var(--ui-font-tiny); } .unit-frame-health { height:20px; } .unit-frame-tot { width:130px; height:45px; } }
 `;
 
 type FramePosition = { x: number; y: number };
@@ -125,8 +140,8 @@ export function createUnitFrames(host: HTMLElement) {
     const width = window.innerWidth, height = window.innerHeight;
     const small = width <= 700;
     const slotWidth = small ? Math.min(250, (width - 20 - Math.max(70, width * 0.2)) / 2) : Math.min(250, (width - 188) / 2);
-    const frameHeight = small ? 52 : 66;
-    return { width, height, slotWidth, frameWidth: Math.max(1, slotWidth * 0.75), frameHeight, groupHeight: frameHeight + (small ? 61 : 63) };
+    const frameHeight = small ? 64 : 76;
+    return { width, height, slotWidth, frameWidth: Math.max(1, slotWidth), frameHeight, groupHeight: frameHeight + (small ? 61 : 63) };
   }
   function fit(position: FramePosition): FramePosition {
     const { width, height, frameWidth, groupHeight } = dimensions();
@@ -183,6 +198,7 @@ export function createUnitFrames(host: HTMLElement) {
     if (selectedId) return;
     targetOfTarget.root.hidden = true;
     targetCast.root.hidden = true;
+    stamina(target);
     write(target.name, "Target frame");
     write(target.value, "Hold to move");
     target.fill.style.width = "100%";
@@ -266,6 +282,7 @@ export function createUnitFrames(host: HTMLElement) {
         player.portrait.src = targetOfTarget.portrait.src = publicUrl(`assets/ui/characters/${archetype}.webp`);
       }
       health(player, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id);
+      stamina(player, snapshot.player);
       player.root.dataset.inCombat = String(snapshot.player.inCombat);
       write(combatStatus, snapshot.player.inCombat ? "In combat" : "Out of combat");
       if (friendly) {
@@ -275,9 +292,11 @@ export function createUnitFrames(host: HTMLElement) {
         const image = publicUrl("assets/ui/characters/" + friendly.player.archetype + ".webp");
         if (target.portrait.getAttribute("src") !== image) target.portrait.src = image;
         health(target, friendly.name, friendly.player.health, friendly.player.maximumHealth, friendly.id);
+        stamina(target, friendly.player);
         targetCast.root.hidden = true; targetOfTarget.root.hidden = true;
         return;
       }
+      stamina(target);
       target.root.dataset.kind = "enemy"; delete target.root.dataset.archetype;
       const enemy = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat && threat.active);
       if (!enemy) { selectedId = ""; preview(); return; }
@@ -297,6 +316,7 @@ export function createUnitFrames(host: HTMLElement) {
       if (attackingPlayer && recipient) {
         targetOfTarget.portrait.src = publicUrl('assets/ui/characters/' + recipient.player.archetype + '.webp');
         health(targetOfTarget, recipient.name, recipient.player.health, recipient.player.maximumHealth, recipient.id);
+        stamina(targetOfTarget, recipient.player);
       }
     },
     dispose(): void { if (disposed) return; disposed = true; endDrag(); listeners.abort(); panel.remove(); root.remove(); style.remove(); },

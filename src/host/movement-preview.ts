@@ -2,9 +2,15 @@ import type { AdventureSnapshot, CombatForecast, Position } from '../game/advent
 
 export function movementPreviewKey(snapshot: AdventureSnapshot, destination: Position): string {
   const { combat, player, threats } = snapshot;
+  const positionKey = (position: Position) => [Math.round(position.x / 2.5), Math.round(position.z / 2.5)];
   return JSON.stringify([destination, combat.cycle, combat.queued, combat.availableStamina,
     player.position, player.health, player.stamina, player.archetype,
-    threats.map(t => [t.id, t.position, t.health, t.active, t.aggro, t.joinsNextWindow, t.windowAction, t.targetPlayerId, t.targetPosition, t.block, t.fireballs]),
+    // Preparation broadcasts update continuously while enemies finish their
+    // opening approach. Those transient coordinates must not restart an
+    // identical preview; only state that changes the simulated turn belongs
+    // in the request key.
+    threats.map(t => [t.id, t.health, t.active, t.aggro, t.aggro ? positionKey(t.position) : null, t.joinsNextWindow, t.windowAction, t.targetPlayerId, t.block,
+      t.fireballs.map(ball => [ball.id, ball.remainingSeconds])]),
     combat.forecast?.outcomes,
     combat.forecast?.paths.map(({ beat, ...path }) => path),
     combat.forecast?.events.map(({ time, ...event }) => event)]);

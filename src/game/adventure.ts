@@ -1715,10 +1715,14 @@ class Adventure implements AdventureGame {
     t.targetPosition = { ...t.position };
   }
   private pursue(t: ThreatState, dt: number): void {
-    const d = definition(t.id), gap = distance(t.position, t.turnTarget) - this.ability(t).range;
+    const d = definition(t.id), target = this.pursuitTarget(t), gap = distance(t.position, target) - this.ability(t).range;
     const speed = d.pursuitSpeed ?? d.speed;
-    if (gap > EPSILON && speed > 0) this.moveThreat(t, t.turnTarget, Math.min(dt, gap / speed));
+    if (gap > EPSILON && speed > 0) this.moveThreat(t, target, Math.min(dt, gap / speed));
     t.targetPosition = { ...t.position };
+  }
+  /** Resolve the target's live position on every fixed simulation tick. */
+  private pursuitTarget(t: ThreatState): Vector {
+    return this.targetPlayer(t)?.state.position ?? t.turnTarget;
   }
   private moveThreat(t: ThreatState, destination: Position, dt: number, speed = t.aggro ? definition(t.id).pursuitSpeed ?? definition(t.id).speed : definition(t.id).speed): void {
     if (speed === 0) return;
@@ -1756,9 +1760,9 @@ class Adventure implements AdventureGame {
   private positionThreat(t: ThreatState, dt: number): void {
     if (t.wolf) { this.positionWolf(t, dt); t.targetPosition = this.wolfEndpoint(t); }
     else if (t.head) {
-      const gap = distance(t.position, t.turnTarget) - 8;
-      if (gap > 0) this.moveThreat(t, t.turnTarget, Math.min(dt, gap / definition(t.id).speed));
-      t.targetPosition = { ...t.turnTarget };
+      const target = this.pursuitTarget(t), gap = distance(t.position, target) - 8;
+      if (gap > 0) this.moveThreat(t, target, Math.min(dt, gap / definition(t.id).speed));
+      t.targetPosition = { ...target };
     } else this.pursue(t, dt);
   }
   private advanceThreat(t: ThreatState, dt: number): void {
@@ -1781,7 +1785,7 @@ class Adventure implements AdventureGame {
       else if (t.id === "ritual-guardian" && t.abilityIndex === 2) {
         t.shield = 60; t.shieldSeconds = Math.max(0, COMBAT_TURN.duration - clock.elapsedSeconds); t.actionSequence++;
         this.report("Foreman Nine raises Safety Shield: 60 Block for the rest of this turn.", "combat"); this.beginRecovery(t);
-      } else { t.phase = "action"; t.approaching = distance(t.position, t.turnTarget) > this.ability(t).range; t.remainingSeconds = this.ability(t).noticeSeconds; t.targetPosition = { ...t.position };
+      } else { t.phase = "action"; t.approaching = distance(t.position, this.pursuitTarget(t)) > this.ability(t).range; t.remainingSeconds = this.ability(t).noticeSeconds; t.targetPosition = { ...t.position };
         if (!t.approaching) this.tracePath(t.id, "attack", this.ability(t).id, [t.position, t.targetPosition], this.ability(t).range);
       }
       return;
@@ -1790,7 +1794,7 @@ class Adventure implements AdventureGame {
       if (t.approaching) {
         const before = { ...t.position };
         this.pursue(t, dt);
-        if (distance(t.position, t.turnTarget) > this.ability(t).range + EPSILON && distance(before, t.position) > EPSILON && clock.elapsedSeconds < COMBAT_TURN.duration - this.ability(t).noticeSeconds) return;
+        if (distance(t.position, this.pursuitTarget(t)) > this.ability(t).range + EPSILON && distance(before, t.position) > EPSILON && clock.elapsedSeconds < COMBAT_TURN.duration - this.ability(t).noticeSeconds) return;
         t.approaching = false; t.targetPosition = { ...t.position };
         this.tracePath(t.id, "attack", this.ability(t).id, [t.position, t.targetPosition], this.ability(t).range);
       }
@@ -1882,15 +1886,17 @@ class Adventure implements AdventureGame {
     return reachable;
   }
   private wolfEndpoint(t: ThreatState): Vector {
-    const facing = this.direction(t.position, this.state.position);
-    const length = Math.min(distance(t.position, this.state.position), COMBAT_RULES.wolf.lungeDistance);
+    const target = this.pursuitTarget(t);
+    const facing = this.direction(t.position, target);
+    const length = Math.min(distance(t.position, target), COMBAT_RULES.wolf.lungeDistance);
     return this.reachableEndpoint(t.position, point(t.position.x + facing.x * length, t.position.z + facing.z * length));
   }
   private launchMaul(t: ThreatState): void {
     const w = t.wolf;
     if (!w) return;
     t.position.y = terrainHeight(t.position.x, t.position.z);
-    w.facing = this.direction(t.position, this.state.position); w.circling = false;
+    const target = this.pursuitTarget(t);
+    w.facing = this.direction(t.position, target); w.circling = false;
     w.attackOrigin = { ...t.position };
     t.targetPosition = this.wolfEndpoint(t);
     w.motion = { kind: "lunge", start: { ...t.position }, destination: { ...t.targetPosition },
@@ -1927,12 +1933,13 @@ class Adventure implements AdventureGame {
   private positionWolf(t: ThreatState, dt: number): void {
     const w = t.wolf;
     if (!w) return;
-    w.facing = this.direction(t.position, this.state.position); w.circling = false;
+    const target = this.pursuitTarget(t);
+    w.facing = this.direction(t.position, target); w.circling = false;
     if (w.motion) { this.moveWolfMotion(t, dt); return; }
-    const gap = distance(t.position, this.state.position);
+    const gap = distance(t.position, target);
     if (gap > COMBAT_RULES.wolf.circleRange) {
-      this.moveThreat(t, this.state.position, dt);
-      w.facing = this.direction(t.position, this.state.position);
+      this.moveThreat(t, target, dt);
+      w.facing = this.direction(t.position, target);
     } else {
       const radial = Math.max(-1, Math.min(1, gap - COMBAT_RULES.wolf.circleRadius));
       const tangentX = -w.facing.z, tangentZ = w.facing.x;
@@ -1941,7 +1948,7 @@ class Adventure implements AdventureGame {
       const next = this.reachableEndpoint(t.position, point(t.position.x + (tangentX + w.facing.x * radial) * amount,
         t.position.z + (tangentZ + w.facing.z * radial) * amount));
       t.moving = distance(t.position, next) > EPSILON; t.position = next; w.circling = t.moving;
-      w.facing = this.direction(t.position, this.state.position);
+      w.facing = this.direction(t.position, target);
     }
   }
   private resolveAttack(t: ThreatState): void {
