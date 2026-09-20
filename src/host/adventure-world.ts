@@ -2,7 +2,7 @@ import { VENDORS, type NpcId } from "../game/economy.js";
 import {
   BufferGeometry, CanvasTexture, Color, Float32BufferAttribute,
   CylinderGeometry, DirectionalLight, Fog, Group, HemisphereLight,
-  Material, Mesh, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial,
+  Material, Mesh, InstancedMesh, LineBasicMaterial, LineSegments, MeshBasicMaterial, MeshStandardMaterial,
   Object3D, PerspectiveCamera, Points, PointsMaterial, RingGeometry, Scene, SphereGeometry,
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
   Raycaster,
@@ -22,6 +22,7 @@ import { createChatBubbles } from "./chat-bubbles.js";
 import { createFloatingCombatText } from "./floating-combat-text.js";
 import type { SharedChatMessage } from "../game/multiplayer-types.js";
 import { YARD } from "../game/yard-content.js";
+import { terrainHeight } from "../game/cave-layout.js";
 
 interface ThreatRig {
   readonly root: Group;
@@ -203,6 +204,15 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   nightFill.position.set(-12, 25, -8);
   scene.add(nightFill);
   const terrain = new Group();
+  const combatGrid = new Group();
+  const combatGridMaterial = new LineBasicMaterial({ color: 0xd9c16f, transparent: true, opacity: 0.3, depthWrite: false });
+  for (let i = -4; i <= 4; i++) {
+    const geometry = new BufferGeometry(); geometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(12), 3));
+    combatGrid.add(new LineSegments(geometry, combatGridMaterial));
+    const cross = new BufferGeometry(); cross.setAttribute("position", new Float32BufferAttribute(new Float32Array(12), 3));
+    combatGrid.add(new LineSegments(cross, combatGridMaterial));
+  }
+  combatGrid.visible = false; scene.add(combatGrid);
   scene.add(terrain);
   const thicket = new Group(); terrain.add(thicket);
   const mara = new Group(); mara.position.set(3.4, 0, -7.5); mara.rotation.y = -Math.PI/2;
@@ -473,6 +483,19 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       document.body.dataset.rigRemoteAnimations = JSON.stringify(Array.from(remotePlayers.entries(), ([id, rig]) => ({ id, animation: rig.root.userData.animation, time: rig.root.userData.animationTime })));
       player.position.set(localPlayer.position.x, localPlayer.position.y, localPlayer.position.z);
       const position = player.position;
+      combatGrid.visible = snapshot.player.inCombat;
+      if (combatGrid.visible) {
+        const centerX = Math.round(position.x / 2.5) * 2.5, centerZ = Math.round(position.z / 2.5) * 2.5;
+        let line = 0;
+        for (let i = -4; i <= 4; i++) {
+          const a = combatGrid.children[line++] as LineSegments, b = combatGrid.children[line++] as LineSegments;
+          const pa = a.geometry.getAttribute("position") as Float32BufferAttribute, pb = b.geometry.getAttribute("position") as Float32BufferAttribute;
+          const x = centerX + i * 2.5, z = centerZ + i * 2.5;
+          pa.setXYZ(0, x, terrainHeight(x, centerZ - 10) + .035, centerZ - 10); pa.setXYZ(1, x, terrainHeight(x, centerZ + 10) + .035, centerZ + 10);
+          pb.setXYZ(0, centerX - 10, terrainHeight(centerX - 10, z) + .035, z); pb.setXYZ(1, centerX + 10, terrainHeight(centerX + 10, z) + .035, z);
+          pa.needsUpdate = pb.needsUpdate = true;
+        }
+      }
       const face = snapshot.player.facing;
       if (snapshot.player.moving || snapshot.player.maneuver !== "none" || face.x !== lastFacing.x || face.z !== lastFacing.z) {
         player.rotation.y = Math.atan2(face.x, face.z);

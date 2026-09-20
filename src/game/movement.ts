@@ -45,7 +45,7 @@ export function moveLocomotion(state: MovementState, input: MovementInput, secon
   const x = (input.cameraX * input.forward - input.cameraZ * input.strafe) / length;
   const z = (input.cameraZ * input.forward + input.cameraX * input.strafe) / length;
   const old: Position = { ...state.position };
-  const speed = 4.5 * (input.forward < 0 ? 0.64 : 1);
+  const speed = 5.2 * (input.forward < 0 ? 0.64 : 1);
   let remaining = seconds;
   while (remaining > 1e-9) {
     const dt = Math.min(remaining, 1 / 60);

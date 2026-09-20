@@ -101,7 +101,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const unpin = node("button", "combat-plan-unpin", inspect); unpin.type = "button"; unpin.textContent = "Clear preview";
   unpin.addEventListener("click", () => { pinnedPreview = transientPreview = null; updatePreview(); });
   const help = node("p", "combat-plan-help", root);
-  help.textContent = "Inspect moves · drag between beats · R to start";
+  help.textContent = "Combat cells lock movement · inspect moves · R to start";
   const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
   feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();

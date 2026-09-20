@@ -12,7 +12,7 @@ function walk(game: AdventureGame, x: number, z: number): void {
   const dx = x - from.x, dz = z - from.z;
   game.setCameraForward(dx, dz);
   game.setAction("forward", true);
-  game.advance(Math.hypot(dx, dz) / 4.5);
+  game.advance(Math.hypot(dx, dz) / 5.2);
   game.setAction("forward", false);
   expect(game.snapshot.player.position.x).toBeCloseTo(x, 6);
   expect(game.snapshot.player.position.z).toBeCloseTo(z, 6);

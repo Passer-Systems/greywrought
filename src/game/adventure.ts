@@ -1,3 +1,4 @@
+import { snapCombatPosition } from './combat-grid.js';
 import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
 import { restoreTownPosition } from './town-layout.js';
 import { VENDORS, experienceForLevel, levelForExperience, enemyExperience, enemyCoins, type NpcId, type VendorId } from "./economy.js";
@@ -238,7 +239,7 @@ class Adventure implements AdventureGame {
   }
   enableNetworkMovement(enabled = true): void { this.movementFrames = enabled ? [] : null; this.movementSequence = 0; this.movementElapsed = 0; }
   enqueueMovement(frames: readonly MovementFrame[]): boolean {
-    if (this.instancePaused()) return false;
+    if (this.instancePaused() || this.inCombat()) return false;
     if (!this.movementFrames) this.enableNetworkMovement();
     if (this.movementFrames!.reduce((sum, frame) => sum + frame.seconds, 0) + frames.reduce((sum, frame) => sum + frame.seconds, 0) > 2) return false;
     for (const frame of frames) if (frame.sequence > (this.movementFrames!.at(-1)?.sequence ?? this.movementSequence)) this.movementFrames!.push(frame);
@@ -1352,6 +1353,7 @@ class Adventure implements AdventureGame {
     }
     if (s.phase === "lost") { if (this.movementFrames) this.consumeMovement(dt, true); this.moving = false; this.backpedaling = false; return; }
     if (s.maneuver) { if (this.movementFrames) this.consumeMovement(dt, true); this.moveManeuver(dt); }
+    else if (this.inCombat()) { if (this.movementFrames) this.consumeMovement(dt, true); this.moving = false; this.backpedaling = false; }
     else if (this.executionLocked()) {
       if (this.movementFrames) this.consumeMovement(dt, true);
       moveLocomotion(s, { forward: 0, strafe: 0, cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt);
@@ -1494,6 +1496,8 @@ class Adventure implements AdventureGame {
   }
   private engage(t: ThreatState): void {
     this.state.sitting = false; this.activeEmote = null;
+    this.state.position = snapCombatPosition(this.state.position);
+    t.position = snapCombatPosition(t.position);
     t.aggro = true; t.lastActionHit = false; t.targetPlayerId = this.playerId;
     if (this.playerId !== null && !t.combatants.includes(this.playerId)) t.combatants.push(this.playerId);
     const clock = this.state.combat.clock;

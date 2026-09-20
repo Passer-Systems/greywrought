@@ -63,7 +63,7 @@ test('delayed and jittered acknowledgments preserve immediate speed, turns, rele
     local.advance(1 / 60); solo.advance(1 / 60);
     near(local.player.position, solo.snapshot.player.position);
     if (tick < 80 || (tick >= 110 && tick < 170)) {
-      const speed = tick >= 140 && tick < 170 ? 2.88 : 4.5;
+      const speed = tick >= 140 && tick < 170 ? 3.328 : 5.2;
       expect(Math.hypot(local.player.position.x - before.x, local.player.position.z - before.z)).toBeCloseTo(speed / 60, 7);
     } else {
       expect(local.player.position.x).toBeCloseTo(before.x, 7);
@@ -113,7 +113,7 @@ test('partial input acknowledgments replay only remaining duration and authorita
   server.enqueueMovement!(local.takeOutgoing()); server.advance(1 / 120);
   expect(server.movementCheckpoint!.elapsed).toBeCloseTo(1 / 120, 8);
   local.reconcile(server.snapshot, server.movementCheckpoint!, 1 / 120);
-  expect(local.player.position.z).toBeCloseTo(-8 + 4.5 / 60, 7);
+  expect(local.player.position.z).toBeCloseTo(-8 + 5.2 / 60, 7);
   server.advance(1 / 120); local.setAction('forward', false);
   const snapshot = server.snapshot;
   const corrected = { ...snapshot, player: { ...snapshot.player, position: { ...snapshot.player.position, x: 0.5 } } };
@@ -144,7 +144,7 @@ test('authoritative physics lands a jump while network input is temporarily abse
 
   server.enqueueMovement!([{ sequence: 2, seconds: 1 / 60, input: { forward: 1, strafe: 0, cameraX: 0, cameraZ: 1, jump: false } }]);
   server.advance(1 / 60);
-  expect(server.snapshot.player.position.z).toBeCloseTo(-8 + 4.5 / 60, 7);
+  expect(server.snapshot.player.position.z).toBeCloseTo(-8 + 5.2 / 60, 7);
 });
 
 test('server-announced maneuvers advance between snapshots without predicting combat outcomes', () => {
