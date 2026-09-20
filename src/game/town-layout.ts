@@ -1,4 +1,5 @@
 import type { Barrier } from './movement.js';
+import type { Position } from './adventure-types.js';
 
 /** Roof footprints leave the square, shop approaches and central road open. */
 export const TOWN_BUILDINGS = [
@@ -20,3 +21,19 @@ export const TOWN_BUILDING_BARRIERS: readonly Barrier[] = TOWN_BUILDINGS.map(bui
   building.x - building.width / 2, building.x + building.width / 2,
   building.z - building.depth / 2, building.z + building.depth / 2,
 ]);
+
+export function restoreTownPosition(position: Position): { x: number; y: number; z: number } {
+  const inside = (p: Position, [left, right, bottom, top]: Barrier) => p.x > left && p.x < right && p.z >= bottom && p.z <= top;
+  const building = TOWN_BUILDING_BARRIERS.find(barrier => inside(position, barrier));
+  if (!building) return { ...position };
+  const [left, right, bottom, top] = building;
+  // A former patch of open ground may now be a house; resume just outside its wall.
+  const exits = [
+    { ...position, x: left - .35 }, { ...position, x: right + .35 },
+    { ...position, z: bottom - .35 }, { ...position, z: top + .35 },
+  ].filter(p => !TOWN_BUILDING_BARRIERS.some(barrier => inside(p, barrier)));
+  exits.sort((a, b) => Math.hypot(a.x - position.x, a.z - position.z) - Math.hypot(b.x - position.x, b.z - position.z));
+  const exit = exits[0];
+  if (!exit) throw new Error('Town building has no accessible edge.');
+  return exit;
+}

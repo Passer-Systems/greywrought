@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createAdventure, createSharedAdventure } from './adventure.js';
 import { inTown, migrateSpatialLayout, WORLD_BOUNDS } from './world-layout.js';
-import { movePosition } from './movement.js';
+import { blockedPosition, movePosition } from './movement.js';
 
 function walk(game: ReturnType<typeof createAdventure>, x: number, z: number) {
   const from = game.snapshot.player.position;
@@ -48,6 +48,23 @@ test('movement reaches the larger world bounds and expanded positions survive sa
   const seed = JSON.parse(createAdventure().save());
   seed.state.phase = 'expedition'; seed.state.position = p;
   expect(createAdventure({ save: JSON.stringify(seed) }).snapshot.player.position).toEqual(p);
+});
+
+test('returning characters resume clear of newly built town walls, including private origins', () => {
+  const world = createSharedAdventure(); world.join('resident', 'Resident', 'warrior'); world.pause('resident');
+  const saved = JSON.parse(world.save());
+  Object.assign(saved.characters[0].state, { position: { x: -14, y: 0, z: -10 }, supplies: 37, health: 71 });
+  saved.instances[0].origin = { x: -14, y: 0, z: -10 };
+  const restored = createSharedAdventure({ save: JSON.stringify(saved) });
+  const resident = restored.join('resident', 'Resident', 'warrior');
+  expect(blockedPosition(resident.snapshot.player.position.x, resident.snapshot.player.position.z)).toBe(false);
+  expect(resident.snapshot.supplies).toBe(37); expect(resident.snapshot.player.health).toBe(71);
+  expect(restored.resume('resident')).toBe(true); expect(restored.rejoin('resident')).toBe(true);
+  expect(blockedPosition(resident.snapshot.player.position.x, resident.snapshot.player.position.z)).toBe(false);
+  expect(blockedPosition(-14, -10)).toBe(true);
+  const before = resident.snapshot.player.position.x;
+  resident.setAction('forward', true); resident.setCameraForward(-1, 0); restored.advance(.2);
+  expect(resident.snapshot.player.position.x).toBeLessThan(before);
 });
 
 test('old spatial saves move points once while preserving combat directions and progress', () => {
