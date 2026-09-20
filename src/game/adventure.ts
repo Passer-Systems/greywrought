@@ -81,7 +81,9 @@ interface WorldState {
   threats: ThreatState[]; resourceRemaining: number; ritualCalled: boolean;
   resourceRespawns: { at: number; quantity: number }[];
 }
+interface ForecastCache { key: string; value: CombatForecast }
 interface SharedContext {
+  forecastCache?: ForecastCache;
   world: WorldState; clock: CombatClock;
   now: () => number;
   online: Map<string, Adventure>;
@@ -259,7 +261,7 @@ class Adventure implements AdventureGame {
   private effects: CombatEffect[] = [];
   private effectId = 0;
   private recording: { paths: CombatForecast["paths"][number][]; events: CombatForecast["events"][number][]; outcomes: CombatForecast["outcomes"][number][] } | null = null;
-  private forecastCache: { key: string; value: CombatForecast } | null = null;
+  private forecastCache: ForecastCache | null = null;
   private executingQueueId: number | null = null;
   private lootOpenId: string | null = null;
 
@@ -438,7 +440,7 @@ class Adventure implements AdventureGame {
       getPlayer(id) { return context.online.get(id) ?? sessions.get(id)?.characters.get(id); },
       players(instanceId?: string) {
         const ctx = instanceId && instanceId !== "shared" ? [...sessions.values()].find(instance => instance.id === instanceId) : context;
-        return [...(ctx?.online ?? new Map())].map(([id, game]) => ({ id, name: characters.get(id)!.name, player: game.snapshot.player }));
+        return [...(ctx?.online ?? new Map())].map(([id, game]) => ({ id, name: characters.get(id)!.name, player: game.playerView() }));
       },
       advance(seconds) {
         if (!Number.isFinite(seconds) || seconds < 0) throw new Error("Elapsed time must be finite and nonnegative.");
@@ -478,21 +480,26 @@ class Adventure implements AdventureGame {
     return { id: c.id, mode: c.mode, canRejoin: (c.mode === "paused" || c.mode === "private") && this.state.health > 0 && !this.inCombat(), origin: c.origin ? { ...c.origin } : null };
   }
 
+  private playerView(): AdventureSnapshot["player"] {
+    const s = this.state;
+    return {
+      position: { ...s.position }, cameraForward: { ...this.cameraForward }, archetype: s.archetype,
+      health: s.health, maximumHealth: 100, grounded: s.position.y === terrainHeight(s.position.x, s.position.z),
+      moving: this.moving, backpedaling: this.backpedaling, attackSequence: s.attackSequence,
+      actionCooldown: s.actionCooldown, currentAction: s.currentAction, actionDuration: s.actionDuration, guardSeconds: s.guardSeconds,
+      block: s.block, stamina: s.stamina, maximumStamina: COMBAT_RULES.stamina.maximum, staminaRecoverySeconds: s.staminaRecoverySeconds,
+      inCombat: this.inCombat(), sitting: s.sitting, emote: this.activeEmote, maneuver: s.maneuver?.kind ?? "none",
+      maneuverSeconds: s.maneuver?.remainingSeconds ?? 0, facing: { ...(s.maneuver?.facing ?? this.cameraForward) },
+    };
+  }
+
   get snapshot(): AdventureSnapshot {
     const s = this.state;
     return {
       quests: this.questViews(), progression: this.progression(),
       combatFeedback: this.combatFeedback.map(entry => ({ ...entry })),
       phase: s.phase, combat: { forecast: this.forecast(), hazards: s.world.threats.flatMap(t => t.swarm ? [{ id: t.id + ":swarm", kind: "swarm" as const, position: { ...t.swarm.position }, radius: COMBAT_RULES.swarm.radius }] : []), effects: this.effects.map(e => ({ ...e, position: { ...e.position } })), ready: s.combat.ready, phase: s.combat.clock.phase, remainingSeconds: s.combat.clock.phase === "idle" ? 0 : Math.max(0, (s.combat.clock.phase === "active" ? COMBAT_RULES.window.active : COMBAT_RULES.window.preparation) - s.combat.clock.elapsedSeconds), elapsedSeconds: s.combat.clock.elapsedSeconds, cycle: s.combat.clock.cycle, queued: s.combat.queued.map(e => ({ ...e })), reservedStamina: this.reservedStamina(), availableStamina: s.stamina - this.reservedStamina() },
-      player: {
-        position: { ...s.position }, cameraForward: { ...this.cameraForward }, archetype: s.archetype,
-        health: s.health, maximumHealth: 100, grounded: s.position.y === terrainHeight(s.position.x, s.position.z),
-        moving: this.moving, backpedaling: this.backpedaling, attackSequence: s.attackSequence,
-        actionCooldown: s.actionCooldown, currentAction: s.currentAction, actionDuration: s.actionDuration, guardSeconds: s.guardSeconds,
-        block: s.block, stamina: s.stamina, maximumStamina: COMBAT_RULES.stamina.maximum, staminaRecoverySeconds: s.staminaRecoverySeconds,
-        inCombat: this.inCombat(), sitting: s.sitting, emote: this.activeEmote, maneuver: s.maneuver?.kind ?? "none",
-        maneuverSeconds: s.maneuver?.remainingSeconds ?? 0, facing: { ...(s.maneuver?.facing ?? this.cameraForward) },
-      },
+      player: this.playerView(),
       threats: s.world.threats.map((t): ThreatView => {
         const d = definition(t.id);
         return {
@@ -1038,8 +1045,11 @@ class Adventure implements AdventureGame {
     if (this.recording || this.state.combat.clock.phase !== "preparation" || !this.inCombat()) return null;
     const players = this.participants();
     if (!players.includes(this)) players.push(this);
-    const key = JSON.stringify(players.map(p => ({ state: p.state, camera: p.cameraForward })));
-    if (this.forecastCache?.key === key) return this.forecastCache.value;
+    // Every participant predicts the same execution; only the viewing player id differs.
+    // Keep the full state key so plans, movement and clocks invalidate immediately.
+    const key = JSON.stringify(players.map(p => ({ id: p.playerId, state: p.state, camera: p.cameraForward })));
+    const cached = this.shared ? this.shared.forecastCache : this.forecastCache;
+    if (cached?.key === key) return { ...cached.value, playerId: this.playerId ?? "solo" };
     const world = structuredClone(this.state.world), clock = structuredClone(this.state.combat.clock), recording = { paths: [] as CombatForecast["paths"][number][], events: [] as CombatForecast["events"][number][], outcomes: [] as CombatForecast["outcomes"][number][] };
     const context: SharedContext | undefined = this.shared ? { ...this.shared, world, clock, mode: this.shared.mode === "paused" ? "private" : this.shared.mode, online: new Map(), characters: new Map() } : undefined;
     const copies = players.map(player => {
@@ -1059,7 +1069,9 @@ class Adventure implements AdventureGame {
     if (clock.phase === "active") return null;
     driver.captureOutcomes();
     const value: CombatForecast = { playerId: this.playerId ?? "solo", ...recording };
-    this.forecastCache = { key, value }; return value;
+    if (this.shared) this.shared.forecastCache = { key, value };
+    else this.forecastCache = { key, value };
+    return value;
   }
   private contactPoint(from: Position, to: Position, center: Position, radius: number): Vector {
     const dx = to.x - from.x, dz = to.z - from.z, length = dx * dx + dz * dz;
