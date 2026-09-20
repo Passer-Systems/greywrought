@@ -228,7 +228,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       }
     }
   }
-  // Low islands of flowers leave the bee's full patrol and fighting room visible.
+  // Low islands of flowers leave the Hearth Keeper's patrol and fighting room visible.
   for(const [x,z] of [[9,17],[14,15],[22,18],[25,25],[23,32],[16,34],[8,31]]) {
     for(let flower=0;flower<12;flower++) {
       const angle=flower*2.4,radius=.35+Math.sqrt(flower)*.62;

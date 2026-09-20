@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 import { AnimationClip, AnimationMixer, Group, LoopOnce, LoopRepeat } from "three";
+import { CREATURE_APPEARANCES } from "./creature-appearances.js";
+import { terrainHeight } from "../game/cave-layout.js";
 import { createAdventure } from "../game/adventure.js";
 import type { ThreatView } from "../game/adventure-types.js";
 import { earnedChapter, tap } from "../game/yard-test-fixtures.js";
@@ -7,7 +9,8 @@ import { updateThreatAnimation, type ThreatAnimationState } from "./threat-anima
 
 function encounter() {
   const saved = JSON.parse(createAdventure({ archetype: "mage" }).save());
-  Object.assign(saved.state, { phase: "expedition", position: { x: -6, y: 0, z: 30 }, chapter: earnedChapter(2) });
+  const patrol = saved.state.threats.find((t: { id: string }) => t.id === "patrol");
+  Object.assign(saved.state, { phase: "expedition", position: { ...patrol.position, z: patrol.position.z - 4 }, chapter: earnedChapter(2) });
   for (const t of saved.state.threats) if (t.active && t.id !== "patrol") Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true });
   const game = createAdventure({ save: JSON.stringify(saved) });
   game.selectTarget("patrol"); tap(game, "strike"); game.advance(.01);
@@ -16,7 +19,7 @@ function encounter() {
 
 function animation(threat: ThreatView) {
   const mixer = new AnimationMixer(new Group());
-  const clips = new Map(["Idle", "Gallop", "Walk", "Attack", "Gallop_Jump", "Idle_HitReact1", "Death"].map(name => [name, new AnimationClip(name, 1, [])]));
+  const clips = new Map(["Idle", "Run", "Walk", "Punch", "Jump", "HitRecieve_1", "Death"].map(name => [name, new AnimationClip(name, 1, [])]));
   const calls: string[] = [];
   const actor: ThreatAnimationState["actor"] = {
     action: null,
@@ -32,7 +35,7 @@ function animation(threat: ThreatView) {
       return action;
     },
   };
-  const rig: ThreatAnimationState = { actor, idle: "Idle", walk: "Gallop", attack: "Attack", hit: "Idle_HitReact1", health: threat.health, sequence: threat.actionSequence, phase: threat.phase, attackTime: 0, beamTime: 0, hitTime: 0 };
+  const rig: ThreatAnimationState = { ...CREATURE_APPEARANCES.patrol!, actor, idle: "Idle", walk: "Run", attack: "Punch", hit: "HitRecieve_1", health: threat.health, sequence: threat.actionSequence, phase: threat.phase, attackTime: 0, beamTime: 0, hitTime: 0 };
   actor.play("Idle");
   return { rig, calls, render(snapshot: ThreatView, delta = 1 / 60) { const lean = updateThreatAnimation(rig, snapshot, delta); mixer.update(delta); return lean; } };
 }
@@ -65,14 +68,14 @@ test("Maul poses follow real leap progress and return to idle over repeated comb
       render(threat);
       if (threat.movementMode === "lunge") {
         samples.push(threat.motionProgress);
-        expect(rig.actor.action!.getClip().name).toBe("Gallop_Jump");
+        expect(rig.actor.action!.getClip().name).toBe("Jump");
         expect(rig.actor.action!.paused).toBe(true);
         expect(rig.actor.action!.time).toBeCloseTo(threat.motionProgress, 6);
       }
     }
     expect(samples.length).toBeGreaterThan(20);
     expect(Math.max(...samples) - Math.min(...samples)).toBeGreaterThan(.8);
-    expect(hound().position.y).toBe(0);
+    expect(hound().position.y).toBeCloseTo(terrainHeight(hound().position.x, hound().position.z), 6);
     expect(game.snapshot.combat.phase).toBe("preparation");
     render(hound());
     expect(rig.actor.action!.getClip().name).toBe("Idle");
@@ -86,16 +89,16 @@ test("interrupted leap exits its sampled pose through hit, idle, another leap, a
   const { rig, render, calls } = animation(waiting);
   const airborne: ThreatView = { ...waiting, phase: "action", movementMode: "lunge", motionProgress: .6, moving: true };
   render(airborne);
-  expect(rig.actor.action!.getClip().name).toBe("Gallop_Jump");
+  expect(rig.actor.action!.getClip().name).toBe("Jump");
   const interrupted: ThreatView = { ...waiting, phase: "recovery", health: waiting.health - 18, staggered: true };
   render(interrupted);
-  expect(rig.actor.action!.getClip().name).toBe("Idle_HitReact1");
+  expect(rig.actor.action!.getClip().name).toBe("HitRecieve_1");
   expect(rig.actor.action!.paused).toBe(false);
   for (let frame = 0; frame < 30; frame++) render(interrupted);
   expect(rig.actor.action!.getClip().name).toBe("Idle");
   render({ ...waiting, health: interrupted.health });
   render({ ...airborne, health: interrupted.health, motionProgress: .1 });
-  expect(rig.actor.action!.getClip().name).toBe("Gallop_Jump");
+  expect(rig.actor.action!.getClip().name).toBe("Jump");
   expect(rig.actor.action!.time).toBeCloseTo(.1, 6);
   const dead: ThreatView = { ...airborne, phase: "cleared", health: 0 };
   render(dead);

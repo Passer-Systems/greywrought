@@ -124,26 +124,26 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(-3, 30), point(-5, 32), point(-3, 34), point(-1, 32)],
     preparation: "Gathering fire", intention: "Fireball", damage: 3, reach: 10,
     benefit: "Clear the Cinder Watchman to make the first clearing safer." },
-  { id: "nest", level: 2, disposition: "neutral", aggroRange: 0, leash: 18, speed: 1.1, pursuitSpeed: 4.8, name: "Briar bee", position: point(14, 24), health: 72,
+  { id: "nest", level: 2, disposition: "neutral", aggroRange: 0, leash: 18, speed: 1.1, pursuitSpeed: 4.8, name: "Hearth Keeper", position: point(14, 24), health: 72,
     patrol: [point(14, 24), point(16, 26), point(18, 24), point(16, 22)],
-    preparation: "Enraged wings gathering", intention: "Enraged Swarm", damage: 16, reach: 3,
-    benefit: "Defeat the bee to make the briar passage safer." },
-  { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2, name: "Cablekeeper", position: point(-3, 50), health: 72,
+    preparation: "Pressure rising in its furnace", intention: "Furnace Burst", damage: 16, reach: 3,
+    benefit: "Defeat the keeper to make the briar passage safer." },
+  { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2, name: "Relic Warden", position: point(-3, 50), health: 72,
     patrol: [point(-3, 50), point(-5, 47), point(-1, 50), point(-3, 53)],
-    preparation: "Raising thorn wards", intention: "Thorn lash", damage: 18, reach: 5,
-    benefit: "Clear the warder to gather coolant crystals without cutting thorns." },
-  { id: "patrol", level: 2, behavior: "wolf", disposition: "hostile", aggroRange: 6, leash: 30, speed: 4.2, name: "Ash hound", position: point(-17, 45), health: 72,
+    preparation: "Drawing back its relic blade", intention: "Relic Cleave", damage: 18, reach: 5,
+    benefit: "Clear the warder to gather coolant crystals without live cable burns." },
+  { id: "patrol", level: 2, behavior: "wolf", disposition: "hostile", aggroRange: 6, leash: 30, speed: 4.2, name: "Greyrot Penitent", position: point(-17, 45), health: 72,
     patrol: [point(-17, 45), point(-19, 43), point(-21, 46), point(-18, 48)],
-    preparation: "Drawing back to pounce", intention: "Lunging Maul", damage: 4, reach: 2,
-    benefit: "Clear the hound to make the deeper trail safer." },
+    preparation: "Coiling its damaged legs", intention: "Lunging Maul", damage: 4, reach: 2,
+    benefit: "Clear the penitent to make the deeper trail safer." },
   { id: "ritual-guardian", level: 4, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2.2, name: "Foreman Nine", position: point(2, 60), health: 200,
     patrol: [point(2, 60), point(0, 58), point(-2, 60), point(0, 62)],
     preparation: "Charging the works", intention: "Roll-call Pulse", damage: 32, reach: 3.5,
     benefit: "Defeat the called guardian, then carry its Last Shift Roll home." },
   { id: "cave-bat", level: 4, disposition: "hostile", aggroRange: 7, leash: 17, speed: 2.5, pursuitSpeed: 5.2,
-    name: "Hollowwing bat", position: point(43,-46), health: 108,
+    name: "Hollow Saint", position: point(43,-46), health: 108,
     patrol: [point(43,-46),point(45,-50),point(48,-46),point(43,-42)],
-    preparation: "Folding its wings for a bite", intention: "Echo Bite", damage: 26, reach: 2.2,
+    preparation: "Drawing back its iron fist", intention: "Votive Strike", damage: 26, reach: 2.2,
     benefit: "Search its remains for three pieces of cave salvage." },
   { id: "cave-crab", level: 5, disposition: "hostile", aggroRange: 8, leash: 16, speed: 2.1, pursuitSpeed: 4.2,
     name: "Ironback cave crab", position: point(69,-47), health: 624,
@@ -1070,7 +1070,7 @@ class Adventure implements AdventureGame {
     damage += this.progression().attackBonus;
     const blocked = Math.min(damage, t.head?.block ?? t.shield);
     if (!t.head) t.shield -= blocked;
-    if (t.id === "nest" && t.contributors.length === 0) this.report("Your blow enrages the Briar bee. It rushes toward you; plan a collision to interrupt its swarm, or queue Block before impact.", "combat");
+    if (t.id === "nest" && t.contributors.length === 0) this.report("Your blow enrages the Hearth Keeper. It rushes toward you; plan a collision to interrupt its furnace burst, or queue Block before impact.", "combat");
     if (!t.contributors.includes(this.playerId ?? "solo")) t.contributors.push(this.playerId ?? "solo");
     if (!t.combatants.includes(this.playerId ?? "solo")) t.combatants.push(this.playerId ?? "solo");
     if (t.head) { t.head.block -= blocked; if (t.head.block === 0) t.head.blockSeconds = 0; }
@@ -1232,14 +1232,14 @@ class Adventure implements AdventureGame {
     if (!cloud) return;
     t.swarm = null;
     const radius = COMBAT_RULES.swarm.radius;
-    this.traceEvent("ignition", sourceId, t.id, cloud.position, COMBAT_RULES.swarm.damage, "Spilled swarm ignites!", radius);
+    this.traceEvent("ignition", sourceId, t.id, cloud.position, COMBAT_RULES.swarm.damage, "Spilled furnace dust ignites!", radius);
     for (const player of this.participants()) {
       player.effects.push({ id: ++player.effectId, kind: "ignition", position: { ...cloud.position }, radius });
       if (player.effects.length > 16) player.effects.shift();
-      player.report("Spilled swarm ignites!", "combat");
+      player.report("Spilled furnace dust ignites!", "combat");
     }
     for (const enemy of this.state.world.threats) if (enemy.active && enemy.health > 0 && distance(enemy.position, cloud.position) <= radius) this.enemyHit(enemy, COMBAT_RULES.swarm.damage, sourceId);
-    for (const player of this.participants()) if (player.state.health > 0 && distance(player.state.position, cloud.position) <= radius) player.hurt(COMBAT_RULES.swarm.damage, "Burning swarm", false, sourceId);
+    for (const player of this.participants()) if (player.state.health > 0 && distance(player.state.position, cloud.position) <= radius) player.hurt(COMBAT_RULES.swarm.damage, "Burning furnace dust", false, sourceId);
   }
   private hearthstone(): void {
     const s = this.state;
@@ -1282,7 +1282,7 @@ class Adventure implements AdventureGame {
     s.world.resourceRespawns.push({ at: this.now() + WORLD_RESPAWN_MILLISECONDS, quantity: 3 });
     this.report("You gather Coolant crystals × 3. Return alive to keep them.");
     if (s.world.threats.some(t => t.id === "warder" && t.health > 0)) {
-      this.hurt(8, "The warder's thorns");
+      this.hurt(8, "The warden's live cables");
     }
   }
   private ritual(): void {
@@ -2186,26 +2186,26 @@ function headAbility(id: HeadAbilityId, volley: number): ThreatAbilityView {
   if (id === "ember-beam") return { id, name: "Ember Beam", description: "Deals 8 damage during the turn within 10 metres. Defend before impact, or plan a move behind cover or out of reach before it fires.", damage: COMBAT_RULES.head.beamDamage, range: 10, noticeSeconds: 0 };
   if (id === "ember-ward") return { id, name: "Ember Ward", description: "Raises 6 Block for 2 seconds during the turn. Attack before the shield rises or recover while it holds.", damage: 0, range: 10, noticeSeconds: 0 };
   if (id === "kindle") return { id, name: "Kindle", description: "Adds one fireball to every later volley during the turn. Use the opening to attack.", damage: 0, range: 0, noticeSeconds: 0 };
-  return { id, name: "Fireball ×" + volley, description: "Launches " + volley + " homing fireballs for 18 damage each during the turn. Travel time is 0.9 seconds; launches are 0.2 seconds apart. Plan Block for impact. Cover or leaving 10-metre reach prevents damage. Fired shots survive interruption; enemies in their path intercept them. Fire ignites spilled swarms for 36 damage within 3 metres, including you.", damage: COMBAT_RULES.head.fireballDamage * volley, range: 10, noticeSeconds: .9 };
+  return { id, name: "Fireball ×" + volley, description: "Launches " + volley + " homing fireballs for 18 damage each during the turn. Travel time is 0.9 seconds; launches are 0.2 seconds apart. Plan Block for impact. Cover or leaving 10-metre reach prevents damage. Fired shots survive interruption; enemies in their path intercept them. Fire ignites spilled furnace dust for 36 damage within 3 metres, including you.", damage: COMBAT_RULES.head.fireballDamage * volley, range: 10, noticeSeconds: .9 };
 }
 function maulAbility(damage = 18): ThreatAbilityView {
   return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres during the turn, landing 0.65 seconds later in a 2-metre area. Bait its leap through another enemy: the collision damages and staggers both, interrupting their attacks. Each Maul gains 2 damage, up to 36.", damage, range: COMBAT_RULES.wolf.impactRadius, noticeSeconds: .65 };
 }
 function salvageQuantity(id: string): number { return id === "cave-crab" ? 6 : id === "cave-bat" ? 3 : 1; }
 function ordinaryAbility(d: ThreatDefinition, damage = d.damage): ThreatAbilityView {
-  if (d.id === "cave-bat") return { id: "echo-bite", name: d.intention, description: "Closes to 2.2 metres, then bites 0.3 seconds after winding up. Block at impact or retreat before the bite. Its next bite grows stronger.", damage, range: d.reach, noticeSeconds: .3 };
+  if (d.id === "cave-bat") return { id: "echo-bite", name: d.intention, description: "Closes to 2.2 metres, then strikes with its iron fist 0.3 seconds after winding up. Block at impact or retreat before the strike. Its next strike grows stronger.", damage, range: d.reach, noticeSeconds: .3 };
   if (d.id === "cave-crab") return { id: "cavern-slam", name: d.intention, description: "Raises both claws and slams the marked 4.5-metre area 1.1 seconds after winding up. Retreat out of the ring or Block; one Block may not absorb the whole slam. Its next slam grows stronger.", damage, range: d.reach, noticeSeconds: 1.1 };
-  if (d.id === "nest") return { id: d.id, name: d.intention, description: "Swarm hits within 3 metres, 0.35 seconds after winding up. Collisions interrupt it and spill a cloud. Bait a hound through the bee or Move to lure enemies together. Watchman fireballs ignite the cloud; stay clear or Block.", damage, range: d.reach, noticeSeconds: .35 };
+  if (d.id === "nest") return { id: d.id, name: d.intention, description: "Furnace dust bursts within 3 metres, 0.35 seconds after winding up. Collisions interrupt it and spill a cloud. Bait a penitent through the keeper or Move to lure enemies together. Watchman fireballs ignite the cloud; stay clear or Block.", damage, range: d.reach, noticeSeconds: .35 };
   return { id: d.id, name: d.intention, description: d.preparation + ". Approaches during its windup, then strikes the marked area after 0.35 seconds. Plan a retreat or Block. Each attack raises its next damage by 15% of base damage, up to double.", damage, range: d.reach, noticeSeconds: .35 };
 }
 export function getMonsterLore(): readonly MonsterLoreEntry[] {
   return DEFINITIONS.map(d => {
     if (d.id.startsWith("cave-")) return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
-      description: d.id === "cave-bat" ? "A swift winged hunter in Hollowdeep’s first chamber. Its narrow bite is quick, and it pursues fleeing explorers." : "A heavy-shelled predator in Hollowdeep’s deepest chamber. It closes quickly before raising its claws for a crushing slam.",
+      description: d.id === "cave-bat" ? "A dilapidated machine shrine in Hollowdeep’s first chamber, still carrying its worshippers’ offerings. Its iron fist strikes quickly, and it pursues fleeing explorers." : "A heavy-shelled predator in Hollowdeep’s deepest chamber. It closes quickly before raising its claws for a crushing slam.",
       opener: d.preparation + ". Its attack is announced before you plan.", abilities: [ordinaryAbility(d)],
       sequences: [{ name: d.intention, abilityIds: [ordinaryAbility(d).id], offsetsSeconds: [], description: "One committed attack per sequence. Damage increases as the fight continues." }],
-      strategy: d.id === "cave-bat" ? "Defend against its bite, then attack next turn. Take potions and return with its salvage." : "Use the long windup to retreat clear of the slam. Strike from the edge of melee reach. The western tunnel leads home.",
+      strategy: d.id === "cave-bat" ? "Defend against its iron fist, then attack next turn. Take potions and return with its salvage." : "Use the long windup to retreat clear of the slam. Strike from the edge of melee reach. The western tunnel leads home.",
     };
     if (d.behavior === "head") return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
@@ -2216,14 +2216,14 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
         { name: "Fireball", abilityIds: ["fireball"], offsetsSeconds: [], description: "Its usual attack, always following Kindle. Prefers attacking a wounded opponent to shielding." },
         { name: "Ember Ward", abilityIds: ["ember-ward"], offsetsSeconds: [], description: "Shields when below half health, if you have stamina and are close enough to strike. Never shields twice in a row." },
         { name: "Kindle", abilityIds: ["kindle"], offsetsSeconds: [], description: "Powers up after every third action, when out of reach, or when your block can absorb its volley. Never powers up twice in a row." },
-      ], strategy: "Lure its fireballs through other enemies or a spilled swarm. Burning swarms hurt you too: move clear or plan Block. Attack during Kindle.",
+      ], strategy: "Lure its fireballs through other enemies or spilled furnace dust. Burning furnace dust hurts you too: move clear or plan Block. Attack during Kindle.",
     };
     if (d.behavior === "wolf") return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
-      description: "Patrols the western trail. Runs toward you beyond 5.5 metres, then circles at about 4.5 metres. Nearby hostile allies answer its call.",
+      description: "A scavenged machine trapped in conflicting repair loops patrols the western trail. Runs toward you beyond 5.5 metres, then circles at about 4.5 metres. Nearby hostile allies answer its call.",
       opener: "Announces its first leap before you plan.", abilities: [maulAbility()],
       sequences: [{ name: "Repeated Maul", abilityIds: ["maul"], offsetsSeconds: [], description: "One committed leap per sequence, with a new choice before the next plan." }],
-      strategy: "Bait Maul through the bee to cancel its swarm, then Attack the staggered hound. Block protects you if the burning swarm reaches your position.",
+      strategy: "Bait Maul through the keeper to cancel its furnace burst, then Attack the staggered penitent. Block protects you if the burning furnace dust reaches your position.",
     };
     if (d.id === "ritual-guardian") return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
@@ -2233,11 +2233,11 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       strategy: "Bring your coat, weapon and potions. Plan Block for Pulse, a retreat for Press, and healing while Shield is raised.",
     };
     return { id:d.id, name:d.name, health:d.health, disposition:d.disposition,
-      description: d.id === "nest" ? "A neutral bee in the eastern flower glade. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill its swarm; Watchman fireballs ignite the cloud." : "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes the hazard.",
+      description: d.id === "nest" ? "A neutral walking generator beneath a thatched roof in the eastern flower glade. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill furnace dust; Watchman fireballs ignite the cloud." : "An iron guardian in a medieval harness guards the coolant crystals. Its live cables deal 8 damage whenever you gather; defeating it removes the hazard.",
       opener: "Announces its first attack before you plan.",
-      abilities: [ordinaryAbility(d), ...(d.id === "warder" ? [{ id: "harvest-thorns", name: "Gathering thorns", description: "Gathering while the Cablekeeper lives deals 8 damage. Block absorbs it.", damage: 8, range: 0, noticeSeconds: 0 }] : [])],
+      abilities: [ordinaryAbility(d), ...(d.id === "warder" ? [{ id: "harvest-thorns", name: "Live cables", description: "Gathering while the Relic Warden lives deals 8 damage. Block absorbs it.", damage: 8, range: 0, noticeSeconds: 0 }] : [])],
       sequences: [{ name: d.intention, abilityIds:[d.id], offsetsSeconds:[], description:"Commits one attack per turn, then chooses again before the next plan." }],
-      strategy: d.id === "nest" ? "Make a hound collide with the bee to interrupt Swarm. The spilled cloud lasts through the next sequence; Watchman fireballs ignite it for 36 damage within 3 metres. Move clear or Block the blast." : "Plan a retreat or Block before its attack.",
+      strategy: d.id === "nest" ? "Make a penitent collide with the keeper to interrupt Furnace Burst. The spilled cloud lasts through the next sequence; Watchman fireballs ignite it for 36 damage within 3 metres. Move clear or Block the blast." : "Plan a retreat or Block before its attack.",
     };
   });
 }

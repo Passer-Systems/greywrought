@@ -1,0 +1,100 @@
+{
+  "sourcePack": "Quaternius Animated Mech Pack — March 2021",
+  "sourceCharacter": "Mike",
+  "sourceLicense": "CC0-1.0",
+  "sourcePath": "3d/Animated Mech Pack - March 2021/Flat Colors/glTF/Mike.gltf",
+  "loreSource": "docs/legacy-lore.json",
+  "canonStatus": "New visual design, not a pre-existing named lore character",
+  "authoring": "Individually drawn quad control surfaces, resolved with Blender subdivision and solidify. All visible geometry newly authored. Original joint hierarchy and exact animation tracks retained.",
+  "studyStatus": "Visual review study; not installed as a live mob",
+  "authoredParts": 154,
+  "triangles": 295450,
+  "runtimeTriangles": 55432,
+  "controlSurfaces": 154,
+  "bones": 43,
+  "fullBytes": 7354268,
+  "runtimeBytes": 1650564,
+  "animations": [
+    {
+      "name": "Dance",
+      "duration": 1
+    },
+    {
+      "name": "Death",
+      "duration": 1.7916666269302368
+    },
+    {
+      "name": "Hello",
+      "duration": 1.875
+    },
+    {
+      "name": "HitRecieve_1",
+      "duration": 0.5833333134651184
+    },
+    {
+      "name": "HitRecieve_2",
+      "duration": 0.5833333134651184
+    },
+    {
+      "name": "Idle",
+      "duration": 4.166666507720947
+    },
+    {
+      "name": "Jump",
+      "duration": 1.0833333730697632
+    },
+    {
+      "name": "Kick",
+      "duration": 0.75
+    },
+    {
+      "name": "No",
+      "duration": 1.75
+    },
+    {
+      "name": "Pickup",
+      "duration": 1.75
+    },
+    {
+      "name": "Punch",
+      "duration": 0.7083333134651184
+    },
+    {
+      "name": "Run",
+      "duration": 1.0416666269302368
+    },
+    {
+      "name": "Run_Holding",
+      "duration": 1.0416666269302368
+    },
+    {
+      "name": "Shoot",
+      "duration": 0.625
+    },
+    {
+      "name": "SwordSlash",
+      "duration": 0.75
+    },
+    {
+      "name": "Walk",
+      "duration": 1.0416666269302368
+    },
+    {
+      "name": "Walk_Holding",
+      "duration": 1.0416666269302368
+    },
+    {
+      "name": "Yes",
+      "duration": 1.75
+    }
+  ],
+  "runtimeAnimations": [
+    "Idle",
+    "Run",
+    "SwordSlash",
+    "HitRecieve_1",
+    "Death"
+  ],
+  "blenderVersion": "4.3.2",
+  "blenderSource": "relic-warden.blend"
+}

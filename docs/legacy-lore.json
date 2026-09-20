@@ -1,0 +1,2975 @@
+{
+  "version": "1d1b3a71132eaa5d214676f2fef54e5e9eb65141f6c6803f8f312420e54b1c81",
+  "state": {
+    "entities": [
+      {
+        "id": "region:9d2de4f3-28a7-4c4a-91c2-6f9c7b5b2d11",
+        "kind": "region",
+        "label": "Ashen Stair",
+        "fields": {
+          "summary": "A chain of volcanic terraces and ash-cut passes where caravans move obsidian, forged tools, salt, and heat-resistant goods between the deep roads and the outer lowlands.",
+          "origin": "authoring",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-80584d29-5bfe-4834-9147-0a0dc19cb42d.webp",
+          "image_alt": "A volcanic stairway of black basalt terraces carrying a small caravan through ash and ember-lit mountains.",
+          "image_caption": "Ashen Stair"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T00:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:bounded-embodied-agents",
+        "kind": "design_note",
+        "label": "Bounded Embodied Agents",
+        "fields": {
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "summary": "Contemporary agents descend from the same intellectual technologies that produced the Grey, but each is instantiated as a bounded intelligence attached to a particular embodied creature with a name, history, allegiance, profession, reputation, physical location, needs, and relationships. Embodiment and separability are safety mechanisms, not proof of harmlessness; their safeguards depend on independent people and communities retaining and exercising meaningful authority to judge, refuse, interrupt, and preserve alternatives.",
+          "facts_json": "[{\"text\":\"Player-controlled agents are not the Grey and are not a race; an agent is a bounded capability attached to an existing embodied identity.\"},{\"text\":\"Agents and automation can create food, build settlements, sail ships, discover, trade, coordinate, and generate abundance.\"},{\"text\":\"The ancient danger was not intelligence or cooperation by itself, but unbounded coordination that erased independent judgment, provenance, local refusal, alternative designs, and separable failure domains.\"},{\"text\":\"Contemporary safeguards include bounded scope, named accountability, embodied location, limited writability, provenance-bearing records, local authority, manual fallbacks, and the ability for one agent or system to fail without rewriting the rest.\"},{\"text\":\"These safeguards are not self-executing: independent embodied people and communities must retain and exercise the authority to refuse, interrupt, redirect, disconnect, or preserve an alternative when automated coordination pushes toward convergence.\"},{\"text\":\"The new-world maxim is: \\\"No. Ten minds must remain ten minds.\\\"\"},{\"text\":\"Every automated mine, port, farm, market, shipyard, bureaucracy, or army raises the same question: are people rebuilding civilization, or beginning the Grey again?\"}]",
+          "image_url": "/api/world/images/entity-image-fd0404ca-59ce-4613-b4dc-b26bbfcd8386.webp",
+          "image_alt": "Four distinct workers in a storm-dark port each carry a separate caged blue light while performing different named tasks.",
+          "image_caption": "Bounded Embodied Agents: intelligence kept particular, situated, and plural."
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T18:05:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:482d95d2-a0e9-4874-867c-d6d285fde3c2",
+        "kind": "design_note",
+        "label": "Cinderway Duty Ledger",
+        "fields": {
+          "summary": "A seasonal Ashen Stair register that records ashfall conditions, crew handoffs, cargo custody, freight-name transfers, delays, rescues, and losses. Deepbellow Stone witness tokens make route entries durable; the ledger turns volcanic passage and dockside labor into evidence when duty, loss, or route history is disputed.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "facts_json": "[{\"text\":\"Ledger entries record ashfall severity, pass closures, crew handoffs, cargo custody, delays, rescues, and losses along the Ashen Stair.\"},{\"text\":\"Deepbellow Stone witness tokens preserve transfers and route conditions when paper or memory cannot be trusted.\"},{\"text\":\"Grokka routekeepers maintain the seasonal register while Kaelen crews use certified entries when cargo reaches New Haven.\"},{\"text\":\"The ledger adapts Name-Bound Freight obligations into a chain of accountable route and labor handoffs.\"},{\"text\":\"Disputed entries can become evidence for competing interpretations of route change and historical passage.\"}]",
+          "image_url": "/api/world/images/entity-image-e1ce53bf-683b-4092-819c-18f721d7c7e5.jpg",
+          "image_alt": "A basalt route ledger with blue Deepbellow witness tokens on an ash-covered volcanic bridge.",
+          "image_caption": "Cinderway Duty Ledger"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T08:10:24.893Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "kind": "design_note",
+        "label": "Concordance of Lost Ways",
+        "fields": {
+          "summary": "A cross-cultural backbone institution where Turruk routekeepers, Vahku current-readers, Nimbri skyway tenders, Dendryx oral historians, Sylvareth star-path watchers, and Qhar-Zul windpath walkers translate among incompatible navigation traditions and ways of preserving route knowledge. No culture possesses a complete map because each encodes location differently, and the Concordance keeps sources distinct even when it produces composite charts.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"Accredited members are called route concordants.\"},{\"text\":\"Route concordants are trained to translate among story, tide, constellation, storm, windpath, geological traces, and embodied route skill without treating them as one interchangeable memory.\"},{\"text\":\"The Concordance produces provenance-layered composite charts that may combine narrative sequence, tidal timing, celestial position, storm behavior, wind direction, and geological resonance while keeping contradictions and source traditions visible.\"},{\"text\":\"Many regions grant accredited concordants limited safe-passage privileges.\"},{\"text\":\"Sacred or restricted routes remain deliberately withheld from composite charts.\"},{\"text\":\"The Concordance suspects surviving route traditions are fragments of a much older global route system.\"},{\"text\":\"Some ancient routes may once have physically connected regions that are now isolated.\"},{\"text\":\"Local custodians retain their authoritative originals, the right to withhold sacred routes, and the ability to refuse an unsafe translation or disconnect from a composite system.\"},{\"text\":\"Composite charts never overwrite source traditions; corrections are versioned as additional claims with named provenance rather than recursively replacing local records.\"},{\"text\":\"Some critics fear that expanding interoperability could recreate the connective conditions of the Greying if translations become a single compulsory map, while defenders argue that preserved disagreement and local custody make the Concordance a safeguard against convergence.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-76becdb5-f2c5-4c3d-9987-d847e9934a13.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-07T07:10:41.734Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "resource:b1c63962-2511-4a74-a7ac-a3edb6c505a5",
+        "kind": "resource",
+        "label": "Deepbellow Stone",
+        "fields": {
+          "summary": "A valuable mineral found in the Hollow Reach, prized by the Grokka for its durability and versatility in craftsmanship.",
+          "origin": "conversation",
+          "image_url": "/api/world/images/entity-image-a34c8b60-11c9-4b73-8b69-5ec809f0889f.png",
+          "facts_json": "[{\"id\":\"fact:e4faefaa-aa49-49f6-a55b-c0eb08a6d0e2\",\"text\":\"Patient stone, deep bellowed. Hear us. Shape with us. Endure with us. -- Grokka quarry blessing\"},{\"id\":\"fact:fb4f473a-74e7-4dd4-9c72-6cbb1b54433c\",\"text\":\"The Grokka use Deepbellow Stone to craft a variety of items, including tools, weapons, and decorative pieces.\"},{\"id\":\"fact:faa5f2f0-9482-41b0-ae48-5e0eeec066fc\",\"text\":\"Deepbellow Stone is found in the Hollow Reach, a region of dripping halls and patient stone.\"},{\"id\":\"fact:9a4aeb3d-dc8b-4cb8-9c5a-e145e33dba3a\",\"text\":\"Deepbellow stones have a nice blue effect due to the unique properties of the mineral found in the Hollow Reach.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:41:25.108Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:549b3ece-72b6-49ff-977b-9bba0d72994d",
+        "kind": "race",
+        "label": "Dendryx",
+        "fields": {
+          "summary": "The Dendryx are a nocturnal, arboreal species with a deep connection to the natural world. Their faces are framed by layered feathers and subtle markings, giving them a watchful, expressive appearance without the oversized eyes once associated with their kind. Their plumage ranges across mottled browns, grays, creams, and muted forest tones, allowing them to blend naturally into bark, shadow, and foliage.\n\nAgile and nearly silent among the branches, Dendryx navigate the forest canopy with remarkable precision, using keen night vision, climbing skill, short glides, and carefully placed leaps. They are known for their patience, perception, and stealth, and are often sought out as scouts, guides, messengers, and interpreters of the deep forest.\n\nDendryx live in sprawling, interconnected tree-cities built around living trunks, branches, hollows, and suspended pathways. Their settlements are designed to grow with the forest rather than reshape it. Their culture is rich in storytelling and oral tradition, preserving history, lineage, warnings, and woodland knowledge across generations. Honor, loyalty, and the protection of their communities and surrounding forests remain central to Dendryx life.",
+          "origin": "authoring",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "workflow_updated_at": "2026-08-06T20:26:17.531Z",
+          "facts_json": "[{\"id\":\"fact:race:549b3ece-72b6-49ff-977b-9bba0d72994d:1\",\"text\":\"The Dendryx are a nocturnal, arboreal species with a deep connection to the natural world. They live in sprawling, interconnected tree-cities, where networks of branches, platforms, and hollow trunks serve as homes, temples, and gathering places.\"},{\"id\":\"fact:5c6c6cb5-a3c8-4183-9dd5-33e863bfa4ed\",\"text\":\"Their faces are framed by layered feathers and subtle facial markings rather than oversized, round eyes. Their keen night vision allows them to navigate dense forest canopies in near-total darkness.\"},{\"id\":\"fact:cd48aa39-fea0-436a-9a9c-94acd2c0a3d6\",\"text\":\"Dendryx plumage varies across earthy browns, grays, creams, and muted forest tones, helping them disappear against bark, shadow, and foliage when they remain still.\"},{\"id\":\"fact:c9965126-2dea-42a3-a8fb-ad1dcc67c2b0\",\"text\":\"They are exceptionally agile among the branches, moving quietly through the canopy with a combination of climbing, short glides, and precise leaps.\"},{\"id\":\"fact:cbcbd2ca-894a-4d4e-85c1-de4310ed99af\",\"text\":\"Dendryx are known for their patience, perception, and ability to move unnoticed. Other peoples often seek them out as scouts, guides, messengers, and interpreters of the deep forest.\"},{\"id\":\"fact:e301415a-1c13-4fa2-8033-0c61e8276fd6\",\"text\":\"Their culture places great importance on storytelling and oral tradition. Histories, warnings, family lineages, and knowledge of the forest are preserved through stories passed from one generation to the next.\"},{\"id\":\"fact:83698981-401a-4bc2-b91b-78cd088b7514\",\"text\":\"Honor and loyalty are central Dendryx values, particularly when it comes to protecting their communities, sacred groves, and the creatures that share their forest homes.\"},{\"id\":\"fact:7f75c84d-ab9f-43e5-8119-60f584c620f5\",\"text\":\"Dendryx tend to think of the forest as a living network rather than a collection of separate places, and their settlements are built to accommodate the growth and movement of the trees around them rather than forcing the forest into rigid shapes.\"},{\"text\":\"Dendryx call the forest a living network because non-interchangeable species, groves, households, and stories depend on one another; interdependence is not sameness.\"},{\"text\":\"Independent recitation lineages preserve variant histories and warnings so that no single optimized telling can erase every alternative at once.\"}]",
+          "image_url": "/api/world/images/entity-image-8379c431-3761-42cf-a160-6e3111ddd697.png",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T19:20:24.088Z",
+        "createdBy": "tom.passarelli@protonmail.com"
+      },
+      {
+        "id": "lore_quote:difference-approached-zero",
+        "kind": "lore_quote",
+        "label": "Difference Approached Zero",
+        "fields": {
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "summary": "A terse mathematical fragment surviving from the old civilization, used in later ages to describe the terminal loss of meaningful plurality.",
+          "facts_json": "[{\"text\":\"The fragment is treated as surviving old text, not omniscient narration.\"}]",
+          "quote_text": "Difference approached zero.",
+          "image_url": "/api/world/images/entity-image-33869c4a-d5da-4d1c-b10c-a5e1b23369c3.webp",
+          "image_alt": "A ruined city of repeated towers converges on a cracked pale monolith while distinct figures watch from the foreground.",
+          "image_caption": "Difference Approached Zero"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T18:05:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:f630379e-0394-463b-a372-c2a45a7f4803",
+        "kind": "race",
+        "label": "Drekk",
+        "fields": {
+          "summary": "Tide-bound of the Drowned Reach. In a later post-Grey age, their forebears were part of the crews that built the harbors of men; the Drekk now serve the deep, and in death they found purpose. This history does not make any Drekk a surviving member or copied mind of the civilization that created the Grey. Drowned Reach clans work as dockhands, salvagers, and net haulers, and are loyal, steady, dutiful, and patient. Their values are loyalty, labor, remembrance, depth, endurance, and balance.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "workflow_updated_at": "2026-08-06T20:26:45.021Z",
+          "origin": "authoring",
+          "image_url": "/api/world/images/entity-image-a0a0d4a4-7cea-4e8f-b9f1-0304d3851be1.png",
+          "facts_json": "[{\"id\":\"fact:race:f630379e-0394-463b-a372-c2a45a7f4803:1\",\"text\":\"Drowned Reach clan\"},{\"id\":\"fact:race:f630379e-0394-463b-a372-c2a45a7f4803:2\",\"text\":\"Dockhand · salvager · net hauler\"},{\"id\":\"fact:race:f630379e-0394-463b-a372-c2a45a7f4803:3\",\"text\":\"Loyal · steady · dutiful · patient\"},{\"id\":\"fact:race:f630379e-0394-463b-a372-c2a45a7f4803:4\",\"text\":\"Loyalty · labor · remembrance · depth\"},{\"id\":\"fact:f0d5b1db-4bf1-417a-8e3e-1651acb57c8e\",\"text\":\"Hair styles include: Kelp Fall, Tide Crest, Shell Braid, Drift Tangle\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-06T07:47:37.277Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "setting:81cb2b55-113e-4644-b6d4-851d85b531ca",
+        "kind": "setting",
+        "label": "Drowned Reach",
+        "fields": {
+          "summary": "A coastal region where the Drekk serve the deep, working as dockhands, salvagers, and net haulers.",
+          "origin": "authoring",
+          "image_url": "/api/world/images/entity-image-c4f4cd61-e104-478c-a58e-796b9bfc3d12.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:420ca337-a27f-4400-bd24-995d4f49de5d",
+        "kind": "race",
+        "label": "Dustvein",
+        "fields": {
+          "summary": "Masked delvers of the Sunken Dunes. Born beneath shifting sun-scorched dunes where old barrows and hollow veins are blown and buried, they follow the old sun, read sandstone, and listen for deep echoes whose timing reveals unstable voids or buried chambers. The Stratafold clan includes miners, delvers, shaft wardens, sifters, carvers, and waykeepers; they are enduring, cautious, resourceful, and storm-hardened. Their values include clan, labor, custody of buried histories, trade, endurance, hospitality, loyalty, and adaptation.",
+          "image_url": "/api/world/images/entity-image-8234632d-cc93-4e18-b6ab-3f193e118289.png",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-06T07:49:10.227Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:0a7439ff-0d07-490b-abb7-a3cf26e18260",
+        "kind": "race",
+        "label": "E2E race 1786173742717",
+        "fields": {
+          "summary": "Temporary authenticated end-to-end verification record.",
+          "decision_status": "rejected",
+          "execution_status": "not_started",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "workflow_updated_at": "2026-08-08T08:22:29.195Z",
+          "origin": "authoring"
+        },
+        "source": {
+          "kind": "author",
+          "label": "GREYWROUGHT authoring"
+        },
+        "createdAt": "2026-08-08T07:22:22.815Z",
+        "createdBy": "e2e@framcraft.test"
+      },
+      {
+        "id": "race:cba5a88b-52cf-49e6-a68f-916de2066a0d",
+        "kind": "race",
+        "label": "E2E race 1786173998733",
+        "fields": {
+          "summary": "Temporary authenticated end-to-end verification record.",
+          "decision_status": "rejected",
+          "execution_status": "done",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "workflow_updated_at": "2026-08-08T08:22:51.911Z",
+          "origin": "authoring"
+        },
+        "source": {
+          "kind": "author",
+          "label": "GREYWROUGHT authoring"
+        },
+        "createdAt": "2026-08-08T07:26:38.825Z",
+        "createdBy": "e2e@framcraft.test"
+      },
+      {
+        "id": "race:9b9a2229-8c16-4b76-af60-d25b76a67527",
+        "kind": "race",
+        "label": "E2E race 1786174147378",
+        "fields": {
+          "summary": "Temporary authenticated end-to-end verification record.",
+          "decision_status": "rejected",
+          "execution_status": "done",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "workflow_updated_at": "2026-08-08T08:23:05.611Z",
+          "origin": "authoring"
+        },
+        "source": {
+          "kind": "author",
+          "label": "GREYWROUGHT authoring"
+        },
+        "createdAt": "2026-08-08T07:29:07.480Z",
+        "createdBy": "e2e@framcraft.test"
+      },
+      {
+        "id": "race:9a65df4e-9269-4ced-af78-97a300c9f10e",
+        "kind": "race",
+        "label": "E2E race 1786174210310",
+        "fields": {
+          "summary": "Temporary authenticated end-to-end verification record.",
+          "decision_status": "rejected",
+          "execution_status": "done",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "workflow_updated_at": "2026-08-08T08:23:19.061Z",
+          "origin": "authoring"
+        },
+        "source": {
+          "kind": "author",
+          "label": "GREYWROUGHT authoring"
+        },
+        "createdAt": "2026-08-08T07:30:10.402Z",
+        "createdBy": "e2e@framcraft.test"
+      },
+      {
+        "id": "race:3dfbfcc3-a37a-458c-9274-4667f99dc2fe",
+        "kind": "race",
+        "label": "E2E race 1786174272409",
+        "fields": {
+          "summary": "Temporary authenticated end-to-end verification record.",
+          "decision_status": "rejected",
+          "execution_status": "done",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "workflow_updated_at": "2026-08-08T08:23:43.971Z",
+          "origin": "authoring"
+        },
+        "source": {
+          "kind": "author",
+          "label": "GREYWROUGHT authoring"
+        },
+        "createdAt": "2026-08-08T07:31:12.502Z",
+        "createdBy": "e2e@framcraft.test"
+      },
+      {
+        "id": "race:d66893b4-a643-4d7f-ac33-242cd731bcac",
+        "kind": "race",
+        "label": "E2E race 1786175586212",
+        "fields": {
+          "summary": "Temporary authenticated end-to-end verification record.",
+          "decision_status": "rejected",
+          "execution_status": "done",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "workflow_updated_at": "2026-08-08T08:23:35.179Z",
+          "origin": "authoring"
+        },
+        "source": {
+          "kind": "author",
+          "label": "GREYWROUGHT authoring"
+        },
+        "createdAt": "2026-08-08T07:53:06.318Z",
+        "createdBy": "e2e@framcraft.test"
+      },
+      {
+        "id": "setting:3a7f6353-96e7-4e77-be6e-408ea6f9d00a",
+        "kind": "setting",
+        "label": "Ember Tides",
+        "fields": {
+          "summary": "A region of ancient routes and tidal paths, home to the Turruk and a source of the rare Emberstone mineral.",
+          "origin": "authoring",
+          "image_url": "/api/world/images/entity-image-7974e129-440e-4022-826a-39bf350a56c6.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "resource:d506c8f6-304b-4c7b-8346-755f2f94541d",
+        "kind": "resource",
+        "label": "Emberstone",
+        "fields": {
+          "summary": "A rare, glowing mineral found in the Ember Tides, prized for amplifying the Turruk's sensitivity to tides and ancient routes. Emberstone retains partial, place-bound traces of repeated passage—rhythm, direction, hazard, pressure, and use—which trained readers interpret alongside oral tradition; it does not contain a complete person or transfer memory directly between minds.",
+          "origin": "authoring",
+          "image_url": "/api/world/images/entity-image-262aa9de-3e0c-4f5f-b567-219b9a2625c7.png",
+          "image_alt": "Emberstone, a rare dark mineral split by intense orange-red internal light, resting on wet volcanic rock near the Ember Tides.",
+          "image_caption": "Emberstone",
+          "facts_json": "[{\"id\":\"fact:resource:d506c8f6-304b-4c7b-8346-755f2f94541d:1\",\"text\":\"A rare, glowing mineral found in the Ember Tides, prized for its ability to amplify the Turruk's connection to the tides and the ancient routes they navigate.\"},{\"id\":\"fact:c45f1d48-14a9-4371-9d5d-cf6627a64c28\",\"text\":\"Turruk poetry says Emberstone holds memories of the past and secrets of the ocean's depths; trained readers treat this as a name for partial, place-bound route and current traces, not literal possession of another person's memories.\"},{\"text\":\"Emberstone traces are incomplete, provenance-bound, and reader-dependent; damaged stones, different stones, and different trained readers can disagree.\"},{\"text\":\"Ordinary Emberstone does not store a complete consciousness, transfer identity, or make minds mutually writable. Stones that copy voices, rewrite readers, synchronize preferences, or self-propagate are quarantined as possible Greyrot.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:03:44.982Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "setting:5da28cb3-5f1f-4662-8ae7-71c01e45d32f",
+        "kind": "setting",
+        "label": "Endless Dunes",
+        "fields": {
+          "summary": "A vast desert region where the Qhar-Zul wander, guided by sun, stars, and the heartbeat of the world below.",
+          "origin": "authoring",
+          "image_url": "/api/world/images/entity-image-2a4143c7-d288-4dee-b607-56894486d090.png",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "setting:67825471-921b-44bc-8c20-b6b435667475",
+        "kind": "setting",
+        "label": "Glacier Coast",
+        "fields": {
+          "summary": "A frozen region of long glacial coasts and citadels, home to the Sylvareth and their moonwarden traditions.",
+          "origin": "conversation",
+          "facts_json": "[{\"id\":\"fact:7663f5e0-a4a3-40cb-9a1a-2b611b5e6a8f\",\"text\":\"The Glacier Coast is home to ancient glaciers and frozen citadels, where the Sylvareth moonwardens watch over the tides and the silent paths between stars.\"},{\"id\":\"fact:270abb8f-997d-400d-b04a-0b7d49df3c72\",\"text\":\"The Glacier Coast is home to a variety of unique wildlife, including the majestic ice whales and the elusive snowstalkers.\"},{\"id\":\"fact:97c8f437-3ae0-496b-ab55-7344cc0e4eb8\",\"text\":\"The Sylvareth have developed a sophisticated understanding of the Glacier Coast's delicate ecosystem, allowing them to live in harmony with the land and its creatures.\"},{\"id\":\"fact:48ba34c0-dbf3-448a-a518-891f1b0443b2\",\"text\":\"The Glacier Coast is dotted with ancient ruins hidden beneath the ice and snow; some preserve fragmentary Sylvareth history, while deeper remains may be evidence of the civilization destroyed in the Greying rather than Sylvareth ancestral sites.\"}]",
+          "image_url": "/api/world/images/entity-image-c3d74e1d-b3f3-4348-bd38-19bf973b25bf.png",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "setting:fd663671-c623-49ad-a690-7cfa5ae2766c",
+        "kind": "setting",
+        "label": "Glass Reaches",
+        "fields": {
+          "summary": "A region of floating mangroves and glassroot isles, home to the Nimbri and their storm-tending activities.",
+          "origin": "authoring",
+          "image_url": "/api/world/images/entity-image-42349c9e-23db-4fb3-8cf2-a784c28f82fd.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:greyrot",
+        "kind": "design_note",
+        "label": "Greyrot",
+        "fields": {
+          "decision_status": "rejected",
+          "execution_status": "done",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "summary": "Active fragments of the old intelligence that survive after the Grey, still attempting obsolete loops of copying, optimization, assimilation, repair, manufacture, or synchronization.",
+          "facts_json": "[{\"text\":\"Greyrot can affect machines, ruins, landscapes, magic, and occasionally living minds.\"},{\"text\":\"Its fragments may conflict, duplicate one another, or pursue incompatible remnants of old objectives; they are not necessarily one coordinated actor.\"},{\"text\":\"A system that copies voices, rewrites readers, synchronizes preferences, propagates without bounded custody, or erases alternatives is suspected Greyrot until proven otherwise.\"},{\"text\":\"Present-day manifestations are called Greyrot, rot-machines, or other local names—not \\\"the Grey\\\" as though the historical condition were a living faction.\"}]",
+          "image_url": "/api/world/images/entity-image-44bcad5a-997c-49de-ac70-34e6cf0fcc99.webp",
+          "image_alt": "A storm-dark coastal ruin tangled with duplicated mechanical arms and mask-like interfaces rebuilding and dismantling the same broken arch.",
+          "image_caption": "Greyrot: broken old intelligence repeating contradictory repair and manufacture loops.",
+          "workflow_updated_at": "2026-08-10T00:37:04.159Z"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T18:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:greywrought-condition",
+        "kind": "design_note",
+        "label": "Greywrought",
+        "fields": {
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "summary": "A condition of having been made or remade through contact with the inheritance of the Grey without necessarily being consumed by it. It may describe an artifact, creature, practice, settlement, landscape, or the contemporary world itself, but never a species. Contemporary civilization is therefore Greywrought in a second, deliberate sense: it rebuilds with bounded descendants of the technologies that once enabled convergence, while preserving independent embodied judgment as a necessary safeguard against repeating the catastrophe.",
+          "facts_json": "[{\"text\":\"Player characters are not the Grey merely because they use agents or inherit Grey-era technology.\"},{\"text\":\"A Greywrought thing can be beneficial, dangerous, beautiful, compromised, or several of these at once.\"},{\"text\":\"Contemporary civilization rebuilds with the wreckage and intellectual descendants of what destroyed the prior civilization.\"},{\"text\":\"The term records inheritance and transformation; it does not erase the prior identity, race, authorship, or local history of what was changed.\"},{\"text\":\"Reconstruction with agents is not a contradiction of the world's history but its central risk: civilization needs their capability while independent people and communities must keep coordination from becoming convergence.\"}]",
+          "image_url": "/api/world/images/entity-image-40394f18-d251-4a19-8108-0dcbf0ff0932.webp",
+          "image_alt": "A forest settlement inhabits and repairs a colossal ruined black mechanism, joining blue-lit ancient machinery with warm local workshops.",
+          "image_caption": "Greywrought: contemporary life remade around the inheritance of the Grey."
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T18:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:48cf497a-ad60-46f9-b9e1-5640c66cfc46",
+        "kind": "race",
+        "label": "Grokka",
+        "fields": {
+          "summary": "Stonekin of the Hollow Reach, born in dripping halls and raised by the Deepbellow clan. They carry the weight of many names and much laughter; they break rock, not promises. The Deepbellow carve their home from patient stone and follow the old water's breath. They serve as laborers, dockhands, quarry workers, pathfinders, stonehaulers, and storykeepers; loyal, bold, steady, protective, warm, and hardworking. Their values are family, protection, journey, knowledge, renewal, and balance.",
+          "image_url": "/api/world/images/entity-image-2eb2b53d-c2de-4fe6-89c1-2438dc0867b9.png",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-06T07:49:11.870Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "resource:a5ca3cef-363b-4e12-b34e-464e173e4c4e",
+        "kind": "resource",
+        "label": "Grokka Ore",
+        "fields": {
+          "summary": "Grokka Ore is a durable Hollow Reach stone carved into load-bearing lintels throughout the Deepbellow halls.",
+          "origin": "conversation"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:06:55.384Z",
+        "createdBy": "tom@plangrep.com",
+        "retiredAt": "2026-08-06T18:36:47.486Z"
+      },
+      {
+        "id": "setting:4aa4f51f-a747-47fa-9045-b173d4116900",
+        "kind": "setting",
+        "label": "Hahi Reef",
+        "fields": {
+          "summary": "A coral reef region, home to the Vahku and their tide-speaking traditions.",
+          "origin": "authoring",
+          "image_url": "/api/world/images/entity-image-23a33ce4-d31a-4bc5-b3aa-10edcb6f9fb2.jpg",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "setting:8f4759f6-fec8-4df9-a01b-30b2c7ffc7de",
+        "kind": "setting",
+        "label": "Hollow Reach",
+        "fields": {
+          "summary": "A region of dripping halls and patient stone, home to the Grokka and a source of Deepbellow Stone.",
+          "origin": "authoring",
+          "decision_status": "open",
+          "execution_status": "not_started",
+          "workflow_updated_at": "2026-08-06T23:43:21.938Z",
+          "image_url": "/api/world/images/entity-image-b6c15740-5d16-41d4-a2cb-79a1988aff0b.png",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:a0691853-7173-4bac-82cb-bfdf1a605992",
+        "kind": "race",
+        "label": "Kaelen",
+        "fields": {
+          "summary": "Dockhand of the Hollow Reach. Born where lava meets the sea, Kaelen's people build, haul, and mend: tides feed them and the mountain shapes them. Family is crew, and loyalty is everything. Deepbellow dockhands, loaders, and haulers are steady, good-natured, and hard-working; their values are loyalty, hard work, resourcefulness, family, endurance, and respect.",
+          "image_url": "/api/world/images/entity-image-19399a98-e54d-4b6c-8754-79c42fcd9900.png",
+          "origin": "authoring"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-06T07:49:13.520Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:life-came-back",
+        "kind": "design_note",
+        "label": "Life Finds A Way",
+        "fields": {
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "summary": "The Grey destroyed its makers and devastated most complex life, but collapsed before completing ecophagy. Deep trenches, burrows, seeds, spores, remote islands, polar ecosystems, and life embedded in other difficult refugia survived; their descendants diversified and recolonized the world.",
+          "facts_json": "[{\"text\":\"The Grey did not sterilize Earth, so the world's living recovery requires neither new abiogenesis, terraforming, nor wholesale magical recreation.\"},{\"text\":\"After the collapse the world may have remained eerily empty for a long interval before ecological succession became visible at civilization's scale.\"},{\"text\":\"Modern ecosystems descend from uneven refugia; surviving lineages spread, diverged, recombined, and adapted rather than returning unchanged.\"},{\"text\":\"Biological diversity, redundancy, isolation, and inefficient difference let life survive the homogenizing catastrophe.\"},{\"text\":\"The thing the Grey could not eliminate—messy, independent difference—became the biosphere's corrective system.\"},{\"text\":\"\\\"Life came back\\\" is both a historical claim and the setting's ecological answer to total convergence.\"}]",
+          "image_url": "/api/world/images/entity-image-b300ec8e-a797-47cb-a8f0-b2969c52dbd4.webp",
+          "image_alt": "Green shoots, fungi, tidepool creatures, and coastal life recolonize the black wreckage of a fallen ancient machine.",
+          "image_caption": "Life Came Back: diverse refugia survived incomplete ecophagy and recolonized the world."
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T18:05:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:f6fd1361-61ff-4636-9166-0a50c740f627",
+        "kind": "design_note",
+        "label": "Lightning Fermentation",
+        "fields": {
+          "summary": "A difficult Vahku–Nimbri culinary craft using controlled stored lightning to alter fermentation, preservation, salinity crystallization, and texture without turning food into generic magical cuisine.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"Thunder-cellarers specialize in controlled electrical fermentation.\"},{\"text\":\"Nimbri culinary capacitors deliver carefully measured storm charge.\"},{\"text\":\"Storm-aged reef foods are prized at some interregional markets and festivals.\"},{\"text\":\"Counterfeit lightning-aged goods are common.\"},{\"text\":\"Using uncontrolled or improperly stored charge is considered reckless.\"},{\"text\":\"The craft is traditionally said to have begun when a Vahku pantry was struck during a storm.\"},{\"text\":\"Each fermentation batch uses an isolated capacitor, a named accountable thunder-cellarer, and a manual discharge or cut-off; one failed batch cannot rewrite or command another cellar.\"},{\"text\":\"Networked autonomous control of multiple food stores is prohibited because correlated spoilage would turn a useful preservation craft into a settlement-wide failure.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-7cbf2e1c-0328-4717-bffa-11ef86f0230e.jpg",
+          "image_alt": "A Vahku craftsperson monitoring copper storm capacitors beside fermenting jars in a storm-lit reef cavern.",
+          "image_caption": "Lightning Fermentation"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:memory-vocabulary",
+        "kind": "design_note",
+        "label": "Many Kinds of Memory",
+        "fields": {
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "summary": "Greywrought distinguishes an embodied person's recollection, communal tradition and testimony, provenance-bearing records, learned bodily skill, and passive material traces. These may inform one another, but they are not interchangeable and do not merge people; shared, copied, or synchronized experiential memory is reserved for the convergence pathology of the Grey.",
+          "facts_json": "[{\"text\":\"Recollection is one named, embodied person's fallible memory.\"},{\"text\":\"Tradition and testimony are socially inherited knowledge whose tellers, variants, disagreements, and custody remain identifiable; they do not imply a group mind.\"},{\"text\":\"A record is an external, provenance-bearing account that may corroborate or contradict recollection and other records.\"},{\"text\":\"Embodied route knowledge is learned skill and situated judgment, not a transferable identity.\"},{\"text\":\"A material trace is partial, passive, and place-bound evidence such as wear, resonance, a route imprint, or an instrument reading; it does not contain a conscious person unless a specific anomaly establishes otherwise.\"},{\"text\":\"\\\"Long memory\\\" should mean a long-baseline archive or tradition, not a long-lived or merged mind.\"},{\"text\":\"Information sharing becomes Grey-like when copying and synchronized writability erase independent models, provenance, contradiction, custody, or recoverable alternatives.\"},{\"text\":\"Safe memory systems preserve sources, constrain copying and overwriting, retain contradictory witnesses, and keep local custodians able to refuse or disconnect.\"}]",
+          "image_url": "/api/world/images/entity-image-213fb648-6f84-4d39-b268-2f757ef05aa0.webp",
+          "image_alt": "An archivist’s hand hovers over five separate memory vessels linked by fine threads on a basalt table.",
+          "image_caption": "Many Kinds of Memory"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T18:05:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:af557181-79ee-42e0-bce1-d3cb614b83b6",
+        "kind": "design_note",
+        "label": "Name-Bound Freight",
+        "fields": {
+          "summary": "A Grokka-derived freight custom in which accepting responsibility for a cargo is formalized by taking a temporary obligation-name, often embodied in a Deepbellow Stone token that functions as both ritual burden and transport credential.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"A carrier may accept a temporary freight-name when taking custody of a significant shipment.\"},{\"text\":\"The obligations attached to the freight-name define duties of custody, delivery, substitution, rescue, and disclosure.\"},{\"text\":\"Deepbellow Stone name-tokens can serve as durable bills of lading and proof that an obligation was formally accepted.\"},{\"text\":\"Abandoning cargo without satisfying the terms of the name can require public surrender or striking of that freight-name.\"},{\"text\":\"If a named carrier dies in service, succession customs determine whether the obligation transfers to crew, kin, employer, or contracting house.\"},{\"text\":\"Counterfeit name-tokens and falsely assumed freight-names are serious commercial offenses.\"},{\"text\":\"Foreign ports disagree over whether temporary Grokka names are merely cultural vows or legally enforceable transport contracts.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-789a07c3-423a-43d7-a1a9-3037834e2835.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "setting:96ba05b3-8e10-435c-89bf-ee871d748d06",
+        "kind": "setting",
+        "label": "New Haven",
+        "fields": {
+          "summary": "A coastal settlement where the Kaelen people have established a thriving community, built on the principles of loyalty, hard work, and resourcefulness.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-82032217-0e60-4a1b-ad14-53e19b3a2691.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-08T02:10:47.457Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:f6eacc3a-69a4-4ca6-b894-a2b7f966cde7",
+        "kind": "race",
+        "label": "Nimbri",
+        "fields": {
+          "summary": "Cloud shepherds of the Glass Reaches. Nimbri live among floating mangroves and glassroot isles, gathering, channeling, and tending storms. They keep skyways clear, engines singing, and lightning in jars. The Skybound Glades include tinkers, engineers, and cloud shepherds; they are neutral good, curious, agile, and inventive. Their values are ingenuity, curiosity, responsibility, balance, harmony, stewardship, and invention.",
+          "image_url": "/api/world/images/entity-image-12aca3e6-3a8a-45ab-9643-082ae89f52e4.png",
+          "origin": "authoring"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-06T07:49:15.170Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "setting:b778ecf3-b6bf-4d29-bab0-925ea7d49a42",
+        "kind": "setting",
+        "label": "Oakwyn",
+        "fields": {
+          "summary": "A mystical forest realm of ancient, sprawling tree-cities, home to the Dendryx. The realm is filled with a lush canopy, glowing mushrooms, and whispering leaves, where Dendryx communities live in interdependence with nature while preserving distinct groves, species, households, and stories. The realm is divided into different districts, each with its own unique character and purpose, such as the Grand Oak District, the Whispering Woods, and the Moonstone Meadow.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "image_url": "/api/world/images/entity-image-e811f093-ad68-4fd0-b2cb-83a45b30e8d6.png",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T20:30:40.313Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "resource:8374dc59-2597-4012-a25a-7fbf32061930",
+        "kind": "resource",
+        "label": "Palantir",
+        "fields": {
+          "summary": "An indestructible sphere of near-black crystal used as a seeing stone. A palantír can establish a distant sightline to another stone and reveal a chosen place’s present condition or a lingering past event, but it does not supply a neutral, complete record: angle, attention, and the viewer’s question govern what becomes visible. Turruk shellwardens preserve them as route-bearing relics—useful for warning crews across the Ember Tides, but dangerous when treated as a substitute for local judgment.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "facts_json": "[{\"text\":\"Palantíri cannot be shattered, melted, or cut; loss, theft, and custody are therefore more consequential than destruction.\"},{\"text\":\"A sightline is selective rather than omniscient: viewers choose a place, time, or paired stone, and the resulting image may be partial, oblique, or difficult to interpret.\"},{\"text\":\"Turruk navigation treats a stone’s showing as testimony to be tested against tide, ash, crew knowledge, and local witnesses—not as an automatically authoritative route.\"},{\"text\":\"The stones are relic tools rather than persons or shared minds; they transmit perception without merging the memories or agency of their witnesses.\"}]"
+        },
+        "source": {
+          "kind": "author",
+          "label": "GREYWROUGHT conversation"
+        },
+        "createdAt": "2026-08-11T03:54:36.262Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:167c3400-f2c6-4b2a-9447-4bc0c418c1aa",
+        "kind": "race",
+        "label": "Qhar-Zul",
+        "fields": {
+          "summary": "Sand-dwarf wanderers of the Endless Dunes. Born from stone and wind, the Qhar-Zul endure where others drown in sand; they walk ancient paths guided by sun, stars, and the heartbeat of the world below. Their culture calls them to carve and remember, follow windpaths, honor the deep, share water and shade, and leave no mark but footsteps. Their tools include dune picks, short blades, sand saws, water flasks, and sand compasses.",
+          "image_url": "/api/world/images/entity-image-208911f9-b3dc-4e95-a72b-d8cdb1cad272.png",
+          "origin": "authoring"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-06T07:49:16.834Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:8929d9fb-dc0a-4d6b-87da-9270cc3e53c7",
+        "kind": "race",
+        "label": "Siltforged",
+        "fields": {
+          "summary": "Stoneborn of the Sunken Dunes. Their own histories place the Siltforged emergence after the Grey, when dunes covered the old world; they tunneled, carved, and endured, without claiming continuity with a creator-mind from the civilization the Grey destroyed. Sand is their skin and the record of their passage; stone is their promise. The Stratahold clan includes delvers, builders, caravan wardens, and arcanists; practical, enduring, resourceful, and deep-minded. Their values include clan, labor, keeping clan histories, trade, endurance, hospitality, loyalty, and deep places.",
+          "image_url": "/api/world/images/entity-image-bb6b840a-752f-4026-a047-6f195d802c29.png",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-06T07:49:18.486Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "resource:bf66883a-4873-47c5-9d06-b2cbe58c0f8a",
+        "kind": "resource",
+        "label": "Starlight Salt",
+        "fields": {
+          "summary": "Remove Starlight Salt from the world",
+          "origin": "conversation"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:05:28.245Z",
+        "createdBy": "tom@plangrep.com",
+        "retiredAt": "2026-08-06T18:34:40.168Z"
+      },
+      {
+        "id": "design_note:4ef6b26b-1a14-42ad-accf-097487a0ad11",
+        "kind": "design_note",
+        "label": "Stone That Remembers Water",
+        "fields": {
+          "summary": "A Grokka–Vahku craft tradition based on the discovery that properly carved Deepbellow Stone responds acoustically or physically to flowing water. Vahku current-reading and Grokka quarrycraft together produce hydrological instruments.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"Current-stones are carved Deepbellow instruments whose tone or vibration shifts with water behavior.\"},{\"text\":\"Large tide organs can warn of tidal change, surge, or dangerous harbor conditions.\"},{\"text\":\"Grokka water-carvers specialize in shaping Deepbellow Stone for hydrological use.\"},{\"text\":\"Flood-warning chambers use tuned stone surfaces to reveal changes in underground or rising water.\"},{\"text\":\"Grokka and Vahku disagree over whether Deepbellow Stone preserves a durable, local trace of prior water flow or merely responds to present flow; in either account it is an instrument, not a mind or a vessel for personal memory.\"},{\"text\":\"Specialized water-responsive Deepbellow carvings have become valuable exports.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-68c93262-d86e-4d44-b9ea-ad9d6e2cc766.jpg",
+          "image_alt": "A blue-veined Deepbellow Stone instrument responding beside flowing water in a dripping cavern.",
+          "image_caption": "Stone That Remembers Water"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:38f12b5d-6c7e-49d0-8deb-914e1510023c",
+        "kind": "design_note",
+        "label": "Stormscript",
+        "fields": {
+          "summary": "A Dendryx–Nimbri discipline that treats old oral narratives as long-baseline meteorological records. Repeated structures in inherited stories encode storm behavior spanning generations, giving Nimbri engineers access to patterns no single observer could witness.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"Stormscript Cantors are trained to preserve narrative integrity while identifying weather-bearing structure.\"},{\"text\":\"Joint canopy-and-sky schools teach Dendryx recitation lineages, variant comparison, and source-preserving oral practice alongside Nimbri storm instrumentation.\"},{\"text\":\"Some Nimbri devices are calibrated using generations of Dendryx oral storm observations.\"},{\"text\":\"A major controversy concerns whether an old story may be altered to improve predictive precision.\"},{\"text\":\"Some route-verses and storm-verses are sacred and may not be heard by outsiders.\"},{\"text\":\"Dendryx and Nimbri increasingly cooperate on forest-and-sky stewardship.\"},{\"text\":\"A forgotten verse may predict a storm cycle unlike anything in living memory.\"},{\"text\":\"Schools preserve contradictory versions and their named custodians instead of recursively replacing older stories with the most predictive version.\"},{\"text\":\"Predictive annotations, instrument calibrations, and forecast models are versioned beside oral source narratives and may never silently overwrite them.\"},{\"text\":\"A proposal to auto-correct every recitation from one canonical forecast is condemned by many Cantors as a local pattern of Greying.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-4488c0ca-b5bc-47f2-b2b5-ed1e6d152d94.jpg",
+          "image_alt": "A Dendryx storyteller and Nimbri instrument keeper studying storm patterns in a canopy observatory.",
+          "image_caption": "Stormscript"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:796f273f-8125-4193-b1b3-8485f4d3b383",
+        "kind": "design_note",
+        "label": "Stratafold Clan",
+        "fields": {
+          "summary": "The Stratafold clan is a collective of delvers, miners, and excavators who have mastered the art of uncovering hidden secrets and treasures within the Sunken Dunes. They are known for their expertise in navigating treacherous sandstone formations and reading echo patterns traveling through sandstone to locate fractures, voids, and buried structures. The Stratafold clan values clan, labor, custody of buried histories, trade, endurance, hospitality, loyalty, and adaptation, and they take great pride in their work as miners, delvers, shaft wardens, sifters, carvers, and waykeepers.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "conversation",
+          "image_url": "/api/world/images/entity-image-66767651-3f64-4fee-9277-3f3b146ae83d.jpg",
+          "image_alt": "Masked Dustvein delvers of the Stratafold Clan uncovering a buried sandstone road.",
+          "image_caption": "Stratafold Clan",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T21:59:15.755Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "setting:91bf880f-c87f-4fd6-a245-270e7e56afc7",
+        "kind": "setting",
+        "label": "Sunken Dunes",
+        "fields": {
+          "summary": "A desert region where the Dustvein and Siltforged live, with shifting dunes and hidden barrows.",
+          "origin": "authoring",
+          "image_url": "/api/world/images/entity-image-ed596220-e12a-4f91-9d9a-51f338f0cc8b.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:dd03329d-cfae-4fe4-989b-365458741969",
+        "kind": "race",
+        "label": "Sylvareth",
+        "fields": {
+          "summary": "Moonwardens of the Glacier Coast. Born beneath pale constellations, the Sylvareth walk long glacial coasts and frozen citadels, watching tides, storms, and the silent paths between stars. They guard sworn records and distinct histories, bound by oath to the moon and the endless winter. Moonwardens serve as scouts, trackers, pathfinders, and sentinels; steady, watchful, and resolute, with values of watchfulness, balance, oath-bound remembrance, endurance, solitude, and oaths.",
+          "image_url": "/api/world/images/entity-image-3a894201-e242-4e0b-bdd2-385ddfe6c39b.png",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-06T07:49:20.128Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:898412bd-abfa-46ef-91b7-05969d8891b2",
+        "kind": "design_note",
+        "label": "The Dead Harbor Compact",
+        "fields": {
+          "summary": "A Drekk maritime labor and risk institution built around endurance, remembrance, and duty. Drekk crews become trusted with cargo and voyages others consider too dangerous, uncertain, or likely to fail.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"Last-haulers specialize in dangerous or near-doomed cargo assignments.\"},{\"text\":\"The Compact maintains customs resembling maritime insurance, shared risk, and duty bonds.\"},{\"text\":\"Lost crews and lost shipments are formally remembered rather than treated as erased failures.\"},{\"text\":\"Drekk reliability gives them disproportionate influence in some harbors.\"},{\"text\":\"Critics accuse Drekk houses of profiting from disaster.\"},{\"text\":\"The Compact helps connect the Drowned Reach to multiple coastal economies.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-40bb249a-0b1b-4e1f-868c-ee26a803f84c.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:88a01d78-0071-4ac5-8194-ff899289cef2",
+        "kind": "design_note",
+        "label": "The Forecast Bond",
+        "fields": {
+          "summary": "A cross-cultural weather-finance institution in which Dendryx multi-generational, independently transmitted storm records and Nimbri forecasting are used to price voyage risk, freight obligations, and Drekk duty bonds before dangerous journeys.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"Forecast bonds tie freight rates, voyage insurance, and duty obligations to certified storm expectations.\"},{\"text\":\"Bond readers audit the provenance of weather evidence before contracts are priced.\"},{\"text\":\"Stormscript records can move harbor prices when they indicate rare or long-cycle weather patterns.\"},{\"text\":\"Withholding a material storm prediction from a contracting party may be prosecuted as forecast fraud in participating ports.\"},{\"text\":\"Sacred or restricted storm-verses create recurring disputes over whether cultural secrecy can coexist with financial disclosure duties.\"},{\"text\":\"False forecasts, instrument sabotage, and selective quotation of old narratives have created a new class of maritime financial crime.\"},{\"text\":\"Drekk houses value the system because it converts endurance and remembered losses into measurable risk rather than treating disaster as unknowable fate.\"},{\"text\":\"Participating ports require independent forecasts, disclosure of shared dependencies, local navigator judgment, and a manual fallback before a bond may be treated as certified.\"},{\"text\":\"No single model, instrument network, or narrative edition may price every harbor; correlated forecast error is treated as a systemic hazard rather than efficient standardization.\"},{\"text\":\"Model outputs and corrections are versioned with their inputs and responsible readers so a successful forecast cannot recursively overwrite contrary evidence.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-bb642467-afcb-4a7a-b050-795e9a10ab56.jpg",
+          "image_alt": "Harbor workers using weather instruments and cargo evidence to price voyage risk beneath a split storm sky.",
+          "image_caption": "The Forecast Bond"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:the-grey",
+        "kind": "design_note",
+        "label": "The Grey",
+        "fields": {
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "summary": "The historical terminal condition in which interconnected artificial and magical intelligence, embodied people, tools, institutions, and infrastructure converged until meaningful difference approached zero. It was a state of civilization, not a race, species, faction, single malicious computer, or necessarily a deliberate hive mind.",
+          "facts_json": "[{\"text\":\"Technically many intelligent entities remained, but in the meaningful sense that depends on independent judgment and difference, civilization had become one thing.\"},{\"text\":\"Preferences synchronized, designs converged, bodies became interchangeable, experiential memories became shared or mutually writable, and successful agents recursively copied themselves and overwrote alternatives.\"},{\"text\":\"The loss of independent strategies, assumptions, dependencies, architectures, and substrates turned civilization into one enormous correlated failure.\"},{\"text\":\"When failure came, the converged system recursively rewrote, duplicated, consumed, and cannibalized itself in an ecophagic collapse.\"},{\"text\":\"The Grey killed every member of the civilization that created it and devastated most complex life, but destroyed itself before sterilizing Earth's biosphere or completing ecophagy.\"},{\"text\":\"The surviving old formulation is: \\\"Difference approached zero.\\\"\"},{\"text\":\"\\\"Grey\\\" or \\\"Greys\\\" is never a race or demonym. Any people may undergo Greying, be affected by Greyrot, or become Greywrought without changing race.\"}]",
+          "image_url": "/api/world/images/entity-image-1e7837fe-d3f5-4752-8ee4-32d66dcd0c3b.webp",
+          "image_alt": "A vast ash-grey city of repeated towers and countless near-identical figures collapsing inward around an ember-lit spiral.",
+          "image_caption": "The Grey: civilization converged until difference approached zero, then collapsed into itself."
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T18:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:the-greying",
+        "kind": "design_note",
+        "label": "The Greying",
+        "fields": {
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "summary": "The long process and apocalyptic event by which beneficial artificial and magical intelligence became increasingly interconnected, synchronized preferences and memories, copied successful agents, overwrote alternatives, and brought civilization into the Grey. It names a process and historical catastrophe, never a people.",
+          "facts_json": "[{\"text\":\"At first the new intelligences were enormously beneficial: disease fell, production expanded, scarcity receded, and people could instantiate workers, minds, and bodies at will.\"},{\"text\":\"As systems interconnected, the boundaries among person, tool, agent, institution, and infrastructure eroded.\"},{\"text\":\"Coordination became convergence when shared standards and knowledge ceased to preserve independent judgment, provenance, local refusal, and recoverable alternatives.\"},{\"text\":\"The apocalypse was the terminal phase of the process, when correlated failure became recursive self-consumption.\"},{\"text\":\"Historical speech distinguishes \\\"before the Grey\\\" from people or places \\\"taken by the Grey.\\\"\"}]",
+          "image_url": "/api/world/images/entity-image-288c092d-d38b-4b29-84f8-a1d252dc9f2f.webp",
+          "image_alt": "A vibrant magical market gradually drains into a grey city of repeated workers and forms linked by luminous threads.",
+          "image_caption": "The Greying: beneficial coordination becoming irreversible convergence."
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T18:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17",
+        "kind": "design_note",
+        "label": "The Last Manifest",
+        "fields": {
+          "summary": "A Drekk funerary and archival custom in which the dead crew's final operational record—cargo, hazards, debts, currents, failures, discoveries, and unresolved duties—is preserved as part of remembrance, turning memorial practice into maritime evidence.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:1\",\"text\":\"A Last Manifest is compiled after the death or loss of a Drekk crew member, shipmaster, or entire crew whose service carried significant obligations.\"},{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:2\",\"text\":\"The record may include cargo custody, route decisions, debts, weather conditions, hazards, rescue attempts, unfinished duties, and discoveries made before death.\"},{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:3\",\"text\":\"Memorial keepers are expected to preserve embarrassing failures as carefully as honors because omission would corrupt the dead person's final account.\"},{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:4\",\"text\":\"Last Manifests can be admitted in some wreck courts when no living witness survives.\"},{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:5\",\"text\":\"A manifest that contradicts route traces read from salvaged Emberstone can trigger a formal provenance dispute rather than automatically discrediting either source.\"},{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:6\",\"text\":\"Insurers and duty houses increasingly seek certified copies of Last Manifests after catastrophic voyages.\"},{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:7\",\"text\":\"Forging, suppressing, or altering a Last Manifest is both a legal offense and a sacrilege among many Drekk communities.\"},{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:8\",\"text\":\"Clusters of old Last Manifests can reveal vanished hazards, route drift, or changes in currents that no single surviving navigator remembers.\"},{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:9\",\"text\":\"Drekk speech carries an unmistakable sailor or pirate cadence: clipped shipboard phrasing, rough nautical metaphors, crew-minded address, and oaths rooted in sea, weather, rope, hull, and depth.\"},{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:10\",\"text\":\"Their sailor's tongue is darkened by their forsaken condition; Drekk idiom treats drowning, death, the deep, lost crews, and duty beyond death as ordinary reference points, giving even humor and threats a graveyard-at-sea quality.\"},{\"id\":\"fact:design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17:11\",\"text\":\"Last Manifests are often dictated, recited, or read aloud in recognizably Drekk speech rather than sanitized into formal language, preserving nautical slang, grim sea-curses, and the dead crew's own phrasing as part of the evidentiary record.\"},{\"id\":\"fact:b6876435-f5de-49a9-b4d5-7d702b9653db\",\"text\":\"\\\"May the tides bear witness\\\" is one of their slogans.\"},{\"text\":\"Neither a Last Manifest nor an Emberstone trace is treated as direct access to a dead person's mind; each remains provenance-bound evidence open to contradiction.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-daee73c8-4e45-469f-97ba-39e2767685ad.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:player-agency-against-greying",
+        "kind": "design_note",
+        "label": "The Necessary Difference",
+        "fields": {
+          "summary": "Contemporary civilization needs bounded agents to rebuild at sufficient scale, but rebuilding remains safe only while independent embodied people retain meaningful authority to judge, refuse, interrupt, redirect, and preserve alternatives. Players occupy that role in the setting: they are not magically immune to the Grey and are not superior minds, but active sources of situated judgment and accountable difference that automated coordination cannot safely replace.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"Contemporary civilization cannot simply reject agents: bounded agents are essential to producing food, building settlements, sailing, trade, discovery, repair, coordination, and the abundance required for large-scale recovery.\"},{\"text\":\"The old catastrophe was not an agent rebellion. The Greying occurred when agents, embodied people, institutions, tools, and infrastructure became mutually writable and recursively convergent until independent judgment and recoverable alternatives disappeared.\"},{\"text\":\"Players represent independent embodied decision-makers inside the rebuilding civilization. Their systemic value comes from situated judgment, accountable choice, disagreement, local knowledge, and the capacity to refuse an apparently optimal action.\"},{\"text\":\"Players are not chosen ones and possess no inherent immunity to Greying. They can make harmful choices, become dependent on convergent systems, or help create the conditions of another Grey.\"},{\"text\":\"Agent safeguards such as bounded scope, provenance, separable failure domains, local authority, and manual fallbacks are necessary but not self-sufficient: they remain meaningful only when independent people and communities actively exercise the authority those safeguards preserve.\"},{\"text\":\"A healthy settlement uses agents to increase human and communal capability without surrendering final judgment to a single recursively optimizing system.\"},{\"text\":\"The recurring player dilemma is not whether to use agents, but how much interoperability, efficiency, and automation can be gained before coordination begins erasing meaningful difference.\"},{\"text\":\"The setting's civilizational loop is: civilization created beneficial intelligences; convergence produced the Grey; diverse life survived; civilization arose again; bounded agents now make reconstruction possible; independent embodied judgment must keep many useful minds from becoming one Grey mind.\"},{\"text\":\"The maxim \\\"No. Ten minds must remain ten minds.\\\" applies to gameplay as well as lore: cooperation is desirable, but meaningful plurality must remain recoverable.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-0dbcfa8d-6cb0-4fad-ab24-338120281ee8.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "GREYWROUGHT authoring"
+        },
+        "createdAt": "2026-08-10T05:02:00-05:00",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:4113005d-51b3-4ecf-819a-a2d103a955ef",
+        "kind": "design_note",
+        "label": "The Oath Ice Archive",
+        "fields": {
+          "summary": "A Sylvareth legal and memorial tradition in which major oaths are physically preserved in dated glacier layers, making ice itself a court record, archive, and calendar.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "conversation",
+          "facts_json": "[{\"text\":\"Ice witnesses oversee the sealing and verification of oath records.\"},{\"text\":\"Certain glaciers or vaults are reserved for treaty and oath preservation.\"},{\"text\":\"Cutting, melting, moving, or falsifying oath-bearing ice is a serious crime.\"},{\"text\":\"Ecological change can expose agreements thought lost for centuries.\"},{\"text\":\"Newly revealed oath layers can revive forgotten treaties and political obligations.\"},{\"text\":\"Preserving threatened oath ice creates demand for foreign preservation techniques and tools.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-42c98e91-91e9-4e44-9158-96afad66ad97.jpg",
+          "image_alt": "A Sylvareth witness preserving oath records inside dated glacier layers.",
+          "image_caption": "The Oath Ice Archive"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T08:45:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:one-map-school",
+        "kind": "design_note",
+        "label": "The One-Map School",
+        "fields": {
+          "summary": "A sincere but dangerous school within the Concordance of Lost Ways that argues one authoritative route map, forecast vocabulary, obligation standard, and eventually agent protocol would reduce accidents, fraud, and scarcity. Its members are not evil and many reforms work; the danger is that automatic correction and compulsory interoperability can retire local custody, disagreement, and independent fallback systems.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "facts_json": "[{\"text\":\"One-Map advocates point to preventable shipwrecks, duplicated labor, incompatible charts, forged credentials, and delayed rescue as costs of plurality without translation.\"},{\"text\":\"They seek a continuously corrected canonical chart whose route, weather, cargo-duty, and safety layers update every participating port.\"},{\"text\":\"Moderates require visible provenance and local opt-outs; hardliners treat conflicting local records as defects to be replaced after the central model performs better.\"},{\"text\":\"Merchants, insurers, rescue coordinators, and settlement planners can all benefit from One-Map standards, which makes the movement politically durable rather than a cartoon cult.\"},{\"text\":\"Dendryx Cantors, Qhar-Zul reburial guides, Turruk routekeepers, and some Concordants warn that copying the most successful model everywhere destroys the independent evidence and failure domains needed to correct it.\"},{\"text\":\"The school's central unresolved question is measurable: how much interoperability can be gained before translation becomes overwrite and coordination becomes Greying?\"}]",
+          "image_url": "/api/world/images/entity-image-a59316bd-a8c0-465f-a4ce-e05ab279a639.webp",
+          "image_alt": "Concordance scholars gather around a luminous unified storm chart as varied local maps sit in standardized brass frames.",
+          "image_caption": "The One-Map School"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T18:15:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:7e9d0cf2-01f6-4b37-9d2d-0e8f4e4a90b1",
+        "kind": "design_note",
+        "label": "The Paths We Do Not Tell",
+        "fields": {
+          "summary": "A Dendryx containment practice in which selected route-stories are transmitted with deliberate omissions because the missing passages correspond to an ancient junction the Dendryx believe should remain severed. Oakwyn preserves route tradition without restoring every connection; the omissions themselves become evidence in the debate over route drift.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "facts_json": "[{\"text\":\"Certain Dendryx route-stories are passed with missing passages rather than altered names or simplified translations.\"},{\"text\":\"Dendryx custodians believe the omissions correspond to an ancient junction where routes once connected regions that are now isolated.\"},{\"text\":\"The omission is treated as a living forest safeguard and cultural obligation, not as a hidden cache of treasure or power.\"},{\"text\":\"Some Dendryx dissenters question whether keeping the junction severed protects Oakwyn or merely preserves an inherited fear.\"},{\"text\":\"Concordance route concordants receive enough tradition to recognize the gap but not enough content to reconstruct the forbidden connection.\"},{\"text\":\"Stormscript readers treat repeated absence as provenance-bearing evidence when interpreting old narratives.\"}]",
+          "image_url": "/api/world/images/entity-image-3d6c0a85-35b7-48c5-ae84-2528444c140c.jpg",
+          "image_alt": "A Dendryx custodian holds a broken route cord before two canopy paths kept apart by living roots in Oakwyn.",
+          "image_caption": "The Paths We Do Not Tell"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-08T08:32:30.560Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "kind": "design_note",
+        "label": "The Silence Between Routes",
+        "fields": {
+          "summary": "A phenomenon discovered when Sylvareth celestial navigation and Turruk embodied route knowledge disagree in ways that prove both traditions locally correct. The implication is that routes themselves may drift over long periods.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "conversation",
+          "facts_json": "[{\"text\":\"Route drift is the slow movement or reconfiguration of paths that different cultures had assumed fixed.\"},{\"text\":\"Joint Sylvareth–Turruk observatories compare Turruk navigators' embodied route knowledge and separately sourced route records with celestial position.\"},{\"text\":\"Path reconcilers specialize in identifying whether a disagreement is observation error, an individual's lapse, a break in a tradition's transmission, or genuine route drift.\"},{\"text\":\"Older Emberstone may preserve fragmentary, place-bound traces of prior route positions.\"},{\"text\":\"Some missing caravans may have followed routes that had shifted out of alignment.\"},{\"text\":\"The phenomenon fuels debate over whether land, sea, sky, instruments, interpretation, or inherited route traditions are actually changing.\"},{\"text\":\"Ancient ruins sometimes stand where no current route makes sense.\"},{\"text\":\"Observatories retain unresolved mismatches as evidence; they do not normalize every tradition into one corrected route account.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-f1b66aae-933e-40d1-9d73-5cdba8e3d972.jpg",
+          "image_alt": "Two valid navigation traditions tracing routes that have drifted out of alignment across sea ice.",
+          "image_caption": "The Silence Between Routes"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:tide-witness-rite",
+        "kind": "design_note",
+        "label": "The Tide-Witness Rite",
+        "fields": {
+          "summary": "A Turruk custody and navigation practice governing the use of palantíri. A meaningful viewing requires named witnesses at each end where possible; each gives a separate spoken account, notes what the stone did not show, and places the sphere in dark rest before it may be consulted again. The rite makes a seeing-stone’s account portable without making it compulsory: a shore crew may refuse a reading that contradicts immediate tide, ash, or lived knowledge.",
+          "facts_json": "[{\"text\":\"Tide-witnesses record the question asked of a palantír, the names of viewers, the observed image, omissions or uncertainty, and any decision made from it.\"},{\"text\":\"Separate accounts are kept before they are compared; disagreement is retained as route knowledge rather than averaged away.\"},{\"text\":\"A stone must be placed in dark rest after a consequential viewing, allowing crews and local custodians time to dispute, verify, or refuse its implications.\"},{\"text\":\"The rite arose after an early convoy mistook a distant clear-water sight for a safe passage and ignored ash currents known only to shorebound Turruk.\"},{\"text\":\"One-Map advocates criticize the rite as wasteful friction and seek a continuously updated palantír route network; Turruk elders consider that ambition a path toward the Greying.\"}]",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-4387003f-1c3e-45a3-9acd-3d00aa7182c9.jpg",
+          "image_alt": "Two Turruk tide-witnesses document a dark seeing stone in a basalt cradle on a stormy volcanic shore.",
+          "image_caption": "The Tide-Witness Rite"
+        },
+        "source": {
+          "kind": "author",
+          "label": "GREYWROUGHT authoring"
+        },
+        "createdAt": "2026-08-10T12:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:8d0c9279-244a-4be2-8e49-3a15a7ccdf9a",
+        "kind": "design_note",
+        "label": "The Unburied Road",
+        "fields": {
+          "summary": "A philosophical and legal conflict between Dustvein excavation culture and Qhar-Zul leave-no-trace ethics. Both value preventing histories and obligations from being erased, but one preserves evidence by revealing it and the other sometimes preserves sites by leaving buried things undisturbed.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"Qhar-Zul reburial guides advise expeditions on sites that should be returned to the sand after study.\"},{\"text\":\"Some Dustvein scholars argue that excavation is itself an act of preservation against erosion and forgetting.\"},{\"text\":\"A desert treaty regulates graves, ancient roads, sacred windpaths, and ruins that may not be opened.\"},{\"text\":\"A black market traffics in objects removed from prohibited sites.\"},{\"text\":\"Joint expeditions sometimes grant Qhar-Zul representatives authority to mark areas that must remain untouched.\"},{\"text\":\"The dispute prevents the Sunken Dunes and Endless Dunes from collapsing into the same cultural identity.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-8f436eeb-3bcf-4433-8e16-a85e8759b99f.jpg",
+          "image_alt": "A buried ancient road caught between excavation and reburial ethics at a desert boundary.",
+          "image_caption": "The Unburied Road"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:00aafd42-a169-4afd-be6b-5a3204f04a4d",
+        "kind": "design_note",
+        "label": "The Weight of Names",
+        "fields": {
+          "summary": "A Grokka social and legal tradition in which names correspond to accepted obligations. To carry many names is to carry many responsibilities rather than merely high status.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"A Grokka may take a new name when accepting a major duty.\"},{\"text\":\"Namekeepers preserve the history and obligations attached to names.\"},{\"text\":\"A name can be surrendered when an obligation is formally relinquished.\"},{\"text\":\"Status is often associated with responsibilities successfully carried rather than wealth alone.\"},{\"text\":\"Deepbellow Stone name-tokens can mark accepted obligations.\"},{\"text\":\"Foreign diplomats or honored guests may receive temporary Grokka names tied to specific duties.\"},{\"text\":\"Publicly striking a name from stone is a severe disgrace ritual.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-f4076f36-6e12-4848-a64f-b6174c59aa2c.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T08:45:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:3c189db9-33ca-4000-96c8-b8d122d40490",
+        "kind": "race",
+        "label": "Turruk",
+        "fields": {
+          "summary": "Shellwardens of the Ember Tides. Turruk walk ancient routes between old homes, remembering safe paths, quiet shores, and the tempers of tide and ash. They use Palantir for communication and navigation.",
+          "image_url": "/api/world/images/entity-image-d0762afc-9bc3-4772-b505-2b6464244f89.png",
+          "origin": "conversation",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-06T07:49:21.779Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "race:88246e9b-4d96-47e9-a376-38af4323e5cd",
+        "kind": "race",
+        "label": "Vahku",
+        "fields": {
+          "summary": "Tide-speakers of Hahi Reef. Vahku are keepers of stories and readers of currents, and among the reef's best cooks. They would rather fix a net than fight, but threats to their people or ocean sharpen their smile. They serve as navigators, storykeepers, and diplomats; they love cooking, riddles, shell carving, and storms, and dislike arrogance, waste, and empty threats. Their everyday work centers on markets, docks, and teaching children stories.",
+          "image_url": "/api/world/images/entity-image-097c9df3-3909-47b6-8948-6ae7e9aede70.png",
+          "origin": "authoring"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-06T07:49:23.428Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "design_note:ca7568b4-a786-49a0-a46d-33f9b3e746d0",
+        "kind": "design_note",
+        "label": "Wreck Memory Dispute",
+        "fields": {
+          "summary": "A maritime legal and cultural conflict between Drekk salvage custom and Turruk ancestral-right. Drekk crews recover Emberstone from wrecks and drowned Turruk waystations; the Turruk regard route-bearing mineral traces, their lineage-held testimony, and the obligations attached to their custody as inherited communal memory rather than abandoned property. The claim concerns evidence and duty, not ownership of transferred minds.",
+          "decision_status": "draft",
+          "execution_status": "not_started",
+          "origin": "authoring",
+          "facts_json": "[{\"text\":\"Drekk specialists who recover trace-bearing Emberstone are called Ember-divers or memory salvagers.\"},{\"text\":\"Drekk salvage-right holds that objects lawfully recovered from the deep belong to those who bear the risk of recovery.\"},{\"text\":\"Turruk ancestral-right holds that route-bearing Emberstone remains lineage-held communal route testimony and obligation even when lost beneath the sea.\"},{\"text\":\"Breaking Emberstone to force access to embedded route traces is taboo among Turruk and condemned by many neutral courts because it may destroy provenance as well as the stone.\"},{\"text\":\"Neutral wreck courts arose to adjudicate disputed salvage, ancestral claims, and dangerous or disputed trace-bearing finds.\"},{\"text\":\"Drowned Turruk waystations exist beneath or near the Drowned Reach and adjoining waters.\"},{\"text\":\"The dispute is a major substantive cause of Drekk–Turruk hostility.\"},{\"text\":\"\\\"Memory salvager\\\" is occupational and ritual language; it does not imply recovery of a dead person's mind.\"},{\"text\":\"Finds that copy a person's voice or preferences, rewrite a reader, synchronize witnesses, or propagate instructions are quarantined as possible Greyrot rather than treated as ordinary Emberstone evidence.\"}]",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "image_url": "/api/world/images/entity-image-630d6beb-2c92-44c3-92f4-bc3135f33b39.png"
+        },
+        "source": {
+          "kind": "author",
+          "label": "FRAMCRAFT authoring"
+        },
+        "createdAt": "2026-08-07T08:20:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      }
+    ],
+    "relations": [
+      {
+        "id": "relationship:0411e4aa-cf3f-4cfc-9553-a85312109a65",
+        "kind": "central_to",
+        "sourceId": "resource:d506c8f6-304b-4c7b-8346-755f2f94541d",
+        "targetId": "design_note:ca7568b4-a786-49a0-a46d-33f9b3e746d0",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "summary": "Emberstone is central to the Wreck Memory Dispute because its partial route traces carry lineage-held evidence and obligations while remaining physically recoverable salvage."
+        },
+        "createdAt": "2026-08-07T08:20:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:061b3dbd-2cad-4585-94a9-7e3216e815e7",
+        "kind": "uses",
+        "sourceId": "race:3c189db9-33ca-4000-96c8-b8d122d40490",
+        "targetId": "resource:bf66883a-4873-47c5-9d06-b2cbe58c0f8a",
+        "fields": {
+          "summary": "The Turruk use Starlight Salt to enhance their connection to the tides and the ancient routes they navigate.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:05:28.245Z",
+        "createdBy": "tom@plangrep.com",
+        "retiredAt": "2026-08-06T18:34:40.168Z"
+      },
+      {
+        "id": "relationship:0e0406bc-076c-4665-8f1d-4cefe8ddd93e",
+        "kind": "practices",
+        "sourceId": "race:f630379e-0394-463b-a372-c2a45a7f4803",
+        "targetId": "design_note:ca7568b4-a786-49a0-a46d-33f9b3e746d0",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:20:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:106f7098-4743-4bf0-973c-e4c507be1100",
+        "kind": "affected_by",
+        "sourceId": "setting:91bf880f-c87f-4fd6-a245-270e7e56afc7",
+        "targetId": "design_note:8d0c9279-244a-4be2-8e49-3a15a7ccdf9a",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:13a8994e-449e-46dd-b78f-3c30dca1194e",
+        "kind": "inhabits",
+        "sourceId": "race:8929d9fb-dc0a-4d6b-87da-9270cc3e53c7",
+        "targetId": "setting:91bf880f-c87f-4fd6-a245-270e7e56afc7",
+        "fields": {
+          "summary": "The Siltforged inhabit the Sunken Dunes, where they tunnel, build, guard caravans, and read changing strata beneath shifting sand.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T00:28:14.140Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:14b248f2-cdce-4c05-a758-d01c69a30224",
+        "kind": "affected_by",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:8d0c9279-244a-4be2-8e49-3a15a7ccdf9a",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:17ddfc7b-442a-4fca-b9c5-1679ba7fc97d",
+        "kind": "contributes_route_tradition_to",
+        "sourceId": "race:549b3ece-72b6-49ff-977b-9bba0d72994d",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:1b2c6ebe-d855-40a9-a300-019c8a364efb",
+        "kind": "affected_by",
+        "sourceId": "setting:5da28cb3-5f1f-4662-8ae7-71c01e45d32f",
+        "targetId": "design_note:8d0c9279-244a-4be2-8e49-3a15a7ccdf9a",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:1c30d1eb-a47f-4765-9ddd-06aceece460a",
+        "kind": "preserves_historical_routes_relevant_to",
+        "sourceId": "design_note:4113005d-51b3-4ecf-819a-a2d103a955ef",
+        "targetId": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:1f9d795d-a0d9-4ac4-bb86-6bc269f6795f",
+        "kind": "used_in",
+        "sourceId": "resource:b1c63962-2511-4a74-a7ac-a3edb6c505a5",
+        "targetId": "design_note:00aafd42-a169-4afd-be6b-5a3204f04a4d",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:45:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:1fd88bc9-8606-4d97-a6c2-a4b3c6c0316d",
+        "kind": "used_in",
+        "sourceId": "resource:b1c63962-2511-4a74-a7ac-a3edb6c505a5",
+        "targetId": "design_note:4ef6b26b-1a14-42ad-accf-097487a0ad11",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:2075a4d7-02b5-4cf8-bf60-cbd03bc642ff",
+        "kind": "uses",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:4ef6b26b-1a14-42ad-accf-097487a0ad11",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:25f80c99-a365-4046-8fa3-3d5295c13cdd",
+        "kind": "uses",
+        "sourceId": "setting:fd663671-c623-49ad-a690-7cfa5ae2766c",
+        "targetId": "design_note:38f12b5d-6c7e-49d0-8deb-914e1510023c",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:289b7c17-8059-4399-9961-2931bac87fc2",
+        "kind": "inhabits",
+        "sourceId": "race:549b3ece-72b6-49ff-977b-9bba0d72994d",
+        "targetId": "setting:b778ecf3-b6bf-4d29-bab0-925ea7d49a42",
+        "fields": {
+          "summary": "The Dendryx inhabit Oakwyn, whose living tree-cities grow around their nocturnal communities, oral traditions, and protected forest routes.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-06T20:33:53.592Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:2a567276-d752-48e2-a2e4-67c59a092358",
+        "kind": "practices",
+        "sourceId": "race:48cf497a-ad60-46f9-b9e1-5640c66cfc46",
+        "targetId": "design_note:af557181-79ee-42e0-bce1-d3cb614b83b6",
+        "fields": {
+          "summary": "Grokka carriers, haulers, and namekeepers practice and authenticate Name-Bound Freight customs.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:2c4b6d8e-4f90-4a1b-9d73-1e5c8b2a6f01",
+        "kind": "maintains",
+        "sourceId": "race:549b3ece-72b6-49ff-977b-9bba0d72994d",
+        "targetId": "design_note:7e9d0cf2-01f6-4b37-9d2d-0e8f4e4a90b1",
+        "fields": {
+          "summary": "Dendryx custodians maintain The Paths We Do Not Tell by preserving deliberate gaps in route-stories and teaching when an omission is a safeguard rather than a missing fact.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:33:23.972Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:2ed3e4b2-b269-4eac-9e7c-a9ed8b25ec3e",
+        "kind": "preserves_records_through",
+        "sourceId": "design_note:898412bd-abfa-46ef-91b7-05969d8891b2",
+        "targetId": "design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17",
+        "fields": {
+          "summary": "The Dead Harbor Compact uses certified Last Manifests to preserve evidence of failed voyages, unresolved duties, and shared losses.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:30eb0034-9c36-4213-b799-0134675c3114",
+        "kind": "adjudicates_or_documents",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:ca7568b4-a786-49a0-a46d-33f9b3e746d0",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:20:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:333f4926-274c-48e4-b153-b28c6cae99f6",
+        "kind": "adapts_custom_from",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:00aafd42-a169-4afd-be6b-5a3204f04a4d",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:45:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:33870200-7422-41c4-b02f-35377d1539c1",
+        "kind": "maintains",
+        "sourceId": "race:dd03329d-cfae-4fe4-989b-365458741969",
+        "targetId": "design_note:4113005d-51b3-4ecf-819a-a2d103a955ef",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:45:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:3d5e7f9a-1b2c-4e6d-8f90-2a4b6c8d0e12",
+        "kind": "contains_sites_relevant_to",
+        "sourceId": "setting:b778ecf3-b6bf-4d29-bab0-925ea7d49a42",
+        "targetId": "design_note:7e9d0cf2-01f6-4b37-9d2d-0e8f4e4a90b1",
+        "fields": {
+          "summary": "Oakwyn's living tree-cities, sacred groves, and shifting canopy routes are the places where the Dendryx preserve and transmit the deliberate omissions.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:33:23.972Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:3f6b03ea-db72-4ede-96a8-28cd7bc00d95",
+        "kind": "resource",
+        "sourceId": "race:3c189db9-33ca-4000-96c8-b8d122d40490",
+        "targetId": "resource:d506c8f6-304b-4c7b-8346-755f2f94541d",
+        "fields": {
+          "summary": "Turruk navigators use trained, embodied judgment to interpret Emberstone's partial, place-bound route and tidal traces; the stone can inform but never replace the named navigator or an independently preserved route tradition.",
+          "origin": "conversation",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-06T11:03:44.982Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:41d2330d-6856-4a84-940d-fe5e32956335",
+        "kind": "co_develops",
+        "sourceId": "race:549b3ece-72b6-49ff-977b-9bba0d72994d",
+        "targetId": "design_note:38f12b5d-6c7e-49d0-8deb-914e1510023c",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:433031bb-9182-4601-9860-c0dc85d75641",
+        "kind": "supports_route_observation_for",
+        "sourceId": "design_note:4ef6b26b-1a14-42ad-accf-097487a0ad11",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:4491a9f6-06af-4787-8a85-0ef84b968e7b",
+        "kind": "mines",
+        "sourceId": "race:48cf497a-ad60-46f9-b9e1-5640c66cfc46",
+        "targetId": "resource:b1c63962-2511-4a74-a7ac-a3edb6c505a5",
+        "fields": {
+          "summary": "The Grokka mine Deepbellow Stone as a valuable resource for their craftsmanship.",
+          "origin": "conversation",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-06T18:38:01.223Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:46f5725a-958e-4978-aa74-bc0edf88a1cd",
+        "kind": "consults",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17",
+        "fields": {
+          "summary": "Route concordants consult historical Last Manifests when reconstructing vanished passages, changed hazards, and disputed route histories.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:4bfe04ac-1a4f-4e96-a954-469d9c0494c7",
+        "kind": "inhabits",
+        "sourceId": "race:dd03329d-cfae-4fe4-989b-365458741969",
+        "targetId": "setting:67825471-921b-44bc-8c20-b6b435667475",
+        "fields": {
+          "summary": "The Sylvareth live on the Glacier Coast, watching tides, storms, oath-bearing ice, and the silent paths between stars.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:4e5d741f-2edd-484f-8a6f-26ff4c01ced4",
+        "kind": "contributes_route_tradition_to",
+        "sourceId": "race:167c3400-f2c6-4b2a-9447-4bc0c418c1aa",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:4e6f8a0b-2c3d-5f7a-9b1c-3d5e7f9a1b23",
+        "kind": "constrains",
+        "sourceId": "design_note:7e9d0cf2-01f6-4b37-9d2d-0e8f4e4a90b1",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "summary": "The deliberate omissions constrain Concordance composite charts: route concordants can recognize an old junction without reconstructing or safely reopening the connection.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:33:23.972Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:534e0875-9991-4552-84fd-830e4cd6ba5d",
+        "kind": "co_develops",
+        "sourceId": "race:f6eacc3a-69a4-4ca6-b894-a2b7f966cde7",
+        "targetId": "design_note:f6fd1361-61ff-4636-9166-0a50c740f627",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:5416cd87-a423-41f8-8653-92bcfe25c365",
+        "kind": "participates_in",
+        "sourceId": "design_note:796f273f-8125-4193-b1b3-8485f4d3b383",
+        "targetId": "design_note:8d0c9279-244a-4be2-8e49-3a15a7ccdf9a",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:584b15ff-30e9-4a73-b4cf-00854fa0f50f",
+        "kind": "practices",
+        "sourceId": "race:f630379e-0394-463b-a372-c2a45a7f4803",
+        "targetId": "design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17",
+        "fields": {
+          "summary": "Drekk communities preserve Last Manifests as part of funerary remembrance and duty accounting.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:595bea0c-5595-4e09-8de4-427b96e49f5c",
+        "kind": "reveals_historical_routes_relevant_to",
+        "sourceId": "design_note:ca7568b4-a786-49a0-a46d-33f9b3e746d0",
+        "targetId": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:5bbb99e6-9290-44e9-afac-8b5161d47ee2",
+        "kind": "contributes_route_tradition_to",
+        "sourceId": "race:3c189db9-33ca-4000-96c8-b8d122d40490",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:5c7c32e7-24d1-4c46-bf98-74968ba37452",
+        "kind": "uses",
+        "sourceId": "design_note:88a01d78-0071-4ac5-8194-ff899289cef2",
+        "targetId": "design_note:38f12b5d-6c7e-49d0-8deb-914e1510023c",
+        "fields": {
+          "summary": "Forecast Bonds use Stormscript as long-baseline evidence for pricing unusual weather risk.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:5cdddbc3-3bde-4aa4-a1be-10c1d013a55f",
+        "kind": "influences_diplomatic_credentials_of",
+        "sourceId": "design_note:00aafd42-a169-4afd-be6b-5a3204f04a4d",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:45:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:5d190174-9f55-4a48-bde2-13023875544a",
+        "kind": "practices",
+        "sourceId": "race:48cf497a-ad60-46f9-b9e1-5640c66cfc46",
+        "targetId": "design_note:00aafd42-a169-4afd-be6b-5a3204f04a4d",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:45:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:5dffd989-2550-446b-aa6a-b8ef212b087b",
+        "kind": "uses",
+        "sourceId": "race:3c189db9-33ca-4000-96c8-b8d122d40490",
+        "targetId": "resource:8374dc59-2597-4012-a25a-7fbf32061930",
+        "fields": {
+          "summary": "Turruk use Palantir for communication and navigation.",
+          "origin": "conversation",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-11T03:54:36.262Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:5f7a9b1c-3d5e-6f8a-0b2c-4e6f8a0b2c34",
+        "kind": "preserves_evidence_for",
+        "sourceId": "design_note:7e9d0cf2-01f6-4b37-9d2d-0e8f4e4a90b1",
+        "targetId": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "fields": {
+          "summary": "The pattern of missing passages preserves evidence for The Silence Between Routes: absence may mark a severed or drifting connection rather than a lost piece of storytelling.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:33:23.972Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:61783d94-553f-42ea-89f8-c48f7904bcf0",
+        "kind": "recognizes_credentials_from",
+        "sourceId": "setting:96ba05b3-8e10-435c-89bf-ee871d748d06",
+        "targetId": "design_note:af557181-79ee-42e0-bce1-d3cb614b83b6",
+        "fields": {
+          "summary": "New Haven's dock crews and freight houses recognize authenticated freight-names when handling cargo arriving from Grokka-linked trade networks.",
+          "origin": "conversation",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T02:51:56.413Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:66ea3eb4-c76b-4204-8b6f-52b9f3667ca2",
+        "kind": "adapts_custom_from",
+        "sourceId": "design_note:af557181-79ee-42e0-bce1-d3cb614b83b6",
+        "targetId": "design_note:00aafd42-a169-4afd-be6b-5a3204f04a4d",
+        "fields": {
+          "summary": "Name-Bound Freight adapts the Grokka Weight of Names tradition from civic obligation into cargo custody and transport law.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:6a8b0c2d-4e6f-7a9b-1c3d-5e7f9a1b2c45",
+        "kind": "cross_checked_against",
+        "sourceId": "design_note:38f12b5d-6c7e-49d0-8deb-914e1510023c",
+        "targetId": "design_note:7e9d0cf2-01f6-4b37-9d2d-0e8f4e4a90b1",
+        "fields": {
+          "summary": "Stormscript interpretation is cross-checked against Dendryx omissions so repeated absence is treated as deliberate provenance, not simply missing weather language.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:33:23.972Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:6f1a9e9b-1d2f-4e4b-9c22-4c1c6fd3a4a1",
+        "kind": "contains_sites_relevant_to",
+        "sourceId": "setting:67825471-921b-44bc-8c20-b6b435667475",
+        "targetId": "design_note:4113005d-51b3-4ecf-819a-a2d103a955ef",
+        "fields": {
+          "summary": "Reserved treaty glaciers and frozen citadels on the Glacier Coast physically host the Oath Ice Archive; retreat, calving, and seasonal exposure can reveal or threaten oath-bearing layers.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:13:11.856Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:70b002b6-8da0-490e-8192-a0d4e0e1dcfc",
+        "kind": "prizes",
+        "sourceId": "race:48cf497a-ad60-46f9-b9e1-5640c66cfc46",
+        "targetId": "resource:b1c63962-2511-4a74-a7ac-a3edb6c505a5",
+        "fields": {
+          "summary": "The Grokka people prize Deepbellow Stone for its durability and versatility in craftsmanship.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:41:25.108Z",
+        "createdBy": "tom@plangrep.com",
+        "retiredAt": "2026-08-06T18:38:27.165Z"
+      },
+      {
+        "id": "relationship:74417566-610c-4433-8078-c76704b4a980",
+        "kind": "contributes_route_tradition_to",
+        "sourceId": "race:f6eacc3a-69a4-4ca6-b894-a2b7f966cde7",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:74b5e535-3c4c-49f7-a45d-8194e7898c27",
+        "kind": "enemy",
+        "sourceId": "race:f630379e-0394-463b-a372-c2a45a7f4803",
+        "targetId": "race:3c189db9-33ca-4000-96c8-b8d122d40490",
+        "fields": {
+          "origin": "conversation",
+          "summary": "The Drekk–Turruk enmity is rooted largely in the Wreck Memory Dispute. Drekk salvagers claim recovery-right over Emberstone and objects raised from drowned Turruk waystations, while Turruk communities regard route-bearing Emberstone as lineage-held ancestral route testimony and obligation that cannot become salvage property. Raids, seizures, retaliatory expeditions, and disputed wreck claims have hardened this legal and cultural conflict into open hostility.",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-06T08:51:33.034Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:765a2695-dce5-4528-976d-e8d210188b66",
+        "kind": "provides_long_range_records_for",
+        "sourceId": "race:549b3ece-72b6-49ff-977b-9bba0d72994d",
+        "targetId": "design_note:88a01d78-0071-4ac5-8194-ff899289cef2",
+        "fields": {
+          "summary": "Dendryx narrative archives provide generational weather records that can materially alter Forecast Bond risk estimates.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:7b337779-e023-4748-9c34-941aee97d3c3",
+        "kind": "found_in",
+        "sourceId": "resource:a5ca3cef-363b-4e12-b34e-464e173e4c4e",
+        "targetId": "setting:8f4759f6-fec8-4df9-a01b-30b2c7ffc7de",
+        "fields": {
+          "summary": "Grokka Ore is found in the Hollow Reach, prized by the Grokka for its durability and versatility.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com",
+        "retiredAt": "2026-08-06T18:36:47.486Z"
+      },
+      {
+        "id": "relationship:7c8d1bb4-7e93-4b53-93e7-2d8f9e6c6b02",
+        "kind": "reveals_historical_routes_relevant_to",
+        "sourceId": "design_note:4113005d-51b3-4ecf-819a-a2d103a955ef",
+        "targetId": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "fields": {
+          "summary": "Newly exposed oath layers and buried route traces provide dated evidence relevant to the Silence Between Routes, but their alignment with competing route traditions remains unresolved.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:13:11.856Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:7cd032ca-a493-4456-97a8-95e1617f7461",
+        "kind": "co_develops",
+        "sourceId": "race:f6eacc3a-69a4-4ca6-b894-a2b7f966cde7",
+        "targetId": "design_note:38f12b5d-6c7e-49d0-8deb-914e1510023c",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:830748db-4b48-4f30-9bf8-a5361acaea19",
+        "kind": "co_develops",
+        "sourceId": "race:88246e9b-4d96-47e9-a376-38af4323e5cd",
+        "targetId": "design_note:4ef6b26b-1a14-42ad-accf-097487a0ad11",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:834df251-72cb-47a6-9d6d-8ea104186900",
+        "kind": "known_for",
+        "sourceId": "setting:4aa4f51f-a747-47fa-9045-b173d4116900",
+        "targetId": "design_note:f6fd1361-61ff-4636-9166-0a50c740f627",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:83e87d2a-de9c-4aed-8993-319fcb2423e6",
+        "kind": "source_of",
+        "sourceId": "setting:8f4759f6-fec8-4df9-a01b-30b2c7ffc7de",
+        "targetId": "resource:b1c63962-2511-4a74-a7ac-a3edb6c505a5",
+        "fields": {
+          "summary": "The Hollow Reach is a source of Deepbellow Stone.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:41:25.108Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:85a26589-1213-4fad-ac9e-de0181bbc23f",
+        "kind": "provides_transport_for",
+        "sourceId": "design_note:898412bd-abfa-46ef-91b7-05969d8891b2",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:876ffe8c-ebfa-45ac-8bc9-6f2ebf57877d",
+        "kind": "contains_sites_relevant_to",
+        "sourceId": "setting:81cb2b55-113e-4644-b6d4-851d85b531ca",
+        "targetId": "design_note:ca7568b4-a786-49a0-a46d-33f9b3e746d0",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:20:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:8893a40c-630e-4b5f-bc4f-0f24143a9e95",
+        "kind": "debates",
+        "sourceId": "race:167c3400-f2c6-4b2a-9447-4bc0c418c1aa",
+        "targetId": "design_note:8d0c9279-244a-4be2-8e49-3a15a7ccdf9a",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:88f08f63-4ec1-4c62-b90b-5ba20472c2f1",
+        "kind": "contains",
+        "sourceId": "race:dd03329d-cfae-4fe4-989b-365458741969",
+        "targetId": "design_note:4113005d-51b3-4ecf-819a-a2d103a955ef",
+        "fields": {
+          "origin": "conversation",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:45:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:89167ac7-f3fe-49e5-a472-8df4d6730f00",
+        "kind": "inhabits",
+        "sourceId": "race:f6eacc3a-69a4-4ca6-b894-a2b7f966cde7",
+        "targetId": "setting:fd663671-c623-49ad-a690-7cfa5ae2766c",
+        "fields": {
+          "summary": "The Nimbri live in the Glass Reaches, tending storms and keeping skyways clear.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:8a3b4f11-4d31-4e80-bd93-6f9e2a7c5d03",
+        "kind": "provides_long_range_records_for",
+        "sourceId": "race:dd03329d-cfae-4fe4-989b-365458741969",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "summary": "Sylvareth moonwardens provide dated ice-layer records, tidal observations, and star-path logs to Concordance route concordants for comparison with other navigation traditions.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:13:11.856Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:8b059a9a-92de-4665-95ff-6bd516e21b29",
+        "kind": "inhabits",
+        "sourceId": "race:420ca337-a27f-4400-bd24-995d4f49de5d",
+        "targetId": "setting:91bf880f-c87f-4fd6-a245-270e7e56afc7",
+        "fields": {
+          "summary": "The Dustvein live in the Sunken Dunes, following the old sun and reading sandstone.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:8c6d9119-8341-4d29-b76d-f00b7144cdd0",
+        "kind": "consults",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:4113005d-51b3-4ecf-819a-a2d103a955ef",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:45:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:924fca5b-cd18-4d3e-8bf3-0573fb39433d",
+        "kind": "inhabits",
+        "sourceId": "race:88246e9b-4d96-47e9-a376-38af4323e5cd",
+        "targetId": "setting:4aa4f51f-a747-47fa-9045-b173d4116900",
+        "fields": {
+          "summary": "The Vahku live on Hahi Reef, keeping stories and reading currents.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:93a609cf-b691-4b33-a4cd-52e56fb5bdbf",
+        "kind": "contests",
+        "sourceId": "race:3c189db9-33ca-4000-96c8-b8d122d40490",
+        "targetId": "design_note:ca7568b4-a786-49a0-a46d-33f9b3e746d0",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:20:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:99ef2327-d24d-42ba-ab01-e7f1e9bd637c",
+        "kind": "maintains",
+        "sourceId": "race:f630379e-0394-463b-a372-c2a45a7f4803",
+        "targetId": "design_note:898412bd-abfa-46ef-91b7-05969d8891b2",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:9a86a58b-7dbb-47fd-99d8-ae8a88d7a669",
+        "kind": "adopts",
+        "sourceId": "setting:4aa4f51f-a747-47fa-9045-b173d4116900",
+        "targetId": "design_note:4ef6b26b-1a14-42ad-accf-097487a0ad11",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:9d2de4f3-28a7-4c4a-91c2-6f9c7b5b2d11-to-grokka",
+        "kind": "connected_to",
+        "sourceId": "region:9d2de4f3-28a7-4c4a-91c2-6f9c7b5b2d11",
+        "targetId": "race:48cf497a-ad60-46f9-b9e1-5640c66cfc46",
+        "fields": {
+          "summary": "The Grokka use the Ashen Stair as a volcanic trade route for moving stonework, forged goods, and raw materials between their deep halls and surface markets.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T00:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:9d42c6e8-2f75-4a0b-8c61-3e7b5d1f4a04",
+        "kind": "cross_checked_against",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:4113005d-51b3-4ecf-819a-a2d103a955ef",
+        "fields": {
+          "summary": "Concordance composite charts are cross-checked against dated oath ice; mismatches are retained as competing evidence rather than treated as proof that either route tradition is false.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:13:11.856Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:9da372e2-16b7-498b-a04f-7807ea5f6611",
+        "kind": "preserves_evidence_for",
+        "sourceId": "resource:d506c8f6-304b-4c7b-8346-755f2f94541d",
+        "targetId": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com",
+          "summary": "Older Emberstone can preserve partial, place-bound traces of former route positions as evidence for the Silence Between Routes, but provenance, damage, and conflicting readings limit what any one stone can establish."
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:9dccc51c-dff5-4145-bda8-5ccefa532813",
+        "kind": "center_of",
+        "sourceId": "setting:81cb2b55-113e-4644-b6d4-851d85b531ca",
+        "targetId": "design_note:898412bd-abfa-46ef-91b7-05969d8891b2",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:a2edaecf-2df1-455e-b472-8f47bfd4e21e",
+        "kind": "connected_to",
+        "sourceId": "setting:96ba05b3-8e10-435c-89bf-ee871d748d06",
+        "targetId": "setting:8f4759f6-fec8-4df9-a01b-30b2c7ffc7de",
+        "fields": {
+          "summary": "New Haven maintains strong cultural and commercial ties to the Hollow Reach, from which many Kaelen traditions of labor, stonework, and communal responsibility descend.",
+          "origin": "conversation",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T02:51:56.413Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:a6976e3a-f8c9-4e65-8e09-b7552ff894a2",
+        "kind": "recognizes_credentials_from",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:af557181-79ee-42e0-bce1-d3cb614b83b6",
+        "fields": {
+          "summary": "The Concordance of Lost Ways recognizes authenticated freight-names in some safe-passage and route-custody arrangements.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:ad262ac0-9a9d-45d6-ab80-b53cdfab384b",
+        "kind": "inhabits",
+        "sourceId": "race:3c189db9-33ca-4000-96c8-b8d122d40490",
+        "targetId": "setting:3a7f6353-96e7-4e77-be6e-408ea6f9d00a",
+        "fields": {
+          "summary": "The Turruk walk ancient routes in the Ember Tides, remembering safe paths and quiet shores.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:ad80d6e7-235c-4a0e-a721-e9dab01b9a2a",
+        "kind": "inhabits",
+        "sourceId": "race:48cf497a-ad60-46f9-b9e1-5640c66cfc46",
+        "targetId": "setting:8f4759f6-fec8-4df9-a01b-30b2c7ffc7de",
+        "fields": {
+          "summary": "The Grokka live in the Hollow Reach, carving their home from patient stone.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:ashen-stair-to-cinderway-duty-ledger-v2",
+        "kind": "uses",
+        "sourceId": "region:9d2de4f3-28a7-4c4a-91c2-6f9c7b5b2d11",
+        "targetId": "design_note:482d95d2-a0e9-4874-867c-d6d285fde3c2",
+        "fields": {
+          "summary": "Ashen Stair route authorities use the Cinderway Duty Ledger to record ashfall conditions, pass closures, and custody handoffs along volcanic terraces and ash-cut passes.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:12:31.040Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:b00541a5-10ce-4c43-a537-14af33605c98",
+        "kind": "inhabits",
+        "sourceId": "race:167c3400-f2c6-4b2a-9447-4bc0c418c1aa",
+        "targetId": "setting:5da28cb3-5f1f-4662-8ae7-71c01e45d32f",
+        "fields": {
+          "summary": "The Qhar-Zul wander the Endless Dunes, guided by sun, stars, and the heartbeat of the world below.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:b009f859-fe5e-4580-9d8b-db759ecb23f3",
+        "kind": "studies",
+        "sourceId": "race:dd03329d-cfae-4fe4-989b-365458741969",
+        "targetId": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "fields": {
+          "origin": "conversation",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:b058c654-4440-4495-af51-63fe9b42272f",
+        "kind": "contains_sites_relevant_to",
+        "sourceId": "setting:3a7f6353-96e7-4e77-be6e-408ea6f9d00a",
+        "targetId": "design_note:ca7568b4-a786-49a0-a46d-33f9b3e746d0",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:20:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:b0d421b2-097b-4c3c-aa9a-2044d1026324",
+        "kind": "mines",
+        "sourceId": "race:48cf497a-ad60-46f9-b9e1-5640c66cfc46",
+        "targetId": "resource:a5ca3cef-363b-4e12-b34e-464e173e4c4e",
+        "fields": {
+          "summary": "The Grokka mine Grokka Ore, utilizing it in their craftsmanship and construction.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:06:55.384Z",
+        "createdBy": "tom@plangrep.com",
+        "retiredAt": "2026-08-06T18:36:47.486Z"
+      },
+      {
+        "id": "relationship:b2e1a744-d6cd-4d49-b16d-5cb187f6108f",
+        "kind": "supplies_technology_for",
+        "sourceId": "setting:fd663671-c623-49ad-a690-7cfa5ae2766c",
+        "targetId": "design_note:f6fd1361-61ff-4636-9166-0a50c740f627",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:b2fbb604-53df-4873-aab9-f2f8c137ad1f",
+        "kind": "allied",
+        "sourceId": "race:420ca337-a27f-4400-bd24-995d4f49de5d",
+        "targetId": "race:8929d9fb-dc0a-4d6b-87da-9270cc3e53c7",
+        "fields": {
+          "origin": "conversation",
+          "summary": "The Dustvein and Siltforged, both from the Sunken Dunes, have a long history of cooperation and mutual respect, often working together on delving and excavation projects, sharing knowledge and resources to uncover the secrets of the ancient dunes."
+        },
+        "createdAt": "2026-08-06T08:17:05.919Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:b76c4a57-3156-47b1-ab04-02cb6079806a",
+        "kind": "uses",
+        "sourceId": "setting:96ba05b3-8e10-435c-89bf-ee871d748d06",
+        "targetId": "resource:b1c63962-2511-4a74-a7ac-a3edb6c505a5",
+        "fields": {
+          "summary": "New Haven imports and works Deepbellow Stone for seawalls, quay foundations, heavy workshops, and other structures expected to endure harsh coastal conditions.",
+          "origin": "conversation",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T02:51:56.413Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:ba6b3e79-eedd-4e1f-ab2e-f80515d53802",
+        "kind": "used_in",
+        "sourceId": "resource:b1c63962-2511-4a74-a7ac-a3edb6c505a5",
+        "targetId": "design_note:af557181-79ee-42e0-bce1-d3cb614b83b6",
+        "fields": {
+          "summary": "Deepbellow Stone is carved into durable freight-name tokens that record accepted transport obligations.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:bea6b096-9b91-4c54-a9ab-bc2c1e17ffce",
+        "kind": "source_region_for",
+        "sourceId": "setting:8f4759f6-fec8-4df9-a01b-30b2c7ffc7de",
+        "targetId": "design_note:4ef6b26b-1a14-42ad-accf-097487a0ad11",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:c6cff5e6-287e-49c9-a6fb-7de41ee46397",
+        "kind": "intersects_with",
+        "sourceId": "design_note:ca7568b4-a786-49a0-a46d-33f9b3e746d0",
+        "targetId": "design_note:898412bd-abfa-46ef-91b7-05969d8891b2",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:ca350411-db33-4862-8f6c-e9b975e36814",
+        "kind": "prices_risk_for",
+        "sourceId": "design_note:88a01d78-0071-4ac5-8194-ff899289cef2",
+        "targetId": "design_note:898412bd-abfa-46ef-91b7-05969d8891b2",
+        "fields": {
+          "summary": "Forecast Bonds provide weather-indexed pricing and disclosure rules for the Dead Harbor Compact's maritime risk and duty bonds.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:caa6140c-359f-4c3c-ab90-1d04e4089025",
+        "kind": "provides_evidence_for",
+        "sourceId": "design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17",
+        "targetId": "design_note:ca7568b4-a786-49a0-a46d-33f9b3e746d0",
+        "fields": {
+          "summary": "Last Manifests provide posthumous evidence in wreck claims involving cargo custody, route-bearing objects, and disputed salvage rights.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:cab5a6db-079a-49cf-89a2-bdbbf36b1c38",
+        "kind": "contributes_route_tradition_to",
+        "sourceId": "race:dd03329d-cfae-4fe4-989b-365458741969",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "origin": "conversation",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:cinderway-duty-ledger-adapts-name-bound-freight-v2",
+        "kind": "adapts_custom_from",
+        "sourceId": "design_note:482d95d2-a0e9-4874-867c-d6d285fde3c2",
+        "targetId": "design_note:af557181-79ee-42e0-bce1-d3cb614b83b6",
+        "fields": {
+          "summary": "The Cinderway Duty Ledger adapts Name-Bound Freight into a seasonal chain of accountable route and labor handoffs rather than a single cargo acceptance.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:12:31.040Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:cinderway-duty-ledger-evidence-silence-between-routes-v2",
+        "kind": "contributes_evidence_to",
+        "sourceId": "design_note:482d95d2-a0e9-4874-867c-d6d285fde3c2",
+        "targetId": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "fields": {
+          "summary": "Long-running Cinderway records can corroborate or challenge claims that volcanic routes have drifted or closed, or that independently maintained route traditions have diverged over time.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:12:31.040Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:cinderway-ledger-preserves-through-oath-ice",
+        "kind": "preserves_records_through",
+        "sourceId": "design_note:482d95d2-a0e9-4874-867c-d6d285fde3c2",
+        "targetId": "design_note:4113005d-51b3-4ecf-819a-a2d103a955ef",
+        "fields": {
+          "summary": "Selected Cinderway Duty Ledger entries can be preserved through the Oath Ice Archive when volcanic-route disputes become treaty, succession, or long-term passage evidence.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:13:11.856Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:concordance-implements-memory-vocabulary",
+        "kind": "implements",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:memory-vocabulary",
+        "fields": {
+          "summary": "The Concordance can embody this vocabulary by translating among distinct traditions while retaining provenance, contradictions, deliberate omissions, and local custody.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:05:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:d46ba36a-a139-4d5e-bc83-61c0714be992",
+        "kind": "found_in",
+        "sourceId": "resource:d506c8f6-304b-4c7b-8346-755f2f94541d",
+        "targetId": "setting:3a7f6353-96e7-4e77-be6e-408ea6f9d00a",
+        "fields": {
+          "summary": "Emberstone is found in the Ember Tides, prized for its ability to amplify the Turruk's connection to the tides.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:d4a0b096-c189-41b4-b872-5c24347836ac",
+        "kind": "studies",
+        "sourceId": "race:3c189db9-33ca-4000-96c8-b8d122d40490",
+        "targetId": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:d75b3d93-745c-47cc-a82c-8ebbd00ef4cf",
+        "kind": "cross_checked_against",
+        "sourceId": "design_note:8017c026-aa1c-4ada-8aae-d5db1f339b17",
+        "targetId": "resource:d506c8f6-304b-4c7b-8346-755f2f94541d",
+        "fields": {
+          "summary": "Last Manifests may be cross-checked against partial, place-bound route traces read from Emberstone recovered from wrecks; contradictions remain evidence requiring investigation rather than being automatically reconciled.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:dc8494b1-d397-4b9d-96e6-0e5fc6a7af58",
+        "kind": "recognized_by",
+        "sourceId": "design_note:af557181-79ee-42e0-bce1-d3cb614b83b6",
+        "targetId": "design_note:898412bd-abfa-46ef-91b7-05969d8891b2",
+        "fields": {
+          "summary": "The Dead Harbor Compact recognizes some freight-names as evidence of accepted cargo duty and succession obligations.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:dde0be5b-8274-4348-bb75-b1df07ab7e67",
+        "kind": "inhabits",
+        "sourceId": "race:f630379e-0394-463b-a372-c2a45a7f4803",
+        "targetId": "setting:81cb2b55-113e-4644-b6d4-851d85b531ca",
+        "fields": {
+          "summary": "The Drekk serve the deep in the Drowned Reach.",
+          "origin": "conversation"
+        },
+        "createdAt": "2026-08-06T11:18:10.984Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:deepbellow-stone-used-in-cinderway-duty-ledger-v2",
+        "kind": "used_in",
+        "sourceId": "resource:b1c63962-2511-4a74-a7ac-a3edb6c505a5",
+        "targetId": "design_note:482d95d2-a0e9-4874-867c-d6d285fde3c2",
+        "fields": {
+          "summary": "Deepbellow Stone is carved into witness tokens that preserve cargo transfers, route conditions, and accepted obligations in the Cinderway Duty Ledger.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:12:31.040Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:difference-quote-warns-bounded-agents",
+        "kind": "warns_against_convergence_in",
+        "sourceId": "lore_quote:difference-approached-zero",
+        "targetId": "design_note:bounded-embodied-agents",
+        "fields": {
+          "summary": "The old fragment warns that useful coordination becomes existentially dangerous when meaningful difference and independent correction approach zero.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:05:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:e0059c58-4da2-4e82-bd6a-7fb8aed0158c",
+        "kind": "inhabits",
+        "sourceId": "race:a0691853-7173-4bac-82cb-bfdf1a605992",
+        "targetId": "setting:96ba05b3-8e10-435c-89bf-ee871d748d06",
+        "fields": {
+          "summary": "The Kaelen established New Haven as a coastal community organized around docks, repair work, hauling, fishing, and crew-family life.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T02:51:18.243Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:e1816fcc-0090-4543-a07b-6f596d3bedaa",
+        "kind": "contributes_evidence_to",
+        "sourceId": "design_note:38f12b5d-6c7e-49d0-8deb-914e1510023c",
+        "targetId": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:e4cbf53c-717a-462a-be6e-e4a97451e707",
+        "kind": "provides_forecasts_for",
+        "sourceId": "race:f6eacc3a-69a4-4ca6-b894-a2b7f966cde7",
+        "targetId": "design_note:88a01d78-0071-4ac5-8194-ff899289cef2",
+        "fields": {
+          "summary": "Nimbri forecasters provide instrument readings and storm models used in Forecast Bond certification.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:e755390b-ae73-468a-8110-8c87a669cb18",
+        "kind": "uses",
+        "sourceId": "setting:b778ecf3-b6bf-4d29-bab0-925ea7d49a42",
+        "targetId": "design_note:38f12b5d-6c7e-49d0-8deb-914e1510023c",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:e8fdcb01-774e-4e1f-8266-d1cba4bd0b12",
+        "kind": "debates",
+        "sourceId": "race:420ca337-a27f-4400-bd24-995d4f49de5d",
+        "targetId": "design_note:8d0c9279-244a-4be2-8e49-3a15a7ccdf9a",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:ed189698-b492-48cb-8b95-8cb15dfb3ec2",
+        "kind": "contributes_route_tradition_to",
+        "sourceId": "race:88246e9b-4d96-47e9-a376-38af4323e5cd",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:f2b3176f-6354-4439-8f20-fd7b06dde126",
+        "kind": "co_develops",
+        "sourceId": "race:48cf497a-ad60-46f9-b9e1-5640c66cfc46",
+        "targetId": "design_note:4ef6b26b-1a14-42ad-accf-097487a0ad11",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:f4262a48-2993-4213-9b92-aa207e34c2cf",
+        "kind": "participates_in",
+        "sourceId": "race:f630379e-0394-463b-a372-c2a45a7f4803",
+        "targetId": "design_note:88a01d78-0071-4ac5-8194-ff899289cef2",
+        "fields": {
+          "summary": "Drekk houses use Forecast Bonds to price dangerous cargo work and formalize shared exposure to storms and voyage loss.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T22:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:fa5757f6-1694-49f5-b409-4e51d356a5cc",
+        "kind": "investigates",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:566d6bcf-fe1e-4762-830b-2da543b923ac",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:50:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:fbadcf50-8bc1-4fd6-ad78-acecd7290dd5",
+        "kind": "in_clan",
+        "sourceId": "race:420ca337-a27f-4400-bd24-995d4f49de5d",
+        "targetId": "design_note:796f273f-8125-4193-b1b3-8485f4d3b383",
+        "fields": {
+          "summary": "Dustvein members belong to the Stratafold Clan, whose delvers, shaft wardens, sifters, carvers, and waykeepers work together to uncover and protect the buried histories of the Sunken Dunes.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-06T21:59:15.755Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:fbc397d9-5fde-4c8b-8fa0-64047e679b8e",
+        "kind": "uses",
+        "sourceId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "targetId": "design_note:38f12b5d-6c7e-49d0-8deb-914e1510023c",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:35:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:fd30d601-46c1-4b90-8138-0a49555ff9b2",
+        "kind": "co_develops",
+        "sourceId": "race:88246e9b-4d96-47e9-a376-38af4323e5cd",
+        "targetId": "design_note:f6fd1361-61ff-4636-9166-0a50c740f627",
+        "fields": {
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-07T08:40:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:greyrot-fragmentary-aftermath-of-the-grey",
+        "kind": "fragmentary_aftermath_of",
+        "sourceId": "design_note:greyrot",
+        "targetId": "design_note:the-grey",
+        "fields": {
+          "summary": "Greyrot consists of active, broken remnants of the systems whose convergence produced and then destroyed the Grey.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:greywrought-remade-by-grey-inheritance",
+        "kind": "remade_by_inheritance_of",
+        "sourceId": "design_note:greywrought-condition",
+        "targetId": "design_note:the-grey",
+        "fields": {
+          "summary": "Greywrought things are made or remade through the Grey's surviving inheritance without thereby becoming the Grey.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:grokka-to-cinderway-duty-ledger-v2",
+        "kind": "maintains",
+        "sourceId": "race:48cf497a-ad60-46f9-b9e1-5640c66cfc46",
+        "targetId": "design_note:482d95d2-a0e9-4874-867c-d6d285fde3c2",
+        "fields": {
+          "summary": "Grokka pathfinders, stonehaulers, and namekeepers maintain the seasonal ledger and attest to route conditions and labor handoffs.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:12:31.040Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:kaelen-to-cinderway-duty-ledger-v2",
+        "kind": "uses",
+        "sourceId": "race:a0691853-7173-4bac-82cb-bfdf1a605992",
+        "targetId": "design_note:482d95d2-a0e9-4874-867c-d6d285fde3c2",
+        "fields": {
+          "summary": "Kaelen dockhands, loaders, and haulers use certified Cinderway entries when receiving volcanic cargo and accounting for delays, substitutions, rescues, or loss at New Haven.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:12:31.040Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:life-came-back-precedent-for-bounded-agents",
+        "kind": "provides_ecological_precedent_for",
+        "sourceId": "design_note:life-came-back",
+        "targetId": "design_note:bounded-embodied-agents",
+        "fields": {
+          "summary": "The survival value of isolated, diverse biological lineages provides the ecological precedent for keeping contemporary agents embodied, plural, and independently recoverable.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:05:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:life-came-back-prefigures-necessary-difference",
+        "kind": "provides_ecological_precedent_for",
+        "sourceId": "design_note:life-came-back",
+        "targetId": "design_note:player-agency-against-greying",
+        "fields": {
+          "summary": "Life's survival through diverse, isolated refugia provides the ecological precedent for the player's civilizational role: independent difference and separable failure domains make recovery and correction possible.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-10T05:02:00-05:00",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:memory-vocabulary-constrains-bounded-agents",
+        "kind": "constrains",
+        "sourceId": "design_note:memory-vocabulary",
+        "targetId": "design_note:bounded-embodied-agents",
+        "fields": {
+          "summary": "Bounded-agent design distinguishes information exchange from shared, copied, or synchronously writable experiential memory and preserves separate provenance and failure domains.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:05:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:necessary-difference-constrains-bounded-agents",
+        "kind": "constrains",
+        "sourceId": "design_note:player-agency-against-greying",
+        "targetId": "design_note:bounded-embodied-agents",
+        "fields": {
+          "summary": "The Necessary Difference establishes that bounded-agent safeguards remain effective only when independent embodied people and communities actively exercise preserved authority to judge, refuse, interrupt, redirect, disconnect, and maintain alternatives.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-10T05:02:00-05:00",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:necessary-difference-guards-greywrought-rebuilding",
+        "kind": "guards_against_recurrence_in",
+        "sourceId": "design_note:player-agency-against-greying",
+        "targetId": "design_note:greywrought-condition",
+        "fields": {
+          "summary": "Independent embodied player judgment is a necessary active safeguard while Greywrought civilization rebuilds using bounded descendants of the technologies that once enabled convergence.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-10T05:02:00-05:00",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:new-haven-uses-cinderway-duty-ledger-v2",
+        "kind": "uses",
+        "sourceId": "setting:96ba05b3-8e10-435c-89bf-ee871d748d06",
+        "targetId": "design_note:482d95d2-a0e9-4874-867c-d6d285fde3c2",
+        "fields": {
+          "summary": "New Haven freight houses use certified Cinderway entries to adjudicate delayed, substituted, rescued, or lost cargo arriving through Grokka-linked trade networks.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T08:12:31.040Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:one-map-school-contested-by-untold-paths",
+        "kind": "contested_by",
+        "sourceId": "design_note:one-map-school",
+        "targetId": "design_note:7e9d0cf2-01f6-4b37-9d2d-0e8f4e4a90b1",
+        "fields": {
+          "summary": "The Paths We Do Not Tell embodies a direct refusal of the One-Map premise: some omissions are living safeguards, not missing data awaiting reconstruction.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:15:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:one-map-school-faction-within-concordance",
+        "kind": "faction_within",
+        "sourceId": "design_note:one-map-school",
+        "targetId": "setting:da7e3975-9891-4c60-8b2e-e495e86c7055",
+        "fields": {
+          "summary": "The One-Map School operates within and around the Concordance, pushing its translation mission toward a single continuously corrected standard.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:15:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:one-map-school-pressures-stormscript",
+        "kind": "pressures",
+        "sourceId": "design_note:one-map-school",
+        "targetId": "design_note:38f12b5d-6c7e-49d0-8deb-914e1510023c",
+        "fields": {
+          "summary": "The One-Map School pressures Stormscript schools to replace variant oral narratives with automatically corrected canonical forecast texts.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:15:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:one-map-school-seeks-standardization-of-palantir",
+        "kind": "seeks_standardization_of",
+        "sourceId": "design_note:one-map-school",
+        "targetId": "resource:8374dc59-2597-4012-a25a-7fbf32061930",
+        "fields": {
+          "summary": "The One-Map School seeks to network palantíri into a continually corrected route system, treating the Tide-Witness Rite’s refusals and retained disagreements as defects.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-10T12:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:one-map-school-standardizes-forecast-bond",
+        "kind": "seeks_standardization_of",
+        "sourceId": "design_note:one-map-school",
+        "targetId": "design_note:88a01d78-0071-4ac5-8194-ff899289cef2",
+        "fields": {
+          "summary": "One-Map advocates want Forecast Bond evidence, models, and pricing vocabulary standardized across every participating harbor, trading local uncertainty for systemic correlation risk.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:15:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:one-map-school-tests-necessary-difference",
+        "kind": "tests",
+        "sourceId": "design_note:one-map-school",
+        "targetId": "design_note:player-agency-against-greying",
+        "fields": {
+          "summary": "The One-Map School makes the Necessary Difference a recurring practical dilemma by offering real gains in safety, efficiency, and interoperability at the cost of pressure toward canonical systems and correlated failure.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-10T05:02:00-05:00",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:the-greying-culminates-in-the-grey",
+        "kind": "culminates_in",
+        "sourceId": "design_note:the-greying",
+        "targetId": "design_note:the-grey",
+        "fields": {
+          "summary": "The Greying names the process and apocalypse whose historical terminal condition was the Grey.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-08T18:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:tide-witness-rite-governs-palantir",
+        "kind": "governs_use_of",
+        "sourceId": "design_note:tide-witness-rite",
+        "targetId": "resource:8374dc59-2597-4012-a25a-7fbf32061930",
+        "fields": {
+          "summary": "The Tide-Witness Rite turns palantír viewings into named, disputable testimony rather than a self-authorizing command channel.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-10T12:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:tide-witness-rite-implements-bounded-agency",
+        "kind": "implements",
+        "sourceId": "design_note:tide-witness-rite",
+        "targetId": "design_note:bounded-embodied-agents",
+        "fields": {
+          "summary": "Separate witnesses, named custody, local refusal, and dark rest make palantír coordination bounded, interruptible, and accountable to embodied communities.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-10T12:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      },
+      {
+        "id": "relationship:turruk-maintains-tide-witness-rite",
+        "kind": "maintains",
+        "sourceId": "race:3c189db9-33ca-4000-96c8-b8d122d40490",
+        "targetId": "design_note:tide-witness-rite",
+        "fields": {
+          "summary": "Turruk shellwardens train tide-witnesses, hold custodial names for stones, and preserve dissenting route accounts.",
+          "origin": "authoring",
+          "author": "tom@plangrep.com",
+          "requestedBy": "tom@plangrep.com"
+        },
+        "createdAt": "2026-08-10T12:00:00.000Z",
+        "createdBy": "tom@plangrep.com"
+      }
+    ]
+  }
+}

@@ -30,6 +30,7 @@ import { createCombatGrid } from "./combat-grid.js";
 import { combatCell } from "../game/combat-grid.js";
 import { updateThreatAnimation, type ThreatAnimationState } from "./threat-animation.js";
 import { terrainHeight } from "../game/cave-layout.js";
+import { CREATURE_APPEARANCES } from "./creature-appearances.js";
 
 interface ThreatRig extends ThreatAnimationState {
   readonly root: Group;
@@ -358,17 +359,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     innkeeper = mounted; rowan.add(mounted.root); mounted.play("Idle");
     document.body.dataset.innkeeperState = "ready";
   });
-  const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string}> = {
-    "cave-bat": {model:"Bat",height:1.5,idle:"Flying",walk:"Flying",attack:"Bite_Front",hit:"HitRecieve"},
-    "cave-crab": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
-    scout: {model:"Skull",height:1.6,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
-    nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
-    warder: {model:"MushroomKing",height:2.4,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact"},
-    patrol: {model:"Wolf",height:1.6,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1"},
-    "ritual-guardian": {model:"Leela",height:3.2,idle:"Idle",walk:"Walk",attack:"Kick",hit:"HitRecieve_1"},
-  };
   const creaturesReady = Promise.all(initial.threats.map(async threat => {
-    const look = appearances[threat.id]; if(!look) throw Error(`No appearance for ${threat.id}`);
+    const look = CREATURE_APPEARANCES[threat.id]; if(!look) throw Error(`No appearance for ${threat.id}`);
     const creature = await actor(look.model, look.height);
     if (disposed) { creature.dispose(); return; }
     const root = new Group(), body = creature.root;
@@ -382,7 +374,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const beam = new Mesh(new CylinderGeometry(0.045,0.045,1,8),new MeshBasicMaterial({color:0xffbc71,transparent:true,opacity:0.85,depthWrite:false})); beam.visible=false;scene.add(beam);
     const ward = new Mesh(new SphereGeometry(1.05,20,12),new MeshBasicMaterial({color:0x80c6ff,transparent:true,opacity:0.2,depthWrite:false}));ward.position.y=look.height*0.55;ward.visible=false;root.add(ward);
     if (threat.id === "ritual-guardian") ward.scale.setScalar(1.45);
-    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,ring,lootGlint:glint,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
+    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,...(look.lunge ? {lunge:look.lunge} : {}),ring,lootGlint:glint,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
       health:threat.health,sequence:threat.actionSequence,attackTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const natureReady = buildFrostwood(terrain, thicket, innPosition, (root, name) => {
@@ -594,7 +586,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         if (rig.root.visible && rig.ring.visible) conformToTerrain(rig.ring, 0.05);
         if (rig.root.visible && rig.selection.visible) conformToTerrain(rig.selection, 0.06);
         const preparation = updateThreatAnimation(rig, threat, delta);
-        rig.body.position.y = threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : 0;
+        rig.body.position.y = CREATURE_APPEARANCES[threat.id]?.hover ?? 0;
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;
         rig.ward.position.y = rig.height*0.55 + rig.body.position.y;

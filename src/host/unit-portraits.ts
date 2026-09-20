@@ -1,11 +1,8 @@
 import { Color, DirectionalLight, HemisphereLight, Mesh, OrthographicCamera, Scene, SRGBColorSpace, WebGLRenderer } from "three";
 import { actor } from "./frostwood-assets.js";
+import { CREATURE_APPEARANCES } from "./creature-appearances.js";
 
-const appearances = [
-  ["cave-bat", "Bat"], ["cave-crab", "Crab"],
-  ["scout", "Skull"], ["nest", "Armabee"], ["warder", "MushroomKing"],
-  ["patrol", "Wolf"], ["ritual-guardian", "Leela"],
-] as const;
+const appearances = Object.entries(CREATURE_APPEARANCES).map(([id, look]) => [id, look.model] as const);
 
 /** One portrait pass; model geometry and textures remain owned by the shared asset cache. */
 export async function createUnitPortraits(models: readonly (readonly [string, string])[] = appearances): Promise<ReadonlyMap<string, string>> {

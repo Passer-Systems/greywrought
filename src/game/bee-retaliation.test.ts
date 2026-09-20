@@ -23,10 +23,10 @@ test("a ranged hit enrages the bee, which closes and retaliates only after its a
     mage.readyCombat(); world.advance(.01);
     expect(bee().health).toBe(54); expect(bee().aggro).toBe(true);
     expect(bee().targetPlayerId).toBe("mage");
-    expect(mage.snapshot.log.some(entry => entry.text.includes("enrages the Briar bee"))).toBe(true);
+    expect(mage.snapshot.log.some(entry => entry.text.includes("enrages the Hearth Keeper"))).toBe(true);
     const cast = bee().cast!;
     expect(cast.duration).toBeGreaterThanOrEqual(0); expect(cast.duration).toBeLessThanOrEqual(2);
-    expect(cast.ability.name).toBe("Enraged Swarm");
+    expect(cast.ability.name).toBe("Furnace Burst");
     expect(cast.ability.damage).toBeGreaterThanOrEqual(16);
     world.advance(Math.max(0, cast.remainingSeconds - .1));
     expect(mage.snapshot.player.health).toBe(100); expect(bee().actionSequence).toBe(0);

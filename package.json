@@ -28,6 +28,12 @@
     "test:ability-range": "bun test src/host/combat-range.test.ts && bun acceptance/browser/ability-range.ts",
     "test:browser-barter": "bun acceptance/browser/npc-barter.ts",
     "test:browser-characters": "bun acceptance/browser/character-deletion.ts && bun acceptance/browser/class-models.ts",
+    "art:relics": "bun scripts/art/lore-models.ts",
+    "art:preview": "bun scripts/art/preview-lore-models.ts",
+    "art:warden": "bun scripts/art/warden-study.ts",
+    "art:warden:preview": "bun scripts/art/preview-warden.ts",
+    "art:warden:open": "bun scripts/art/open-warden.ts",
+    "test:relic-mobs": "bun test ./src/host/creature-appearances.test.ts ./src/host/threat-animation.test.ts && bun acceptance/browser/relic-mobs.ts",
     "test:production": "bun scripts/production-smoke.ts",
     "build:world": "bun build --compile --target=bun-linux-x64-baseline scripts/world-server.ts --outfile build/server/greywrought-world",
     "test:multiplayer": "bun test src/server/world-service.test.ts && bun acceptance/browser/shared-world.ts"

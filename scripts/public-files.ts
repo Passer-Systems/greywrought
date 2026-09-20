@@ -1,4 +1,6 @@
 const frostwoodFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/frostwood",onlyFiles:true}));
+// Original actors remain in the source library; replaced actors need no release download.
+const retiredActors = new Set(["actors/Armabee.glb", "actors/Wolf.glb", "actors/Bat.glb", "actors/MushroomKing.glb"]);
 const pirateFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/pirate",onlyFiles:true}));
 const iconFiles = await Array.fromAsync(
   new Bun.Glob("**/*.{png,svg}").scan({ cwd: "assets/ui/icons", onlyFiles: true }),
@@ -46,7 +48,10 @@ export const files: readonly (readonly [string, string])[] = [
     `assets/ui/${name}`,
     `dist/assets/ui/${name}`,
   ]),
-  ...frostwoodFiles.map((name): readonly [string, string] => [
+  ...["hollow-saint.glb", "relic-warden.glb", "hearth-keeper.glb", "greyrot-penitent.glb", "QUATERNIUS-LICENSE.txt", "manifest.json", "README.md"].map((name): readonly [string, string] => [
+    `3d/greywrought-relics/${name.endsWith(".glb") ? "runtime/" : ""}${name}`, `dist/assets/greywrought/relics/${name}`,
+  ]),
+  ...frostwoodFiles.filter(name => !retiredActors.has(name)).map((name): readonly [string, string] => [
     `assets/external/quaternius/frostwood/${name}`, `dist/assets/quaternius/frostwood/${name}`,
   ]),
   ...pirateFiles.map((name): readonly [string, string] => [

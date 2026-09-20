@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blender Game Modeling"
+  short_description: "Build cohesive game models with Blender and visual review"
+  default_prompt: "Use $blender-game-modeling to build a new model from my brief, with editable Blender source, inspected exports, and animation where needed."

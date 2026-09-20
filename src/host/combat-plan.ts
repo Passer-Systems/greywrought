@@ -11,9 +11,9 @@ const actions: Record<CombatAction, { name: string; icon: string }> = {
 };
 const enemyArt: Record<string, string> = {
   "ember-beam": "lightning-bolt", fireball: "fire-spell", "ember-ward": "defensive-shield",
-  kindle: "energy-burst", maul: "sword-strike", nest: "poison-vial",
+  kindle: "energy-burst", maul: "sword-strike", nest: "energy-burst",
   "echo-bite": "sword-strike", "cavern-slam": "frost-spell",
-  warder: "nature-leaf", "ritual-guardian": "frost-spell",
+  warder: "sword-strike", "ritual-guardian": "frost-spell",
 };
 type QueuedCombatAction = AdventureSnapshot["combat"]["queued"][number];
 type ShownEnemyMove = { id: string; enemy: string; ability: ThreatAbilityView; seconds: number; status: string; targetId: string | null; target: string };

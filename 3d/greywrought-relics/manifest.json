@@ -1,0 +1,589 @@
+{
+  "formatVersion": 1,
+  "models": [
+    {
+      "id": "hollow-saint",
+      "name": "Hollow Saint",
+      "source": "Stan",
+      "height": 3.25,
+      "color": "#c0a77a",
+      "role": "A walking shrine kept alive by the village that worships it.",
+      "story": "The saint has forgotten every blessing. Its chest still warms the votive lamps. Villagers replace its cracked plates with shrine timber and carry its broken halo through the dark.",
+      "lore": [
+        "design_note:greywrought-condition",
+        "design_note:bounded-embodied-agents"
+      ],
+      "features": [
+        "Split sun halo",
+        "Empty chapel face",
+        "Caged amber heart",
+        "Wax offerings",
+        "Bell-staff",
+        "Torn liturgical cloth"
+      ],
+      "authoring": "New Greywrought designs: reconstructed heads, torsos, clothing and equipment; salvaged and reprofiled Quaternius limb primitives; original rig and clips.",
+      "sourcePack": "Quaternius Animated Mech Pack — March 2021",
+      "sourceLicense": "CC0-1.0",
+      "sourcePath": "3d/Animated Mech Pack - March 2021/Flat Colors/glTF/Stan.gltf",
+      "loreSource": "docs/legacy-lore.json",
+      "canonStatus": "New visual concepts, not pre-existing named lore characters",
+      "coordinateSystem": "Y up; face +Z; units metres",
+      "retainedTriangles": 4408,
+      "authoredParts": 84,
+      "file": "hollow-saint.glb",
+      "bytes": 1767996,
+      "triangles": 8540,
+      "meshCount": 26,
+      "rigJoints": 43,
+      "runtime": {
+        "file": "runtime/hollow-saint.glb",
+        "bytes": 1049740,
+        "animations": [
+          "Death",
+          "HitRecieve_1",
+          "Idle",
+          "Punch",
+          "Walk"
+        ]
+      },
+      "animations": [
+        {
+          "name": "Dance",
+          "duration": 1,
+          "tracks": 86
+        },
+        {
+          "name": "Death",
+          "duration": 1.7916666269302368,
+          "tracks": 86
+        },
+        {
+          "name": "Hello",
+          "duration": 1.875,
+          "tracks": 86
+        },
+        {
+          "name": "HitRecieve_1",
+          "duration": 0.5833333134651184,
+          "tracks": 86
+        },
+        {
+          "name": "HitRecieve_2",
+          "duration": 0.5833333134651184,
+          "tracks": 86
+        },
+        {
+          "name": "Idle",
+          "duration": 4.166666507720947,
+          "tracks": 86
+        },
+        {
+          "name": "Jump",
+          "duration": 1.0833333730697632,
+          "tracks": 86
+        },
+        {
+          "name": "Kick",
+          "duration": 0.75,
+          "tracks": 86
+        },
+        {
+          "name": "No",
+          "duration": 1.75,
+          "tracks": 86
+        },
+        {
+          "name": "Pickup",
+          "duration": 1.75,
+          "tracks": 86
+        },
+        {
+          "name": "Punch",
+          "duration": 0.7083333134651184,
+          "tracks": 86
+        },
+        {
+          "name": "Run",
+          "duration": 1.0416666269302368,
+          "tracks": 86
+        },
+        {
+          "name": "Run_Holding",
+          "duration": 1.0416666269302368,
+          "tracks": 86
+        },
+        {
+          "name": "Shoot",
+          "duration": 0.625,
+          "tracks": 86
+        },
+        {
+          "name": "SwordSlash",
+          "duration": 0.75,
+          "tracks": 86
+        },
+        {
+          "name": "Walk",
+          "duration": 1.0416666269302368,
+          "tracks": 86
+        },
+        {
+          "name": "Walk_Holding",
+          "duration": 1.0416666269302368,
+          "tracks": 86
+        },
+        {
+          "name": "Yes",
+          "duration": 1.75,
+          "tracks": 86
+        }
+      ],
+      "bounds": [
+        2.3592862981439593,
+        3.2500000000000004,
+        0.8460392351428558
+      ]
+    },
+    {
+      "id": "relic-warden",
+      "name": "Relic Warden",
+      "source": "Mike",
+      "height": 2.65,
+      "color": "#779b96",
+      "role": "A village guardian whose power can be cut by a keeper's key.",
+      "story": "A medieval harness surrounds an older machine. Its shield carries a sealed circuit relic; a great iron key lets its appointed keeper interrupt any command.",
+      "lore": [
+        "design_note:bounded-embodied-agents",
+        "design_note:player-agency-against-greying"
+      ],
+      "features": [
+        "Slit-faced great helm",
+        "Asymmetric heraldic shield",
+        "Relic sword",
+        "Lamellar shoulders",
+        "Keeper's disconnect key",
+        "Deepbellow-blue core"
+      ],
+      "authoring": "New Greywrought designs: reconstructed heads, torsos, clothing and equipment; salvaged and reprofiled Quaternius limb primitives; original rig and clips.",
+      "sourcePack": "Quaternius Animated Mech Pack — March 2021",
+      "sourceLicense": "CC0-1.0",
+      "sourcePath": "3d/Animated Mech Pack - March 2021/Flat Colors/glTF/Mike.gltf",
+      "loreSource": "docs/legacy-lore.json",
+      "canonStatus": "New visual concepts, not pre-existing named lore characters",
+      "coordinateSystem": "Y up; face +Z; units metres",
+      "retainedTriangles": 4456,
+      "authoredParts": 49,
+      "file": "relic-warden.glb",
+      "bytes": 1723964,
+      "triangles": 6706,
+      "meshCount": 28,
+      "rigJoints": 43,
+      "runtime": {
+        "file": "runtime/relic-warden.glb",
+        "bytes": 1005700,
+        "animations": [
+          "Death",
+          "HitRecieve_1",
+          "Idle",
+          "Run",
+          "SwordSlash"
+        ]
+      },
+      "animations": [
+        {
+          "name": "Dance",
+          "duration": 1,
+          "tracks": 86
+        },
+        {
+          "name": "Death",
+          "duration": 1.7916666269302368,
+          "tracks": 86
+        },
+        {
+          "name": "Hello",
+          "duration": 1.875,
+          "tracks": 86
+        },
+        {
+          "name": "HitRecieve_1",
+          "duration": 0.5833333134651184,
+          "tracks": 86
+        },
+        {
+          "name": "HitRecieve_2",
+          "duration": 0.5833333134651184,
+          "tracks": 86
+        },
+        {
+          "name": "Idle",
+          "duration": 4.166666507720947,
+          "tracks": 86
+        },
+        {
+          "name": "Jump",
+          "duration": 1.0833333730697632,
+          "tracks": 86
+        },
+        {
+          "name": "Kick",
+          "duration": 0.75,
+          "tracks": 86
+        },
+        {
+          "name": "No",
+          "duration": 1.75,
+          "tracks": 86
+        },
+        {
+          "name": "Pickup",
+          "duration": 1.75,
+          "tracks": 86
+        },
+        {
+          "name": "Punch",
+          "duration": 0.7083333134651184,
+          "tracks": 86
+        },
+        {
+          "name": "Run",
+          "duration": 1.0416666269302368,
+          "tracks": 86
+        },
+        {
+          "name": "Run_Holding",
+          "duration": 1.0416666269302368,
+          "tracks": 86
+        },
+        {
+          "name": "Shoot",
+          "duration": 0.625,
+          "tracks": 86
+        },
+        {
+          "name": "SwordSlash",
+          "duration": 0.75,
+          "tracks": 86
+        },
+        {
+          "name": "Walk",
+          "duration": 1.0416666269302368,
+          "tracks": 86
+        },
+        {
+          "name": "Walk_Holding",
+          "duration": 1.0416666269302368,
+          "tracks": 86
+        },
+        {
+          "name": "Yes",
+          "duration": 1.75,
+          "tracks": 86
+        }
+      ],
+      "bounds": [
+        2.534060263267298,
+        2.6499999999999995,
+        0.9339557787284278
+      ]
+    },
+    {
+      "id": "hearth-keeper",
+      "name": "Hearth Keeper",
+      "source": "Leela",
+      "height": 2.8,
+      "color": "#d6b075",
+      "role": "A thatch-covered walking hearth that powers isolated village homes.",
+      "story": "Wattle, timber and straw shelter an irreplaceable generator. Ceramic insulators carry current to cottages; the front knife-switch allows each household to refuse the connection.",
+      "lore": [
+        "design_note:greywrought-condition",
+        "design_note:player-agency-against-greying"
+      ],
+      "features": [
+        "Layered thatched roof",
+        "Half-timbered furnace body",
+        "Lit hearth grille",
+        "Ceramic power mast",
+        "Copper cables",
+        "Manual knife-switch"
+      ],
+      "authoring": "New Greywrought designs: reconstructed heads, torsos, clothing and equipment; salvaged and reprofiled Quaternius limb primitives; original rig and clips.",
+      "sourcePack": "Quaternius Animated Mech Pack — March 2021",
+      "sourceLicense": "CC0-1.0",
+      "sourcePath": "3d/Animated Mech Pack - March 2021/Flat Colors/glTF/Leela.gltf",
+      "loreSource": "docs/legacy-lore.json",
+      "canonStatus": "New visual concepts, not pre-existing named lore characters",
+      "coordinateSystem": "Y up; face +Z; units metres",
+      "retainedTriangles": 1464,
+      "authoredParts": 203,
+      "file": "hearth-keeper.glb",
+      "bytes": 880476,
+      "triangles": 8680,
+      "meshCount": 20,
+      "rigJoints": 17,
+      "runtime": {
+        "file": "runtime/hearth-keeper.glb",
+        "bytes": 552324,
+        "animations": [
+          "Death",
+          "HitRecieve_1",
+          "Idle",
+          "Run",
+          "Shoot"
+        ]
+      },
+      "animations": [
+        {
+          "name": "Dance",
+          "duration": 1,
+          "tracks": 34
+        },
+        {
+          "name": "Death",
+          "duration": 1.7916666269302368,
+          "tracks": 34
+        },
+        {
+          "name": "Hello",
+          "duration": 1.875,
+          "tracks": 34
+        },
+        {
+          "name": "HitRecieve_1",
+          "duration": 0.5833333134651184,
+          "tracks": 34
+        },
+        {
+          "name": "HitRecieve_2",
+          "duration": 0.5833333134651184,
+          "tracks": 34
+        },
+        {
+          "name": "Idle",
+          "duration": 4.166666507720947,
+          "tracks": 34
+        },
+        {
+          "name": "Jump",
+          "duration": 1.0833333730697632,
+          "tracks": 34
+        },
+        {
+          "name": "Kick",
+          "duration": 0.75,
+          "tracks": 34
+        },
+        {
+          "name": "No",
+          "duration": 1.75,
+          "tracks": 34
+        },
+        {
+          "name": "Pickup",
+          "duration": 1.75,
+          "tracks": 34
+        },
+        {
+          "name": "Punch",
+          "duration": 0.7083333134651184,
+          "tracks": 34
+        },
+        {
+          "name": "Run",
+          "duration": 1.0416666269302368,
+          "tracks": 34
+        },
+        {
+          "name": "Run_Tall",
+          "duration": 1.0416666269302368,
+          "tracks": 34
+        },
+        {
+          "name": "Shoot",
+          "duration": 0.625,
+          "tracks": 34
+        },
+        {
+          "name": "SwordSlash",
+          "duration": 0.75,
+          "tracks": 34
+        },
+        {
+          "name": "Walk",
+          "duration": 1.0416666269302368,
+          "tracks": 34
+        },
+        {
+          "name": "Walk_Tall",
+          "duration": 1.0416666269302368,
+          "tracks": 34
+        },
+        {
+          "name": "Yes",
+          "duration": 1.75,
+          "tracks": 34
+        }
+      ],
+      "bounds": [
+        1.4553321115816897,
+        2.8,
+        1.3086879434509646
+      ]
+    },
+    {
+      "id": "greyrot-penitent",
+      "name": "Greyrot Penitent",
+      "source": "George",
+      "height": 3.05,
+      "color": "#a8aa72",
+      "role": "A failed repair machine dressed in the offerings of frightened pilgrims.",
+      "story": "An obsolete repair loop builds the same reliquary again and again. Unequal ribs, three competing cores and stolen prayer plates betray incompatible fragments of Greyrot.",
+      "lore": [
+        "design_note:greyrot",
+        "design_note:memory-vocabulary"
+      ],
+      "features": [
+        "Broken iron cowl",
+        "Open rib cage",
+        "Three mismatched cores",
+        "Bent reliquary spines",
+        "Pilgrim tags",
+        "Scavenged asymmetrical limbs"
+      ],
+      "authoring": "New Greywrought designs: reconstructed heads, torsos, clothing and equipment; salvaged and reprofiled Quaternius limb primitives; original rig and clips.",
+      "sourcePack": "Quaternius Animated Mech Pack — March 2021",
+      "sourceLicense": "CC0-1.0",
+      "sourcePath": "3d/Animated Mech Pack - March 2021/Flat Colors/glTF/George.gltf",
+      "loreSource": "docs/legacy-lore.json",
+      "canonStatus": "New visual concepts, not pre-existing named lore characters",
+      "coordinateSystem": "Y up; face +Z; units metres",
+      "retainedTriangles": 6036,
+      "authoredParts": 72,
+      "file": "greyrot-penitent.glb",
+      "bytes": 2297028,
+      "triangles": 13326,
+      "meshCount": 23,
+      "rigJoints": 47,
+      "runtime": {
+        "file": "runtime/greyrot-penitent.glb",
+        "bytes": 1492736,
+        "animations": [
+          "Death",
+          "HitRecieve_1",
+          "Idle",
+          "Jump",
+          "Punch",
+          "Run",
+          "Walk"
+        ]
+      },
+      "animations": [
+        {
+          "name": "Dance",
+          "duration": 0.800000011920929,
+          "tracks": 94
+        },
+        {
+          "name": "Death",
+          "duration": 1.4333332777023315,
+          "tracks": 94
+        },
+        {
+          "name": "Hello",
+          "duration": 1.5,
+          "tracks": 94
+        },
+        {
+          "name": "HitRecieve_1",
+          "duration": 0.46666666865348816,
+          "tracks": 94
+        },
+        {
+          "name": "HitRecieve_2",
+          "duration": 0.46666666865348816,
+          "tracks": 94
+        },
+        {
+          "name": "Idle",
+          "duration": 3.3333332538604736,
+          "tracks": 94
+        },
+        {
+          "name": "Jump",
+          "duration": 0.8666666746139526,
+          "tracks": 94
+        },
+        {
+          "name": "Kick",
+          "duration": 0.6000000238418579,
+          "tracks": 94
+        },
+        {
+          "name": "No",
+          "duration": 1.399999976158142,
+          "tracks": 94
+        },
+        {
+          "name": "Pickup",
+          "duration": 1.399999976158142,
+          "tracks": 94
+        },
+        {
+          "name": "Punch",
+          "duration": 0.5666666626930237,
+          "tracks": 94
+        },
+        {
+          "name": "Run",
+          "duration": 0.8333333134651184,
+          "tracks": 94
+        },
+        {
+          "name": "Run_Holding",
+          "duration": 0.8333333134651184,
+          "tracks": 94
+        },
+        {
+          "name": "Run_Tall",
+          "duration": 0.8333333134651184,
+          "tracks": 94
+        },
+        {
+          "name": "Shoot",
+          "duration": 0.5,
+          "tracks": 94
+        },
+        {
+          "name": "SwordSlash",
+          "duration": 0.6000000238418579,
+          "tracks": 94
+        },
+        {
+          "name": "Walk",
+          "duration": 0.8333333134651184,
+          "tracks": 94
+        },
+        {
+          "name": "Walk_Holding",
+          "duration": 0.8333333134651184,
+          "tracks": 94
+        },
+        {
+          "name": "Walk_Tall",
+          "duration": 0.8333333134651184,
+          "tracks": 94
+        },
+        {
+          "name": "Yes",
+          "duration": 1.399999976158142,
+          "tracks": 94
+        }
+      ],
+      "bounds": [
+        2.0619468602682733,
+        3.0500000000000003,
+        1.3224825058942777
+      ]
+    }
+  ]
+}

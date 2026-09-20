@@ -4,6 +4,7 @@ import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { clone, retargetClip } from "three/addons/utils/SkeletonUtils.js";
 import { publicUrl } from "./public-url.js";
+import { creatureAssetPath } from "./creature-appearances.js";
 
 const root = "assets/quaternius/frostwood/";
 const loader = new GLTFLoader();
@@ -31,7 +32,7 @@ export interface ForestActor {
 }
 export async function actor(name: string, height: number, playerModel?: "warrior" | "mage" | "hunter" | "alchemist" | "artificer"): Promise<ForestActor> {
   const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger.glb" : playerModel === "mage" ? "Wizard.glb" : playerModel === "alchemist" ? "Alchemist.gltf" : playerModel === "artificer" ? "Artificer.gltf" : "Warrior.glb"}` : null;
-  const gltf = await source(playerPath ?? `${root}actors/${name}.glb`);
+  const gltf = await source(playerPath ?? creatureAssetPath(name));
   const model = clone(gltf.scene);
   const animations = [...gltf.animations];
   if (playerPath !== null) {
