@@ -990,7 +990,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     const game = await connectAdventure(character);
     if (game.snapshot.phase === "lost") { game.close(); showFallenCharacter(character); return; }
     audio.reset();
-    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); }, destination => game.previewBait(destination), { selfId: character.id, selfName: character.name, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu });
+    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); }, destination => game.previewBait(destination), { selfId: character.id, selfName: character.name, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu });
     world.setAggroRangesVisible(aggroRangesVisible);
     world.setHelpRangesVisible(helpRangesVisible);
     world.updateChat(game.chat, character.id);

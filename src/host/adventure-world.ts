@@ -11,6 +11,7 @@ import type { AdventureSnapshot, CombatView, CombatForecast, Position } from "..
 import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
 import { conformToTerrain } from "./terrain-geometry.js";
+import { terrainCameraLift } from "./terrain-camera.js";
 import { buildHollowdeep } from "./hollowdeep-scenery.js";
 import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.js";
 import { createAggroRanges } from "./aggro-ranges.js";
@@ -185,7 +186,7 @@ function createCombatEffects(scene: Scene) {
   };
 }
 
-export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; onSelect: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void }): AdventureWorld {
+export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; showSelfName?: () => boolean; onSelect: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void }): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
   let interpolation = createSnapshotInterpolation();
@@ -320,6 +321,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let yaw = 0;
   let pitch = 0.7;
   let distance = 15;
+  let cameraTerrainLift = 0;
   let lastAttack = initial.player.attackSequence;
   let playerProjectileTime = 0;
   let playerProjectileFrom = new Vector3();
@@ -668,6 +670,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         moveOutcome.style.top = Math.max(8, Math.min(rect.height - moveOutcome.offsetHeight - 8, hoverPointer.y - rect.top + 18)) + "px";
       }
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + 1 + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
+      const requiredLift = terrainCameraLift({ x: cameraTarget.x, y: cameraTarget.y + 1, z: cameraTarget.z }, camera.position);
+      cameraTerrainLift = delta === 0 ? requiredLift : Math.max(requiredLift, cameraTerrainLift + (requiredLift - cameraTerrainLift) * (1 - Math.exp(-delta * 8)));
+      camera.position.y += cameraTerrainLift;
       camera.lookAt(cameraTarget.x, cameraTarget.y + 1, cameraTarget.z);
       updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position);
       updateCave(snapshot.player.position, camera.position);
@@ -683,7 +688,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       overheadNames.show("npc:mara", "Mara", mara, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"mara"));
       overheadNames.show("npc:elian", "Elian · Bank", elian, 2.35, "friendly", true);
       overheadNames.show("npc:rowan", "Rowan", rowan, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"inn"));
-      if (playerSelection) overheadNames.show(`player:${playerSelection.selfId}`, playerSelection.selfName, player, 2.35, "player", snapshot.player.health > 0, null, () => playerSelection.onSelect(playerSelection.selfId), {
+      if (playerSelection?.showSelfName?.()) overheadNames.show(`player:${playerSelection.selfId}`, playerSelection.selfName, player, 2.35, "player", snapshot.player.health > 0, null, () => playerSelection.onSelect(playerSelection.selfId), {
         health: snapshot.player.health, maximumHealth: snapshot.player.maximumHealth, selected: selectedPlayer === playerSelection.selfId, party: partyMembers.has(playerSelection.selfId),
         onContextMenu: (x, y) => playerSelection.onContextMenu?.(playerSelection.selfId, x, y),
       });

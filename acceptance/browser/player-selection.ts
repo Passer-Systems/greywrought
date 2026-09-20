@@ -29,6 +29,7 @@ try {
   await page.waitFor('document.body.dataset.entryRoute==="roster"');await page.click('#entry-enter-world');
   await page.waitFor('document.body.dataset.rigState==="ready"&&document.body.dataset.environmentState==="ready"&&JSON.parse(document.body.dataset.gameRemotePlayers||"[]").some(p=>p.id==="selection-companion")');
   check(await page.evaluate('JSON.parse(document.body.dataset.selectedUnit)===null'),'Entering town starts without an arbitrary enemy target');
+  check(await page.evaluate('!document.querySelector(\'[data-overhead-name="player:selection-viewer"]\') && !document.getElementById("show-own-name").checked'),'Own overhead name defaults hidden');
   await page.waitFor('document.querySelector(\'[data-overhead-name="player:selection-companion"]\')?.hidden===false');
   await page.click('[data-overhead-name="player:selection-companion"]');
   await page.waitFor('document.getElementById("target-frame").dataset.kind==="player"&&document.getElementById("target-frame").dataset.targetId==="selection-companion"');
@@ -59,6 +60,11 @@ try {
   await page.call('Input.dispatchMouseEvent',{type:'mouseReleased',...body,button:'left',buttons:0,clickCount:1});
   await page.waitFor('document.getElementById("target-frame").dataset.kind==="player"&&document.getElementById("world-canvas").dataset.selectedPlayer==="selection-companion"');
   await page.shot('friendly-body-selection');
+  await page.click('#pause-open');
+  await page.click('#show-own-name');
+  await page.press('Escape');
+  await page.waitFor('document.querySelector(\'[data-overhead-name="player:selection-viewer"]\')?.hidden===false');
+  check(await page.evaluate('localStorage.getItem("greywrought/show-own-name")==="true"'),'Own-name setting is saved');
   await page.click('[data-overhead-name="player:selection-viewer"]');
   await page.waitFor('document.getElementById("target-frame").dataset.targetId==="selection-viewer"');
   await page.click('[data-overhead-name="player:selection-companion"]');

@@ -4,6 +4,9 @@ interface InstallPromptEvent extends Event {
 }
 
 export function createAppControls(entry: HTMLElement, settings: HTMLElement) {
+  const ownNameStorageKey = 'greywrought/show-own-name';
+  let showOwnName = false;
+  try { showOwnName = localStorage.getItem(ownNameStorageKey) === 'true'; } catch {}
   const installedDisplay = window.matchMedia('(display-mode: standalone), (display-mode: minimal-ui), (display-mode: fullscreen)');
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let installed = (installedDisplay.matches && !document.fullscreenElement) || (navigator as Navigator & { standalone?: boolean }).standalone === true;
@@ -24,12 +27,20 @@ export function createAppControls(entry: HTMLElement, settings: HTMLElement) {
     .app-controls-status { flex-basis:100%; margin:0; max-width:360px; color:#f3e6c7; font:var(--ui-font-body)/1.45 system-ui,sans-serif; }
     .app-controls-entry { position:absolute; top:12px; right:12px; z-index:10; justify-content:flex-end; max-width:calc(100% - 24px); padding:8px; border-radius:4px; background:#101917e8; }
     .app-controls-settings { margin-top:16px; padding-top:12px; border-top:1px solid #86734b; }
+    .own-name-setting { display:flex; align-items:center; gap:8px; color:#f3e6c7; font:var(--ui-font-body) system-ui,sans-serif; cursor:pointer; }
   `;
   document.head.append(style);
   function listen(target: EventTarget, type: string, handler: EventListener): void {
     target.addEventListener(type, handler);
     removeListeners.push(() => target.removeEventListener(type, handler));
   }
+  const ownNameLabel = document.createElement('label'); ownNameLabel.className = 'own-name-setting';
+  const ownName = document.createElement('input'); ownName.type = 'checkbox'; ownName.id = 'show-own-name'; ownName.checked = showOwnName;
+  ownNameLabel.append(ownName, document.createTextNode('Show my name above my character')); settings.append(ownNameLabel);
+  listen(ownName, 'change', () => {
+    showOwnName = ownName.checked;
+    try { localStorage.setItem(ownNameStorageKey, String(showOwnName)); } catch {}
+  });
   const views = [entry, settings].map((host, index) => {
     const root = document.createElement('section');
     root.className = `app-controls app-controls-${index === 0 ? 'entry' : 'settings'}`;
@@ -104,10 +115,12 @@ export function createAppControls(entry: HTMLElement, settings: HTMLElement) {
   listen(document, 'fullscreenchange', () => render());
   render();
   return {
+    get showOwnName(): boolean { return showOwnName; },
     dispose(): void {
       disposed = true; pendingInstall = null;
       for (const remove of removeListeners) remove();
       for (const view of views) view.root.remove();
+      ownNameLabel.remove();
       style.remove();
     },
   };
