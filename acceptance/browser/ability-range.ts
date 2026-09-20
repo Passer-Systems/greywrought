@@ -56,13 +56,14 @@ try {
   check(!await page.evaluate<boolean>(glowing('strike')), 'Moving away must remove the attack glow');
   await page.key('KeyW', true); await page.waitFor(glowing('strike')); await page.key('KeyW', false);
   await page.click('.adventure-actions [data-action="strike"]');
-  await page.waitFor('window.rangeState.snapshot.combat.phase==="preparation"&&window.rangeState.snapshot.combat.queued.some(action=>action.action==="strike")');
+  await page.waitFor('window.rangeState.snapshot.combat.phase==="preparation"&&window.rangeState.snapshot.threats.find(t=>t.id==="nest").health<72');
+  check(await page.evaluate('window.rangeState.snapshot.combat.queued.length===0'), 'Undetected attack lands once before turn planning');
   await page.waitFor('document.body.dataset.gameCombatPhase==="preparation"&&document.body.dataset.gameCombatPlan==="true"');
   await page.click('.combat-plan-ready');
   await page.waitFor('document.body.dataset.gameCombatPhase==="active"');
   check(!await page.evaluate<boolean>(glowing('strike')), 'Committed combat must stop showing an actionable attack');
   await page.waitFor('window.rangeState.snapshot.threats.find(t=>t.id==="nest").health<72');
   check(page.errors.length === 0, 'Ability range journey must have no browser exceptions');
-  console.log('PASS five metre melee reach, actionable glow, movement updates, and queued attack damage', page.output);
+  console.log('PASS five metre melee reach, actionable glow, movement updates, and opening attack damage', page.output);
 } catch (error) { await page?.shot('failure'); throw error; }
 finally { await page?.close(); await service.close(); server.stop(true); frontend.kill(); await frontend.exited; }

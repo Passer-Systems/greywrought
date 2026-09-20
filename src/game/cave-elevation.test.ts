@@ -3,7 +3,7 @@ import { createAdventure, createSharedAdventure } from './adventure.js';
 import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
 import { moveLocomotion, moveManeuverPosition, type MovementState } from './movement.js';
 import { LocalMovement } from '../host/local-movement.js';
-import { earnedChapter, finishCycle, tap } from './yard-test-fixtures.js';
+import { finishGathering, earnedChapter, finishCycle, tap } from './yard-test-fixtures.js';
 import type { Position } from './adventure-types.js';
 
 const ground = (x: number, z = -46): Position => ({ x, y: terrainHeight(x, z), z });
@@ -101,7 +101,7 @@ test('cave combat forecasts and executes Move and a saved move at negative eleva
   for (const threat of bait.snapshot.threats.filter(t => t.id.startsWith('cave-'))) expect(height(threat.position)).toBe(0);
 
   let dodge = gameAt(41); dodge.advance(.01); dodge.selectTarget('cave-bat');
-  expect(dodge.queueBait(ground(37.5,-45))).toBe(true); dodge.readyCombat(); dodge.advance(.5);
+  expect(dodge.queueBait(ground(37.5,-45))).toBe(true); finishGathering(dodge); dodge.readyCombat(); dodge.advance(.5);
   expect(dodge.snapshot.player.maneuver).toBe('bait');
   expect(height(dodge.snapshot.player.position)).toBe(0);
   const saved = dodge.save(), before = dodge.snapshot.player.position;
@@ -116,7 +116,7 @@ test('cave combat forecasts and executes Move and a saved move at negative eleva
 test('old solo saves migrate jump and maneuver offsets once, preserving progress and directions', () => {
   for (const maneuver of [false, true]) {
     const game = gameAt(maneuver ? 41 : 35, !maneuver);
-    if (maneuver) { game.advance(.01); game.selectTarget('cave-bat'); expect(game.queueBait(ground(37.5,-45))).toBe(true); game.readyCombat(); }
+    if (maneuver) { game.advance(.01); game.selectTarget('cave-bat'); expect(game.queueBait(ground(37.5,-45))).toBe(true); finishGathering(game); game.readyCombat(); }
     else tap(game, 'jump');
     game.advance(.2);
     const expected = JSON.parse(game.save());
@@ -158,7 +158,8 @@ test('old shared private saves retain cave origin, actors and character progress
   world = createSharedAdventure({ save: world.save(), now: () => 1000 }); player = world.join('caver', 'Caver', 'warrior');
   expect(world.resume('caver')).toBe(true);
   player.setCameraForward(1, 0); player.setAction('forward', true); world.advance(.2); player.setAction('forward', false);
+  const beforeRejoin = player.snapshot.player.position;
   expect(world.rejoin('caver')).toBe(true);
-  near(player.snapshot.player.position, ground(55));
+  near(player.snapshot.player.position, beforeRejoin);
   expect(player.snapshot.player.grounded).toBe(true);
 });

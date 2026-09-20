@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
 import { VENDORS } from "./economy.js";
-import { tap, travel, earnedChapter, readyParty, finishCycle, foremanFixture } from "./yard-test-fixtures.js";
+import { finishGathering, tap, travel, earnedChapter, readyParty, finishCycle, foremanFixture } from "./yard-test-fixtures.js";
 
 function soloFixture(coins = 30, experience = 0) {
   const save = JSON.parse(createAdventure({archetype:"mage"}).save());
@@ -42,7 +42,7 @@ test("a credited defeat awards experience before loot, crosses level four and ne
   const game = createAdventure({save:JSON.stringify(save)});
   tap(game,"strike");
   expect(game.snapshot.progression.experience).toBe(590);
-  game.readyCombat(); game.advance(.01);
+  game.readyCombat(); finishGathering(game); game.advance(.01);
   expect(game.snapshot.progression).toMatchObject({level:4,experience:600,attackBonus:6,levelExperience:0,nextLevelExperience:400});
   expect(game.snapshot.log.some(entry=>entry.text.includes("Level up!"))).toBe(true);
   expect(game.snapshot.coins).toBe(0);
@@ -66,7 +66,7 @@ test("shared contributors receive XP, bystanders do not, and one corpse has one 
   const save=JSON.parse(seed.save()); save.world.threats[0].health=36;
   for(const p of save.characters) Object.assign(p.state,{phase:"expedition",position:{x:-3,y:0,z:28}});
   const world=createSharedAdventure({save:JSON.stringify(save)}),a=world.join("a","a","mage"),b=world.join("b","b","mage"),c=world.join("c","c","mage");
-  tap(a,"strike");tap(b,"strike");readyParty(a,b,c);world.advance(.01);
+  tap(a,"strike");tap(b,"strike");readyParty(a,b,c);finishGathering(a,world);world.advance(.01);
   expect(a.snapshot.progression.experience).toBe(10); expect(b.snapshot.progression.experience).toBe(10); expect(c.snapshot.progression.experience).toBe(0);
   a.openLoot("scout");tap(a,"takeLoot");b.openLoot("scout");tap(b,"takeLoot");
   expect(a.snapshot.coins+b.snapshot.coins).toBe(3);
@@ -88,7 +88,7 @@ test("shield and coat reduce real incoming damage together", () => {
   const game=createAdventure({save:JSON.stringify(save)});
   const boss=game.snapshot.threats.find(t=>t.id==="ritual-guardian")!;
   expect(game.snapshot.progression.damageReduction).toBe(4);
-  game.readyCombat();game.advance(boss.cast!.remainingSeconds+.5);
+  finishGathering(game);game.readyCombat();game.advance(boss.cast!.remainingSeconds+.5);
   expect(game.snapshot.player.health).toBe(100-boss.damage+4);
 });
 test("personal Foreman rolls share one coin purse without duplicating it", () => {

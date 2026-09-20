@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
-import { earnedChapter, tap } from "./yard-test-fixtures.js";
+import { finishGathering, earnedChapter, tap } from "./yard-test-fixtures.js";
 
 function seed() {
   const save = JSON.parse(createAdventure({archetype:"mage"}).save());
@@ -30,7 +30,7 @@ test("intentions precede a full 30-second planning window; Ready repeats with fr
 test("late aggro waits through this execution and chooses only next cycle",()=>{
   const data=seed(); const bee=data.state.threats.find((t:{id:string})=>t.id==='nest');
   Object.assign(bee,{health:72,phase:"patrol",lootClaimed:false,position:{x:0,y:0,z:29},targetPosition:{x:0,y:0,z:29}});
-  const game=createAdventure({save:JSON.stringify(data)}); game.advance(.01);
+  const game=createAdventure({save:JSON.stringify(data)}); game.advance(.01); finishGathering(game);
   game.selectTarget("nest"); tap(game,"strike");
   expect(game.snapshot.threats[1]!.joinsNextWindow).toBe(true);
   expect(game.snapshot.threats[1]!.windowAction).toBeNull();
@@ -45,7 +45,7 @@ test("active sequence rejects all queue mutations and movement, but performs pla
   const game=fight(); expect(game.queueBait({x:-2.5,y:0,z:22.5})).toBe(true); tap(game,"strike");
   const first=game.snapshot.combat.queued[0]!; expect(game.setActionTiming("after")).toBe(true);
   expect(game.snapshot.combat.queued.map(e=>e.offsetSeconds)).toEqual([.35,1.5]);
-  game.setAction("forward",true); game.readyCombat();
+  finishGathering(game); game.setAction("forward",true); game.readyCombat();
   const plan=game.snapshot.combat.queued;
   game.removeQueuedAction(first.id); game.clearQueuedActions(); expect(game.setActionTiming("before")).toBe(false);
   tap(game,"brace"); tap(game,"drinkPotion");
@@ -78,7 +78,7 @@ test("shared Ready excludes town players; pausing and saving preserve spent and 
   Object.assign(data.characters[0].state,{phase:solo.phase,position:solo.position,chapter:solo.chapter}); data.world.threats=solo.threats;
   const world=createSharedAdventure({save:JSON.stringify(data)});
   const fighter=world.join("fighter","Fighter","mage"), town=world.join("town","Town","warrior");
-  world.advance(.01); tap(fighter,"strike"); expect(fighter.queueBait({x:-3,y:0,z:25})).toBe(true); fighter.setActionTiming("before"); fighter.readyCombat();
+  world.advance(.01); finishGathering(fighter, world); tap(fighter,"strike"); expect(fighter.queueBait({x:-3,y:0,z:25})).toBe(true); fighter.setActionTiming("before"); fighter.readyCombat();
   expect(fighter.snapshot.combat.phase).toBe("active"); town.setAction("right",true);
   world.advance(.1); expect(town.snapshot.player.position.x).toBeLessThan(0);
   const before=fighter.snapshot; expect(before.combat.queued.find(e=>e.action==="strike")!.status).toBe("executed");
@@ -92,7 +92,7 @@ test("shared Ready excludes town players; pausing and saving preserve spent and 
 });
 
 test("network movement is consumed without motion and new proximity aggro waits during execution",()=>{
-  const game=fight(); game.readyCombat(); game.advance(.1);
+  const game=fight(); finishGathering(game); game.readyCombat(); game.advance(.1);
   const data=JSON.parse(game.save()), warder=data.state.threats.find((t:{id:string})=>t.id==='patrol');
   Object.assign(warder,{health:72,phase:"patrol",lootClaimed:false,position:{x:-3,y:0,z:30},targetPosition:{x:-3,y:0,z:30}});
   const resumed=createAdventure({save:JSON.stringify(data)}); resumed.enableNetworkMovement!();

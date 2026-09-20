@@ -838,13 +838,14 @@ function renderHud(snapshot: AdventureSnapshot): void {
     if (control.disabled !== disabled) control.disabled = disabled;
     setAttribute(control, "aria-label", spec.name);
     setAttribute(control, "aria-pressed", String(action === "bait" && baitAiming));
-    setDataset(control.dataset, { range: range.state });
+    const openingStrike = targeted && snapshot.combat.openingStrikeAvailable;
+    setDataset(control.dataset, { range: range.state, openingStrike: String(openingStrike) });
     control.classList.toggle("action-in-range", targeted && range.state === "in" && !control.disabled);
     setText(control.querySelector<HTMLElement>(".action-tooltip strong")!, spec.name);
-    setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, spec.description);
+    setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, spec.description + (openingStrike ? " Attack before you are detected to land an opening hit before the first turn." : ""));
     const art = control.querySelector<HTMLImageElement>(".action-art img")!;
     const source = publicUrl(spec.icon); if (art.getAttribute("src") !== source) art.src = source;
-    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Click a highlighted tile to plan your movement" : "Plan · " + cost + " stamina";
+    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : openingStrike ? "Opening strike · hit first" : action === "bait" ? "Click a highlighted tile to plan your movement" : "Plan · " + cost + " stamina";
     text(action + "-ready", detail + (range.text ? " · " + range.text : ""));
   }
   const potionControl = actionBar().querySelector<HTMLButtonElement>('[data-action="drinkPotion"]');

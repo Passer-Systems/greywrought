@@ -30,19 +30,19 @@ class Client {
     });
     this.socket.send(JSON.stringify({ type: 'join', token, character }));
   }
-  wait(predicate: (message: ServerWorldMessage) => boolean): Promise<ServerWorldMessage> {
+  wait(predicate: (message: ServerWorldMessage) => boolean, timeoutMillis = 3000): Promise<ServerWorldMessage> {
     return new Promise((resolve, reject) => {
       const check = () => {
         const found = this.messages.find(predicate);
         if (found) { clearTimeout(timeout); this.watchers.delete(check); resolve(found); }
       };
-      const timeout = setTimeout(() => { this.watchers.delete(check); reject(new Error('Timed out waiting for world message')); }, 3000);
+      const timeout = setTimeout(() => { this.watchers.delete(check); reject(new Error('Timed out waiting for world message')); }, timeoutMillis);
       this.watchers.add(check);
       check();
     });
   }
-  async state(predicate: (message: State) => boolean = () => true): Promise<State> {
-    return await this.wait(message => message.type === 'state' && predicate(message)) as State;
+  async state(predicate: (message: State) => boolean = () => true, timeoutMillis = 3000): Promise<State> {
+    return await this.wait(message => message.type === 'state' && predicate(message), timeoutMillis) as State;
   }
   async command(command: WorldCommand): Promise<boolean> {
     const sequence = this.sequence++;
@@ -318,10 +318,14 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
     expect(await client.invalid({ type: 'delay', id: 1, seconds: 1 })).toBe(false);
     expect(await client.invalid({ type: 'replace', id: 1, action: 'strike' })).toBe(false);
     expect(await client.command({ type: 'ready' })).toBe(true);
+    const ready = await client.state(s => s.snapshot.combat.ready);
+    expect(ready.snapshot.combat.phase).toBe('preparation');
+    expect(ready.snapshot.combat.gatheringRemainingSeconds).toBeGreaterThan(0);
+    await client.state(s => s.snapshot.combat.phase === 'active', 8000);
     expect(await client.command({ type: 'actionTiming', timing: 'before' })).toBe(false);
     expect(await client.command({ type: 'bait', destination })).toBe(false);
   } finally { client.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
-});
+}, 12000);
 
 test('slash emotes replicate actions and chat while unknown commands stay private', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'greywrought-emotes-'));

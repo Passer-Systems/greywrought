@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createAdventure, createSharedAdventure, getMonsterLore } from './adventure.js';
 import { caveBlockedPosition, terrainHeight } from './cave-layout.js';
-import { finishCycle, travel, tap } from './yard-test-fixtures.js';
+import { finishGathering, finishCycle, travel, tap } from './yard-test-fixtures.js';
 
 function encounter(id: string) {
   const save=JSON.parse(createAdventure().save());
@@ -135,7 +135,7 @@ test('Ironback closes ground at its faster pursuit pace before the slam warning'
   const game = createAdventure({ save: JSON.stringify(save) }); game.advance(.01);
   const before = game.snapshot.threats.find(threat => threat.id === 'cave-crab')!;
   expect(before.aggro).toBe(true);
-  game.readyCombat(); game.advance(.5);
+  finishGathering(game); game.readyCombat(); game.advance(.5);
   const after = game.snapshot.threats.find(threat => threat.id === 'cave-crab')!;
   expect(Math.hypot(before.position.x - after.position.x, before.position.z - after.position.z)).toBeCloseTo(2.1, 5);
   expect(after.phase).toBe('preparation');

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
-import { earnedChapter, foremanFixture, tap } from "./yard-test-fixtures.js";
+import { finishGathering, earnedChapter, foremanFixture, tap } from "./yard-test-fixtures.js";
 
 test("gear outside combat changes immediately with slot and ownership validation", () => {
   for (const phase of ["town", "expedition"] as const) {
@@ -26,7 +26,7 @@ test("equipment changes during planning cost no stamina and persist immediately"
   expect(game.snapshot.player.stamina).toBe(stamina);
   expect(game.snapshot.player.currentAction).toBe(currentAction);
   expect(game.snapshot.player.actionCooldown).toBe(cooldown);
-  game.readyCombat(); game.equip("chest", "insulated-coat");
+  finishGathering(game); game.readyCombat(); game.equip("chest", "insulated-coat");
   expect(game.snapshot.progression.damageReduction).toBe(0);
   expect(game.snapshot.combat.phase).toBe("active");
   expect(createAdventure({ save: game.save() }).snapshot.progression.damageReduction).toBe(0);

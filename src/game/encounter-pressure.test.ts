@@ -2,7 +2,7 @@ import { createAdventure, createSharedAdventure } from './adventure.js';
 import {test,expect} from 'bun:test';
 import type {AdventureGame, AdventureAction} from './adventure-types.js';
 import type {CharacterArchetype} from '../host/character-profile.js';
-import { earnedChapter, travel } from './yard-test-fixtures.js';
+import { finishGathering, earnedChapter, travel } from './yard-test-fixtures.js';
 function tap(g:AdventureGame,a:AdventureAction){g.setAction(a,true);g.setAction(a,false);}
 test('all available creatures patrol, including the bee; pauses stay brief',()=>{
  const g=createAdventure(),before=g.snapshot;
@@ -148,13 +148,13 @@ test('summoning during planning preserves the existing committed cast',()=>{
 test('engaging another enemy during planning preserves the existing committed cast',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
  Object.assign(data.state,{phase:'expedition',position:{x:0,y:0,z:32.5}});
- data.state.threats.find((t:{id:string})=>t.id==='nest').position={x:7.5,y:0,z:32.5};
+ Object.assign(data.state.threats.find((t:{id:string})=>t.id==='nest'), { position:{x:7.5,y:0,z:32.5}, remainingSeconds:60 });
  for(const t of data.state.threats)if(t.active&&!['scout','nest'].includes(t.id))Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
  const game=createAdventure({save:JSON.stringify(data)});game.advance(.01);
  const scout=()=>game.snapshot.threats.find(t=>t.id==='scout')!;
  const bee=()=>game.snapshot.threats.find(t=>t.id==='nest')!;
  const first=scout().cast!;expect(first.duration).toBeGreaterThanOrEqual(.9);expect(first.duration).toBeLessThanOrEqual(1.1);
- game.advance(1);const remaining=scout().cast!.remainingSeconds;
+ finishGathering(game); game.advance(1);const remaining=scout().cast!.remainingSeconds;
  game.selectTarget('nest');tap(game,'strike');game.advance(.01);
  expect(bee().cast).toBeNull();expect(bee().joinsNextWindow).toBe(true);
  expect(scout().cast!.remainingSeconds).toBeCloseTo(remaining);

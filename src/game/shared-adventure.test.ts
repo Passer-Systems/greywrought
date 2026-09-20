@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createSharedAdventure } from "./adventure.js";
-import { readyParty, travel, finishCycle } from "./yard-test-fixtures.js";
+import { finishGathering, readyParty, travel, finishCycle } from "./yard-test-fixtures.js";
 import type { AdventureAction, AdventureGame, SharedAdventure } from "./adventure-types.js";
 
 function tap(player: AdventureGame, action: AdventureAction): void {
@@ -59,7 +59,7 @@ describe("one shared Frostwood", () => {
   test("another character neither doubles enemy time nor redirects damage to their block", () => {
     const solo = fixture(false), shared = fixture();
     const a = shared.getPlayer("a")!, b = shared.getPlayer("b")!;
-    solo.advance(.01); shared.advance(.01);
+    solo.advance(.01); shared.advance(.01); finishGathering(solo.getPlayer("a")!, solo); finishGathering(a, shared);
     const cast = enemy(a).cast!;
     expect(enemy(solo.getPlayer("a")!).cast).toEqual(cast);
     tap(b, "brace");
@@ -73,7 +73,7 @@ describe("one shared Frostwood", () => {
 
   test("disconnect retains the character and shared save retains online and offline progress", () => {
     const world = fixture(), a = world.getPlayer("a")!, b = world.getPlayer("b")!;
-    tap(a, "strike"); tap(b,"strike"); readyParty(a, b); world.advance(0.02);
+    tap(a, "strike"); tap(b,"strike"); readyParty(a, b); finishGathering(a, world); world.advance(0.02);
     const health = a.snapshot.player.health, position = a.snapshot.player.position;
     a.setAction("forward", true); world.leave("a"); world.advance(0.1);
     expect(world.getPlayer("a")?.snapshot.player.health).toBe(health);

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
-import { earnedChapter, tap } from "./yard-test-fixtures.js";
+import { finishGathering, earnedChapter, tap } from "./yard-test-fixtures.js";
 
 function seed(archetype: CharacterArchetype = "mage") {
   const saved = JSON.parse(createAdventure({ archetype }).save());
@@ -15,7 +15,7 @@ function seed(archetype: CharacterArchetype = "mage") {
 
 describe("personal combat feedback", () => {
   test("reports absorbed block separately from damage after armor", () => {
-    const opening = createAdventure({ save: JSON.stringify(seed()) }); opening.advance(.001);
+    const opening = createAdventure({ save: JSON.stringify(seed()) }); opening.advance(.001); finishGathering(opening);
     const saved = JSON.parse(opening.save());
     saved.state.chapter = earnedChapter(1);
     saved.state.chapter.equipment.chest = "insulated-coat";
@@ -32,7 +32,7 @@ describe("personal combat feedback", () => {
 
   test("full block emits absorption only, never shield activation", () => {
     const game = createAdventure({ save: JSON.stringify(seed()) });
-    game.advance(.001);
+    game.advance(.001); finishGathering(game);
     tap(game, "brace");
     expect(game.snapshot.combatFeedback).toEqual([]);
     game.readyCombat(); game.advance(2.9);
@@ -41,7 +41,8 @@ describe("personal combat feedback", () => {
   });
 
   test("enemy wards and overkill report actual enemy absorption and health loss", () => {
-    const saved = seed();
+    const opening = createAdventure({ save: JSON.stringify(seed()) }); opening.advance(.001); finishGathering(opening);
+    const saved = JSON.parse(opening.save());
     saved.state.threats[0].head.block = 6;
     saved.state.threats[0].head.blockSeconds = 2;
     saved.state.threats[0].health = 2;
@@ -59,7 +60,7 @@ describe("personal combat feedback", () => {
     const potion = createAdventure({ save: JSON.stringify(potionSave) }); potion.setAction("drinkPotion", true); potion.setAction("drinkPotion", false);
     expect(potion.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 5 }]);
     const tonicSave = seed("alchemist"); tonicSave.state.health = 98;
-    const tonic = createAdventure({ save: JSON.stringify(tonicSave) }); tonic.advance(.001); tap(tonic, "brace"); tonic.readyCombat(); tonic.advance(1.2);
+    const tonic = createAdventure({ save: JSON.stringify(tonicSave) }); tonic.advance(.001); finishGathering(tonic); tap(tonic, "brace"); tonic.readyCombat(); tonic.advance(1.2);
     expect(tonic.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 2 }, { id: 2, targetId: null, kind: "block", amount: 8 }]);
     const innSave = seed(); Object.assign(innSave.state, { phase: "town", health: 97, position: { x: 5, y: 0, z: -11 } });
     const inn = createAdventure({ save: JSON.stringify(innSave) }); tap(inn, "rest"); tap(inn, "rest");
@@ -68,7 +69,7 @@ describe("personal combat feedback", () => {
 
   test("keeps distinct events between snapshots, copies entries, and clears on restore", () => {
     const game = createAdventure({ save: JSON.stringify(seed()) });
-    tap(game, "strike"); game.readyCombat(); game.advance(2.5);
+    tap(game, "strike"); finishGathering(game); game.readyCombat(); game.advance(2.5);
     tap(game, "strike"); game.readyCombat(); game.advance(.01);
     const feedback = game.snapshot.combatFeedback;
     expect(feedback).toEqual([
@@ -101,7 +102,7 @@ describe("personal combat feedback", () => {
     saved.world.threats = solo.threats;
     const world = createSharedAdventure({ save: JSON.stringify(saved) });
     const a = world.join("a", "Ada", "mage"), b = world.join("b", "Bram", "hunter");
-    world.advance(.01); tap(a, "brace"); tap(b, "strike");
+    world.advance(.01); finishGathering(a, world); tap(a, "brace"); tap(b, "strike");
     a.readyCombat(); b.readyCombat(); world.advance(2.9);
     expect(a.snapshot.combatFeedback).toEqual([
       { id: 1, targetId: null, kind: "block", amount: 8 },

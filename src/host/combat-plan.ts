@@ -229,15 +229,16 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       const pinned = pinnedPreview;
       if (pinned?.kind === "move" && !combat.queued.some(move => move.id === pinned.queueId)) pinnedPreview = null;
       const attackers = next.threats.filter(threat => threat.active && (threat.health > 0 || combat.phase === "active" && threat.windowAction !== null) && (threat.aggro || threat.joinsNextWindow || threat.windowAction !== null || threat.forecast.length > 0));
+      const gathering = combat.phase === "preparation" && combat.gatheringRemainingSeconds > 0;
       root.dataset.enemies = String(attackers.length);
-      danger.hidden = attackers.length < 2;
+      danger.hidden = !gathering && attackers.length < 2;
       danger.dataset.severity = "tactics";
-      write(danger, `${attackers.length} enemies · Make their attacks work for you`);
+      write(danger, gathering ? "Nearby enemies can join this turn. Plan now; Ready waits for the countdown." : `${attackers.length} enemies · Make their attacks work for you`);
       danger.title = attackers.map(threat => threat.name).join("\n");
       root.hidden = next.phase !== "expedition" || combat.phase === "idle" || attackers.length === 0;
-      Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
+      Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), gathering: String(combat.gatheringRemainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
       const choosing = combat.phase === "choosing";
-      write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Enemies choose · momentarily" : combat.phase === "preparation" ? "Planning · " + Math.ceil(combat.remainingSeconds) + "s" : "Playing turn");
+      write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Enemies choose · momentarily" : gathering ? "Gathering enemies · " + Math.ceil(combat.gatheringRemainingSeconds) + "s" : combat.phase === "preparation" ? "Planning · " + Math.ceil(combat.remainingSeconds) + "s" : "Playing turn");
       write(resources, combat.availableStamina + " stamina");
       move.disabled = !editing() || combat.availableStamina + (combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) < 1;
       clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / (combat.elapsedSeconds + combat.remainingSeconds)) + "%";
@@ -245,7 +246,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       ready.hidden = combat.phase !== "preparation";
       ready.disabled = combat.phase !== "preparation" || combat.ready;
       write(ready, combat.ready ? "Ready ✓" : "Ready (R)");
-      ready.title = combat.ready ? "Waiting for the other players or the timer" : "Begin this turn now (R)";
+      ready.title = gathering ? "Start once nearby enemies have joined and everyone is ready" : combat.ready ? "Waiting for the other players or the timer" : "Begin this turn now (R)";
       const newest = combat.queued.reduce<QueuedCombatAction | undefined>((latest, move) => !latest || move.id > latest.id ? move : latest, undefined);
       if (newest && newest.id !== lastId) { selectedId = lastId = newest.id; }
       if (!combat.queued.some(entry => entry.id === selectedId)) selectedId = newest?.id ?? null;

@@ -48,6 +48,8 @@ export interface CombatForecast {
 export interface CombatHazard { readonly id: string; readonly kind: "swarm"; readonly position: Position; readonly radius: number; }
 export interface CombatEffect { readonly id: number; readonly kind: "ignition"; readonly position: Position; readonly radius: number; }
 export interface CombatView {
+  readonly gatheringRemainingSeconds: number;
+  readonly openingStrikeAvailable: boolean;
   readonly forecast: CombatForecast | null;
   readonly hazards: readonly CombatHazard[];
   readonly effects: readonly CombatEffect[];

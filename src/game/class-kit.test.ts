@@ -1,3 +1,4 @@
+import { finishGathering } from "./yard-test-fixtures.js";
 import { describe, expect, test } from "bun:test";
 import { createAdventure } from "./adventure.js";
 import { classKit } from "./class-kit.js";
@@ -25,7 +26,7 @@ describe("new class kits", () => {
       const game = expedition(archetype);
       game.selectTarget("scout");
       game.setAction("strike", true); game.setAction("strike", false);
-      game.readyCombat(); game.advance(0.01); game.advance(1.01);
+      game.readyCombat(); finishGathering(game); game.advance(0.01); game.advance(1.01);
       expect(game.snapshot.threats.find(threat => threat.id === "scout")?.health).toBeLessThan(96);
       const restored = createAdventure({ archetype, save: game.save() });
       expect(restored.snapshot.player.archetype).toBe(archetype);

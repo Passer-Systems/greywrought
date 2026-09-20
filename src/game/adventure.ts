@@ -21,7 +21,7 @@ export const COMBAT_RULES = {
   actionCooldown: 1,
   bait: { duration: COMBAT_TURN.moveDuration, cost: 1 },
   swarm: { radius: 3, damage: 36 },
-  window: { active: COMBAT_TURN.duration, choosing: 0, preparation: 30 },
+  window: { active: COMBAT_TURN.duration, choosing: 0, preparation: 30, gathering: 5 },
   stamina: { maximum: 5, recoverySeconds: 1.5 },
   strike: { damage: 18, range: MELEE_RANGE, rangedRange: 10, stopDistance: 1.5, duration: 0.25, cost: 0 },
   brace: { block: 24, duration: 2, cost: 2 },
@@ -75,9 +75,9 @@ interface ThreatState {
 }
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 type QueueEntry = Mutable<import("./adventure-types.js").QueuedCombatAction>;
-interface CombatClock { pendingSeconds: number; phase: import("./adventure-types.js").CombatView["phase"]; elapsedSeconds: number; cycle: number; }
+interface CombatClock { gatheringRemainingSeconds: number; pendingSeconds: number; phase: import("./adventure-types.js").CombatView["phase"]; elapsedSeconds: number; cycle: number; }
 interface CombatState { clock: CombatClock; queued: QueueEntry[]; nextId: number; ready: boolean; }
-const newClock = (): CombatClock => ({ pendingSeconds: 0, phase: "idle", elapsedSeconds: 0, cycle: 0 });
+const newClock = (): CombatClock => ({ gatheringRemainingSeconds: 0, pendingSeconds: 0, phase: "idle", elapsedSeconds: 0, cycle: 0 });
 const newCombat = (clock = newClock()): CombatState => ({ clock, queued: [], nextId: 1, ready: false });
 interface WorldState {
   threats: ThreatState[]; resourceRemaining: number; ritualCalled: boolean; chestClaimed: boolean;
@@ -398,7 +398,7 @@ class Adventure implements AdventureGame {
           }
         }
       }
-      if (!context.world.threats.some(t => t.aggro && t.health > 0)) { context.clock.phase = "idle"; context.clock.elapsedSeconds = 0; }
+      if (!context.world.threats.some(t => t.aggro && t.health > 0)) { context.clock.phase = "idle"; context.clock.elapsedSeconds = 0; context.clock.gatheringRemainingSeconds = 0; }
       for (const member of privateContext.characters.values()) {
         member.shared = privateContext;
         member.state.world = privateContext.world; member.state.combat.clock = privateContext.clock;
@@ -523,7 +523,7 @@ class Adventure implements AdventureGame {
     return {
       quests: this.questViews(), progression: this.progression(),
       combatFeedback: this.combatFeedback.map(entry => ({ ...entry })),
-      phase: s.phase, combat: { forecast: this.forecast(), hazards: s.world.threats.flatMap(t => t.swarm ? [{ id: t.id + ":swarm", kind: "swarm" as const, position: { ...t.swarm.position }, radius: COMBAT_RULES.swarm.radius }] : []), effects: this.effects.map(e => ({ ...e, position: { ...e.position } })), ready: s.combat.ready, phase: s.combat.clock.phase, remainingSeconds: s.combat.clock.phase === "idle" ? 0 : Math.max(0, (s.combat.clock.phase === "active" ? COMBAT_RULES.window.active : COMBAT_RULES.window.preparation) - s.combat.clock.elapsedSeconds), elapsedSeconds: s.combat.clock.elapsedSeconds, cycle: s.combat.clock.cycle, queued: s.combat.queued.map(e => ({ ...e })), reservedStamina: this.reservedStamina(), availableStamina: s.stamina - this.reservedStamina() },
+      phase: s.phase, combat: { gatheringRemainingSeconds: s.combat.clock.gatheringRemainingSeconds, openingStrikeAvailable: this.openingStrikeAvailable(), forecast: this.forecast(), hazards: s.world.threats.flatMap(t => t.swarm ? [{ id: t.id + ":swarm", kind: "swarm" as const, position: { ...t.swarm.position }, radius: COMBAT_RULES.swarm.radius }] : []), effects: this.effects.map(e => ({ ...e, position: { ...e.position } })), ready: s.combat.ready, phase: s.combat.clock.phase, remainingSeconds: s.combat.clock.phase === "idle" ? 0 : Math.max(0, (s.combat.clock.phase === "active" ? COMBAT_RULES.window.active : COMBAT_RULES.window.preparation) - s.combat.clock.elapsedSeconds), elapsedSeconds: s.combat.clock.elapsedSeconds, cycle: s.combat.clock.cycle, queued: s.combat.queued.map(e => ({ ...e })), reservedStamina: this.reservedStamina(), availableStamina: s.stamina - this.reservedStamina() },
       player: this.playerView(),
       threats: s.world.threats.map((t): ThreatView => {
         const d = definition(t.id);
@@ -741,7 +741,7 @@ class Adventure implements AdventureGame {
   }
   private beginExecution(): void {
     const clock = this.state.combat.clock;
-    if (clock.phase !== "preparation") return;
+    if (clock.phase !== "preparation" || clock.gatheringRemainingSeconds > EPSILON) return;
     clock.phase = "active"; clock.elapsedSeconds = 0; clock.pendingSeconds = 0;
     const destinations: Position[] = [];
     for (const player of this.combatants()) {
@@ -769,6 +769,7 @@ class Adventure implements AdventureGame {
   }
   private beginPlanning(): void {
     const clock = this.state.combat.clock;
+    if (clock.phase !== "idle") clock.gatheringRemainingSeconds = 0;
     clock.phase = "choosing"; clock.elapsedSeconds = 0; clock.cycle++;
     for (const player of this.participants()) {
       player.state.combat.queued = []; player.state.combat.ready = false;
@@ -800,12 +801,14 @@ class Adventure implements AdventureGame {
     const engaged = this.combatants().length > 0;
     if (!engaged && !this.state.world.threats.some(t => t.head?.fireballs.length)) {
       if (this.recording) this.captureOutcomes();
-      clock.phase = "idle"; clock.elapsedSeconds = 0;
+      clock.phase = "idle"; clock.elapsedSeconds = 0; clock.gatheringRemainingSeconds = 0;
       for (const player of this.participants()) { player.state.combat.queued = []; player.state.combat.ready = false; }
       return;
     }
     if (clock.phase === "idle" || clock.phase === "choosing") { this.beginPlanning(); return; }
     if (clock.phase === "preparation") {
+      clock.gatheringRemainingSeconds = Math.max(0, clock.gatheringRemainingSeconds - dt);
+      if (clock.gatheringRemainingSeconds < EPSILON) clock.gatheringRemainingSeconds = 0;
       clock.elapsedSeconds += dt;
       if (clock.elapsedSeconds >= COMBAT_RULES.window.preparation - EPSILON || this.combatants().every(p => p.state.combat.ready)) this.beginExecution();
       return;
@@ -851,6 +854,14 @@ class Adventure implements AdventureGame {
     const reason = this.queueReason(action, existing?.id);
     if (reason) { this.report(reason, "combat"); return; }
     const target = action === "strike" ? this.state.world.threats.find(t => t.id === this.state.selectedThreat)! : null;
+    if (target && this.openingStrikeAvailable()) {
+      this.state.sitting = false; this.activeEmote = null;
+      this.spendStamina(this.actionCost("strike"));
+      this.recover("strike", COMBAT_RULES.strike.duration);
+      this.hit(target, classAction(this.state.archetype, "strike").damage ?? COMBAT_RULES.strike.damage, "Attack at");
+      if (this.inCombat() && c.clock.phase === "idle") this.beginPlanning();
+      return;
+    }
     if (target) {
       this.state.sitting = false; this.activeEmote = null;
       if (target.aggro && !this.inCombat()) this.settleCombatCell();
@@ -1062,6 +1073,17 @@ class Adventure implements AdventureGame {
     const settled = this.engagementPositions(t);
     return distance(settled.player, settled.threat) <= range + EPSILON && this.clearPath(settled.player, settled.threat);
   }
+  private openingStrikeAvailable(): boolean {
+    const target = this.state.world.threats.find(threat => threat.id === this.state.selectedThreat);
+    if (!target || target.aggro || this.inCombat() || this.inPrivateInstance() || this.instancePaused()
+      || this.state.combat.clock.phase === "active" || !this.ready() || !this.attackInRange(target, "strike")
+      || this.state.stamina < this.actionCost("strike")) return false;
+    return !this.state.world.threats.some(threat => {
+      const d = definition(threat.id);
+      return threat.active && threat.health > 0 && threat.phase !== "returning" && d.disposition === "hostile"
+        && distance(this.state.position, threat.position) <= d.aggroRange && this.clearPath(this.state.position, threat.position);
+    });
+  }
   private canUseAttack(t: ThreatState, action: "strike"): boolean {
     return this.attackInRange(t, action);
   }
@@ -1141,6 +1163,7 @@ class Adventure implements AdventureGame {
     });
     if (destination && !copies[players.indexOf(this)]!.queueBait(destination)) return null;
     const driver = copies[0]!;
+    clock.gatheringRemainingSeconds = 0;
     driver.beginExecution();
     // Bound forecasts for exceptionally long enemy pursuits or volleys.
     const motion = new Map<string, Position[]>();
@@ -1556,6 +1579,8 @@ class Adventure implements AdventureGame {
     return s.phase === "expedition" && s.health > 0 && !inTown(s.position) && distance(s.position, d.position) <= d.leash;
   }
   private engage(t: ThreatState): void {
+    const clock = this.state.combat.clock;
+    if (clock.phase === "idle" && !this.state.world.threats.some(threat => threat.aggro && threat.health > 0)) clock.gatheringRemainingSeconds = COMBAT_RULES.window.gathering;
     this.cancelHearthstone();
     this.state.sitting = false; this.activeEmote = null;
     const settled = this.engagementPositions(t);
@@ -1563,9 +1588,9 @@ class Adventure implements AdventureGame {
     t.position = { ...settled.threat };
     t.aggro = true; t.lastActionHit = false; t.targetPlayerId = this.playerId;
     if (this.playerId !== null && !t.combatants.includes(this.playerId)) t.combatants.push(this.playerId);
-    const clock = this.state.combat.clock;
-    t.joinCycle = clock.cycle + 1; t.windowCycle = 0;
+    t.joinCycle = clock.phase === "preparation" && clock.gatheringRemainingSeconds > EPSILON ? clock.cycle : clock.cycle + 1; t.windowCycle = 0;
     t.phase = "approach"; t.castDuration = 0; t.remainingSeconds = 0;
+    if (clock.phase === "preparation" && t.joinCycle === clock.cycle) this.commitThreat(t);
   }
   private commitThreat(t: ThreatState): void {
     const clock = this.state.combat.clock;
@@ -2116,7 +2141,7 @@ function readSave(serialized: string, now = Date.now()): State {
 
 function readClock(value: unknown): CombatClock {
   const c = record(value);
-  return { pendingSeconds: c.pendingSeconds === undefined ? 0 : number(c.pendingSeconds, 0, 1 / 60), phase: choice(c.phase, ["idle", "active", "choosing", "preparation"] as const), elapsedSeconds: number(c.elapsedSeconds), cycle: number(c.cycle, 0, Number.MAX_SAFE_INTEGER, true) };
+  return { gatheringRemainingSeconds: c.gatheringRemainingSeconds === undefined ? 0 : number(c.gatheringRemainingSeconds, 0, COMBAT_RULES.window.gathering), pendingSeconds: c.pendingSeconds === undefined ? 0 : number(c.pendingSeconds, 0, 1 / 60), phase: choice(c.phase, ["idle", "active", "choosing", "preparation"] as const), elapsedSeconds: number(c.elapsedSeconds), cycle: number(c.cycle, 0, Number.MAX_SAFE_INTEGER, true) };
 }
 
 function readResourceRespawns(value: unknown, remaining: number, now: number): WorldState["resourceRespawns"] {

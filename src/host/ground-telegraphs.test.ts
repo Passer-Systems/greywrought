@@ -15,6 +15,7 @@ const forecast: CombatForecast = {
   events: [], outcomes: [],
 };
 const combat: CombatView = {
+  gatheringRemainingSeconds: 0, openingStrikeAvailable: false,
   ready: false, phase: "preparation", remainingSeconds: 30, elapsedSeconds: 0, cycle: 1,
   queued: [], reservedStamina: 0, availableStamina: 5, forecast, hazards: [], effects: [],
 };

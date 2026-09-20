@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test';
 import { createAdventure } from './adventure.js';
-import { tap, finishCycle } from './yard-test-fixtures.js';
+import { finishGathering, tap, finishCycle } from './yard-test-fixtures.js';
 import { reachableCombatCells } from './combat-grid.js';
 
 function setup() {
   const saved = JSON.parse(createAdventure({ archetype: 'warrior' }).save());
   Object.assign(saved.state, { phase: 'expedition', position: { x: -2.5, y: 0, z: 25 } });
   for (const enemy of saved.state.threats) if (enemy.active && enemy.id !== 'scout') Object.assign(enemy, { health: 0, phase: 'cleared', lootClaimed: true });
-  const game = createAdventure({ save: JSON.stringify(saved) }); game.selectTarget('scout'); game.advance(.02);
+  const game = createAdventure({ save: JSON.stringify(saved) }); game.selectTarget('scout'); game.advance(.02); finishGathering(game);
   return game;
 }
 
@@ -70,7 +70,7 @@ test('changing an allowance clears readiness until every participant commits', a
   const seed=createSharedAdventure(); seed.join('a','Ada','warrior'); seed.join('b','Bob','warrior');
   const saved=JSON.parse(seed.save());
   for(const [index,character] of saved.characters.entries()) Object.assign(character.state,{phase:'expedition',position:{x:-2.5+index*2.5,y:0,z:27.5}});
-  const world=createSharedAdventure({save:JSON.stringify(saved)}), a=world.join('a','Ada','warrior'),b=world.join('b','Bob','warrior'); world.advance(.02);
+  const world=createSharedAdventure({save:JSON.stringify(saved)}), a=world.join('a','Ada','warrior'),b=world.join('b','Bob','warrior'); world.advance(.02); finishGathering(a, world);
   a.selectTarget('scout'); b.selectTarget('scout'); tap(a,'strike'); tap(b,'strike');
   expect(a.readyCombat()).toBe(true); expect(a.snapshot.combat.phase).toBe('preparation');
   tap(a,'brace'); expect(a.snapshot.combat.ready).toBe(false);
@@ -89,7 +89,7 @@ test('a destination committed at Ready stays reserved through enemy pursuit and 
   }
   const world=createSharedAdventure({save:JSON.stringify(save)}),player=world.join('p','Player','mage'); world.advance(.02);
   expect(player.queueBait({x:42.5,y:-5,z:-45})).toBe(true); tap(player,'brace'); player.setActionTiming('during');
-  const forecast=player.snapshot.combat.forecast!; player.readyCombat(); world.advance(1.4);
+  const forecast=player.snapshot.combat.forecast!; player.readyCombat(); finishGathering(player, world); world.advance(1.4);
   expect(player.snapshot.player.position.x).toBeCloseTo(42.5,8);
   finishCycle(player,world); expect(player.snapshot.player.position).toEqual({x:42.5,y:-5,z:-45});
   expect(player.snapshot.player.health).toBe(forecast.outcomes.find(o=>o.id==='p')!.health);

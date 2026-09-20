@@ -1,4 +1,4 @@
-import { finishCycle, travel } from "./yard-test-fixtures.js";
+import { finishGathering, finishCycle, travel } from "./yard-test-fixtures.js";
 import { describe, expect, test } from "bun:test";
 import { createSharedAdventure, WORLD_RESPAWN_MILLISECONDS } from "./adventure.js";
 import type { AdventureAction, AdventureGame } from "./adventure-types.js";
@@ -26,7 +26,7 @@ describe("two-minute world regrowth", () => {
     const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => time });
     const a = world.join("a", "Ada", "mage");
     const b = world.join("b", "Bram", "mage");
-    tap(a, "strike"); a.readyCombat(); b.readyCombat(); world.advance(0.01);
+    tap(a, "strike"); a.readyCombat(); b.readyCombat(); finishGathering(a, world); world.advance(0.01);
     expect(a.snapshot.threats[0]!.health).toBe(0);
     expect(JSON.parse(world.save()).world.threats[0].respawnAt).toBe(time + WORLD_RESPAWN_MILLISECONDS);
     finishCycle(a,world);

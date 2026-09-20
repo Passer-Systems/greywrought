@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createAdventure } from "./adventure.js";
 import type { AdventureGame } from "./adventure-types.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
-import { finishCycle, tap } from "./yard-test-fixtures.js";
+import { finishGathering, finishCycle, tap } from "./yard-test-fixtures.js";
 
 function setup(archetype: CharacterArchetype = "mage", z = 28.1): AdventureGame {
   const saved = JSON.parse(createAdventure({ archetype }).save());
@@ -12,7 +12,7 @@ function setup(archetype: CharacterArchetype = "mage", z = 28.1): AdventureGame 
     if (enemy.active && enemy.id !== "scout") Object.assign(enemy, { health: 0, phase: "cleared", lootClaimed: true });
   }
   const game = createAdventure({ archetype, save: JSON.stringify(saved) });
-  game.selectTarget("scout"); game.advance(.01);
+  game.selectTarget("scout"); game.advance(.01); finishGathering(game);
   return game;
 }
 const scout = (game: AdventureGame) => game.snapshot.threats.find(t => t.id === "scout")!;
