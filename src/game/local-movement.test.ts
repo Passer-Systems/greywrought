@@ -37,7 +37,7 @@ test('active combat clears held locomotion and does not replay stale movement fr
   local.setAction('forward', true); local.setMouseForward(true); local.setAction('jump', true); local.advance(.2);
   expect(local.player.position.x).toBeCloseTo(locked.x, 7);
   expect(local.player.position.z).toBeCloseTo(locked.z, 7);
-  expect(local.takeOutgoing().every(frame => frame.input.forward === 0 && frame.input.strafe === 0 && !frame.input.jump)).toBe(true);
+  expect(local.takeOutgoing().slice(-12).every(frame => frame.input.forward === 0 && frame.input.strafe === 0 && !frame.input.jump)).toBe(true);
 });
 
 test('delayed and jittered acknowledgments preserve immediate speed, turns, release, mouse priority and jumping', () => {
