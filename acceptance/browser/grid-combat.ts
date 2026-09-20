@@ -28,6 +28,8 @@ const gap = (a: Position, b: Position) => Math.hypot(a.x - b.x, a.y - b.y, a.z -
 try {
   for (let i = 0; i < 100; i++) { try { if ((await fetch(url)).ok) break; } catch {} await Bun.sleep(100); }
   page = await openBrowser('grid-combat', { beforeNavigate: async call => {
+    await call('Network.enable');
+    await call('Network.setBlockedURLs', { urls: [url + '__dev/events'] });
     await call('Page.addScriptToEvaluateOnNewDocument', { source: `localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Grid Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4322/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state'){window.gridState=d.snapshot;window.gridSession=d.session;}});}};` });
   } });
   const browser = page;
@@ -51,10 +53,16 @@ try {
     await browser.call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', buttons: 0, clickCount: 1 });
   }
   await enter();
+  await page.click('#equipment-open');
+  await page.waitFor('document.getElementById("equipment-panel").open');
+  check(await page.evaluate('document.getElementById("equipment-summary").textContent.includes("Movement 2 (2 tiles per move)")'), 'Character stats show the class Movement allowance');
+  await page.shot('character-movement-stat');
+  await page.click('#equipment-close');
   await page.key('KeyA', true);
   await page.waitFor('window.gridState.player.inCombat');
   await page.waitFor('window.gridState.combat.phase==="preparation"&&document.getElementById("world-canvas").dataset.combatGrid==="2.5"');
   const entered = await snapshot();
+  check(await page.evaluate('document.getElementById("combat-plan").textContent.includes("2 tiles per move")'), 'Planner displays the same Movement allowance');
   check(entered.player.position.y < -1, 'Walking into the cave descends before combat');
   check(entered.player.position.x % 2.5 === 0 && entered.player.position.z % 2.5 === 0, 'Combat entry settles on a cell');
   await Bun.sleep(450); await page.key('KeyA', false);
