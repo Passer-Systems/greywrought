@@ -43,7 +43,7 @@ export class LocalMovement {
       grounded: this.state.position.y === terrainHeight(this.state.position.x, this.state.position.z), moving: this.moving, backpedaling: this.backpedaling };
   }
   setAction(action: AdventureAction, pressed: boolean): void {
-    if (this.combatLocked() && isLocomotionAction(action)) return;
+    if (this.combatLocked() && isLocomotionAction(action) && pressed) return;
     if (pressed) {
       if (action === 'jump' && !this.held.has(action)) this.jump = true;
       this.held.add(action);
@@ -87,7 +87,7 @@ export class LocalMovement {
   reconcile(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoint, serverTime: number): void {
     if (serverTime < this.serverTime) return;
     const previous = this.player.position;
-    const enteredExecution = !this.executionLocked() && this.executionLocked(snapshot);
+    const enteredExecution = !this.combatLocked() && this.combatLocked(snapshot);
     if (enteredExecution) {
       this.held.clear(); this.mouseForward = false; this.jump = false;
       this.history = []; this.outgoing = [];
