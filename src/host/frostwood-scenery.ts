@@ -257,6 +257,21 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     [-36, 31, 1.15, .4], [-34, 35, .75, 1.2], [-32, 61, 1.35, 2.4],
     [-18, 67, .8, -.8], [28, 34, 1.05, 1.7], [31, 54, .7, -.2], [25, 72, 1.25, 2.1],
   ] as const) place('nature/Rock_Medium_3', x, z, size, rotation, terrain, 'width');
+  for (const [x, z, size, rotation] of [
+    [-38, 47, 1.3, .7], [-33, 67, .85, 2.2], [-17, 73, 1.15, -.3], [30, 42, .95, 1.4], [27, 65, 1.4, -.9],
+  ] as const) place('nature/Rock_Medium_1', x, z, size, rotation, terrain, 'width');
+  // Old survey machines have become landmarks in the reclaimed woods. They are
+  // set beside clearings and deliberately lean at different angles.
+  for (const [x, z, size, rotation, tilt] of [
+    [-35, 46, 2.25, .35, -.14], [-20, 71, 1.9, 2.4, .09], [31, 59, 2.05, -1.1, -.1],
+  ] as const) place('reclaimed/Robot', x, z, size, rotation, terrain, 'height', 0, undefined, tilt, .06 * Math.sin(x));
+  // Scrap piles reuse the existing authored industrial props and stay outside
+  // encounter pads, reading as ruins being reclaimed by the surrounding growth.
+  for (const [x, z, rotation] of [[-37, 44, .2], [-18, 69, 1.8], [29, 57, -.7]] as const) {
+    place('works/Props_Capsule', x, z, 1.5, rotation);
+    place('works/Details_Pipes_Long', x + .9, z + .4, .9, rotation + .7);
+    place('works/Props_Vessel', x - .7, z + .6, .5, rotation - .4);
+  }
   place('nature/TwistedTree_2',-30,54,6.4,1.1);
   place('nature/DeadTree_2',-14,59,4.8,2.4);
   // Windfall and snapped trunks break up the otherwise uniform northern woods.
@@ -291,6 +306,17 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       if (!clearOfPatrols(px, pz, 6)) continue;
       place(plant % 4 === 0 ? 'nature/Fern_1' : 'nature/Grass_Common_Short', px, pz,
         plant % 4 === 0 ? .48 + noise(seed + plant) * .15 : .17 + noise(seed * 3 + plant) * .1, angle);
+    }
+  }
+  // More visible meadow grass in the southern field; the lake at (-4,-98) is
+  // well south of this band, and the edge keeps its approach lanes open.
+  for (const [x, z, seed] of [[-48,-57,21],[-31,-68,24],[22,-61,27],[38,-78,31],[-54,-83,36],[30,-91,40]] as const) {
+    for (let tuft = 0; tuft < 11; tuft++) {
+      const angle = seed * .37 + tuft * 2.17, radius = .5 + Math.sqrt(tuft) * .72;
+      const px = x + Math.cos(angle) * radius, pz = z + Math.sin(angle) * radius;
+      if (Math.hypot(px + 4, pz + 98) < 16 || Math.abs(px) < 4 && pz > -96 && pz < -50) continue;
+      place(tuft % 5 === 0 ? 'nature/Fern_1' : 'nature/Grass_Common_Short', px, pz,
+        tuft % 5 === 0 ? .55 : .22 + noise(seed + tuft) * .12, angle);
     }
   }
   // This briar island is the existing solid boundary; useful old machinery sits within it.
