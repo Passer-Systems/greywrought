@@ -30,6 +30,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
     uniforms: {
       zenith: { value: new Color() }, horizon: { value: new Color() },
       sunDirection: { value: new Vector3() }, daylight: { value: 1 },
+      cloudTime: { value: 0 },
     },
     vertexShader: `varying vec3 skyDirection;
       void main() {
@@ -38,11 +39,25 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
         gl_Position = clip.xyww;
       }`,
     fragmentShader: `uniform vec3 zenith, horizon, sunDirection;
-      uniform float daylight;
+      uniform float daylight, cloudTime;
       varying vec3 skyDirection;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+        return mix(mix(hash(i), hash(i+vec2(1.0,0.0)), f.x), mix(hash(i+vec2(0.0,1.0)), hash(i+vec2(1.0,1.0)), f.x), f.y);
+      }
+      float cloud(vec2 p) {
+        float n = noise(p) * .58 + noise(p * 2.1 + 9.0) * .28 + noise(p * 4.4 - 3.0) * .14;
+        return smoothstep(.55, .74, n);
+      }
       void main() {
         vec3 direction = normalize(skyDirection);
         vec3 color = mix(horizon, zenith, smoothstep(-0.1, 0.8, direction.y));
+        float cloudBand = smoothstep(0.04, 0.22, direction.y) * (1.0 - smoothstep(0.58, 0.88, direction.y));
+        vec2 cloudUv = direction.xz / max(0.18, direction.y + 0.2) * 1.7 + vec2(cloudTime * 0.003, cloudTime * 0.0012);
+        float clouds = cloud(cloudUv);
+        float cloudLight = mix(0.22, 0.72, daylight) * clouds * cloudBand;
+        color = mix(color, vec3(0.84, 0.88, 0.86), cloudLight * 0.34);
         float sun = dot(direction, sunDirection);
         float moon = dot(direction, -sunDirection);
         color += vec3(1.0, 0.65, 0.28) * pow(max(0.0, sun), 48.0) * 0.35;
@@ -85,6 +100,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       material.uniforms.horizon!.value.copy(colors.horizonNight).lerp(colors.horizonDay, day.daylight).lerp(colors.horizonDawn, day.twilight * .7);
       material.uniforms.sunDirection!.value.copy(day.sunDirection);
       material.uniforms.daylight!.value = day.daylight;
+      material.uniforms.cloudTime!.value = wallTimeMillis * 0.001;
       fog.color.copy(material.uniforms.horizon!.value);
       sky.position.copy(camera.position);
       sky.visible = cave < 1;
