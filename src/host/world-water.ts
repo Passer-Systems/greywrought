@@ -1,4 +1,4 @@
-import { BufferGeometry, Color, Float32BufferAttribute, Group, Matrix4, Mesh, ShaderMaterial, UniformsLib, UniformsUtils, Vector2, Vector3 } from 'three';
+import { BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Group, Matrix4, Mesh, ShaderMaterial, UniformsLib, UniformsUtils, Vector2, Vector3 } from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { LAKE_CENTER, LAKE_RADIUS, LAKE_WATER_LEVEL, lakeBoundary, lakeDepthAt, overworldHeight } from '../game/world-elevation.js';
 import { worldDay } from '../game/world-time.js';
@@ -70,6 +70,7 @@ void main(){
  vec2 slope=rippleGradient(uv*.85)*.055+rippleGradient(uv*2.7+vec2(13.,7.))*.022;
  slope*=waveHeight/.055;
  vec3 n=normalize(vec3(-slope.x,1.,-slope.y));
+ if(!gl_FrontFacing)n=-n;
  vec3 view=normalize(cameraPosition-world);
  float fresnel=.035+.965*pow(1.-max(dot(n,view),0.),5.);
  float attenuation=1.-exp(-max(0.,wetDepth)*absorption);
@@ -82,6 +83,7 @@ void main(){
  float breakup=smoothstep(.36,.74,noise(uv*5.1)+noise(uv*11.3)*.2);
  float foam=shallow*washEdge*mix(.65,.12,lake)*breakup*smoothstep(.002,mix(.025,.012,lake),wetDepth);
  color=mix(color,vec3(.72,.80,.74)*mix(.4,1.,daylight),foam*.38);
+ if(!gl_FrontFacing)color=mix(vec3(.12,.34,.30),shallowColor,.3)+sunColor*glint*.08;
  gl_FragColor=vec4(color,clamp(.22+attenuation*.65+fresnel*.45+foam*.25,0.,.97)*smoothstep(.002,.024,wetDepth));
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
@@ -122,6 +124,7 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
   // Ripples and glints animate every frame; the smaller scene reflection has a
   // separate update budget so nearby water does not double every frame's work.
   lake.onBeforeRender=function(...args){
+    if(args[2].position.y < LAKE_WATER_LEVEL)return;
     const now=performance.now();if(now<nextReflection)return;
     nextReflection=now+1000/MEADOW_WATER.reflection.updatesPerSecond;
     // The stream samples this target too, so it cannot draw into the reflection
@@ -133,7 +136,7 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
     scene.matrixWorldAutoUpdate=false;
     try{renderReflection.apply(this,args);}finally{stream.visible=streamVisible;scene.matrixWorldAutoUpdate=autoUpdate;}
   };
-  const material=lake.material as ShaderMaterial;material.fog=true;material.transparent=true;material.depthWrite=false;lake.renderOrder=1;parent.add(lake);
+  const material=lake.material as ShaderMaterial;material.fog=true;material.side=DoubleSide;material.transparent=true;material.depthWrite=false;lake.renderOrder=1;parent.add(lake);
   material.addEventListener('dispose',()=>lake.getRenderTarget().dispose());
   const streamGeometry=buildStreamGeometry();
   const stream=new Mesh(streamGeometry,material);stream.name='meadow-stream';stream.rotation.x=-Math.PI/2;stream.position.y=LAKE_WATER_LEVEL;stream.renderOrder=2;parent.add(stream);

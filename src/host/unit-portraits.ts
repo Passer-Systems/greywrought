@@ -10,6 +10,9 @@ const appearances = [
   ["lake-dreadnought", "mechanical-turtle"], ["pond-turtle", "mechanical-turtle"], ["pond-turtle-west", "mechanical-turtle"], ["pond-turtle-north", "mechanical-turtle"], ["pond-turtle-south", "mechanical-turtle"], ["meadow-rat", "Rat"], ["meadow-rat-2", "Rat"],
   ["meadow-bird", "Birb"], ["meadow-bird-2", "Birb"], ["meadow-bird-3", "Birb"],
   ['scrap-skitter', 'Crab'], ['rust-skitter', 'Crab'], ['moss-skitter', 'Crab'],
+  ['glassmire-lantern', 'Skull'], ['glassmire-stalker', 'Wolf'], ['glassmire-grazer', 'Crab'],
+  ['choir-cantor', 'Skull'], ['choir-hound', 'Wolf'], ['choir-sacristan', 'Leela'],
+  ['ossuary-king', 'MushroomKing'], ['ossuary-wing', 'Bat'], ['brinewood-bee', 'Armabee'], ['suture-scavenger', 'Crab'],
 ] as const;
 
 /** One portrait pass; model geometry and textures remain owned by the shared asset cache. */

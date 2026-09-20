@@ -115,6 +115,8 @@ test('two socket clients share movement and chat; saved identity survives restar
     const initial = firstState.snapshot.player.position;
     expect(firstState.snapshot.progression.unlockedActions).toEqual(['strike', 'brace', 'bait']);
     expect(await first.command({ type: 'quest', id: 'cold-hands', operation: 'accept' })).toBe(true);
+    expect(await first.invalid({ type: 'flight', destination: 'missing' })).toBe(false);
+    expect(await first.command({ type: 'flight', destination: 'suture' })).toBe(false);
     expect(await first.invalid({ type: 'quest', id: 'cold-hands', operation: 'complete' })).toBe(false);
     expect(await first.invalid({ type: 'equip', slot: 'head', item: 'yard-weapon' })).toBe(false);
     const second = client(); await second.connect(secondCharacter, crypto.randomUUID());
@@ -541,3 +543,30 @@ test('parties require consent, enforce leadership and capacity, and share encoun
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('diving movement packets carry rise and dive through the authoritative socket', async()=>{
+  const {createSharedAdventure}=await import('../game/adventure.js');
+  const {supportHeight}=await import('../game/movement.js');
+  const directory=await mkdtemp(join(tmpdir(),'greywrought-diving-')),savePath=join(directory,'world.json');
+  const character:LocalCharacter={id:'diver',name:'Diver',archetype:'mage',createdAtMillis:1};
+  const token=crypto.randomUUID(),seed=createSharedAdventure();seed.join(character.id,character.name,character.archetype);
+  const saved=JSON.parse(seed.save());
+  saved.characters[0].state.position={x:-27,y:supportHeight(-27,-95),z:-95};saved.characters[0].state.phase='expedition';
+  for(const threat of saved.world.threats)if(threat.active)Object.assign(threat,{health:0,phase:'cleared',aggro:false,lootClaimed:true,respawnAt:Date.now()+120000});
+  await writeFile(savePath,JSON.stringify({version:1,accounts:[{character,tokenHash:new Bun.CryptoHasher('sha256').update(token).digest('hex')}],world:JSON.stringify(saved),chat:[],nextChatId:1}));
+  const service=await createWorldService({savePath});
+  const server=Bun.serve({hostname:'127.0.0.1',port:0,websocket:service.websocket,fetch:(request,host)=>service.fetch(request,host)});
+  const client=new Client(`ws://127.0.0.1:${server.port}/world`);
+  const frames=(start:number,rise:boolean,dive:boolean)=>Array.from({length:20},(_,i)=>({sequence:start+i,seconds:.05,input:{forward:0,strafe:0,cameraX:0,cameraZ:1,jump:false,rise,dive}}));
+  try{
+    await client.connect(character,token);await client.state();
+    expect(await client.invalid({type:'movement',frames:[{...frames(1,false,true)[0],input:{...frames(1,false,true)[0]!.input,dive:1}}]})).toBe(false);
+    expect(await client.command({type:'movement',frames:frames(1,false,true)})).toBe(true);
+    const deep=await client.state(s=>s.movement.sequence===20&&s.movement.elapsed>=.049);
+    expect(deep.snapshot.player.position.y).toBeCloseTo(supportHeight(-27,-95)-2.2,4);
+    expect(deep.snapshot.player.breathSeconds).toBeLessThan(60);
+    expect(await client.command({type:'movement',frames:frames(21,true,false)})).toBe(true);
+    const surface=await client.state(s=>s.movement.sequence===40&&s.movement.elapsed>=.049);
+    expect(surface.snapshot.player.position.y).toBeCloseTo(supportHeight(-27,-95),4);
+  }finally{client.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true});}
+},10000);

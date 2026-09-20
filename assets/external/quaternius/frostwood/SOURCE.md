@@ -139,3 +139,11 @@ Models and buffers are unchanged; Flowers.png follows the existing 512×512
 maximum texture convention and the models reuse the retained Leaves.png.
 The retained `Nature/Stylized Nature MegaKit - July 2024/License_Standard.txt`
 source terms declare CC0 1.0 Universal.
+
+Bellrunner skiffs combine unchanged OBJ/MTL models from the same local archive:
+- `Characters and Animals/Cute Fish Pack - Feb 2020/OBJ/Boat.{obj,mtl}`
+- `Nature/Old/Cloud Pack - Jun 2016/OBJ/AirBalloon.{obj,mtl}`
+Copied to `greywrought:assets/external/quaternius/frostwood/village/`; both are
+covered by the archive root CC0 license retained in this directory. Greywrought
+adds brass and alchemical-green surface colors, paired lift bags and salvaged
+vessels, pipes and mooring columns from the already retained works kit.

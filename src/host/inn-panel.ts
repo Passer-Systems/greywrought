@@ -1,5 +1,6 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { YARD } from "../game/yard-content.js";
+import { REST_SPOTS } from "../game/economy.js";
 import { createNpcQuests, type QuestCallback } from "./npc-quests.js";
 
 export interface InnPanel {
@@ -38,6 +39,8 @@ export function createInnPanel(
   const lodging = document.createElement("div"); lodging.id = "inn-service";
   for (const selector of [".inn-health", "#inn-rest", ".inn-price"]) lodging.append(panel.querySelector(selector)!);
   const quests = createNpcQuests(panel.querySelector<HTMLElement>(".inn-quests")!, "inn", callbacks.onQuest, { label: "I need a rest", element: lodging });
+  const normalServiceParent = lodging.parentElement!;
+  const greeting = document.createElement('p'); greeting.hidden = true; panel.append(greeting);
   const rest = panel.querySelector<HTMLButtonElement>("#inn-rest")!;
   const close = panel.querySelector<HTMLButtonElement>("#inn-close")!;
   const health = panel.querySelector<HTMLElement>(".inn-health")!;
@@ -47,7 +50,15 @@ export function createInnPanel(
   return {
     update(snapshot, open) {
       panel.hidden = !open;
-      quests.update(snapshot, open);
+      const spot = REST_SPOTS.find(spot => spot.id === snapshot.restSpot) ?? REST_SPOTS[0];
+      const regional = spot.id !== 'inn';
+      quests.update(snapshot, open && !regional);
+      panel.querySelector<HTMLElement>('.inn-quests')!.hidden = regional;
+      panel.querySelector<HTMLElement>('#inn-title')!.textContent = spot.lodging;
+      panel.querySelector<HTMLElement>('.inn-host')!.textContent = `${spot.name} · ${regional ? 'Keeper' : 'Innkeeper'}`;
+      greeting.hidden = !regional; greeting.textContent = spot.greeting;
+      if (regional) { if (lodging.parentElement !== panel) panel.append(lodging); lodging.hidden = false; }
+      else if (lodging.parentElement !== normalServiceParent) { normalServiceParent.append(lodging); lodging.hidden = true; }
       health.textContent = `Health ${Math.ceil(snapshot.player.health)} / ${snapshot.player.maximumHealth}`;
     },
     dispose() {

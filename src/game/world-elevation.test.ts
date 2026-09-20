@@ -1,14 +1,28 @@
 import { expect, test } from 'bun:test';
 import { createAdventure } from './adventure.js';
 import { migrateTerrainLayout, terrainHeight } from './cave-layout.js';
-import { overworldHeight } from './world-elevation.js';
+import { dryOverworldHeight as currentDryFloor, overworldHeight } from './world-elevation.js';
 import { dryOverworldHeight, overworldHeight as oldFloor } from './terrain-layout-v3.js';
 import { moveLocomotion } from './movement.js';
+import { dryOverworldHeight as savedDryFloor } from './terrain-layout-v5.js';
+import { WORLD_SETTLEMENTS } from './world-regions.js';
+
+test('regional mountains preserve the original dry terrain and settlement foundations', () => {
+  for (let x=-70;x<=90;x+=2) for (let z=-130;z<=76;z+=2) {
+    expect(currentDryFloor(x,z)).toBe(savedDryFloor(x,z));
+  }
+  for (const town of WORLD_SETTLEMENTS) {
+    const foundation=town.id === 'suture' ? 2.4 : 1.8;
+    for (let x=town.minX;x<=town.maxX;x+=2) for (let z=town.minZ;z<=town.maxZ;z+=2) {
+      expect(overworldHeight(x,z)).toBeCloseTo(foundation,12);
+    }
+  }
+});
 
 test('hills rise gently in the meadow, mountains frame it, and authored town and cave floors stay level', () => {
   expect(terrainHeight(-35, -60)).toBeGreaterThan(4);
   expect(terrainHeight(29, -100)).toBeGreaterThan(5);
-  expect(terrainHeight(-84, -8)).toBeGreaterThan(25);
+  expect(terrainHeight(90, 45)).toBeGreaterThan(25);
   for (const [x,z] of [[0,-8],[-20,-30],[20,-25]]) expect(terrainHeight(x!,z!)).toBe(1.6);
   for (const [x,z] of [[0,50],[28,-46]]) expect(Math.abs(terrainHeight(x!,z!))).toBe(0);
   expect(terrainHeight(72,-46)).toBe(-9);

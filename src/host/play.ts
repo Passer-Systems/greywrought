@@ -1,8 +1,10 @@
+import { createWorldMap } from "./world-map.js";
+import { regionAt, settlementAt } from "../game/world-regions.js";
 import { createMinimap } from "./minimap.js";
 import { setAttribute, setDataset, setText } from "./dom-updates.js";
 import { createGearShop } from "./gear-shop.js";
 import { createAppControls } from './app-controls.js';
-import { COMBAT_RULES } from "../game/adventure.js";
+import { COMBAT_RULES, createAdventure } from "../game/adventure.js";
 import { classAction, classKit } from "../game/class-kit.js";
 import type { AdventureAction, AdventureSnapshot } from "../game/adventure-types.js";
 import {
@@ -10,6 +12,8 @@ import {
   normalizedCharacterName, normalizedDisplayName,
   type CharacterArchetype, type LocalCharacter, type LocalProfile,
 } from "./character-profile.js";
+import { createBellrunnerPanel } from "./bellrunner.js";
+import { nearbyBellrunner, type BellrunnerStopId } from "../game/bellrunner.js";
 import { createAdventureWorld, type AdventureWorld } from "./adventure-world.js";
 import { createAdventureAudio } from "./adventure-audio.js";
 import { createEnemyNameplates } from "./enemy-nameplates.js";
@@ -108,6 +112,10 @@ const bank = createBankPanel(element("adventure-hud"), {
   },
   onClose: () => { pulse("closeBank"); running?.world.canvas.focus(); },
 });
+const bellrunner = createBellrunnerPanel(element("adventure-hud"), destination => { if (running?.ready && !paused) running.game.fly(destination); }, () => running?.world.canvas.focus());
+function openBellrunner(id: BellrunnerStopId): void {
+  if (running?.ready && !paused && !running.game.snapshot.player.flight && !running.game.snapshot.player.inCombat && nearbyBellrunner(running.game.snapshot.player.position)?.id === id) bellrunner.show(id);
+}
 const inn = createInnPanel(element("adventure-hud"), {
   onQuest: submitQuest,
   onRest: () => pulse("rest"),
@@ -296,7 +304,7 @@ const classes: Record<CharacterArchetype, { name: string; copy: string }> = {
   artificer: { name: "Artificer", copy: "A works engineer who answers danger with a rivet tool, plated wards, and overclocked machinery." },
 };
 const keyActions: Readonly<Record<string, AdventureAction>> = {
-  KeyW: "forward", KeyS: "backward", KeyA: "left", KeyD: "right", Space: "jump",
+  KeyW: "forward", KeyS: "backward", KeyA: "left", KeyD: "right", Space: "jump", ControlLeft: "dive", ControlRight: "dive",
   KeyG: "gather", KeyR: "ritual",
   KeyF: "interact", KeyT: "rest", Tab: "target",
 };
@@ -363,6 +371,7 @@ function setBaitAiming(value: boolean): void {
 }
 function menuOpen(): boolean { return !element("pause-panel").hidden; }
 function pressAction(action: AdventureAction): void {
+  if (action === "interact" && running?.ready && !paused) { const stop=nearbyBellrunner(running.game.snapshot.player.position); if (stop) {openBellrunner(stop.id);return;} }
   if (menuOpen()) return;
   if (action === "strike" && running?.selection?.kind !== "enemy") return;
   if (action === "target" && running) running.selection = { kind: "enemy", id: running.game.snapshot.selectedThreat };
@@ -372,7 +381,7 @@ function pressAction(action: AdventureAction): void {
     return;
   }
   if (action === "strike" || action === "brace") setBaitAiming(false);
-  if (combatExecutionLocked() && ["forward", "backward", "left", "right", "jump", "strike", "brace", "drinkPotion"].includes(action)) return;
+  if (combatExecutionLocked() && ["forward", "backward", "left", "right", "jump", "dive", "strike", "brace", "drinkPotion"].includes(action)) return;
   running?.game.setAction(action, true);
 }
 function pulse(action: AdventureAction): void {
@@ -447,6 +456,7 @@ function renderEntry(): void {
   element("adventure-hud").hidden = route !== "world";
   for (const view of ["account", "creator", "roster"]) element(`entry-${view}`).hidden = route !== view;
   if (route === "world") return;
+  worldMap.close();
   const selected = selectedCharacter();
   document.body.dataset.rosterTab = rosterTab;
   for (const tab of ["active", "rip"] as const) button(`entry-roster-${tab}`).setAttribute("aria-pressed", String(rosterTab === tab));
@@ -538,6 +548,7 @@ function deletePendingCharacter(): void {
   renderEntry();
 }
 function returnToRoster(): void {
+  worldMap.close();
   questRewards.reset();
   stopFrames();
   release();
@@ -690,6 +701,9 @@ function toggleLorebook(): void {
   lorebook.open(running.game.snapshot.selectedThreat);
   button("lorebook-open").setAttribute("aria-expanded", "true");
 }
+const worldMap = createWorldMap(element("adventure-hud"), button("world-map-open"), release, () => running?.world.canvas.focus());
+click("world-map-open", () => { if (running?.ready && route === "world" && !menuOpen()) worldMap.toggle(); });
+removers.push(() => worldMap.dispose());
 const minimap = createMinimap(element("map-terrain") as HTMLCanvasElement);
 let mapCenter = { x: 0, z: -8 };
 function mapPosition(target: HTMLElement, x: number, z: number): void {
@@ -796,7 +810,8 @@ function renderHud(snapshot: AdventureSnapshot): void {
   });
   setDataset(data, { archetype: player.archetype });
   text("bait-aim-hint", moveAimError || `Move · click a destination tile (up to ${classKit(player.archetype).movementTiles} tiles) · Esc cancels`);
-  text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
+  const settlement = settlementAt(player.position.x, player.position.z);
+  text("adventure-zone", (snapshot.phase === "town" ? `${settlement?.name ?? YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : regionAt(player.position.x,player.position.z).name) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players, running.selection?.kind === "player" ? running.selection.id === running.character.id ? { id: running.character.id, name: running.character.name, player: snapshot.player } : running.game.players.find(player => player.id === running!.selection!.id) : undefined);
   combatPlan.update(snapshot);
   if (snapshot.combat.phase !== "preparation" || snapshot.combat.ready) setBaitAiming(false);
@@ -807,6 +822,8 @@ function renderHud(snapshot: AdventureSnapshot): void {
   setDataset(data, { gameRemotePlayers: JSON.stringify(running?.game.players ?? []) });
   bank.update(snapshot);
   inn.update(snapshot, snapshot.innOpen);
+  bellrunner.update(snapshot);
+  data.gameFlight = JSON.stringify(snapshot.player.flight ?? null);
   shop.update(snapshot); gearShop.update(snapshot);
   trade.update(snapshot);
   const selected = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat);
@@ -869,6 +886,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   questRewards.update(snapshot);
   mapCenter = player.position;
   minimap.update(mapCenter.x, mapCenter.z);
+  worldMap.update(player, running?.game.players.filter(remote => running?.game.party?.members.some(member => member.id === remote.id)) ?? []);
   for (const place of snapshot.places) {
     const marker = document.querySelector<HTMLElement>(`[data-map-place="${place.id}"]`);
     if (marker) mapPosition(marker, place.position.x, place.position.z);
@@ -938,6 +956,7 @@ function bindWorld(app: RunningAdventure): void {
       }
       const picked = app.world.pick(event.clientX, event.clientY);
       if (picked?.kind === "resource" && event.button === 0) pulse("gather");
+      else if (picked?.kind === "bellrunner" && event.button === 0) openBellrunner(picked.id);
       else if (picked?.kind === "npc" && event.button === 0) app.game.interactNpc(picked.id);
       else if (picked?.kind === "chest") {
         if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
@@ -973,18 +992,23 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
   renderEntry();
   text("entry-enter-world", "Preparing your journey…");
   text("entry-roster-feedback", `Loading ${YARD.settlement} and your adventurer…`);
+  let preparingWorld: AdventureWorld | null = null;
   try {
-    const game = await connectAdventure(character);
-    if (game.snapshot.phase === "lost") { game.close(); showFallenCharacter(character); return; }
     audio.reset();
-    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); }, destination => game.previewBait(destination), { selfId: character.id, selfName: character.name, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu });
+    // Prepare the scene before joining: loading must not expose an adventurer
+    // to combat or hold up their connection's heartbeat.
+    const world = preparingWorld = createAdventureWorld(element("world-wrap"), createAdventure({ archetype: character.archetype }).snapshot, id => { if (!paused) running?.game.interactNpc(id); }, destination => running?.game.previewBait(destination) ?? Promise.resolve(null), { selfId: character.id, selfName: character.name, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu });
+    await world.ready;
+    if (!alive) { world.dispose(); return; }
+    const game = await connectAdventure(character);
+    if (game.snapshot.phase === "lost") { world.dispose(); game.close(); showFallenCharacter(character); return; }
     world.setAggroRangesVisible(aggroRangesVisible);
     world.setHelpRangesVisible(helpRangesVisible);
     world.updateChat(game.chat, character.id);
     const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false, selection: null, lastEnemyTarget: game.snapshot.selectedThreat, attackers: new Set() };
     running = app;
+    preparingWorld = null;
     bindWorld(app);
-    await world.ready;
     if (!alive || running !== app) { world.dispose(); return; }
     if (app.game.snapshot.phase === "lost") { showFallenCharacter(character); return; }
     minimap.setAtlas(world.minimap);
@@ -1007,6 +1031,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     save(true);
     syncEncounter();
   } catch (cause: unknown) {
+    preparingWorld?.dispose();
     if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }
     text("entry-roster-feedback", "Your journey could not be opened. Existing saved progress has been kept. Reload to try again.");
     console.error("Adventure entry failed", cause);
@@ -1118,10 +1143,15 @@ listen(window, "keydown", (event) => {
     return;
   }
   if (route !== "world") return;
+  if (worldMap.isOpen) {
+    if (event.code === "Escape" || event.code === "KeyM") { event.preventDefault(); if (!event.repeat) worldMap.close(); }
+    return;
+  }
   if (event.code === "Escape" && partyPanel.closeMenu()) { event.preventDefault(); return; }
   if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
   if (event.target instanceof HTMLElement && event.target.isContentEditable) return;
   if (menuOpen() && event.code !== "Escape" && event.code !== "KeyH" && event.code !== "KeyV") return;
+  if (event.code === "KeyM" && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); if (!event.repeat && running?.ready) worldMap.toggle(); return; }
   if (event.code === "Enter") { event.preventDefault(); release(); chatLog.focusInput(); return; }
   if ((event.code === "KeyH" || event.code === "KeyV") && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
     event.preventDefault();
@@ -1164,6 +1194,7 @@ listen(window, "keydown", (event) => {
       else if ((running?.game.snapshot.shopOpen || running?.game.snapshot.vendorOpen)) pulse("closeShop");
       else if (running?.game.snapshot.bankOpen) pulse("closeBank");
       else if (running?.game.snapshot.innOpen) pulse("closeInn");
+      else if (bellrunner.open) bellrunner.close();
       else if (running?.selection) clearUnitTarget();
       else setMenuOpen(true);
     }
@@ -1246,6 +1277,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   combatPlan.dispose();
   bank.dispose();
   inn.dispose();
+  bellrunner.dispose();
   shop.dispose(); gearShop.dispose();
   trade.dispose();
   lorebook.dispose();

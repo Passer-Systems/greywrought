@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
 import { VENDORS } from "./economy.js";
+import { GEAR } from './yard-content.js';
 import { finishGathering, tap, travel, earnedChapter, readyParty, finishCycle, foremanFixture } from "./yard-test-fixtures.js";
 
 function soloFixture(coins = 30, experience = 0) {
@@ -21,7 +22,7 @@ test("shops require range, open vendor, correct stock and coins; all purchases e
     expect(game.buyGear(vendor.id,vendor.item)).toBe(true);
     expect(game.snapshot.coins).toBe(30-vendor.price);
     expect(game.buyGear(vendor.id,vendor.item)).toBe(false);
-    const slot = vendor.id === "weapon-vendor" ? "mainhand" : vendor.id === "armor-vendor" ? "chest" : "offhand";
+    const slot = GEAR[vendor.item].slot;
     game.equip(slot,vendor.item);
     expect(game.snapshot.progression.equipment[slot]).toBe(vendor.item);
     expect(game.snapshot.progression[slot === "mainhand" ? "attackBonus" : "damageReduction"]).toBe(slot === "chest" ? 1 : 2);

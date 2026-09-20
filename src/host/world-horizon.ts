@@ -1,16 +1,16 @@
 import { BufferGeometry, Float32BufferAttribute } from 'three';
 import { terrainHeight } from '../game/cave-layout.js';
+import { RENDERED_WORLD_BOUNDS } from './expansion-terrain.js';
 
 /** An outward-only skirt whose inner ring shares the terrain's two-metre edge samples. */
 export function worldHorizonGeometry(): BufferGeometry {
-  const left = -124, right = 146, bottom = -190, top = 148;
+  const { left, right, bottom, top } = RENDERED_WORLD_BOUNDS;
   const edge: [number, number][] = [];
   for (let x = left; x < right; x += 2) edge.push([x, bottom]);
   for (let z = bottom; z < top; z += 2) edge.push([right, z]);
   for (let x = right; x > left; x -= 2) edge.push([x, top]);
   for (let z = top; z > bottom; z -= 2) edge.push([left, z]);
-  // The 21m camera boom still leaves at least 213m to the nearest outer edge
-  // from the playable bounds, beyond the 175m haze endpoint.
+  // The terrain margin and camera boom leave the outer ring beyond the haze.
   const offsets = [0, 2, 8, 24, 64, 180];
   const positions: number[] = [], uv: number[] = [], indices: number[] = [];
   const centerX = (left + right) / 2, centerZ = (bottom + top) / 2;

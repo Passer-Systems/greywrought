@@ -50,7 +50,7 @@ export async function captureMinimap(renderer: WebGLRenderer, terrain: Group, im
     await renderer.compileAsync(scene, camera);
     renderer.render(scene, camera);
     const pixels = new Uint8Array(image.width * image.height * 4);
-    renderer.readRenderTargetPixels(target, 0, 0, image.width, image.height, pixels);
+    await renderer.readRenderTargetPixelsAsync(target, 0, 0, image.width, image.height, pixels);
     const context = image.getContext("2d")!;
     const frame = context.createImageData(image.width, image.height);
     // Readback starts at the lower edge: retaining that order puts world +Z north.

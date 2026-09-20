@@ -47,6 +47,7 @@ export async function actor(name: string, height: number, playerModel?: "warrior
     model.updateMatrixWorld(true); sourceModel.updateMatrixWorld(true);
     const scale = targetBody.getWorldPosition(new Vector3()).y / sourceBody.getWorldPosition(new Vector3()).y;
     // Retarget rotations and hip motion while preserving each class's bind proportions.
+    let sliceStarted = performance.now();
     for (const clip of donor.animations) {
       sourceRig.skeleton.pose(); sourceModel.updateMatrixWorld(true);
       const social = retargetClip(targetRig, sourceRig, clip, {
@@ -56,6 +57,10 @@ export async function actor(name: string, height: number, playerModel?: "warrior
       for (const track of social.tracks) track.name = track.name.replace(/^\.bones\[([^\]]+)\]/, "$1");
       animations.push(social);
       targetRig.skeleton.pose(); model.updateMatrixWorld(true);
+      if (performance.now() - sliceStarted > 8) {
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        sliceStarted = performance.now();
+      }
     }
   }
   const localMaterials: Material[] = [];

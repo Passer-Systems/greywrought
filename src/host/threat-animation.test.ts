@@ -2,15 +2,17 @@ import { expect, test } from "bun:test";
 import { AnimationClip, AnimationMixer, Group, LoopOnce, LoopRepeat } from "three";
 import { createAdventure } from "../game/adventure.js";
 import type { ThreatView } from "../game/adventure-types.js";
-import { earnedChapter, tap } from "../game/yard-test-fixtures.js";
+import { earnedChapter, finishGathering, tap } from "../game/yard-test-fixtures.js";
 import { updateThreatAnimation, type ThreatAnimationState } from "./threat-animation.js";
 
 function encounter() {
   const saved = JSON.parse(createAdventure({ archetype: "mage" }).save());
   Object.assign(saved.state, { phase: "expedition", position: { x: -6, y: 0, z: 30 }, chapter: earnedChapter(2) });
   for (const t of saved.state.threats) if (t.active && t.id !== "patrol") Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true });
+  saved.state.threats.find((t: { id: string }) => t.id === "patrol").position = { x: -6, y: 0, z: 34 };
   const game = createAdventure({ save: JSON.stringify(saved) });
   game.selectTarget("patrol"); tap(game, "strike"); game.advance(.01);
+  expect(game.snapshot.combat.phase).toBe("preparation");
   return { game, hound: () => game.snapshot.threats.find(t => t.id === "patrol")! };
 }
 
@@ -58,6 +60,7 @@ test("Maul poses follow real leap progress and return to idle over repeated comb
     render(hound());
     expect(rig.actor.action!.getClip().name).toBe("Idle");
     game.readyCombat();
+    finishGathering(game);
     const samples: number[] = [];
     for (let frame = 0; frame < 240 && game.snapshot.combat.phase === "active"; frame++) {
       game.advance(1 / 60);

@@ -1,4 +1,5 @@
 import { TOWN_FENCE_BARRIERS } from "./town-elevation.js";
+import { REGION_BUILDINGS } from './world-regions.js';
 import type { Barrier } from './movement.js';
 import type { Position } from './adventure-types.js';
 
@@ -18,7 +19,7 @@ export const TOWN_BUILDINGS = [
   { model: 'House_3', x: 10, z: -36, width: 6, depth: 5, height: 4.9, turn: 0, sign: '' },
 ] as const;
 
-export const TOWN_BUILDING_BARRIERS: readonly Barrier[] = TOWN_BUILDINGS.map(building => [
+export const TOWN_BUILDING_BARRIERS: readonly Barrier[] = [...TOWN_BUILDINGS, ...REGION_BUILDINGS].map(building => [
   building.x - building.width / 2, building.x + building.width / 2,
   building.z - building.depth / 2, building.z + building.depth / 2,
 ]);

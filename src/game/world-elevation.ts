@@ -1,5 +1,6 @@
 const smooth = (value: number) => { const t = Math.max(0, Math.min(1, value)); return t * t * (3 - 2 * t); };
 import { townHeight } from './town-elevation.js';
+import { REGION_ROADS, WORLD_SETTLEMENTS } from './world-regions.js';
 /** The southern meadow lake: a shallow, walkable rim around a deeper swimming basin. */
 // The southern basin is intentionally broad enough to read as a real lake from
 // the normal camera.  Its eastern edge stops short of the x=16 footpath while
@@ -18,8 +19,12 @@ function deepPocket(x: number, z: number, cx: number, cz: number, rx: number, rz
   return depth * (1 - smooth(d));
 }
 export function lakeDepthAt(x: number, z: number): number {
-  const radial = Math.hypot((x - LAKE_CENTER.x) / LAKE_RADIUS.x, (z - LAKE_CENTER.z) / LAKE_RADIUS.z);
-  const boundary = lakeBoundary(Math.atan2((z-LAKE_CENTER.z)/LAKE_RADIUS.z,(x-LAKE_CENTER.x)/LAKE_RADIUS.x));
+  const dx = (x - LAKE_CENTER.x) / LAKE_RADIUS.x, dz = (z - LAKE_CENTER.z) / LAKE_RADIUS.z;
+  // The two positive outline terms bound every possible shoreline radius.
+  const maximumBoundary = 1 + .11 + .06;
+  if (Math.abs(dx) > maximumBoundary || Math.abs(dz) > maximumBoundary) return 0;
+  const radial = Math.hypot(dx, dz);
+  const boundary = lakeBoundary(Math.atan2(dz, dx));
   if (radial >= boundary) return 0;
   // The basin is deep enough to cut below the surrounding meadow, so the
   // player actually swims at the center instead of standing on a buried hill.
@@ -77,7 +82,7 @@ function foldedMountain(x: number, z: number, form: typeof mountainForms[number]
     + hill(x,z,form.x,form.z,r,.24*form.height);
 }
 
-export function dryOverworldHeight(x: number, z: number): number {
+function originalDryHeight(x: number, z: number): number {
   // Keep the yard, north road and cave mouth on their authored foundations.
   const townClear = smooth((Math.hypot(x / 1.3, z + 16) - 34) / 16);
   const roadClear = z > -46 && z < 76 ? smooth((Math.abs(x) - 8) / 12) : 1;
@@ -97,6 +102,81 @@ export function dryOverworldHeight(x: number, z: number): number {
   const land = (field + mountains) * townClear * roadClear * caveClear;
   // Lower the meadow floor beneath the lake so the shoreline has a real slope.
   return townHeight(x, z) + land;
+}
+
+const regionalRoadSegments = REGION_ROADS.flatMap(road => road.points.slice(1).map((b, index) => ({ a: road.points[index]!, b, width: road.width })));
+// Each outcrop has its own silhouette: unequal crowns, low saddles and smaller
+// overlapping toes. Compact support keeps distant mountains off the movement path.
+const regionalMountains = [
+  { x:-156, z:83, mounds:[
+    [-9,-3,19,23,13], [13,7,17,19,9], [-1,20,15,13,6],
+    [-19,14,12,16,5], [7,-20,16,12,7], [24,-5,10,14,4],
+  ] },
+  { x:-78, z:190, mounds:[
+    [-15,1,22,20,12], [12,-9,18,24,15], [21,19,20,16,8],
+    [-7,26,15,16,6], [-28,-17,14,12,5], [29,-20,12,15,7],
+  ] },
+  { x:205, z:80, mounds:[
+    [-8,-12,25,22,23], [20,4,19,26,17], [-18,19,21,18,13],
+    [9,29,17,14,9], [-28,-8,13,18,8], [14,-29,16,13,11],
+  ] },
+  { x:232, z:-104, mounds:[
+    [7,-10,22,27,27], [-19,7,24,18,20], [12,25,17,21,16],
+    [-24,-21,18,16,12], [29,1,14,19,10], [-10,30,18,13,8],
+  ] },
+  { x:83, z:184, mounds:[
+    [-11,-6,19,16,10], [12,7,15,21,13], [-17,16,13,14,7],
+    [8,-18,16,12,6], [25,-5,11,15,5],
+  ] },
+  { x:160, z:224, mounds:[
+    [-13,-7,20,23,17], [13,8,21,17,12], [6,-26,15,14,9],
+    [-19,19,15,14,8], [27,-13,12,17,7], [4,27,12,13,5],
+  ] },
+].map(form => ({
+  x:form.x, z:form.z,
+  boundX:Math.max(...form.mounds.map(([x,,rx]) => Math.abs(x!)+rx!)),
+  boundZ:Math.max(...form.mounds.map(([,z,,rz]) => Math.abs(z!)+rz!)),
+  mounds:form.mounds.map(([x,z,rx,rz,height]) => ({ x:x!, z:z!, rx:rx!, rz:rz!, height:height! })),
+}));
+
+function regionalMountainHeight(x: number, z: number): number {
+  let height = 0;
+  for (const form of regionalMountains) {
+    const dx=x-form.x, dz=z-form.z;
+    if (Math.abs(dx)>form.boundX || Math.abs(dz)>form.boundZ) continue;
+    let squared = 0;
+    for (const mound of form.mounds) {
+      const cap = dome(dx,dz,mound.x,mound.z,mound.rx,mound.rz,mound.height);
+      squared += cap*cap;
+    }
+    height += Math.sqrt(squared);
+  }
+  return height;
+}
+
+function regionalHeight(x: number, z: number): number {
+  const rises = regionalMountainHeight(x,z);
+  let roadDistance = Infinity;
+  if (rises !== 0) for (const { a, b, width } of regionalRoadSegments) {
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((x-a[0])*dx+(z-a[1])*dz)/(dx*dx+dz*dz)));
+    roadDistance = Math.min(roadDistance, Math.hypot(x-a[0]-t*dx, z-a[1]-t*dz)-width);
+  }
+  let height = .8 + .35*Math.sin(x/43)*Math.cos(z/39) + rises*smooth(roadDistance/13);
+  for (const town of WORLD_SETTLEMENTS) {
+    const outside = Math.hypot(Math.max(town.minX-x, 0, x-town.maxX), Math.max(town.minZ-z, 0, z-town.maxZ));
+    const pad = town.id === 'suture' ? 2.4 : 1.8;
+    height += (pad-height)*(1-smooth(outside/14));
+  }
+  return height;
+}
+export function dryOverworldHeight(x: number, z: number): number {
+  // Existing saves retain their exact floor; new land joins beyond the former edge.
+  const outside = Math.hypot(Math.max(-70-x, 0, x-90), Math.max(-130-z, 0, z-76));
+  if (outside === 0) return originalDryHeight(x,z);
+  const blend = smooth(outside/28);
+  if (blend === 1) return regionalHeight(x,z);
+  return originalDryHeight(x,z)*(1-blend) + regionalHeight(x,z)*blend;
 }
 
 function basinHeight(x: number, z: number): number {

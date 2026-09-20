@@ -1,4 +1,6 @@
-import { VENDORS, type NpcId } from "../game/economy.js";
+import { createBellrunnerFleet } from "./bellrunner.js";
+import type { BellrunnerStopId } from "../game/bellrunner.js";
+import { VENDORS, REST_SPOTS, type NpcId } from "../game/economy.js";
 import {
   BufferGeometry, CanvasTexture, Color, Float32BufferAttribute,
   CylinderGeometry, Fog, Group,
@@ -38,6 +40,8 @@ import { buildVolcanoLandmark } from "./volcano-landmark.js";
 import { mechanicalTurtle } from "./mechanical-turtle.js";
 import { robotCritter, ROBOT_CRITTER_COLORS } from "./robot-critter.js";
 import { selectionCircles } from './selection-circle.js';
+import { createUnderwater } from "./underwater.js";
+import { isSwimming, isSubmerged, movementHeight, movementHeightSampler, supportHeight } from "../game/movement.js";
 import { createSwimmingWake } from "./swimming-wake.js";
 import { createEnvironmentAtmosphere } from "./environment-atmosphere.js";
 import { Reflector } from "three/addons/objects/Reflector.js";
@@ -59,6 +63,7 @@ interface ThreatRig extends ThreatAnimationState {
 export type WorldPick = { readonly kind: "threat"; readonly id: string }
   | { readonly kind: "player"; readonly id: string }
   | { readonly kind: "chest"; readonly id: "ironback-chest" }
+  | { readonly kind: "bellrunner"; readonly id: BellrunnerStopId }
   | { readonly kind: "npc"; readonly id: NpcId }
   | { readonly kind: "resource"; readonly id: "frost-cores" }
   | { readonly kind: "place"; readonly id: string };
@@ -200,8 +205,11 @@ function createCombatEffects(scene: Scene) {
 export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; showSelfName?: () => boolean; onSelect: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void }): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
+  const bellrunners = createBellrunnerFleet(scene);
   let interpolation = createSnapshotInterpolation();
   let lastConnectionRevision = -1;
+  let selectionDepth: number | null = null;
+  let selectionHeight = combatSurfaceHeight;
   scene.background = new Color(0x263d46);
   scene.fog = new Fog(0x263d46, 58, 175);
   const camera = new PerspectiveCamera(48, 1, 0.1, 210);
@@ -245,6 +253,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     terrain.add(root);
     return { vendor, root, actor: null as ForestActor | null };
   });
+  const regionalHosts = REST_SPOTS.filter(spot => spot.id !== "inn").map(spot => {
+    const root = new Group(); root.position.set(spot.position.x,spot.position.y,spot.position.z);
+    root.rotation.y = spot.position.x > 0 ? -Math.PI/2 : Math.PI/2;
+    terrain.add(root);
+    return { spot, root, actor: null as ForestActor | null };
+  });
   const coreRoot = new Group();
   const corePlace = initial.places.find(place => place.id === "frost-cores")!;
   coreRoot.position.set(corePlace.position.x, 0, corePlace.position.z);
@@ -269,8 +283,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   terrain.add(ritual);
 
   const hoverTargets: HoverTarget[] = [
+    ...bellrunners.moorings.map(({stop,root}): HoverTarget => ({root,pick:{kind:"bellrunner",id:stop.id},name:"Bellrunner · Flights · Free passage",anchor:root.position.clone().add(new Vector3(0,3,0))})),
     { root: chestRoot, pick: { kind: "chest", id: "ironback-chest" }, name: "Ironback Crab’s cache", anchor: new Vector3(chestPosition.x, chestPosition.y + 1.3, chestPosition.z) },
     ...vendorActors.map(({vendor, root}): HoverTarget => ({ root, pick: {kind: "npc", id: vendor.id}, name: `${vendor.name} · ${vendor.trade}`, anchor: new Vector3(vendor.position.x, root.position.y + 2.45, vendor.position.z) })),
+    ...regionalHosts.map(({spot,root}): HoverTarget => ({ root, pick: {kind: "npc", id: spot.id}, name: `${spot.name} · ${spot.lodging}`, anchor: root.position.clone().add(new Vector3(0,2.45,0)) })),
     { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(corePlace.position.x, 1.4, corePlace.position.z) },
     { root: mara, pick: { kind: "npc", id: "mara" }, name: "Mara · Supplies", anchor: new Vector3(3.4, mara.position.y + 2.45, -7.5) },
     { root: elian, pick: { kind: "npc", id: "bank" }, name: "Elian · Banker", anchor: new Vector3(bankPosition.x, bankPosition.y + 2.45, bankPosition.z) },
@@ -295,6 +311,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   };
   const player = new Group();
   const swimmingWake = createSwimmingWake(scene);
+  const underwater = createUnderwater(scene, host, canvas);
   const photonChair = createPhotonChair(player);
   player.userData.localPlayer = true;
   player.userData.playerId = playerSelection?.selfId;
@@ -358,10 +375,17 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     merchant = mounted; mara.add(mounted.root); mounted.play("Idle");
   });
   const vendorsReady = Promise.all(vendorActors.map(async (entry, index) => {
-    const mounted = await actor(index === 1 ? "Knight" : "Cleric", index === 1 ? 2 : 1.85, index === 1 ? "warrior" : undefined);
+    const mounted = entry.vendor.id === "suture-vendor" ? await actor("Leela",2.1)
+      : entry.vendor.id === "brinewick-vendor" ? await actor("Cleric",1.95,"alchemist")
+      : await actor(index === 1 ? "Knight" : "Cleric", index === 1 ? 2 : 1.85, index === 1 ? "warrior" : undefined);
     if (disposed) { mounted.dispose(); return; }
     entry.actor = mounted; entry.root.add(mounted.root); mounted.play("Idle");
   })).then(() => { document.body.dataset.vendorsState = "ready"; });
+  const regionalHostsReady = Promise.all(regionalHosts.map(async entry => {
+    const mounted = entry.spot.id === "suture-inn" ? await actor("Leela",1.8) : await actor("Cleric",1.9,"mage");
+    if (disposed) { mounted.dispose(); return; }
+    entry.actor = mounted; entry.root.add(mounted.root); mounted.play("Idle");
+  }));
   const bankerReady = actor("Cleric", 1.95).then(mounted => {
     if (disposed) { mounted.dispose(); return; }
     banker = mounted; elian.add(mounted.root); mounted.play("Idle");
@@ -372,7 +396,17 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     innkeeper = mounted; rowan.add(mounted.root); mounted.play("Idle");
     document.body.dataset.innkeeperState = "ready";
   });
-  const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string; metalColor?: number}> = {
+  const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string; metalColor?: number; tint?: number; glow?: number; lift?: number}> = {
+    "glassmire-lantern": {model:"Skull",height:1.45,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve",tint:0x90cfac,glow:0x245d43,lift:1.15},
+    "glassmire-stalker": {model:"Wolf",height:1.7,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1",tint:0xb5d0ce},
+    "glassmire-grazer": {model:"Crab",height:1.15,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:0x639780},
+    "choir-cantor": {model:"Skull",height:1.85,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve",tint:0xaf828d,glow:0x66374c,lift:1.3},
+    "choir-hound": {model:"Wolf",height:1.85,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1",tint:0x7d838a,glow:0x45272e},
+    "choir-sacristan": {model:"Leela",height:2.75,idle:"Idle",walk:"Walk",attack:"Kick",hit:"HitRecieve_1",tint:0x9c7770,glow:0x3a1820},
+    "ossuary-king": {model:"MushroomKing",height:2.9,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact",tint:0xd7c9ba,glow:0x372146},
+    "ossuary-wing": {model:"Bat",height:1.55,idle:"Flying",walk:"Flying",attack:"Bite_Front",hit:"HitRecieve",tint:0xd5d0c5,lift:1.1},
+    "brinewood-bee": {model:"Armabee",height:1.4,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact",tint:0xbf8c58},
+    "suture-scavenger": {model:"Crab",height:.65,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:0xb49c69},
     "scrap-skitter": {model:"Crab",height:0.62,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['scrap-skitter']},
     "rust-skitter": {model:"Crab",height:0.55,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['rust-skitter']},
     "moss-skitter": {model:"Crab",height:0.6,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['moss-skitter']},
@@ -395,6 +429,17 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const look = appearances[threat.id.startsWith("pond-turtle") ? "pond-turtle" : threat.id]; if(!look) throw Error(`No appearance for ${threat.id}`);
     const creature = (threat.id.startsWith("pond-turtle") || threat.id === "lake-dreadnought") ? mechanicalTurtle(threat.id === "lake-dreadnought") : look.metalColor !== undefined ? await robotCritter(look.height, look.metalColor) : await actor(look.model, look.height);
     if (disposed) { creature.dispose(); return; }
+    if (look.tint !== undefined) creature.model.traverse(object => {
+      if (!(object instanceof Mesh)) return;
+      const tint = (source: Material) => {
+        if (!(source instanceof MeshStandardMaterial)) return source;
+        const material = source.clone(); material.color.lerp(new Color(look.tint!),.6);
+        material.metalness = Math.max(material.metalness,.28); material.roughness = .7;
+        if (look.glow !== undefined) { material.emissive.setHex(look.glow); material.emissiveIntensity = .3; }
+        return material;
+      };
+      object.material = Array.isArray(object.material) ? object.material.map(tint) : tint(object.material);
+    });
     const root = new Group(), body = creature.root;
     root.add(body); root.userData.threatId = threat.id; scene.add(root);
     creature.play(threat.health <= 0 ? "Death" : look.idle, threat.health > 0);
@@ -412,7 +457,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const signsReady = buildWorldSigns(terrain, (root, id, name) => {
     hoverTargets.push({ root, pick: { kind: "place", id }, name, anchor: root.position.clone().add(new Vector3(0, 2, 0)) });
   });
-  const natureReady = buildFrostwood(terrain, thicket, innPosition).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
+  const natureReady = buildFrostwood(terrain, thicket, innPosition, (root,id,name) => {
+    hoverTargets.push({ root, pick: {kind:"place",id}, name, anchor: root.position.clone().add(new Vector3(0,2,0)) });
+  }).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
   let updateCave = (_position: Position, _camera: Vector3, _aimHeight?: number) => {};
   const caveReady = buildHollowdeep(terrain).then(update => { updateCave = update; });
   const telegraphs = createGroundTelegraphs(scene, canvas);
@@ -426,7 +473,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   moveOutcome.setAttribute("role", "status");
   Object.assign(moveOutcome.style, { position: "absolute", zIndex: "8", pointerEvents: "none", padding: "8px 10px", maxWidth: "280px", whiteSpace: "pre-line", background: "#112126ef", color: "#fff0cc", border: "1px solid #a9c8b4", borderRadius: "3px", font: "12px/1.45 system-ui" });
   host.append(moveOutcome);
-  const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, coresReady, signsReady, natureReady, caveReady, chestReady]).then(async()=>{
+  const ready = Promise.all([bellrunners.ready, knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, regionalHostsReady, creaturesReady, coresReady, signsReady, natureReady, caveReady, chestReady]).then(async()=>{
     if(disposed)return;
     lighting.collectLamps();
     await captureMinimap(renderer, terrain, minimap);
@@ -459,7 +506,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     let hitPoint = hit?.point;
     const denominator = raycaster.ray.direction.y;
     if (Math.abs(denominator) >= 1e-6) {
-      const distance = (lakeSurface.waterLevel - raycaster.ray.origin.y) / denominator;
+      const waterHeight = hoverSnapshot && isSubmerged(hoverSnapshot.player.position) ? hoverSnapshot.player.position.y : lakeSurface.waterLevel;
+      const distance = (waterHeight - raycaster.ray.origin.y) / denominator;
       if (distance >= 0 && (!hit || distance < hit.distance)) {
         const lakePoint = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, distance);
         if (lakeWaterAt(lakePoint.x, lakePoint.z) !== null && terrainHeight(lakePoint.x, lakePoint.z) < lakeSurface.waterLevel) hitPoint = lakePoint;
@@ -467,7 +515,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     }
     if (!hitPoint) return null;
     const cellX = combatCell(hitPoint.x), cellZ = combatCell(hitPoint.z);
-    return { x: cellX, y: terrainHeight(cellX, cellZ), z: cellZ };
+    return { x: cellX, y: hoverSnapshot ? movementHeight(cellX, cellZ, hoverSnapshot.player.position) : terrainHeight(cellX, cellZ), z: cellZ };
   };
   const pick = (x: number, y: number): WorldPick | null => {
     const rect = canvas.getBoundingClientRect();
@@ -496,7 +544,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const hit = pick(hoverPointer.x, hoverPointer.y);
     const target = hit && hoverTargets.find(target => target.pick.kind === hit.kind && target.pick.id === hit.id);
     tooltip.hidden = !target;
-    canvas.style.cursor = hit?.kind === "resource" ? gatherCursor : (hit?.kind === "npc" || hit?.kind === "player") ? "pointer" : "";
+    canvas.style.cursor = hit?.kind === "resource" ? gatherCursor : (hit?.kind === "npc" || hit?.kind === "player" || hit?.kind === "bellrunner") ? "pointer" : "";
     if (hit) { canvas.dataset.hoverKind = hit.kind; canvas.dataset.hoverId = hit.id; }
     else { delete canvas.dataset.hoverKind; delete canvas.dataset.hoverId; }
     if (!target) return;
@@ -539,6 +587,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (disposed) return;
       if (lastConnectionRevision !== connectionRevision) {
         interpolation = createSnapshotInterpolation();
+        lastHealth = localPlayer.health; lastAttack = localPlayer.attackSequence;
         swimmingWake.clear();
         combatPreview = null; movementPreview.clear();
         lastConnectionRevision = connectionRevision;
@@ -552,12 +601,18 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         visiblePlayers = visible.players;
         snapshot = {...snapshot, threats: visible.threats, player: localPlayer};
       } else snapshot = {...snapshot, player: localPlayer};
+      const depth = isSubmerged(localPlayer.position) ? localPlayer.position.y : null;
+      if (depth !== selectionDepth) {
+        selectionDepth = depth;
+        selectionHeight = depth === null ? combatSurfaceHeight : movementHeightSampler(localPlayer.position);
+      }
+      bellrunners.update(localPlayer, visiblePlayers, elapsed);
       remotePlayers.update(visiblePlayers);
       remotePlayers.render(delta);
       document.body.dataset.rigRemoteAnimations = JSON.stringify(Array.from(remotePlayers.entries(), ([id, rig]) => ({ id, animation: rig.root.userData.animation, time: rig.root.userData.animationTime })));
       player.position.set(localPlayer.position.x, localPlayer.position.y, localPlayer.position.z);
-      const swimmers = [{ id: 'self', position: localPlayer.position, active: localPlayer.health > 0 && localPlayer.moving && localPlayer.grounded && isSwimmingPosition(localPlayer.position.x, localPlayer.position.z) },
-        ...visiblePlayers.map(other => ({ id: other.id, position: other.player.position, active: other.player.health > 0 && other.player.moving && other.player.grounded && isSwimmingPosition(other.player.position.x, other.player.position.z) }))];
+      const swimmers = [{ id: 'self', position: localPlayer.position, active: localPlayer.health > 0 && localPlayer.moving && isSwimming(localPlayer.position) && localPlayer.position.y >= supportHeight(localPlayer.position.x, localPlayer.position.z) - .15 },
+        ...visiblePlayers.map(other => ({ id: other.id, position: other.player.position, active: other.player.health > 0 && other.player.moving && isSwimming(other.player.position) && other.player.position.y >= supportHeight(other.player.position.x, other.player.position.z) - .15 }))];
       swimmingWake.update(delta, swimmers, worldTimeMillis);
       const position = player.position;
       const face = snapshot.player.facing;
@@ -595,7 +650,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           playerHitRemaining=Math.max(0,playerHitRemaining-delta); playerAttackRemaining=Math.max(0,playerAttackRemaining-delta);
           if(playerHitRemaining===0&&playerAttackRemaining===0) {
             if (!playSocialAnimation(knight, snapshot.player.sitting, snapshot.player.moving ? null : snapshot.player.emote)) {
-              knight.play(snapshot.player.grounded && isSwimmingPosition(position.x, position.z) ? (snapshot.player.moving ? "Swim_Fwd_Loop" : "Swim_Idle_Loop") : !snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle");
+              knight.play(snapshot.player.flight ? "Idle" : isSwimming(snapshot.player.position) ? (snapshot.player.moving ? "Swim_Fwd_Loop" : "Swim_Idle_Loop") : !snapshot.player.grounded ? playerAnimation.jump : snapshot.player.moving ? "Run" : "Idle");
             }
           }
         }
@@ -610,6 +665,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       }
       for (const entry of vendorActors) {
         if (snapshot.vendorOpen === entry.vendor.id) entry.root.rotation.y = Math.atan2(position.x - entry.root.position.x, position.z - entry.root.position.z);
+        entry.actor?.mixer.update(delta);
+      }
+      for (const entry of regionalHosts) {
+        if (snapshot.restSpot === entry.spot.id) entry.root.rotation.y = Math.atan2(position.x-entry.root.position.x,position.z-entry.root.position.z);
         entry.actor?.mixer.update(delta);
       }
       if (banker) {
@@ -647,10 +706,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.ring.material.color.setHex(relationColor);
         rig.selection.material.color.setHex(relationColor);
         if (threat.health > 0) rig.root.rotation.y = Math.atan2(threat.facing.x, threat.facing.z);
-        if (rig.root.visible && rig.ring.visible) conformToTerrain(rig.ring, 0.05, combatSurfaceHeight);
-        if (rig.root.visible && rig.selection.visible) conformToTerrain(rig.selection, 0.06, combatSurfaceHeight);
+        if (rig.root.visible && rig.ring.visible) conformToTerrain(rig.ring, 0.05, selectionHeight);
+        if (rig.root.visible && rig.selection.visible) conformToTerrain(rig.selection, 0.06, selectionHeight);
         const preparation = updateThreatAnimation(rig, threat, delta);
-        rig.body.position.y = threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : threat.id.startsWith("meadow-bird") && threat.health > 0 ? 4.2 + Math.sin(elapsed * 2.1 + threat.id.length) * .25 : 0;
+        rig.body.position.y = threat.health > 0 && appearances[threat.id]?.lift ? appearances[threat.id]!.lift! : threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : threat.id.startsWith("meadow-bird") && threat.health > 0 ? 4.2 + Math.sin(elapsed * 2.1 + threat.id.length) * .25 : 0;
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;
         rig.ward.position.y = rig.height*0.55 + rig.body.position.y;
@@ -706,7 +765,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       const destination = hoveredTile && combatGrid.accepts(hoveredTile) ? hoveredTile : null;
       movementPreview.update(hoverSnapshot, destination);
       const forecast = movementPreview.forecast;
-      telegraphs.update(forecast ? { combat: { ...snapshot.combat, forecast } } : snapshot, forecast ? { kind: "destination" } : combatPreview);
+      telegraphs.update(forecast ? { player: snapshot.player, combat: { ...snapshot.combat, forecast } } : snapshot, forecast ? { kind: "destination" } : combatPreview);
       moveOutcome.hidden = !destination || snapshot.combat.phase !== "preparation" || snapshot.combat.ready;
       const previewData = JSON.stringify(destination ? { destination, pending: movementPreview.pending, forecast } : null);
       if (canvas.dataset.movePreview !== previewData) canvas.dataset.movePreview = previewData;
@@ -726,13 +785,16 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       // player. This gives a usable first-person view without a zero-distance
       // lookAt singularity or the character model covering the camera.
       const firstPersonBlend = Math.max(0, Math.min(1, (1.8 - distance) / 1.2));
+      const submerged = isSubmerged(snapshot.player.position);
+      const orbitDistance = submerged ? Math.min(distance, 6) : distance;
       const aimHeight = 1.1 + firstPersonBlend * .55;
       const target = { x: cameraTarget.x, y: cameraTarget.y + aimHeight, z: cameraTarget.z };
       if (distance === 0) {
         camera.position.set(target.x, target.y, target.z);
       } else {
-        camera.position.set(target.x - facing.x * Math.cos(pitch) * distance, target.y + Math.sin(pitch) * distance, target.z - facing.z * Math.cos(pitch) * distance);
+        camera.position.set(target.x - facing.x * Math.cos(pitch) * orbitDistance, target.y + Math.sin(pitch) * orbitDistance, target.z - facing.z * Math.cos(pitch) * orbitDistance);
       }
+      if (submerged) camera.position.y = Math.min(camera.position.y, lakeSurface.waterLevel - .12);
       const requiredLift = distance === 0 ? 0 : terrainCameraLift(target, camera.position);
       // Raise immediately when the sightline enters terrain; ease only while
       // returning to a lower orbit so the camera never clips through a hill.
@@ -752,17 +814,21 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       const friendlyRoot = selectedPlayer === playerSelection?.selfId ? player : [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
       friendlySelection.visible = Boolean(friendlyRoot?.visible);
       if (friendlyRoot && friendlySelection.visible) { friendlySelection.position.copy(friendlyRoot.position); conformToTerrain(friendlySelection, .06, combatSurfaceHeight); }
-      const interactingNpc = snapshot.shopOpen ? mara : snapshot.bankOpen ? elian : snapshot.innOpen ? rowan
+      const interactingNpc = snapshot.shopOpen ? mara : snapshot.bankOpen ? elian : snapshot.innOpen ? regionalHosts.find(entry => entry.spot.id === snapshot.restSpot)?.root ?? rowan
         : vendorActors.find(entry => entry.vendor.id === snapshot.vendorOpen)?.root;
       npcSelection.visible = Boolean(interactingNpc);
       if (interactingNpc) { npcSelection.position.copy(interactingNpc.position); conformToTerrain(npcSelection, .06, combatSurfaceHeight); }
       canvas.dataset.selectedPlayer = selectedPlayer ?? "";
       lighting.update(worldTimeMillis, snapshot.player.position, camera);
+      const far = lakeWaterAt(camera.position.x, camera.position.z) !== null && camera.position.y < lakeSurface.waterLevel - .035 ? 25 : 210;
+      if (camera.far !== far) { camera.far = far; camera.updateProjectionMatrix(); }
+      underwater.update(elapsed, camera.position, snapshot.player);
       atmosphere.update(worldTimeMillis * 0.001, delta, snapshot.player.position);
       renderer.render(scene, camera);
       updateHover();
       overheadNames.begin();
       for (const {vendor, root} of vendorActors) overheadNames.show(`npc:${vendor.id}`, `${vendor.name} · ${vendor.trade}`, root, 2.35, "friendly", true, null, onNpcInteract ? () => onNpcInteract(vendor.id) : undefined);
+      for (const {spot,root} of regionalHosts) overheadNames.show(`npc:${spot.id}`, `${spot.name} · Rest`, root, 2.35, "friendly", true, null, onNpcInteract ? () => onNpcInteract(spot.id) : undefined);
       overheadNames.show("npc:mara", "Mara", mara, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"mara"));
       overheadNames.show("npc:elian", "Elian · Bank", elian, 2.35, "friendly", true);
       overheadNames.show("npc:rowan", "Rowan", rowan, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"inn"));
@@ -801,7 +867,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       clearHover();
       tooltip.remove(); moveOutcome.remove(); movementPreview.clear();
       remotePlayers.dispose();
+      bellrunners.dispose();
       swimmingWake.dispose();
+      underwater.dispose();
       chatBubbles.dispose();
       combatText.dispose();
       overheadNames.dispose();
@@ -813,6 +881,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       lighting.dispose();
       atmosphere.dispose();
       vendorActors.forEach(entry => entry.actor?.dispose());
+      regionalHosts.forEach(entry => entry.actor?.dispose());
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose(); banker?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();
       disposeObjects(scene);

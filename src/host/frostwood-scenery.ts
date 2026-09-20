@@ -4,6 +4,10 @@ import { lakeWaterAt, streamAt } from '../game/world-elevation.js';
 import { TOWN_BOUNDS } from '../game/world-layout.js';
 import { buildWorldWater } from './world-water.js';
 import { worldHorizonGeometry } from './world-horizon.js';
+import { buildExpansionTerrain } from './expansion-terrain.js';
+import { buildRegionalFoliage } from './regional-foliage.js';
+import { buildSecondDarkAge, weatherExistingTown } from './second-dark-age.js';
+import { REGION_BUILDINGS, WORLD_REGIONS, regionAt } from '../game/world-regions.js';
 import { buildLakeShore } from './lake-shore.js';
 import { buildRobotRuins } from './robot-ruins.js';
 import { buildRuinedSettlements } from './ruined-settlements.js';
@@ -16,7 +20,7 @@ import { createRuinedGroundMaterial } from "./ground-material.js";
 import { treePaletteMaterial, type TreePalette } from './tree-palette.js';
 import { groundTree } from './tree-grounding.js';
 
-export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number, wallTimeMillis?: number) => void> {
+export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onSign?: (root: Group, id: string, name: string) => void): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number, wallTimeMillis?: number) => void> {
   const jobs: Promise<void>[] = [];
   const coolingMaterials: MeshStandardMaterial[] = [];
   const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
@@ -27,6 +31,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     jobs.push(prop(name, size, axis).then(model => {
       model.position.set(x, terrainHeight(x,z) + y, z); model.rotation.set(tilt, rotation, lean);
       if (footprint) {
+        model.userData.townBuilding = true;
         const bounds = new Box3().setFromObject(model).getSize(new Vector3());
         const sideways = Math.abs(Math.sin(rotation)) > 0.5;
         model.scale.x *= footprint[sideways ? 1 : 0] / bounds[sideways ? "z" : "x"];
@@ -93,6 +98,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   // Broad vertex colour still follows slopes, while the material supplies the
   // small-scale grass, soil and litter detail.
   const grassTint = new Color('#b0b69a'), soilTint = new Color('#8e7962'), rockTint = new Color('#a0a39b'), summitTint = new Color('#9a958b');
+  const regionTints = new Map(WORLD_REGIONS.map(region => [region.id, new Color(region.color)]));
   function tintGround(ground: Mesh) {
     const geometry = ground.geometry; ground.updateMatrixWorld();
     const world = new Vector3(), normal = new Vector3();
@@ -107,6 +113,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       const soil = Math.max(0, Math.min(1, (slope - .08) * 1.8)) * (1 - rock);
       const summit = Math.max(0, Math.min(1, (elevation - 15) / 18));
       color.copy(grassTint).lerp(soilTint, soil).lerp(rockTint, rock).lerp(summitTint, summit).multiplyScalar(variation);
+      const outside = Math.hypot(Math.max(-70-world.x,0,world.x-90),Math.max(-130-world.z,0,world.z-76));
+      if (outside > 0) color.lerp(regionTints.get(regionAt(world.x,world.z).id)!, Math.min(1,outside/28)*.4);
       color.toArray(colors, index * 3);
     }
     geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
@@ -179,22 +187,42 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     [lakeRefined[0], streamRefined[1], streamRefined[3], lakeRefined[3], .75],
     [streamRefined[1], lakeRefined[1], streamRefined[3], lakeRefined[3], .75],
     [streamRefined[1], lakeRefined[1], streamRefined[2], streamRefined[3], .75],
-  ] as const) makeGroundSurface(left, right, bottom, top, sample);
+  ] as const) { makeGroundSurface(left, right, bottom, top, sample); await new Promise<void>(resolve=>setTimeout(resolve,0)); }
   makeStreamSurface(streamRefined[0], streamRefined[1], streamRefined[2], streamRefined[3]);
-  for (const [left, right, bottom, top] of [[86,146,-190,148],[28,86,-190,-64],[28,86,-30,148]] as const) makeGroundSurface(left, right, bottom, top, 2);
+  await new Promise<void>(resolve=>setTimeout(resolve,0));
+  for (const [left, right, bottom, top] of [[86,146,-190,148],[28,86,-190,-64],[28,86,-30,148]] as const) { makeGroundSurface(left, right, bottom, top, 2); await new Promise<void>(resolve=>setTimeout(resolve,0)); }
+  await buildExpansionTerrain(terrain, groundMaterial, tintGround);
   const horizon = new Mesh(worldHorizonGeometry(), groundMaterial);
   horizon.name = 'world-horizon'; terrain.add(horizon); tintGround(horizon);
-  const paving = document.createElement("canvas"); paving.width=paving.height=256;
-  const pavingCtx=paving.getContext("2d")!; pavingCtx.fillStyle="#8c8871"; pavingCtx.fillRect(0,0,256,256);
-  for(let row=0;row<10;row++) for(let col=-1;col<10;col++) {
-    const x=col*30+(row%2)*15, y=row*27;
-    pavingCtx.fillStyle=["#aaa38c","#a29e88","#969780","#b4ad94"][(row*3+col+12)%4]!;
-    pavingCtx.beginPath(); pavingCtx.roundRect(x+2,y+2,26,23,4); pavingCtx.fill();
+  const paving = document.createElement("canvas"); paving.width=paving.height=1024;
+  const pavingCtx=paving.getContext("2d")!;
+  let pavingSeed=1729;
+  const pavingRandom=()=>((pavingSeed=(pavingSeed*1664525+1013904223)>>>0)/4294967296);
+  pavingCtx.fillStyle="#383b30"; pavingCtx.fillRect(0,0,1024,1024);
+  for(let row=0;row<49;row++) for(let col=-1;col<47;col++) {
+    const x=col*23+(row%2)*11.5, y=row*21;
+    if(pavingRandom()<.13)continue;
+    const shade=67+Math.floor(pavingRandom()*26),corner=2+pavingRandom()*4;
+    pavingCtx.fillStyle=`rgb(${shade+4} ${shade+3} ${shade-4})`;
+    pavingCtx.beginPath();pavingCtx.moveTo(x+corner,y+2);pavingCtx.lineTo(x+19,y+1+pavingRandom()*3);
+    pavingCtx.lineTo(x+21,y+16);pavingCtx.lineTo(x+16,y+19);pavingCtx.lineTo(x+2,y+18);pavingCtx.lineTo(x+1,y+6);pavingCtx.closePath();pavingCtx.fill();
+    pavingCtx.strokeStyle='#a5a18b24';pavingCtx.lineWidth=.8;pavingCtx.stroke();
+    if(pavingRandom()<.25){pavingCtx.strokeStyle='#292c27b0';pavingCtx.beginPath();pavingCtx.moveTo(x+5,y+1);pavingCtx.lineTo(x+10,y+8);pavingCtx.lineTo(x+7,y+13);pavingCtx.lineTo(x+12,y+19);pavingCtx.stroke();}
   }
-  const pavingMap=new CanvasTexture(paving); pavingMap.colorSpace=SRGBColorSpace; pavingMap.wrapS=pavingMap.wrapT=RepeatWrapping; pavingMap.repeat.set(5,4);
-  const square=new Mesh(new PlaneGeometry(44,38,22,19),new MeshStandardMaterial({map:pavingMap,roughness:1})); square.rotation.x=-Math.PI/2; square.position.set(0,-0.01,-19); terrain.add(square); conformToTerrain(square, -.01); square.geometry.computeVertexNormals();
-  const roadMap=pavingMap.clone(); roadMap.repeat.set(1,7);
-  const road=new Mesh(new PlaneGeometry(4.2,52,2,52),new MeshStandardMaterial({map:roadMap,color:0xb0b49a,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,-18); terrain.add(road); conformToTerrain(road, .015); road.geometry.computeVertexNormals();
+  for(let i=0;i<120;i++){
+    const x=pavingRandom()*1024,y=pavingRandom()*1024,r=12+pavingRandom()*74;
+    const grime=pavingCtx.createRadialGradient(x,y,0,x,y,r);
+    grime.addColorStop(0,i%3===0?'#303c28a0':'#282c2785');grime.addColorStop(1,'#30362900');
+    pavingCtx.fillStyle=grime;pavingCtx.fillRect(x-r,y-r,r*2,r*2);
+  }
+  for(let i=0;i<42000;i++){
+    pavingCtx.fillStyle=i%3===0?'#afb0a015':'#171e1b25';
+    pavingCtx.fillRect(pavingRandom()*1024,pavingRandom()*1024,1+pavingRandom()*2,1);
+  }
+  const pavingMap=new CanvasTexture(paving); pavingMap.colorSpace=SRGBColorSpace; pavingMap.wrapS=pavingMap.wrapT=RepeatWrapping;pavingMap.anisotropy=4;
+  const square=new Mesh(new PlaneGeometry(44,38,22,19),new MeshStandardMaterial({map:pavingMap,roughness:1})); square.name='Worn yard paving';square.rotation.x=-Math.PI/2; square.position.set(0,-0.01,-19); terrain.add(square); conformToTerrain(square, -.01); square.geometry.computeVertexNormals();
+  const roadMap=pavingMap.clone(); roadMap.repeat.set(4.2/44,52/38);
+  const road=new Mesh(new PlaneGeometry(4.2,52,2,52),new MeshStandardMaterial({map:roadMap,color:0xaaa99b,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,-18); terrain.add(road); conformToTerrain(road, .015); road.geometry.computeVertexNormals();
   for (const building of TOWN_BUILDINGS) {
     place(building.model, building.x, building.z, building.height, building.turn*Math.PI/2, terrain, 'height', 0, [building.width,building.depth]);
   }
@@ -531,6 +559,15 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   }
   torch(-4.4,-40,2.4); torch(4.4,-40,2.4);
   await Promise.all(jobs);
+  const [regions, trees] = await Promise.all([buildSecondDarkAge(terrain), buildRegionalFoliage(terrain), weatherExistingTown(terrain)]);
+  for (const sign of regions.signs) onSign?.(sign.root, sign.id, sign.name);
+  for (const bounds of trees) occluders.push({ root: terrain, bounds });
+  for (const building of REGION_BUILDINGS) {
+    const y = terrainHeight(building.x, building.z);
+    occluders.push({ root: terrain, bounds: new Box3(
+      new Vector3(building.x-building.width/2, y, building.z-building.depth/2),
+      new Vector3(building.x+building.width/2, y+building.height, building.z+building.depth/2)) });
+  }
   terrain.traverse(object => { if (object instanceof Mesh) object.receiveShadow = true; });
   const inverse = new Matrix4(), matrix = new Matrix4();
   for (const { parent, meshes } of batches.values()) {
@@ -558,6 +595,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   }
   return (coolingRestored, shiftEnded, player, camera, aimHeight = 1.1, wallTimeMillis = Date.now()) => {
     updateWater(wallTimeMillis);
+    regions.update(wallTimeMillis);
     sightline.origin.set(player.x, player.y + aimHeight, player.z);
     cameraDirection.subVectors(camera, sightline.origin);
     const cameraDistance = cameraDirection.length();

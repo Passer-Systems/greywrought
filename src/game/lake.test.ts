@@ -62,8 +62,8 @@ describe('meadow lake', () => {
     expect(lakeWaterAt(LAKE_CENTER.x, LAKE_CENTER.z)).not.toBeNull();
   });
   test('movement settles swimmers at the water surface', () => {
-    const state: MovementState = { position: { x: LAKE_CENTER.x, y: terrainHeight(LAKE_CENTER.x, LAKE_CENTER.z), z: LAKE_CENTER.z }, verticalSpeed: 0 };
-    moveLocomotion(state, { forward: 0, strafe: 0, cameraX: 0, cameraZ: 1, jump: false }, .01);
+    const state: MovementState = { position: { x: LAKE_CENTER.x, y: lakeWaterAt(LAKE_CENTER.x, LAKE_CENTER.z)! + .1, z: LAKE_CENTER.z }, verticalSpeed: 0 };
+    moveLocomotion(state, { forward: 0, strafe: 0, cameraX: 0, cameraZ: 1, jump: false }, 1);
     expect(state.position.y).toBeCloseTo(lakeWaterAt(LAKE_CENTER.x, LAKE_CENTER.z)! - .8);
   });
   test('support keeps cave floors and airborne offsets intact', () => {

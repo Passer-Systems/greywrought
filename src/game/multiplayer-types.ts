@@ -37,6 +37,7 @@ export type PartyCommand =
   | { type: 'partyLeave' }
   | { type: 'partyKick'; playerId: string };
 export type WorldCommand =
+  | { type: "flight"; destination: import("./bellrunner.js").BellrunnerStopId }
   | PartyCommand
   | { type: 'pause' }
   | { type: 'resume' }

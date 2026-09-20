@@ -1,10 +1,11 @@
 import type { Position } from './adventure-types.js';
+import { EXPANDED_WORLD_BOUNDS, settlementAt } from './world-regions.js';
 
 export const FOREST_OFFSET = 20;
-export const WORLD_BOUNDS = { minX: -70, maxX: 90, minZ: -130, maxZ: 76 } as const;
+export const WORLD_BOUNDS = EXPANDED_WORLD_BOUNDS;
 export const TOWN_BOUNDS = { minX: -26, maxX: 26, minZ: -40, maxZ: 0 } as const;
 export function inTown(position: Pick<Position, 'x' | 'z'>): boolean {
-  return position.x >= TOWN_BOUNDS.minX && position.x <= TOWN_BOUNDS.maxX
+  return Boolean(settlementAt(position.x, position.z)) || position.x >= TOWN_BOUNDS.minX && position.x <= TOWN_BOUNDS.maxX
     && position.z >= TOWN_BOUNDS.minZ && position.z <= TOWN_BOUNDS.maxZ;
 }
 

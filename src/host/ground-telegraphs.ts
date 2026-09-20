@@ -27,8 +27,9 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
   const arrowGeometry = new BufferGeometry();
   arrowGeometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0.38, 0.17, 0, -0.16, -0.17, 0, -0.16], 3));
   let signature = "";
+  let reference: Position | undefined;
   function addGround(mesh: Mesh, lift: number) {
-    mesh.geometry = mesh.geometry.clone(); root.add(mesh); conformToTerrain(mesh, lift, combatSurfaceHeight);
+    mesh.geometry = mesh.geometry.clone(); root.add(mesh); conformToTerrain(mesh, lift, (x,z)=>combatSurfaceHeight(x,z,reference));
   }
   function clear() {
     for (const mesh of root.children) if (mesh instanceof Mesh) mesh.geometry.dispose();
@@ -77,7 +78,8 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
   }
 
   return {
-    update(snapshot: Pick<AdventureSnapshot, "combat">, preview: CombatPreview | { readonly kind: "destination" } | null) {
+    update(snapshot: Pick<AdventureSnapshot, "combat"> & Partial<Pick<AdventureSnapshot,"player">>, preview: CombatPreview | { readonly kind: "destination" } | null) {
+      reference = snapshot.player?.position;
       const forecast = snapshot.combat.phase === "preparation" && preview ? snapshot.combat.forecast : null;
       const hasMove = preview?.kind === "move" && forecast?.paths.some(path => path.actorId === forecast.playerId && path.queueId === preview.queueId);
       const paths = forecast?.paths.filter(path => preview?.kind === "destination" || (preview?.kind === "enemy"
@@ -86,7 +88,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
       const events = forecast?.events.filter(event => preview?.kind === "destination" ? event.kind === "hit" && event.targetId === forecast.playerId : (event.kind === "collision" || event.kind === "ignition" || event.kind === "interruption")
         && (preview?.kind === "enemy" ? event.sourceId === preview.threatId
           : preview?.kind === "move" && hasMove && event.queueId === preview.queueId && event.sourceId === forecast.playerId)) ?? [];
-      const nextSignature = JSON.stringify({ preview, paths, events });
+      const nextSignature = JSON.stringify({ preview, paths, events, reference });
       if (nextSignature === signature) return;
       signature = nextSignature;
       clear();

@@ -66,6 +66,8 @@ export async function buildLakeShore(parent: Group): Promise<void> {
     // the shallow water around the impact.
     place('nature/Rock_Medium_1', plunge.x + dx, plunge.z + dz, size, rotation);
   }
+  // Low boulder clusters make the submerged basin readable without obstructing swimming.
+  for (const [x,z,size,rotation] of [[-33,-100,.8,.4],[-34.2,-100.4,.42,1.2],[-21,-103,1.1,2],[-20.1,-104,.5,.7],[-31,-89,.7,1.4],[-40,-108,.9,.3],[-15,-94,.8,2.4]] as const) place('nature/Rock_Medium_1',x,z,size,rotation);
   buildWaterfall(parent);
   await Promise.all(placements);
 }

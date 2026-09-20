@@ -1,9 +1,12 @@
 import { BufferGeometry, Float32BufferAttribute, Matrix4, Mesh, Vector3 } from 'three';
 import { terrainHeight } from '../game/cave-layout.js';
+import type { Position } from '../game/adventure-types.js';
+import { isSubmerged, movementHeight } from '../game/movement.js';
 import { lakeWaterAt } from '../game/world-elevation.js';
 
 /** Visible combat surface: lake overlays sit above the buried walkable bed. */
-export function combatSurfaceHeight(x: number, z: number): number {
+export function combatSurfaceHeight(x: number, z: number, reference?: Position): number {
+  if (reference && isSubmerged(reference)) return movementHeight(x, z, reference);
   const ground = terrainHeight(x, z);
   return Math.max(ground, lakeWaterAt(x, z) ?? ground);
 }

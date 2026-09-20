@@ -1,12 +1,15 @@
+import { BELLRUNNER_STOPS, bellrunnerDock, bellrunnerStop, nearbyBellrunner, flightDuration, flightPosition, flightFacing, readFlight, type FlightState, type BellrunnerStopId } from "./bellrunner.js";
 import { formatMoney } from "./currency.js";
 import { snapCombatPosition, combatCell, reachableCombatCells, COMBAT_CELL_SIZE } from './combat-grid.js';
 import { terrainHeight, migrateTerrainLayout, TERRAIN_LAYOUT } from './cave-layout.js';
 import { lakeWaterAt, isSwimmingPosition } from './world-elevation.js';
 import { restoreTownPosition } from './town-layout.js';
-import { VENDORS, experienceForLevel, levelForExperience, enemyExperience, enemyCoins, type NpcId, type VendorId } from "./economy.js";
+import { VENDORS, REST_SPOTS, REGIONAL_GREETINGS, experienceForLevel, levelForExperience, enemyExperience, enemyCoins, type NpcId, type VendorId, type RestSpotId } from "./economy.js";
+import { settlementAt, WORLD_SETTLEMENTS } from './world-regions.js';
+import { REGIONAL_THREATS } from './regional-threats.js';
 import { inTown, WORLD_BOUNDS, migrateSpatialLayout } from './world-layout.js';
 import { findEmote } from './emotes.js';
-import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, supportHeight, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
+import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, supportHeight, movementHeight, isSwimming, MAX_BREATH_SECONDS, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
 import { YARD, QUESTS, GEAR, gearName, type QuestId, type QuestOperation, type QuestView, type ProgressionView, type GearSlot, type GearItemId } from "./yard-content.js";
 import type {
@@ -56,10 +59,12 @@ interface HeadState {
   volley: number; projectileSequence: number; pendingFireballs: number; nextFireballSeconds: number;
   fireballs: { id: number; origin: Vector; position: Vector; remainingSeconds: number; duration: number; damage: number }[];
 }
-interface ThreatDefinition {
+export interface ThreatDefinition {
   id: string; name: string; level: number; position: Position; health: number; behavior?: "wolf" | "head";
   /** Small neutral wildlife whose overhead labels are optional UI clutter. */
   critter?: boolean;
+  description?: string;
+  salvage?: number;
   callsForHelp?: boolean;
   preparation: string; intention: string; damage: number; reach: number; benefit: string;
   disposition: ThreatView["disposition"]; aggroRange: number; leash: number; speed: number; pursuitSpeed?: number; patrol?: readonly Position[];
@@ -105,10 +110,11 @@ interface ChapterState {
 }
 const newChapter = (): ChapterState => ({ accepted: [], completed: [], scoutDefeated: false, level: 1, experience: 0, ownedGear: [], equipment: { chest: null, mainhand: null, offhand: null } });
 interface State {
+  flight: FlightState | null;
   chapter: ChapterState;
   combat: CombatState;
   world: WorldState;
-  phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number;
+  phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number; breathSeconds: number; autoSurfacing: boolean;
   health: number; supplies: number; coins: number; cargo: number;
   bank: { supplies: number; potions: number };
   potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
@@ -220,10 +226,12 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(-28, -101), point(-25, -100), point(-27, -97), point(-31, -99)],
     preparation: "Raising its armored shell", intention: "Hullbreaker Slam", damage: 32, reach: 3.5,
     benefit: "Defeat the armored lake guardian for four pieces of salvage." },
+  ...REGIONAL_THREATS,
 ];
 const IRONBACK_CHEST_ID = "ironback-chest";
 const IRONBACK_CHEST_POSITION = point(78, -52);
 const PLACES: readonly PlaceView[] = [
+  ...WORLD_SETTLEMENTS.map(town => ({ id: town.id, name: town.name, position: point(town.x,town.z), kind: "town" as const })),
   ...VENDORS.map(v => ({ id: v.id, name: `${v.name} / ${v.trade}`, position: v.position, kind: "shop" as const })),
   { id: "hollowdeep", name: "Hollowdeep Cave · Danger", position: point(28,-46), kind: "gate" },
   { id: "hollowdeep-exit", name: "Exit to the meadow", position: point(30,-46), kind: "gate" },
@@ -233,7 +241,7 @@ const PLACES: readonly PlaceView[] = [
   { id: "ritual-site", name: YARD.works, position: point(2, 60), kind: "ritual" },
   { id: "mara", name: "Mara / Apothecary", position: point(3.4, -7.5), kind: "shop" },
   { id: "bank", name: "Elian / Bank", position: point(-9, -10), kind: "bank" },
-  { id: "inn", name: `Rowan / ${YARD.inn}`, position: point(5, -11), kind: "inn" },
+  ...REST_SPOTS.map(inn => ({ id: inn.id, name: `${inn.name} / ${inn.lodging}`, position: inn.position, kind: "inn" as const })),
 ];
 const PHASE_SECONDS: Record<ThreatPhase, number> = {
   dormant: 0, patrol: 0, approach: 0, ...COMBAT_RULES.enemy, returning: 0, cleared: 0,
@@ -241,8 +249,9 @@ const PHASE_SECONDS: Record<ThreatPhase, number> = {
 const OTHER_PHASE_SECONDS: Record<ThreatPhase, number> = { ...PHASE_SECONDS, preparation: 3, action: 0.35, recovery: 2.65 };
 const EPSILON = 1e-9;
 const distance = (a: Position, b: Position): number => Math.hypot(a.x - b.x, a.z - b.z);
+const definitionsById = new Map(DEFINITIONS.map(threat => [threat.id, threat]));
 const definition = (id: string): ThreatDefinition => {
-  const found = DEFINITIONS.find(t => t.id === id);
+  const found = definitionsById.get(id);
   if (!found) throw new Error(`Unknown threat: ${id}`);
   return found;
 };
@@ -284,7 +293,7 @@ function nextThreatRandom(t: ThreatState): number {
 }
 function initialState(archetype: CharacterArchetype): State {
   return {
-    chapter: newChapter(), combat: newCombat(), phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, health: 100,
+    flight: null, chapter: newChapter(), combat: newCombat(), phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, breathSeconds: MAX_BREATH_SECONDS, autoSurfacing: false, health: 100,
     bank: { supplies: 0, potions: 0 }, supplies: 15, coins: 0, cargo: 0, potions: 0, carriedRelics: 0,
     bankedRelics: 0, carriedSalvage: 0, presence: 0, actionCooldown: 0, currentAction: null, actionDuration: 0, actionRemainingSeconds: 0, gatherPending: false,
     guardSeconds: 0, block: 0, stamina: 5, staminaRecoverySeconds: 0, maneuver: null, sitting: false,
@@ -324,6 +333,7 @@ class Adventure implements AdventureGame {
   private vendorOpen: VendorId | null = null;
   private trade: { kind: "supplies" | "potions"; quantity: number } | null = null;
   private innOpen = false;
+  private restSpot: RestSpotId | null = null;
   private bankOpen = false;
   private readonly events: AdventureLogEntry[] = [];
   private eventId = 0;
@@ -418,6 +428,7 @@ class Adventure implements AdventureGame {
       }
       const game = context.online.get(id);
       const members = new Set([id, ...memberIds]);
+      if ([...members].some(member => context.characters.get(member)?.state.flight)) return false;
       if (!game || [...members].some(memberId => !context.characters.has(memberId) || sessions.has(memberId))) return false;
       const clone = structuredClone(context.world);
       for (const threat of clone.threats) {
@@ -578,13 +589,13 @@ class Adventure implements AdventureGame {
   private playerView(): AdventureSnapshot["player"] {
     const s = this.state;
     return {
-      position: { ...s.position }, cameraForward: { ...this.cameraForward }, archetype: s.archetype,
-      health: s.health, maximumHealth: 100, grounded: s.position.y === supportHeight(s.position.x, s.position.z),
+      flight: s.flight ? { ...s.flight } : null, position: { ...s.position }, cameraForward: { ...this.cameraForward }, archetype: s.archetype,
+      health: s.health, maximumHealth: 100, breathSeconds: s.breathSeconds, autoSurfacing: s.autoSurfacing, grounded: !isSwimming(s.position) && s.position.y === supportHeight(s.position.x, s.position.z),
       moving: this.moving, backpedaling: this.backpedaling, attackSequence: s.attackSequence,
       actionCooldown: s.actionCooldown, currentAction: s.currentAction, actionDuration: s.actionDuration, guardSeconds: s.guardSeconds,
       block: s.block, stamina: s.stamina, maximumStamina: COMBAT_RULES.stamina.maximum, staminaRecoverySeconds: s.staminaRecoverySeconds,
       inCombat: this.inCombat(), sitting: s.sitting, emote: this.activeEmote, maneuver: s.maneuver?.kind ?? "none",
-      maneuverSeconds: s.maneuver?.remainingSeconds ?? 0, facing: { ...(s.maneuver?.facing ?? this.cameraForward) },
+      maneuverSeconds: s.maneuver?.remainingSeconds ?? 0, facing: { ...(s.flight ? flightFacing(s.flight) : s.maneuver?.facing ?? this.cameraForward) },
     };
   }
 
@@ -631,10 +642,21 @@ class Adventure implements AdventureGame {
       selectedThreat: s.selectedThreat, supplies: s.supplies, coins: s.coins, vendorOpen: this.vendorOpen, cargo: s.cargo,
       resourceRemaining: s.world.resourceRemaining, potions: s.potions, carriedRelics: s.carriedRelics,
       bankedRelics: s.bankedRelics, presence: s.presence, ritualCalled: s.world.ritualCalled,
-      bank: { ...s.bank }, bankOpen: this.bankOpen, shopOpen: this.shopOpen, trade: this.tradeView(), innOpen: this.innOpen, log: this.events.map(entry => ({ ...entry })), potionPrice: MARA_TRADE_RULES.suppliesPerPotion, potionHealing: 30, report: s.report,
+      bank: { ...s.bank }, bankOpen: this.bankOpen, shopOpen: this.shopOpen, trade: this.tradeView(), innOpen: this.innOpen, restSpot: this.innOpen ? this.restSpot : null, log: this.events.map(entry => ({ ...entry })), potionPrice: MARA_TRADE_RULES.suppliesPerPotion, potionHealing: 30, report: s.report,
     };
   }
 
+  fly(destination: BellrunnerStopId): boolean {
+    const s = this.state, origin = nearbyBellrunner(s.position);
+    if (s.flight || s.health <= 0 || this.instancePaused() || this.inPrivateInstance() || this.inCombat() || !origin || destination === origin.id || !BELLRUNNER_STOPS.some(stop => stop.id === destination)) { this.report("Board at a Bellrunner mooring when you are clear of danger."); return false; }
+    this.cancelGather(); this.cancelHearthstone(); this.held.clear(); this.mouseForward = false;
+    s.sitting = false; this.activeEmote = null; s.maneuver = null; s.verticalSpeed = 0;
+    s.currentAction = null; s.actionCooldown = 0; s.actionRemainingSeconds = 0; s.actionDuration = 0;
+    s.combat.queued = []; this.shopOpen = false; this.vendorOpen = null; this.trade = null; this.innOpen = false; this.bankOpen = false; this.lootOpenId = null;
+    s.flight = { from: origin.id, to: destination, elapsed: 0 }; s.position = { ...bellrunnerDock(origin.id) };
+    this.report("The Bellrunner casts off for " + bellrunnerStop(destination).name + ". Hold fast.");
+    return true;
+  }
   save(): string { return JSON.stringify({ version: 11, spatialLayout: 1, terrainLayout: TERRAIN_LAYOUT, forestLayout: 1, state: savedState(this.state) }); }
   private progression(): ProgressionView {
     const c = this.state.chapter;
@@ -659,21 +681,23 @@ class Adventure implements AdventureGame {
   }
   interactNpc(id: NpcId): void {
     const vendor = VENDORS.find(v => v.id === id);
+    const inn = REST_SPOTS.find(v => v.id === id);
     if (this.instancePaused() || this.inPrivateInstance()) { this.report("Services are available only in the shared world."); return; }
     if (this.state.phase === "lost") return;
     if (this.state.phase !== "town" || !this.near(id, 2.5)) {
-      this.report(`Move closer to ${vendor?.name ?? (id === "mara" ? "Mara" : id === "bank" ? "Elian" : "Rowan")} to talk.`);
+      this.report(`Move closer to ${vendor?.name ?? inn?.name ?? (id === "mara" ? "Mara" : "Elian")} to talk.`);
       return;
     }
     this.lootOpenId = null;
     this.trade = null;
     this.vendorOpen = vendor?.id ?? null;
     this.shopOpen = id === "mara";
-    this.innOpen = id === "inn";
+    this.innOpen = Boolean(inn);
+    this.restSpot = inn?.id ?? null;
     this.bankOpen = id === "bank";
-    this.report(vendor ? `${vendor.name} says: Good gear earns its keep. Take a look.` : id === "mara" ? "Mara says: A little preparation goes a long way."
+    this.report(vendor ? `${vendor.name} says: ${REGIONAL_GREETINGS[id] ?? "Good gear earns its keep. Take a look."}` : id === "mara" ? "Mara says: A little preparation goes a long way."
       : id === "bank" ? "Elian says: Store supplies and potions for your next expedition."
-      : `Rowan says: Welcome to ${YARD.inn}. Come warm yourself by the hearth; rest is on the house.`);
+      : `${inn!.name} says: Welcome to ${inn!.lodging}. ${inn!.greeting}`);
   }
   buyGear(vendorId: VendorId, item: GearItemId): boolean {
     const s = this.state, vendor = VENDORS.find(v => v.id === vendorId);
@@ -765,8 +789,9 @@ class Adventure implements AdventureGame {
     const length = Math.hypot(x, z);
     if (length > EPSILON) this.cameraForward = { x: x / length, y: 0, z: z / length };
   }
-  setMouseForward(active: boolean): void { if (!active) this.mouseForward = false; else if (!this.instancePaused() && !this.inCombat()) { this.cancelGather(); this.cancelHearthstone(); this.mouseForward = true; } }
+  setMouseForward(active: boolean): void { if (!active) this.mouseForward = false; else if (!this.state.flight && !this.instancePaused() && !this.inCombat()) { this.cancelGather(); this.cancelHearthstone(); this.mouseForward = true; } }
   sit(): void {
+    if (this.state.flight) return;
     if (this.instancePaused() || this.state.phase === "lost" || this.inCombat()) return;
     this.activeEmote = null;
     this.cancelGather();
@@ -774,6 +799,7 @@ class Adventure implements AdventureGame {
     this.state.sitting = true;
   }
   emote(name: string): void {
+    if (this.state.flight) return;
     if (this.instancePaused() || this.state.phase === "lost" || this.inCombat()) return;
     if (name === "stand") { this.state.sitting = false; this.activeEmote = null; return; }
     this.cancelGather();
@@ -1008,13 +1034,14 @@ class Adventure implements AdventureGame {
     }
   }
   setAction(action: AdventureAction, pressed: boolean): void {
+    if (this.state.flight) { if (!pressed) this.held.delete(action); return; }
     if (this.instancePaused()) { if (!pressed) this.held.delete(action); return; }
     if (!pressed) { this.held.delete(action); return; }
-    if (this.inCombat() && ["forward", "backward", "left", "right", "jump"].includes(action)) return;
+    if (this.inCombat() && ["forward", "backward", "left", "right", "jump", "dive"].includes(action)) return;
     if (this.held.has(action)) return;
     this.held.add(action);
     if (action !== "hearthstone") this.cancelHearthstone();
-    if (["forward", "backward", "left", "right", "jump", "strike", "bait", "brace", "drinkPotion", "ritual", "cancelGather"].includes(action)) this.cancelGather();
+    if (["forward", "backward", "left", "right", "jump", "dive", "strike", "bait", "brace", "drinkPotion", "ritual", "cancelGather"].includes(action)) this.cancelGather();
     this.act(action);
   }
 
@@ -1023,7 +1050,7 @@ class Adventure implements AdventureGame {
     return place !== undefined && distance(this.state.position, place.position) <= range + EPSILON;
   }
   private ready(): boolean {
-    return this.state.phase !== "lost" && this.state.actionCooldown <= EPSILON && this.state.maneuver === null;
+    return !this.state.flight && this.state.phase !== "lost" && this.state.actionCooldown <= EPSILON && this.state.maneuver === null;
   }
   private act(action: AdventureAction): void {
     const s = this.state;
@@ -1094,14 +1121,16 @@ class Adventure implements AdventureGame {
         if (!this.inCombat() && s.potions > 0 && s.health < 100) { const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--; this.feedback(null, "heal", healing); this.report(`Your health potion restores ${healing} health.`); }
         else this.report(s.potions < 1 ? "No health potions. Visit Mara." : this.inCombat() ? "Unavailable in combat." : "Your health is already full.");
         break;
-      case "rest":
-        if (s.phase === "town" && this.near("inn", 2.5)) {
+      case "rest": {
+        const inn = REST_SPOTS.find(spot => this.near(spot.id, 2.5));
+        if (s.phase === "town" && inn) {
           const healing = 100 - s.health;
           s.health = 100;
           this.feedback(null, "heal", healing);
-          this.report(healing > 0 ? `You rest at ${YARD.inn} and recover ${healing} health.` : "Rowan says: You're already rested. May the road bring you safely home.");
-        } else this.report("Visit Rowan at The Wayfarer's Rest in Nine-Bell Yard to rest.");
+          this.report(healing > 0 ? `You rest at ${inn.lodging} and recover ${healing} health.` : `${inn.name} says: You're already rested. May the road bring you safely home.`);
+        } else this.report("Visit an innkeeper in Nine-Bell Yard, Suture or Brinewick to rest.");
         break;
+      }
     }
   }
   private castView(t: ThreatState): ThreatView["cast"] {
@@ -1274,7 +1303,7 @@ class Adventure implements AdventureGame {
   private segmentTouches(from: Position, to: Position, center: Position, radius: number): boolean {
     const dx = to.x - from.x, dz = to.z - from.z, length = dx * dx + dz * dz;
     const at = length <= EPSILON ? 0 : Math.max(0, Math.min(1, ((center.x - from.x) * dx + (center.z - from.z) * dz) / length));
-    return distance(point(from.x + dx * at, from.z + dz * at), center) <= radius + EPSILON;
+    return Math.hypot(from.x + dx * at - center.x, from.z + dz * at - center.z) <= radius + EPSILON;
   }
   private firstCollision(actor: ThreatState, from: Position, to: Position, radius = 1.1): ThreatState | undefined {
     return this.state.world.threats.filter(t => t !== actor && t.active && t.health > 0 && t.phase !== "returning" && this.segmentTouches(from, to, t.position, radius))
@@ -1420,9 +1449,9 @@ class Adventure implements AdventureGame {
     }
   }
   private move(dt: number): void {
-    if (this.mouseForward || this.held.has("forward") || this.held.has("backward") || this.held.has("left") || this.held.has("right") || this.held.has("jump")) { this.cancelGather(); this.state.sitting = false; this.activeEmote = null; }
+    if (this.mouseForward || this.held.has("forward") || this.held.has("backward") || this.held.has("left") || this.held.has("right") || this.held.has("jump") || this.held.has("dive")) { this.cancelGather(); this.state.sitting = false; this.activeEmote = null; }
     const result = moveLocomotion(this.state, { forward: this.mouseForward ? 1 : Number(this.held.has("forward")) - Number(this.held.has("backward")),
-      strafe: Number(this.held.has("right")) - Number(this.held.has("left")), cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt, classKit(this.state.archetype).movementSpeed);
+      strafe: Number(this.held.has("right")) - Number(this.held.has("left")), cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false, rise: this.held.has("jump"), dive: this.held.has("dive") }, dt, classKit(this.state.archetype).movementSpeed);
     this.moving = result.moving; this.backpedaling = result.backpedaling;
   }
   private consumeMovement(dt: number, blocked: boolean): void {
@@ -1460,8 +1489,7 @@ class Adventure implements AdventureGame {
     m.remainingSeconds = motion.remainingSeconds;
     this.backpedaling = false;
     if (m.remainingSeconds > EPSILON) return;
-    const water = lakeWaterAt(s.position.x, s.position.z);
-    s.position.y = water !== null && isSwimmingPosition(s.position.x, s.position.z) ? water : terrainHeight(s.position.x, s.position.z);
+    s.position.y = movementHeight(s.position.x, s.position.z, m.start);
     s.verticalSpeed = 0; s.maneuver = null;
     if (m.kind === "lunge") {
       const t = s.world.threats.find(t => t.id === m.targetId);
@@ -1478,21 +1506,31 @@ class Adventure implements AdventureGame {
   private clearPath(a: Position, b: Position): boolean {
     const minX = Math.min(a.x, b.x), maxX = Math.max(a.x, b.x);
     const minZ = Math.min(a.z, b.z), maxZ = Math.max(a.z, b.z);
-    return !this.barriers().some(([left, right, bottom, top]) => {
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const barriers = this.barriers();
+    for (let index = 0; index < barriers.length; index++) {
+      const barrier = barriers[index]!;
+      const left = barrier[0] + EPSILON, right = barrier[1] - EPSILON, bottom = barrier[2], top = barrier[3];
       // Most world barriers are nowhere near this segment; avoid clipping them.
-      if (maxX < left + EPSILON || minX > right - EPSILON || maxZ < bottom || minZ > top) return false;
+      if (maxX < left || minX > right || maxZ < bottom || minZ > top) continue;
       let enter = 0, exit = 1;
-      for (const [start, end, min, max] of [[a.x, b.x, left + EPSILON, right - EPSILON], [a.z, b.z, bottom, top]] as const) {
-        const delta = end - start;
-        if (Math.abs(delta) <= EPSILON) { if (start < min || start > max) return false; }
-        else {
-          const first = (min - start) / delta, last = (max - start) / delta;
-          enter = Math.max(enter, Math.min(first, last));
-          exit = Math.min(exit, Math.max(first, last));
-        }
+      if (Math.abs(dx) <= EPSILON) {
+        if (a.x < left || a.x > right) continue;
+      } else {
+        const first = (left - a.x) / dx, last = (right - a.x) / dx;
+        enter = Math.max(enter, Math.min(first, last));
+        exit = Math.min(exit, Math.max(first, last));
       }
-      return enter <= exit;
-    });
+      if (Math.abs(dz) <= EPSILON) {
+        if (a.z < bottom || a.z > top) continue;
+      } else {
+        const first = (bottom - a.z) / dz, last = (top - a.z) / dz;
+        enter = Math.max(enter, Math.min(first, last));
+        exit = Math.min(exit, Math.max(first, last));
+      }
+      if (enter <= exit) return false;
+    }
+    return true;
   }
   private closeMissingLoot(): void {
     if (this.lootOpenId === IRONBACK_CHEST_ID) { if (!this.canLootChest()) this.lootOpenId = null; return; }
@@ -1500,6 +1538,16 @@ class Adventure implements AdventureGame {
   }
   private stepPlayer(dt: number): void {
     const s = this.state;
+    if (s.flight) {
+      if (this.movementFrames) this.consumeMovement(dt, true);
+      s.flight = { ...s.flight, elapsed: Math.min(flightDuration(s.flight.from,s.flight.to), s.flight.elapsed+dt) };
+      s.position = { ...flightPosition(s.flight) }; s.verticalSpeed = 0; this.moving = false; this.backpedaling = false;
+      if (s.flight.elapsed >= flightDuration(s.flight.from,s.flight.to)-EPSILON) {
+        const stop = bellrunnerStop(s.flight.to); s.position = { ...bellrunnerDock(stop.id) }; s.flight = null; s.phase = "town";
+        this.report("The Bellrunner ties up at " + stop.name + ". Safe travels.");
+      }
+      return;
+    }
     if (this.activeEmote) {
       this.emoteSeconds -= dt;
       if (this.emoteSeconds <= EPSILON || this.inCombat() || s.phase === "lost") this.activeEmote = null;
@@ -1517,7 +1565,7 @@ class Adventure implements AdventureGame {
     this.closeMissingLoot();
     if (this.vendorOpen && (this.state.phase !== "town" || !this.near(this.vendorOpen, 2.5))) this.vendorOpen = null;
     if (this.shopOpen && !this.near("mara", 2.5)) { this.shopOpen = false; this.trade = null; }
-    if (this.innOpen && !this.near("inn", 2.5)) this.innOpen = false;
+    if (this.innOpen && (!this.restSpot || !this.near(this.restSpot, 2.5))) this.innOpen = false;
     if (this.bankOpen && !this.near("bank", 2.5)) this.bankOpen = false;
     if (s.phase === "town" && !inTown(s.position)) {
       s.phase = "expedition"; s.carriedSalvage = 0; s.presence = 0;
@@ -1531,7 +1579,7 @@ class Adventure implements AdventureGame {
         s.world.threats = fresh;
       }
       s.actionCooldown = 0; s.guardSeconds = 0; s.block = 0; this.shopOpen = false; this.trade = null; this.innOpen = false; this.bankOpen = false;
-      this.report("You leave Nine-Bell Yard. Return to town to secure what you carry.");
+      this.report("You leave the shelter of town. Return to a settlement to secure what you carry.");
     } else if (s.phase === "expedition" && inTown(s.position) && !this.inPrivateInstance()) {
       this.returnToTown();
     }
@@ -1554,7 +1602,7 @@ class Adventure implements AdventureGame {
       s.maneuver = null; s.position.y = supportHeight(s.position.x, s.position.z); s.verticalSpeed = 0; this.lootOpenId = null; this.trade = null;
       if (!this.shared) for (const t of s.world.threats) if (t.health > 0) this.releaseThreat(t);
 
-      this.report(`You return to ${YARD.settlement}. Salvage and spare crystals are secured.${reservedCrystals ? " Bring your coolant crystals to Mara." : ""}${reservedRoll ? " Bring the Last Shift Roll to Rowan." : ""} Visit the inn before your next trip.`);
+      this.report(`You return to ${settlementAt(s.position.x,s.position.z)?.name ?? YARD.settlement}. Salvage and spare crystals are secured.${reservedCrystals ? " Bring your coolant crystals to Mara." : ""}${reservedRoll ? " Bring the Last Shift Roll to Rowan." : ""} Visit the inn before your next trip.`);
   }
   private advanceAction(dt: number): void {
     const s = this.state;
@@ -1653,7 +1701,7 @@ class Adventure implements AdventureGame {
   }
   private canBeTargetedBy(t: ThreatState): boolean {
     const s = this.state, d = definition(t.id);
-    return s.phase === "expedition" && s.health > 0 && !inTown(s.position) && distance(s.position, d.position) <= d.leash;
+    return !s.flight && s.phase === "expedition" && s.health > 0 && !inTown(s.position) && distance(s.position, d.position) <= d.leash;
   }
   private engage(t: ThreatState): void {
     const clock = this.state.combat.clock;
@@ -1710,13 +1758,13 @@ class Adventure implements AdventureGame {
     if (t.phase === "returning") { this.returnHome(t, dt); return; }
     if (!t.aggro) {
       this.patrol(t, dt);
-      if (s.phase === "expedition" && !inTown(s.position) && d.disposition === "hostile" && distance(s.position, t.position) <= d.aggroRange && this.clearPath(t.position, s.position)) this.engage(t);
+      if (!s.flight && s.phase === "expedition" && !inTown(s.position) && d.disposition === "hostile" && distance(s.position, t.position) <= d.aggroRange && this.clearPath(t.position, s.position)) this.engage(t);
       // Hostile creatures close to an engaged ally answer the call, but only
       // across a short, clear path. This keeps pulls local instead of waking
       // the whole forest and leaves neutral creatures untouched.
       if (!t.aggro && d.disposition === "hostile" && distance(t.position, d.position) <= d.leash) {
         for (const ally of s.world.threats) {
-          if (ally === t || definition(ally.id).callsForHelp === false || !ally.active || !ally.aggro || ally.health <= 0 || distance(t.position, ally.position) > CALL_FOR_HELP_RANGE || !this.clearPath(t.position, ally.position)) continue;
+          if (!ally.aggro || !ally.active || ally.health <= 0 || ally === t || definition(ally.id).callsForHelp === false || distance(t.position, ally.position) > CALL_FOR_HELP_RANGE || !this.clearPath(t.position, ally.position)) continue;
           const opponent = this.targetPlayer(ally);
           if (!opponent?.canBeTargetedBy(ally) || !opponent.canBeTargetedBy(t)) continue;
           opponent.engage(t);
@@ -2140,8 +2188,8 @@ function readSave(serialized: string, now = Date.now()): State {
       lootClaimed: version >= 3 ? boolean(t.lootClaimed) : id === "ritual-guardian" && health === 0,
       patrolIndex: t.patrolIndex === undefined ? 1 : number(t.patrolIndex, 0, d.patrol?.length ?? 1, true), moving: t.moving === undefined ? false : boolean(t.moving),
       abilityIndex: t.abilityIndex === undefined ? 0 : number(t.abilityIndex, 0, 2, true),
-      wolf: id === "patrol" ? realtime ? readWolf(t.wolf, true) : newWolf() : null,
-      head: id === "scout" ? t.head ? readHead(t.head, realtime) : newHead() : null,
+      wolf: d.behavior === "wolf" ? realtime ? readWolf(t.wolf, true) : newWolf() : null,
+      head: d.behavior === "head" ? t.head ? readHead(t.head, realtime) : newHead() : null,
     };
     // Old saves lack the spawn maximum; the crab's original full health was 156.
     // Only an untouched idle spawn may adopt new balance without erasing damage.
@@ -2167,13 +2215,16 @@ function readSave(serialized: string, now = Date.now()): State {
   });
   if (new Set(threats.map(t => t.id)).size !== threats.length) throw new Error("Invalid adventure save: duplicate threat.");
   for (const d of DEFINITIONS) if (!threats.some(t => t.id === d.id)) {
-    if (!d.id.startsWith("cave-") && !d.critter && d.id !== "lake-dreadnought") throw new Error("Invalid adventure save: missing threats.");
+    if (!d.id.startsWith("cave-") && !d.critter && d.id !== "lake-dreadnought" && !REGIONAL_THREATS.some(threat => threat.id === d.id)) throw new Error("Invalid adventure save: missing threats.");
     threats.push(newThreat(d));
   }
+  const flight = readFlight(s.flight);
   const state: State = {
-    chapter: readChapter(s.chapter), combat: newCombat(), phase: choice(s.phase, ["town", "expedition", "lost"] as const),
+    flight, chapter: readChapter(s.chapter), combat: newCombat(), phase: choice(s.phase, ["town", "expedition", "lost"] as const),
     archetype: choice(s.archetype, ["warrior", "mage", "hunter", "alchemist", "artificer"] as const),
-    position: restoreTownPosition(groundPosition(s.position, 2)),
+    position: flight ? { ...flightPosition(flight) } : restoreTownPosition(groundPosition(s.position, 2)),
+    breathSeconds: s.breathSeconds === undefined ? MAX_BREATH_SECONDS : number(s.breathSeconds, 0, MAX_BREATH_SECONDS),
+    autoSurfacing: s.autoSurfacing === undefined ? false : boolean(s.autoSurfacing),
     verticalSpeed: number(s.verticalSpeed, -6, 5.5), health: number(s.health, 0, 100),
     bank: s.bank === undefined ? { supplies: 0, potions: 0 } : { supplies: number(record(s.bank).supplies, 0, Number.MAX_SAFE_INTEGER, true), potions: number(record(s.bank).potions, 0, Number.MAX_SAFE_INTEGER, true) },
     coins: s.coins === undefined ? 0 : number(s.coins, 0, Number.MAX_SAFE_INTEGER, true),
@@ -2300,7 +2351,7 @@ function headAbility(id: HeadAbilityId, volley: number): ThreatAbilityView {
 function maulAbility(damage = 18): ThreatAbilityView {
   return { id: "maul", name: "Lunging Maul", description: "Leaps up to 8 metres during the turn, landing 0.65 seconds later in a 2-metre area. Bait its leap through another enemy: the collision damages and staggers both, interrupting their attacks. Each Maul gains 2 damage, up to 36.", damage, range: COMBAT_RULES.wolf.impactRadius, noticeSeconds: .65 };
 }
-function salvageQuantity(id: string): number { return id === "lake-dreadnought" ? 4 : id === "cave-crab" ? 6 : id === "cave-bat" ? 3 : 1; }
+function salvageQuantity(id: string): number { return definition(id).salvage ?? (id === "lake-dreadnought" ? 4 : id === "cave-crab" ? 6 : id === "cave-bat" ? 3 : 1); }
 function ordinaryAbility(d: ThreatDefinition, damage = d.damage): ThreatAbilityView {
   if (d.id === "lake-dreadnought") return { id: d.id, name: d.intention, description: "Raises its armored shell, then slams the marked 3.5-metre area after 1 second. Move clear before impact or Block; one Block will not absorb the whole blow. Later slams grow stronger.", damage, range: d.reach, noticeSeconds: 1 };
   if (d.id === "cave-bat") return { id: "echo-bite", name: d.intention, description: "Closes to 2.2 metres, then bites 0.3 seconds after winding up. Block at impact or retreat before the bite. Its next bite grows stronger.", damage, range: d.reach, noticeSeconds: .3 };
@@ -2319,7 +2370,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
     };
     if (d.behavior === "head") return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
-      description: "A floating fire spirit wandering around the first clearing. Notices you within 6 metres and pursues within 14 metres of home.",
+      description: d.description ?? "A floating fire spirit wandering around the first clearing. Notices you within 6 metres and pursues within 14 metres of home.",
       opener: "Ember Beam opens the turn. Defend before impact.",
       abilities: [headAbility("ember-beam",1), headAbility("fireball",1), headAbility("ember-ward",1), headAbility("kindle",1)],
       sequences: [
@@ -2330,7 +2381,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
     };
     if (d.behavior === "wolf") return {
       id: d.id, name: d.name, health: d.health, disposition: d.disposition,
-      description: "Patrols the western trail. Runs toward you beyond 5.5 metres, then circles at about 4.5 metres. Nearby hostile allies answer its call.",
+      description: d.description ?? "Patrols the western trail. Runs toward you beyond 5.5 metres, then circles at about 4.5 metres. Nearby hostile allies answer its call.",
       opener: "Announces its first leap before you plan.", abilities: [maulAbility()],
       sequences: [{ name: "Repeated Maul", abilityIds: ["maul"], offsetsSeconds: [], description: "One committed leap per sequence, with a new choice before the next plan." }],
       strategy: "Bait Maul through the bee to cancel its swarm, then Attack the staggered hound. Block protects you if the burning swarm reaches your position.",
@@ -2343,7 +2394,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       strategy: "Bring your coat, weapon and potions. Plan Block for Pulse, a retreat for Press, and healing while Shield is raised.",
     };
     return { id:d.id, name:d.name, health:d.health, disposition:d.disposition,
-      description: d.id === "lake-dreadnought" ? "An armored dredging turtle still guarding the deep lake. Notices swimmers within 7 metres and pursues within 12 metres of home. Carries four pieces of salvage." : d.critter ? d.benefit : d.id === "nest" ? "A neutral bee in the eastern flower glade. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill its swarm; Watchman fireballs ignite the cloud." : "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes the hazard.",
+      description: d.description ?? (d.id === "lake-dreadnought" ? "An armored dredging turtle still guarding the deep lake. Notices swimmers within 7 metres and pursues within 12 metres of home. Carries four pieces of salvage." : d.critter ? d.benefit : d.id === "nest" ? "A neutral bee in the eastern flower glade. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill its swarm; Watchman fireballs ignite the cloud." : "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes the hazard."),
       opener: "Announces its first attack before you plan.",
       abilities: [ordinaryAbility(d), ...(d.id === "warder" ? [{ id: "harvest-thorns", name: "Gathering thorns", description: "Gathering while the Cablekeeper lives deals 8 damage. Block absorbs it.", damage: 8, range: 0, noticeSeconds: 0 }] : [])],
       sequences: [{ name: d.intention, abilityIds:[d.id], offsetsSeconds:[], description:"Commits one attack per turn, then chooses again before the next plan." }],

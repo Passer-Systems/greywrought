@@ -1,4 +1,5 @@
 import { BackSide, Color, DirectionalLight, Fog, HemisphereLight, Mesh, PCFShadowMap, PointLight, ShaderMaterial, SphereGeometry, Vector3, type PerspectiveCamera, type Scene, type WebGLRenderer } from 'three';
+import { lakeWaterAt } from '../game/world-elevation.js';
 import { inCave } from '../game/cave-layout.js';
 import type { Position } from '../game/adventure-types.js';
 import { worldDay } from '../game/world-time.js';
@@ -90,6 +91,8 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
     },
     update(wallTimeMillis: number, position: Position, camera: PerspectiveCamera) {
       const day = worldDay(wallTimeMillis);
+      const water = lakeWaterAt(camera.position.x, camera.position.z);
+      const underwater = water !== null && camera.position.y < water - .035;
       const cave = inCave(position) ? Math.min(1, Math.max(0, (position.x - 28) / 10)) : 0;
       const sunUp = day.sunDirection.y >= 0;
       direction.copy(sunUp ? day.sunDirection : day.moonDirection);
@@ -109,8 +112,15 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       material.uniforms.daylight!.value = day.daylight;
       material.uniforms.cloudTime!.value = (wallTimeMillis % 86_400_000) * 0.001;
       fog.color.copy(material.uniforms.horizon!.value);
+      fog.near = underwater ? .8 : 90; fog.far = underwater ? 23 : 175;
+      if (underwater) {
+        fog.color.set(0x245a55);
+        fill.color.set(0x86b9a3); fill.groundColor.set(0x31544c); fill.intensity = 1.25;
+        key.color.set(0x9bcac0); key.intensity *= .5;
+      }
+      if (scene.background instanceof Color) scene.background.copy(fog.color);
       sky.position.copy(camera.position);
-      sky.visible = cave < 1;
+      sky.visible = cave < 1 && !underwater;
       for (const lamp of lamps) lamp.intensity = lamp.userData.nightIntensity * (1 - day.daylight * .65);
       lampGlow.update(wallTimeMillis * 0.001, day.daylight);
       const data = renderer.domElement.dataset;
