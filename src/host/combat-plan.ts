@@ -101,7 +101,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const unpin = node("button", "combat-plan-unpin", inspect); unpin.type = "button"; unpin.textContent = "Clear preview";
   unpin.addEventListener("click", () => { pinnedPreview = transientPreview = null; updatePreview(); });
   const help = node("p", "combat-plan-help", root);
-  help.textContent = "Combat cells lock movement · inspect moves · R to start";
+  help.textContent = "Plan your moves · inspect enemy attacks · R to start";
   const feedback = node("p", "combat-plan-feedback", root); feedback.id = "combat-plan-feedback";
   feedback.setAttribute("role", "status");
   const buttons = new Map<number, HTMLButtonElement>();
@@ -222,7 +222,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       const choosing = combat.phase === "choosing";
       write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Enemies choose · momentarily" : combat.phase === "preparation" ? "Planning · " + Math.ceil(combat.remainingSeconds) + "s" : "Playing sequence");
       write(resources, combat.queued.length + "/3 · " + combat.availableStamina + " stamina");
-      write(help, `Movement ${classKit(snapshot.player.archetype).movementTiles} · ${classKit(snapshot.player.archetype).movementTiles} tiles per move · inspect moves · R to start`);
+      write(help, `Movement: ${classKit(snapshot.player.archetype).movementTiles} tiles per move · inspect enemy attacks · R to start`);
       staminaHint.hidden = combat.availableStamina > 0 || combat.queued.length >= 3;
       clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / (combat.elapsedSeconds + combat.remainingSeconds)) + "%";
       clear.disabled = combat.phase !== "preparation" || !combat.queued.some(entry => entry.status === "pending");
