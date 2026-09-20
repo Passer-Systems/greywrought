@@ -1,6 +1,6 @@
 import { terrainHeight } from '../game/cave-layout.js';
 import { conformToTerrain } from './terrain-geometry.js';
-import { Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Sprite, SpriteMaterial } from "three";
+import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Sprite, SpriteMaterial } from "three";
 import type { Position } from "../game/adventure-types.js";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
@@ -9,7 +9,10 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const jobs: Promise<void>[] = [];
   const coolingMaterials: MeshStandardMaterial[] = [];
   const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
-  const buildings: { root: Group; bounds: Box3 }[] = [];
+  const occluders: { root: Group; bounds: Box3 }[] = [];
+  const treeBounds = new WeakMap<Mesh, Box3>();
+  const instancedTrees: { mesh: InstancedMesh; index: number; matrix: Matrix4; bounds: Box3; visible: boolean }[] = [];
+  const hiddenMatrix = new Matrix4().makeScale(0, 0, 0);
   const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
   function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0, footprint?: readonly [number, number]) {
     jobs.push(prop(name, size, axis).then(model => {
@@ -32,7 +35,12 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       });
       const interactive = onPlace?.(model, name);
       model.updateWorldMatrix(true, true);
-      if (footprint) buildings.push({ root: model, bounds: new Box3().setFromObject(model).expandByScalar(.5) });
+      const tree = name.includes('Tree_') || name.startsWith('nature/Pine_');
+      if (footprint || tree) {
+        const bounds = new Box3().setFromObject(model).expandByScalar(.5);
+        occluders.push({ root: model, bounds });
+        if (tree) model.traverse(object => { if (object instanceof Mesh) treeBounds.set(object, bounds); });
+      }
       if (!interactive && !footprint) model.traverse(object => {
         if (!(object instanceof Mesh)) return;
         const materials = Array.isArray(object.material) ? object.material : [object.material];
@@ -76,8 +84,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   }
   const pavingMap=new CanvasTexture(paving); pavingMap.colorSpace=SRGBColorSpace; pavingMap.wrapS=pavingMap.wrapT=RepeatWrapping; pavingMap.repeat.set(5,4);
   const square=new Mesh(new PlaneGeometry(44,38),new MeshStandardMaterial({map:pavingMap,roughness:1})); square.rotation.x=-Math.PI/2; square.position.set(0,-0.01,-19); terrain.add(square);
-  const roadMap=pavingMap.clone(); roadMap.repeat.set(1,14);
-  const road=new Mesh(new PlaneGeometry(4.2,112),new MeshStandardMaterial({map:roadMap,color:0xb0b49a,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,12); terrain.add(road);
+  const roadMap=pavingMap.clone(); roadMap.repeat.set(1,7);
+  const road=new Mesh(new PlaneGeometry(4.2,52),new MeshStandardMaterial({map:roadMap,color:0xb0b49a,roughness:1})); road.rotation.x=-Math.PI/2; road.position.set(0,0.015,-18); terrain.add(road);
   function sign(text: string, x: number, z: number, y = 3.1, tint = '#e9d5a5') {
     const board=document.createElement('canvas'); board.width=768; board.height=112;
     const c=board.getContext('2d')!; c.fillStyle='#322a20'; c.fillRect(0,0,768,112);
@@ -129,38 +137,136 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   place("works/Column_1",-3.65,1.7,2.8);
   place("works/Column_1",3.65,1.7,2.8);
   const forestPlace: typeof place = (name, x, z, ...rest) => place(name, x, z + 20, ...rest);
-  // Low broken supply pipes can be stepped across; tall plant sits beyond movement boundaries.
-  for (const x of [-10,-6,-2]) forestPlace("works/Pipes",x,12.9,3.9,0,terrain,"width",0.03);
-  for (let i=0;i<8;i++) forestPlace("works/Pipes",12.65,10+i*4.5,4.4,Math.PI/2,terrain,"width",0.12);
-  forestPlace("works/Props_Capsule",7.8,21,3.8,0,thicket);
-  forestPlace("works/Details_Pipes_Long",6.5,21,2.8,0,thicket);
-  // The west edge of the permanent briar island marks its collision boundary.
+  // The broken road becomes earth before the Watchman's clearing, then winds west of the briars.
+  const noise = (seed: number) => { const value=Math.sin(seed*127.1+19.7)*43758.5453; return value-Math.floor(value); };
+  const trailCanvas=document.createElement('canvas'); trailCanvas.width=128; trailCanvas.height=1024;
+  const trailContext=trailCanvas.getContext('2d')!;
+  trailContext.fillStyle='#76684c'; trailContext.fillRect(0,0,128,1024);
+  for(let i=0;i<6000;i++) {
+    trailContext.fillStyle=i%3===0 ? '#8b7d60' : '#655f48';
+    trailContext.fillRect(noise(i)*128,noise(i+8000)*1024,1+noise(i+99)*3,1+noise(i+909)*4);
+  }
+  const earthTrailCanvas=document.createElement('canvas');earthTrailCanvas.width=128;earthTrailCanvas.height=1024;
+  const earthTrailContext=earthTrailCanvas.getContext('2d')!;earthTrailContext.drawImage(trailCanvas,0,0);
+  for(let row=0;row<68;row++) for(let col=0;col<6;col++) {
+    const seed=row*6+col;
+    if(noise(seed+87)>Math.max(.06,.95-row/28)) continue;
+    const x=col*20+(row%2)*8+noise(seed+77)*4, y=row*15+2;
+    trailContext.fillStyle=['#a9a68b','#989a81','#b3ad92'][seed%3]!;
+    trailContext.beginPath(); trailContext.roundRect(x,y,13+noise(seed)*5,9+noise(seed+44)*3,3); trailContext.fill();
+  }
+  trailContext.globalCompositeOperation='destination-in';
+  const fade=trailContext.createLinearGradient(0,0,128,0);
+  fade.addColorStop(0,'#ffffff00');fade.addColorStop(.14,'#ffffffff');fade.addColorStop(.86,'#ffffffff');fade.addColorStop(1,'#ffffff00');
+  trailContext.fillStyle=fade;trailContext.fillRect(0,0,128,1024);
+  earthTrailContext.globalCompositeOperation='destination-in';earthTrailContext.fillStyle=fade;earthTrailContext.fillRect(0,0,128,1024);
+  const trailMap=new CanvasTexture(trailCanvas);trailMap.colorSpace=SRGBColorSpace;
+  const trailMaterial=new MeshStandardMaterial({map:trailMap,roughness:1,transparent:true,depthWrite:false});
+  const earthTrailMap=new CanvasTexture(earthTrailCanvas);earthTrailMap.colorSpace=SRGBColorSpace;
+  const earthTrailMaterial=new MeshStandardMaterial({map:earthTrailMap,roughness:1,transparent:true,depthWrite:false});
+  function trail(points: readonly (readonly [number,number,number])[], aged = false) {
+    const positions:number[]=[],uv:number[]=[],indices:number[]=[];
+    let distance=0;
+    for(let segment=0;segment<points.length-1;segment++) {
+      const from=points[segment]!,to=points[segment+1]!, length=Math.hypot(to[0]-from[0],to[1]-from[1]);
+      const steps=Math.ceil(length);
+      for(let step=0;step<steps+(segment===points.length-2?1:0);step++) {
+        const t=step/steps,x=from[0]+(to[0]-from[0])*t,z=from[1]+(to[1]-from[1])*t;
+        const width=from[2]+(to[2]-from[2])*t,along=distance+t*length;
+        for(const side of [-1,1]) {
+          const ragged=width/2*(1+.1*Math.sin(along*1.9+side*2)+.06*Math.sin(along*4.1));
+          const px=x+side*(to[1]-from[1])/length*ragged,pz=z-side*(to[0]-from[0])/length*ragged;
+          positions.push(px,terrainHeight(px,pz)+.02,pz); uv.push(side<0?0:1,1-along/(aged?25:70));
+        }
+      }
+      distance+=length;
+    }
+    for(let row=0;row<positions.length/6-1;row++) {const a=row*2;indices.push(a,a+2,a+1,a+1,a+2,a+3);}
+    const geometry=new BufferGeometry();geometry.setAttribute('position',new Float32BufferAttribute(positions,3));
+    geometry.setAttribute('uv',new Float32BufferAttribute(uv,2));geometry.setIndex(indices);geometry.computeVertexNormals();
+    terrain.add(new Mesh(geometry,aged?earthTrailMaterial:trailMaterial));
+  }
+  trail([[0,6,4.8],[0,14,4.8],[-1.2,23,5],[-3,31,6],[-3.6,37,5],[-3.7,44,4.5],[-1.5,51,4.2],[2,60,5.5],[2,66,5]]);
+  trail([[-2,24,3.2],[5,23,3.3],[10,24,3.6],[16,25,4.8]],true);
+  trail([[-4,42,2.8],[-10,43,3],[-17,46,4.5]],true);
+  const clearingCanvas=document.createElement('canvas');clearingCanvas.width=clearingCanvas.height=256;
+  const clearingContext=clearingCanvas.getContext('2d')!;
+  clearingContext.fillStyle='#eae7d7';clearingContext.fillRect(0,0,256,256);
+  for(let i=0;i<9000;i++) {
+    clearingContext.fillStyle=i%3===0?'#d0cbb4':'#f4efd9';
+    clearingContext.fillRect(noise(i+311)*256,noise(i+977)*256,1,1);
+  }
+  const edge=clearingContext.createRadialGradient(128,128,45,128,128,125);
+  edge.addColorStop(0,'#ffffffc8');edge.addColorStop(.65,'#ffffff90');edge.addColorStop(1,'#ffffff00');
+  clearingContext.globalCompositeOperation='destination-in';
+  clearingContext.fillStyle=edge;clearingContext.fillRect(0,0,256,256);
+  const clearingMap=new CanvasTexture(clearingCanvas);clearingMap.colorSpace=SRGBColorSpace;
+  const earth=new MeshStandardMaterial({map:clearingMap,color:0x796d4f,roughness:1,transparent:true,depthWrite:false});
+  const meadow=new MeshStandardMaterial({map:clearingMap,color:0x87995a,roughness:1,transparent:true,depthWrite:false});
+  const mulch=new MeshStandardMaterial({map:clearingMap,color:0x434d36,roughness:1,transparent:true,depthWrite:false});
+  function clearing(x:number,z:number,width:number,depth:number,material:MeshStandardMaterial) {
+    const mesh=new Mesh(new PlaneGeometry(width,depth,Math.ceil(width/2),Math.ceil(depth/2)),material);
+    mesh.rotation.x=-Math.PI/2;mesh.position.set(x,0,z);terrain.add(mesh);conformToTerrain(mesh,.005);mesh.geometry.computeVertexNormals();
+  }
+  clearing(-3,31,21,22,earth);clearing(16,25,28,25,meadow);clearing(-19,47,25,25,earth);
+  clearing(-3,49,16,19,earth);clearing(4,61,19,18,earth);
+  // Keep patrol spaces and the walk to the engine open. Trees frame the clearings in uneven groups.
+  const encounterPatrols: readonly (readonly [number,number])[]=[[-5,30],[-1,34],[-3,30],[14,25],[16,27],[18,25],[16,22],[-17,46],[-20,43],[-22,48],[-18,51]];
+  function clearOfPatrols(x:number,z:number,margin=6) {return encounterPatrols.every(([px,pz])=>Math.hypot(x-px,z-pz)>margin);}
+  const groves: readonly (readonly [number,number,number])[]=[[-13,14,0],[-14,23,1],[-32,38,2],[-34,54,3],[-21,63,4],[-12,73,5],[14,10,6],[29,34,7],[25,49,8],[24,65,9]];
+  for(const [x,z,seed] of groves) {
+    clearing(x,z,14,14,mulch);
+    for(let tree=0;tree<4;tree++) {
+      const angle=tree*2.4+seed, radius=tree===0?0:2.5+noise(seed*12+tree)*3;
+      const px=x+Math.cos(angle)*radius,pz=z+Math.sin(angle)*radius;
+      if(!clearOfPatrols(px,pz,7))continue;
+      const name=(seed+tree)%3===0?'nature/Pine_5':'nature/CommonTree_2';
+      place(name,px,pz,5.3+noise(seed*23+tree)*3.8,angle);
+      for(let plant=0;plant<3;plant++) {
+        const a=angle+plant*2.1;
+        place(plant===0?'nature/Bush_Common':'nature/Fern_1',px+Math.cos(a)*1.5,pz+Math.sin(a)*1.5,plant===0?.85:.55,a);
+      }
+    }
+  }
+  // Low islands of flowers leave the bee's full patrol and fighting room visible.
+  for(const [x,z] of [[9,17],[14,15],[22,18],[25,25],[23,32],[16,34],[8,31]]) {
+    for(let flower=0;flower<12;flower++) {
+      const angle=flower*2.4,radius=.35+Math.sqrt(flower)*.62;
+      const px=x!+Math.cos(angle)*radius,pz=z!+Math.sin(angle)*radius;
+      place(flower%3===0?'nature/Flower_4_Group':'nature/Flower_3_Group',px,pz,.45+noise(flower+x!)*.25,angle);
+      if(flower%3===0)place('nature/Grass_Common_Short',px+.45,pz-.3,.22,angle);
+    }
+    place('nature/Fern_1',x!-.7,z!+.7,.6,x!);
+  }
+  // Rock shelves and gnarled silhouettes identify the western grove; boulders stay beyond its patrol apron.
+  for(const [x,z,size] of [[-30,39,3.2],[-29,48,3.6],[-27,57,3.1],[-15,59,2.8],[-9,49,2.7],[-12,38,2.4]]) {
+    place('nature/Rock_Medium_3',x!,z!,size!,x!,terrain,'width');
+    place('nature/Rock_Medium_3',x!+1.6,z!+.8,size!*.45,z!,terrain,'width');
+    for(let plant=0;plant<5;plant++) {
+      const angle=plant*1.8;
+      place(plant%2?'nature/Fern_1':'nature/Mushroom_Common',x!+Math.cos(angle)*2,z!+Math.sin(angle)*2,plant%2?.65:.24,angle);
+    }
+  }
+  place('nature/TwistedTree_2',-30,54,6.4,1.1);
+  place('nature/DeadTree_2',-14,59,4.8,2.4);
+  // Small plant drifts soften the road without becoming rows or hiding attack warnings.
+  for(const [x,z] of [[-6,12],[6,16],[-8,22],[7,34],[-8,37],[-7,52],[8,55],[-5,63]]) {
+    for(let plant=0;plant<7;plant++) {
+      const angle=plant*2.4, radius=Math.sqrt(plant)*.6;
+      const px=x!+Math.cos(angle)*radius,pz=z!+Math.sin(angle)*radius;
+      if(!clearOfPatrols(px,pz,5)) continue;
+      place(plant%3===0?'nature/Fern_1':'nature/Grass_Common_Short',px,pz,plant%3===0?.45:.2,angle);
+    }
+  }
+  // This briar island is the existing solid boundary; useful old machinery sits within it.
+  forestPlace('works/Props_Capsule',7.8,21,3.8,0,thicket);
+  forestPlace('works/Details_Pipes_Long',6.5,21,2.8,0,thicket);
+  place('nature/CommonTree_2',10,41,7.2,2,thicket);
   for(let row=0;row<4;row++) for(let col=0;col<7;col++) {
-    const x=2.8+col*1.5+Math.sin(col*8+row)*0.2, z=18.45+row*1.65+Math.sin(col*3+row)*0.2;
-    if(Math.hypot(x-5,z-20)<1.55) continue;
-    forestPlace("nature/Bush_Common",x,z,1.1+(col%3)*0.12,col,thicket);
+    const x=2.8+col*1.5+Math.sin(col*8+row)*.2,z=18.45+row*1.65+Math.sin(col*3+row)*.2;
+    forestPlace('nature/Bush_Common',x,z,1.1+(col%3)*.12,col,thicket);
   }
-  // Canopies begin outside the accessible combat corridor, with lower edge planting.
-  for(const side of [-1,1]) for(let i=0;i<14;i++) {
-    const z=5+i*3.4;
-    forestPlace(i%3===0?"nature/CommonTree_2":"nature/Pine_5",side*(24+i%3*2.2),z,5.6+i%4*0.65,i*2.1);
-    if(i%2===0) forestPlace("nature/Pine_5",side*(30+i%2),z+1.8,7.5,i);
-    forestPlace("nature/Fern_1",side*(7.8+i%3),z,0.55,i);
-    if(i%3===0) forestPlace("nature/Rock_Medium_3",side*(9.2+i%2),z+0.8,1.1,i);
-  }
-  for(const side of [-1,1]) for(let grove=0;grove<5;grove++) {
-    const z=8+grove*8.5;
-    forestPlace("nature/Pine_5",side*(22+grove%2),z,4.6+grove%2*0.4,grove);
-    forestPlace("nature/CommonTree_2",side*(25+grove%2),z+2,4.3,grove*2);
-    for(let plant=0;plant<4;plant++) forestPlace("nature/Fern_1",side*(7.8+plant*0.7),z+Math.sin(plant*2)*1.1,0.55+plant*0.09,plant);
-  }
-  for(let i=0;i<45;i++) {
-    const side=i%2?1:-1, z=5+i*0.87;
-    forestPlace(i%4===0?"nature/Mushroom_Common":"nature/Grass_Common_Short",side*(4.5+(i%5)*0.85),z,0.22+i%3*0.06,i*2.4);
-  }
-  for(const [x,z] of [[-8,12],[10,28],[-9,32],[10,42],[-8,44]]) forestPlace("nature/TwistedTree_2",x!,z!,3.6,0.7);
-  for(let i=0;i<7;i++) { const angle=i*Math.PI*2/7; forestPlace("nature/Rock_Medium_3",2+Math.sin(angle)*4.3,40+Math.cos(angle)*4.3,1.2+i%2*0.5,i); }
-  forestPlace("nature/DeadTree_2",-7,39,3.8,1.3);
+  for(const [x,z] of [[-9,64],[10,62],[13,71],[-9,72]])place('nature/TwistedTree_2',x!,z!,4.6,x!);
   const apron = new Mesh(new PlaneGeometry(12,11),new MeshStandardMaterial({color:0x797565,roughness:1}));
   apron.rotation.x=-Math.PI/2; apron.position.set(2,0.025,61); terrain.add(apron);
   forestPlace("works/Props_Base",2,40,4.8,0,terrain,"width",-0.18);
@@ -199,6 +305,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     inverse.copy(parent.matrixWorld).invert();
     for (const [index, mesh] of meshes.entries()) {
       instances.setMatrixAt(index, matrix.multiplyMatrices(inverse, mesh.matrixWorld));
+      const bounds = treeBounds.get(mesh);
+      if (bounds) instancedTrees.push({ mesh: instances, index, matrix: matrix.clone(), bounds, visible: true });
       mesh.removeFromParent();
     }
     // Spatial cells retain useful frustum culling without changing the authored art.
@@ -210,9 +318,17 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     cameraDirection.subVectors(camera, sightline.origin);
     const cameraDistance = cameraDirection.length();
     sightline.direction.copy(cameraDirection).normalize();
-    for (const building of buildings) {
-      const hit = sightline.intersectBox(building.bounds, intersection);
-      building.root.visible = !hit || sightline.origin.distanceTo(hit) > cameraDistance;
+    for (const occluder of occluders) {
+      const hit = sightline.intersectBox(occluder.bounds, intersection);
+      occluder.root.visible = !hit || sightline.origin.distanceTo(hit) > cameraDistance;
+    }
+    for (const tree of instancedTrees) {
+      const hit = sightline.intersectBox(tree.bounds, intersection);
+      const visible = !hit || sightline.origin.distanceTo(hit) > cameraDistance;
+      if (tree.visible === visible) continue;
+      tree.mesh.setMatrixAt(tree.index, visible ? tree.matrix : hiddenMatrix);
+      tree.mesh.instanceMatrix.needsUpdate = true;
+      tree.visible = visible;
     }
     for (const material of coolingMaterials) {
       material.emissive.setHex(coolingRestored ? 0x55d9fa : 0x000000);

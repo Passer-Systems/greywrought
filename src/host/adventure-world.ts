@@ -14,6 +14,7 @@ import { conformToTerrain } from "./terrain-geometry.js";
 import { buildHollowdeep } from "./hollowdeep-scenery.js";
 import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.js";
 import { createAggroRanges } from "./aggro-ranges.js";
+import type { UnitSelection } from "./unit-selection.js";
 import { createRemotePlayers, type RemotePlayerView } from "./remote-player.js";
 import { createSocialAnimation } from "./social-animation.js";
 import { createPhotonChair } from "./photon-chair.js";
@@ -44,6 +45,7 @@ interface ThreatRig extends ThreatAnimationState {
 }
 
 export type WorldPick = { readonly kind: "threat"; readonly id: string }
+  | { readonly kind: "player"; readonly id: string }
   | { readonly kind: "chest"; readonly id: "ironback-chest" }
   | { readonly kind: "npc"; readonly id: NpcId }
   | { readonly kind: "resource"; readonly id: "frost-cores" }
@@ -73,6 +75,7 @@ export interface AdventureWorld {
   setAggroRangesVisible(visible: boolean): void;
   setHelpRangesVisible(visible: boolean): void;
   setCombatPreview(preview: CombatPreview | null): void;
+  setSelectedUnit(selection: UnitSelection): void;
   setCombatHudHeight(height: number): void;
   setMoveAiming(active: boolean): void;
   canMoveTo(destination: Position): boolean;
@@ -181,13 +184,13 @@ function createCombatEffects(scene: Scene) {
   };
 }
 
-export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position) => Promise<CombatForecast | null>): AdventureWorld {
+export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; onSelect: (id: string) => void }): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
   let interpolation = createSnapshotInterpolation();
   let lastConnectionRevision = -1;
-  scene.background = new Color(0x16242d);
-  scene.fog = new Fog(0x16242d, 38, 160);
+  scene.background = new Color(0x263d46);
+  scene.fog = new Fog(0x263d46, 58, 175);
   const camera = new PerspectiveCamera(48, 1, 0.1, 210);
   const renderer = new WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -197,8 +200,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   canvas.tabIndex = 0;
   canvas.setAttribute("aria-label", `${YARD.region}. W A S D move, drag the mouse to turn the view.`);
   host.prepend(canvas);
-  scene.add(new HemisphereLight(0x9eafc8, 0x26342f, 1.15));
-  const nightFill = new DirectionalLight(0x90acc9, 0.9);
+  scene.add(new HemisphereLight(0xc4d7df, 0x59684e, 1.65));
+  const nightFill = new DirectionalLight(0xc3d4ef, 1.6);
   nightFill.position.set(-12, 25, -8);
   scene.add(nightFill);
   const terrain = new Group();
@@ -280,6 +283,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const player = new Group();
   const photonChair = createPhotonChair(player);
   player.userData.localPlayer = true;
+  player.userData.playerId = playerSelection?.selfId;
+  let selectedUnit: UnitSelection = { kind: "enemy", id: initial.selectedThreat };
   scene.add(player);
   const overheadNames = createOverheadNames(host, camera);
   const chatBubbles = createChatBubbles(host, scene, camera, player);
@@ -293,6 +298,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   playerHalo.rotation.x = -Math.PI / 2;
   playerHalo.position.y = 0.04;
   player.add(playerHalo);
+  const friendlySelection = new Mesh(new RingGeometry(.65, .73, 48), new MeshBasicMaterial({ color: 0x83eeac, side: 2 }));
+  friendlySelection.rotation.x = -Math.PI / 2; friendlySelection.visible = false; scene.add(friendlySelection);
   const alchemist = playerArchetype === "alchemist", artificer = playerArchetype === "artificer";
   const playerProjectile = new Mesh(new SphereGeometry(0.16, 12, 8), new MeshStandardMaterial({ color: playerArchetype === "mage" ? 0xb78cff : alchemist ? 0x7ed36d : artificer ? 0xffb347 : 0xffd36b, emissive: playerArchetype === "mage" ? 0x5420a8 : alchemist ? 0x245c28 : artificer ? 0x6d3200 : 0x8a4a00, emissiveIntensity: 1.2 }));
   playerProjectile.visible = false; scene.add(playerProjectile);
@@ -417,11 +424,14 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
     raycaster.setFromCamera(point, camera);
     const targets: Object3D[] = [...rigs.values()].filter(rig => (rig.health > 0 || rig.lootable) && rig.root.visible).map(rig => rig.root);
+    for (const [, rig] of remotePlayers.entries()) if (rig.root.visible && rig.model) targets.push(rig.model);
+    if (playerSelection && player.visible && knight) targets.push(knight.model);
     targets.push(...hoverTargets.filter(target => target.root.visible).map(target => target.root));
     for (const hit of raycaster.intersectObjects(targets, true)) {
       let object: Object3D | null = hit.object;
       while (object) {
         if (typeof object.userData.threatId === "string") return { kind: "threat", id: object.userData.threatId };
+        if (typeof object.userData.playerId === "string") return { kind: "player", id: object.userData.playerId };
         const target = hoverTargets.find(target => target.root === object);
         if (target) return target.pick;
         object = object.parent;
@@ -434,7 +444,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const hit = pick(hoverPointer.x, hoverPointer.y);
     const target = hit && hoverTargets.find(target => target.pick.kind === hit.kind && target.pick.id === hit.id);
     tooltip.hidden = !target;
-    canvas.style.cursor = hit?.kind === "resource" ? gatherCursor : hit?.kind === "npc" ? "pointer" : "";
+    canvas.style.cursor = hit?.kind === "resource" ? gatherCursor : (hit?.kind === "npc" || hit?.kind === "player") ? "pointer" : "";
     if (hit) { canvas.dataset.hoverKind = hit.kind; canvas.dataset.hoverId = hit.id; }
     else { delete canvas.dataset.hoverKind; delete canvas.dataset.hoverId; }
     if (!target) return;
@@ -465,6 +475,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     setMoveAiming(active) { moveAiming = active; if (!active) { movementPreview.clear(); moveOutcome.hidden = true; } },
     canMoveTo(destination) { return combatGrid.accepts(destination); },
     setCombatPreview(preview) { combatPreview = preview; },
+    setSelectedUnit(selection) { selectedUnit = selection; },
     projectThreat(id) {
       const rig = rigs.get(id); if (!rig || !rig.root.visible) return null;
       const head = rig.root.position.clone().add(new Vector3(0, rig.height + rig.body.position.y + 0.25, 0)).project(camera);
@@ -573,7 +584,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.lootGlint.material.opacity = 0.75 + 0.2 * Math.sin(elapsed * 2);
         rig.ring.visible = threat.health > 0;
         rig.ring.material.color.setHex(threat.disposition === "hostile" || threat.aggro ? 0xf04d4d : 0xf1d34f);
-        rig.selection.visible = threat.selected && threat.health > 0;
+        rig.selection.visible = selectedUnit?.kind === "enemy" && selectedUnit.id === threat.id && threat.health > 0;
         if (threat.health > 0) rig.root.rotation.y = Math.atan2(threat.facing.x, threat.facing.z);
         if (rig.root.visible && rig.ring.visible) conformToTerrain(rig.ring, 0.05);
         if (rig.root.visible && rig.selection.visible) conformToTerrain(rig.selection, 0.06);
@@ -657,6 +668,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       camera.lookAt(cameraTarget.x, cameraTarget.y + 1, cameraTarget.z);
       updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position);
       updateCave(snapshot.player.position, camera.position);
+      const selectedPlayer = selectedUnit?.kind === "player" ? selectedUnit.id : null;
+      const friendlyRoot = selectedPlayer === playerSelection?.selfId ? player : [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
+      friendlySelection.visible = Boolean(friendlyRoot?.visible);
+      if (friendlyRoot && friendlySelection.visible) { friendlySelection.position.copy(friendlyRoot.position); conformToTerrain(friendlySelection, .06); }
+      canvas.dataset.selectedPlayer = selectedPlayer ?? "";
       renderer.render(scene, camera);
       updateHover();
       overheadNames.begin();
@@ -664,7 +680,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       overheadNames.show("npc:mara", "Mara", mara, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"mara"));
       overheadNames.show("npc:elian", "Elian · Bank", elian, 2.35, "friendly", true);
       overheadNames.show("npc:rowan", "Rowan", rowan, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"inn"));
-      for (const [id, rig] of remotePlayers.entries()) overheadNames.show(`player:${id}`, rig.name, rig.root, 2.35, "player", rig.alive);
+      if (playerSelection) overheadNames.show(`player:${playerSelection.selfId}`, playerSelection.selfName, player, 2.35, "player", snapshot.player.health > 0, null, () => playerSelection.onSelect(playerSelection.selfId));
+      for (const [id, rig] of remotePlayers.entries()) overheadNames.show(`player:${id}`, rig.name, rig.root, 2.35, "player", rig.alive, null, playerSelection ? () => playerSelection.onSelect(id) : undefined);
       for (const threat of snapshot.threats) {
         const rig = rigs.get(threat.id);
         if (rig) overheadNames.show(`threat:${threat.id}`, threat.name, rig.root, rig.height + rig.body.position.y + 0.25, threat.aggro ? "hostile" : threat.disposition, threat.active && threat.health > 0);

@@ -1,10 +1,11 @@
+import { terrainHeight } from "./cave-layout.js";
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
 import { tap, retreatUntilReleased, finishCycle } from "./yard-test-fixtures.js";
 
 function seed(id: "nest" | "patrol") {
   const saved = JSON.parse(createAdventure({ archetype: "mage" }).save());
-  Object.assign(saved.state, { phase: "expedition", position: id === "nest" ? { x: -8, y: 0, z: 35 } : { x: -6, y: 0, z: 30 } });
+  Object.assign(saved.state, { phase: "expedition", position: id === "nest" ? { x: 7.5, y: 0, z: 22.5 } : { x: -17.5, y: terrainHeight(-17.5, 40), z: 40 } });
   for (const t of saved.state.threats) if (t.active && t.id !== id) Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true });
   return saved;
 }
@@ -88,8 +89,11 @@ for (const id of ["nest", "patrol"] as const) {
 }
 
 test("late arrivals remain frozen during planning and cannot attack until the next cycle", () => {
-  const saved = seed("patrol"), bee = saved.state.threats.find((t: { id: string }) => t.id === "nest");
-  Object.assign(bee, { health: 72, phase: "patrol", lootClaimed: false, position: { x: 0, y: 0, z: 37 }, targetPosition: { x: 0, y: 0, z: 37 } });
+  const saved = seed("patrol");
+  saved.state.position = { x: 0, y: 0, z: 30 };
+  Object.assign(saved.state.threats.find((t: { id: string }) => t.id === "patrol"), { position: { x: -5, y: 0, z: 30 }, targetPosition: { x: -5, y: 0, z: 30 } });
+  const bee = saved.state.threats.find((t: { id: string }) => t.id === "nest");
+  Object.assign(bee, { health: 72, phase: "patrol", lootClaimed: false, position: { x: 5, y: 0, z: 30 }, targetPosition: { x: 5, y: 0, z: 30 } });
   const game = createAdventure({ save: JSON.stringify(saved) });
   game.selectTarget("patrol"); tap(game, "strike"); game.advance(.01);
   game.selectTarget("nest"); tap(game, "strike");

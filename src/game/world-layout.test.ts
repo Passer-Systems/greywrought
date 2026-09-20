@@ -70,12 +70,13 @@ test('returning characters resume clear of newly built town walls, including pri
 
 test('old spatial saves move points once while preserving combat directions and progress', () => {
   const base = createSharedAdventure(); base.join('traveler', 'Traveler', 'warrior');
-  const seed = JSON.parse(base.save()); delete seed.spatialLayout; delete seed.terrainLayout;
+  const seed = JSON.parse(base.save()); delete seed.spatialLayout; delete seed.terrainLayout; delete seed.forestLayout;
   seed.world.threats = seed.world.threats.filter((threat: { id: string }) => !threat.id.startsWith('cave-'));
   Object.assign(seed.characters[0].state, { phase: 'expedition', position: { x: -3, y: 0, z: 12 }, health: 73, cargo: 3, supplies: 19 });
   for (const t of seed.world.threats) {
-    t.position.z -= 20; t.targetPosition.z -= 20;
-    if (t.wolf) t.wolf.attackOrigin.z -= 20;
+    for (const position of [t.position, t.targetPosition, t.turnTarget, ...(t.wolf ? [t.wolf.attackOrigin] : [])]) {
+      position.z -= 20; position.y = 0;
+    }
   }
   const migrated = createSharedAdventure({ save: JSON.stringify(seed) });
   const game = migrated.join('traveler', 'Traveler', 'warrior');
@@ -90,4 +91,57 @@ test('old spatial saves move points once while preserving combat directions and 
   migrateSpatialLayout(motion);
   expect(motion.state.maneuver.destination.z).toBe(35);
   expect(motion.state.maneuver.facing.z).toBe(1);
+});
+
+test('starting creatures patrol separate clearings outside one another’s help range', () => {
+  const game = createAdventure();
+  for (let tick = 0; tick < 150; tick++) {
+    game.advance(.2);
+    const threats = game.snapshot.threats.filter(t => ['scout', 'nest', 'patrol', 'warder'].includes(t.id));
+    for (const [index, threat] of threats.entries()) {
+      expect(blockedPosition(threat.position.x, threat.position.z)).toBe(false);
+      expect(threat.position.y).toBeCloseTo(terrainHeight(threat.position.x, threat.position.z), 6);
+      for (const other of threats.slice(index + 1)) expect(Math.hypot(threat.position.x - other.position.x, threat.position.z - other.position.z)).toBeGreaterThan(threat.callForHelpRange);
+    }
+  }
+});
+
+test('the first road encounter engages only the Watchman', () => {
+  const data = JSON.parse(createAdventure().save());
+  Object.assign(data.state, {phase: 'expedition', position: {x: -3, y: 0, z: 25}});
+  const game = createAdventure({save: JSON.stringify(data)});
+  game.advance(.05);
+  expect(game.snapshot.threats.filter(t => t.aggro).map(t => t.id)).toEqual(['scout']);
+});
+
+test('old forest saves move idle residents once while preserving corpses, fights and character progress', () => {
+  for (const mode of ['idle', 'combat', 'corpse'] as const) {
+    const data = JSON.parse(createAdventure().save()); delete data.forestLayout;
+    data.state.coins = 12345; data.state.health = 73;
+    const hound = data.state.threats.find((t: {id: string}) => t.id === 'patrol');
+    Object.assign(hound, {position: {x: -6, y: 0, z: 37}, targetPosition: {x: -6, y: 0, z: 37}});
+    if (mode === 'combat') Object.assign(hound, {aggro: true, phase: 'preparation', health: 51, combatants: ['solo']});
+    if (mode === 'corpse') Object.assign(hound, {phase: 'cleared', health: 0, lootClaimed: false, respawnAt: Date.now() + 3_600_000});
+    const game = createAdventure({save: JSON.stringify(data)});
+    const restored = game.snapshot.threats.find(t => t.id === 'patrol')!;
+    expect(restored.position).toEqual(mode === 'idle' ? restored.homePosition : hound.position);
+    expect(restored.health).toBe(hound.health);
+    expect(game.snapshot.coins).toBe(12345); expect(game.snapshot.player.health).toBe(73);
+    expect(createAdventure({save: game.save()}).snapshot.threats.find(t => t.id === 'patrol')!.position).toEqual(restored.position);
+  }
+});
+
+test('shared worlds and private saves restore the separated forest residents', () => {
+  const seed = createSharedAdventure(); seed.join('traveler', 'Traveler', 'warrior'); seed.pause('traveler');
+  const data = JSON.parse(seed.save()); delete data.forestLayout;
+  for (const world of [data.world, data.instances[0].world]) {
+    const bee = world.threats.find((t: {id: string}) => t.id === 'nest');
+    bee.position = {x: -1, y: 0, z: 35}; bee.targetPosition = {...bee.position};
+  }
+  const world = createSharedAdventure({save: JSON.stringify(data)});
+  const player = world.join('traveler', 'Traveler', 'warrior');
+  const bee = () => player.snapshot.threats.find(t => t.id === 'nest')!;
+  expect(bee().position).toEqual(bee().homePosition);
+  expect(world.resume('traveler')).toBe(true); expect(world.rejoin('traveler')).toBe(true);
+  expect(bee().position).toEqual(bee().homePosition);
 });

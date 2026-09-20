@@ -4,7 +4,7 @@ import {tap, finishCycle, retreatUntilReleased} from './yard-test-fixtures.js';
 
 test('a ranged pull cannot chip an enemy down across leash resets or hit its retreat',()=>{
  const saved=JSON.parse(createAdventure({archetype:'mage'}).save());
- saved.state.phase='expedition';saved.state.position={x:-8,y:0,z:35};
+ saved.state.phase='expedition';saved.state.position={x:7.5,y:0,z:22.5};
  for(const t of saved.state.threats)if(t.active&&t.id!=='nest'){t.health=0;t.phase='cleared';t.lootClaimed=true;}
  let game=createAdventure({archetype:'mage',save:JSON.stringify(saved)});
  const bee=()=>game.snapshot.threats.find(t=>t.id==='nest')!;

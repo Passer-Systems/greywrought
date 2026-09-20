@@ -307,13 +307,15 @@ unavailable. Escape cancels tile selection. Players can also select Move in the
 planner header. Attacks check reach when their action executes, allowing a move or
 an enemy charge to bring the target into range first.
 
-The action bar contains only these three labeled buttons. XP sits directly below
+The action bar shows icons for these three combat actions. XP sits directly below
 it. Player and target frames stay clear of the vertical planner. The planner
 shows the target of each action without a permanent instruction footer.
 
 ## Roadside encounters
 
-The first roadside clearing groups the Briar bee, Ash hound and Cinder Watchman.
+The Cinder Watchman guards the road, the Briar bee wanders an eastern flower
+glade, and the Ash hound patrols a western rocky grove. Their patrols stay beyond
+each other's help radius, leaving room to approach one encounter at a time.
 Move can lure a charging hound into another creature. Their collision staggers
 both and interrupts attacks. An interrupted bee spills a swarm cloud; Watchman
 fireballs can strike other creatures and ignite it. Friendly-fire kills retain
@@ -327,7 +329,7 @@ combat rules on a copy of the encounter with everyone ready.
 
 ## Later encounter: Ash hound
 
-The animated Ash hound patrols the western edge of the first clearing, runs toward its target
+The animated Ash hound patrols the western rocky grove, runs toward its target
 on the ground, and circles nearby. The planning window shows its committed Maul
 and cast beat. It leaps to a fixed landing point in 0.65 seconds, facing its
 travel direction with its authored leap animation. Between leaps it plays a grounded idle. Plan a movement ability or Block
@@ -419,7 +421,7 @@ after its effects resolve.
 ## Patrols and encounter pressure
 
 Every creature has a short patrol, pausing 0.75 seconds between route legs. The
-Briar bee wanders beside the permanent thicket; killing it never changes shrubs
+Briar bee wanders the eastern flower glade; killing it never changes shrubs
 or collision. Hostile allies assist within 9 metres through clear terrain,
 within their own territory. Neutral bees only fight when attacked.
 

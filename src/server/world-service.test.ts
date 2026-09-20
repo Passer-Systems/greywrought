@@ -137,6 +137,8 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(heard.chat.at(-1)?.speakerId).toBe('first');
     expect(await first.invalid({ type: 'chat', text: 'Forged speaker', speakerId: 'second' })).toBe(false);
     expect(await first.invalid({ type: 'action', action: 'teleport', pressed: true })).toBe(false);
+    expect(await first.command({ type: 'action', action: 'drinkPotion', pressed: true })).toBe(true);
+    expect(await first.command({ type: 'action', action: 'drinkPotion', pressed: false })).toBe(true);
     expect(await first.invalid({ type: 'camera', x: 1e100, z: 0 })).toBe(false);
     expect(await first.invalid({ type: 'action', action: 'forward', pressed: true, save: 'forged' })).toBe(false);
     expect(await first.command({ type: 'chat', text: 'x'.repeat(281) })).toBe(false);

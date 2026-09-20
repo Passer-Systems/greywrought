@@ -16,6 +16,7 @@ import { createEquipmentPanel } from "./equipment-panel.js";
 import { createCorpseLoot } from "./corpse-loot.js";
 import { createBagPanel } from "./bag-panel.js";
 import { createChatLog } from "./chat-log.js";
+import type { UnitSelection } from "./unit-selection.js";
 import { createUnitFrames } from "./unit-frames.js";
 import { createBankPanel } from "./bank-panel.js";
 import { createInnPanel } from "./inn-panel.js";
@@ -159,7 +160,7 @@ function loadActionBarOrder(archetype: CharacterArchetype): void {
   const defaults = authoredActionBarOrder ?? (authoredActionBarOrder = normalActionBarOrder());
   let saved: unknown = null;
   try { saved = JSON.parse(localStorage.getItem(actionBarStorageKey(archetype)) ?? "null"); } catch { /* Use the authored order when storage is unavailable. */ }
-  const allowed = new Set(defaults.filter((action): action is AdventureAction => action !== null));
+  const allowed = new Set<AdventureAction>(["drinkPotion", ...defaults.filter((action): action is AdventureAction => action !== null)]);
   const parsed = Array.isArray(saved) ? saved.slice(0, defaults.length).map(value => typeof value === "string" && allowed.has(value as AdventureAction) ? value as AdventureAction : null) : [];
   const order: ActionBarEntry[] = [];
   for (const action of parsed) order.push(action !== null && order.includes(action) ? null : action);
@@ -178,6 +179,22 @@ function persistActionBarOrder(): void {
 }
 function applyActionBarOrder(): void {
   const controls = actionBarControls();
+  let potion = controls.find(control => control.dataset.action === "drinkPotion");
+  if (actionBarOrder.includes("drinkPotion") && !potion) {
+    potion = controls.find(control => !control.dataset.action)!;
+    potion.dataset.action = "drinkPotion";
+    potion.classList.remove("action-empty");
+    potion.draggable = true;
+    potion.setAttribute("aria-describedby", "tip-potion");
+    potion.innerHTML = `<kbd></kbd><span class="action-art"><img src="${publicUrl("assets/ui/icons/items/health-potion-red.png")}" alt="" draggable="false" /><span class="action-quantity" aria-hidden="true"></span></span><span class="action-tooltip" id="tip-potion" role="tooltip"><strong>Health potion</strong><small></small><span></span></span>`;
+  } else if (potion && !actionBarOrder.includes("drinkPotion")) {
+    delete potion.dataset.action;
+    potion.classList.add("action-empty");
+    potion.draggable = false;
+    potion.disabled = false;
+    potion.removeAttribute("aria-describedby");
+    potion.innerHTML = '<kbd></kbd><span class="action-art"></span>';
+  }
   const byAction = new Map<string, HTMLButtonElement>();
   const empties: HTMLButtonElement[] = [];
   for (const control of controls) {
@@ -209,6 +226,11 @@ function bindActionBar(): void {
     if (!control.dataset.action) control.disabled = false;
   }
   let dragged: HTMLButtonElement | null = null;
+  listen(bar, "click", event => {
+    if (performance.now() < suppressActionClickUntil || !(event.target instanceof Element)) return;
+    const control = event.target.closest<HTMLButtonElement>("button");
+    if (control?.dataset.action && !control.disabled) pulse(control.dataset.action as AdventureAction);
+  });
   listen(bar, "dragstart", event => {
     if (!(event instanceof DragEvent) || !(event.target instanceof Element)) return;
     const source = event.target.closest<HTMLButtonElement>("button");
@@ -219,7 +241,7 @@ function bindActionBar(): void {
     source.classList.add("action-dragging");
   });
   listen(bar, "dragover", event => {
-    if (!(event instanceof DragEvent) || !dragged) return;
+    if (!(event instanceof DragEvent) || (!dragged && !event.dataTransfer?.types.includes("application/x-greywrought-potion"))) return;
     const target = (event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null);
     if (!target || target === dragged) return;
     event.preventDefault();
@@ -227,13 +249,22 @@ function bindActionBar(): void {
     for (const control of actionBarControls()) control.classList.toggle("action-drag-over", control === target);
   });
   listen(bar, "drop", event => {
-    if (!(event instanceof DragEvent) || !dragged) return;
+    if (!(event instanceof DragEvent) || (!dragged && !event.dataTransfer?.types.includes("application/x-greywrought-potion"))) return;
     const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null;
     if (!target || target === dragged) return;
     event.preventDefault();
-    const from = Number(dragged.dataset.actionSlot);
+    const from = dragged ? Number(dragged.dataset.actionSlot) : actionBarOrder.indexOf("drinkPotion");
     const to = Number(target.dataset.actionSlot);
-    if (Number.isInteger(from) && Number.isInteger(to) && from !== to) {
+    if (!dragged && event.dataTransfer?.getData("application/x-greywrought-potion") !== "drinkPotion") return;
+    if (from < 0 && Number.isInteger(to)) {
+      const empty = actionBarOrder.indexOf(null);
+      if (empty < 0) return;
+      actionBarOrder[empty] = actionBarOrder[to] ?? null;
+      actionBarOrder[to] = "drinkPotion";
+      applyActionBarOrder();
+      persistActionBarOrder();
+      suppressActionClickUntil = performance.now() + 250;
+    } else if (Number.isInteger(from) && Number.isInteger(to) && from !== to) {
       const source = actionBarOrder[from] ?? null;
       actionBarOrder[from] = actionBarOrder[to] ?? null;
       actionBarOrder[to] = source;
@@ -278,6 +309,8 @@ interface RunningAdventure {
   readonly unbind: Array<() => void>;
   saveClock: number;
   ready: boolean;
+  selection: UnitSelection;
+  lastEnemyTarget: string;
 }
 const removers: Array<() => void> = [];
 const keys = new Set<string>();
@@ -323,6 +356,8 @@ function setBaitAiming(value: boolean): void {
 function menuOpen(): boolean { return !element("pause-panel").hidden; }
 function pressAction(action: AdventureAction): void {
   if (menuOpen()) return;
+  if (action === "strike" && running?.selection?.kind !== "enemy") return;
+  if (action === "target" && running) running.selection = { kind: "enemy", id: running.game.snapshot.selectedThreat };
   if (action === "bait") {
     const snapshot = running?.game.snapshot;
     if (snapshot?.combat.phase === "preparation" && !snapshot.combat.ready && snapshot.combat.availableStamina + (snapshot.combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) >= 1) setBaitAiming(!baitAiming);
@@ -542,7 +577,7 @@ function syncEncounter(): void {
     world.updateChat(game.chat, character.id);
     world.render(game.snapshot, 0, game.renderPlayer, paused ? undefined : game.serverTime, game.connectionRevision);
     renderHud(game.snapshot);
-    nameplates?.render(game.snapshot, world, { selfId: character.id, players: game.players });
+    nameplates?.render(selectedSnapshot(game.snapshot), world, { selfId: character.id, players: game.players });
     audio.update(game.snapshot, paused);
     if (!paused && !menuOpen()) world.canvas.focus();
   }
@@ -666,7 +701,28 @@ function makeEnemyInterface(snapshot: AdventureSnapshot): void {
 }
 const serverClockFormat = new Intl.DateTimeFormat('en-GB', {timeZone:'UTC',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 let displayedServerMinute = -1;
+function selectedSnapshot(snapshot: AdventureSnapshot): AdventureSnapshot {
+  const app = running; if (!app) return snapshot;
+  if (app.lastEnemyTarget !== snapshot.selectedThreat && app.selection?.kind === "enemy") app.selection = { kind: "enemy", id: snapshot.selectedThreat };
+  app.lastEnemyTarget = snapshot.selectedThreat;
+  if (app.selection?.kind === "player" && app.selection.id !== app.character.id && !app.game.players.some(player => player.id === app.selection!.id)) app.selection = null;
+  const enemyId = app.selection?.kind === "enemy" ? app.selection.id : "";
+  app.world.setSelectedUnit(app.selection);
+  setDataset(document.body.dataset, { selectedUnit: JSON.stringify(app.selection) });
+  return enemyId === snapshot.selectedThreat ? snapshot : { ...snapshot, selectedThreat: enemyId, threats: snapshot.threats.map(threat => ({ ...threat, selected: threat.id === enemyId })) };
+}
+function selectPlayerTarget(id: string): void {
+  const app = running;
+  if (!app?.ready || paused || menuOpen() || id !== app.character.id && !app.game.players.some(player => player.id === id)) return;
+  app.selection = { kind: "player", id }; app.game.setAction("strike", false);
+  setBaitAiming(false); renderHud(app.game.snapshot);
+}
+function selectEnemyTarget(id: string): void {
+  if (!running?.ready) return;
+  running.selection = { kind: "enemy", id }; running.game.selectTarget(id); renderHud(running.game.snapshot);
+}
 function renderHud(snapshot: AdventureSnapshot): void {
+  snapshot = selectedSnapshot(snapshot);
   const wallTime = running?.game.serverWallTimeMillis;
   const minute = running?.game.online && typeof wallTime === 'number' && Number.isFinite(wallTime) ? Math.floor(wallTime / 60_000) : -1;
   if (minute !== displayedServerMinute) {
@@ -715,7 +771,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   setDataset(data, { archetype: player.archetype });
   text("bait-aim-hint", moveAimError || `Move · click a destination tile (up to ${classKit(player.archetype).movementTiles} tiles) · then Ready (R) · Esc cancels`);
   text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
-  if (running) unitFrames.update(running.character, snapshot, running.game.players);
+  if (running) unitFrames.update(running.character, snapshot, running.game.players, running.selection?.kind === "player" ? running.selection.id === running.character.id ? { id: running.character.id, name: running.character.name, player: snapshot.player } : running.game.players.find(player => player.id === running!.selection!.id) : undefined);
   combatPlan.update(snapshot);
   if (snapshot.combat.phase !== "preparation" || snapshot.combat.ready) setBaitAiming(false);
   setDataset(data, { gameCombatPlan: String(!element("combat-plan").hidden) });
@@ -750,6 +806,15 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const source = publicUrl(spec.icon); if (art.getAttribute("src") !== source) art.src = source;
     const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Click a highlighted tile, then Ready (R)" : "Plan · " + cost + " stamina";
     text(action + "-ready", detail + (range.text ? " · " + range.text : ""));
+  }
+  const potionControl = actionBar().querySelector<HTMLButtonElement>('[data-action="drinkPotion"]');
+  if (potionControl) {
+    potionControl.disabled = snapshot.phase !== "town" || snapshot.potions < 1 || player.health >= player.maximumHealth;
+    setAttribute(potionControl, "aria-label", `Health potion × ${snapshot.potions}`);
+    setDataset(potionControl.dataset, { quantity: String(snapshot.potions) });
+    setText(potionControl.querySelector<HTMLElement>(".action-quantity")!, String(snapshot.potions));
+    setText(potionControl.querySelector<HTMLElement>(".action-tooltip small")!, snapshot.potions < 1 ? "No potions" : snapshot.phase !== "town" ? "Return to town to drink" : player.health >= player.maximumHealth ? "Health full" : "Drink potion");
+    setText(potionControl.querySelector<HTMLElement>(".action-tooltip span:last-child")!, `Restores ${snapshot.potionHealing} health.`);
   }
   const recovery = element("player-action-bar");
   const recoveryHidden = player.actionCooldown <= 0.001 || (player.currentAction !== "gather" && player.currentAction !== "ritual" && player.currentAction !== "hearthstone");
@@ -850,9 +915,10 @@ function bindWorld(app: RunningAdventure): void {
       else if (picked?.kind === "chest") {
         if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
       }
+      else if (picked?.kind === "player" && event.button === 0) selectPlayerTarget(picked.id);
       else if (picked?.kind === "threat") {
         if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
-        else if (event.button === 0) app.game.selectTarget(picked.id);
+        else if (event.button === 0) selectEnemyTarget(picked.id);
       }
     }
     if (buttons === 0 && canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
@@ -881,11 +947,11 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     const game = await connectAdventure(character);
     if (game.snapshot.phase === "lost") { game.close(); showFallenCharacter(character); return; }
     audio.reset();
-    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); }, destination => game.previewBait(destination));
+    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); }, destination => game.previewBait(destination), { selfId: character.id, selfName: character.name, onSelect: selectPlayerTarget });
     world.setAggroRangesVisible(aggroRangesVisible);
     world.setHelpRangesVisible(helpRangesVisible);
     world.updateChat(game.chat, character.id);
-    const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false };
+    const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false, selection: { kind: "enemy", id: game.snapshot.selectedThreat }, lastEnemyTarget: game.snapshot.selectedThreat };
     running = app;
     bindWorld(app);
     await world.ready;
@@ -1000,9 +1066,9 @@ click("death-roster", returnToRoster);
 for (const target of [element("map-threats"), element("enemy-intents")]) listen(target, "click", (event) => {
   if (!(event.target instanceof Element) || !running?.ready || paused) return;
   const id = event.target.closest<HTMLElement>("[data-enemy-id]")?.dataset.enemyId;
-  if (id) { running.game.selectTarget(id); running.world.canvas.focus(); }
+  if (id) { selectEnemyTarget(id); running.world.canvas.focus(); }
 });
-for (const control of document.querySelectorAll<HTMLElement>("[data-action]")) listen(control, "click", () => {
+for (const control of document.querySelectorAll<HTMLElement>("[data-action]:not(#adventure-actions > button)")) listen(control, "click", () => {
   if (performance.now() < suppressActionClickUntil) return;
   const action = control.dataset.action;
   if (action && ["strike", "brace", "bait", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
@@ -1120,12 +1186,13 @@ function tick(now: number): void {
   audio.update(snapshot, route !== "world");
   running.world.updatePlayers(running.game.players.filter(player => player.id !== running!.character.id));
   running.world.updateChat(running.game.chat, running.character.id);
+  selectedSnapshot(snapshot);
   running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime, running.game.connectionRevision);
   if (now + 0.5 >= nextHudTime) {
     renderHud(snapshot);
     nextHudTime = Math.max(nextHudTime + 50, now);
   }
-  nameplates?.render(snapshot, running.world, { selfId: running.character.id, players: running.game.players });
+  nameplates?.render(selectedSnapshot(snapshot), running.world, { selfId: running.character.id, players: running.game.players });
   running.saveClock += delta;
   if (running.saveClock >= 1) { running.saveClock = 0; save(); }
   scheduleFrame();

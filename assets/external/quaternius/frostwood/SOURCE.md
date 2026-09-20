@@ -118,3 +118,17 @@ and its matching `.mtl` from the same archive. Pack `License.txt` is retained at
 `greywrought:assets/external/quaternius/frostwood/village/crystal-LICENSE.txt` (CC0).
 The authored faceted mesh is unchanged; the renderer replaces its pink material
 with an emissive cyan material to match coolant and Mara's restored jars.
+
+Starting woodland flower glade: the following additional members of the same
+CC0 Stylized Nature MegaKit were selected from the local all-in-one archive:
+
+- `Nature/Stylized Nature MegaKit - July 2024/glTF/Flower_3_Group.gltf`
+- `Nature/Stylized Nature MegaKit - July 2024/glTF/Flower_3_Group.bin`
+- `Nature/Stylized Nature MegaKit - July 2024/glTF/Flower_4_Group.gltf`
+- `Nature/Stylized Nature MegaKit - July 2024/glTF/Flower_4_Group.bin`
+- `Nature/Stylized Nature MegaKit - July 2024/glTF/Flowers.png`
+
+Models and buffers are unchanged; Flowers.png follows the existing 512×512
+maximum texture convention and the models reuse the retained Leaves.png.
+The retained `Nature/Stylized Nature MegaKit - July 2024/License_Standard.txt`
+source terms declare CC0 1.0 Universal.

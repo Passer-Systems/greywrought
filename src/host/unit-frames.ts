@@ -58,6 +58,8 @@ const styles = `
 .unit-frame-target .unit-frame-portrait { border-radius:0 2px 2px 0; }
 .unit-frame-target[data-hostile=true] .unit-frame-fill { background:linear-gradient(#da5353,#ac3338 50%,#80202b); }
 .unit-frame-target[data-hostile=false] .unit-frame-fill { background:linear-gradient(#e0ce51,#b19a2a 50%,#8e791d); }
+.unit-frame-target[data-kind=player] .unit-frame-fill { background:linear-gradient(#72c650,#3d912b 50%,#256d27); }
+.unit-frame-target[data-kind=player] .unit-frame-image { object-position:50% 18%; }
 .unit-frame-tot { margin-top:24px; margin-left:auto; width:150px; height:39px; }
 .unit-frame-tot .unit-frame-portrait { flex-basis:37px; width:37px; height:37px; border-width:2px; }
 .unit-frame-tot .unit-frame-bars { height:37px; padding:2px 3px; border-width:1px; }
@@ -257,7 +259,7 @@ export function createUnitFrames(host: HTMLElement) {
     ready,
     layout,
     portrait(id: string) { return portraits.get(id); },
-    update(character: LocalCharacter, snapshot: AdventureSnapshot, others: readonly RemotePlayerView[] = []): void {
+    update(character: LocalCharacter, snapshot: AdventureSnapshot, others: readonly RemotePlayerView[] = [], friendly?: RemotePlayerView): void {
       if (disposed) return;
       if (archetype !== character.archetype) {
         archetype = character.archetype;
@@ -266,6 +268,17 @@ export function createUnitFrames(host: HTMLElement) {
       health(player, character.name, snapshot.player.health, snapshot.player.maximumHealth, character.id);
       player.root.dataset.inCombat = String(snapshot.player.inCombat);
       write(combatStatus, snapshot.player.inCombat ? "In combat" : "Out of combat");
+      if (friendly) {
+        selectedId = "player:" + friendly.id; targetGroup.hidden = false;
+        target.root.dataset.preview = "false"; target.root.dataset.kind = "player";
+        Object.assign(target.root.dataset, { hostile: "false", aggro: "false", disposition: "friendly", archetype: friendly.player.archetype });
+        const image = publicUrl("assets/ui/characters/" + friendly.player.archetype + ".webp");
+        if (target.portrait.getAttribute("src") !== image) target.portrait.src = image;
+        health(target, friendly.name, friendly.player.health, friendly.player.maximumHealth, friendly.id);
+        targetCast.root.hidden = true; targetOfTarget.root.hidden = true;
+        return;
+      }
+      target.root.dataset.kind = "enemy"; delete target.root.dataset.archetype;
       const enemy = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat && threat.active);
       if (!enemy) { selectedId = ""; preview(); return; }
       targetGroup.hidden = false;

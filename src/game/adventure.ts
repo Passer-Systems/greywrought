@@ -125,16 +125,16 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(-3, 30), point(-5, 32), point(-3, 34), point(-1, 32)],
     preparation: "Gathering fire", intention: "Fireball", damage: 3, reach: 10,
     benefit: "Clear the Cinder Watchman to make the first clearing safer." },
-  { id: "nest", level: 2, disposition: "neutral", aggroRange: 0, leash: 18, speed: 1.1, pursuitSpeed: 4.8, name: "Briar bee", position: point(-1, 35), health: 72,
-    patrol: [point(-1, 35), point(0, 36), point(1, 37), point(0, 34)],
+  { id: "nest", level: 2, disposition: "neutral", aggroRange: 0, leash: 18, speed: 1.1, pursuitSpeed: 4.8, name: "Briar bee", position: point(14, 24), health: 72,
+    patrol: [point(14, 24), point(16, 26), point(18, 24), point(16, 22)],
     preparation: "Enraged wings gathering", intention: "Enraged Swarm", damage: 16, reach: 3,
     benefit: "Defeat the bee to make the briar passage safer." },
   { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2, name: "Cablekeeper", position: point(-3, 50), health: 72,
     patrol: [point(-3, 50), point(-5, 47), point(-1, 50), point(-3, 53)],
     preparation: "Raising thorn wards", intention: "Thorn lash", damage: 18, reach: 5,
     benefit: "Clear the warder to gather coolant crystals without cutting thorns." },
-  { id: "patrol", level: 2, behavior: "wolf", disposition: "hostile", aggroRange: 6, leash: 30, speed: 4.2, name: "Ash hound", position: point(-6, 37), health: 72,
-    patrol: [point(-6, 37), point(-7, 35), point(-7, 39), point(-6, 40)],
+  { id: "patrol", level: 2, behavior: "wolf", disposition: "hostile", aggroRange: 6, leash: 30, speed: 4.2, name: "Ash hound", position: point(-17, 45), health: 72,
+    patrol: [point(-17, 45), point(-19, 43), point(-21, 46), point(-18, 48)],
     preparation: "Drawing back to pounce", intention: "Lunging Maul", damage: 4, reach: 2,
     benefit: "Clear the hound to make the deeper trail safer." },
   { id: "ritual-guardian", level: 4, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2.2, name: "Foreman Nine", position: point(2, 60), health: 200,
@@ -279,7 +279,7 @@ class Adventure implements AdventureGame {
       if ((root.version !== 1 && root.version !== 2 && root.version !== 3 && root.version !== 4) || root.kind !== "shared-adventure" || !Array.isArray(root.characters)) throw new Error("Unsupported shared adventure save.");
       const world = record(root.world), version = root.version === 1 ? 9 : root.version === 4 ? 11 : 10;
       const template = savedState(initialState("warrior"));
-      context.world = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, state: { ...template, ...world, phase: "expedition" } }), context.now()).world;
+      context.world = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, forestLayout: root.forestLayout, state: { ...template, ...world, phase: "expedition" } }), context.now()).world;
       context.clock = root.version === 4 ? readClock(root.clock) : newClock();
       const instances = new Map<string, { id: string; origin: Vector; world: WorldState; clock: CombatClock }>();
       if (root.version === 3 || root.version === 4) {
@@ -287,7 +287,7 @@ class Adventure implements AdventureGame {
         for (const value of root.instances) {
           const entry = record(value), ownerId = text(entry.ownerId), id = text(entry.id);
           if (!id.startsWith('private:') || instances.has(ownerId) || [...instances.values()].some(instance => instance.id === id)) throw new Error("Invalid private encounter identity.");
-          instances.set(ownerId, { id, clock: root.version === 4 ? readClock(entry.clock) : newClock(), origin: restoreTownPosition(groundPosition(entry.origin)), world: readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world });
+          instances.set(ownerId, { id, clock: root.version === 4 ? readClock(entry.clock) : newClock(), origin: restoreTownPosition(groundPosition(entry.origin)), world: readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, forestLayout: root.forestLayout, state: { ...template, ...record(entry.world), phase: 'expedition' } }), context.now()).world });
         }
       }
       for (const value of root.characters) {
@@ -298,7 +298,7 @@ class Adventure implements AdventureGame {
           ? { world: instance.world, clock: instance.clock, now: context.now, online: new Map(), characters: new Map(), id: instance.id, mode: 'paused', origin: instance.origin }
           : context;
         const game = new Adventure({}, ownContext, id);
-        game.state = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, state: { ...state, ...ownContext.world } }), context.now());
+        game.state = readSave(JSON.stringify({ version, spatialLayout: 1, terrainLayout: 2, forestLayout: root.forestLayout, state: { ...state, ...ownContext.world } }), context.now());
         game.state.world = ownContext.world; game.state.combat.clock = ownContext.clock;
         characters.set(id, { name, game });
         ownContext.characters.set(id, game);
@@ -453,7 +453,7 @@ class Adventure implements AdventureGame {
       },
       save() {
         refresh();
-        return JSON.stringify({ version: 4, spatialLayout: 1, terrainLayout: 2, kind: "shared-adventure", world: context.world, clock: context.clock,
+        return JSON.stringify({ version: 4, spatialLayout: 1, terrainLayout: 2, forestLayout: 1, kind: "shared-adventure", world: context.world, clock: context.clock,
           characters: [...characters].map(([id, { name, game }]) => {
             const { threats, resourceRemaining, resourceRespawns, ritualCalled, ...player } = savedState(game.state);
             return { id, name, state: player };
@@ -542,7 +542,7 @@ class Adventure implements AdventureGame {
     };
   }
 
-  save(): string { return JSON.stringify({ version: 11, spatialLayout: 1, terrainLayout: 2, state: savedState(this.state) }); }
+  save(): string { return JSON.stringify({ version: 11, spatialLayout: 1, terrainLayout: 2, forestLayout: 1, state: savedState(this.state) }); }
   private progression(): ProgressionView {
     const c = this.state.chapter;
     const gear = Object.values(c.equipment).filter((id): id is GearItemId => id !== null);
@@ -699,6 +699,12 @@ class Adventure implements AdventureGame {
   private occupiedCells(exclude: Position): Position[] {
     return [...this.participants().filter(p => p.state.health > 0).map(p => p.state.position),
       ...this.state.world.threats.filter(t => t.active && t.health > 0).map(t => t.position)].filter(p => p !== exclude);
+  }
+  private engagementPositions(threat: ThreatState): { player: Position; threat: Position } {
+    const origin = this.state.position;
+    const player = this.inCombat() ? origin : snapCombatPosition(origin, origin, 4, this.occupiedCells(origin));
+    const occupied = this.occupiedCells(threat.position).map(position => position === origin ? player : position);
+    return { player, threat: threat.aggro ? threat.position : snapCombatPosition(threat.position, threat.position, 4, occupied) };
   }
   private settleCombatCell(keepCell = false): void {
     const s = this.state;
@@ -982,7 +988,7 @@ class Adventure implements AdventureGame {
         break;
       case "drinkPotion":
         if (s.phase === "town" && s.potions > 0 && s.health < 100) { const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--; this.feedback(null, "heal", healing); this.report(`Your health potion restores ${healing} health.`); }
-        else this.report(s.potions < 1 ? "No health potions. Visit Mara." : "Your health is already full.");
+        else this.report(s.potions < 1 ? "No health potions. Visit Mara." : s.phase !== "town" ? "Return to town to drink a health potion." : "Your health is already full.");
         break;
       case "rest":
         if (s.phase === "town" && this.near("inn", 2.5)) {
@@ -1029,7 +1035,10 @@ class Adventure implements AdventureGame {
   private attackInRange(t: ThreatState, action: "strike"): boolean {
     const s = this.state;
     const range = classAction(s.archetype, "strike").range ?? COMBAT_RULES.strike.range;
-    return s.phase === "expedition" && t.active && t.health > 0 && t.phase !== "returning" && (!this.inPrivateInstance() || t.aggro) && distance(s.position, t.position) <= range + EPSILON && this.attackPath(t);
+    if (!(s.phase === "expedition" && t.active && t.health > 0 && t.phase !== "returning" && (!this.inPrivateInstance() || t.aggro) && distance(s.position, t.position) <= range + EPSILON && this.attackPath(t))) return false;
+    if (this.inCombat() && t.aggro) return true;
+    const settled = this.engagementPositions(t);
+    return distance(settled.player, settled.threat) <= range + EPSILON && this.clearPath(settled.player, settled.threat);
   }
   private canUseAttack(t: ThreatState, action: "strike"): boolean {
     return this.attackInRange(t, action);
@@ -1527,8 +1536,9 @@ class Adventure implements AdventureGame {
   private engage(t: ThreatState): void {
     this.cancelHearthstone();
     this.state.sitting = false; this.activeEmote = null;
+    const settled = this.engagementPositions(t);
     if (!this.inCombat()) this.settleCombatCell();
-    t.position = snapCombatPosition(t.position, t.position, 4, this.occupiedCells(t.position));
+    t.position = { ...settled.threat };
     t.aggro = true; t.lastActionHit = false; t.targetPlayerId = this.playerId;
     if (this.playerId !== null && !t.combatants.includes(this.playerId)) t.combatants.push(this.playerId);
     const clock = this.state.combat.clock;
@@ -2008,6 +2018,12 @@ function readSave(serialized: string, now = Date.now()): State {
     if (id === "nest" && result.position.x > THICKET[0] && result.position.z >= THICKET[2] && result.position.z <= THICKET[3]) { result.position.x = THICKET[0] - 0.5; result.targetPosition = { ...result.position }; }
     if (result.aggro !== ["approach", "preparation", "action", "recovery"].includes(result.phase)) throw new Error("Invalid adventure save: inconsistent aggression.");
     if (result.lootClaimed && health > 0) throw new Error("Invalid adventure save: living creature already looted.");
+    if (root.forestLayout !== 1 && (id === "nest" || id === "patrol") && !aggro && phase === "patrol") {
+      // Move idle residents into the new clearings; fights and unclaimed corpses stay put.
+      result.position = { ...d.position }; result.targetPosition = { ...d.position }; result.turnTarget = { ...d.position };
+      result.patrolIndex = 1; result.moving = false;
+      if (result.wolf) result.wolf.attackOrigin = { ...d.position };
+    }
     return result;
   });
   if (new Set(threats.map(t => t.id)).size !== threats.length) throw new Error("Invalid adventure save: duplicate threat.");
@@ -2188,7 +2204,7 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       strategy: "Bring your coat, weapon and potions. Plan Block for Pulse, a retreat for Press, and healing while Shield is raised.",
     };
     return { id:d.id, name:d.name, health:d.health, disposition:d.disposition,
-      description: d.id === "nest" ? "A neutral bee beside the first clearing. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill its swarm; Watchman fireballs ignite the cloud." : "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes the hazard.",
+      description: d.id === "nest" ? "A neutral bee in the eastern flower glade. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill its swarm; Watchman fireballs ignite the cloud." : "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes the hazard.",
       opener: "Announces its first attack before you plan.",
       abilities: [ordinaryAbility(d), ...(d.id === "warder" ? [{ id: "harvest-thorns", name: "Gathering thorns", description: "Gathering while the Cablekeeper lives deals 8 damage. Block absorbs it.", damage: 8, range: 0, noticeSeconds: 0 }] : [])],
       sequences: [{ name: d.intention, abilityIds:[d.id], offsetsSeconds:[], description:"Commits one attack per turn, then chooses again before the next plan." }],

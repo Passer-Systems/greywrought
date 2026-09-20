@@ -3,26 +3,26 @@ import { createAdventure, createSharedAdventure } from "./adventure.js";
 import type { AdventureGame } from "./adventure-types.js";
 import { tap } from "./yard-test-fixtures.js";
 
-/** Reachable first-clearing positions, with the trio's announced opening beats. */
+/** Lured positions inside all three home leashes, with the trio's announced opening beats. */
 function fixture() {
   const data = JSON.parse(createAdventure().save());
-  Object.assign(data.state, { phase: "expedition", position: { x: -2.5, y: 0, z: 35 } });
+  Object.assign(data.state, { phase: "expedition", position: { x: 0, y: 0, z: 30 } });
   data.state.combat = { phase: "preparation", cycle: 1, elapsedSeconds: 0, queued: [], nextId: 1, ready: false };
   for (const t of data.state.threats) {
     if (t.id === "warder") { Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true }); continue; }
     if (!t.active) continue;
     const offset = t.id === "patrol" ? .85 : 1.7;
     Object.assign(t, { aggro: true, phase: "preparation", joinCycle: 1, windowCycle: 1, specialOffset: offset, remainingSeconds: offset, castDuration: offset, comboOpened: true });
-    if (t.id === "nest") t.position = { x: 0, y: 0, z: 35 };
-    if (t.id === "patrol") t.position = { x: -7.5, y: 0, z: 35 };
-    if (t.id === "scout") { t.position = { x: -4, y: 0, z: 32 }; t.head.ability = "fireball"; t.head.opened = true; }
+    if (t.id === "nest") t.position = { x: 2.5, y: 0, z: 30 };
+    if (t.id === "patrol") t.position = { x: -5, y: 0, z: 30 };
+    if (t.id === "scout") { t.position = { x: -1.5, y: 0, z: 27 }; t.head.ability = "fireball"; t.head.opened = true; }
   }
   const patrol = data.state.threats.find((t: { id: string }) => t.id === "patrol");
   if (patrol) patrol.health = 54;
   return data;
 }
 function combo(game: AdventureGame) {
-  expect(game.queueBait({ x: 2.5, y: 0, z: 35 })).toBe(true);
+  expect(game.queueBait({ x: 5, y: 0, z: 30 })).toBe(true);
   game.selectTarget("patrol"); tap(game, "strike");
   expect(game.snapshot.combat.queued).toHaveLength(2);
   expect(game.setActionTiming("after")).toBe(true);
@@ -47,16 +47,16 @@ test("Move and Attack plans preserve a forecast and resolve damage", () => {
 });
 
 test("an already-fired projectile survives a save and restore", () => {
-  const data = fixture(); data.state.position = { x: -4, y: 0, z: 35 };
+  const data = fixture(); data.state.position = { x: -1.5, y: 0, z: 30 };
   for (const t of data.state.threats) if (t.active && t.id !== "scout") Object.assign(t, { health: 0, phase: "cleared", aggro: false, lootClaimed: true });
   const scout = data.state.threats[0];
   Object.assign(scout, { staggered: true, phase: "recovery", remainingSeconds: 0 });
-  Object.assign(scout.head, { volley: 3, castVolley: 3, pendingFireballs: 0, fireballs: [{ id: 1, origin: { x: -4, y: 0, z: 32 }, position: { x: -4, y: 0, z: 33 }, remainingSeconds: .6, duration: .9, damage: 18 }] });
+  Object.assign(scout.head, { volley: 3, castVolley: 3, pendingFireballs: 0, fireballs: [{ id: 1, origin: { x: -1.5, y: 0, z: 27 }, position: { x: -1.5, y: 0, z: 28 }, remainingSeconds: .6, duration: .9, damage: 18 }] });
   data.state.combat.phase = "active";
   const game = createAdventure({ save: JSON.stringify(data) }); game.advance(.7);
   expect(game.snapshot.player.health).toBe(82);
   expect(game.snapshot.threats[0]!.fireballs).toHaveLength(0);
-  const live = fixture(); live.state.position = { x: -4, y: 0, z: 35 };
+  const live = fixture(); live.state.position = { x: -1.5, y: 0, z: 30 };
   for (const t of live.state.threats) if (t.active && t.id !== "scout") Object.assign(t, { health: 0, phase: "cleared", aggro: false, lootClaimed: true });
   Object.assign(live.state.threats[0], { phase: "action", specialOffset: 0, remainingSeconds: 1.3 });
   Object.assign(live.state.threats[0].head, { volley: 3, castVolley: 3, pendingFireballs: 2, nextFireballSeconds: .2, fireballs: scout.head.fireballs });
@@ -81,11 +81,11 @@ test("an already-fired projectile survives a save and restore", () => {
 
 test("enemy-caused Watchman kills grant quest credit and normal loot to engaged players", () => {
   const data = fixture(); data.state.chapter.accepted = ["cold-hands", "roll-call"];
-  data.state.position = { x: -2.5, y: 0, z: 35 };
-  const scout = data.state.threats[0]; scout.health = 10; scout.position = { x: -1, y: 0, z: 35 };
-  data.state.threats[1].position = { x: 1, y: 0, z: 37 };
+  data.state.position = { x: 0, y: 0, z: 30 };
+  const scout = data.state.threats[0]; scout.health = 10; scout.position = { x: 1.5, y: 0, z: 30 };
+  data.state.threats[1].position = { x: 3.5, y: 0, z: 32 };
   const game = createAdventure({ save: JSON.stringify(data) });
-  expect(game.queueBait({ x: 2.5, y: 0, z: 35 })).toBe(true);
+  expect(game.queueBait({ x: 5, y: 0, z: 30 })).toBe(true);
   const forecast = game.snapshot.combat.forecast!;
   expect(forecast.events.some(e => e.kind === "defeat" && e.sourceId === "patrol" && e.targetId === "scout")).toBe(true);
   game.readyCombat(); game.advance(3);
@@ -106,7 +106,7 @@ test("Bait plan and interrupted swarm survive pause/save; shared forecast change
   expect(forecast.playerId).toBe("a"); expect(world.save()).toBe(before); expect(town.snapshot.player.health).toBe(100);
   world.pause("a");
   const reopened = createSharedAdventure({ save: world.save() }); const restored = reopened.join("a", "Ada", "warrior");
-  expect(restored.snapshot.combat.queued[0]!.destination).toEqual({ x: 2.5, y: 0, z: 35 });
+  expect(restored.snapshot.combat.queued[0]!.destination).toEqual({ x: 5, y: 0, z: 30 });
   expect(reopened.resume("a")).toBe(true); restored.readyCombat(); reopened.advance(1.65);
   expect(restored.snapshot.threats.find(t => t.id === "nest")!.staggered).toBe(true);
   expect(restored.snapshot.combat.hazards).toHaveLength(1);
@@ -124,10 +124,10 @@ test("the roadside trio announces a predictable opener, while a struck late arri
   expect(game.snapshot.threats.find(t => t.id === "patrol")!.windowAction!.offsetSeconds).toBe(.85);
   for (const id of ["nest", "scout"]) expect(game.snapshot.threats.find(t => t.id === id)!.windowAction!.offsetSeconds).toBe(1.7);
   expect(game.snapshot.threats[0]!.currentAbility.id).toBe("fireball");
-  const late = fixture(); late.state.position = { x: -2, y: 0, z: 35 };
-  late.state.threats[1].position = { x: -1, y: 0, z: 35 };
+  const late = fixture(); late.state.position = { x: 0.5, y: 0, z: 30 };
+  late.state.threats[1].position = { x: 1.5, y: 0, z: 30 };
   const hound = late.state.threats.find((t: { id: string }) => t.id === "patrol");
-  Object.assign(hound, { position: { x: 1, y: 0, z: 35 }, aggro: false, phase: "patrol", windowCycle: 0, joinCycle: 0 });
+  Object.assign(hound, { position: { x: 3.5, y: 0, z: 30 }, aggro: false, phase: "patrol", windowCycle: 0, joinCycle: 0 });
   late.state.combat.phase = "active";
   late.state.combat.queued = [{id:1,action:"strike",targetId:"patrol",destination:null,offsetSeconds:0,cost:0,status:"pending",reason:null}];
   late.state.combat.nextId = 2;
@@ -166,7 +166,7 @@ test("irregular server frames execute the turn and match the forecast through a 
 test("hovering a movement tile uses the execution forecast without changing the chosen plan", async () => {
   const game = createAdventure({ save: JSON.stringify(fixture()) }); combo(game);
   const before = game.save(), original = game.snapshot.combat.queued;
-  const destination = { x: -2.5, y: 0, z: 37.5 };
+  const destination = { x: 0, y: 0, z: 32.5 };
   const preview = await game.previewBait(destination);
   expect(preview).not.toBeNull();
   expect(game.save()).toBe(before);

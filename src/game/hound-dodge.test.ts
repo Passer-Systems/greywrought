@@ -1,10 +1,11 @@
+import { terrainHeight } from "./cave-layout.js";
 import { test, expect } from "bun:test";
 import { createAdventure } from "./adventure.js";
 import { earnedChapter, tap } from "./yard-test-fixtures.js";
 
 test("Maul keeps its landing fixed while a committed retreat avoids it", () => {
   const saved = JSON.parse(createAdventure({ archetype: "mage" }).save());
-  Object.assign(saved.state, { phase: "expedition", position: { x: -6, y: 0, z: 30 }, chapter: earnedChapter(2) });
+  Object.assign(saved.state, { phase: "expedition", position: { x: -17.5, y: terrainHeight(-17.5, 40), z: 40 }, chapter: earnedChapter(2) });
   for (const t of saved.state.threats) if (t.active && t.id !== "patrol") Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true });
   const game = createAdventure({ save: JSON.stringify(saved) });
   game.selectTarget("patrol"); tap(game, "strike"); game.advance(.01);
@@ -20,5 +21,5 @@ test("Maul keeps its landing fixed while a committed retreat avoids it", () => {
   expect(hound().targetPosition).toEqual(landing);
   expect(game.snapshot.player.health).toBe(100);
   expect(hound().lastActionHit).toBe(false);
-  expect(game.snapshot.player.position.z).toBeLessThan(30);
+  expect(game.snapshot.player.position.z).toBeLessThan(40);
 });

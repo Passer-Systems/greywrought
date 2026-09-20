@@ -39,6 +39,7 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
     return {
       root,
       get name() { return current.name; },
+      get model() { return mounted?.model ?? null; },
       get alive() { return current.player.health > 0; },
       archetype: view.player.archetype,
       update(next: RemotePlayerView) { current = next; target.set(next.player.position.x, next.player.position.y, next.player.position.z); },

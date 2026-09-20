@@ -12,7 +12,7 @@ import { normalizedCharacterName } from '../host/character-profile.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 
 const ACTIONS = [
-  'forward', 'backward', 'left', 'right', 'jump', 'strike', 'brace', 'bait', 'gather', 'cancelGather', 'ritual', 'interact', 'buyPotion',
+  'forward', 'backward', 'left', 'right', 'jump', 'strike', 'brace', 'bait', 'gather', 'cancelGather', 'ritual', 'interact', 'buyPotion', 'drinkPotion',
   'hearthstone', 'cancelHearthstone', 'rest', 'target', 'openTrade', 'closeTrade', 'acceptTrade',
   'closeShop', 'takeLoot', 'closeLoot', 'closeInn', 'closeBank',
 ] as const satisfies readonly AdventureAction[];

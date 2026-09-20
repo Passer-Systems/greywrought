@@ -106,7 +106,7 @@ describe("Frostwood world and persistent rewards",()=>{
   });
 
   test("the neutral bee wanders, retaliates when attacked, and leaves the briars intact",()=>{
-    const fixture=JSON.parse(positioned(1,17).save());
+    const fixture=JSON.parse(positioned(7.5,2.5).save());
     Object.assign(fixture.state.threats.find((t:{id:string})=>t.id==="patrol"),{health:0,phase:"cleared",lootClaimed:true});
     const game=createAdventure({save:JSON.stringify(fixture)});game.advance(1);
     expect(threat(game,"nest")).toMatchObject({disposition:"neutral",aggro:false,health:72,actionSequence:0});
@@ -336,6 +336,7 @@ describe("services and saved journeys",()=>{
     const game=createAdventure();tap(game,"buyPotion");expect(game.snapshot.potions).toBe(0);walk(game,3.4,-7.5);tap(game,"interact");tap(game,"buyPotion");
     expect(game.snapshot.potions).toBe(1);expect(game.snapshot.supplies).toBe(12);tap(game,"drinkPotion");expect(game.snapshot.potions).toBe(1);
     const saved=JSON.parse(game.save());saved.state.health=50;const hurt=createAdventure({save:JSON.stringify(saved)});tap(hurt,"drinkPotion");expect(hurt.snapshot.player.health).toBe(80);
+    saved.state.phase="expedition";saved.state.position={x:0,y:0,z:10};const away=createAdventure({save:JSON.stringify(saved)});tap(away,"drinkPotion");expect(away.snapshot.potions).toBe(1);expect(away.snapshot.report).toBe("Return to town to drink a health potion.");
     walk(hurt,5,-11);tap(hurt,"interact");expect(hurt.snapshot.innOpen).toBe(true);tap(hurt,"rest");expect(hurt.snapshot.player.health).toBe(100);
   });
   test("Mara barter quotes without mutation and settles each accepted trade once",()=>{

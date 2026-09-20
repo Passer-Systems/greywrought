@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createAdventure } from './adventure.js';
 import { migrateTerrainLayout, terrainHeight } from './cave-layout.js';
+import { overworldHeight } from './world-elevation.js';
 import { moveLocomotion } from './movement.js';
 
 test('hills rise gently in the meadow, mountains frame it, and authored town and cave floors stay level', () => {
@@ -22,6 +23,11 @@ test('hills rise gently in the meadow, mountains frame it, and authored town and
 
 test('existing cave-era saves rise with the meadow exactly once and retain character progress', () => {
   const saved = JSON.parse(createAdventure().save());
+  for (const threat of saved.state.threats) {
+    for (const position of [threat.position, threat.targetPosition, threat.wolf?.attackOrigin].filter(Boolean)) {
+      position.y -= overworldHeight(position.x, position.z);
+    }
+  }
   saved.terrainLayout = 1;
   Object.assign(saved.state,{phase:'expedition',position:{x:-27,y:0,z:-79},health:83,coins:47});
   const game = createAdventure({save:JSON.stringify(saved)});

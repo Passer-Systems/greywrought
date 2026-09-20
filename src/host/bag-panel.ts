@@ -94,6 +94,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
       details.hidden = true; pinned = false;
       event.dataTransfer?.setData("application/x-greywrought-bag-item", slot.item.id);
       if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+      if (slot.item.id === "potions") event.dataTransfer?.setData("application/x-greywrought-potion", "drinkPotion");
       if (isGearItem(slot.item.id)) {
         event.dataTransfer?.setData("application/x-greywrought-gear", slot.item.id);
         callbacks.onOpenEquipment?.(slot.item.id);
@@ -202,8 +203,8 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
       : `Recovered from fallen foes. Return alive to ${YARD.settlement} to turn each salvage into a supply.`;
     setText(description, copy);
     usePotion.hidden = selected !== "potions";
-    usePotion.disabled = next.phase === "lost" || next.potions < 1 || next.player.health >= next.player.maximumHealth;
-    setText(usePotion, next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
+    usePotion.disabled = next.phase !== "town" || next.potions < 1 || next.player.health >= next.player.maximumHealth;
+    setText(usePotion, next.phase !== "town" ? "Return to town to drink" : next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
     useHearthstone.hidden = selected !== "hearthstone";
     useHearthstone.disabled = next.phase === "lost" || next.player.inCombat || next.player.currentAction === "hearthstone";
     setText(useHearthstone, next.player.inCombat ? "Unavailable in combat" : next.player.currentAction === "hearthstone" ? "Returning…" : "Return to town");

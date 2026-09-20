@@ -37,11 +37,12 @@ test('threat views expose the gameplay detection and call-for-help radii',()=>{
 function sharedSocialPull(){
  const seed=createSharedAdventure();seed.join('attacker','Attacker','mage');seed.join('bystander','Bystander','mage');
  const data=JSON.parse(seed.save());
- for(const entry of data.characters)Object.assign(entry.state,{phase:'expedition',position:entry.id==='attacker'?{x:-3,y:0,z:40}:{x:-8,y:0,z:41}});
+ for(const entry of data.characters)Object.assign(entry.state,{phase:'expedition',position:entry.id==='attacker'?{x:-3,y:0,z:50}:{x:0,y:0,z:32.5}});
  for(const t of data.world.threats){
   if(t.id==='scout')Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
   if(t.id==='warder')t.position={x:-3,y:0,z:47};
-  if(t.id==='patrol')t.position={x:-8,y:0,z:48};
+  if(t.id==='patrol')t.position={x:0,y:0,z:39};
+  if(t.id==='nest')t.position={x:7.5,y:0,z:30};
  }
  const world=createSharedAdventure({save:JSON.stringify(data)});
  const attacker=world.join('attacker','Attacker','mage'),bystander=world.join('bystander','Bystander','mage');
@@ -104,10 +105,10 @@ test('calls cannot wake the inactive Foreman before summoning',()=>{
 test('an attacked neutral creature can call hostile help only across a clear path',()=>{
  for(const obstructed of [false,true]){
   const data=JSON.parse(createAdventure({archetype:'mage'}).save());
-  Object.assign(data.state,{phase:'expedition',position:obstructed?{x:3,y:0,z:47}:{x:1,y:0,z:40}});
+  Object.assign(data.state,{phase:'expedition',position:obstructed?{x:0,y:0,z:35}:{x:0,y:0,z:30}});
   for(const t of data.state.threats){
-   if(t.id==='nest')t.position=obstructed?{x:3,y:0,z:45}:{x:-3,y:0,z:40};
-   else if(t.id==='patrol')t.position=obstructed?{x:3,y:0,z:37}:{x:-8,y:0,z:45};
+   if(t.id==='nest')t.position=obstructed?{x:3,y:0,z:37}:{x:0,y:0,z:32.5};
+   else if(t.id==='patrol')t.position=obstructed?{x:3,y:0,z:45}:{x:-5,y:0,z:37.5};
    else if(t.active)Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
   }
   const game=createAdventure({save:JSON.stringify(data)});game.selectTarget('nest');tap(game,'strike');game.advance(.01);
@@ -146,7 +147,8 @@ test('summoning during planning preserves the existing committed cast',()=>{
 
 test('engaging another enemy during planning preserves the existing committed cast',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
- Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:34}});
+ Object.assign(data.state,{phase:'expedition',position:{x:0,y:0,z:32.5}});
+ data.state.threats.find((t:{id:string})=>t.id==='nest').position={x:7.5,y:0,z:32.5};
  for(const t of data.state.threats)if(t.active&&!['scout','nest'].includes(t.id))Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
  const game=createAdventure({save:JSON.stringify(data)});game.advance(.01);
  const scout=()=>game.snapshot.threats.find(t=>t.id==='scout')!;
