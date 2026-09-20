@@ -203,8 +203,8 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
       : `Recovered from fallen foes. Return alive to ${YARD.settlement} to turn each salvage into a supply.`;
     setText(description, copy);
     usePotion.hidden = selected !== "potions";
-    usePotion.disabled = next.phase !== "town" || next.potions < 1 || next.player.health >= next.player.maximumHealth;
-    setText(usePotion, next.phase !== "town" ? "Return to town to drink" : next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
+    usePotion.disabled = next.phase === "lost" || next.player.inCombat || next.potions < 1 || next.player.health >= next.player.maximumHealth;
+    setText(usePotion, next.player.inCombat ? "Unavailable in combat" : next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
     useHearthstone.hidden = selected !== "hearthstone";
     useHearthstone.disabled = next.phase === "lost" || next.player.inCombat || next.player.currentAction === "hearthstone";
     setText(useHearthstone, next.player.inCombat ? "Unavailable in combat" : next.player.currentAction === "hearthstone" ? "Returning…" : "Return to town");

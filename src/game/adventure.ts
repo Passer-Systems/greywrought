@@ -987,8 +987,8 @@ class Adventure implements AdventureGame {
         }
         break;
       case "drinkPotion":
-        if (s.phase === "town" && s.potions > 0 && s.health < 100) { const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--; this.feedback(null, "heal", healing); this.report(`Your health potion restores ${healing} health.`); }
-        else this.report(s.potions < 1 ? "No health potions. Visit Mara." : s.phase !== "town" ? "Return to town to drink a health potion." : "Your health is already full.");
+        if (!this.inCombat() && s.potions > 0 && s.health < 100) { const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--; this.feedback(null, "heal", healing); this.report(`Your health potion restores ${healing} health.`); }
+        else this.report(s.potions < 1 ? "No health potions. Visit Mara." : this.inCombat() ? "Unavailable in combat." : "Your health is already full.");
         break;
       case "rest":
         if (s.phase === "town" && this.near("inn", 2.5)) {

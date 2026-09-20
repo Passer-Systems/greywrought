@@ -823,11 +823,11 @@ function renderHud(snapshot: AdventureSnapshot): void {
   }
   const potionControl = actionBar().querySelector<HTMLButtonElement>('[data-action="drinkPotion"]');
   if (potionControl) {
-    potionControl.disabled = snapshot.phase !== "town" || snapshot.potions < 1 || player.health >= player.maximumHealth;
+    potionControl.disabled = snapshot.phase === "lost" || player.inCombat || snapshot.potions < 1 || player.health >= player.maximumHealth;
     setAttribute(potionControl, "aria-label", `Health potion × ${snapshot.potions}`);
     setDataset(potionControl.dataset, { quantity: String(snapshot.potions) });
     setText(potionControl.querySelector<HTMLElement>(".action-quantity")!, String(snapshot.potions));
-    setText(potionControl.querySelector<HTMLElement>(".action-tooltip small")!, snapshot.potions < 1 ? "No potions" : snapshot.phase !== "town" ? "Return to town to drink" : player.health >= player.maximumHealth ? "Health full" : "Drink potion");
+    setText(potionControl.querySelector<HTMLElement>(".action-tooltip small")!, snapshot.potions < 1 ? "No potions" : player.inCombat ? "Unavailable in combat" : player.health >= player.maximumHealth ? "Health full" : "Drink potion");
     setText(potionControl.querySelector<HTMLElement>(".action-tooltip span:last-child")!, `Restores ${snapshot.potionHealing} health.`);
   }
   const recovery = element("player-action-bar");
