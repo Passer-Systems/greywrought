@@ -239,7 +239,7 @@ class Adventure implements AdventureGame {
   }
   enableNetworkMovement(enabled = true): void { this.movementFrames = enabled ? [] : null; this.movementSequence = 0; this.movementElapsed = 0; }
   enqueueMovement(frames: readonly MovementFrame[]): boolean {
-    if (this.instancePaused() || this.inCombat()) return false;
+    if (this.instancePaused()) return false;
     if (!this.movementFrames) this.enableNetworkMovement();
     if (this.movementFrames!.reduce((sum, frame) => sum + frame.seconds, 0) + frames.reduce((sum, frame) => sum + frame.seconds, 0) > 2) return false;
     for (const frame of frames) if (frame.sequence > (this.movementFrames!.at(-1)?.sequence ?? this.movementSequence)) this.movementFrames!.push(frame);
@@ -773,7 +773,7 @@ class Adventure implements AdventureGame {
     const c = this.state.combat;
     if (!this.editableQueue() || !this.inCombat() || c.clock.phase !== "preparation" || this.queueReason("bait") || c.queued.length >= 3) return false;
     const offset = [0,1,2].find(slot => !c.queued.some(e => e.offsetSeconds === slot))!;
-    c.queued.push({ id: c.nextId++, action: "bait", destination: { ...destination }, targetId: null, offsetSeconds: offset, cost: 1, status: "pending", reason: null });
+    c.queued.push({ id: c.nextId++, action: "bait", destination: snapCombatPosition(destination), targetId: null, offsetSeconds: offset, cost: 1, status: "pending", reason: null });
     c.ready = false; return true;
   }
   private queueAction(action: CombatAction): void {
@@ -839,7 +839,7 @@ class Adventure implements AdventureGame {
     this.spendStamina(cost); this.recover(action, COMBAT_RULES.actionCooldown);
     if (action === "bait") {
       const facing = this.direction(s.position, destination!), length = Math.min(COMBAT_RULES.bait.distance, distance(s.position, destination!));
-      const end = this.reachableEndpoint(s.position, point(s.position.x + facing.x * length, s.position.z + facing.z * length));
+      const end = snapCombatPosition(this.reachableEndpoint(s.position, point(s.position.x + facing.x * length, s.position.z + facing.z * length)));
       s.maneuver = { kind: "bait", targetId: s.selectedThreat, start: { ...s.position }, destination: end, facing, remainingSeconds: COMBAT_RULES.bait.duration };
       this.tracePath(this.playerId ?? "solo", "move", "bait", [s.position, end], 0);
     } else if (action === "shove") {
@@ -855,7 +855,7 @@ class Adventure implements AdventureGame {
       this.hit(target!, target!.staggered ? COMBAT_RULES.finish.staggeredDamage : COMBAT_RULES.finish.damage, "finish");
     } else if (action === "disengage") {
       const facing = this.direction(s.position, target!.position);
-      const destination = this.reachableEndpoint(s.position, point(s.position.x - facing.x * COMBAT_RULES.disengage.distance, s.position.z - facing.z * COMBAT_RULES.disengage.distance));
+      const destination = snapCombatPosition(this.reachableEndpoint(s.position, point(s.position.x - facing.x * COMBAT_RULES.disengage.distance, s.position.z - facing.z * COMBAT_RULES.disengage.distance)));
       s.maneuver = { kind: "disengage", targetId: target!.id, start: { ...s.position }, destination, facing, remainingSeconds: COMBAT_RULES.disengage.duration };
       this.tracePath(this.playerId ?? "solo", "move", "disengage", [s.position, destination], 0);
       this.hit(target!, (classAction(s.archetype, action).damage ?? COMBAT_RULES.disengage.damage) + s.bloodRage * this.powerDamagePerStack(), classAction(s.archetype, action).name + " at");
@@ -1425,10 +1425,7 @@ class Adventure implements AdventureGame {
       if (t.aggro && !target) this.releaseThreat(t); else (target ?? this).acquireOrRelease(t, dt);
     }
     if (this.state.combat.clock.phase === "preparation") {
-      for (const t of this.state.world.threats) {
-        const target = this.targetPlayer(t);
-        if (t.aggro && t.active && t.health > 0 && target) target.positionThreat(t, dt);
-      }
+
     }
     if (this.state.combat.clock.phase === "active") {
       for (const player of players) if (player.inCombat()) player.executeQueued();
@@ -1445,7 +1442,7 @@ class Adventure implements AdventureGame {
     if (this.state.health <= 0) { this.finishCombatStep(0); return; }
     for (const threat of this.state.world.threats) { threat.moving = false; this.acquireOrRelease(threat, dt); }
     if (this.state.combat.clock.phase === "preparation") {
-      for (const threat of this.state.world.threats) if (threat.aggro && threat.active && threat.health > 0) this.positionThreat(threat, dt);
+
     }
     if (this.state.combat.clock.phase === "active") {
       this.executeQueued();

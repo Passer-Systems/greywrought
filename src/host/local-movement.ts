@@ -23,6 +23,7 @@ export class LocalMovement {
   private correction = { x: 0, y: 0, z: 0 };
 
   private executionLocked(snapshot = this.snapshot): boolean { return snapshot.player.inCombat && snapshot.combat.phase === 'active'; }
+  private combatLocked(snapshot = this.snapshot): boolean { return snapshot.player.inCombat; }
 
   constructor(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoint) {
     this.snapshot = snapshot;
@@ -42,13 +43,13 @@ export class LocalMovement {
       grounded: this.state.position.y === terrainHeight(this.state.position.x, this.state.position.z), moving: this.moving, backpedaling: this.backpedaling };
   }
   setAction(action: AdventureAction, pressed: boolean): void {
-    if (this.executionLocked() && isLocomotionAction(action)) return;
+    if (this.combatLocked() && isLocomotionAction(action)) return;
     if (pressed) {
       if (action === 'jump' && !this.held.has(action)) this.jump = true;
       this.held.add(action);
     } else this.held.delete(action);
   }
-  setMouseForward(active: boolean): void { this.mouseForward = this.executionLocked() ? false : active; }
+  setMouseForward(active: boolean): void { this.mouseForward = this.combatLocked() ? false : active; }
   setCameraForward(x: number, z: number): void {
     const length = Math.hypot(x, z);
     if (Number.isFinite(length) && length > 1e-9) { this.cameraX = x / length; this.cameraZ = z / length; }
@@ -59,7 +60,7 @@ export class LocalMovement {
     const decay = Math.exp(-20 * remaining);
     this.correction.x *= decay; this.correction.y *= decay; this.correction.z *= decay;
     while (remaining > 1e-9 && this.history.length < 240) {
-      const locked = this.executionLocked();
+      const locked = this.combatLocked();
       const input: MovementInput = { forward: locked ? 0 : this.mouseForward ? 1 : Number(this.held.has('forward')) - Number(this.held.has('backward')),
         strafe: locked ? 0 : Number(this.held.has('right')) - Number(this.held.has('left')), cameraX: this.cameraX, cameraZ: this.cameraZ, jump: locked ? false : this.jump };
       const frame: MovementFrame = { sequence: ++this.sequence, seconds: Math.min(remaining, 1 / 60), input };
