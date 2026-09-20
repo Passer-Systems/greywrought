@@ -14,7 +14,7 @@ export function createGearShop(host: HTMLElement, experienceHost: HTMLElement, c
     #gear-shop p { line-height:1.5; }
     #gear-buy { width:100%; padding:9px; background:#354b30; color:#f3e2b0; border:2px ridge #a69567; cursor:pointer; }
     #gear-buy:disabled { opacity:.6; cursor:default; }
-    .action-bar-stack { width:360px; max-width:100%; margin:0 auto; }
+    .action-bar-stack { width:720px; max-width:100%; margin:0 auto; }
     #experience-hud { position:relative; display:grid; grid-template-columns:1fr auto; gap:2px 12px; margin-top:5px; color:#f1e7cb; font:11px/1.5 system-ui,sans-serif; text-shadow:0 1px 3px #000; pointer-events:none; }
     #experience-hud progress { grid-column:1 / -1; grid-row:1; display:block; width:100%; height:8px; accent-color:#c5a3fa; }
     #experience-hud progress::-webkit-progress-bar { background:#1a1429; border:1px solid #92809e; }

@@ -162,3 +162,19 @@ test("irregular server frames execute the turn and match the forecast through a 
   expect(game.snapshot.player.health).toBe(expected);
   for (const outcome of forecast.outcomes.filter(o => o.id !== "a")) expect(game.snapshot.threats.find(t => t.id === outcome.id)!.health).toBe(outcome.health);
 });
+
+test("hovering a movement tile uses the execution forecast without changing the chosen plan", async () => {
+  const game = createAdventure({ save: JSON.stringify(fixture()) }); combo(game);
+  const before = game.save(), original = game.snapshot.combat.queued;
+  const destination = { x: -2.5, y: 0, z: 37.5 };
+  const preview = await game.previewBait(destination);
+  expect(preview).not.toBeNull();
+  expect(game.save()).toBe(before);
+  expect(game.snapshot.combat.queued).toEqual(original);
+  expect(preview!.paths.some(path => path.action === "pursuit" && path.actorId !== "solo")).toBe(true);
+  expect(game.queueBait(destination)).toBe(true);
+  expect(preview).toEqual(game.snapshot.combat.forecast);
+  game.readyCombat();
+  for (let i = 0; i < 240 && game.snapshot.combat.phase === "active"; i++) game.advance(1 / 60);
+  for (const outcome of preview!.outcomes) expect(outcome.health).toBe(outcome.id === "solo" ? game.snapshot.player.health : game.snapshot.threats.find(t => t.id === outcome.id)!.health);
+});

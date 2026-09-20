@@ -1,6 +1,6 @@
 import type { NpcId, VendorId } from "./economy.js";
 import type { QuestId, QuestOperation, GearSlot, GearItemId } from "./yard-content.js";
-import type { AdventureAction, AdventureSnapshot, EncounterSession, CombatActionTiming, Position } from './adventure-types.js';
+import type { AdventureAction, AdventureSnapshot, CombatForecast, EncounterSession, CombatActionTiming, Position } from './adventure-types.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 import type { MovementFrame, MovementCheckpoint } from './movement.js';
 
@@ -24,6 +24,7 @@ export type WorldCommand =
   | { type: 'camera'; x: number; z: number }
   | { type: 'target'; id: string }
   | { type: 'bait'; destination: Position }
+  | { type: 'previewBait'; destination: Position }
   | { type: 'ready' }
   | { type: 'actionTiming'; timing: CombatActionTiming }
   | { type: 'remove'; id: number }
@@ -39,4 +40,5 @@ export type ClientWorldMessage =
 export type ServerWorldMessage =
   | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; movement: MovementCheckpoint; session: EncounterSession }
   | { type: 'result'; sequence: number; accepted: boolean }
+  | { type: 'movePreview'; sequence: number; forecast: CombatForecast | null }
   | { type: 'error'; text: string };

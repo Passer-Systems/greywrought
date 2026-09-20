@@ -209,6 +209,7 @@ export interface AdventureGame {
   setCameraForward(x: number, z: number): void;
   selectTarget(id: string): void;
   queueBait(destination: Position): boolean;
+  previewBait(destination: Position): Promise<CombatForecast | null>;
   readyCombat(): boolean;
   setActionTiming(timing: CombatActionTiming): boolean;
   removeQueuedAction(id: number): void;

@@ -57,7 +57,7 @@ function command(value: unknown): value is WorldCommand {
     case 'mouseForward': return keys(value, ['type', 'active']) && typeof value.active === 'boolean';
     case 'camera': return keys(value, ['type', 'x', 'z']) && finite(value.x, -1, 1) && finite(value.z, -1, 1) && Math.hypot(value.x, value.z) > 0.001;
     case 'target': case 'loot': return keys(value, ['type', 'id']) && identifier(value.id);
-    case 'bait': return keys(value, ['type', 'destination']) && record(value.destination) && keys(value.destination, ['x','y','z']) && finite(value.destination.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(value.destination.y,-100,100) && finite(value.destination.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
+    case 'previewBait': case 'bait': return keys(value, ['type', 'destination']) && record(value.destination) && keys(value.destination, ['x','y','z']) && finite(value.destination.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(value.destination.y,-100,100) && finite(value.destination.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
     case 'ready': return keys(value, ['type']);
     case 'actionTiming': return keys(value, ['type','timing']) && member(value.timing,['before','during','after']);
     case 'remove': return keys(value,['type','id']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true);
@@ -302,7 +302,10 @@ export async function createWorldService(options: WorldServiceOptions) {
         if ((session.mode !== 'paused' || allowedWhilePaused) && (priority || socket.data.commandsAt.length < 120)) {
           socket.data.lastSequence = sequence;
           if (!stopping) socket.data.commandsAt.push(now);
-          accepted = apply(player, value.command, socket);
+          if (value.command.type === 'previewBait') {
+            accepted = true;
+            void player.previewBait(value.command.destination).then(forecast => send(socket, { type: 'movePreview', sequence, forecast }));
+          } else accepted = apply(player, value.command, socket);
           if (accepted && (value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin')) {
             void persist().catch(onPersistenceError);
             broadcast();

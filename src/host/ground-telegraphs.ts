@@ -13,6 +13,8 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
   scene.add(root);
   canvas.dataset.telegraphs = "[]";
   const stroke = new MeshBasicMaterial({ color: COLOR, transparent: true, opacity: 0.82, depthWrite: false });
+  const enemyStroke = new MeshBasicMaterial({ color: 0xf08b72, transparent: true, opacity: .9, depthWrite: false });
+  const playerStroke = new MeshBasicMaterial({ color: 0x84edb1, transparent: true, opacity: .95, depthWrite: false });
   const fill = new MeshBasicMaterial({ color: COLOR, transparent: true, opacity: 0.09, depthWrite: false });
   const lineGeometry = new PlaneGeometry(1, 1, 1, 32);
   const ringGeometry = new RingGeometry(0.98, 1, 48);
@@ -29,10 +31,10 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
     root.clear();
   }
 
-  function line(from: Position, to: Position, width: number) {
+  function line(from: Position, to: Position, width: number, material = stroke) {
     const length = Math.hypot(to.x - from.x, to.z - from.z);
     if (length < 0.005) return;
-    const mesh = new Mesh(lineGeometry, stroke);
+    const mesh = new Mesh(lineGeometry, material);
     mesh.rotation.set(-Math.PI / 2, 0, Math.atan2(to.x - from.x, to.z - from.z));
     mesh.scale.set(width, length, 1);
     mesh.position.set((from.x + to.x) / 2, GROUND_HEIGHT, (from.z + to.z) / 2);
@@ -40,8 +42,8 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
     addGround(mesh, GROUND_HEIGHT);
   }
 
-  function marker(position: Position, radius: number, area: boolean) {
-    const edge = new Mesh(area ? ringGeometry : landingGeometry, stroke);
+  function marker(position: Position, radius: number, area: boolean, material = stroke) {
+    const edge = new Mesh(area ? ringGeometry : landingGeometry, material);
     edge.rotation.x = -Math.PI / 2;
     edge.position.set(position.x, GROUND_HEIGHT + 0.01, position.z);
     edge.scale.setScalar(area ? radius : 1);
@@ -58,12 +60,12 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
   }
 
   return {
-    update(snapshot: Pick<AdventureSnapshot, "combat">, preview: CombatPreview | null) {
+    update(snapshot: Pick<AdventureSnapshot, "combat">, preview: CombatPreview | { readonly kind: "destination" } | null) {
       const forecast = snapshot.combat.phase === "preparation" && preview ? snapshot.combat.forecast : null;
-      const paths = forecast?.paths.filter(path => preview?.kind === "enemy"
+      const paths = forecast?.paths.filter(path => preview?.kind === "destination" || (preview?.kind === "enemy"
         ? path.actorId === preview.threatId
-        : preview?.kind === "move" && path.queueId === preview.queueId && path.actorId === forecast.playerId) ?? [];
-      const events = forecast?.events.filter(event => (event.kind === "collision" || event.kind === "ignition" || event.kind === "interruption")
+        : preview?.kind === "move" && path.queueId === preview.queueId && path.actorId === forecast.playerId)) ?? [];
+      const events = forecast?.events.filter(event => preview?.kind === "destination" ? event.kind === "hit" && event.targetId === forecast.playerId : (event.kind === "collision" || event.kind === "ignition" || event.kind === "interruption")
         && (preview?.kind === "enemy" ? event.sourceId === preview.threatId
           : preview?.kind === "move" && event.queueId === preview.queueId && event.sourceId === forecast.playerId)) ?? [];
       const nextSignature = JSON.stringify({ preview, paths, events });
@@ -72,21 +74,22 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
       clear();
       const diagnostics: object[] = [];
       const selection = preview?.kind === "enemy" ? { previewKind: "enemy", enemy: preview.threatId }
-        : { previewKind: "move", queueId: preview?.queueId };
+        : preview?.kind === "move" ? { previewKind: "move", queueId: preview.queueId } : { previewKind: "destination" };
       for (const path of paths) {
         const last = path.points.at(-1);
         if (!last) continue;
-        for (let index = 1; index < path.points.length; index++) line(path.points[index - 1]!, path.points[index]!, 0.065);
+        const material = preview?.kind === "destination" ? path.actorId === forecast?.playerId ? playerStroke : enemyStroke : stroke;
+        for (let index = 1; index < path.points.length; index++) line(path.points[index - 1]!, path.points[index]!, 0.065, material);
         const before = [...path.points].reverse().find(point => Math.hypot(last.x - point.x, last.z - point.z) > 0.1);
         if (before) {
-          const arrow = new Mesh(arrowGeometry, stroke);
+          const arrow = new Mesh(arrowGeometry, material);
           arrow.position.set(last.x, GROUND_HEIGHT + 0.02, last.z);
           arrow.rotation.y = Math.atan2(last.x - before.x, last.z - before.z);
           arrow.renderOrder = 3;
           addGround(arrow, GROUND_HEIGHT + 0.02);
         }
         const area = path.kind === "attack" && path.radius > 0;
-        if (area || path.kind !== "attack") marker(last, area ? path.radius : 0.26, area);
+        if (area || path.kind !== "attack") marker(last, area ? path.radius : 0.26, area, material);
         diagnostics.push({ ...selection, actorId: path.actorId, ability: path.action, beat: path.beat,
           kind: area ? "area" : path.kind === "attack" ? "target" : "movement",
           path: path.points, position: last, x: last.x, z: last.z, radius: area ? path.radius : 0 });
@@ -99,14 +102,14 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
           line({ x: x - 0.23, y, z: z + 0.23 }, { x: x + 0.23, y, z: z - 0.23 }, 0.08);
         }
         diagnostics.push({ ...selection, kind: event.kind === "ignition" ? "area" : "target", event: event.kind,
-          position: event.position, radius: event.radius, targetId: event.targetId });
+          position: event.position, radius: event.radius, targetId: event.targetId, damage: event.damage, sourceId: event.sourceId });
       }
       canvas.dataset.telegraphs = JSON.stringify(diagnostics);
     },
     dispose() {
       clear(); root.removeFromParent();
       lineGeometry.dispose(); ringGeometry.dispose(); landingGeometry.dispose(); areaGeometry.dispose(); arrowGeometry.dispose();
-      stroke.dispose(); fill.dispose();
+      stroke.dispose(); enemyStroke.dispose(); playerStroke.dispose(); fill.dispose();
       canvas.dataset.telegraphs = "[]";
     },
   };

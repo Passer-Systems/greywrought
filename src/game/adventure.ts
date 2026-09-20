@@ -263,6 +263,7 @@ class Adventure implements AdventureGame {
   private effectId = 0;
   private recording: { paths: CombatForecast["paths"][number][]; events: CombatForecast["events"][number][]; outcomes: CombatForecast["outcomes"][number][] } | null = null;
   private forecastCache: ForecastCache | null = null;
+  private movementForecastCache: ForecastCache | null = null;
   private executingQueueId: number | null = null;
   private lootOpenId: string | null = null;
 
@@ -1082,14 +1083,17 @@ class Adventure implements AdventureGame {
     if (!this.recording || this.recording.outcomes.length) return;
     this.recording.outcomes = [...this.state.world.threats.map(t => ({ id: t.id, health: t.health, staggered: t.staggered })), ...this.participants().map(p => ({ id: p.playerId ?? "solo", health: p.state.health, staggered: false }))];
   }
-  private forecast(): CombatForecast | null {
+  async previewBait(destination: Position): Promise<CombatForecast | null> {
+    return this.forecast(destination);
+  }
+  private forecast(destination?: Position): CombatForecast | null {
     if (this.recording || this.state.combat.clock.phase !== "preparation" || !this.inCombat()) return null;
     const players = this.participants();
     if (!players.includes(this)) players.push(this);
     // Every participant predicts the same execution; only the viewing player id differs.
     // Keep the full state key so plans, movement and clocks invalidate immediately.
-    const key = JSON.stringify(players.map(p => ({ id: p.playerId, state: p.state, camera: p.cameraForward })));
-    const cached = this.shared ? this.shared.forecastCache : this.forecastCache;
+    const key = JSON.stringify([destination, players.map(p => ({ id: p.playerId, state: p.state, camera: p.cameraForward }))]);
+    const cached = destination ? this.movementForecastCache : this.shared ? this.shared.forecastCache : this.forecastCache;
     if (cached?.key === key) return { ...cached.value, playerId: this.playerId ?? "solo" };
     const world = structuredClone(this.state.world), clock = structuredClone(this.state.combat.clock), recording = { paths: [] as CombatForecast["paths"][number][], events: [] as CombatForecast["events"][number][], outcomes: [] as CombatForecast["outcomes"][number][] };
     const context: SharedContext | undefined = this.shared ? { ...this.shared, world, clock, mode: this.shared.mode === "paused" ? "private" : this.shared.mode, online: new Map(), characters: new Map() } : undefined;
@@ -1103,14 +1107,33 @@ class Adventure implements AdventureGame {
       if (context) { context.online.set(copy.playerId!, copy); context.characters.set(copy.playerId!, copy); }
       return copy;
     });
+    if (destination && !copies[players.indexOf(this)]!.queueBait(destination)) return null;
     const driver = copies[0]!;
     driver.beginExecution();
     // Bound forecasts for exceptionally long enemy pursuits or volleys.
-    for (let tick = 0; tick < 1800 && clock.phase === "active"; tick++) context ? driver.stepShared(1 / 60) : driver.step(1 / 60);
+    const motion = new Map<string, Position[]>();
+    for (let tick = 0; tick < 1800 && clock.phase === "active"; tick++) {
+      const before = world.threats.map(t => ({ ...t.position }));
+      context ? driver.stepShared(1 / 60) : driver.step(1 / 60);
+      world.threats.forEach((threat, index) => {
+        if (!threat.aggro || distance(before[index]!, threat.position) <= EPSILON) return;
+        let points = motion.get(threat.id);
+        if (!points) {
+          points = [before[index]!]; motion.set(threat.id, points);
+          recording.paths.push({ actorId: threat.id, kind: "move", action: "pursuit", beat: clock.elapsedSeconds, queueId: null, points, radius: 0 });
+        }
+        const previous = points.at(-2), last = points.at(-1)!;
+        const dx = last.x - (previous?.x ?? last.x), dz = last.z - (previous?.z ?? last.z);
+        const nx = threat.position.x - last.x, nz = threat.position.z - last.z;
+        if (previous && Math.abs(dx * nz - dz * nx) < 0.000001 && dx * nx + dz * nz > 0) points[points.length - 1] = { ...threat.position };
+        else points.push({ ...threat.position });
+      });
+    }
     if (clock.phase === "active") return null;
     driver.captureOutcomes();
     const value: CombatForecast = { playerId: this.playerId ?? "solo", ...recording };
-    if (this.shared) this.shared.forecastCache = { key, value };
+    if (destination) this.movementForecastCache = { key, value };
+    else if (this.shared) this.shared.forecastCache = { key, value };
     else this.forecastCache = { key, value };
     return value;
   }

@@ -7,7 +7,7 @@ import {
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
   Raycaster,
 } from "three";
-import type { AdventureSnapshot, CombatView, Position } from "../game/adventure-types.js";
+import type { AdventureSnapshot, CombatView, CombatForecast, Position } from "../game/adventure-types.js";
 import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
 import { conformToTerrain } from "./terrain-geometry.js";
@@ -23,6 +23,7 @@ import { createChatBubbles } from "./chat-bubbles.js";
 import { createFloatingCombatText } from "./floating-combat-text.js";
 import type { SharedChatMessage } from "../game/multiplayer-types.js";
 import { YARD } from "../game/yard-content.js";
+import { createMovementPreview } from "./movement-preview.js";
 import { createCombatGrid } from "./combat-grid.js";
 import { combatCell } from "../game/combat-grid.js";
 import { updateThreatAnimation, type ThreatAnimationState } from "./threat-animation.js";
@@ -179,7 +180,7 @@ function createCombatEffects(scene: Scene) {
   };
 }
 
-export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void): AdventureWorld {
+export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position) => Promise<CombatForecast | null>): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
   let interpolation = createSnapshotInterpolation();
@@ -388,6 +389,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const aggroRanges = createAggroRanges(scene, canvas);
   const combatGrid = createCombatGrid(scene, canvas);
   let moveAiming = false;
+  const movementPreview = createMovementPreview(destination => previewBait?.(destination) ?? Promise.resolve(null));
+  const moveOutcome = document.createElement("div"); moveOutcome.id = "move-preview-outcome"; moveOutcome.hidden = true;
+  moveOutcome.setAttribute("role", "status");
+  Object.assign(moveOutcome.style, { position: "absolute", zIndex: "8", pointerEvents: "none", padding: "8px 10px", maxWidth: "280px", whiteSpace: "pre-line", background: "#112126ef", color: "#fff0cc", border: "1px solid #a9c8b4", borderRadius: "3px", font: "12px/1.45 system-ui" });
+  host.append(moveOutcome);
   const ready = Promise.all([knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, creaturesReady, coresReady, natureReady, caveReady, chestReady]).then(()=>undefined);
   const raycaster = new Raycaster();
   const point = new Vector2();
@@ -450,13 +456,13 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     updatePlayers(players) { if (!disposed) otherPlayers = players; },
     updateChat(messages, selfId) { if (!disposed) chatBubbles.update(messages, selfId); },
     orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.22, pitch + dy * 0.004)); },
-    zoom(delta) { distance = Math.max(6, Math.min(18, distance * Math.exp(delta * 0.001))); },
+    zoom(delta) { distance = Math.max(6, Math.min(21, distance * Math.exp(delta * 0.001))); },
     setThreatNameplateVisible(id, visible) { overheadNames.suppress(`threat:${id}`, visible); },
     setAggroRangesVisible(visible) { aggroRanges.setVisible(visible); },
     setCombatHudHeight(height) { combatHudHeight = height; },
-    setMoveAiming(active) { moveAiming = active; },
+    setMoveAiming(active) { moveAiming = active; if (!active) { movementPreview.clear(); moveOutcome.hidden = true; } },
     canMoveTo(destination) { return combatGrid.accepts(destination); },
-    setCombatPreview(preview) { combatPreview = preview; telegraphs.update(hoverSnapshot, preview); },
+    setCombatPreview(preview) { combatPreview = preview; },
     projectThreat(id) {
       const rig = rigs.get(id); if (!rig || !rig.root.visible) return null;
       const head = rig.root.position.clone().add(new Vector3(0, rig.height + rig.body.position.y + 0.25, 0)).project(camera);
@@ -468,7 +474,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (disposed) return;
       if (lastConnectionRevision !== connectionRevision) {
         interpolation = createSnapshotInterpolation();
-        combatPreview = null;
+        combatPreview = null; movementPreview.clear();
         lastConnectionRevision = connectionRevision;
       }
       hoverSnapshot = snapshot;
@@ -620,10 +626,30 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       else cameraTarget.lerp(position, 1 - Math.exp(-delta * 12));
       const facing = forward();
       if (snapshot.combat.phase !== "preparation") combatPreview = null;
-      telegraphs.update(snapshot, combatPreview);
+
       combatEffects.update(snapshot.combat, elapsed, delta, connectionRevision);
       aggroRanges.update(snapshot);
-      combatGrid.update(snapshot, moveAiming, moveAiming && hoverPointer ? pickGround(hoverPointer.x, hoverPointer.y) : null, otherPlayers.map(p => p.player.position));
+      const hoveredTile = moveAiming && hoverPointer ? pickGround(hoverPointer.x, hoverPointer.y) : null;
+      combatGrid.update(snapshot, moveAiming, hoveredTile, otherPlayers.map(p => p.player.position));
+      const destination = hoveredTile && combatGrid.accepts(hoveredTile) ? hoveredTile : null;
+      movementPreview.update(hoverSnapshot, destination);
+      const forecast = movementPreview.forecast;
+      telegraphs.update(forecast ? { combat: { ...snapshot.combat, forecast } } : snapshot, forecast ? { kind: "destination" } : combatPreview);
+      moveOutcome.hidden = !destination || snapshot.combat.phase !== "preparation" || snapshot.combat.ready;
+      const previewData = JSON.stringify(destination ? { destination, pending: movementPreview.pending, forecast } : null);
+      if (canvas.dataset.movePreview !== previewData) canvas.dataset.movePreview = previewData;
+      if (!moveOutcome.hidden && hoverPointer) {
+        const health = forecast?.outcomes.find(outcome => outcome.id === forecast.playerId)?.health;
+        const lines = snapshot.threats.filter(t => t.active && t.health > 0 && t.aggro).map(threat => {
+          const damage = forecast?.events.filter(event => event.sourceId === threat.id && event.targetId === forecast.playerId && event.kind === "hit").reduce((sum, event) => sum + event.damage, 0) ?? 0;
+          return threat.name + " · " + (damage > 0 ? Math.ceil(damage) + " damage" : "No damage");
+        });
+        const outcomeText = movementPreview.pending ? "Checking this move…" : !forecast ? "Move preview unavailable" : "If you move here · Health " + Math.ceil(snapshot.player.health) + " → " + Math.ceil(health ?? snapshot.player.health) + "\n" + lines.join("\n");
+        if (moveOutcome.textContent !== outcomeText) moveOutcome.textContent = outcomeText;
+        const rect = host.getBoundingClientRect();
+        moveOutcome.style.left = Math.max(8, Math.min(rect.width - 290, hoverPointer.x - rect.left + 18)) + "px";
+        moveOutcome.style.top = Math.max(8, Math.min(rect.height - moveOutcome.offsetHeight - 8, hoverPointer.y - rect.top + 18)) + "px";
+      }
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
       camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
       updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position);
@@ -658,7 +684,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (disposed) return;
       disposed = true;
       clearHover();
-      tooltip.remove();
+      tooltip.remove(); moveOutcome.remove(); movementPreview.clear();
       remotePlayers.dispose();
       chatBubbles.dispose();
       combatText.dispose();

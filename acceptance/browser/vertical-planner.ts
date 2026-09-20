@@ -51,6 +51,25 @@ try {
   await page.reload(); await page.waitFor('document.body.dataset.entryRoute==="roster"');
   await page.click('#entry-enter-world');
   await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"&&document.querySelectorAll(".combat-plan-portrait[src]").length===3');
+  check(await page.evaluate(`document.querySelectorAll('#adventure-actions > button').length===12&&document.querySelectorAll('#adventure-actions > button[data-action]').length===3`), 'Twelve hotbar slots retain only Attack, Defend and Move');
+  check(await page.evaluate(`document.getElementById('experience-bar').getBoundingClientRect().top>=document.getElementById('adventure-actions').getBoundingClientRect().bottom`), 'XP remains below the hotbar');
+  const drag = await page.evaluate<{from:{x:number;y:number};to:{x:number;y:number}}>(`(()=>{const center=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};};return {from:center('#adventure-actions [data-action="strike"]'),to:center('#adventure-actions [data-action-slot="11"]')};})()`);
+  await page.call('Input.setInterceptDrags',{enabled:true});
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...drag.from,buttons:0});
+  await page.call('Input.dispatchMouseEvent',{type:'mousePressed',...drag.from,button:'left',buttons:1,clickCount:1});
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:drag.from.x+15,y:drag.from.y,button:'left',buttons:1});
+  await page.waitFor(`document.querySelector('#adventure-actions [data-action="strike"]').classList.contains('action-dragging')`);
+  for(const type of ['dragEnter','dragOver','drop']) await page.call('Input.dispatchDragEvent',{type,...drag.to,data:{items:[{mimeType:'text/plain',data:'strike'}],dragOperationsMask:16}});
+  await page.call('Input.dispatchMouseEvent',{type:'mouseReleased',...drag.to,button:'left',buttons:0,clickCount:1});
+  await page.call('Input.setInterceptDrags',{enabled:false});
+  await page.waitFor(`document.querySelector('#adventure-actions [data-action="strike"]').dataset.actionSlot==='11'`);
+  check(await page.evaluate(`JSON.parse(localStorage.getItem('greywrought/action-bar/warrior'))[11]==='strike'`), 'Dragged hotbar position is saved');
+  await page.press('Equal');
+  await page.waitFor(`window.planSnapshot.combat.queued.some(move=>move.action==='strike')`);
+  await page.click('.combat-plan-clear');
+  await page.waitFor(`window.planSnapshot.combat.queued.length===0`);
+  await page.press('Digit1');
+  check(await page.evaluate(`window.planSnapshot.combat.queued.length===0`), 'Empty hotbar slot does not activate the moved ability');
   check(await page.evaluate(`(()=>{const rows=[...document.querySelectorAll('.combat-plan-row')];return rows.length===2&&rows[0].dataset.category==='movement'&&rows[1].dataset.category==='action'&&rows[1].getBoundingClientRect().top>=rows[0].getBoundingClientRect().bottom;})()`),'One movement and one action form a vertical turn plan');
   check(await page.evaluate(`document.querySelectorAll('.combat-plan-enemy-move').length===3&&[...document.querySelectorAll('.combat-plan-enemy-name')].every(n=>n.textContent.length>2)`),'Each enemy has one named intention');
   await page.waitFor(`[...document.querySelectorAll('.combat-plan-enemy-target')].every(n=>n.textContent==='→ Mira of Frostwood')`);
@@ -93,6 +112,12 @@ try {
   await page.waitFor('document.querySelector(\'.combat-plan-enemy-move[data-threat-id="scout"][data-status="cancelled"]\')');
   check(await page.evaluate('getComputedStyle(document.querySelector(\'.combat-plan-enemy-move[data-status="cancelled"] .combat-plan-enemy-art\'),"::after").content.includes("×")'), 'Interrupted action displays a red cross');
   await page.shot('cancelled-move');
+  await page.call('Emulation.clearDeviceMetricsOverride');
+  check(await page.evaluate(`document.elementFromPoint(720,180)?.id==='world-canvas'`), 'Zoom gesture lands on the world');
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:720,y:180,buttons:0});
+  await page.call('Input.dispatchMouseEvent',{type:'mouseWheel',x:720,y:180,deltaX:0,deltaY:1000});
+  await page.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+  await page.shot('zoomed-out-hotbar');
   check(page.errors.length===0,'No browser exceptions');
   console.log('PASS queued attack target, Self, named companion and target change to You, vertical movement/action rows, identities/portraits, action replacement, pinned preview/forecast, narrow viewport, Ready and interrupted action',page.output);
 } catch(error) {await page?.shot('failure');throw error;}

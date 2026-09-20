@@ -1,4 +1,4 @@
-import type { AdventureGame, AdventureSnapshot, EncounterSession } from '../game/adventure-types.js';
+import type { AdventureGame, AdventureSnapshot, CombatForecast, EncounterSession } from '../game/adventure-types.js';
 import type { LocalCharacter } from './character-profile.js';
 import type { ClientWorldMessage, RemotePlayerView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
 import { LocalMovement, isLocomotionAction } from './local-movement.js';
@@ -37,6 +37,8 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let players: readonly RemotePlayerView[] = [], chat: readonly SharedChatMessage[] = [];
   const notices: SharedChatMessage[] = [];
   let noticeId = -1_000_000_000;
+  const previews = new Map<number, (forecast: CombatForecast | null) => void>();
+  function clearPreviews() { for (const resolve of previews.values()) resolve(null); previews.clear(); }
   let sequence = 0, closed = false, online = false, connectionRevision = 0;
   let reconnect: ReturnType<typeof setTimeout> | undefined;
   let socketGeneration = 0;
@@ -55,6 +57,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   const timeout = setTimeout(() => { if (!snapshot) { close(); readyReject(new Error('The world could not be reached.')); } }, 15000);
   function close(): void {
     if (online) send({type:'pause'});
+    clearPreviews();
     closed = true; online = false; socketGeneration++; clearTimeout(timeout); clearTimeout(handshakeTimeout); clearTimeout(livenessTimeout); clearTimeout(reconnect); socket?.close();
   }
   function send(command: WorldCommand): number | null {
@@ -79,6 +82,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       socketGeneration++;
       clearTimeout(handshakeTimeout); handshakeTimeout = undefined;
       clearTimeout(livenessTimeout); livenessTimeout = undefined;
+      clearPreviews();
       online = false; pauseRequest = null; transitionRequest = null; pendingTransition = null; pendingCamera = false;
       current.close();
       reconnect = setTimeout(open, 1000);
@@ -93,7 +97,11 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     current.onmessage = event => {
       if (closed || generation !== socketGeneration) return;
       const message = JSON.parse(String(event.data)) as ServerWorldMessage;
-      if (message.type === 'state') {
+      if (message.type === 'movePreview') {
+        previews.get(message.sequence)?.(message.forecast); previews.delete(message.sequence);
+      } else if (message.type === 'result' && !message.accepted && previews.has(message.sequence)) {
+        previews.get(message.sequence)!(null); previews.delete(message.sequence);
+      } else if (message.type === 'state') {
         if (!message.session) {
           close(); readyReject(new Error('The world is being updated. Reload to reconnect.')); return;
         }
@@ -165,6 +173,13 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     setCameraForward(x,z) { prediction.setCameraForward(x,z); if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
     selectTarget(id) { send({type:'target',id}); },
     queueBait(destination) { send({type:'bait',destination}); return online; },
+    previewBait(destination) {
+      clearPreviews();
+      return new Promise(resolve => {
+        const id = inputEnabled() ? send({type:'previewBait',destination}) : null;
+        if (id === null) resolve(null); else previews.set(id, resolve);
+      });
+    },
     readyCombat() { send({type:'ready'}); return online; },
     setActionTiming(timing) { send({type:'actionTiming',timing}); return online; },
     removeQueuedAction(id) { send({type:'remove',id}); },

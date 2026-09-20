@@ -145,8 +145,105 @@ function input(id: string): HTMLInputElement {
   return found;
 }
 function actionBar(): HTMLElement { return element("adventure-actions"); }
+function actionBarStorageKey(archetype: CharacterArchetype): string { return `greywrought/action-bar/${archetype}`; }
+function actionBarControls(): HTMLButtonElement[] {
+  return [...actionBar().querySelectorAll<HTMLButtonElement>(":scope > button")];
+}
+function normalActionBarOrder(): ActionBarEntry[] {
+  return actionBarControls().map(control => control.dataset.action as AdventureAction | undefined ?? null);
+}
+let authoredActionBarOrder: ActionBarEntry[] | null = null;
+function loadActionBarOrder(archetype: CharacterArchetype): void {
+  if (actionBarArchetype === archetype && actionBarOrder.length) return;
+  const defaults = authoredActionBarOrder ?? (authoredActionBarOrder = normalActionBarOrder());
+  let saved: unknown = null;
+  try { saved = JSON.parse(localStorage.getItem(actionBarStorageKey(archetype)) ?? "null"); } catch { /* Use the authored order when storage is unavailable. */ }
+  const allowed = new Set(defaults.filter((action): action is AdventureAction => action !== null));
+  const parsed = Array.isArray(saved) ? saved.slice(0, defaults.length).map(value => typeof value === "string" && allowed.has(value as AdventureAction) ? value as AdventureAction : null) : [];
+  const order: ActionBarEntry[] = [];
+  for (const action of parsed) order.push(action !== null && order.includes(action) ? null : action);
+  for (const action of defaults) if (action !== null && !order.includes(action)) {
+    const empty = order.indexOf(null);
+    if (empty >= 0) order[empty] = action; else order.push(action);
+  }
+  while (order.length < defaults.length) order.push(null);
+  actionBarOrder = order.slice(0, defaults.length);
+  actionBarArchetype = archetype;
+  applyActionBarOrder();
+}
+function persistActionBarOrder(): void {
+  if (!actionBarArchetype) return;
+  try { localStorage.setItem(actionBarStorageKey(actionBarArchetype), JSON.stringify(actionBarOrder)); } catch { /* The bar still works for this session. */ }
+}
+function applyActionBarOrder(): void {
+  const controls = actionBarControls();
+  const byAction = new Map<string, HTMLButtonElement>();
+  const empties: HTMLButtonElement[] = [];
+  for (const control of controls) {
+    if (control.dataset.action) byAction.set(control.dataset.action, control);
+    else empties.push(control);
+  }
+  for (const [index, action] of actionBarOrder.entries()) {
+    const control = action ? byAction.get(action) : empties.shift();
+    if (!control) continue;
+    control.dataset.actionSlot = String(index);
+    control.querySelector("kbd")!.textContent = actionBarLabels[index] ?? "";
+    if (action === null) control.setAttribute("aria-label", `Empty action slot ${actionBarLabels[index]}`);
+    actionBar().append(control);
+  }
+}
 function actionForBarCode(code: string): AdventureAction | null {
-  return code === "Digit1" ? "strike" : code === "Digit2" ? "brace" : code === "Digit3" ? "bait" : null;
+  const index = actionBarKeys.indexOf(code as typeof actionBarKeys[number]);
+  if (index < 0) return null;
+  return actionBarOrder[index] ?? null;
+}
+function resetActionBarDragState(): void {
+  for (const control of actionBarControls()) control.classList.remove("action-dragging", "action-drag-over");
+}
+function bindActionBar(): void {
+  const bar = actionBar();
+  for (const control of actionBarControls()) {
+    control.draggable = Boolean(control.dataset.action);
+    for (const image of control.querySelectorAll<HTMLImageElement>("img")) image.draggable = false;
+    if (!control.dataset.action) control.disabled = false;
+  }
+  let dragged: HTMLButtonElement | null = null;
+  listen(bar, "dragstart", event => {
+    if (!(event instanceof DragEvent) || !(event.target instanceof Element)) return;
+    const source = event.target.closest<HTMLButtonElement>("button");
+    if (!source || !bar.contains(source) || !source.dataset.action) return;
+    dragged = source;
+    event.dataTransfer?.setData("text/plain", source.dataset.action);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    source.classList.add("action-dragging");
+  });
+  listen(bar, "dragover", event => {
+    if (!(event instanceof DragEvent) || !dragged) return;
+    const target = (event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null);
+    if (!target || target === dragged) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    for (const control of actionBarControls()) control.classList.toggle("action-drag-over", control === target);
+  });
+  listen(bar, "drop", event => {
+    if (!(event instanceof DragEvent) || !dragged) return;
+    const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null;
+    if (!target || target === dragged) return;
+    event.preventDefault();
+    const from = Number(dragged.dataset.actionSlot);
+    const to = Number(target.dataset.actionSlot);
+    if (Number.isInteger(from) && Number.isInteger(to) && from !== to) {
+      const source = actionBarOrder[from] ?? null;
+      actionBarOrder[from] = actionBarOrder[to] ?? null;
+      actionBarOrder[to] = source;
+      applyActionBarOrder();
+      persistActionBarOrder();
+      suppressActionClickUntil = performance.now() + 250;
+    }
+    dragged = null;
+    resetActionBarDragState();
+  });
+  listen(bar, "dragend", () => { dragged = null; resetActionBarDragState(); });
 }
 function text(id: string, value: string): void {
   const target = element(id);
@@ -164,6 +261,12 @@ const keyActions: Readonly<Record<string, AdventureAction>> = {
   KeyG: "gather", KeyR: "ritual",
   KeyF: "interact", KeyT: "rest", Tab: "target",
 };
+const actionBarKeys = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9", "Digit0", "Minus", "Equal"] as const;
+const actionBarLabels = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "="] as const;
+type ActionBarEntry = AdventureAction | null;
+let actionBarOrder: ActionBarEntry[] = [];
+let actionBarArchetype: CharacterArchetype | null = null;
+let suppressActionClickUntil = 0;
 let baitAiming = false;
 let moveAimError = "";
 const resumeKey = "greywrought/adventure-active-character";
@@ -565,6 +668,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
     else clock.setAttribute('datetime', new Date(minute * 60_000).toISOString());
   }
   const { player } = snapshot;
+  loadActionBarOrder(player.archetype);
   const data = document.body.dataset;
   data.gamePhase = snapshot.phase;
   data.gamePlayerX = String(player.position.x); data.gamePlayerY = String(player.position.y); data.gamePlayerZ = String(player.position.z);
@@ -754,7 +858,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     const game = await connectAdventure(character);
     if (game.snapshot.phase === "lost") { game.close(); showFallenCharacter(character); return; }
     audio.reset();
-    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); });
+    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); }, destination => game.previewBait(destination));
     world.setAggroRangesVisible(aggroRangesVisible);
     world.updateChat(game.chat, character.id);
     const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false };
@@ -874,9 +978,11 @@ for (const target of [element("map-threats"), element("enemy-intents")]) listen(
   if (id) { running.game.selectTarget(id); running.world.canvas.focus(); }
 });
 for (const control of document.querySelectorAll<HTMLElement>("[data-action]")) listen(control, "click", () => {
+  if (performance.now() < suppressActionClickUntil) return;
   const action = control.dataset.action;
   if (action && ["strike", "brace", "bait", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
 });
+bindActionBar();
 listen(window, "click", (event) => {
   if (menuOpen() && event.target instanceof Element && !event.target.closest('#pause-panel, #pause-open, #pause-toggle')) { event.preventDefault(); event.stopImmediatePropagation(); }
 }, removers, true);

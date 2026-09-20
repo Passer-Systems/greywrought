@@ -56,3 +56,12 @@ test("a queued move only previews the local player's matching action", () => {
   expect(canvas.dataset.telegraphs).toBe("[]");
   telegraphs.dispose();
 });
+
+test("destination hover displays enemy tracking and player paths together", () => {
+  const { canvas, telegraphs } = setup();
+  telegraphs.update({ combat }, { kind: "destination" });
+  const paths = JSON.parse(canvas.dataset.telegraphs!);
+  expect(paths.map((path: { actorId: string }) => path.actorId)).toEqual(["scout", "patrol", "self", "other"]);
+  expect(paths.every((path: { previewKind: string }) => path.previewKind === "destination")).toBe(true);
+  telegraphs.dispose();
+});
