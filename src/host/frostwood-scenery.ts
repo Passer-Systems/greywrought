@@ -1,11 +1,14 @@
-import { Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Sprite, SpriteMaterial } from "three";
+import { Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Sprite, SpriteMaterial } from "three";
+import type { Position } from "../game/adventure-types.js";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
 
-export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onPlace?: (root: Group, name: string) => boolean): Promise<(coolingRestored: boolean, shiftEnded: boolean) => void> {
+export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onPlace?: (root: Group, name: string) => boolean): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3) => void> {
   const jobs: Promise<void>[] = [];
   const coolingMaterials: MeshStandardMaterial[] = [];
   const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
+  const buildings: { root: Group; bounds: Box3 }[] = [];
+  const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
   function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0, footprint?: readonly [number, number]) {
     jobs.push(prop(name, size, axis).then(model => {
       model.position.set(x, y, z); model.rotation.y = rotation;
@@ -27,7 +30,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       });
       const interactive = onPlace?.(model, name);
       model.updateWorldMatrix(true, true);
-      if (!interactive) model.traverse(object => {
+      if (footprint) buildings.push({ root: model, bounds: new Box3().setFromObject(model).expandByScalar(.5) });
+      if (!interactive && !footprint) model.traverse(object => {
         if (!(object instanceof Mesh)) return;
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         // Keep transparent sorting and independently changing surfaces intact.
@@ -199,7 +203,15 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     instances.computeBoundingSphere();
     parent.add(instances);
   }
-  return (coolingRestored, shiftEnded) => {
+  return (coolingRestored, shiftEnded, player, camera) => {
+    sightline.origin.set(player.x, player.y + 1, player.z);
+    cameraDirection.subVectors(camera, sightline.origin);
+    const cameraDistance = cameraDirection.length();
+    sightline.direction.copy(cameraDirection).normalize();
+    for (const building of buildings) {
+      const hit = sightline.intersectBox(building.bounds, intersection);
+      building.root.visible = !hit || sightline.origin.distanceTo(hit) > cameraDistance;
+    }
     for (const material of coolingMaterials) {
       material.emissive.setHex(coolingRestored ? 0x55d9fa : 0x000000);
       material.emissiveIntensity = coolingRestored ? 1.1 : 0;

@@ -296,7 +296,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const playSocialAnimation = createSocialAnimation();
   let disposed = false;
   let otherPlayers: readonly RemotePlayerView[] = [];
-  let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean) => void) | undefined;
+  let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3) => void) | undefined;
   let elapsed = 0;
   let yaw = 0;
   let pitch = 0.48;
@@ -538,7 +538,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       coreRoot.visible = snapshot.resourceRemaining > 0;
       const coolingRestored = snapshot.quests.some(quest => quest.id === "cold-hands" && quest.status === "completed");
       const shiftEnded = snapshot.quests.some(quest => quest.id === "last-shift" && quest.status === "completed");
-      updateScenery?.(coolingRestored, shiftEnded);
       canvas.dataset.coolingRestored = String(coolingRestored);
       canvas.dataset.shiftEnded = String(shiftEnded);
       for (const threat of snapshot.threats) {
@@ -647,6 +646,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       aggroRanges.update(snapshot);
       camera.position.set(cameraTarget.x - facing.x * Math.cos(pitch) * distance, cameraTarget.y + Math.sin(pitch) * distance, cameraTarget.z - facing.z * Math.cos(pitch) * distance);
       camera.lookAt(cameraTarget.x, cameraTarget.y + 0.6, cameraTarget.z);
+      updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position);
       updateCave(snapshot.player.position, camera.position);
       renderer.render(scene, camera);
       updateHover();
