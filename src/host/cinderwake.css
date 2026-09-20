@@ -1869,8 +1869,8 @@ button { cursor: pointer !important; }
 .adventure-objective p { font-size: var(--ui-font-body); line-height: 1.5; color: #c8d3d3; }
 #cargo-summary { border-top: 1px solid #b79a674f; padding-top: 10px; white-space: pre-line; line-height: 1.8; font-size: var(--ui-font-body); color: #f3d59d; }
 .adventure-map { position:relative; flex:none; width:208px; margin:8px 9px 4px; pointer-events:auto; filter:drop-shadow(0 3px 4px #0009); }
-#map-field { width:100%; aspect-ratio:1; box-sizing:border-box; position:relative; overflow:hidden; border-radius:50%; background:#526342; border:5px ridge #a88c51; box-shadow:0 0 0 1px #15140e,0 0 0 3px #665235,inset 0 0 20px #121811; }
-#map-field::after { content:""; position:absolute; inset:0; z-index:4; border-radius:50%; box-shadow:inset 0 0 16px 3px #10180e99; pointer-events:none; }
+#map-field { width:100%; aspect-ratio:1; box-sizing:border-box; position:relative; overflow:hidden; border-radius:0; background:#526342; border:5px ridge #a88c51; box-shadow:0 0 0 1px #15140e,0 0 0 3px #665235,inset 0 0 20px #121811; }
+#map-field::after { content:""; position:absolute; inset:0; z-index:4; border-radius:0; box-shadow:inset 0 0 16px 3px #10180e99; pointer-events:none; }
 #map-clock { position:relative; z-index:5; display:block; width:58px; margin:-4px auto 0; padding:3px 7px; border:3px ridge #aa8c50; border-radius:3px; background:#171b13; color:#eee5c5; font:600 var(--ui-font-small)/15px Georgia,serif; font-variant-numeric:tabular-nums; text-align:center; box-shadow:0 0 0 1px #15140e; }
 #map-terrain { position:absolute; inset:0; width:100%; height:100%; }
 .map-compass { position:absolute; top:0; left:50%; transform:translateX(-50%); z-index:5; color:#f4d580; font:700 15px/1 Georgia,serif; text-shadow:0 1px 2px #000,1px 0 2px #000; }
