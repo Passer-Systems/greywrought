@@ -157,15 +157,15 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     preparation: "Tucking into its shell", intention: "Shell nudge", damage: 3, reach: 1.5,
     benefit: "A peaceful turtle gliding through the lake." },
   { id: "meadow-rabbit", level: 1, disposition: "neutral", aggroRange: 0, leash: 14, speed: 1.35, pursuitSpeed: 2.2,
-    name: "Meadow hare", position: point(8, 13), health: 24,
+    name: "Meadow rat", position: point(8, 13), health: 24,
     patrol: [point(5, 12), point(9, 15), point(13, 12), point(9, 10)],
     preparation: "Watching the grass", intention: "Hop away", damage: 2, reach: 1.2,
-    benefit: "A harmless golden hare foraging at the woodland edge." },
+    benefit: "A harmless little rat foraging at the woodland edge." },
   { id: "meadow-rabbit-2", level: 1, disposition: "neutral", aggroRange: 0, leash: 14, speed: 1.2, pursuitSpeed: 2,
-    name: "Field hare", position: point(-12, 18), health: 24,
+    name: "Field rat", position: point(-12, 18), health: 24,
     patrol: [point(-15, 17), point(-11, 20), point(-8, 17), point(-11, 15)],
     preparation: "Nibbling clover", intention: "Hop away", damage: 2, reach: 1.2,
-    benefit: "A harmless golden hare foraging in the meadow." },
+    benefit: "A harmless little rat foraging in the meadow." },
 ];
 const IRONBACK_CHEST_ID = "ironback-chest";
 const IRONBACK_CHEST_POSITION = point(78, -52);
