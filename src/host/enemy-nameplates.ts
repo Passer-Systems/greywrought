@@ -1,3 +1,4 @@
+import { setAttribute, setDataset, setText as write } from "./dom-updates.js";
 import type { AdventureSnapshot, ThreatView } from "../game/adventure-types.js";
 import type { AdventureWorld } from "./adventure-world.js";
 import { COMBAT_RULES } from "../game/adventure.js";
@@ -13,7 +14,6 @@ interface Plate {
 function span(className: string, parent: HTMLElement): HTMLSpanElement {
   const node = document.createElement("span"); node.className = className; parent.append(node); return node;
 }
-function write(node: HTMLElement, value: string): void { if (node.textContent !== value) node.textContent = value; }
 
 export function createEnemyCastBar(parent: HTMLElement, id: string) {
   const root = document.createElement("button"); root.type = "button"; root.className = "enemy-cast-bar"; root.hidden = true;
@@ -34,7 +34,8 @@ export function createEnemyCastBar(parent: HTMLElement, id: string) {
     root, tooltip,
     render(threat: ThreatView, snapshot: AdventureSnapshot, audience?: RangeAudience) {
       const cast = threat.cast;
-      root.hidden = snapshot.combat.phase !== "active" || !cast || cast.status !== "casting" || !threat.active || !threat.aggro || threat.health <= 0;
+      const hidden = snapshot.combat.phase !== "active" || !cast || cast.status !== "casting" || !threat.active || !threat.aggro || threat.health <= 0;
+      if (root.hidden !== hidden) root.hidden = hidden;
       if (root.hidden || !cast) return;
       const { ability } = cast;
       const seconds = Math.max(0, cast.remainingSeconds);
@@ -47,16 +48,16 @@ export function createEnemyCastBar(parent: HTMLElement, id: string) {
       const time = seconds.toFixed(1) + "s";
       write(clock, time);
       fill.style.width = (progress * 100) + "%";
-      track.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
-      track.setAttribute("aria-label", ability.name);
-      track.setAttribute("aria-valuetext", time + " remaining");
-      root.dataset.remaining = String(seconds); root.dataset.duration = String(cast.duration);
+      setAttribute(track, "aria-valuenow", String(Math.round(progress * 100)));
+      setAttribute(track, "aria-label", ability.name);
+      setAttribute(track, "aria-valuetext", time + " remaining");
+      setDataset(root.dataset, { remaining: String(seconds), duration: String(cast.duration) });
       const range = enemyRange(snapshot, threat, ability, audience);
-      root.dataset.range = range.state;
+      setDataset(root.dataset, { range: range.state });
       const facts = [ability.damage > 0 ? ability.damage + " damage" : "Power / defense", ability.damage <= 0 ? "Self" : ability.id === "maul" ? COMBAT_RULES.wolf.lungeDistance + " m leap · " + ability.range + " m impact radius" : ability.range + " m range"];
       const response = [enemyResponseLabel(ability.id), enemyResponse(ability.id)].filter(Boolean).join(" · ");
       write(tooltip, [ability.name, facts.join(" · "), response, ability.description, "Casts in " + time + ".", range.text].filter(Boolean).join("\n"));
-      root.setAttribute("aria-label", ability.name + ", " + time + " remaining." + (response ? " " + response : ""));
+      setAttribute(root, "aria-label", ability.name + ", " + time + " remaining." + (response ? " " + response : ""));
     },
   };
 }
@@ -92,14 +93,15 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         const encounter = document.getElementById('encounter-status');
         encounterBounds = encounter && !encounter.hidden ? encounter.getBoundingClientRect() : null;
       }
-      const visible = snapshot.threats.map(threat => ({ threat, anchor: world.projectThreat(threat.id) })).filter(({ threat, anchor }) =>
-        anchor && threat.active && threat.health > 0 && Math.hypot(threat.position.x - snapshot.player.position.x, threat.position.z - snapshot.player.position.z) < 18);
+      const visible = snapshot.threats.filter(threat => threat.active && threat.health > 0 &&
+        Math.hypot(threat.position.x - snapshot.player.position.x, threat.position.z - snapshot.player.position.z) < 18)
+        .map(threat => ({ threat, anchor: world.projectThreat(threat.id) })).filter(({ anchor }) => anchor);
       const visibleIds = new Set(visible.map(({ threat }) => threat.id));
-      for (const threat of snapshot.threats) if (!visibleIds.has(threat.id)) world.setThreatNameplateVisible(threat.id, false);
+      const measure: Plate[] = [];
       if (refresh) for (const threat of snapshot.threats) {
         const plate = plates.get(threat.id); if (!plate) continue;
-        plate.root.hidden = !visibleIds.has(threat.id);
-        Object.assign(plate.root.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), damage: String(threat.damage), actionSequence: String(threat.actionSequence), disposition: threat.disposition, aggro: String(threat.aggro), worldX: String(threat.position.x), worldZ: String(threat.position.z), staggered: String(threat.staggered), moving: String(threat.moving), currentAbility: threat.currentAbility.id, lastActionHit: String(threat.lastActionHit), movementMode: threat.movementMode, motionProgress: String(threat.motionProgress), nextAttackSeconds: String(threat.nextAttackSeconds), worldY: String(threat.position.y), targetX: String(threat.targetPosition.x), targetZ: String(threat.targetPosition.z), originX: String(threat.attackOrigin.x), originZ: String(threat.attackOrigin.z), block: String(threat.block), volley: String(threat.volley), projectileCount: String(threat.fireballs.length), cast: JSON.stringify(threat.cast && { id: threat.cast.ability.id, seconds: threat.cast.remainingSeconds, duration: threat.cast.duration }) });
+        if (!visibleIds.has(threat.id) && !plate.root.hidden) plate.root.hidden = true;
+        setDataset(plate.root.dataset, { phase: threat.phase, health: String(threat.health), remaining: String(threat.remainingSeconds), damage: String(threat.damage), actionSequence: String(threat.actionSequence), disposition: threat.disposition, aggro: String(threat.aggro), worldX: String(threat.position.x), worldZ: String(threat.position.z), staggered: String(threat.staggered), moving: String(threat.moving), currentAbility: threat.currentAbility.id, lastActionHit: String(threat.lastActionHit), movementMode: threat.movementMode, motionProgress: String(threat.motionProgress), nextAttackSeconds: String(threat.nextAttackSeconds), worldY: String(threat.position.y), targetX: String(threat.targetPosition.x), targetZ: String(threat.targetPosition.z), originX: String(threat.attackOrigin.x), originZ: String(threat.attackOrigin.z), block: String(threat.block), volley: String(threat.volley), projectileCount: String(threat.fireballs.length), cast: JSON.stringify(threat.cast && { id: threat.cast.ability.id, seconds: threat.cast.remainingSeconds, duration: threat.cast.duration }) });
       }
       for (const { threat, anchor } of visible) {
         const plate = plates.get(threat.id); if (!plate || !anchor) continue;
@@ -107,21 +109,30 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         const updateContent = refresh || root.hidden;
         if (root.hidden) root.hidden = false;
         if (updateContent) {
-          Object.assign(root.dataset, { phase: threat.phase, selected: String(threat.selected), disposition: threat.disposition, aggro: String(threat.aggro), hostile: String(threat.disposition === "hostile" || threat.aggro) });
-          plate.target.setAttribute("aria-pressed", String(threat.selected));
-          plate.target.setAttribute("aria-label", "Target " + threat.name + ". " + Math.ceil(threat.health) + " of " + threat.maximumHealth + " health. " + threat.benefit);
+          setDataset(root.dataset, { phase: threat.phase, selected: String(threat.selected), disposition: threat.disposition, aggro: String(threat.aggro), hostile: String(threat.disposition === "hostile" || threat.aggro) });
+          setAttribute(plate.target, "aria-pressed", String(threat.selected));
+          setAttribute(plate.target, "aria-label", "Target " + threat.name + ". " + Math.ceil(threat.health) + " of " + threat.maximumHealth + " health. " + threat.benefit);
           write(plate.health, Math.ceil(threat.health) + " (" + Math.round(100*threat.health/threat.maximumHealth) + "%)");
           write(plate.level, String(threat.level));
-          plate.shield.hidden = threat.block <= 0;
-          write(plate.shield, "⛨ " + threat.block); plate.shield.title = threat.block + " block · " + threat.blockSeconds.toFixed(1) + "s";
+          if (plate.shield.hidden !== (threat.block <= 0)) plate.shield.hidden = threat.block <= 0;
+          write(plate.shield, "⛨ " + threat.block); setAttribute(plate.shield, "title", threat.block + " block · " + threat.blockSeconds.toFixed(1) + "s");
           plate.healthFill.style.width = (100 * threat.health / threat.maximumHealth) + "%";
           plate.cast.render(threat, snapshot, audience);
           write(plate.status, threat.staggered ? "Staggered" : threat.phase === "returning" ? "↶" : threat.disposition === "neutral" && !threat.aggro ? "\u25C7" : "\u25C6");
-          plate.status.title = threat.staggered ? "Attack interrupted" : threat.phase === "returning" ? "Returning home · recovering" : threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile";
+          setAttribute(plate.status, "title", threat.staggered ? "Attack interrupted" : threat.phase === "returning" ? "Returning home · recovering" : threat.disposition === "neutral" && !threat.aggro ? "Neutral until attacked" : "Hostile");
 
-          plate.width = root.offsetWidth; plate.height = root.offsetHeight;
+          measure.push(plate);
         }
-        const { width, height } = plate;
+      }
+      // Finish every content write before measuring. Interleaving these reads
+      // with the next plate's writes forces a separate layout for each enemy.
+      for (const plate of measure) {
+        plate.width = plate.root.offsetWidth; plate.height = plate.root.offsetHeight;
+      }
+      for (const threat of snapshot.threats) if (!visibleIds.has(threat.id)) world.setThreatNameplateVisible(threat.id, false);
+      for (const { threat, anchor } of visible) {
+        const plate = plates.get(threat.id); if (!plate || !anchor) continue;
+        const { root, width, height } = plate;
         const x = Math.max(8, Math.min(bounds.width - width - 8, anchor.x - width / 2));
         let y = Math.max(4, Math.min(bounds.height - height - 4, anchor.y - height - 10));
         if (encounterBounds && x < encounterBounds.right && x + width > encounterBounds.left && y < encounterBounds.bottom && y + height > encounterBounds.top) y = encounterBounds.bottom + 6;
@@ -129,7 +140,7 @@ export function createEnemyNameplates(host: HTMLElement, snapshot: AdventureSnap
         world.setThreatNameplateVisible(threat.id, fitsViewport);
         root.style.visibility = fitsViewport ? "visible" : "hidden";
         root.style.transform = `translate(${x}px, ${y}px)`;
-        root.dataset.tooltipBelow = String(y < 140);
+        setDataset(root.dataset, { tooltipBelow: String(y < 140) });
         plate.cast.tooltip.style.left = `${Math.max(8 - x, Math.min(width / 2 - 120, bounds.width - 248 - x))}px`;
       }
     },
