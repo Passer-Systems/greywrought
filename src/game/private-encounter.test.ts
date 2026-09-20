@@ -336,7 +336,7 @@ describe("private paused encounters", () => {
 });
 
 describe('party encounter cohorts', () => {
-  test('members share one paused world, advance once, restore together, and return to individual origins', () => {
+  test('members share one paused world, advance once, restore together, and rejoin at their current positions', () => {
     const seed = createSharedAdventure({ now: () => 1000 });
     seed.join('alice', 'Alice', 'mage'); seed.join('bob', 'Bob', 'warrior'); seed.join('observer', 'Observer', 'hunter');
     const saved = JSON.parse(seed.save());
@@ -359,6 +359,7 @@ describe('party encounter cohorts', () => {
     expect(observer.snapshot.player.position.z).toBeCloseTo(-6.8, 5);
     expect(world.pause('bob')).toBe(true);
     const frozen = alice.snapshot.player.position;
+    const destinations = [frozen, bob.snapshot.player.position];
     world.advance(.5);
     expect(alice.snapshot.player.position).toEqual(frozen);
     expect(world.session('alice').mode).toBe('paused');
@@ -369,8 +370,10 @@ describe('party encounter cohorts', () => {
     expect(restored.resume('alice')).toBe(true);
     expect(restored.players(sessionId).map(player => player.id)).toEqual(['alice']);
     expect(restored.rejoin('alice')).toBe(true);
-    expect(returned.snapshot.player.position).toEqual(origins[0]!);
-    expect(restored.getPlayer('bob')!.snapshot.player.position).toEqual(origins[1]!);
+    expect(returned.snapshot.player.position).toEqual(destinations[0]!);
+    expect(restored.getPlayer('bob')!.snapshot.player.position).toEqual(destinations[1]!);
+    expect(returned.snapshot.player.position).not.toEqual(origins[0]!);
+    expect(restored.getPlayer('bob')!.snapshot.player.position).not.toEqual(origins[1]!);
     expect(restored.session('bob').mode).toBe('shared');
     expect(restored.players().map(player => player.id)).toEqual(['alice']);
     restored.join('bob', 'Bob', 'warrior');

@@ -501,7 +501,8 @@ normally when its browser tab stops rendering.
 The copy grants no loot, resources, experience or quest progress. Carried
 potions may be used and equipment changed while playing; health loss, death and
 spent supplies persist. Death still ends the character's life. Finish the fight
-or retreat, then choose Rejoin main world in the top bar to return near the original pause location.
+or retreat, then choose Rejoin main world in the top bar to return at your current location.
+Each party member keeps their own position when the group rejoins.
 Rejoining carries the character's current condition back without merging enemy
 deaths or replenishing health. It does not silently resume the shared world.
 

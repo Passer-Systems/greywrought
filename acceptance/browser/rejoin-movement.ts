@@ -37,13 +37,20 @@ try {
   await page.waitFor('document.body.dataset.encounterMode === "paused"');
   await page.click('#pause-resume');
   await page.waitFor('document.body.dataset.encounterMode === "private"');
+  const forkPosition = await page.evaluate<AdventureSnapshot['player']['position']>('window.lastState.snapshot.player.position');
+  await page.key('KeyS', true);
+  await Bun.sleep(1000);
+  await page.key('KeyS', false);
   // Accumulate enough old frame numbers to expose reuse after the server resets.
-  await Bun.sleep(5000);
+  await Bun.sleep(4000);
+  const exitPosition = await page.evaluate<AdventureSnapshot['player']['position']>('window.lastState.snapshot.player.position');
+  check(Math.hypot(exitPosition.x - forkPosition.x, exitPosition.z - forkPosition.z) > 1, 'Private travel must leave the fork location');
   console.log('Before rejoin', await page.evaluate('window.lastState.movement'));
   await page.click('#encounter-rejoin');
   check(await page.evaluate('document.getElementById("pause-panel").hidden'), 'Rejoining must keep the pause menu closed');
   await page.waitFor('document.body.dataset.encounterMode === "shared"');
   const start = await page.evaluate<AdventureSnapshot['player']['position']>('window.lastState.snapshot.player.position');
+  check(Math.hypot(start.x - exitPosition.x, start.y - exitPosition.y, start.z - exitPosition.z) < .001, 'Rejoin keeps the current position instead of returning to the fork location');
   await page.key('KeyS', true);
   await Bun.sleep(1000);
   await page.key('KeyS', false);
@@ -53,7 +60,7 @@ try {
   check(Math.hypot(end.x - start.x, end.z - start.z) > 1, 'Movement stalled after delayed rejoin');
   await Bun.sleep(400);
   check(await page.evaluate('document.body.dataset.rigAnimationMode === "idle"'), 'Animation stops after release');
-  console.log('PASS delayed rejoin movement', page.output);
+  console.log('PASS current-position rejoin and movement after delayed rejoin', page.output);
 } finally {
   await page?.close();
   server.kill();

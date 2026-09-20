@@ -418,11 +418,8 @@ class Adventure implements AdventureGame {
       if (!privateContext || !privateContext.online.has(id) || privateContext.characters.get(id)!.state.health <= 0
         || [...privateContext.characters.values()].some(game => game.state.health > 0 && game.inCombat())) return false;
       for (const [memberId, game] of privateContext.characters) {
-        const origin = privateContext.origins.get(memberId) ?? game.state.position;
         game.shared = context; game.state.world = context.world; game.state.combat = newCombat(context.clock);
-        const destination = point(origin.x, origin.z);
-        if (!game.blocked(destination.x, destination.z)) game.state.position = destination;
-        game.state.verticalSpeed = 0; game.state.maneuver = null;
+        game.state.maneuver = null;
         game.state.phase = game.state.health <= 0 ? 'lost' : inTown(game.state.position) ? 'town' : 'expedition';
         clearInputs(game); sessions.delete(memberId); context.characters.set(memberId, game);
         if (privateContext.online.has(memberId)) context.online.set(memberId, game);

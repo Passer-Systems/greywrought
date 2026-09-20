@@ -140,7 +140,7 @@ try {
   await page.waitFor('document.body.dataset.encounterMode==="shared"');
   const rejoined = await page.evaluate<State>('window.encounterState');
   check(rejoined.snapshot.potions === frozen.snapshot.potions && rejoined.snapshot.player.health === finished.snapshot.player.health, 'Rejoin must retain inventory and remaining health');
-  check(Math.hypot(rejoined.snapshot.player.position.x-frozen.snapshot.player.position.x,rejoined.snapshot.player.position.z-frozen.snapshot.player.position.z)<3, 'Rejoin must return near original position');
+  check(Math.hypot(rejoined.snapshot.player.position.x-finished.snapshot.player.position.x,rejoined.snapshot.player.position.z-finished.snapshot.player.position.z)<.001, 'Rejoin must preserve the position where combat finished');
   check(rejoined.snapshot.threats.find(t=>t.id==='scout')!.health > 0, 'Private kill cannot kill the main-world enemy');
   check(rejoined.players.some(p=>p.id===observer.id), 'Rejoin restores main-world visibility');
   const oldPosition = rejoined.snapshot.player.position;
