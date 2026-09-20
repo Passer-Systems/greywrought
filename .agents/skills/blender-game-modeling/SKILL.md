@@ -36,7 +36,9 @@ Use editable color attributes or UV textures according to the required detail an
 
 ## Rigging and motion when applicable
 
-Static assets need no dummy rig. Choose anatomy and articulation appropriate to the subject; a humanoid skeleton is not a universal template.
+Game characters are rigged and animated deliverables unless the user explicitly requests a static model. Static props and environments need no dummy rig. Choose anatomy and articulation appropriate to the subject; a humanoid skeleton is not a universal template.
+
+Derive character animations from suitable known examples in the local Quaternius source files. Inspect their rigs and clips before choosing a skeleton; reuse or retarget authored motion, preserving source timing and attribution. Author new motion only for required actions without a suitable source example, and identify those gaps explicitly.
 
 Keep rigid parts attached to the correct joints and skin flexible surfaces deliberately. Verify full bind transforms and known poses before expanding the animation library. Use explicit weight and attachment data instead of inferring behavior from component names.
 
@@ -49,6 +51,8 @@ Read [Blender and export mechanics](references/blender-pipeline.md) for graphics
 Use the editable source for inspection and derive the required game export from deliberately chosen topology. Do not create a second detailed export merely for review. For thin layered surfaces, reducing subdivision and small bevels on authored cages may preserve shape better than automatic collapse. For dense organic or solid forms, retopology or validated decimation may be appropriate.
 
 Inspect the actual reduced export at close range and normal viewing distance. Verify geometry, normals, scale, orientation, grounding, materials, and applicable skin/animation data in the target renderer. Numerical checks cannot detect every damaged silhouette, intersection, or awkward deformation.
+
+A character is complete only when the editable source and final export include the rig and required clips, every required motion has been visually checked in the target renderer, and forms, joins, cloth, and material detail meet the brief and established project examples. Successful export, polygon counts, and automated checks do not establish that visual standard; unresolved gaps mean the delivery is incomplete.
 
 If integration is requested, complete asset routing, consumer configuration, and a real use-case journey. Preserve unrelated behavior and persistent identities. Check final package and runtime budgets; file size alone is not a performance test.
 
