@@ -13,9 +13,9 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const occluders: { root: Group; bounds: Box3 }[] = [];
   const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
   let resolvedCameraDistance = Number.POSITIVE_INFINITY;
-  function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0, footprint?: readonly [number, number]) {
+  function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0, footprint?: readonly [number, number], tilt = 0, lean = 0) {
     jobs.push(prop(name, size, axis).then(model => {
-      model.position.set(x, terrainHeight(x,z) + y, z); model.rotation.y = rotation;
+      model.position.set(x, terrainHeight(x,z) + y, z); model.rotation.set(tilt, rotation, lean);
       if (footprint) {
         const bounds = new Box3().setFromObject(model).getSize(new Vector3());
         const sideways = Math.abs(Math.sin(rotation)) > 0.5;
@@ -52,6 +52,11 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       // Scenery never moves; actors and effects retain their animated transforms.
       model.traverse(object => { object.matrixAutoUpdate = false; object.matrixWorldAutoUpdate = false; });
     }));
+  }
+  // Damaged trees use the authored Quaternius dead-tree silhouette. A horizontal
+  // placement reads as a fallen trunk while retaining the low-poly bark detail.
+  function fallenTree(x: number, z: number, length: number, rotation: number, y = .12) {
+    place('nature/DeadTree_2', x, z, length, rotation, terrain, 'height', y, undefined, Math.PI / 2, 0.04 * Math.sin(x * 1.7 + z));
   }
   function torch(x: number, z: number, height = 2.4) {
     place("WoodenTorch_Fire",x,z,height);
@@ -219,7 +224,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       const angle=tree*2.4+seed, radius=tree===0?0:2.5+noise(seed*12+tree)*3;
       const px=x+Math.cos(angle)*radius,pz=z+Math.sin(angle)*radius;
       if(!clearOfPatrols(px,pz,7))continue;
-      const name=(seed+tree)%3===0?'nature/Pine_5':'nature/CommonTree_2';
+      const name=(seed+tree)%4===0?'nature/Pine_5':(seed+tree)%4===1?'nature/TwistedTree_2':'nature/CommonTree_2';
       place(name,px,pz,5.3+noise(seed*23+tree)*3.8,angle);
       for(let plant=0;plant<3;plant++) {
         const a=angle+plant*2.1;
@@ -246,8 +251,27 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       place(plant%2?'nature/Fern_1':'nature/Mushroom_Common',x!+Math.cos(angle)*2,z!+Math.sin(angle)*2,plant%2?.65:.24,angle);
     }
   }
+  // Small outcrop accents use the authored rock mesh at restrained scales;
+  // scale and rotation variation keeps the shelves from reading as repeats.
+  for (const [x, z, size, rotation] of [
+    [-36, 31, 1.15, .4], [-34, 35, .75, 1.2], [-32, 61, 1.35, 2.4],
+    [-18, 67, .8, -.8], [28, 34, 1.05, 1.7], [31, 54, .7, -.2], [25, 72, 1.25, 2.1],
+  ] as const) place('nature/Rock_Medium_3', x, z, size, rotation, terrain, 'width');
   place('nature/TwistedTree_2',-30,54,6.4,1.1);
   place('nature/DeadTree_2',-14,59,4.8,2.4);
+  // Windfall and snapped trunks break up the otherwise uniform northern woods.
+  // Their clearings sit outside patrol aprons, so the new silhouettes never hide
+  // a combatant or block the approach routes.
+  for (const [x, z, size, rotation] of [
+    [-25, 30, 4.8, .35], [-27, 51, 5.4, 2.1], [26, 41, 4.6, 1.3], [21, 59, 5.2, -.6],
+  ] as const) fallenTree(x, z, size, rotation);
+  for (const [x, z, size, rotation] of [
+    [-24, 28, 4.2, .2], [-29, 43, 5.1, 1.8], [27, 46, 4.7, -.4], [19, 68, 5.3, 2.6],
+  ] as const) {
+    place('nature/DeadTree_2', x, z, size, rotation);
+    // A short companion stump gives the broken trunk a readable base.
+    place('nature/DeadTree_2', x + Math.cos(rotation) * .9, z + Math.sin(rotation) * .9, 1.35, rotation + .5);
+  }
   // Small plant drifts soften the road without becoming rows or hiding attack warnings.
   for(const [x,z] of [[-6,12],[6,16],[-8,22],[7,34],[-8,37],[-7,52],[8,55],[-5,63]]) {
     for(let plant=0;plant<7;plant++) {
@@ -255,6 +279,18 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       const px=x!+Math.cos(angle)*radius,pz=z!+Math.sin(angle)*radius;
       if(!clearOfPatrols(px,pz,5)) continue;
       place(plant%3===0?'nature/Fern_1':'nature/Grass_Common_Short',px,pz,plant%3===0?.45:.2,angle);
+    }
+  }
+  // Woodland floor cover is clustered around edges rather than painted across
+  // roads and combat pads.
+  for (const [x, z, seed] of [[-19,18,2],[-23,25,4],[-35,42,7],[-25,67,9],[20,37,12],[29,45,15],[24,63,18]] as const) {
+    for (let plant = 0; plant < 9; plant++) {
+      const angle = plant * 2.399 + seed;
+      const radius = .45 + Math.sqrt(plant) * .52;
+      const px = x + Math.cos(angle) * radius, pz = z + Math.sin(angle) * radius;
+      if (!clearOfPatrols(px, pz, 6)) continue;
+      place(plant % 4 === 0 ? 'nature/Fern_1' : 'nature/Grass_Common_Short', px, pz,
+        plant % 4 === 0 ? .48 + noise(seed + plant) * .15 : .17 + noise(seed * 3 + plant) * .1, angle);
     }
   }
   // This briar island is the existing solid boundary; useful old machinery sits within it.
