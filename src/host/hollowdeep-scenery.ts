@@ -1,4 +1,4 @@
-import { Box3, CanvasTexture, Group, Mesh, MeshStandardMaterial, PointLight, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, type Object3D } from 'three';
+import { Box3, CanvasTexture, Group, Mesh, MeshStandardMaterial, PointLight, RepeatWrapping, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, type Object3D } from 'three';
 import { CAVE_BARRIERS, inCave, terrainHeight } from '../game/cave-layout.js';
 import type { Position } from '../game/adventure-types.js';
 import { prop } from './frostwood-assets.js';
@@ -13,7 +13,17 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
       model.position.set(x,terrainHeight(x,z)+lift,z); model.rotation.y=rotation; parent.add(model);
     }));
   }
-  const floor = new Mesh(caveFloorGeometry(), new MeshStandardMaterial({ color: 0x71675a, roughness: 1 }));
+  const stone = document.createElement('canvas'); stone.width=stone.height=128;
+  const stoneContext=stone.getContext('2d')!;
+  stoneContext.fillStyle='#766f61'; stoneContext.fillRect(0,0,128,128);
+  for(let index=0;index<450;index++) {
+    const x=(Math.sin(index*127.1)*43758.5453)%128, z=(Math.sin(index*269.5)*19234.324)%128;
+    stoneContext.fillStyle=index%3 ? '#827b6b' : '#5f5b53';
+    stoneContext.fillRect(Math.abs(x),Math.abs(z),2+index%4,1+index%3);
+  }
+  const stoneMap=new CanvasTexture(stone); stoneMap.colorSpace=SRGBColorSpace;
+  stoneMap.wrapS=stoneMap.wrapT=RepeatWrapping; stoneMap.repeat.set(2,2);
+  const floor = new Mesh(caveFloorGeometry(), new MeshStandardMaterial({ map:stoneMap, roughness: 1 }));
   floor.userData.walkableGround = true; terrain.add(floor);
   // Rock reaches from the excavated floor to the hillside above; the passage is below grade.
   for (const [left,right,bottom,top] of CAVE_BARRIERS) {
@@ -37,10 +47,10 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
       model.position.set(x,1.7,z); roof.add(model);
     }));
   }
-  // A stone lintel remains over the entrance when the chamber roof is cut away.
+  // The entrance lintel joins the roof cutaway so it cannot cover the descent camera.
   jobs.push(prop('nature/Rock_Medium_3',1).then(model => {
     const size=new Box3().setFromObject(model).getSize(new Vector3());
-    model.scale.set(3.4/size.x,2/size.y,10.4/size.z); model.position.set(29,3,-46); terrain.add(model);
+    model.scale.set(3.4/size.x,2/size.y,10.4/size.z); model.position.set(29,3,-46); roof.add(model);
   }));
   for(const x of [32,55]) {
     place('works/Column_1',x,-50.2,4.2); place('works/Column_1',x,-41.8,4.2);
