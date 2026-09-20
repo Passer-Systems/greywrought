@@ -116,16 +116,6 @@ function savedState(state: State): SavedState {
 
 const point = (x: number, z: number): Vector => ({ x, y: 0, z });
 const DEFINITIONS: readonly ThreatDefinition[] = [
-  { id: "cave-bat", level: 4, disposition: "hostile", aggroRange: 7, leash: 17, speed: 2.5, pursuitSpeed: 5.2,
-    name: "Hollowwing bat", position: point(43,-46), health: 108,
-    patrol: [point(43,-46),point(45,-50),point(48,-46),point(43,-42)],
-    preparation: "Folding its wings for a bite", intention: "Echo Bite", damage: 26, reach: 2.2,
-    benefit: "Search its remains for three pieces of cave salvage." },
-  { id: "cave-crab", level: 5, disposition: "hostile", aggroRange: 8, leash: 16, speed: 2.1,
-    name: "Ironback cave crab", position: point(69,-47), health: 156,
-    patrol: [point(69,-47),point(73,-51),point(77,-47),point(73,-41)],
-    preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 38, reach: 4.5,
-    benefit: "Search its shell for six pieces of cave salvage." },
   { id: "scout", level: 1, behavior: "head", disposition: "hostile", aggroRange: 6, leash: 14, speed: 1.6, name: "Cinder Watchman", position: point(-3, 30), health: 96,
     patrol: [point(-3, 30), point(-5, 32), point(-3, 34), point(-1, 32)],
     preparation: "Gathering fire", intention: "Fireball", damage: 3, reach: 10,
@@ -146,6 +136,16 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(2, 60), point(0, 58), point(-2, 60), point(0, 62)],
     preparation: "Charging the works", intention: "Roll-call Pulse", damage: 32, reach: 3.5,
     benefit: "Defeat the called guardian, then carry its Last Shift Roll home." },
+  { id: "cave-bat", level: 4, disposition: "hostile", aggroRange: 7, leash: 17, speed: 2.5, pursuitSpeed: 5.2,
+    name: "Hollowwing bat", position: point(43,-46), health: 108,
+    patrol: [point(43,-46),point(45,-50),point(48,-46),point(43,-42)],
+    preparation: "Folding its wings for a bite", intention: "Echo Bite", damage: 26, reach: 2.2,
+    benefit: "Search its remains for three pieces of cave salvage." },
+  { id: "cave-crab", level: 5, disposition: "hostile", aggroRange: 8, leash: 16, speed: 2.1,
+    name: "Ironback cave crab", position: point(69,-47), health: 156,
+    patrol: [point(69,-47),point(73,-51),point(77,-47),point(73,-41)],
+    preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 38, reach: 4.5,
+    benefit: "Search its shell for six pieces of cave salvage." },
 ];
 const PLACES: readonly PlaceView[] = [
   { id: "hollowdeep", name: "Hollowdeep Cave · Danger", position: point(28,-46), kind: "gate" },

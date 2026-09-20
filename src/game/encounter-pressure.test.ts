@@ -29,7 +29,7 @@ test('social aggro reaches a nearby ally outside player detection; neutral bee s
 test('threat views expose the gameplay detection and call-for-help radii',()=>{
  const threats=createAdventure().snapshot.threats;
  expect(threats.map(t=>[t.id,t.aggroRange,t.callForHelpRange])).toEqual([
-  ['scout',6,9],['nest',0,9],['warder',8,9],['patrol',6,9],['ritual-guardian',8,9],
+  ['scout',6,9],['nest',0,9],['warder',8,9],['patrol',6,9],['ritual-guardian',8,9],['cave-bat',7,9],['cave-crab',8,9],
  ]);
 });
 
