@@ -455,7 +455,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     hover(x, y) { hoverPointer = { x, y }; },
     updatePlayers(players) { if (!disposed) otherPlayers = players; },
     updateChat(messages, selfId) { if (!disposed) chatBubbles.update(messages, selfId); },
-    orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.22, pitch + dy * 0.004)); },
+    orbit(dx, dy) { yaw -= dx * 0.005; pitch = Math.max(0.42, Math.min(1.45, pitch + dy * 0.004)); },
     zoom(delta) { distance = Math.max(6, Math.min(21, distance * Math.exp(delta * 0.001))); },
     setThreatNameplateVisible(id, visible) { overheadNames.suppress(`threat:${id}`, visible); },
     setAggroRangesVisible(visible) { aggroRanges.setVisible(visible); },

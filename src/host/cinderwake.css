@@ -2087,13 +2087,6 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .enemy-cast-bar[data-range=out] .enemy-cast-icon img {
   filter:saturate(.12) brightness(.65);opacity:.58;
 }
-.adventure-actions [data-range=out] .action-art::after,
-.enemy-cast-bar[data-range=out] .enemy-cast-icon::after {
-  content:"↔";position:absolute;top:0;right:0;z-index:1;padding:0 2px;
-  color:#f1dab0;background:#101717ed;font:bold 12px/12px system-ui;
-  text-decoration:line-through;pointer-events:none;
-}
-
 /* Keep dialogue readable above the combat bar on short screens. */
 #shop-panel, #inn-panel { top:16%; max-height:calc(84% - 165px); overflow:auto; }
 .npc-quests { padding:0 12px; }
