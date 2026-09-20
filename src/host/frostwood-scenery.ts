@@ -1,6 +1,9 @@
 import { buildTownPerimeter } from './town-perimeter.js';
 import { terrainHeight } from '../game/cave-layout.js';
+import { lakeWaterAt, streamAt } from '../game/world-elevation.js';
+import { TOWN_BOUNDS } from '../game/world-layout.js';
 import { buildWorldWater } from './world-water.js';
+import { worldHorizonGeometry } from './world-horizon.js';
 import { buildLakeShore } from './lake-shore.js';
 import { buildRobotRuins } from './robot-ruins.js';
 import { buildRuinedSettlements } from './ruined-settlements.js';
@@ -36,6 +39,9 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
           : treePaletteMaterial(object.material, palette);
       });
       parent.add(model);
+      if (name === 'nature/Grass_Common_Short') model.traverse(object => {
+        if (object instanceof Mesh) object.castShadow = false;
+      });
       const tree = name.includes('Tree_') || name.startsWith('nature/Pine_');
       if (tree && Math.abs(tilt) < Math.PI / 4) groundTree(model, x, z, (px, pz) => terrainHeight(px, pz) - .06 + y);
       if (name === "works/Props_Vessel" && z < 0) model.traverse(object => {
@@ -57,7 +63,10 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         // Keep transparent sorting and independently changing surfaces intact.
         if (materials.some(material => material.transparent || coolingMaterials.includes(material))) return;
-        const key = [parent.id, Math.floor(x / 12), Math.floor(z / 12), object.geometry.uuid, ...materials.map(material => material.uuid)].join(":");
+        // Low cover shares wider cells to amortize dense drifts; tall scenery
+        // keeps its finer culling boundary.
+        const cellSize = name === 'nature/Grass_Common_Short' || name === 'nature/Fern_1' ? 24 : 12;
+        const key = [parent.id, cellSize, Math.floor(x / cellSize), Math.floor(z / cellSize), object.geometry.uuid, ...materials.map(material => material.uuid)].join(":");
         let batch = batches.get(key);
         if (!batch) { batch = { parent, meshes: [] }; batches.set(key, batch); }
         batch.meshes.push(object);
@@ -173,6 +182,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   ] as const) makeGroundSurface(left, right, bottom, top, sample);
   makeStreamSurface(streamRefined[0], streamRefined[1], streamRefined[2], streamRefined[3]);
   for (const [left, right, bottom, top] of [[86,146,-190,148],[28,86,-190,-64],[28,86,-30,148]] as const) makeGroundSurface(left, right, bottom, top, 2);
+  const horizon = new Mesh(worldHorizonGeometry(), groundMaterial);
+  horizon.name = 'world-horizon'; terrain.add(horizon); tintGround(horizon);
   const paving = document.createElement("canvas"); paving.width=paving.height=256;
   const pavingCtx=paving.getContext("2d")!; pavingCtx.fillStyle="#8c8871"; pavingCtx.fillRect(0,0,256,256);
   for(let row=0;row<10;row++) for(let col=-1;col<10;col++) {
@@ -241,7 +252,9 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   const trailMaterial=new MeshStandardMaterial({map:trailMap,roughness:1,transparent:true,depthWrite:false});
   const earthTrailMap=new CanvasTexture(earthTrailCanvas);earthTrailMap.colorSpace=SRGBColorSpace;
   const earthTrailMaterial=new MeshStandardMaterial({map:earthTrailMap,roughness:1,transparent:true,depthWrite:false});
+  const trailFootprints: (readonly (readonly [number, number, number])[])[] = [];
   function trail(points: readonly (readonly [number,number,number])[], aged = false) {
+    trailFootprints.push(points);
     const positions:number[]=[],uv:number[]=[],indices:number[]=[];
     let distance=0;
     for(let segment=0;segment<points.length-1;segment++) {
@@ -469,6 +482,52 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   for (const [x, z] of [[-58,-38],[-60,-89],[19,-108],[20,-31]]) {
     place("nature/Grass_Common_Short", x!, z!, 0.35);
     place("nature/Fern_1", x! + 0.7, z! + 0.5, 0.55);
+  }
+  // Low authored cover gathers in wind-broken drifts around the town skirts,
+  // roots and forest margins. Trail geometry owns the exclusion widths too.
+  function acceptsCover(x: number, z: number): boolean {
+    if (x > TOWN_BOUNDS.minX - 1 && x < TOWN_BOUNDS.maxX + 1 &&
+        z > TOWN_BOUNDS.minZ - 1 && z < TOWN_BOUNDS.maxZ + 1) return false;
+    if (x > 27 && x < 87 && z > -65 && z < -29) return false;
+    if (!clearOfPatrols(x, z, 6)) return false;
+    const height = terrainHeight(x, z), water = lakeWaterAt(x, z), stream = streamAt(x, z);
+    if (water !== null && height < water + .15 || stream && height < stream.surface + .15) return false;
+    const slope = Math.hypot(terrainHeight(x + .5, z) - terrainHeight(x - .5, z),
+      terrainHeight(x, z + .5) - terrainHeight(x, z - .5));
+    if (slope > .8) return false;
+    return trailFootprints.every(points => points.slice(1).every((to, index) => {
+      const from = points[index]!, dx = to[0] - from[0], dz = to[1] - from[1];
+      const t = Math.max(0, Math.min(1, ((x - from[0]) * dx + (z - from[1]) * dz) / (dx * dx + dz * dz)));
+      const width = from[2] + (to[2] - from[2]) * t;
+      return Math.hypot(x - from[0] - dx * t, z - from[1] - dz * t) > width / 2 + .8;
+    }));
+  }
+  for (const [patch, [cx, cz, reach]] of [
+    [-29,-7,5], [-36,-16,7], [-27,-30,4], [-43,-34,7], [-51,-17,6], [-40,2,8],
+    [-29,10,6], [-48,14,7], [-60,1,5], [-59,-39,6], [-39,-50,5], [-16,-48,4],
+    [28,-12,5], [38,-5,7], [48,9,7], [31,14,5], [15,7,4], [12,-51,4],
+    [-17,17,5], [-24,26,6], [-36,34,6], [-39,49,7], [-27,62,5], [-15,71,5],
+    [25,33,5], [33,43,7], [27,56,6], [20,70,5], [40,66,6], [-48,66,7],
+    [-64,-57,6], [-70,-105,5], [-46,-132,6], [-21,-137,5], [21,-80,5],
+    [26,-103,6], [20,-125,5], [43,-82,7], [45,-113,6], [-8,-54,4],
+  ].entries()) {
+    const seed = 3101 + patch * 137, turn = noise(seed) * Math.PI * 2;
+    const count = 42 + Math.floor(noise(seed + 1) * 32);
+    for (let item = 0; item < count; item++) {
+      // Three unequal lobes, with thin tails and gaps between dense root mats.
+      const lobe = item % 3, radius = Math.sqrt(noise(seed + item * 17 + 3));
+      const angle = noise(seed + item * 23 + 4) * Math.PI * 2;
+      const along = (lobe - 1) * reach! * .6 + Math.cos(angle) * radius * reach! * .46;
+      const across = Math.sin(angle) * radius * reach! * (.19 + lobe * .055) + Math.sin(lobe * 3 + seed) * 1.1;
+      const x = cx! + along * Math.cos(turn) - across * Math.sin(turn);
+      const z = cz! + along * Math.sin(turn) + across * Math.cos(turn);
+      if (!acceptsCover(x, z)) continue;
+      const variation = noise(seed + item * 31 + 8);
+      const fern = item % 17 === 0, stone = item % 23 === 0 && !fern;
+      place(fern ? 'nature/Fern_1' : stone ? 'nature/Rock_Medium_1' : 'nature/Grass_Common_Short',
+        x, z, fern ? .42 + variation * .27 : stone ? .2 + variation * .36 : .3 + variation * .34,
+        angle + turn, terrain, stone ? 'width' : 'height', -.035);
+    }
   }
   torch(-4.4,-40,2.4); torch(4.4,-40,2.4);
   await Promise.all(jobs);

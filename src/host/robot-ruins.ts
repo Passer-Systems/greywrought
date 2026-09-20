@@ -1,8 +1,8 @@
-import { Box3, Color, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, PointLight, Vector3 } from 'three';
+import { Box3, BufferGeometry, Color, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, PointLight, Vector3 } from 'three';
 import { terrainHeight } from '../game/cave-layout.js';
 import { prop } from './frostwood-assets.js';
 
-/** Broken survey guardians; all parts retain the authored robot silhouette. */
+/** Broken survey guardians built from the authored robot's riveted armor. */
 export async function buildRobotRuins(parent: Group): Promise<void> {
   const source = await prop('reclaimed/Robot', 4.8);
   source.updateWorldMatrix(true, true);
@@ -16,6 +16,29 @@ export async function buildRobotRuins(parent: Group): Promise<void> {
       // Bake into one common frame before moving individual joints and fragments.
       const geometry = object.geometry.clone().applyMatrix4(object.matrixWorld);
       const positions = geometry.getAttribute('position');
+      const isHead = object.name.split('_')[0] === 'Head';
+      if (isHead) {
+        // The authored Black group contains the protruding eyes and eyebrows only.
+        const originalMaterials = Array.isArray(object.material) ? object.material : [object.material];
+        const retained: number[] = [];
+        const groups = [...geometry.groups];
+        geometry.clearGroups();
+        for (const group of groups) {
+          if (originalMaterials[group.materialIndex ?? 0]!.name === 'Black') continue;
+          const start = retained.length;
+          for (let i = group.start; i < group.start + group.count; i++) retained.push(i);
+          geometry.addGroup(start, retained.length - start, group.materialIndex);
+        }
+        geometry.setIndex(retained);
+        for (let i = 0; i < positions.count; i++) {
+          const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+          const buckle = Math.max(0, x - .12) * Math.max(0, y - 4.05);
+          positions.setXYZ(i, x * .68 - buckle * .24,
+            2.94 + (y - 2.94) * .76 - buckle * .32,
+            Math.min(z, .82) * .62 + buckle * .08);
+        }
+        geometry.computeVertexNormals();
+      }
       const colors = new Float32Array(positions.count * 3), tint = new Color();
       for (let i = 0; i < positions.count; i++) {
         const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
@@ -41,6 +64,30 @@ export async function buildRobotRuins(parent: Group): Promise<void> {
         : weathered(object.material as MeshStandardMaterial);
       const part = new Mesh(geometry, material); part.name = object.name;
       part.castShadow = true; part.receiveShadow = true;
+      if (isHead) {
+        // A single dead inspection slit sits behind the lip, with a torn right edge.
+        const outline = [[-.71, 3.79], [.48, 3.79], [.64, 3.73], [.53, 3.68],
+          [.65, 3.61], [.27, 3.59], [-.7, 3.62]] as const;
+        const inner = outline.map(([x, y]) => [x * .91, 3.69 + (y - 3.69) * .64] as const);
+        const rimVertices: number[] = [], insetVertices: number[] = [];
+        for (let i = 0; i < outline.length; i++) {
+          const next = (i + 1) % outline.length;
+          const a = outline[i]!, b = outline[next]!, c = inner[i]!, d = inner[next]!;
+          // Outline is clockwise when viewed from the front (+Z).
+          rimVertices.push(...a, .57, ...c, .524, ...b, .57,
+            ...b, .57, ...c, .524, ...d, .524);
+          insetVertices.push(0, 3.69, .522, ...d, .522, ...c, .522);
+        }
+        const surface = (vertices: number[], surfaceMaterial: MeshStandardMaterial, name: string) => {
+          const face = new BufferGeometry();
+          face.setAttribute('position', new Float32BufferAttribute(vertices, 3));
+          face.computeVertexNormals();
+          const mesh = new Mesh(face, surfaceMaterial); mesh.name = name;
+          mesh.castShadow = true; mesh.receiveShadow = true; part.add(mesh);
+        };
+        surface(rimVertices, new MeshStandardMaterial({ color: '#635b49', roughness: .97, metalness: .22 }), 'Torn visor rim');
+        surface(insetVertices, new MeshStandardMaterial({ color: '#161e1c', roughness: .92, metalness: .12 }), 'Dead recessed visor');
+      }
       parts.set(part.name.split('_')[0]!, part); root.add(part);
     });
     function joint(names: string[], x: number, y: number, z: number, owner = root) {
@@ -85,16 +132,6 @@ export async function buildRobotRuins(parent: Group): Promise<void> {
   settle(fallenArm, -68, -48, 1.05);
   const bowedHelmet = colossus.joint(['Head'], 0, 2.94, 0);
   bowedHelmet.rotation.set(.19, -.14, -.23);
-  // Buckle the helmet flank while retaining the closed authored surface.
-  const helmet = colossus.parts.get('Head')!.geometry;
-  const vertices = helmet.getAttribute('position');
-  for (let i = 0; i < vertices.count; i++) {
-    const x = vertices.getX(i), y = vertices.getY(i), z = vertices.getZ(i);
-    const dent = Math.max(0, (x - .12) / 1.4) * Math.max(0, (y - 3.3) / 1.5);
-    vertices.setXYZ(i, x - dent * .65, y - dent * .72, z + dent * .27);
-  }
-  vertices.needsUpdate = true; helmet.computeVertexNormals();
-  helmet.computeBoundingBox(); helmet.computeBoundingSphere();
   const brokenThigh = colossus.joint(['Leg.R'], -.7, 1.48, 0);
   brokenThigh.rotation.set(-.38, .2, -.3);
   const hangingHand = colossus.joint(['Hand.R'], -1.05, 1.75, .1);
@@ -103,7 +140,7 @@ export async function buildRobotRuins(parent: Group): Promise<void> {
   colossus.root.rotation.set(-.035, 1.25, -.095);
   settle(colossus.root, -54, -44, .85);
 
-  // The dead shoulder socket retains a weak cold charge; eyes stay dark.
+  // The dead shoulder socket retains a weak cold charge; the visor stays dark.
   const socket = colossus.parts.get('Shoulder.L')!;
   const socketMaterial = (socket.material as MeshStandardMaterial).clone();
   socket.material = socketMaterial;

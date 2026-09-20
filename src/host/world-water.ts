@@ -1,4 +1,4 @@
-import { BufferGeometry, Color, Float32BufferAttribute, Group, Matrix4, Mesh, ShaderMaterial, Vector2, Vector3 } from 'three';
+import { BufferGeometry, Color, Float32BufferAttribute, Group, Matrix4, Mesh, ShaderMaterial, UniformsLib, UniformsUtils, Vector2, Vector3 } from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { LAKE_CENTER, LAKE_RADIUS, LAKE_WATER_LEVEL, lakeBoundary, lakeDepthAt, overworldHeight } from '../game/world-elevation.js';
 import { worldDay } from '../game/world-time.js';
@@ -26,6 +26,7 @@ varying vec3 world;
 varying vec4 mirror;
 varying float depth;
 varying vec2 flow;
+#include <fog_pars_vertex>
 ${WATER_WAVES}
 void main(){
  vec3 p=position;
@@ -33,17 +34,20 @@ void main(){
  p.z+=surfaceLift(w.xz,waterDepth,time);
  p.z+=shoreLift(w.xz,waterDepth,time)*(1.-smoothstep(.01,.1,length(current)));
  w=modelMatrix*vec4(p,1.);world=w.xyz;mirror=textureMatrix*vec4(p,1.);depth=waterDepth;flow=current;
- gl_Position=projectionMatrix*viewMatrix*w;
+ vec4 mvPosition=viewMatrix*w;
+ gl_Position=projectionMatrix*mvPosition;
+ #include <fog_vertex>
 }`;
 const fragmentShader = `
 uniform sampler2D tDiffuse;
-uniform vec3 shallowColor, deepColor, sunDirection, sunColor, horizon;
+uniform vec3 shallowColor, deepColor, sunDirection, sunColor;
 uniform float time, absorption, reflectionStrength, daylight, waveHeight, shoreHeight;
 uniform vec2 wind;
 varying vec3 world;
 varying vec4 mirror;
 varying float depth;
 varying vec2 flow;
+#include <fog_pars_fragment>
 ${WATER_WAVES}
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1)),f.x),f.y);}
@@ -78,10 +82,10 @@ void main(){
  float breakup=smoothstep(.36,.74,noise(uv*5.1)+noise(uv*11.3)*.2);
  float foam=shallow*washEdge*mix(.65,.12,lake)*breakup*smoothstep(.002,mix(.025,.012,lake),wetDepth);
  color=mix(color,vec3(.72,.80,.74)*mix(.4,1.,daylight),foam*.38);
- float mist=smoothstep(115.,320.,distance(cameraPosition,world));color=mix(color,horizon,mist);
  gl_FragColor=vec4(color,clamp(.22+attenuation*.65+fresnel*.45+foam*.25,0.,.97)*smoothstep(.002,.024,wetDepth));
  #include <tonemapping_fragment>
  #include <colorspace_fragment>
+ #include <fog_fragment>
 }`;
 
 export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void {
@@ -105,11 +109,12 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
   lakeGeometry.setAttribute('waterDepth',new Float32BufferAttribute(depths,1));
   lakeGeometry.setAttribute('current',new Float32BufferAttribute(flows,2));lakeGeometry.setIndex(indices);lakeGeometry.computeVertexNormals();
   const shader={name:'MeadowWater',uniforms:{
+    ...UniformsUtils.clone(UniformsLib.fog!),
     color:{value:new Color()},tDiffuse:{value:null},textureMatrix:{value:new Matrix4()},
     time:{value:0},waveHeight:{value:MEADOW_WATER.movement.waveHeight},shoreHeight:{value:MEADOW_WATER.movement.shoreHeight},wind:{value:MEADOW_WATER.movement.wind},
     shallowColor:{value:new Color(MEADOW_WATER.look.shallow)},deepColor:{value:new Color(MEADOW_WATER.look.deep)},
     absorption:{value:MEADOW_WATER.look.absorption},reflectionStrength:{value:MEADOW_WATER.reflection.strength},
-    sunDirection:{value:new Vector3()},sunColor:{value:new Color()},horizon:{value:new Color()},daylight:{value:1},
+    sunDirection:{value:new Vector3()},sunColor:{value:new Color()},daylight:{value:1},
   },vertexShader,fragmentShader};
   const lake=new Reflector(lakeGeometry,{textureWidth:MEADOW_WATER.reflection.resolution,textureHeight:MEADOW_WATER.reflection.resolution,multisample:0,clipBias:.003,shader});
   lake.name='meadow-lake';lake.rotation.x=-Math.PI/2;lake.position.y=LAKE_WATER_LEVEL;
@@ -128,7 +133,7 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
     scene.matrixWorldAutoUpdate=false;
     try{renderReflection.apply(this,args);}finally{stream.visible=streamVisible;scene.matrixWorldAutoUpdate=autoUpdate;}
   };
-  const material=lake.material as ShaderMaterial;material.transparent=true;material.depthWrite=false;lake.renderOrder=1;parent.add(lake);
+  const material=lake.material as ShaderMaterial;material.fog=true;material.transparent=true;material.depthWrite=false;lake.renderOrder=1;parent.add(lake);
   material.addEventListener('dispose',()=>lake.getRenderTarget().dispose());
   const streamGeometry=buildStreamGeometry();
   const stream=new Mesh(streamGeometry,material);stream.name='meadow-stream';stream.rotation.x=-Math.PI/2;stream.position.y=LAKE_WATER_LEVEL;stream.renderOrder=2;parent.add(stream);
@@ -139,7 +144,6 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
     u.sunDirection!.value.copy(day.sunDirection.y>=0?day.sunDirection:day.moonDirection);
     u.sunColor!.value.set(day.sunDirection.y>=0?0xffedcf:0x7189ad);
     u.daylight!.value=day.daylight;
-    u.horizon!.value.set(0x27354c).lerp(new Color(0x8fc4e6),day.daylight);
     u.waveHeight!.value=MEADOW_WATER.movement.waveHeight*(.8+.2*Math.sin(wallTimeMillis*.00004));
   };
 }

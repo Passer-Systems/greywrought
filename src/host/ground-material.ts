@@ -90,9 +90,19 @@ export function createRuinedGroundMaterial() {
     });
   }
   for (let i = 0; i < 240; i++) {
-    const x = hash(i, 211) * 384, y = hash(i, 223) * 384, s = .7 + hash(i, 227) * 2.8;
-    ctx.fillStyle = i % 3 ? 'rgba(112,108,91,.7)' : 'rgba(66,57,46,.8)';
-    wrap(() => { ctx.beginPath(); ctx.ellipse(x, y, s, s * (.55 + hash(i, 229) * .4), hash(i, 233), 0, Math.PI * 2); ctx.fill(); });
+    const drift = Math.floor(i / 12);
+    const x = (hash(drift, 211) * 384 + (hash(i, 219) - .5) * 48 + 384) % 384;
+    const y = (hash(drift, 223) * 384 + (hash(i, 221) - .5) * 27 + 384) % 384;
+    const s = 1.4 + hash(i, 227) * 3.1;
+    wrap(() => {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(hash(i, 233) * Math.PI * 2);
+      ctx.fillStyle = i % 3 ? 'rgba(138,112,68,.72)' : 'rgba(71,48,31,.8)';
+      ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(-s * .15, -s * .48);
+      ctx.lineTo(s, 0); ctx.lineTo(s * .12, s * .4); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(39,34,23,.5)'; ctx.lineWidth = .55;
+      ctx.beginPath(); ctx.moveTo(-s * 1.25, 0); ctx.lineTo(s * .65, 0); ctx.stroke();
+      ctx.restore();
+    });
   }
   const map = new CanvasTexture(canvas);
   map.colorSpace = SRGBColorSpace;

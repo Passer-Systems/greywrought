@@ -53,7 +53,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       }
       void main() {
         vec3 direction = normalize(skyDirection);
-        vec3 color = mix(horizon, zenith, smoothstep(-0.1, 0.8, direction.y));
+        vec3 color = mix(horizon, zenith, smoothstep(0.06, 0.8, direction.y));
         float cloudBand = smoothstep(0.06, 0.22, direction.y);
         vec2 cloudUv = direction.xz / max(0.18, direction.y + 0.2) * 1.7 + vec2(cloudTime * 0.003, cloudTime * 0.0012);
         float clouds = cloud(cloudUv);
@@ -75,8 +75,10 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
   const lamps: PointLight[] = [];
   const lampGlow = createLampGlow(scene);
   const direction = new Vector3();
-  const fog = scene.fog instanceof Fog ? scene.fog : new Fog(0x8fc4e6, 115, 320);
-  fog.color.copy(colors.horizonDay); fog.near = 115; fog.far = 320;
+  // Finish the distant fade before the camera's far plane;
+  // the nearby play space stays clear and the low sky uses this same horizon.
+  const fog = scene.fog instanceof Fog ? scene.fog : new Fog(0x8fc4e6, 90, 175);
+  fog.color.copy(colors.horizonDay); fog.near = 90; fog.far = 175;
   scene.fog = fog;
   return {
     collectLamps() {
