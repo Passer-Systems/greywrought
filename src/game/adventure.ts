@@ -151,6 +151,21 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(69,-47),point(73,-51),point(77,-47),point(73,-41)],
     preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 52, reach: 4.5,
     benefit: "Search its shell for six pieces of cave salvage." },
+  { id: "pond-turtle", level: 1, disposition: "neutral", aggroRange: 0, leash: 10, speed: 0.45, pursuitSpeed: 0.8,
+    name: "Lake turtle", position: point(-4, -98), health: 38,
+    patrol: [point(-8, -98), point(-4, -95), point(0, -98), point(-4, -101)],
+    preparation: "Tucking into its shell", intention: "Shell nudge", damage: 3, reach: 1.5,
+    benefit: "A peaceful turtle gliding through the lake." },
+  { id: "meadow-rabbit", level: 1, disposition: "neutral", aggroRange: 0, leash: 14, speed: 1.35, pursuitSpeed: 2.2,
+    name: "Meadow hare", position: point(8, 13), health: 24,
+    patrol: [point(5, 12), point(9, 15), point(13, 12), point(9, 10)],
+    preparation: "Watching the grass", intention: "Hop away", damage: 2, reach: 1.2,
+    benefit: "A harmless golden hare foraging at the woodland edge." },
+  { id: "meadow-rabbit-2", level: 1, disposition: "neutral", aggroRange: 0, leash: 14, speed: 1.2, pursuitSpeed: 2,
+    name: "Field hare", position: point(-12, 18), health: 24,
+    patrol: [point(-15, 17), point(-11, 20), point(-8, 17), point(-11, 15)],
+    preparation: "Nibbling clover", intention: "Hop away", damage: 2, reach: 1.2,
+    benefit: "A harmless golden hare foraging in the meadow." },
 ];
 const IRONBACK_CHEST_ID = "ironback-chest";
 const IRONBACK_CHEST_POSITION = point(78, -52);
