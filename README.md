@@ -181,3 +181,7 @@ The static client connects to the shared game server. The public site is served
 by Caddy on DigitalOcean. Source edits and local tests do not alter the public
 deployment; a verified release is copied to a versioned directory before the
 server's current-release pointer changes.
+
+## Play through Codex
+
+The [Greywrought MCP integration](docs/codex-mcp.md) lets Codex play its own persistent character in the live world without a graphics renderer. It uses the existing game protocol and Bun, with no additional dependencies.

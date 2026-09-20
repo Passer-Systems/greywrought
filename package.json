@@ -30,7 +30,9 @@
     "test:browser-characters": "bun acceptance/browser/character-deletion.ts && bun acceptance/browser/class-models.ts",
     "test:production": "bun scripts/production-smoke.ts",
     "build:world": "bun build --compile --target=bun-linux-x64-baseline scripts/world-server.ts --outfile build/server/greywrought-world",
-    "test:multiplayer": "bun test src/server/world-service.test.ts && bun acceptance/browser/shared-world.ts"
+    "test:multiplayer": "bun test src/server/world-service.test.ts && bun acceptance/browser/shared-world.ts",
+    "mcp": "bun scripts/greywrought-mcp.ts",
+    "test:mcp": "bun test --timeout 30000 ./src/mcp/mcp.test.ts"
   },
   "dependencies": {
     "three": "^0.185.1"
