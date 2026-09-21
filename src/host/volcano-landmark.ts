@@ -65,14 +65,14 @@ normal=normalize(abs(rockDet)*normal-rockGradient);`);
   };
   const time = { value: 0 };
   const lava = new ShaderMaterial({
-    uniforms: { time },
-    vertexShader: `uniform float time;varying vec2 ground;
+    uniforms: { time, channel: { value: 0 } },
+    vertexShader: `uniform float time,channel;varying vec2 ground;varying vec2 flow;
       void main(){
-        ground=position.xz;vec3 p=position;
-        p.y+=.07*sin(p.z*1.5-time*2.)+.04*sin(p.x*2.+time*1.7);
+        ground=position.xz;flow=uv;vec3 p=position;
+        p.y+=(1.-channel)*(.07*sin(p.z*1.5-time*2.)+.04*sin(p.x*2.+time*1.7));
         gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
       }`,
-    fragmentShader: `uniform float time; varying vec2 ground;
+    fragmentShader: `uniform float time,channel; varying vec2 ground;varying vec2 flow;
       float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float noise(vec2 p){
         vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
@@ -80,13 +80,15 @@ normal=normalize(abs(rockDet)*normal-rockGradient);`);
       }
       void main(){
         // Carry both the dark rafts and hot tongues downstream at about one pace per second.
-        vec2 p=ground*.55-vec2(.08,.65)*time;
-        p.x+=.22*sin(ground.y*.7-time*.65);
+        vec2 p=mix(ground*.55,vec2(flow.x*2.8,flow.y*.55),channel)-vec2(.08,.65)*time;
+        p.x+=.22*sin(p.y*.7-time*.15);
         float coarse=noise(p*1.35),detail=noise(p*3.1+9.);
         float crust=smoothstep(.37,.64,coarse*.8+detail*.2);
-        float river=1.-smoothstep(.15,2.8,abs(ground.x-1.3*sin(ground.y*.35)));
+        float river=mix(1.-smoothstep(.15,2.8,abs(ground.x-1.3*sin(ground.y*.35))),
+          1.-smoothstep(.15,1.,abs(flow.x)),channel);
         float tongue=smoothstep(.32,.78,noise(vec2(p.x*2.2,p.y*.7)+4.));
-        float molten=clamp(.35+river*.35+tongue*.45-crust*.95,0.,1.);
+        float edge=channel*smoothstep(.65,1.,abs(flow.x))*.7;
+        float molten=clamp(.35+river*.35+tongue*.45-crust*.95-edge,0.,1.);
         vec3 rock=mix(vec3(.024,.014,.01),vec3(.12,.035,.009),detail);
         vec3 glow=mix(vec3(1.3,.08,.003),vec3(2.8,.72,.05),molten);
         gl_FragColor=vec4(mix(rock,glow,smoothstep(.08,.6,molten)),1.);
@@ -95,35 +97,58 @@ normal=normalize(abs(rockDet)*normal-rockGradient);`);
       }`,
   });
 
-  // One continuous, irregular surface makes the crater read as terrain rather than stacked primitives.
-  const segments = 22;
+  // The channel and its banks share the mountain's surface coordinates.
+  // Carving the outlet also opens the crater rim, so the flow never bridges rock.
+  const segments = 176, slopes = 96;
   const rings = [
-    { radius: 25, height: 0 },
-    { radius: 16, height: 11 },
-    { radius: 10, height: 21 },
-    { radius: 6.4, height: 17.8 },
+    { radius: 6.4, height: 17.8, t: 0, original: 3 },
+    { radius: 10, height: 21, t: .2, original: 2 },
+    { radius: 16, height: 11, t: .58, original: 1 },
+    { radius: 25, height: 0, t: 1, original: 0 },
   ];
-  const vertices: number[] = [];
-  const ringPoint = (ring: number, index: number): [number, number, number] => {
-    const angle = index / segments * Math.PI * 2;
-    const wobble = 1 + 0.11 * Math.sin(index * 2.7 + ring * 1.8) + 0.045 * Math.sin(index * 5.1 - ring);
-    const radius = rings[ring]!.radius * wobble;
-    const ox = ring >= 2 ? -3.6 : -1.8;
-    const oz = ring >= 2 ? 1.4 : 0;
-    const slope = ring === 1 ? Math.sin(index * 1.7) * 1.5 : ring === 2 ? Math.sin(index * 1.9 + 0.8) * 2.2 : 0;
-    const px=Math.cos(angle)*radius+ox,pz=Math.sin(angle)*radius*.86+oz;
-    const height=ring===0?terrainHeight(x+px*Math.cos(-.18)+pz*Math.sin(-.18),z-px*Math.sin(-.18)+pz*Math.cos(-.18))-ground-.2:rings[ring]!.height+slope;
-    return [px,height,pz];
+  const channelAngle = (t: number) => 1.15 + .25 * Math.sin(t * 7) - .13 * Math.sin(t * 13);
+  const channelWidth = (t: number) => 1.05 + .65 * Math.sin(t * Math.PI) + .28 * Math.sin(t * 11) ** 2;
+  const ringVertex = (ring: typeof rings[number], angle: number): [number, number, number] => {
+    const index = angle / (Math.PI * 2) * 22, original = ring.original;
+    const wobble = 1 + .11 * Math.sin(index * 2.7 + original * 1.8) + .045 * Math.sin(index * 5.1 - original);
+    const radius = ring.radius * wobble;
+    const px = Math.cos(angle) * radius + (original >= 2 ? -3.6 : -1.8);
+    const pz = Math.sin(angle) * radius * .86 + (original >= 2 ? 1.4 : 0);
+    const slope = original === 1 ? Math.sin(index * 1.7) * 1.5 : original === 2 ? Math.sin(index * 1.9 + .8) * 2.2 : 0;
+    const height = original === 0
+      ? terrainHeight(x + px * Math.cos(-.18) + pz * Math.sin(-.18), z - px * Math.sin(-.18) + pz * Math.cos(-.18)) - ground - .2
+      : ring.height + slope;
+    return [px, height, pz];
   };
-  for (let ring = 0; ring < rings.length; ring++) for (let index = 0; index < segments; index++) vertices.push(...ringPoint(ring, index));
-  const indices: number[] = [];
-  for (let ring = 0; ring < rings.length - 1; ring++) {
-    for (let index = 0; index < segments; index++) {
-      const next = (index + 1) % segments;
-      const a = ring * segments + index, b = ring * segments + next;
-      const c = (ring + 1) * segments + next, d = (ring + 1) * segments + index;
-      indices.push(a, d, b, b, d, c);
-    }
+  const ringPoint = (ring: typeof rings[number], angle: number): [number, number, number] => {
+    const index = angle / (Math.PI * 2) * 22, start = Math.floor(index), f = index - start;
+    const a = ringVertex(ring, (start % 22) / 22 * Math.PI * 2);
+    const b = ringVertex(ring, ((start + 1) % 22) / 22 * Math.PI * 2);
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+  };
+  const surfacePoint = (t: number, angle: number): [number, number, number] => {
+    const band = t <= .2 ? 0 : t <= .58 ? 1 : 2;
+    const inner = rings[band]!, outer = rings[band + 1]!;
+    const f = (t - inner.t) / (outer.t - inner.t);
+    const a = ringPoint(inner, angle), b = ringPoint(outer, angle);
+    const point: [number, number, number] = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+    const radius = inner.radius + (outer.radius - inner.radius) * f;
+    const distance = Math.abs(Math.atan2(Math.sin(angle - channelAngle(t)), Math.cos(angle - channelAngle(t)))) * radius;
+    const bank = Math.max(0, Math.min(1, (distance - channelWidth(t)) / 1.15));
+    const cut = 1 - bank * bank * (3 - 2 * bank);
+    // A falling floor through the rim makes a continuous outlet from the lake.
+    const floors = [17.72, 17.1, 9.6, ringPoint(rings[3]!, channelAngle(t))[1]];
+    const floor = floors[band]! + (floors[band + 1]! - floors[band]!) * f;
+    point[1] -= Math.max(0, point[1] - floor) * cut;
+    return point;
+  };
+  const vertices: number[] = [], indices: number[] = [];
+  for (let row = 0; row <= slopes; row++) for (let index = 0; index <= segments; index++) {
+    vertices.push(...surfacePoint(row / slopes, index / segments * Math.PI * 2));
+  }
+  for (let row = 0; row < slopes; row++) for (let index = 0; index < segments; index++) {
+    const a = row * (segments + 1) + index, b = a + segments + 1;
+    indices.push(a, a + 1, b, a + 1, b + 1, b);
   }
   const volcanoGeometry = new BufferGeometry();
   volcanoGeometry.setAttribute("position", new Float32BufferAttribute(vertices, 3));
@@ -140,6 +165,39 @@ normal=normalize(abs(rockDet)*normal-rockGradient);`);
   pool.position.set(-3.6, 17.9, 1.4);
   pool.scale.set(1.22, 1, 0.8);
   root.add(pool);
+
+  const flowVertices: number[] = [], flowUvs: number[] = [], flowIndices: number[] = [];
+  const across = 10;
+  let travelled = 0, previous: [number, number, number] | undefined;
+  for (let row = 0; row <= slopes; row++) {
+    const t = row / slopes, angle = channelAngle(t), center = surfacePoint(t, angle);
+    if (previous) travelled += Math.hypot(center[0] - previous[0], center[1] - previous[1], center[2] - previous[2]);
+    previous = center;
+    const radius = t <= .2 ? 6.4 + t / .2 * 3.6 : t <= .58 ? 10 + (t - .2) / .38 * 6 : 16 + (t - .58) / .42 * 9;
+    const taper = 1 - Math.max(0, (t - .88) / .12) * .82;
+    for (let col = 0; col <= across; col++) {
+      const side = col / across * 2 - 1;
+      const edge = channelWidth(t) * .92 * taper * (1 + .045 * Math.sin(t * 83 + side * 4));
+      const point = surfacePoint(t, angle + side * edge / radius);
+      point[1] += .12;
+      flowVertices.push(...point); flowUvs.push(side, travelled);
+    }
+  }
+  for (let row = 0; row < slopes; row++) for (let col = 0; col < across; col++) {
+    const a = row * (across + 1) + col, b = a + across + 1;
+    flowIndices.push(a, a + 1, b, a + 1, b + 1, b);
+  }
+  const flowGeometry = new BufferGeometry();
+  flowGeometry.setAttribute('position', new Float32BufferAttribute(flowVertices, 3));
+  flowGeometry.setAttribute('uv', new Float32BufferAttribute(flowUvs, 2));
+  flowGeometry.setIndex(flowIndices);
+  flowGeometry.computeVertexNormals();
+  const flowMaterial = lava.clone();
+  flowMaterial.uniforms.time = time;
+  flowMaterial.uniforms.channel!.value = 1;
+  const river = new Mesh(flowGeometry, flowMaterial);
+  river.name = 'greywrought.landmark.eastern-volcano.lava-river';
+  root.add(river);
 
   const light = new PointLight(0xff5528, 2.1, 34, 2);
   light.name = "greywrought.landmark.eastern-volcano.glow";
