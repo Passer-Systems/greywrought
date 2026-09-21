@@ -23,6 +23,7 @@ import { createSceneryCutaway } from './scenery-cutaway.js';
 import { settlementAt } from '../game/world-regions.js';
 import { buildHollowdeep } from "./hollowdeep-scenery.js";
 import { createWorldLighting } from "./world-lighting.js";
+import { createWorldPostprocessing } from "./world-postprocessing.js";
 import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.js";
 import { createAggroRanges } from "./aggro-ranges.js";
 import type { UnitSelection } from "./unit-selection.js";
@@ -51,7 +52,6 @@ import { createUnderwater } from "./underwater.js";
 import { isSwimming, isSubmerged, movementHeight, movementHeightSampler, supportHeight } from "../game/movement.js";
 import { createSwimmingWake } from "./swimming-wake.js";
 import { createEnvironmentAtmosphere } from "./environment-atmosphere.js";
-import { Reflector } from "three/addons/objects/Reflector.js";
 
 interface ThreatRig extends ThreatAnimationState {
   readonly root: Group;
@@ -245,9 +245,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   scene.background = new Color(0x263d46);
   scene.fog = new Fog(0x263d46, 58, 175);
   const camera = new PerspectiveCamera(48, 1, 0.1, 210);
-  const renderer = new WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+  const renderer = new WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-  renderer.outputColorSpace = SRGBColorSpace;
+  const postprocessing = createWorldPostprocessing(renderer, scene, camera);
+  postprocessing.resize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight));
   const canvas = renderer.domElement;
   const minimap = document.createElement("canvas");
   canvas.id = "world-canvas";
@@ -452,7 +453,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const playSocialAnimation = createSocialAnimation();
   let disposed = false;
   let otherPlayers: readonly RemotePlayerView[] = [];
-  let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, wallTimeMillis: number) => void) | undefined;
+  let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, wallTimeMillis: number, rainIntensity?: number) => void) | undefined;
   let elapsed = 0;
   let yaw = 0;
   let pitch = 0.7;
@@ -564,18 +565,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if(disposed)return;
     sceneryCutaway.install(terrain, [mara, rowan, elian, chestRoot, coreRoot, ...vendorActors.map(entry => entry.root), ...regionalHosts.map(entry => entry.root), ...flightMasters.map(entry => entry.root)]);
     atmosphere.attach();
-    const lake = terrain.getObjectByName('meadow-lake');
-    if (lake instanceof Reflector) {
-      // Reflections use linear output and therefore a different shader variant
-      // from the screen. Prepare it without blocking the first playable frame.
-      const previousTarget = renderer.getRenderTarget();
-      try {
-        renderer.setRenderTarget(lake.getRenderTarget());
-        await renderer.compileAsync(scene, camera);
-      } finally { renderer.setRenderTarget(previousTarget); }
-    }
-    if(disposed)return;
-    await renderer.compileAsync(scene, camera);
+    await postprocessing.compile();
   });
   const raycaster = new Raycaster();
   const point = new Vector2();
@@ -902,8 +892,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       }
       const width = Math.max(1, host.clientWidth);
       const height = Math.max(1, host.clientHeight);
-      if (canvas.width !== Math.floor(width * renderer.getPixelRatio()) || canvas.height !== Math.floor(height * renderer.getPixelRatio())) {
+      const pixelRatio = Math.min(window.devicePixelRatio, 1.5);
+      if (renderer.getPixelRatio() !== pixelRatio || canvas.width !== Math.floor(width * pixelRatio) || canvas.height !== Math.floor(height * pixelRatio)) {
+        renderer.setPixelRatio(pixelRatio);
         renderer.setSize(width, height, false);
+        postprocessing.resize(width, height);
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
       }
@@ -952,7 +945,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       // returning to a lower orbit so the camera never clips through a hill.
       cameraTerrainLift = distance === 0 ? 0 : delta === 0 ? requiredLift : Math.max(requiredLift, cameraTerrainLift + (requiredLift - cameraTerrainLift) * (1 - Math.exp(-delta * 8)));
       camera.position.y += cameraTerrainLift;
-      updateScenery?.(coolingRestored, shiftEnded, worldTimeMillis);
+      updateScenery?.(coolingRestored, shiftEnded, worldTimeMillis, rainIntensity);
       if (distance === 0) {
         camera.lookAt(target.x + facing.x * Math.cos(pitch), target.y - Math.sin(pitch), target.z + facing.z * Math.cos(pitch));
       } else {
@@ -976,7 +969,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (camera.far !== far) { camera.far = far; camera.updateProjectionMatrix(); }
       underwater.update(elapsed, camera.position, snapshot.player);
       atmosphere.update(worldTimeMillis * 0.001, delta, snapshot.player.position, rainIntensity);
-      renderer.render(scene, camera);
+      postprocessing.render(delta);
       updateHover();
       overheadNames.begin();
       for (const {vendor, root} of vendorActors) overheadNames.show(`npc:${vendor.id}`, `${vendor.name} · ${vendor.trade}`, root, 2.35, "friendly", true, null, onNpcInteract ? () => onNpcInteract(vendor.id) : undefined);
@@ -1048,6 +1041,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       returnPreviewGroup.removeFromParent();
       disposeObjects(scene);
       scene.clear();
+      postprocessing.dispose();
       renderer.dispose();
       canvas.remove();
     },

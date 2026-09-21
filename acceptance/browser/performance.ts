@@ -35,7 +35,7 @@ const frontend = Bun.spawn([process.execPath, 'scripts/dev-server.ts'], {
 let page: Awaited<ReturnType<typeof openBrowser>> | undefined;
 const results: unknown[] = [], loading: unknown[] = [];
 type Position = { x: number; y: number; z: number };
-type Sample = { timestamp: number; duration: number; interval: number; renderMs: number; calls: number; triangles: number; passes: number; position: Position; serverPosition: Position };
+type Sample = { timestamp: number; duration: number; interval: number; renderMs: number; calls: number; triangles: number; passes: number; reflectionPasses: number; position: Position; serverPosition: Position };
 function summarize(values: number[], milliseconds = false) {
   values.sort((a, b) => a - b);
   return { median: values[Math.floor(values.length * .5)], p95: values[Math.floor(values.length * .95)], p99: values[Math.floor(values.length * .99)], max: values.at(-1), ...(milliseconds ? { over33ms: values.filter(v => v > 33.5).length, over50ms: values.filter(v => v > 50).length, over100ms: values.filter(v => v > 100).length } : {}) };
@@ -89,7 +89,7 @@ try {
     const intervals = data.samples.map(s => s.interval).filter(Boolean);
     const result = { phase, frames: data.samples.length, seconds, fps: intervals.length * 1000 / intervals.reduce((sum, interval) => sum + interval, 0), callbacks: data.callbacks, skipped: data.skipped,
       callbackMs: summarize(data.samples.map(s => s.duration), true), renderMs: summarize(data.samples.map(s => s.renderMs), true), frameMs: summarize(data.samples.map(s => s.interval).filter(Boolean), true),
-      draws: summarize(data.samples.map(s => s.calls)), triangles: summarize(data.samples.map(s => s.triangles)), reflectionFrames: data.samples.filter(s => s.passes > 1).length,
+      draws: summarize(data.samples.map(s => s.calls)), triangles: summarize(data.samples.map(s => s.triangles)), reflectionFrames: data.samples.filter(s => s.reflectionPasses > 0).length,
       gpuMs: data.gpu.length ? summarize(data.gpu.map(s => s.milliseconds), true) : null, renderer: data.details,
       movement: { renderedMetresPerSecond: speed('position'), serverMetresPerSecond: speed('serverPosition'), expectedLandSpeed: classKit('warrior').movementSpeed, start: first.position, end: last.position }, before: before.result, after: after.result };
     results.push(result);

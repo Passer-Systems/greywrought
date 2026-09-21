@@ -6,8 +6,8 @@ function glowTexture(): CanvasTexture {
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 64;
   const context = canvas.getContext("2d"); if (!context) throw new Error("Canvas drawing is unavailable");
   const gradient = context.createRadialGradient(32, 32, 1, 32, 32, 31);
-  gradient.addColorStop(0, "#fff4cf"); gradient.addColorStop(0.18, "#ffbe62cc");
-  gradient.addColorStop(0.58, "#ff782746"); gradient.addColorStop(1, "#ff4a0000");
+  gradient.addColorStop(0, "#fff4cf"); gradient.addColorStop(0.1, "#ffdc96dd");
+  gradient.addColorStop(0.28, "#ffad4b66"); gradient.addColorStop(0.58, "#ff78271c"); gradient.addColorStop(1, "#ff4a0000");
   context.fillStyle = gradient; context.fillRect(0, 0, 64, 64);
   const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace; return texture;
 }
@@ -25,6 +25,7 @@ export function createLampGlow(scene: Scene) {
       for (const light of lamps) {
         if (glows.some(glow => glow.light === light)) continue;
         const material = new SpriteMaterial({ map: texture, transparent: true, opacity: 0.45, depthWrite: false, blending: AdditiveBlending });
+        material.color.multiplyScalar(5);
         const sprite = new Sprite(material); sprite.name = "lamp-warm-halo";
         sprite.scale.setScalar(Math.min(2.3, Math.max(1.1, light.distance * 0.15)));
         scene.add(sprite); glows.push({ light, sprite, base: light.userData.nightIntensity });

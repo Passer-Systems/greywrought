@@ -19,7 +19,7 @@ export function setAtmosphereQuality(value: AtmosphereQuality): void {
 }
 const declarations = `
 varying vec3 gwWorld;
-uniform vec3 gwCenters[3], gwRadii[3], gwTint;
+uniform vec3 gwCenters[3], gwRadii[3], gwTint, gwSunTint;
 uniform float gwTime, gwQuality, gwStorm;
 uniform mat4 gwLightMatrix;
 float gwHash(vec3 p){return fract(sin(dot(p,vec3(17.1,41.7,93.3)))*43758.5453);}
@@ -51,12 +51,12 @@ vec3 gwMist(vec3 color){
    if(float(s)>=count)break;
    vec3 p=cameraPosition+ray*(enter+(float(s)+.5)*stepLength),q=(p-gwCenters[v])/gwRadii[v];
    float edge=max(0.,1.-dot(q,q));
-   float density=edge*edge*(.45+.55*gwNoise(p*.24-vec3(gwTime*.16,0.,gwTime*.07)))*.024*stepLength;
-   optical+=density;lit+=density*(.45+.55*gwSun(p));
+   float density=edge*edge*(.45+.55*gwNoise(p*.24-vec3(gwTime*.16,0.,gwTime*.07)))*.018*stepLength;
+   optical+=density;lit+=density*gwSun(p);
   }
  }
  float opacity=1.-exp(-optical);
- color=mix(color,gwTint*(optical>0.?lit/optical:1.),min(.30,opacity));
+ color=mix(color,mix(gwTint,gwSunTint,optical>0.?lit/optical:0.),min(.22,opacity));
  // Rain softens distant contrast without obscuring nearby combat tells.
  float haze=gwStorm*smoothstep(12.,70.,limit)*.16;
  return mix(color*(1.-gwStorm*.12),gwTint*.7,haze);
@@ -70,7 +70,7 @@ export function createEnvironmentAtmosphere(scene: Scene) {
   const uniforms={
     gwCenters:{value:[new Vector3(-19,1,-107),new Vector3(-36,1.8,-69),new Vector3(-9,3.8,43)]},
     gwRadii:{value:[new Vector3(22,2.0,14),new Vector3(8,3.0,8),new Vector3(20,3.5,17)]},
-    gwStorm:{value:0},gwTint:{value:new Color()},gwTime:{value:0},gwQuality:{value:2},gwLightMatrix:{value:new Matrix4()},
+    gwStorm:{value:0},gwTint:{value:new Color()},gwSunTint:{value:new Color()},gwTime:{value:0},gwQuality:{value:2},gwLightMatrix:{value:new Matrix4()},
   };
   const patched=new Map<Material,{compile:Material['onBeforeCompile'];key:Material['customProgramCacheKey']}>();
   let attached=false,lastAttach=0;
@@ -134,8 +134,12 @@ export function createEnvironmentAtmosphere(scene: Scene) {
       root.userData.weatherIntensity = rainIntensity;
       root.userData.weatherSheltered = sheltered;
       const day=worldDay(wallTimeSeconds*1000);uniforms.gwTime.value=wallTimeSeconds%3600;
-      uniforms.gwTint.value.setHex(0x90aaa5).multiplyScalar(.3+.7*day.daylight);
-      const sun=scene.getObjectByName('sun-moon');if(sun instanceof DirectionalLight)uniforms.gwLightMatrix.value.copy(sun.shadow.matrix);
+      uniforms.gwTint.value.setHex(0x789da4).multiplyScalar(.3+.7*day.daylight);
+      uniforms.gwSunTint.value.copy(uniforms.gwTint.value);
+      const sun=scene.getObjectByName('sun-moon');if(sun instanceof DirectionalLight){
+        uniforms.gwLightMatrix.value.copy(sun.shadow.matrix);
+        uniforms.gwSunTint.value.copy(sun.color).multiplyScalar(.25+.65*day.daylight).lerp(uniforms.gwTint.value,rainIntensity*.7);
+      }
       if(wallTimeSeconds-lastAttach>2){attach();lastAttach=wallTimeSeconds;}
       const active=quality==='high'?count:72;geometry.setDrawRange(0,active);material.opacity=.25+.17*day.daylight;
       floorClock+=delta;const refresh=floorClock>.25;if(refresh)floorClock=0;

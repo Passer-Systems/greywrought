@@ -1,12 +1,12 @@
 import { BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Group, Matrix4, Mesh, ShaderMaterial, UniformsLib, UniformsUtils, Vector2, Vector3 } from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { LAKE_CENTER, LAKE_RADIUS, LAKE_WATER_LEVEL, lakeBoundary, lakeDepthAt, overworldHeight } from '../game/world-elevation.js';
-import { worldDay } from '../game/world-time.js';
+import { worldDay, worldRain } from '../game/world-time.js';
 import { buildStreamGeometry } from './stream-geometry.js';
 
 export const MEADOW_WATER = {
   movement: { speed: .65, waveHeight: .03, shoreHeight: .012, wind: new Vector2(.86, .5) },
-  look: { shallow: 0x568e97, deep: 0x123548, absorption: 1.35 },
+  look: { shallow: 0x547d78, deep: 0x163b3c, absorption: 1.35 },
   reflection: { strength: .8, resolution: 512, updatesPerSecond: 15 },
 };
 // Increasing phase sends each crest from deeper water toward the bank. Geometry,
@@ -77,8 +77,8 @@ void main(){
  vec3 base=mix(shallowColor,deepColor,attenuation)*mix(.38,1.,daylight);
  vec2 reflectUv=mirror.xy/mirror.w+slope*.015;
  vec3 reflected=texture2D(tDiffuse,clamp(reflectUv,vec2(.002),vec2(.998))).rgb;
- float glint=pow(max(dot(reflect(-sunDirection,n),view),0.),220.);
- vec3 color=mix(base,reflected,clamp(fresnel*reflectionStrength*(1.-.6*min(length(flow),1.)),0.,.94))+sunColor*glint*.24;
+ float glint=pow(max(dot(reflect(-sunDirection,n),view),0.),1050.);
+ vec3 color=mix(base,reflected,clamp(fresnel*reflectionStrength*(1.-.6*min(length(flow),1.)),0.,.94))+sunColor*glint;
  float washEdge=1.-smoothstep(mix(.01,.006,lake),mix(.045,.02,lake),wetDepth);
  float breakup=smoothstep(.36,.74,noise(uv*5.1)+noise(uv*11.3)*.2);
  float foam=shallow*washEdge*mix(.65,.12,lake)*breakup*smoothstep(.002,mix(.025,.012,lake),wetDepth);
@@ -90,7 +90,8 @@ void main(){
  #include <fog_fragment>
 }`;
 
-export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void {
+export function buildWorldWater(parent: Group): (wallTimeMillis: number, rainIntensity?: number) => void {
+  const daySun=new Color(0xffe1b0);
   const positions:number[]=[],depths:number[]=[],flows:number[]=[],indices:number[]=[];
   function vertex(x:number,z:number,y:number,depth:number,flowX=0,flowZ=0){
     // The reflector's local XY plane maps onto world XZ, with local +Z pointing up.
@@ -141,11 +142,15 @@ export function buildWorldWater(parent: Group): (wallTimeMillis: number) => void
   const streamGeometry=buildStreamGeometry();
   const stream=new Mesh(streamGeometry,material);stream.name='meadow-stream';stream.rotation.x=-Math.PI/2;stream.position.y=LAKE_WATER_LEVEL;stream.renderOrder=2;parent.add(stream);
   // The stream shares the lake reflection rather than rendering the whole scene a second time.
-  return wallTimeMillis=>{
+  return (wallTimeMillis,rainIntensity=worldRain(wallTimeMillis*.001))=>{
     const day=worldDay(wallTimeMillis),u=material.uniforms;
     u.time!.value=(wallTimeMillis%3_600_000)*.001*MEADOW_WATER.movement.speed;
-    u.sunDirection!.value.copy(day.sunDirection.y>=0?day.sunDirection:day.moonDirection);
-    u.sunColor!.value.set(day.sunDirection.y>=0?0xffedcf:0x7189ad);
+    const sunUp=day.sunDirection.y>=0,direction=sunUp?day.sunDirection:day.moonDirection;
+    u.sunDirection!.value.copy(direction);
+    u.sunColor!.value.set(sunUp?0xffb364:0xa7bff0);
+    if(sunUp)u.sunColor!.value.lerp(daySun,Math.min(1,direction.y/.65));
+    const elevation=Math.min(1,direction.y/.2),strength=elevation*elevation*(3-2*elevation);
+    u.sunColor!.value.multiplyScalar((sunUp?2.6:1.6)*strength*(1-rainIntensity*.9));
     u.daylight!.value=day.daylight;
     u.waveHeight!.value=MEADOW_WATER.movement.waveHeight*(.8+.2*Math.sin(wallTimeMillis*.00004));
   };

@@ -74,7 +74,9 @@ try {
   check(await page.evaluate('scenery()===initialScenery'), 'Fading and selecting preserve scenery visibility, static transforms and instances');
   const end = await page.evaluate<typeof start>('frame()');
   check(Math.abs(end.distance-start.distance)<.01, 'Selecting a grid tile does not pull the camera in');
-  await page.call('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 850, y: 400, deltaX: 0, deltaY: -10000 });
+  const wheelPoint = await page.evaluate<{x:number;y:number} | undefined>(`[{x:250,y:250},{x:1100,y:600},{x:700,y:150}].find(p=>document.elementFromPoint(p.x,p.y)?.id==='world-canvas')`);
+  check(wheelPoint, 'First-person zoom receives input on the world canvas');
+  await page.call('Input.dispatchMouseEvent', { type: 'mouseWheel', ...wheelPoint, deltaX: 0, deltaY: -10000 });
   await page.waitFor('cutaway.cutawayEnabled.value===0');
   await page.shot('first-person-solid-scenery');
   check(page.errors.length === 0, 'Obstructed grid journey has no browser exceptions');

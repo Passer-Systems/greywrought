@@ -20,7 +20,7 @@ import { createRuinedGroundMaterial } from "./ground-material.js";
 import { treePaletteMaterial, type TreePalette } from './tree-palette.js';
 import { groundTree } from './tree-grounding.js';
 
-export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onSign?: (root: Group, id: string, name: string) => void): Promise<(coolingRestored: boolean, shiftEnded: boolean, wallTimeMillis?: number) => void> {
+export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onSign?: (root: Group, id: string, name: string) => void): Promise<(coolingRestored: boolean, shiftEnded: boolean, wallTimeMillis?: number, rainIntensity?: number) => void> {
   const jobs: Promise<void>[] = [];
   const coolingMaterials: MeshStandardMaterial[] = [];
   const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
@@ -601,8 +601,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     instances.computeBoundingSphere();
     parent.add(instances);
   }
-  return (coolingRestored, shiftEnded, wallTimeMillis = Date.now()) => {
-    updateWater(wallTimeMillis);
+  return (coolingRestored, shiftEnded, wallTimeMillis = Date.now(), rainIntensity) => {
+    updateWater(wallTimeMillis, rainIntensity);
     regions.update(wallTimeMillis);
     for (const material of coolingMaterials) {
       material.emissive.setHex(coolingRestored ? 0x55d9fa : 0x000000);

@@ -7,8 +7,8 @@ import { createLampGlow } from './lamp-glow.js';
 
 /** One celestial shadow map follows the player; local lamps never allocate shadow maps. */
 export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
-  const fill = new HemisphereLight(0xc4d7df, 0x59684e, 1.65);
-  const key = new DirectionalLight(0xffefd4, 2.4);
+  const fill = new HemisphereLight(0xa6c4d2, 0x46584b, 1.15);
+  const key = new DirectionalLight(0xffe1b0, 3);
   key.name = 'sun-moon'; key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
   Object.assign(key.shadow.camera, { left: -28, right: 28, top: 28, bottom: -28, near: 1, far: 170 });
@@ -21,11 +21,11 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
   scene.add(fill, key, key.target);
 
   const colors = {
-    day: new Color(0x4f9bd2), night: new Color(0x101b34), dawn: new Color(0xb67d79),
-    horizonDay: new Color(0x8fc4e6), horizonNight: new Color(0x27354c), horizonDawn: new Color(0xd39b71),
-    fillDay: new Color(0xc4d7df), fillNight: new Color(0x7895c4),
-    groundDay: new Color(0x59684e), groundNight: new Color(0x35414a),
-    sun: new Color(0xffefd4), lowSun: new Color(0xffb779), moon: new Color(0xa7bff0),
+    day: new Color(0x6194b0), night: new Color(0x101b34), dawn: new Color(0x9d8581),
+    horizonDay: new Color(0xa1bfc5), horizonNight: new Color(0x27354c), horizonDawn: new Color(0xd6ac7b),
+    fillDay: new Color(0xa6c4d2), fillNight: new Color(0x94adcc),
+    groundDay: new Color(0x46584b), groundNight: new Color(0x35414a),
+    sun: new Color(0xffe1b0), lowSun: new Color(0xffb364), moon: new Color(0xa7bff0),
     rainSky: new Color(0x626f77), rainHorizon: new Color(0x8d9b9d), rainFill: new Color(0xb9c8cd),
   };
   const material = new ShaderMaterial({
@@ -63,10 +63,11 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
         color = mix(color, vec3(0.92, 0.94, 0.93), cloudLight);
         float sun = dot(direction, sunDirection);
         float moon = dot(direction, -sunDirection);
-        color += vec3(1.0, 0.65, 0.28) * pow(max(0.0, sun), 48.0) * 0.35 * (1. - rain);
-        color = mix(color, vec3(1.0, 0.93, 0.7), smoothstep(0.9993, 0.99955, sun) * (1. - rain));
-        color = mix(color, vec3(0.82, 0.88, 1.0), smoothstep(0.9993, 0.99955, moon) * (1.0 - daylight) * (1. - rain));
+        color += vec3(1.0, 0.65, 0.28) * pow(max(0.0, sun), 64.0) * 0.18 * (1. - rain);
+        color = mix(color, vec3(5.0, 3.8, 2.2), smoothstep(0.9993, 0.99955, sun) * (1. - rain));
+        color = mix(color, vec3(1.6, 1.85, 2.3), smoothstep(0.9993, 0.99955, moon) * (1.0 - daylight) * (1. - rain));
         gl_FragColor = vec4(color, 1.0);
+        #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
   });
@@ -103,10 +104,10 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       fill.color.copy(colors.fillNight).lerp(colors.fillDay, day.daylight * (1 - cave));
       fill.color.lerp(colors.rainFill, rain * day.daylight * .4);
       fill.groundColor.copy(colors.groundNight).lerp(colors.groundDay, day.daylight * (1 - cave));
-      fill.intensity = (.95 + .7 * day.daylight) * (1 - cave) + .95 * cave;
+      fill.intensity = (1.4 - .25 * day.daylight) * (1 - cave) + 1.2 * cave;
       key.color.copy(sunUp ? colors.lowSun : colors.moon);
-      if (sunUp) key.color.lerp(colors.sun, 1 - day.twilight);
-      key.intensity = strength * (sunUp ? 2.4 : .9) * (1 - cave * .9);
+      if (sunUp) key.color.lerp(colors.sun, Math.min(1, direction.y / .65));
+      key.intensity = strength * (sunUp ? 3 : .9) * (1 - cave * .9);
       key.intensity *= 1 - rain * .6;
       key.target.position.set(position.x, position.y, position.z);
       key.position.copy(key.target.position).addScaledVector(direction, 100);

@@ -32,6 +32,13 @@ export const files: readonly (readonly [string, string])[] = [
   ["node_modules/three/examples/jsm/loaders/GLTFLoader.js", "dist/vendor/three-addons/loaders/GLTFLoader.js"],
   ["node_modules/three/examples/jsm/utils/BufferGeometryUtils.js", "dist/vendor/three-addons/utils/BufferGeometryUtils.js"],
   ["node_modules/three/examples/jsm/utils/SkeletonUtils.js", "dist/vendor/three-addons/utils/SkeletonUtils.js"],
+  ...[
+    "postprocessing/EffectComposer.js", "postprocessing/RenderPass.js", "postprocessing/UnrealBloomPass.js",
+    "postprocessing/OutputPass.js", "postprocessing/ShaderPass.js", "postprocessing/MaskPass.js", "postprocessing/Pass.js",
+    "shaders/CopyShader.js", "shaders/LuminosityHighPassShader.js", "shaders/OutputShader.js",
+  ].map((name): readonly [string, string] => [
+    `node_modules/three/examples/jsm/${name}`, `dist/vendor/three-addons/${name}`,
+  ]),
   ["assets/ui/icons/SOURCE.md", "dist/assets/ui/icons/SOURCE.md"],
   ["assets/ui/icons/manifest.json", "dist/assets/ui/icons/manifest.json"],
   ["assets/ui/cursors/SOURCE.md", "dist/assets/ui/cursors/SOURCE.md"],

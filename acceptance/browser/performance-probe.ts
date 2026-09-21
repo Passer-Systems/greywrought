@@ -6,8 +6,10 @@ export const performanceProbe = `
   const nativeFrame = requestAnimationFrame;
   window.requestAnimationFrame = callback => nativeFrame.call(window, now => {
     const before = probe.rendered, start = performance.now();
-    callback(now);
-    if (!probe.measuring || callback.name !== 'tick') return;
+    const frame = !probe.frameCallback || callback === probe.frameCallback ? probe.beginFrame?.() : null;
+    try { callback(now); } finally { frame?.(); }
+    if (probe.rendered !== before) probe.frameCallback = callback;
+    if (!probe.measuring || callback !== probe.frameCallback) return;
     if (probe.combatOnly && document.body.dataset.gameCombatPhase !== 'active') { probe.lastFrame = 0; return; }
     probe.callbacks++;
     if (probe.rendered === before) { probe.skipped++; return; }
@@ -19,7 +21,7 @@ export const performanceProbe = `
   const originalBefore = Scene.prototype.onBeforeRender;
   Scene.prototype.onBeforeRender = function(renderer, scene, camera, ...args) {
     originalBefore.call(this, renderer, scene, camera, ...args);
-    if (renderer.domElement.id !== 'world-canvas' || !camera.isPerspectiveCamera || renderer.getRenderTarget() !== null || renderer.performanceWrapped) return;
+    if (renderer.domElement.id !== 'world-canvas' || !camera.isPerspectiveCamera || !scene.children.some(child => child.userData.localPlayer) || renderer.performanceWrapped) return;
     renderer.performanceWrapped = true;
     probe.renderer = renderer; probe.scene = scene; probe.camera = camera;
     const gl = renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info'), timer = gl.getExtension('EXT_disjoint_timer_query_webgl2');
@@ -31,26 +33,35 @@ export const performanceProbe = `
     Object.assign(probe.details, { nodes, meshes, emptyGroups });
     renderer.info.autoReset = false;
     const originalRender = renderer.render, originalDispose = renderer.dispose;
-    let depth = 0, passes = 0;
+    let depth = 0, frameActive = false, passes = 0, reflectionPasses = 0, renderMs = 0;
     const pending = [];
-    renderer.render = function(scene, camera) {
-      if (depth++) { passes++; try { return originalRender.call(this, scene, camera); } finally { depth--; } }
-      const start = performance.now();
-      renderer.info.reset(); passes = 1;
+    // One frame includes the scene, water reflections, bloom and final output.
+    // Each outer renderer.render call can be only one postprocessing pass.
+    probe.beginFrame = () => {
+      renderer.info.reset(); passes = 0; reflectionPasses = 0; renderMs = 0; frameActive = true;
       while (pending.length && gl.getQueryParameter(pending[0].query, gl.QUERY_RESULT_AVAILABLE)) {
         const entry = pending.shift(), disjoint = gl.getParameter(timer.GPU_DISJOINT_EXT);
         if (!disjoint) probe.gpu.push({ timestamp: entry.timestamp, milliseconds: gl.getQueryParameter(entry.query, gl.QUERY_RESULT) / 1e6 });
         gl.deleteQuery(entry.query);
       }
       const query = probe.measuring && timer && pending.length < 4 ? gl.createQuery() : null;
+      const timestamp = performance.now();
       if (query) gl.beginQuery(timer.TIME_ELAPSED_EXT, query);
+      return () => {
+        if (query) { gl.endQuery(timer.TIME_ELAPSED_EXT); pending.push({ query, timestamp }); }
+        frameActive = false;
+        probe.lastRender = { renderMs, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles,
+          passes, reflectionPasses, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length };
+      };
+    };
+    renderer.render = function(scene, camera) {
+      const nested = depth++ > 0, start = performance.now();
+      if (frameActive) { passes++; if (nested) reflectionPasses++; }
       try { return originalRender.call(this, scene, camera); }
       finally {
-        if (query) { gl.endQuery(timer.TIME_ELAPSED_EXT); pending.push({ query, timestamp: start }); }
         depth--;
-        probe.lastRender = { renderMs: performance.now() - start, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles,
-          passes, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: renderer.info.programs.length };
-        probe.rendered++;
+        if (!nested && frameActive) renderMs += performance.now() - start;
+        if (scene === probe.scene && camera === probe.camera) probe.rendered++;
       }
     };
     renderer.dispose = function() {
@@ -58,7 +69,7 @@ export const performanceProbe = `
       pending.length = 0;
       originalDispose.call(this);
       probe.lifecycle.push({ time: performance.now(), memory: { ...renderer.info.memory }, programs: renderer.info.programs.length });
-      if (probe.renderer === renderer) { probe.renderer = probe.scene = probe.camera = null; }
+      if (probe.renderer === renderer) { probe.renderer = probe.scene = probe.camera = null; probe.beginFrame = null; }
     };
   };
 })();`;
