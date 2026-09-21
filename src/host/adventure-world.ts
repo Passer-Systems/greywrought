@@ -19,6 +19,7 @@ import { captureMinimap } from "./minimap.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
 import { combatSurfaceHeight, conformToTerrain } from "./terrain-geometry.js";
 import { terrainCameraLift } from "./terrain-camera.js";
+import { createSceneryCutaway } from './scenery-cutaway.js';
 import { buildHollowdeep } from "./hollowdeep-scenery.js";
 import { createWorldLighting } from "./world-lighting.js";
 import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.js";
@@ -448,7 +449,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const playSocialAnimation = createSocialAnimation();
   let disposed = false;
   let otherPlayers: readonly RemotePlayerView[] = [];
-  let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight: number, wallTimeMillis: number) => void) | undefined;
+  let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, wallTimeMillis: number) => void) | undefined;
   let elapsed = 0;
   let yaw = 0;
   let pitch = 0.7;
@@ -535,8 +536,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const natureReady = buildFrostwood(terrain, thicket, innPosition, (root,id,name) => {
     hoverTargets.push({ root, pick: {kind:"place",id}, name, anchor: root.position.clone().add(new Vector3(0,2,0)) });
   }).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
-  let updateCave = (_position: Position, _camera: Vector3, _aimHeight?: number) => {};
-  const caveReady = buildHollowdeep(terrain).then(update => { updateCave = update; });
+  const caveReady = buildHollowdeep(terrain);
+  const sceneryCutaway = createSceneryCutaway();
   const telegraphs = createGroundTelegraphs(scene, canvas);
   const combatEffects = createCombatEffects(scene);
   let combatPreview: CombatPreview | null = null;
@@ -558,6 +559,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     lighting.collectLamps();
     await captureMinimap(renderer, terrain, minimap);
     if(disposed)return;
+    sceneryCutaway.install(terrain, [mara, rowan, elian, chestRoot, coreRoot, ...vendorActors.map(entry => entry.root), ...regionalHosts.map(entry => entry.root), ...flightMasters.map(entry => entry.root)]);
     atmosphere.attach();
     const lake = terrain.getObjectByName('meadow-lake');
     if (lake instanceof Reflector) {
@@ -946,8 +948,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       // returning to a lower orbit so the camera never clips through a hill.
       cameraTerrainLift = distance === 0 ? 0 : delta === 0 ? requiredLift : Math.max(requiredLift, cameraTerrainLift + (requiredLift - cameraTerrainLift) * (1 - Math.exp(-delta * 8)));
       camera.position.y += cameraTerrainLift;
-      updateScenery?.(coolingRestored, shiftEnded, snapshot.player.position, camera.position, aimHeight, worldTimeMillis);
-      updateCave(snapshot.player.position, camera.position, aimHeight);
+      updateScenery?.(coolingRestored, shiftEnded, worldTimeMillis);
       if (distance === 0) {
         camera.lookAt(target.x + facing.x * Math.cos(pitch), target.y - Math.sin(pitch), target.z + facing.z * Math.cos(pitch));
       } else {
@@ -955,6 +956,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         if (collisionLift > 0) camera.position.y += collisionLift;
         camera.lookAt(target.x, target.y, target.z);
       }
+      sceneryCutaway.update(camera.position, snapshot.player.position, aimHeight, combatGrid.revealTiles, delta, firstPersonBlend < .8);
       player.visible = firstPersonBlend < .8 && Math.hypot(camera.position.x-target.x, camera.position.y-target.y, camera.position.z-target.z) > 1.8;
       const selectedPlayer = selectedUnit?.kind === "player" ? selectedUnit.id : null;
       const friendlyRoot = [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;

@@ -8,26 +8,22 @@ import { buildExpansionTerrain } from './expansion-terrain.js';
 import { buildRegionalFoliage } from './regional-foliage.js';
 import { buildWorldDebris } from './world-debris.js';
 import { buildSecondDarkAge, weatherExistingTown } from './second-dark-age.js';
-import { REGION_BUILDINGS, WORLD_REGIONS, regionAt } from '../game/world-regions.js';
+import { WORLD_REGIONS, regionAt } from '../game/world-regions.js';
 import { buildLakeShore } from './lake-shore.js';
 import { buildRobotRuins } from './robot-ruins.js';
 import { buildRuinedSettlements } from './ruined-settlements.js';
 import { conformToTerrain } from './terrain-geometry.js';
-import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Ray, Color } from "three";
-import type { Position } from "../game/adventure-types.js";
+import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Color } from "three";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
 import { createRuinedGroundMaterial } from "./ground-material.js";
 import { treePaletteMaterial, type TreePalette } from './tree-palette.js';
 import { groundTree } from './tree-grounding.js';
 
-export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onSign?: (root: Group, id: string, name: string) => void): Promise<(coolingRestored: boolean, shiftEnded: boolean, player: Position, camera: Vector3, aimHeight?: number, wallTimeMillis?: number) => void> {
+export async function buildFrostwood(terrain: Group, thicket: Group, innPosition: { readonly x: number; readonly z: number }, onSign?: (root: Group, id: string, name: string) => void): Promise<(coolingRestored: boolean, shiftEnded: boolean, wallTimeMillis?: number) => void> {
   const jobs: Promise<void>[] = [];
   const coolingMaterials: MeshStandardMaterial[] = [];
   const batches = new Map<string, { parent: Group; meshes: Mesh[] }>();
-  const occluders: { root: Group; bounds: Box3 }[] = [];
-  const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
-  let resolvedCameraDistance = Number.POSITIVE_INFINITY;
   function place(name: string, x: number, z: number, size: number, rotation = 0, parent = terrain, axis: "height" | "width" = "height", y = 0, footprint?: readonly [number, number], tilt = 0, lean = 0, palette?: TreePalette) {
     jobs.push(prop(name, size, axis).then(model => {
       model.position.set(x, terrainHeight(x,z) + y, z); model.rotation.set(tilt, rotation, lean);
@@ -60,10 +56,6 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
         object.material = Array.isArray(object.material) ? object.material.map(coolable) : coolable(object.material);
       });
       model.updateWorldMatrix(true, true);
-      if (footprint || tree) {
-        const bounds = new Box3().setFromObject(model).expandByScalar(.5);
-        occluders.push({ root: model, bounds });
-      }
       if (!footprint) model.traverse(object => {
         if (!(object instanceof Mesh)) return;
         const materials = Array.isArray(object.material) ? object.material : [object.material];
@@ -582,15 +574,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   }
   torch(-4.4,-40,2.4); torch(4.4,-40,2.4);
   await Promise.all(jobs);
-  const [regions, trees] = await Promise.all([buildSecondDarkAge(terrain), buildRegionalFoliage(terrain), weatherExistingTown(terrain)]);
+  const [regions] = await Promise.all([buildSecondDarkAge(terrain), buildRegionalFoliage(terrain), weatherExistingTown(terrain)]);
   for (const sign of regions.signs) onSign?.(sign.root, sign.id, sign.name);
-  for (const bounds of trees) occluders.push({ root: terrain, bounds });
-  for (const building of REGION_BUILDINGS) {
-    const y = terrainHeight(building.x, building.z);
-    occluders.push({ root: terrain, bounds: new Box3(
-      new Vector3(building.x-building.width/2, y, building.z-building.depth/2),
-      new Vector3(building.x+building.width/2, y+building.height, building.z+building.depth/2)) });
-  }
   terrain.traverse(object => { if (object instanceof Mesh) object.receiveShadow = true; });
   const inverse = new Matrix4(), matrix = new Matrix4();
   for (const { parent, meshes } of batches.values()) {
@@ -616,25 +601,9 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     instances.computeBoundingSphere();
     parent.add(instances);
   }
-  return (coolingRestored, shiftEnded, player, camera, aimHeight = 1.1, wallTimeMillis = Date.now()) => {
+  return (coolingRestored, shiftEnded, wallTimeMillis = Date.now()) => {
     updateWater(wallTimeMillis);
     regions.update(wallTimeMillis);
-    sightline.origin.set(player.x, player.y + aimHeight, player.z);
-    cameraDirection.subVectors(camera, sightline.origin);
-    const cameraDistance = cameraDirection.length();
-    sightline.direction.copy(cameraDirection).normalize();
-    let nearest = cameraDistance;
-    for (const occluder of occluders) {
-      const hit = sightline.intersectBox(occluder.bounds, intersection);
-      if (hit) {
-        const hitDistance = sightline.origin.distanceTo(hit);
-        nearest = Math.min(nearest, hitDistance - Math.min(.6, hitDistance * .2));
-      }
-    }
-    resolvedCameraDistance = Number.isFinite(resolvedCameraDistance)
-      ? Math.min(nearest, resolvedCameraDistance + (nearest - resolvedCameraDistance) * .18)
-      : nearest;
-    if (resolvedCameraDistance < cameraDistance) camera.copy(sightline.origin).addScaledVector(sightline.direction, resolvedCameraDistance);
     for (const material of coolingMaterials) {
       material.emissive.setHex(coolingRestored ? 0x55d9fa : 0x000000);
       material.emissiveIntensity = coolingRestored ? 1.1 : 0;

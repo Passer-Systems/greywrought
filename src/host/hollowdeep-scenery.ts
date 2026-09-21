@@ -1,17 +1,13 @@
-import { Box3, CanvasTexture, Group, Mesh, MeshStandardMaterial, PointLight, Ray, RepeatWrapping, SRGBColorSpace, Vector3, type Object3D } from 'three';
+import { Box3, CanvasTexture, Group, Mesh, MeshStandardMaterial, PointLight, RepeatWrapping, SRGBColorSpace, Vector3 } from 'three';
 import { CAVE_BARRIERS, terrainHeight } from '../game/cave-layout.js';
-import type { Position } from '../game/adventure-types.js';
 import { prop } from './frostwood-assets.js';
 import { caveFloorGeometry } from './terrain-geometry.js';
 
-export async function buildHollowdeep(terrain: Group): Promise<(position: Position, camera: Vector3, aimHeight?: number) => void> {
+export async function buildHollowdeep(terrain: Group): Promise<void> {
   // Roof elevations allow a third-person orbit above the descending floor.
   const caveCeiling = 7.2;
   const entranceLintelHeight = 6.8;
   const walls = new Group(), roof = new Group(); terrain.add(walls, roof);
-  const solidBounds: Box3[] = [];
-  const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
-  let resolvedCameraDistance = Number.POSITIVE_INFINITY;
   const jobs: Promise<void>[] = [];
   const noise = (x: number, z: number) => { const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return n - Math.floor(n); };
   function place(name: string, x: number, z: number, size: number, parent = terrain, lift = 0, rotation = 0) {
@@ -79,28 +75,4 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
   }
   place('Cart',79,-56,1.7); place('Crate',77,-56,1); place('Barrel',80,-54,1.2);
   await Promise.all(jobs);
-  for (const root of [walls, roof]) {
-    root.updateWorldMatrix(true, true);
-    root.traverse(object => { if (object instanceof Mesh) solidBounds.push(new Box3().setFromObject(object)); });
-  }
-  return (position, camera, aimHeight = 1.1) => {
-    // Keep authored cave walls and roof visible. Pull the boom in when it
-    // would pass through solid rock, like a conventional third-person camera.
-    sightline.origin.set(position.x, position.y + aimHeight, position.z);
-    cameraDirection.subVectors(camera, sightline.origin);
-    const cameraDistance = cameraDirection.length();
-    sightline.direction.copy(cameraDirection).normalize();
-    let nearest = cameraDistance;
-    for (const bounds of solidBounds) {
-      const hit = sightline.intersectBox(bounds, intersection);
-      if (hit) {
-        const hitDistance = sightline.origin.distanceTo(hit);
-        nearest = Math.min(nearest, hitDistance - Math.min(.6, hitDistance * .2));
-      }
-    }
-    resolvedCameraDistance = Number.isFinite(resolvedCameraDistance)
-      ? Math.min(nearest, resolvedCameraDistance + (nearest - resolvedCameraDistance) * .18)
-      : nearest;
-    if (resolvedCameraDistance < cameraDistance) camera.copy(sightline.origin).addScaledVector(sightline.direction, resolvedCameraDistance);
-  };
 }

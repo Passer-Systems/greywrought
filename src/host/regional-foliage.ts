@@ -1,4 +1,4 @@
-import { Box3, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, type Material } from 'three';
+import { Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, type Material } from 'three';
 import { terrainHeight } from '../game/cave-layout.js';
 import { lakeWaterAt, streamAt } from '../game/world-elevation.js';
 import { lavaLakeRatio } from '../game/lava-layout.js';
@@ -109,9 +109,8 @@ const patches: readonly Patch[] = [
 ];
 
 /** Static authored plants; all terrain sampling and material creation happens here. */
-export async function buildRegionalFoliage(parent: Group): Promise<readonly Box3[]> {
+export async function buildRegionalFoliage(parent: Group): Promise<void> {
   const root = new Group(); root.name = 'regional-foliage'; parent.add(root);
-  const occluders: Box3[] = [];
   const batches = new Map<string, { source: Mesh; material: Material | Material[]; matrices: Matrix4[]; tree: boolean }>();
   const names = new Set<string>(Object.values(communities).flatMap(c => c.map(p => p[0])));
   for (const name of ['CommonTree_2','TwistedTree_2','Pine_5','DeadTree_2']) names.add(name);
@@ -142,7 +141,6 @@ export async function buildRegionalFoliage(parent: Group): Promise<readonly Box3
       plantsByRegion[region] = (plantsByRegion[region]??0)+1;
     }
     model.updateWorldMatrix(true,true);
-    if (tree) occluders.push(new Box3().setFromObject(model).expandByScalar(.35));
     model.traverse(object => {
       if (!(object instanceof Mesh)) return;
       const material = Array.isArray(object.material) ? object.material.map(m => foliageMaterial(m,palette)) : foliageMaterial(object.material,palette);
@@ -239,5 +237,4 @@ export async function buildRegionalFoliage(parent: Group): Promise<readonly Box3
     drawCalls += Array.isArray(batch.material) ? batch.material.length : 1;
   }
   root.userData.foliage = {plants,fieldPlants,plantsByRegion,trees,treeAssets,batches:batches.size,drawCalls};
-  return occluders;
 }
