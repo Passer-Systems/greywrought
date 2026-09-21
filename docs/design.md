@@ -446,8 +446,12 @@ forest. Ordinary enemies and harvested resources respawn after two minutes.
 The Ironback cache has one shared set of contents: the first player to loot it
 empties it for everyone, permanently, including after a server restart.
 
-The action bar has individual squares labelled 1–9, 0, -, =. Attack is 1, block
-is 2, and health potion is =; the remaining slots are empty. Attack art is sword
+The action bar has individual squares labelled 1–9, 0, -, =. Attack starts on 1,
+Defend on 2, and Move on 3; players can rearrange the slots. Every consumable or
+castable inventory item must be draggable onto the bar, usable by clicking or
+pressing its slot key, and retained in the saved layout. This includes health
+potions and the reusable Hearthstone. Item availability and casting restrictions
+are the same in the backpack and on the bar. Attack art is sword
 for warrior, wand for mage, bow for ranger. Stamina costs are explained in hover tooltips; bottom-right numbers are consumable quantities. Enter opens
 shared text chat. Chat typing never triggers movement or ability keys.
 `/roll` posts a server-generated roll from 1 through 100 to the current encounter’s chat.

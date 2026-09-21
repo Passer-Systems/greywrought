@@ -7,7 +7,7 @@ import type { RemotePlayerView } from '../game/multiplayer-types.js';
 import { BELLRUNNER_STOPS, flightDuration, flightPosition } from '../game/bellrunner.js';
 
 const width = bounds.maxX - bounds.minX, height = bounds.maxZ - bounds.minZ;
-const px = (x: number) => (x - bounds.minX) / width * 100;
+const px = (x: number) => (bounds.maxX - x) / width * 100;
 const pz = (z: number) => (bounds.maxZ - z) / height * 100;
 const points = [
   { id: 'yard', name: YARD.settlement, x: 0, z: -8, kind: 'town', description: 'A safe haven. Trade, rest and prepare for the road.' },
@@ -127,7 +127,7 @@ export function createWorldMap(hud: HTMLElement, trigger: HTMLButtonElement, onO
     marker.addEventListener('pointerenter',inspect); marker.addEventListener('focus',inspect); marker.addEventListener('pointerleave',leave); marker.addEventListener('blur',leave);
     marker.addEventListener('click',event => { event.stopPropagation(); mark(point.x,point.z,point.name); }); sheet.append(marker);
   }
-  sheet.addEventListener('click', event => { const rect = sheet.getBoundingClientRect(); mark(bounds.minX + (event.clientX - rect.left)/rect.width*width, bounds.maxZ - (event.clientY - rect.top)/rect.height*height, 'Your destination'); });
+  sheet.addEventListener('click', event => { const rect = sheet.getBoundingClientRect(); mark(bounds.maxX - (event.clientX - rect.left)/rect.width*width, bounds.maxZ - (event.clientY - rect.top)/rect.height*height, 'Your destination'); });
   clear.addEventListener('click', () => { waypoint = null; flag.hidden = clear.hidden = mini.hidden = guide.hidden = true; delete panel.dataset.waypointX; delete panel.dataset.waypointZ; detail.textContent = 'Select a place to mark your route.'; });
   const close = () => { if (!panel.open) return; panel.close(); trigger.setAttribute('aria-expanded','false'); onClose(); };
   panel.querySelector('#world-map-close')!.addEventListener('click', close);
@@ -136,18 +136,18 @@ export function createWorldMap(hud: HTMLElement, trigger: HTMLButtonElement, onO
   function update(state: AdventureSnapshot['player'], party: readonly RemotePlayerView[] = []) {
     last = state;
     if (panel.open) {
-      locate(player,state.position.x,state.position.z); player.style.transform = `translate(-50%,-50%) rotate(${Math.atan2(state.cameraForward.x,state.cameraForward.z)}rad)`;
+      locate(player,state.position.x,state.position.z); player.style.transform = `translate(-50%,-50%) rotate(${Math.atan2(-state.cameraForward.x,state.cameraForward.z)}rad)`;
       player.dataset.worldX = String(state.position.x); player.dataset.worldZ = String(state.position.z);
       for (const [id,node] of partyMarkers) if (!party.some(p => p.id === id)) { node.remove(); partyMarkers.delete(id); }
       for (const member of party) { let node = partyMarkers.get(member.id); if (!node) { node = document.createElement('span'); node.className = 'atlas-party'; node.textContent = '●'; node.title = member.name; sheet.append(node); partyMarkers.set(member.id,node); } locate(node,member.player.position.x,member.player.position.z); }
     }
     if (!waypoint) return;
     const dx = waypoint.x-state.position.x, dz = waypoint.z-state.position.z;
-    const direction = ['N','NE','E','SE','S','SW','W','NW'][(Math.round(Math.atan2(dx,dz)/(Math.PI/4))+8)%8];
+    const direction = ['N','NE','E','SE','S','SW','W','NW'][(Math.round(Math.atan2(-dx,dz)/(Math.PI/4))+8)%8];
     const message = `${waypoint.name} · ${Math.round(Math.hypot(dx,dz))} paces ${direction}`;
     if(guide.textContent !== message) guide.textContent = message;
     if(panel.open && !hover && detail.textContent !== message) detail.textContent = message;
-    mini.hidden = Math.abs(dx)>31 || Math.abs(dz)>31; mini.style.left = `${50+dx/64*100}%`; mini.style.top = `${50-dz/64*100}%`;
+    mini.hidden = Math.abs(dx)>31 || Math.abs(dz)>31; mini.style.left = `${50-dx/64*100}%`; mini.style.top = `${50-dz/64*100}%`;
   }
   return { update, close, get isOpen() { return panel.open; }, toggle() {
     if(panel.open) { close(); return; } onOpen();

@@ -1,6 +1,6 @@
 {
   "name": "greywrought",
-  "version": "0.21.27",
+  "version": "0.21.28",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.3.13",
@@ -17,6 +17,7 @@
     "test:browser-playability": "bun acceptance/browser/playability.ts",
     "test:browser-encounter": "bun acceptance/browser/combat-loop.ts",
     "test:private-encounter": "bun test src/host/network-adventure.test.ts src/game/private-encounter.test.ts src/server/world-service.test.ts && bun acceptance/browser/private-encounter.ts && bun acceptance/browser/rejoin-movement.ts",
+    "test:return-to-world": "bun acceptance/browser/return-to-world.ts && bun acceptance/browser/rejoin-movement.ts",
     "test:foreman-recovery": "bun test src/game/private-encounter.test.ts && bun acceptance/browser/foreman-recovery.ts",
     "test:sit": "bun acceptance/browser/sit.ts",
     "test:hearthstone": "bun test src/game/hearthstone.test.ts && bun acceptance/browser/hearthstone.ts",

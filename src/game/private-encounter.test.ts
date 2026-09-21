@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { blockedPosition, supportHeight } from './movement.js';
+import { inCave } from './cave-layout.js';
 import { createSharedAdventure } from "./adventure.js";
 import { finishGathering, earnedChapter, finishCycle, readyParty, travel } from "./yard-test-fixtures.js";
 
@@ -370,8 +372,12 @@ describe('party encounter cohorts', () => {
     expect(restored.resume('alice')).toBe(true);
     expect(restored.players(sessionId).map(player => player.id)).toEqual(['alice']);
     expect(restored.rejoin('alice')).toBe(true);
+    expect(restored.session('alice').mode).toBe('viewing');
+    expect(restored.rejoin('alice')).toBe(true);
     expect(returned.snapshot.player.position).toEqual(destinations[0]!);
-    expect(restored.getPlayer('bob')!.snapshot.player.position).toEqual(destinations[1]!);
+    const bobReturn = restored.getPlayer('bob')!.snapshot.player.position;
+    expect(Math.hypot(bobReturn.x - destinations[1]!.x, bobReturn.z - destinations[1]!.z)).toBeLessThanOrEqual(7.5);
+    expect(Math.hypot(bobReturn.x - returned.snapshot.player.position.x, bobReturn.z - returned.snapshot.player.position.z)).toBeGreaterThanOrEqual(1.2);
     expect(returned.snapshot.player.position).not.toEqual(origins[0]!);
     expect(restored.getPlayer('bob')!.snapshot.player.position).not.toEqual(origins[1]!);
     expect(restored.session('bob').mode).toBe('shared');
@@ -426,7 +432,10 @@ describe('party encounter cohorts', () => {
       expect(player.snapshot.progression.experience).toBe(experienceBefore.get(player)!);
       expect(player.snapshot.quests.find(q => q.id === 'last-shift')!.status).toBe('active');
     }
+    expect(world.session('alice').mode).toBe('viewing');
     expect(world.rejoin('alice')).toBe(true);
+    expect(world.session('bob').mode).toBe('viewing');
+    expect(world.rejoin('bob')).toBe(true);
     expect(world.session('bob').mode).toBe('shared');
   });
 
@@ -455,10 +464,126 @@ test('a surviving party member can return a dead companion without reviving them
   expect(world.resume('bob')).toBe(false); expect(world.rejoin('bob')).toBe(false);
   expect(world.session('alice').canRejoin).toBe(true);
   expect(world.resume('alice')).toBe(true); expect(world.rejoin('alice')).toBe(true);
+  expect(world.session('alice').mode).toBe('viewing'); expect(world.rejoin('alice')).toBe(true);
   expect(world.session('alice').mode).toBe('shared'); expect(world.session('bob').mode).toBe('shared');
   expect(alice.snapshot.player.health).toBe(100);
   expect(bob.snapshot.player.health).toBe(0); expect(bob.snapshot.phase).toBe('lost');
   const restored = createSharedAdventure({ save: world.save(), now: () => 1000 });
   const dead = restored.join('bob', 'Bob', 'warrior');
   expect(dead.snapshot.player.health).toBe(0); expect(dead.snapshot.phase).toBe('lost');
+});
+
+describe('return-to-world preview', () => {
+  const at = (x: number, z: number) => ({ x, y: supportHeight(x, z), z });
+  const separation = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
+
+  test('losing the last viewing connection preserves the remaining choice time', () => {
+    let now = 1000;
+    const world = createSharedAdventure({ now: () => now });
+    world.join('alice', 'Alice', 'mage'); world.pause('alice'); world.rejoin('alice');
+    world.leave('alice'); now += 4000; world.advance(.1);
+    expect(world.session('alice').mode).toBe('viewing');
+    world.join('alice', 'Alice', 'mage');
+    expect(world.session('alice').returnPlan!.remainingSeconds).toBe(11);
+    world.leave('alice'); now += 11000; world.advance(.1);
+    expect(world.session('alice').mode).toBe('shared');
+  });
+
+  test('selection keeps the exit center fixed, uses live danger and occupancy, and revalidates before return', () => {
+    const seed = createSharedAdventure({ now: () => 1000 });
+    seed.join('alice', 'Alice', 'mage'); seed.join('observer', 'Observer', 'mage');
+    seed.pause('alice');
+    const saved = JSON.parse(seed.save());
+    const exit = at(-3, 28);
+    saved.characters.find((c: { id: string }) => c.id === 'alice').state.position = exit;
+    saved.characters.find((c: { id: string }) => c.id === 'alice').state.phase = 'expedition';
+    const privateScout = saved.instances[0].world.threats.find((t: { id: string }) => t.id === 'scout');
+    Object.assign(privateScout, { health: 0, phase: 'cleared', lootClaimed: true });
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+    const alice = world.join('alice', 'Alice', 'mage'); world.join('observer', 'Observer', 'mage');
+    expect(world.rejoin('alice')).toBe(true);
+    const plan = world.session('alice').returnPlan!;
+    expect(plan.center).toEqual(exit);
+    expect(plan.spots.some(s => s.dangerous)).toBe(true);
+    expect(plan.spots.some(s => !s.dangerous)).toBe(true);
+    expect(plan.spots.every(s => separation(s.position, exit) <= 7.500001 && !blockedPosition(s.position.x, s.position.z))).toBe(true);
+    expect(world.snapshot('alice')!.threats.find(t => t.id === 'scout')!.health).toBeGreaterThan(0);
+    expect(alice.snapshot.threats.find(t => t.id === 'scout')!.health).toBe(0);
+    const choice = plan.spots.find(s => !s.dangerous && separation(s.position, exit) > 0)!.position;
+    expect(world.returnSpot('alice', choice)).toBe(true);
+    expect(world.session('alice')).toMatchObject({ mode: 'viewing', returnPlan: { center: exit, destination: choice, confirmed: false } });
+    const occupied = JSON.parse(world.save());
+    occupied.characters.find((c: { id: string }) => c.id === 'observer').state.position = choice;
+    const restored = createSharedAdventure({ save: JSON.stringify(occupied), now: () => 1000 });
+    const returned = restored.join('alice', 'Alice', 'mage'); restored.join('observer', 'Observer', 'mage');
+    expect(restored.session('alice').returnPlan!.spots.some(s => separation(s.position, choice) < 1.2)).toBe(false);
+    expect(restored.returnSpot('alice', choice)).toBe(false);
+    expect(restored.rejoin('alice')).toBe(true);
+    expect(restored.session('alice').mode).toBe('shared');
+    expect(separation(returned.snapshot.player.position, choice)).toBeGreaterThanOrEqual(1.2);
+    expect(separation(returned.snapshot.player.position, exit)).toBeLessThanOrEqual(7.500001);
+  });
+
+  test.each([[3, -8], [30, -46]])('return spots respect buildings and cave layer at %s, %s', (x, z) => {
+    const seed = createSharedAdventure({ now: () => 1000 }); seed.join('alice', 'Alice', 'mage'); seed.pause('alice');
+    const saved = JSON.parse(seed.save()); saved.characters[0].state.position = at(x, z);
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 }); world.join('alice', 'Alice', 'mage');
+    expect(world.rejoin('alice')).toBe(true);
+    const plan = world.session('alice').returnPlan!;
+    expect(plan.spots.length).toBeGreaterThan(0);
+    for (const spot of plan.spots) {
+      expect(blockedPosition(spot.position.x, spot.position.z)).toBe(false);
+      expect(inCave(spot.position)).toBe(inCave(plan.center));
+      expect(separation(spot.position, plan.center)).toBeLessThanOrEqual(7.500001);
+    }
+    expect(world.returnSpot('alice', at(x + 8, z))).toBe(false);
+  });
+
+  test('all online living members confirm together, and the deadline survives reconnect without reviving the dead', () => {
+    let now = 1000;
+    const seed = createSharedAdventure({ now: () => now });
+    for (const id of ['alice', 'bob', 'dead']) seed.join(id, id, 'mage');
+    seed.pause('alice', ['alice', 'bob', 'dead']);
+    const saved = JSON.parse(seed.save());
+    Object.assign(saved.characters.find((c: { id: string }) => c.id === 'dead').state, { health: 0, phase: 'lost' });
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => now });
+    for (const id of ['alice', 'bob', 'dead']) world.join(id, id, 'mage');
+    world.rejoin('alice');
+    const start = JSON.parse(world.save()).instances[0].returnStartedAt;
+    expect(world.rejoin('alice')).toBe(true);
+    expect(world.session('alice').mode).toBe('viewing');
+    expect(world.session('bob').returnPlan!.confirmed).toBe(false);
+    expect(JSON.parse(world.save()).instances[0].returnStartedAt).toBe(start);
+    world.leave('bob');
+    expect(world.session('alice').mode).toBe('viewing');
+    world.join('bob', 'bob', 'mage');
+    expect(world.session('bob').returnPlan!.remainingSeconds).toBe(15);
+    const restored = createSharedAdventure({ save: world.save(), now: () => now });
+    const alice = restored.join('alice', 'alice', 'mage'); restored.join('bob', 'bob', 'mage'); restored.join('dead', 'dead', 'mage');
+    const frozen = alice.snapshot.player.position;
+    now = 15999; restored.advance(.1);
+    expect(restored.session('alice').mode).toBe('viewing');
+    expect(alice.snapshot.player.position).toEqual(frozen);
+    now = 16000; restored.advance(.1);
+    for (const id of ['alice', 'bob', 'dead']) expect(restored.session(id).mode).toBe('shared');
+    expect(restored.getPlayer('dead')!.snapshot.player.health).toBe(0);
+    expect(restored.getPlayer('dead')!.snapshot.phase).toBe('lost');
+    expect(alice.snapshot.player.moving).toBe(false);
+  });
+
+  test('a restored completed fight automatically freezes its fork while the empty main world keeps moving', () => {
+    const seed = createSharedAdventure({ now: () => 1000 }); seed.join('alice', 'Alice', 'mage'); seed.pause('alice');
+    const saved = JSON.parse(seed.save()); saved.instances[0].combatOccurred = true;
+    const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
+    const alice = world.join('alice', 'Alice', 'mage'); world.resume('alice'); world.advance(.1);
+    expect(world.session('alice').mode).toBe('viewing');
+    const frozen = JSON.parse(world.save()).instances[0].world;
+    const scout = world.snapshot('alice')!.threats.find(t => t.id === 'scout')!;
+    alice.setAction('forward', true); world.advance(.5);
+    expect(world.players()).toEqual([]);
+    expect(JSON.parse(world.save()).instances[0].world).toEqual(frozen);
+    expect(world.snapshot('alice')!.threats.find(t => t.id === 'scout')!.position).not.toEqual(scout.position);
+    expect(world.snapshot('alice')!.player.inCombat).toBe(false);
+    expect(world.snapshot('alice')!.threats.every(t => t.targetPlayerId !== 'alice')).toBe(true);
+  });
 });

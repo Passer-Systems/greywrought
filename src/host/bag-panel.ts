@@ -1,11 +1,11 @@
+import { usableItems, usableItem, usableItemDragType } from "./usable-items.js";
 import { formatMoney } from "../game/currency.js";
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
 import { GEAR, YARD, gearName, isGearItem, type GearSlot, type GearItemId } from "../game/yard-content.js";
 
 const itemTypes = [
-  { id: "hearthstone", name: "Hearthstone", icon: "spells/earth-stone.png" },
-  { id: "potions", name: "Health potion", icon: "items/health-potion-red.png" },
+  ...usableItems,
   { id: "cargo", name: YARD.resource, icon: "items/blue-gem.png" },
   { id: "carriedSalvage", name: "Yard salvage", icon: "items/leather-satchel.png" },
   { id: "carriedRelics", name: "Last Shift Roll", icon: "items/purple-crystal.png" },
@@ -112,7 +112,7 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
       details.hidden = true; pinned = false;
       event.dataTransfer?.setData("application/x-greywrought-bag-item", slot.item.id);
       if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
-      if (slot.item.id === "potions") event.dataTransfer?.setData("application/x-greywrought-potion", "drinkPotion");
+      if (usableItem(slot.item.id)) event.dataTransfer?.setData(usableItemDragType, slot.item.id);
       if (isGearItem(slot.item.id)) {
         event.dataTransfer?.setData("application/x-greywrought-gear", slot.item.id);
         callbacks.onOpenEquipment?.(slot.item.id);
@@ -233,11 +233,11 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     equip.disabled = next.phase === "lost" || next.combat.phase === "active";
     setText(equip, currentGear ? "Replace equipped item" : "Equip");
     usePotion.hidden = selected !== "potions";
-    usePotion.disabled = next.phase === "lost" || next.player.inCombat && next.combat.phase === "active" || next.potions < 1 || next.player.health >= next.player.maximumHealth;
-    setText(usePotion, next.player.inCombat && next.combat.phase === "active" ? "Wait for your next turn" : next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
+    usePotion.disabled = !usableItem("potions")!.available(next);
+    setText(usePotion, usableItem("potions")!.label(next));
     useHearthstone.hidden = selected !== "hearthstone";
-    useHearthstone.disabled = next.phase === "lost" || next.player.inCombat || next.player.currentAction === "hearthstone";
-    setText(useHearthstone, next.player.inCombat ? "Unavailable in combat" : next.player.currentAction === "hearthstone" ? "Returning…" : "Return to town");
+    useHearthstone.disabled = !usableItem("hearthstone")!.available(next);
+    setText(useHearthstone, usableItem("hearthstone")!.label(next));
     setText(securedValue, `${formatMoney(next.coins)} · ${next.supplies} supplies${next.quests.some(q => q.id === "last-shift" && q.status === "completed") ? " · Last Shift Roll delivered" : ""}`);
     if (!details.hidden) {
       const slot = slots.find(slot => slot.item?.id === selected);

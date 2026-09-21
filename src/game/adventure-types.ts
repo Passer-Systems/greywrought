@@ -7,9 +7,18 @@ import type { BellrunnerStopId, FlightState } from "./bellrunner.js";
 export interface Position { readonly x: number; readonly y: number; readonly z: number; }
 export interface EncounterSession {
   readonly id: string;
-  readonly mode: "shared" | "paused" | "private";
+  readonly mode: "shared" | "paused" | "private" | "viewing";
   readonly canRejoin: boolean;
   readonly origin: Position | null;
+  readonly returnPlan: ReturnPlan | null;
+}
+export interface ReturnSpot { readonly position: Position; readonly dangerous: boolean; }
+export interface ReturnPlan {
+  readonly remainingSeconds: number;
+  readonly center: Position;
+  readonly destination: Position;
+  readonly spots: readonly ReturnSpot[];
+  readonly confirmed: boolean;
 }
 export interface AdventureLogEntry {
   readonly id: number;
@@ -241,9 +250,11 @@ export interface SharedAdventure {
   pause(id: string, memberIds?: readonly string[]): boolean;
   resume(id: string): boolean;
   rejoin(id: string): boolean;
+  returnSpot(id: string, destination: Position): boolean;
   session(id: string): EncounterSession;
   advance(seconds: number): void;
   getPlayer(id: string): AdventureGame | undefined;
   players(instanceId?: string): readonly { readonly id: string; readonly name: string; readonly player: AdventureSnapshot["player"] }[];
+  snapshot(id: string): AdventureSnapshot | undefined;
   save(): string;
 }

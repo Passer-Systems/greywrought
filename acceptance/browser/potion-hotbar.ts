@@ -30,7 +30,7 @@ try {
   for (let i = 0; i < 100; i++) { try { if ((await fetch(url)).ok) break; } catch {} await Bun.sleep(100); }
   page = await openBrowser('potion-hotbar', { beforeNavigate: async call => {
     await call('Network.enable'); await call('Network.setBlockedURLs', { urls: [url + '__dev/events'] });
-    await call('Page.addScriptToEvaluateOnNewDocument', { source: `localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Potion Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4336/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state')window.potionState=d.snapshot;});}};` });
+    await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{close(){}};localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Potion Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4336/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state')window.potionState=d.snapshot;});}};` });
   } });
   await page.waitFor('document.body.dataset.entryRoute==="roster"');
   await page.click('#entry-enter-world');
@@ -49,7 +49,7 @@ try {
     await browser.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: points.from.x + 15, y: points.from.y, button: 'left', buttons: 1 });
     const fromBag = source.includes('bag-item');
     await browser.waitFor(fromBag ? 'document.getElementById("bag-details").hidden' : `document.querySelector(${JSON.stringify(source)}).classList.contains("action-dragging")`);
-    for (const type of ['dragEnter', 'dragOver', 'drop']) await browser.call('Input.dispatchDragEvent', { type, ...points.to, data: { items: [{ mimeType: fromBag ? 'application/x-greywrought-potion' : 'text/plain', data: 'drinkPotion' }], dragOperationsMask: 16 } });
+    for (const type of ['dragEnter', 'dragOver', 'drop']) await browser.call('Input.dispatchDragEvent', { type, ...points.to, data: { items: [{ mimeType: fromBag ? 'application/x-greywrought-usable-item' : 'text/plain', data: fromBag ? 'potions' : 'drinkPotion' }], dragOperationsMask: 16 } });
     await browser.call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...points.to, button: 'left', buttons: 0, clickCount: 1 });
     await browser.call('Input.setInterceptDrags', { enabled: false });
   }

@@ -40,7 +40,7 @@ export async function captureMinimap(renderer: WebGLRenderer, terrain: Group, im
   scene.add(sun, sun.target);
   const camera = new OrthographicCamera(-width / 2, width / 2, height / 2, -height / 2, 1, 600);
   camera.position.set(centerX, 300, centerZ);
-  camera.up.set(0, 0, -1);
+  camera.up.set(0, 0, 1);
   camera.lookAt(centerX, 0, centerZ);
   const target = new WebGLRenderTarget(image.width, image.height);
   target.texture.colorSpace = SRGBColorSpace;
@@ -53,8 +53,12 @@ export async function captureMinimap(renderer: WebGLRenderer, terrain: Group, im
     await renderer.readRenderTargetPixelsAsync(target, 0, 0, image.width, image.height, pixels);
     const context = image.getContext("2d")!;
     const frame = context.createImageData(image.width, image.height);
-    // Readback starts at the lower edge: retaining that order puts world +Z north.
-    frame.data.set(pixels);
+    // North is +Z; looking north, world -X is right. Flip WebGL’s bottom-up rows.
+    const rowBytes = image.width * 4;
+    for (let row = 0; row < image.height; row++) {
+      const source = (image.height - 1 - row) * rowBytes;
+      frame.data.set(pixels.subarray(source, source + rowBytes), row * rowBytes);
+    }
     context.putImageData(frame, 0, 0);
   } finally {
     renderer.setRenderTarget(previousTarget);
@@ -74,7 +78,7 @@ export function createMinimap(canvas: HTMLCanvasElement) {
     if (!atlas || (!dirty && Math.hypot(x - drawnX, z - drawnZ) < .04)) return;
     context.fillStyle = "#526342";
     context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(atlas, (x - span / 2 - bounds.left) / width * atlas.width, (bounds.top - z - span / 2) / height * atlas.height,
+    context.drawImage(atlas, (bounds.right - x - span / 2) / width * atlas.width, (bounds.top - z - span / 2) / height * atlas.height,
       span / width * atlas.width, span / height * atlas.height, 0, 0, canvas.width, canvas.height);
     canvas.dataset.span = String(span);
     canvas.dataset.centerX = String(x); canvas.dataset.centerZ = String(z);

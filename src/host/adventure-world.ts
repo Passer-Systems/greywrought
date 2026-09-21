@@ -398,10 +398,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   shield.position.y = 0.9;
   player.add(shield);
   const selectionCircle = selectionCircles();
-  const playerHalo = selectionCircle(.62, 0xffdf8a);
-  playerHalo.visible = true;
-  playerHalo.position.y = 0.04;
-  player.add(playerHalo);
   const friendlySelection = selectionCircle(.9, 0x63f076);
   const npcSelection = selectionCircle(.95, 0x63f076); scene.add(npcSelection);
   friendlySelection.rotation.x = -Math.PI / 2; friendlySelection.visible = false; scene.add(friendlySelection);
@@ -663,7 +659,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     setCombatPreview(preview) { combatPreview = preview; },
     setReturnPreview(plan) {
       returnPlan = plan;
-      const key = plan ? JSON.stringify({ remainingSeconds: plan.remainingSeconds, center: plan.center, destination: plan.destination, spots: plan.spots, confirmed: plan.confirmed }) : "";
+      const key = plan ? JSON.stringify({ destination: plan.destination, spots: plan.spots }) : "";
       if (key !== returnPlanKey) { returnPlanKey = key; rebuildReturnSpots(plan); }
       returnGhostTarget = plan ? 1 : 0;
       returnPreviewGroup.visible = Boolean(plan);
@@ -927,7 +923,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       }
       player.visible = firstPersonBlend < .8 && Math.hypot(camera.position.x-target.x, camera.position.y-target.y, camera.position.z-target.z) > 1.8;
       const selectedPlayer = selectedUnit?.kind === "player" ? selectedUnit.id : null;
-      const friendlyRoot = selectedPlayer === playerSelection?.selfId ? player : [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
+      const friendlyRoot = [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
       friendlySelection.visible = Boolean(friendlyRoot?.visible);
       if (friendlyRoot && friendlySelection.visible) { friendlySelection.position.copy(friendlyRoot.position); conformToTerrain(friendlySelection, .06, combatSurfaceHeight); }
       const interactingNpc = snapshot.shopOpen ? mara : snapshot.bankOpen ? elian : snapshot.innOpen ? regionalHosts.find(entry => entry.spot.id === snapshot.restSpot)?.root ?? rowan

@@ -45,6 +45,7 @@ export type WorldCommand =
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'rejoin' }
+  | { type: 'returnSpot'; destination: Position }
   | { type: "interactNpc"; id: NpcId }
   | { type: "buyGear"; vendor: VendorId; item: GearItemId }
   | { type: "quest"; id: QuestId; operation: QuestOperation }

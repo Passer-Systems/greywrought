@@ -1,4 +1,5 @@
 import { check, openBrowser } from './session.js';
+import { EXPANDED_WORLD_BOUNDS } from '../../src/game/world-regions.js';
 
 const port = 4478;
 Object.assign(Bun.env, { GREYWROUGHT_GAME_URL: `http://127.0.0.1:${port}/`, GREYWROUGHT_DEBUG_PORT: '9678', GREYWROUGHT_VULKAN: '1' });
@@ -29,7 +30,9 @@ try {
   await page.press('KeyM');
   await page.waitFor('document.getElementById("world-map-panel").open');
   const openedX = await page.evaluate<number>('window.mapState.snapshot.player.position.x');
+  const openedLeft = await page.evaluate<number>('parseFloat(document.getElementById("world-map-player").style.left)');
   await page.waitFor(`window.mapState.snapshot.player.position.x>${openedX}+1`);
+  check(await page.evaluate(`parseFloat(document.getElementById("world-map-player").style.left)<${openedLeft}`), 'Strafing left while facing north moves left on the atlas');
   await page.key('KeyA', false);
   await page.waitFor('!window.mapState.snapshot.player.moving');
   const releasedX = await page.evaluate<number>('window.mapState.snapshot.player.position.x');
@@ -37,6 +40,10 @@ try {
   await page.waitFor(`window.mapState.snapshot.player.position.x<${releasedX}-1`);
   await page.key('KeyD', false);
   await page.waitFor('!window.mapState.snapshot.player.moving');
+  const clicked = await page.evaluate<{x: number; y: number}>('(()=>{const s=document.getElementById("world-map-sheet"),r=s.getBoundingClientRect(),e=new MouseEvent("click",{bubbles:true,clientX:r.left+r.width/4,clientY:r.top+r.height/4});s.dispatchEvent(e);return {x:(e.clientX-r.left)/r.width,y:(e.clientY-r.top)/r.height};})()');
+  const expectedX = EXPANDED_WORLD_BOUNDS.maxX - (EXPANDED_WORLD_BOUNDS.maxX - EXPANDED_WORLD_BOUNDS.minX) * clicked.x;
+  const expectedZ = EXPANDED_WORLD_BOUNDS.maxZ - (EXPANDED_WORLD_BOUNDS.maxZ - EXPANDED_WORLD_BOUNDS.minZ) * clicked.y;
+  check(await page.evaluate(`(()=>{const p=document.getElementById("world-map-panel");return Math.abs(Number(p.dataset.waypointX)-${expectedX})<0.01&&Math.abs(Number(p.dataset.waypointZ)-${expectedZ})<0.01;})()`), 'Atlas clicks invert the north-up map coordinates');
   await page.click('.atlas-point[data-place="yard"]');
   check(await page.evaluate<boolean>('document.getElementById("world-map-panel").dataset.waypointX==="0"'), 'Map clicks still mark destinations');
   check(await page.evaluate<boolean>('Number(getComputedStyle(document.getElementById("world-map-panel")).opacity)===0.92'), 'Map defaults to subtle translucency');
@@ -58,6 +65,12 @@ try {
   await page.click('#party-invite [data-party-command="accept"]');
   await page.waitFor('document.querySelector(".map-party[data-player-id=map-friend]")!==null');
   check(await page.evaluate<boolean>('document.querySelectorAll(".map-party").length===1&&!document.querySelector(".map-party[data-player-id=map-stranger]")'), 'Only party members have minimap arrows');
+  const beforeLeft = await page.evaluate<number>('parseFloat(document.querySelector(".map-party").style.left)');
+  friend.command({ type: 'camera', x: 1, z: 0 });
+  friend.command({ type: 'action', action: 'forward', pressed: true });
+  await page.waitFor(`parseFloat(document.querySelector('.map-party').style.left)<${beforeLeft}-3`);
+  friend.command({ type: 'action', action: 'forward', pressed: false });
+  check(await page.evaluate<boolean>('(()=>{const m=new DOMMatrix(getComputedStyle(document.querySelector(".map-party")).transform);return Math.abs(Math.atan2(m.b,m.a)+Math.PI/2)<0.00001;})()'), 'Party heading points left when moving toward world +X');
   await page.press('Enter');
   await page.call('Input.insertText', { text: '/p Follow me to the gate.' });
   await page.press('Enter');

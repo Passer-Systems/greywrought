@@ -21,7 +21,11 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
     #chat-log .log-chat { color:#dfd5ab; }
     #chat-log .log-party { color:#70b7ff; }
     #chat-log .log-combat { color:#e1b794; }
-    #chat-log-input { box-sizing:border-box; flex:0 0 30px; width:100%; border:1px solid #78806388; border-radius:3px; background:#0d1815e8; padding:5px 9px; color:#f3e6c7; font:var(--ui-font-body) system-ui,sans-serif; }
+    #chat-log-compose { display:flex; align-items:center; flex:0 0 30px; min-height:0; border:1px solid #78806388; border-radius:3px; background:#0d1815e8; }
+    #chat-log-compose[hidden] { display:none; }
+    #chat-log-prefix { padding-left:9px; color:#70b7ff; white-space:nowrap; }
+    #chat-log-input { box-sizing:border-box; min-width:0; width:100%; height:100%; border:0; border-radius:3px; background:transparent; padding:5px 9px; color:#f3e6c7; font:var(--ui-font-body) system-ui,sans-serif; }
+    #chat-log-compose[data-channel="party"] #chat-log-input, #chat-log-compose[data-channel="party"] #chat-log-input::placeholder { color:#70b7ff; }
     #chat-log-resize { position:absolute; right:0; bottom:0; width:16px; height:16px; padding:0; border:0; background:transparent; cursor:nwse-resize; touch-action:none; }
     #chat-log-resize::after { content:""; position:absolute; right:3px; bottom:3px; width:8px; height:8px; background:repeating-linear-gradient(135deg,transparent 0 3px,#b8a270aa 3px 4px); clip-path:polygon(100% 0,100% 100%,0 100%); }
     #chat-log-resize:focus-visible { outline:1px solid #e4c780; }
@@ -50,6 +54,11 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
     combat: { following: true, entryId: null, offset: 0 },
   };
   const tabs = new Map<Channel, HTMLButtonElement>();
+  const compose = document.createElement("div");
+  compose.id = "chat-log-compose"; compose.hidden = !onSend;
+  const prefix = document.createElement("span");
+  prefix.id = "chat-log-prefix"; prefix.textContent = "[Party]"; prefix.hidden = true;
+  let sendChannel: "say" | "party" = "say";
   const input = document.createElement("input");
   input.id = "chat-log-input"; input.type = "text"; input.maxLength = 280;
   input.placeholder = "Enter to chat · /p for party"; input.setAttribute("aria-label", "Chat message; /p for party");
@@ -60,16 +69,38 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
   input.setAttribute("data-bwignore", "true");
   input.setAttribute("data-1p-ignore", "true");
   input.setAttribute("data-lpignore", "true");
-  input.hidden = !onSend;
+  compose.append(prefix, input);
+  function setSendChannel(channel: "say" | "party"): void {
+    sendChannel = channel;
+    compose.dataset.channel = channel;
+    prefix.hidden = channel !== "party";
+    input.placeholder = channel === "party" ? "Message your party · /s to say" : "Enter to chat · /p for party";
+    input.setAttribute("aria-label", channel === "party" ? "Party message; /s to say" : "Chat message; /p for party");
+  }
+  function takeChannelCommand(text: string): string {
+    const match = /^\/(p|party|s|say)(?:\s+([\s\S]*))?$/i.exec(text);
+    if (!match) return text;
+    setSendChannel(["p", "party"].includes(match[1]!.toLowerCase()) ? "party" : "say");
+    return match[2]?.trim() ?? "";
+  }
+  const onInput = (): void => {
+    if (/^\/(p|party|s|say)\s/i.test(input.value)) input.value = takeChannelCommand(input.value);
+  };
+  input.addEventListener("input", onInput);
   const onInputKey = (event: KeyboardEvent): void => {
     event.stopPropagation();
     if (event.isComposing) return;
     if (event.key === "Escape") { event.preventDefault(); input.blur(); }
     else if (event.key === "Enter") {
       event.preventDefault();
-      const text = input.value.trim().slice(0, 280);
-      if (text && onSend) { onSend(text); input.value = ""; select("chat"); }
-      input.blur();
+      const original = input.value.trim().slice(0, 280);
+      const text = takeChannelCommand(original);
+      if (text && onSend) {
+        onSend(sendChannel === "party" && !text.startsWith("/") ? `/p ${text}` : text);
+        select("chat");
+      }
+      input.value = "";
+      if (text || !original) input.blur();
     }
   };
   input.addEventListener("keydown", onInputKey);
@@ -137,7 +168,7 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
   tabList.addEventListener("keydown", onTabKey);
   const resize = document.createElement("button"); resize.id = "chat-log-resize"; resize.type = "button";
   resize.setAttribute("aria-label", "Resize chat log");
-  root.append(tabList, view, input, resize); host.append(style, root);
+  root.append(tabList, view, compose, resize); host.append(style, root);
   const events = new AbortController(), options = { signal: events.signal };
   let geometry: Geometry | null = null;
   let gesture: { kind: "move" | "resize"; pointerId: number; x: number; y: number; start: Geometry; active: boolean } | null = null;
@@ -212,6 +243,7 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
     },
     reset(): void {
       input.value = "";
+      setSendChannel("say");
       entries = []; selected = "chat";
       positions.chat = { following: true, entryId: null, offset: 0 };
       positions.combat = { following: true, entryId: null, offset: 0 };
@@ -219,6 +251,7 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
     },
     dispose(): void {
       finish(); events.abort();
+      input.removeEventListener("input", onInput);
       input.removeEventListener("keydown", onInputKey);
       input.removeEventListener("keyup", stopKeys);
       input.removeEventListener("keypress", stopKeys);

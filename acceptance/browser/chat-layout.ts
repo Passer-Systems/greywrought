@@ -36,6 +36,40 @@ try {
   check(await page.evaluate<string>('(()=>{const v=document.getElementById("chat-log-messages"),t=v.getBoundingClientRect().top;return [...v.children].find(r=>r.getBoundingClientRect().bottom>t).dataset.logEntry})()')===anchor,'Channel switching restores scroll position');
   await page.click('#chat-log-input');await page.call('Input.insertText',{text:'Layout works'});await page.press('Enter');
   check(await page.evaluate('window.sent[0]==="Layout works"&&document.getElementById("chat-log-input").value===""'),'Typing and sending still work');
+  async function send(text: string) {
+    await page!.click('#chat-log-input');
+    await page!.call('Input.insertText', { text });
+    await page!.press('Enter');
+  }
+  await send('/party');
+  check(await page.evaluate('window.sent.length===1&&!document.getElementById("chat-log-prefix").hidden&&document.activeElement.id==="chat-log-input"'),'Bare /party selects party chat without sending and keeps typing focus');
+  await send('Meet at the bridge');
+  await send('Bring supplies');
+  check(await page.evaluate('window.sent.slice(-2).every(text=>text.startsWith("/p "))'),'Plain messages stay in party chat');
+  await page.click('#chat-log-input');
+  await page.call('Input.insertText', { text: 'Ready when you are' });
+  check(await page.evaluate('getComputedStyle(document.getElementById("chat-log-input")).color==="rgb(112, 183, 255)"&&getComputedStyle(document.getElementById("chat-log-prefix")).color==="rgb(112, 183, 255)"'),'Party prefix and typed message are blue');
+  await page.shot('sticky-party-chat');
+  await page.press('Enter');
+  await send('/follow Friend');
+  await send('/sit');
+  await send('/roll');
+  check(await page.evaluate('JSON.stringify(window.sent.slice(-3))===JSON.stringify(["/follow Friend","/sit","/roll"])'),'Other slash commands remain commands in party mode');
+  await send('Still private');
+  check(await page.evaluate('window.sent.at(-1)==="/p Still private"'),'Slash commands preserve party mode');
+  await send('/s');
+  await send('Hello everyone');
+  check(await page.evaluate('document.getElementById("chat-log-prefix").hidden&&window.sent.at(-1)==="Hello everyone"&&getComputedStyle(document.getElementById("chat-log-input")).color!=="rgb(112, 183, 255)"'),'Bare /s returns to normal chat and its normal color');
+  await send('/p One more party message');
+  check(await page.evaluate('window.sent.at(-1)==="/p One more party message"'),'Party alias with a message selects party chat');
+  await send('/say Public again');
+  await send('And still public');
+  check(await page.evaluate('JSON.stringify(window.sent.slice(-2))===JSON.stringify(["Public again","And still public"])'),'Say alias with a message selects normal chat');
+  await page.click('#chat-log-input');
+  await page.call('Input.insertText', { text: '/p ' });
+  check(await page.evaluate('document.getElementById("chat-log-input").value===""&&!document.getElementById("chat-log-prefix").hidden'),'Typing /p and a space switches channel before composing');
+  await page.evaluate('window.log.reset();window.log.update(window.entries)');
+  check(await page.evaluate('document.getElementById("chat-log-prefix").hidden'),'Character reset clears party mode');
   await page.call('Page.reload');await page.waitFor('document.querySelectorAll("#chat-log-messages p").length===80');
   const restored=await rect();
   check(Math.abs(restored.x-resized.x)<1&&Math.abs(restored.y-resized.y)<1&&Math.abs(restored.width-resized.width)<1&&Math.abs(restored.height-resized.height)<1,'Reload restores position and size');
@@ -46,6 +80,6 @@ try {
   await page.call('Emulation.setDeviceMetricsOverride',{width:600,height:400,deviceScaleFactor:1,mobile:false});
   check(await page.evaluate('!document.getElementById("chat-log")'),'Disposal removes the panel');
   check(page.errors.length===0,'No browser exceptions');
-  console.log('PASS chat drag, resize, scroll anchors, tabs, typing, reload persistence, viewport clamp and disposal',page.output);
+  console.log('PASS chat layout, sticky party channel, blue composer, slash commands, say aliases, reset, reload persistence and disposal',page.output);
 } catch(error){await page?.shot('failure');throw error;}
 finally{await page?.close();server.stop(true);}

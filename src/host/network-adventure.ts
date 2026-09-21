@@ -1,4 +1,4 @@
-import type { AdventureGame, AdventureSnapshot, CombatForecast, EncounterSession } from '../game/adventure-types.js';
+import type { AdventureGame, AdventureSnapshot, CombatForecast, EncounterSession, Position } from '../game/adventure-types.js';
 import type { LocalCharacter } from './character-profile.js';
 import type { PartyCommand, PartyView, PartyInviteView, ClientWorldMessage, RemotePlayerView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
 import { LocalMovement, isLocomotionAction } from './local-movement.js';
@@ -22,9 +22,13 @@ export interface NetworkAdventure extends AdventureGame {
   partyCommand(command: PartyCommand): void;
   sendChat(text: string): void;
   followPlayer(id: string | null): void;
+  readonly autorunning: boolean;
+  toggleAutorun(): void;
+  stopAutorun(): void;
   pause(): void;
   resume(): void;
   rejoin(): void;
+  selectReturnSpot(destination: Position): boolean;
   subscribe(listener: () => void): () => void;
   close(): void;
 }
@@ -62,7 +66,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let pendingTransition: 'resume' | 'rejoin' | null = null;
   const listeners = new Set<() => void>();
   const notify = () => { for (const listener of listeners) listener(); };
-  const inputEnabled = () => online && session.mode !== 'paused' && pauseRequest === null && transitionRequest === null;
+  const inputEnabled = () => online && session.mode !== 'paused' && session.mode !== 'viewing' && pauseRequest === null && transitionRequest === null;
   let readyResolve: () => void, readyReject: (reason: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   let handshakeTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -75,6 +79,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   }
   function send(command: WorldCommand): number | null {
     if (!online || socket.readyState !== WebSocket.OPEN) return null;
+    if (session.mode === 'viewing' && !['returnSpot', 'rejoin', 'chat', 'camera'].includes(command.type) && !command.type.startsWith('party')) return null;
     const message: ClientWorldMessage = { type: 'command', sequence: ++sequence, command };
     socket.send(JSON.stringify(message));
     return message.sequence;
@@ -93,6 +98,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     function disconnected(): void {
       if (closed || generation !== socketGeneration) return;
       stopFollowing();
+      prediction?.setAutorun(false);
       socketGeneration++;
       clearTimeout(handshakeTimeout); handshakeTimeout = undefined;
       clearTimeout(livenessTimeout); livenessTimeout = undefined;
@@ -137,6 +143,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
           disconnected();
         }, 3000);
         if (changed) { stopFollowing(); prediction = new LocalMovement(snapshot, message.movement); connectionRevision++; transitionRequest = null; pendingTransition = null; }
+        if (session.mode === 'viewing' && (changed || session.returnPlan?.confirmed)) { transitionRequest = null; pendingTransition = null; }
         prediction.reconcile(snapshot, message.movement, serverTime);
         online = true; reconnecting = false; clearTimeout(disconnectGrace); disconnectGrace = undefined; clearTimeout(timeout); readyResolve();
         notify();
@@ -173,7 +180,16 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     get partyInvites() { return partyInvites; },
     partyCommand(command) { send(command); },
     get chat() { return [...chat, ...notices]; },
+    get autorunning() { return prediction.autorunning; },
+    toggleAutorun() {
+      if (!inputEnabled()) return;
+      stopFollowing();
+      prediction.setAutorun(!prediction.autorunning);
+      notify();
+    },
+    stopAutorun() { prediction.setAutorun(false); },
     followPlayer(id) {
+      prediction.setAutorun(false);
       if (follow.targetId !== null && (id === null || id === follow.targetId)) {
         stopFollowing(); notices.push({ id: noticeId--, speakerId: null, name: 'Notice', text: 'Stopped following.' }); notify(); return;
       }
@@ -185,7 +201,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       notify();
     },
     advance(seconds) {
-      if (!inputEnabled()) { stopFollowing(); return; }
+      if (!inputEnabled()) { stopFollowing(); prediction.setAutorun(false); return; }
       prediction.setFollowDestination(follow.targetId === null ? null : follow.destination(snapshot.player, players, party));
       prediction.advance(seconds);
       const now = performance.now();
@@ -197,12 +213,13 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       if (now - lastCameraAt >= 50) flushCamera();
     },
     setAction(action, pressed) {
+      if (pressed && ['forward', 'backward', 'left', 'right'].includes(action)) prediction.setAutorun(false);
       if (pressed && isLocomotionAction(action)) stopFollowing();
       if (pressed && !inputEnabled()) return;
       if (isLocomotionAction(action)) { prediction.setAction(action, pressed); return; }
       if (pressed) flushCamera(); send({type:'action',action,pressed});
     },
-    setMouseForward(active) { if (active) stopFollowing(); prediction.setMouseForward(active && inputEnabled()); },
+    setMouseForward(active) { if (active) { stopFollowing(); prediction.setAutorun(false); } prediction.setMouseForward(active && inputEnabled()); },
     emote(name) { if (inputEnabled()) send({ type: 'chat', text: `/${name}` }); },
     sit() { if (inputEnabled()) send({ type: 'sit' }); },
     setCameraForward(x,z) { prediction.setCameraForward(x,z); if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
@@ -231,11 +248,13 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     sendChat(text) { if (text.trim().toLowerCase() === '/sit') { if (inputEnabled()) send({ type: 'sit' }); } else send({type:'chat',text}); },
     pause() {
       stopFollowing();
+      prediction.setAutorun(false);
       if (!inputEnabled()) return;
       pauseRequest = send({type:'pause'}); notify();
     },
     resume() { if (online && session.mode === 'paused' && transitionRequest === null) { pendingTransition = 'resume'; transitionRequest = send({type:'resume'}); notify(); } },
     rejoin() { if (online && session.canRejoin && transitionRequest === null) { pendingTransition = 'rejoin'; transitionRequest = send({type:'rejoin'}); notify(); } },
+    selectReturnSpot(destination) { return online && session.mode === 'viewing' && !session.returnPlan?.confirmed && transitionRequest === null && send({type:'returnSpot',destination}) !== null; },
     subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     close,
   };

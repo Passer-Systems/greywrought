@@ -54,7 +54,7 @@ const character = { id: 'client-test', name: 'Tester', archetype: 'warrior' as c
 function state(mode: EncounterSession['mode']): Extract<ServerWorldMessage, { type: 'state' }> {
   const game = createAdventure();
   return { type: 'state', snapshot: game.snapshot, players: [], chat: [], party: null, partyInvites: [], serverTime: 1, serverWallTimeMillis: 1,
-    movement: game.movementCheckpoint!, session: { id: mode === 'shared' ? 'shared' : 'private:test', mode, canRejoin: mode !== 'shared', origin: mode === 'shared' ? null : { x: 0, y: 0, z: -8 } } };
+    movement: game.movementCheckpoint!, session: { id: mode === 'shared' ? 'shared' : 'private:test', mode, returnPlan: null, canRejoin: mode !== 'shared', origin: mode === 'shared' ? null : { x: 0, y: 0, z: -8 } } };
 }
 async function connected(mode: EncounterSession['mode'] = 'shared') {
   const ready = connectAdventure(character);
@@ -238,5 +238,58 @@ test('follow cancels on manual movement and mouse movement, and toggles off', as
   game.followPlayer('friend'); game.followPlayer('friend'); game.advance(.1);
   expect(game.renderPlayer.position.x).toBeCloseTo(after, 6);
   expect(game.chat.at(-1)?.text).toBe('Stopped following.');
+  game.close();
+});
+
+test('viewing blocks gameplay while return selection and confirmation stay available', async () => {
+  const { game, socket } = await connected('private');
+  game.rejoin();
+  const message = state('viewing');
+  const center = message.snapshot.player.position;
+  const destination = { ...center, x: center.x + 2.5 };
+  const returnPlan = { center, destination: center, remainingSeconds: 15, confirmed: false, spots: [{ position: center, dangerous: false }, { position: destination, dangerous: true }] };
+  socket.receive({ ...message, session: { ...message.session, returnPlan } });
+  expect(game.pendingTransition).toBeNull();
+  expect(game.inputEnabled).toBe(false);
+  const sent = socket.sent.length;
+  game.setAction('forward', true); game.setAction('strike', true); game.setMouseForward(true); game.advance(.1);
+  expect(socket.sent).toHaveLength(sent);
+  expect(game.renderPlayer.position).toEqual(center);
+  expect(game.selectReturnSpot(destination)).toBe(true);
+  expect(socket.sent.at(-1)).toMatchObject({ type: 'command', command: { type: 'returnSpot', destination } });
+  game.rejoin();
+  expect(socket.sent.at(-1)).toMatchObject({ type: 'command', command: { type: 'rejoin' } });
+  socket.receive({ ...message, session: { ...message.session, returnPlan: { ...returnPlan, destination, confirmed: true } } });
+  expect(game.pendingTransition).toBeNull();
+  expect(game.selectReturnSpot(center)).toBe(false);
+  socket.receive(state('shared'));
+  expect(game.inputEnabled).toBe(true);
+  expect(game.renderPlayer.position).toEqual(center);
+  game.setAction('forward', true); game.advance(.1);
+  expect(game.renderPlayer.position.z).toBeGreaterThan(center.z);
+  game.close();
+});
+
+test('autorun toggles forward motion, follows the camera, and stops on manual movement or combat', async () => {
+  const { game, socket } = await connected();
+  const start = game.renderPlayer.position;
+  game.toggleAutorun(); game.advance(.1);
+  expect(game.autorunning).toBe(true);
+  expect(game.renderPlayer.position.z).toBeGreaterThan(start.z);
+  game.setCameraForward(1,0); game.advance(.1);
+  expect(game.renderPlayer.position.x).toBeGreaterThan(start.x);
+  game.toggleAutorun();
+  const stopped = game.renderPlayer.position;
+  game.advance(.1);
+  expect(game.renderPlayer.position).toEqual(stopped);
+  game.toggleAutorun(); game.setAction('backward',true);
+  expect(game.autorunning).toBe(false);
+  game.setAction('backward',false); game.toggleAutorun();
+  const combat = state('shared');
+  socket.receive({ ...combat, snapshot: { ...combat.snapshot, player: { ...combat.snapshot.player, inCombat:true } } });
+  expect(game.autorunning).toBe(false);
+  game.toggleAutorun(); expect(game.autorunning).toBe(false);
+  socket.receive(state('shared')); game.toggleAutorun();
+  socket.close(); expect(game.autorunning).toBe(false);
   game.close();
 });

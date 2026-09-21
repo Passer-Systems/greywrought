@@ -1,3 +1,4 @@
+import { usableItems, usableItem, usableItemDragType } from "./usable-items.js";
 import { createWorldMap } from "./world-map.js";
 import { regionAt, settlementAt } from "../game/world-regions.js";
 import { createMinimap } from "./minimap.js";
@@ -79,6 +80,7 @@ const questRewards = createQuestRewardNotice(element("adventure-hud"), {
 });
 const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => unitFrames.portrait(id));
 const chatLog = createChatLog(element("adventure-hud"), text => {
+  if (text.trim().toLowerCase() === '/autorun') { running?.game.toggleAutorun(); return; }
   const match = /^\/follow(?:\s+(.*))?$/i.exec(text.trim());
   if (!match) { running?.game.sendChat(text); return; }
   const name = match[1]?.trim().toLowerCase();
@@ -183,7 +185,7 @@ function loadActionBarOrder(archetype: CharacterArchetype): void {
   const defaults = authoredActionBarOrder ?? (authoredActionBarOrder = normalActionBarOrder());
   let saved: unknown = null;
   try { saved = JSON.parse(localStorage.getItem(actionBarStorageKey(archetype)) ?? "null"); } catch { /* Use the authored order when storage is unavailable. */ }
-  const allowed = new Set<AdventureAction>(["drinkPotion", ...defaults.filter((action): action is AdventureAction => action !== null)]);
+  const allowed = new Set<AdventureAction>([...usableItems.map(item => item.action), ...defaults.filter((action): action is AdventureAction => action !== null)]);
   const parsed = Array.isArray(saved) ? saved.slice(0, defaults.length).map(value => typeof value === "string" && allowed.has(value as AdventureAction) ? value as AdventureAction : null) : [];
   const order: ActionBarEntry[] = [];
   for (const action of parsed) order.push(action !== null && order.includes(action) ? null : action);
@@ -202,21 +204,23 @@ function persistActionBarOrder(): void {
 }
 function applyActionBarOrder(): void {
   const controls = actionBarControls();
-  let potion = controls.find(control => control.dataset.action === "drinkPotion");
-  if (actionBarOrder.includes("drinkPotion") && !potion) {
-    potion = controls.find(control => !control.dataset.action)!;
-    potion.dataset.action = "drinkPotion";
-    potion.classList.remove("action-empty");
-    potion.draggable = true;
-    potion.setAttribute("aria-describedby", "tip-potion");
-    potion.innerHTML = `<kbd></kbd><span class="action-art"><img src="${publicUrl("assets/ui/icons/items/health-potion-red.png")}" alt="" draggable="false" /><span class="action-quantity" aria-hidden="true"></span></span><span class="action-tooltip" id="tip-potion" role="tooltip"><strong>Health potion</strong><small></small><span></span></span>`;
-  } else if (potion && !actionBarOrder.includes("drinkPotion")) {
-    delete potion.dataset.action;
-    potion.classList.add("action-empty");
-    potion.draggable = false;
-    potion.disabled = false;
-    potion.removeAttribute("aria-describedby");
-    potion.innerHTML = '<kbd></kbd><span class="action-art"></span>';
+  for (const item of usableItems) {
+    let control = controls.find(control => control.dataset.action === item.action);
+    if (actionBarOrder.includes(item.action) && !control) {
+      control = controls.find(control => !control.dataset.action)!;
+      control.dataset.action = item.action;
+      control.classList.remove("action-empty");
+      control.draggable = true;
+      control.setAttribute("aria-describedby", `tip-${item.id}`);
+      control.innerHTML = `<kbd></kbd><span class="action-art"><img src="${publicUrl(`assets/ui/icons/${item.icon}`)}" alt="" draggable="false" />${item.stackable ? '<span class="action-quantity" aria-hidden="true"></span>' : ""}</span><span class="action-tooltip" id="${`tip-${item.id}`}" role="tooltip"><strong>${item.name}</strong><small></small><span></span></span>`;
+    } else if (control && !actionBarOrder.includes(item.action)) {
+      delete control.dataset.action;
+      control.classList.add("action-empty");
+      control.draggable = false;
+      control.disabled = false;
+      control.removeAttribute("aria-describedby");
+      control.innerHTML = '<kbd></kbd><span class="action-art"></span>';
+    }
   }
   const byAction = new Map<string, HTMLButtonElement>();
   const empties: HTMLButtonElement[] = [];
@@ -264,7 +268,7 @@ function bindActionBar(): void {
     source.classList.add("action-dragging");
   });
   listen(bar, "dragover", event => {
-    if (!(event instanceof DragEvent) || (!dragged && !event.dataTransfer?.types.includes("application/x-greywrought-potion"))) return;
+    if (!(event instanceof DragEvent) || (!dragged && !event.dataTransfer?.types.includes(usableItemDragType))) return;
     const target = (event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null);
     if (!target || target === dragged) return;
     event.preventDefault();
@@ -272,18 +276,19 @@ function bindActionBar(): void {
     for (const control of actionBarControls()) control.classList.toggle("action-drag-over", control === target);
   });
   listen(bar, "drop", event => {
-    if (!(event instanceof DragEvent) || (!dragged && !event.dataTransfer?.types.includes("application/x-greywrought-potion"))) return;
+    if (!(event instanceof DragEvent) || (!dragged && !event.dataTransfer?.types.includes(usableItemDragType))) return;
     const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>("button") : null;
     if (!target || target === dragged) return;
     event.preventDefault();
-    const from = dragged ? Number(dragged.dataset.actionSlot) : actionBarOrder.indexOf("drinkPotion");
+    const bagAction = usableItem(event.dataTransfer?.getData(usableItemDragType))?.action ?? null;
+    if (!dragged && !bagAction) return;
+    const from = dragged ? Number(dragged.dataset.actionSlot) : actionBarOrder.indexOf(bagAction);
     const to = Number(target.dataset.actionSlot);
-    if (!dragged && event.dataTransfer?.getData("application/x-greywrought-potion") !== "drinkPotion") return;
     if (from < 0 && Number.isInteger(to)) {
       const empty = actionBarOrder.indexOf(null);
       if (empty < 0) return;
       actionBarOrder[empty] = actionBarOrder[to] ?? null;
-      actionBarOrder[to] = "drinkPotion";
+      actionBarOrder[to] = bagAction;
       applyActionBarOrder();
       persistActionBarOrder();
       suppressActionClickUntil = performance.now() + 250;
@@ -379,6 +384,7 @@ function setBaitAiming(value: boolean): void {
 }
 function menuOpen(): boolean { return !element("pause-panel").hidden; }
 function pressAction(action: AdventureAction): void {
+  if (running?.game.session.mode === "viewing") return;
   if (action === "interact" && running?.ready && !paused) { const stop=nearbyBellrunner(running.game.snapshot.player.position); if (stop) {openBellrunner(stop.id);return;} }
   if (menuOpen()) return;
   if (action === "strike" && running?.selection?.kind !== "enemy") return;
@@ -593,7 +599,9 @@ function syncEncounter(): void {
   const changed = state !== lastEncounterState;
   lastEncounterState = state;
   const wasPaused = paused;
-  paused = backgrounded || !game.inputEnabled;
+  const viewing = game.online && game.session.mode === "viewing";
+  paused = backgrounded || (!game.inputEnabled && !viewing);
+  world.setReturnPreview(viewing ? game.session.returnPlan : null);
   if (paused && !wasPaused) { release(); world.clearHover(); }
   document.body.dataset.gamePaused = String(paused);
   document.body.dataset.encounterMode = game.session.mode;
@@ -602,7 +610,11 @@ function syncEncounter(): void {
   document.body.dataset.canRejoin = String(game.session.canRejoin);
   if (changed) {
     stopFrames();
-    if (!game.reconnecting && (!game.online || (!game.inputEnabled && game.pendingTransition !== 'rejoin'))) element('pause-panel').hidden = false;
+    if (viewing) {
+      release(); world.clearHover(); running.selection = null;
+      closeBags(); closeEquipment(); worldMap.close();
+      element('pause-panel').hidden = true;
+    } else if (!game.reconnecting && (!game.online || (!game.inputEnabled && game.pendingTransition !== 'rejoin'))) element('pause-panel').hidden = false;
     else if (wasPaused || game.reconnecting) element('pause-panel').hidden = true;
     button('pause-open').setAttribute('aria-expanded', String(!element('pause-panel').hidden));
     world.updatePlayers(game.players.filter(player => player.id !== character.id));
@@ -614,37 +626,45 @@ function syncEncounter(): void {
     if (!paused && !menuOpen()) world.canvas.focus();
   }
   const grouped = (game.party?.members.length ?? 0) > 1;
-  const waiting = game.online && !game.inputEnabled && game.session.mode !== 'paused';
-  text('pause-title', !game.online ? 'Connection lost' : game.pendingTransition === 'resume' ? 'Resuming encounter…' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : game.session.mode === 'shared' ? 'Shared world' : 'Private encounter');
-  text('pause-copy', !game.online
+  const waiting = game.online && !game.inputEnabled && game.session.mode !== 'paused' && !viewing;
+  text('pause-title', viewing ? 'Viewing main world' : !game.online ? 'Connection lost' : game.pendingTransition === 'resume' ? 'Resuming encounter…' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : game.session.mode === 'shared' ? 'Shared world' : 'Private encounter');
+  text('pause-copy', viewing ? 'Choose a nearby spot to return. The world keeps moving while you decide.' : !game.online
     ? 'Reconnecting… your encounter pauses after five seconds away.'
     : waiting ? grouped ? 'Pausing for your party…' : 'Saving your encounter…'
     : game.session.mode === 'shared' ? grouped ? 'Your party is in the shared world.' : 'You are in the shared world.'
     : game.session.mode === 'paused' ? grouped ? 'Your party’s encounter is paused.' : 'Your private encounter is paused.'
     : grouped ? 'Your party shares this private encounter.' : 'Your private encounter is active.');
-  element('pause-private-warning').hidden = game.session.mode === 'shared';
+  element('pause-private-warning').hidden = game.session.mode === 'shared' || viewing;
   button('pause-action').disabled = !game.online || !game.inputEnabled;
-  element('pause-action').hidden = game.session.mode === 'paused';
+  element('pause-action').hidden = game.session.mode === 'paused' || viewing;
   element('pause-resume').hidden = game.session.mode !== 'paused';
   text('pause-toggle-label', game.session.mode === 'paused' ? 'Resume' : 'Pause');
   text('pause-toggle-tooltip', game.session.mode === 'paused' ? 'Resume' : 'Pause');
   element('pause-toggle-pause-icon').hidden = game.session.mode === 'paused';
   element('pause-toggle-play-icon').hidden = game.session.mode !== 'paused';
   button('pause-toggle').setAttribute('aria-label', game.session.mode === 'paused' ? 'Resume encounter' : 'Pause encounter');
-  button('pause-toggle').disabled = !game.online || game.pendingTransition !== null;
+  button('pause-toggle').disabled = !game.online || game.pendingTransition !== null || viewing;
   button('pause-resume').disabled = !game.online || game.session.mode !== 'paused' || game.pendingTransition !== null;
-  button('encounter-rejoin').disabled = !game.online || !game.session.canRejoin || game.pendingTransition !== null;
+  button('encounter-rejoin').disabled = !game.online || !game.session.canRejoin || game.pendingTransition !== null || Boolean(game.session.returnPlan?.confirmed);
   button('encounter-pause').disabled = game.pendingTransition !== null;
   element('encounter-status').hidden = game.session.mode === 'shared' || !game.online || !element('pause-panel').hidden;
-  text('encounter-title', game.session.mode === 'paused' ? 'Paused encounter' : 'Private encounter');
+  const plan = game.session.returnPlan;
+  element('encounter-status').dataset.viewing = String(viewing);
+  element('encounter-pause').hidden = viewing;
+  text('encounter-rejoin', viewing ? plan?.confirmed ? 'Waiting for party' : 'Return here' : 'Rejoin world');
+  text('encounter-title', viewing ? 'Viewing main world' : game.session.mode === 'paused' ? 'Paused encounter' : 'Private encounter');
   text('encounter-pause', game.session.mode === 'paused' ? 'Resume…' : 'Pause');
-  text('encounter-detail', game.session.canRejoin ? 'Out of combat · ready to rejoin' : 'In combat · no rewards');
+  text('encounter-detail', viewing ? `Returning in ${Math.ceil(plan?.remainingSeconds ?? 0)}s · ${plan?.confirmed ? 'Spot confirmed' : 'Choose a nearby spot'}` : game.session.canRejoin ? 'Ready to rejoin' : 'In combat · no rewards');
+  const dangerous = Boolean(plan?.spots.some(spot => spot.dangerous && Math.hypot(spot.position.x - plan.destination.x, spot.position.z - plan.destination.z) < .25));
+  element('return-spot-status').hidden = !viewing;
+  element('return-spot-status').dataset.dangerous = String(dangerous);
+  text('return-spot-status', dangerous ? 'Enemies nearby · returning here may start combat' : 'Click a glowing spot · R to return here');
   save(true);
   scheduleFrame();
 }
 function setBackgrounded(value: boolean): void {
   backgrounded = value;
-  if (value && running?.ready) release();
+  if (value && running?.ready) { running.game.stopAutorun(); release(); }
   syncEncounter();
 }
 function selectMenuTab(tab: "encounter" | "settings"): void {
@@ -717,7 +737,7 @@ const minimap = createMinimap(element("map-terrain") as HTMLCanvasElement);
 const mapParty = new Map<string, HTMLElement>();
 let mapCenter = { x: 0, z: -8 };
 function mapPosition(target: HTMLElement, x: number, z: number): void {
-  target.style.left = `${50 + (x - mapCenter.x) * 100 / minimap.span}%`;
+  target.style.left = `${50 - (x - mapCenter.x) * 100 / minimap.span}%`;
   target.style.top = `${50 - (z - mapCenter.z) * 100 / minimap.span}%`;
 }
 function makeEnemyInterface(snapshot: AdventureSnapshot): void {
@@ -829,6 +849,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, party: !!entry.partyId, text: entry.partyId ? `[Party] ${entry.name}: ${entry.text}` : entry.kind === 'emote' ? `* ${entry.name} ${entry.text}` : entry.name + ": " + entry.text })) ?? [];
   chatLog.update([...snapshot.log, ...sharedChat]);
   setDataset(data, { gameOnline: String(running?.game.online ?? false) });
+  setDataset(data, { autorunning: String(running?.game.autorunning ?? false) });
   setDataset(data, { gameRemotePlayers: JSON.stringify(running?.game.players ?? []) });
   bank.update(snapshot);
   inn.update(snapshot, snapshot.innOpen);
@@ -847,7 +868,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]')!;
     const reserved = snapshot.combat.queued.find(entry => (entry.action === "bait") === (action === "bait"))?.cost ?? 0;
     const availableStamina = snapshot.combat.availableStamina + reserved;
-    const disabled = !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.ready || availableStamina < cost || targeted && range.state !== "in" && !(planning && selected?.aggro);
+    const disabled = running?.game.session.mode === "viewing" || !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.ready || availableStamina < cost || targeted && range.state !== "in" && !(planning && selected?.aggro);
     if (control.disabled !== disabled) control.disabled = disabled;
     setAttribute(control, "aria-label", spec.name);
     setAttribute(control, "aria-pressed", String(action === "bait" && baitAiming));
@@ -861,14 +882,18 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : openingStrike ? "Opening strike · hit first" : action === "bait" ? "Click a highlighted tile to plan your movement" : "Plan · " + cost + " stamina";
     text(action + "-ready", detail + (range.text ? " · " + range.text : ""));
   }
-  const potionControl = actionBar().querySelector<HTMLButtonElement>('[data-action="drinkPotion"]');
-  if (potionControl) {
-    potionControl.disabled = snapshot.phase === "lost" || combatExecutionLocked() || snapshot.potions < 1 || player.health >= player.maximumHealth;
-    setAttribute(potionControl, "aria-label", `Health potion × ${snapshot.potions}`);
-    setDataset(potionControl.dataset, { quantity: String(snapshot.potions) });
-    setText(potionControl.querySelector<HTMLElement>(".action-quantity")!, String(snapshot.potions));
-    setText(potionControl.querySelector<HTMLElement>(".action-tooltip small")!, snapshot.potions < 1 ? "No potions" : combatExecutionLocked() ? "Wait for your next turn" : player.health >= player.maximumHealth ? "Health full" : "Drink potion");
-    setText(potionControl.querySelector<HTMLElement>(".action-tooltip span:last-child")!, `Restores ${snapshot.potionHealing} health. Can be used while planning a turn.`);
+  for (const item of usableItems) {
+    const control = actionBar().querySelector<HTMLButtonElement>(`[data-action="${item.action}"]`);
+    if (!control) continue;
+    const quantity = item.quantity(snapshot);
+    control.disabled = running?.game.session.mode === "viewing" || !item.available(snapshot);
+    setAttribute(control, "aria-label", item.name + (item.stackable ? ` × ${quantity}` : ""));
+    if (item.stackable) {
+      setDataset(control.dataset, { quantity: String(quantity) });
+      setText(control.querySelector<HTMLElement>(".action-quantity")!, String(quantity));
+    }
+    setText(control.querySelector<HTMLElement>(".action-tooltip small")!, item.label(snapshot));
+    setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, item.description(snapshot));
   }
   const recovery = element("player-action-bar");
   const recoveryHidden = player.actionCooldown <= 0.001 || (player.currentAction !== "gather" && player.currentAction !== "ritual" && player.currentAction !== "hearthstone");
@@ -910,7 +935,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const scale = Math.max(1, Math.abs(dx) / (minimap.span * .44), Math.abs(dz) / (minimap.span * .44));
     mapPosition(marker, mapCenter.x + dx / scale, mapCenter.z + dz / scale);
     const direction = scale > 1 ? { x: dx, z: dz } : member.player.cameraForward;
-    marker.style.transform = `translate(-50%, -50%) rotate(${Math.atan2(direction.x, direction.z)}rad)`;
+    marker.style.transform = `translate(-50%, -50%) rotate(${Math.atan2(-direction.x, direction.z)}rad)`;
     setDataset(marker.dataset, { edge: String(scale > 1) });
     setAttribute(marker, 'aria-label', member.name + (scale > 1 ? ' · beyond map' : ''));
   }
@@ -919,7 +944,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
     if (marker) mapPosition(marker, place.position.x, place.position.z);
   }
   mapPosition(element("map-player"), player.position.x, player.position.z);
-  element("map-player").style.transform = `translate(-50%, -50%) rotate(${Math.atan2(player.cameraForward.x, player.cameraForward.z)}rad)`;
+  element("map-player").style.transform = `translate(-50%, -50%) rotate(${Math.atan2(-player.cameraForward.x, player.cameraForward.z)}rad)`;
   for (const threat of snapshot.threats) {
     const marker = markers.get(threat.id);
     if (!marker) continue;
@@ -969,6 +994,14 @@ function bindWorld(app: RunningAdventure): void {
     buttons = event.buttons;
     app.game.setMouseForward((buttons & 3) === 3 && !paused && !menuOpen() && !combatExecutionLocked());
     if ((event.button === 0 || event.button === 2) && buttons === 0 && dragDistance < 5 && !paused && !menuOpen() && app.ready) {
+      if (app.game.session.mode === "viewing") {
+        if (event.button === 0) {
+          const destination = app.world.pickReturnSpot(event.clientX, event.clientY);
+          if (destination) app.game.selectReturnSpot(destination);
+        }
+        if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+        return;
+      }
       if (baitAiming) {
         if (event.button === 0) {
           const destination = app.world.pickGround(event.clientX, event.clientY);
@@ -1172,7 +1205,7 @@ listen(window, "keydown", (event) => {
   if (route !== "world") return;
   if (worldMap.isOpen) {
     if (event.code === "Escape" || event.code === "KeyM") { event.preventDefault(); if (!event.repeat) worldMap.close(); return; }
-    if (!["forward", "backward", "left", "right", "jump", "dive"].includes(keyActions[event.code] ?? "")) return;
+    if (event.code !== "Backquote" && !["forward", "backward", "left", "right", "jump", "dive"].includes(keyActions[event.code] ?? "")) return;
   }
   if (event.code === "Escape" && partyPanel.closeMenu()) { event.preventDefault(); return; }
   if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
@@ -1180,6 +1213,11 @@ listen(window, "keydown", (event) => {
   if (menuOpen() && event.code !== "Escape" && event.code !== "KeyH" && event.code !== "KeyV") return;
   if (event.code === "KeyM" && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); if (!event.repeat && running?.ready) worldMap.toggle(); return; }
   if (event.code === "Enter") { event.preventDefault(); release(); chatLog.focusInput(); return; }
+  if (event.code === "Backquote" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    event.preventDefault();
+    if (!event.repeat && running?.ready) running.game.toggleAutorun();
+    return;
+  }
   if ((event.code === "KeyH" || event.code === "KeyV") && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
     event.preventDefault();
     if (!event.repeat) toggleAggroRanges(event.code === "KeyV" ? "help" : "direct");
@@ -1227,6 +1265,12 @@ listen(window, "keydown", (event) => {
     }
     return;
   }
+  if (event.code === "KeyR" && running?.game.session.mode === "viewing") {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    event.preventDefault();
+    if (!event.repeat) running.game.rejoin();
+    return;
+  }
   if (event.code === "KeyR" && running?.game.snapshot.player.inCombat) {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
@@ -1247,7 +1291,7 @@ listen(window, "keyup", (event) => {
   if (action && ![...keys].some((key) => keyActions[key] === action)) running?.game.setAction(action, false);
 }, removers, true);
 listen(element("chat-log-input"), "focus", () => release());
-listen(window, "blur", () => release());
+listen(window, "blur", () => { running?.game.stopAutorun(); release(); });
 listen(window, "focus", () => { if (!document.hidden) setBackgrounded(false); });
 listen(document, "visibilitychange", () => setBackgrounded(document.hidden));
 listen(window, "pagehide", () => { release(); running?.game.pause(); save(true); });

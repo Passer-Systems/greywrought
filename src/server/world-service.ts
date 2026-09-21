@@ -50,6 +50,7 @@ function command(value: unknown): value is WorldCommand {
     case 'partyInvite': case 'partyKick': return keys(value, ['type', 'playerId']) && identifier(value.playerId);
     case 'partyAccept': case 'partyDecline': return keys(value, ['type', 'inviteId']) && identifier(value.inviteId);
     case 'partyLeave': case 'pause': case 'resume': case 'rejoin': case 'sit': return keys(value, ['type']);
+    case 'returnSpot': return keys(value, ['type', 'destination']) && record(value.destination) && keys(value.destination, ['x','y','z']) && finite(value.destination.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(value.destination.y,-100,100) && finite(value.destination.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
     case 'movement': return keys(value, ['type', 'frames']) && Array.isArray(value.frames) && value.frames.length > 0 && value.frames.length <= 30 && value.frames.every((frame, index, frames) => {
       if (!record(frame) || !keys(frame, ['sequence', 'seconds', 'input']) || !finite(frame.sequence, 1, Number.MAX_SAFE_INTEGER, true)
         || !finite(frame.seconds, Number.MIN_VALUE, 0.05) || !record(frame.input)) return false;
@@ -245,9 +246,10 @@ export async function createWorldService(options: WorldServiceOptions) {
       const player = world.getPlayer(id);
       if (!player) continue;
       const session = world.session(id);
-      let players = instancePlayers.get(session.id);
-      if (!players) { players = world.players(session.id); instancePlayers.set(session.id, players); }
-      send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat: [...chat.filter(message => message.partyId ? message.partyId === partyFor(id)?.id : session.mode === 'shared'), ...(session.mode === 'shared' ? [] : privateChat.get(session.id) ?? [])].sort((a, b) => a.id - b.id), serverTime, serverWallTimeMillis, movement: player.movementCheckpoint!, session, party: partyView(id), partyInvites: [...invites.values()].filter(invite => invite.recipientId === id).map(({ recipientId, ...invite }) => invite) });
+      const playerScope = session.mode === 'viewing' ? 'shared' : session.id;
+      let players = instancePlayers.get(playerScope);
+      if (!players) { players = world.players(playerScope); instancePlayers.set(playerScope, players); }
+      send(socket, { type: 'state', snapshot: session.mode === 'viewing' ? (world.snapshot(id) ?? player.snapshot) : player.snapshot, players: players.filter(other => other.id !== id), chat: [...chat.filter(message => message.partyId ? message.partyId === partyFor(id)?.id : session.mode === 'shared'), ...(session.mode === 'shared' ? [] : privateChat.get(session.id) ?? [])].sort((a, b) => a.id - b.id), serverTime, serverWallTimeMillis, movement: player.movementCheckpoint!, session, party: partyView(id), partyInvites: [...invites.values()].filter(invite => invite.recipientId === id).map(({ recipientId, ...invite }) => invite) });
     }
   }
   function stopInput(id: string): void {
@@ -301,6 +303,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     const id = socket.data.id;
     if (id === null) return false;
     const session = world.session(id);
+    if (session.mode === 'viewing' && value.type !== 'rejoin' && value.type !== 'returnSpot' && value.type !== 'camera' && value.type !== 'chat') return false;
     switch (value.type) {
       case 'partyInvite': case 'partyAccept': case 'partyDecline': case 'partyLeave': case 'partyKick': return applyParty(id, value, socket);
       case 'pause': return world.pause(id, cohort(id));
@@ -308,10 +311,11 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'rejoin': {
         const previous = session.id;
         const accepted = world.rejoin(id);
-        if (accepted && previous !== 'shared') privateChat.delete(previous);
+        if (accepted && previous !== 'shared' && world.session(id).mode === 'shared') privateChat.delete(previous);
         if (!accepted) error(socket, 'Everyone in your party must finish fighting before returning to the shared world.');
         return accepted;
       }
+      case 'returnSpot': return world.returnSpot(id, value.destination);
       case 'movement': return player.enqueueMovement!(value.frames);
       case 'sit': player.sit(); break;
       case 'action': player.setAction(value.action, value.pressed); break;

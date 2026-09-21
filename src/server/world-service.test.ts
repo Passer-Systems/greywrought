@@ -220,7 +220,7 @@ test('NPC interaction accepts named villagers and rejects unrelated targets', as
   } finally { visitor.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true,force:true}); }
 });
 
-test('pause forks the connection and explicit rejoin returns it to the shared world', async () => {
+test('pause forks the connection and explicit rejoin opens a return preview', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'greywrought-private-'));
   const service = await createWorldService({ savePath: join(directory, 'world.json') });
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
@@ -237,6 +237,14 @@ test('pause forks the connection and explicit rejoin returns it to the shared wo
     expect(await visitor.command({ type: 'resume' })).toBe(true);
     expect((await visitor.state(state => state.session.mode === 'private')).session.mode).toBe('private');
     visitor.messages.length = 0;
+    expect(await visitor.command({ type: 'rejoin' })).toBe(true);
+    const preview = await visitor.state(state => state.session.mode === 'viewing');
+    expect(preview.session.returnPlan?.remainingSeconds).toBeGreaterThan(0);
+    expect(preview.session.returnPlan?.spots.length).toBeGreaterThan(0);
+    expect(await visitor.command({ type: 'returnSpot', destination: preview.session.returnPlan!.destination })).toBe(true);
+    visitor.messages.length = 0;
+    expect((await visitor.state()).session).toMatchObject({ mode: 'viewing', returnPlan: { confirmed: false } });
+    expect(await visitor.command({ type: 'movement', frames: [{ sequence: 2, seconds: .05, input: { forward: 1, strafe: 0, cameraX: 0, cameraZ: 1, jump: false } }] })).toBe(false);
     expect(await visitor.command({ type: 'rejoin' })).toBe(true);
     const rejoined = await visitor.state(state => state.session.mode === 'shared');
     expect(rejoined.session.mode).toBe('shared');
@@ -533,9 +541,11 @@ test('parties require consent, enforce leadership and capacity, and share encoun
     expect(restored.session.id).toBe(aPaused.session.id);
     expect(restored.session.mode).toBe('paused');
     expect(await bob.command({ type: 'rejoin' })).toBe(true);
+    expect(await bob.command({ type: 'rejoin' })).toBe(true);
+    expect(await alice.command({ type: 'rejoin' })).toBe(true);
     await alice.state(state => state.session.mode === 'shared');
     const remaining = [await connect(2), await connect(3), await connect(4), await connect(5)];
-    for (const member of remaining) expect(await member.command({ type: 'rejoin' })).toBe(true);
+    for (const member of remaining) { expect(await member.command({ type: 'rejoin' })).toBe(true); expect(await member.command({ type: 'rejoin' })).toBe(true); }
     for (let index = 0; index < 3; index++) {
       const target = remaining[index]!;
       const id = await invite(alice, target, index + 2);
@@ -632,11 +642,14 @@ test('party chat aliases stay private through pause, membership changes and rest
     expect((await second.state()).chat.filter(entry => entry.partyId)).toHaveLength(2);
     expect((await outsider.state()).chat.some(entry => entry.partyId)).toBe(false);
     expect(await first.command({ type: 'rejoin' })).toBe(true);
+    expect(await first.command({ type: 'rejoin' })).toBe(true);
+    expect(await second.command({ type: 'rejoin' })).toBe(true);
     expect(await second.command({ type: 'partyLeave' })).toBe(true);
     second.messages.length = 0;
     expect((await second.state(state => state.party === null)).chat.some(entry => entry.partyId)).toBe(false);
     expect(await second.command({ type: 'chat', text: '/p No longer grouped' })).toBe(false);
     await second.wait(message => message.type === 'error' && message.text === 'You are not in a party.');
+    expect(await outsider.command({ type: 'rejoin' })).toBe(true);
     expect(await outsider.command({ type: 'rejoin' })).toBe(true);
     expect(await first.command({ type: 'chat', text: 'Public greeting' })).toBe(true);
     await outsider.state(state => state.chat.some(entry => entry.text === 'Public greeting' && !entry.partyId));

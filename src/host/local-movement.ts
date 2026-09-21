@@ -21,6 +21,7 @@ export class LocalMovement {
   private state: MovementState;
   private held = new Set<AdventureAction>();
   private mouseForward = false;
+  private autorun = false;
   private followDestination: { x: number; z: number } | null = null;
   private jump = false;
   private cameraX: number;
@@ -70,6 +71,8 @@ export class LocalMovement {
     } else this.held.delete(action);
   }
   setFollowDestination(destination: { x: number; z: number } | null): void { this.followDestination = destination; }
+  get autorunning(): boolean { return this.autorun; }
+  setAutorun(active: boolean): void { this.autorun = active && !this.combatLocked() && this.snapshot.phase !== 'lost'; }
   setMouseForward(active: boolean): void { this.mouseForward = this.combatLocked() ? false : active; }
   setCameraForward(x: number, z: number): void {
     const length = Math.hypot(x, z);
@@ -83,7 +86,7 @@ export class LocalMovement {
     this.correction.x *= decay; this.correction.y *= decay; this.correction.z *= decay;
     while (remaining > 1e-9 && this.history.length < 240) {
       const locked = this.combatLocked();
-      const input: MovementInput = { forward: locked ? 0 : this.mouseForward ? 1 : Number(this.held.has('forward')) - Number(this.held.has('backward')),
+      const input: MovementInput = { forward: locked ? 0 : this.mouseForward || this.autorun ? 1 : Number(this.held.has('forward')) - Number(this.held.has('backward')),
         strafe: locked ? 0 : Number(this.held.has('right')) - Number(this.held.has('left')), cameraX: this.cameraX, cameraZ: this.cameraZ, jump: locked ? false : this.jump, rise: !locked && this.held.has('jump'), dive: !locked && this.held.has('dive') };
       if (!locked && this.followDestination) {
         const dx = this.followDestination.x - this.state.position.x, dz = this.followDestination.z - this.state.position.z;
@@ -121,7 +124,7 @@ export class LocalMovement {
     if (flightChanged) { this.history = []; this.outgoing = []; this.correction = {x:0,y:0,z:0}; }
     const enteredCombat = !this.combatLocked() && this.combatLocked(snapshot);
     if (enteredCombat) {
-      this.held.clear(); this.mouseForward = false; this.jump = false;
+      this.held.clear(); this.mouseForward = false; this.autorun = false; this.jump = false;
       this.history = []; this.outgoing = [];
     }
     const initialized = this.serverTime !== -Infinity;
