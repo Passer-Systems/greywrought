@@ -42,11 +42,12 @@ try {
     await page.waitFor(`window.economyState.snapshot.progression.ownedGear.includes('${vendor.item}')`);
     await page.click('#gear-shop-close');
   }
-  await page.click('#equipment-open');
+  await page.click('#bag-open');
   for(const [slot,item] of [['mainhand','travel-weapon'],['chest','padded-coat'],['offhand','yard-shield']]){
-    await page.click(`[data-equipment-slot="${slot}"]`);await page.click(`[data-gear-item="${item}"]`);
+    await page.click(`[data-bag-item="${item}"]`);await page.click('#bag-equip');
     await page.waitFor(`window.economyState.snapshot.progression.equipment.${slot}==='${item}'`);
   }
+  await page.click('#bag-close');await page.click('#equipment-open');
   await page.shot('purchased-equipment');await page.click('#equipment-close');
   check(await page.evaluate('window.economyState.snapshot.coins')===3,'All three purchases deduct their prices');
   await move(0,-23);await move(0,0);await move(-3,28);

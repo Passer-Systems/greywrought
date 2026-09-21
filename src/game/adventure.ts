@@ -590,7 +590,7 @@ class Adventure implements AdventureGame {
     const s = this.state;
     return {
       flight: s.flight ? { ...s.flight } : null, position: { ...s.position }, cameraForward: { ...this.cameraForward }, archetype: s.archetype,
-      health: s.health, maximumHealth: 100, breathSeconds: s.breathSeconds, autoSurfacing: s.autoSurfacing, grounded: !isSwimming(s.position) && s.position.y === supportHeight(s.position.x, s.position.z),
+      level: s.chapter.level, health: s.health, maximumHealth: 100, breathSeconds: s.breathSeconds, autoSurfacing: s.autoSurfacing, grounded: !isSwimming(s.position) && s.position.y === supportHeight(s.position.x, s.position.z),
       moving: this.moving, backpedaling: this.backpedaling, attackSequence: s.attackSequence,
       actionCooldown: s.actionCooldown, currentAction: s.currentAction, actionDuration: s.actionDuration, guardSeconds: s.guardSeconds,
       block: s.block, stamina: s.stamina, maximumStamina: COMBAT_RULES.stamina.maximum, staminaRecoverySeconds: s.staminaRecoverySeconds,

@@ -52,3 +52,8 @@
 #equipment-toggle:disabled { opacity:.6; cursor:default !important; }
 .equipment-slot[data-equipped="true"] small { color:#b9d39b; }
 .equipment-slot[data-drop-target="true"][data-drop-valid="true"] { border-color:#98d879; background:#294b2b; box-shadow:0 0 0 2px #b7f18b80, inset 0 0 12px #75d25966; }
+
+.equipment-tooltip { position:fixed; z-index:61; box-sizing:border-box; width:270px; max-width:calc(100vw - 16px); padding:10px 12px; border:2px ridge #96968d; border-radius:4px; background:#151812fa; box-shadow:0 4px 18px #0009; color:#e7e1cb; pointer-events:none; }
+.equipment-tooltip[hidden] { display:none; }
+.equipment-tooltip strong { color:#ead9a6; font:var(--ui-font-prominent) Georgia,serif; }
+.equipment-tooltip p { margin:5px 0 0; color:#aeb7a8; font:var(--ui-font-small)/1.4 system-ui,sans-serif; }

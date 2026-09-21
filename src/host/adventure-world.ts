@@ -51,7 +51,6 @@ interface ThreatRig extends ThreatAnimationState {
   readonly body: Group;
   readonly actor: ForestActor;
   readonly selection: Mesh<RingGeometry, MeshBasicMaterial>;
-  readonly ring: Mesh<RingGeometry, MeshBasicMaterial>;
   readonly lootGlint: Sprite;
   readonly beam: Mesh<CylinderGeometry, MeshBasicMaterial>;
   readonly ward: Mesh<SphereGeometry, MeshBasicMaterial>;
@@ -443,16 +442,13 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const root = new Group(), body = creature.root;
     root.add(body); root.userData.threatId = threat.id; scene.add(root);
     creature.play(threat.health <= 0 ? "Death" : look.idle, threat.health > 0);
-    const ring = selectionCircle(Math.max(.55, look.height * .6), 0xffd278);
-    ring.material.opacity = .6;
-    ring.rotation.x = -Math.PI/2; ring.position.y=0.05; root.add(ring);
     const selection = selectionCircle(Math.max(.55, look.height * .6), 0xff3232);
     selection.rotation.x = -Math.PI/2; selection.position.y=0.06; root.add(selection);
     const glint = lootGlint(); glint.visible = false; root.add(glint);
     const beam = new Mesh(new CylinderGeometry(0.045,0.045,1,8),new MeshBasicMaterial({color:0xffbc71,transparent:true,opacity:0.85,depthWrite:false})); beam.visible=false;scene.add(beam);
     const ward = new Mesh(new SphereGeometry(1.05,20,12),new MeshBasicMaterial({color:0x80c6ff,transparent:true,opacity:0.2,depthWrite:false}));ward.position.y=look.height*0.55;ward.visible=false;root.add(ward);
     if (threat.id === "ritual-guardian") ward.scale.setScalar(1.45);
-    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,ring,lootGlint:glint,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
+    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,lootGlint:glint,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
       health:threat.health,sequence:threat.actionSequence,attackTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const signsReady = buildWorldSigns(terrain, (root, id, name) => {
@@ -703,12 +699,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.lootGlint.scale.setScalar(0.55 + 0.08 * Math.sin(elapsed * 3));
         rig.lootGlint.material.opacity = 0.75 + 0.2 * Math.sin(elapsed * 2);
         rig.selection.visible = selectedUnit?.kind === "enemy" && selectedUnit.id === threat.id && threat.health > 0;
-        rig.ring.visible = threat.health > 0 && !rig.selection.visible;
         const relationColor = threat.disposition === "hostile" || threat.aggro ? 0xff3232 : 0xf5df38;
-        rig.ring.material.color.setHex(relationColor);
         rig.selection.material.color.setHex(relationColor);
         if (threat.health > 0) rig.root.rotation.y = Math.atan2(threat.facing.x, threat.facing.z);
-        if (rig.root.visible && rig.ring.visible) conformToTerrain(rig.ring, 0.05, selectionHeight);
         if (rig.root.visible && rig.selection.visible) conformToTerrain(rig.selection, 0.06, selectionHeight);
         const preparation = updateThreatAnimation(rig, threat, delta);
         rig.body.position.y = threat.health > 0 && appearances[threat.id]?.lift ? appearances[threat.id]!.lift! : threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : threat.id.startsWith("meadow-bird") && threat.health > 0 ? 4.2 + Math.sin(elapsed * 2.1 + threat.id.length) * .25 : 0;

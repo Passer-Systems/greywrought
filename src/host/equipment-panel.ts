@@ -32,6 +32,14 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
   const portrait = find("#equipment-portrait", HTMLImageElement);
   const details = find("#equipment-details", HTMLElement);
   const closeButton = find("#equipment-close", HTMLButtonElement);
+  const tooltip = document.createElement("section");
+  tooltip.id = "equipment-tooltip"; tooltip.className = "equipment-tooltip"; tooltip.hidden = true;
+  tooltip.setAttribute("role", "tooltip");
+  root.append(tooltip);
+  let inspected: SlotId | null = null;
+  const hideTooltip = (): void => { tooltip.hidden = true; inspected = null; };
+  const otherInspection = (event: Event): void => { if ((event as CustomEvent).detail !== "equipment") hideTooltip(); };
+  document.addEventListener("greywrought-item-inspect", otherInspection);
   const buttons = new Map<SlotId, HTMLButtonElement>();
   let selected: SlotId = "mainhand";
   let previousFocus: HTMLElement | null = null;
@@ -42,33 +50,44 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
   const starterName = (archetype: CharacterArchetype) => archetype === "mage" ? "Starter wand" : archetype === "hunter" ? "Starter bow" : archetype === "alchemist" ? "Starter reagent kit" : archetype === "artificer" ? "Starter rivet tool" : "Starter sword";
   const weaponIcon = (archetype: CharacterArchetype) => archetype === "mage" || archetype === "alchemist" ? "wand-bolt.svg" : archetype === "hunter" ? "bow-shot.svg" : archetype === "artificer" ? "lightning-bolt.png" : "sword-strike.png";
 
+  function equippedItem(id: SlotId): GearItemId | null {
+    return snapshot && (id === "mainhand" || id === "chest" || id === "offhand") ? snapshot.progression.equipment[id] : null;
+  }
+  function itemCopy(id: SlotId): { name: string; description: string } {
+    const gear = equippedItem(id);
+    return gear ? { name: gearName(gear, snapshot!.player.archetype), description: GEAR[gear].description }
+      : id === "mainhand" ? { name: starterName(snapshot!.player.archetype), description: "No bonus damage." }
+      : { name: "Empty", description: "Nothing equipped." };
+  }
+  function inspect(id: SlotId): void {
+    if (!snapshot) return;
+    inspected = id;
+    document.dispatchEvent(new CustomEvent("greywrought-item-inspect", { detail: "equipment" }));
+    const copy = itemCopy(id);
+    const title = document.createElement("strong"); title.textContent = copy.name;
+    const description = document.createElement("p"); description.textContent = copy.description;
+    tooltip.replaceChildren(title, description); tooltip.hidden = false;
+    const box = buttons.get(id)!.getBoundingClientRect();
+    tooltip.style.left = Math.max(8, Math.min(innerWidth - tooltip.offsetWidth - 8, box.left)) + "px";
+    tooltip.style.top = Math.max(8, box.top - tooltip.offsetHeight - 8) + "px";
+  }
   function select(id: SlotId): void {
     selected = id;
     for (const [slotId, button] of buttons) button.setAttribute("aria-pressed", String(slotId === id));
     if (!snapshot) return;
-    const signature = JSON.stringify([id, snapshot.phase, snapshot.player.inCombat, snapshot.player.archetype, snapshot.progression]);
+    const signature = JSON.stringify([id, snapshot.phase, snapshot.combat.phase, snapshot.player.archetype, equippedItem(id)]);
     if (signature === detailSignature) return;
     detailSignature = signature;
-    const label = slots.find(slot => slot[0] === id)![1];
-    const archetype = snapshot.player.archetype;
-    const owned = snapshot.progression.ownedGear.filter(gear => GEAR[gear].slot === id);
+    const copy = itemCopy(id), gear = equippedItem(id);
     details.replaceChildren();
-    const heading = document.createElement("h3"); heading.textContent = label; details.append(heading);
-    if (!owned.length) {
-      const description = document.createElement("p");
-      description.textContent = id === "mainhand" ? starterName(archetype) + ". Visit Tamsin for weapons or earn Rowan’s weapon." : id === "chest" ? "Visit Brann for armor or earn Mara’s coat." : id === "offhand" ? "Visit Sella for a shield." : "No item is equipped in this slot.";
-      details.append(description);
-    }
-    for (const gearId of owned) {
-      const equipped = snapshot.progression.equipment[GEAR[gearId].slot] === gearId;
-      const name = document.createElement("strong"); name.textContent = gearName(gearId, archetype) + (equipped ? " · Equipped" : "");
-      const description = document.createElement("p"); description.textContent = GEAR[gearId].description;
-      const action = document.createElement("button"); action.type = "button";
-      if (owned[0] === gearId) action.id = "equipment-toggle";
-      action.textContent = equipped ? "Unequip" : "Equip";
-      action.disabled = snapshot.phase === "lost"; action.dataset.gearItem = gearId;
-      action.addEventListener("click", () => onEquip(GEAR[gearId].slot, equipped ? null : gearId));
-      details.append(name, description, action);
+    const heading = document.createElement("h3"); heading.textContent = copy.name; details.append(heading);
+    const description = document.createElement("p"); description.textContent = copy.description; details.append(description);
+    if (gear) {
+      const action = document.createElement("button"); action.type = "button"; action.id = "equipment-toggle";
+      action.textContent = "Unequip"; action.dataset.gearItem = gear;
+      action.disabled = snapshot.phase === "lost" || snapshot.combat.phase === "active";
+      action.addEventListener("click", () => onEquip(GEAR[gear].slot, null));
+      details.append(action);
     }
     root.dataset.selectedSlot = id;
   }
@@ -125,13 +144,17 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     item.textContent = "Empty";
     caption.append(title, item);
     button.append(mark, caption);
-    button.addEventListener("click", () => select(id));
+    button.setAttribute("aria-describedby", "equipment-tooltip");
+    button.addEventListener("pointerenter", () => inspect(id));
+    button.addEventListener("pointerleave", hideTooltip);
+    button.addEventListener("focus", () => inspect(id));
+    button.addEventListener("blur", hideTooltip);
+    button.addEventListener("click", () => { select(id); inspect(id); });
     button.addEventListener("contextmenu", event => {
       event.preventDefault();
       if (!snapshot || snapshot.phase === "lost" || (id !== "chest" && id !== "mainhand" && id !== "offhand")) return;
       const equipped = snapshot.progression.equipment[id];
-      const gearId = snapshot.progression.ownedGear.find(gear => GEAR[gear].slot === id);
-      if (equipped || gearId) onEquip(id, equipped ? null : gearId!);
+      if (equipped) onEquip(id, null);
     });
     find(`[data-equipment-column="${column}"]`, HTMLElement).append(button);
     buttons.set(id, button);
@@ -170,8 +193,10 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
       control.dataset.equipped = String(!!gearId);
     }
     select(selected);
+    if (inspected) inspect(inspected);
   }
   function close(): void {
+    hideTooltip();
     if (!root.open) return;
     root.close();
     document.getElementById("equipment-open")?.setAttribute("aria-expanded", "false");
@@ -192,6 +217,8 @@ export function createEquipmentPanel(element: HTMLElement, onClose: () => void, 
     update,
     dispose(): void {
       close();
+      tooltip.remove();
+      document.removeEventListener("greywrought-item-inspect", otherInspection);
       document.removeEventListener("greywrought-gear-dragstart", showCompatibleSlots);
       document.removeEventListener("greywrought-gear-dragend", endGearDrag);
       closeButton.removeEventListener("click", requestClose);

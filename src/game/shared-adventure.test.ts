@@ -28,6 +28,19 @@ function fixture(second = true): SharedAdventure {
 }
 
 describe("one shared Frostwood", () => {
+  test("shared player views carry each character's actual progression level", () => {
+    const seed = createSharedAdventure();
+    seed.join("a", "Ada", "mage"); seed.join("b", "Bram", "hunter");
+    const save = JSON.parse(seed.save());
+    save.characters[0].state.chapter.experience = 100;
+    save.characters[1].state.chapter.experience = 1000;
+    const world = createSharedAdventure({ save: JSON.stringify(save) });
+    const a = world.join("a", "Ada", "mage"), b = world.join("b", "Bram", "hunter");
+    expect(world.players().map(view => view.player.level)).toEqual([2, 5]);
+    expect(a.snapshot.player.level).toBe(a.snapshot.progression.level);
+    expect(b.snapshot.player.level).toBe(b.snapshot.progression.level);
+  });
+
   test("characters move independently and only the world advances time", () => {
     const world = createSharedAdventure(), a = world.join("a", "Ada", "mage"), b = world.join("b", "Bram", "hunter");
     a.setCameraForward(1, 0); b.setCameraForward(-1, 0);

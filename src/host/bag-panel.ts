@@ -64,7 +64,11 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
   usePotion.id = "bag-use-potion"; usePotion.type = "button"; usePotion.className = "bag-use-item";
   const useHearthstone = document.createElement("button");
   useHearthstone.id = "bag-use-hearthstone"; useHearthstone.type = "button"; useHearthstone.className = "bag-use-item";
-  details.append(itemName, description, usePotion, useHearthstone);
+  const comparison = document.createElement("p"); comparison.id = "bag-item-comparison";
+  comparison.style.cssText = "border-top:1px solid #626658;margin:8px 0 0;padding-top:8px;font:var(--ui-font-small)/1.4 system-ui,sans-serif";
+  const equip = document.createElement("button"); equip.id = "bag-equip"; equip.type = "button"; equip.className = "bag-use-item";
+  equip.addEventListener("click", () => { if (isGearItem(selected)) callbacks.onEquip(GEAR[selected].slot, selected); });
+  details.append(itemName, description, comparison, equip, usePotion, useHearthstone);
   const secured = document.createElement("p"); secured.id = "bag-secured";
   const securedTitle = document.createElement("strong"); securedTitle.textContent = `Secured in ${YARD.settlement}`;
   const securedValue = document.createElement("span"); secured.append(securedTitle, securedValue);
@@ -85,6 +89,20 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
   const saveLayout = (): void => { try { localStorage.setItem(layoutKey(), JSON.stringify(bagOrder)); } catch { /* The layout still works for this session. */ } };
   let selected: Item["id"] | null = null;
   let pinned = false;
+  let comparing = false;
+  const hideDetails = (): void => { details.hidden = true; pinned = false; };
+  const otherInspection = (event: Event): void => { if ((event as CustomEvent).detail !== "bag") hideDetails(); };
+  const announceInspection = (): void => { document.dispatchEvent(new CustomEvent("greywrought-item-inspect", { detail: "bag" })); };
+  document.addEventListener("greywrought-item-inspect", otherInspection);
+  const shiftChanged = (event: KeyboardEvent): void => {
+    if (event.key !== "Shift") return;
+    comparing = event.type === "keydown";
+    if (snapshot) update(snapshot);
+  };
+  const clearComparison = (): void => { comparing = false; if (snapshot) update(snapshot); };
+  document.addEventListener("keydown", shiftChanged);
+  document.addEventListener("keyup", shiftChanged);
+  window.addEventListener("blur", clearComparison);
   const slots = Array.from({ length: 16 }, (_, index) => {
     const button = document.createElement("button");
     button.type = "button"; button.dataset.bagSlot = String(index);
@@ -124,17 +142,23 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     const slot: { button: HTMLButtonElement; image: HTMLImageElement; count: HTMLSpanElement; item: Item | null } = { button, image, count, item: null };
     button.addEventListener("click", () => {
       if (!slot.item || !snapshot) return;
+      announceInspection();
       pinned = true;
       selected = slot.item.id;
       details.hidden = false;
       update(snapshot);
     });
-    button.addEventListener("pointerenter", () => {
+    button.addEventListener("pointerenter", event => {
       if (!slot.item || !snapshot) return;
-      selected = slot.item.id; details.hidden = false; update(snapshot);
+      announceInspection();
+      comparing = event.shiftKey; pinned = false; selected = slot.item.id; details.hidden = false; update(snapshot);
+    });
+    button.addEventListener("pointerleave", event => {
+      if (!pinned && !(event.relatedTarget instanceof Node && details.contains(event.relatedTarget))) hideDetails();
     });
     button.addEventListener("focus", () => {
       if (!slot.item || !snapshot) return;
+      announceInspection();
       selected = slot.item.id; pinned = true; details.hidden = false; update(snapshot);
     });
     button.addEventListener("contextmenu", event => {
@@ -192,16 +216,22 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
       }
     });
     const item = carried.find(item => item.id === selected);
-    details.style.pointerEvents = (item?.id === "potions" || item?.id === "hearthstone") && pinned ? "auto" : "none";
+    details.style.pointerEvents = (item?.id === "potions" || item?.id === "hearthstone" || isGearItem(item?.id)) && pinned ? "auto" : "none";
     setText(itemName, item ? `${label(item)} × ${quantity(item)}` : "Your backpack is empty");
     const copy = !item ? "Gather coolant crystals, search fallen foes, or buy potions from Mara."
       : item.id === "hearthstone" ? `Returns you to ${YARD.settlement} after 5 seconds. Moving or entering combat interrupts the cast. Reusable outside combat. Right-click to use.`
       : item.id === "potions" ? `Restores ${next.potionHealing} health. ${Math.ceil(next.player.health)} / ${next.player.maximumHealth} health.`
-      : isGearItem(item.id) ? `${GEAR[item.id].description} Right-click to equip. You can change gear while planning your next moves.`
+      : isGearItem(item.id) ? `${GEAR[item.id].description} Right-click to equip. Hold Shift to compare. You can change gear while planning your next moves.`
       : item.id === "carriedRelics" ? "Recovered from Foreman Nine. Bring it to Rowan and complete Clock Out."
       : item.id === "cargo" ? "Three are kept for Mara while her task is active. Other crystals become supplies on entering town. Carry six straight to the engine for its offering."
       : `Recovered from fallen foes. Return alive to ${YARD.settlement} to turn each salvage into a supply.`;
     setText(description, copy);
+    const currentGear = item && isGearItem(item.id) ? next.progression.equipment[GEAR[item.id].slot] : null;
+    comparison.hidden = !comparing || !currentGear;
+    setText(comparison, comparing && currentGear ? "Currently equipped: " + gearName(currentGear, next.player.archetype) + ". " + GEAR[currentGear].description : "");
+    equip.hidden = !isGearItem(selected);
+    equip.disabled = next.phase === "lost" || next.combat.phase === "active";
+    setText(equip, currentGear ? "Replace equipped item" : "Equip");
     usePotion.hidden = selected !== "potions";
     usePotion.disabled = next.phase === "lost" || next.player.inCombat || next.potions < 1 || next.player.health >= next.player.maximumHealth;
     setText(usePotion, next.player.inCombat ? "Unavailable in combat" : next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
@@ -214,8 +244,10 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
       if (!slot || panel.hidden) details.hidden = true;
       else {
         const box = slot.button.getBoundingClientRect();
-        details.style.left = `${Math.max(8,Math.min(innerWidth-details.offsetWidth-8,box.left-details.offsetWidth-10))}px`;
-        details.style.top = `${Math.max(8,Math.min(innerHeight-details.offsetHeight-8,box.top-20))}px`;
+        const bagBox = panel.getBoundingClientRect();
+        const besideBag = bagBox.left >= details.offsetWidth + 18;
+        details.style.left = `${Math.max(8,Math.min(innerWidth-details.offsetWidth-8,besideBag ? bagBox.left-details.offsetWidth-10 : bagBox.left))}px`;
+        details.style.top = `${Math.max(8,Math.min(innerHeight-details.offsetHeight-8,besideBag ? box.top-20 : bagBox.top-details.offsetHeight-10))}px`;
       }
     }
   }
@@ -227,6 +259,11 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
   closeButton.addEventListener("click", callbacks.onClose);
   panel.addEventListener("pointerleave", event => { if (!pinned && !(event.relatedTarget instanceof Node && details.contains(event.relatedTarget))) details.hidden = true; });
   details.addEventListener("pointerleave", () => { if(!pinned) details.hidden = true; });
+  const dismissOutside = (event: Event): void => {
+    if (event.target instanceof Node && !panel.contains(event.target) && !details.contains(event.target)) hideDetails();
+  };
+  document.addEventListener("pointerdown", dismissOutside);
+  document.addEventListener("focusin", dismissOutside);
   function close(): void { panel.hidden = true; details.hidden = true; pinned = false; }
   return {
     get isOpen(): boolean { return !panel.hidden; },
@@ -234,6 +271,12 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     close,
     update,
     dispose(): void {
+      document.removeEventListener("greywrought-item-inspect", otherInspection);
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("focusin", dismissOutside);
+      document.removeEventListener("keydown", shiftChanged);
+      document.removeEventListener("keyup", shiftChanged);
+      window.removeEventListener("blur", clearComparison);
       usePotion.removeEventListener("click", callbacks.onUsePotion);
       closeButton.removeEventListener("click", callbacks.onClose);
       panel.removeEventListener("pointerdown", stopPointer);

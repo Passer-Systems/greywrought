@@ -152,6 +152,7 @@ export interface AdventureSnapshot {
   readonly combat: CombatView;
   readonly combatFeedback: readonly CombatFeedback[];
   readonly player: {
+    readonly level: number;
     readonly position: Position;
     readonly flight?: FlightState | null;
     readonly cameraForward: Position;

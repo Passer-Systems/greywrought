@@ -312,7 +312,7 @@ export function createUnitFrames(host: HTMLElement) {
         Object.assign(target.root.dataset, { hostile: "false", aggro: "false", disposition: "friendly", archetype: friendly.player.archetype });
         const image = publicUrl("assets/ui/characters/" + friendly.player.archetype + ".webp");
         if (target.portrait.getAttribute("src") !== image) target.portrait.src = image;
-        health(target, friendly.name, friendly.player.health, friendly.player.maximumHealth, friendly.id, friendly.id === character.id ? snapshot.progression.level : undefined);
+        health(target, friendly.name, friendly.player.health, friendly.player.maximumHealth, friendly.id, friendly.player.level);
         stamina(target, friendly.player);
         targetCast.root.hidden = true; targetOfTarget.root.hidden = true;
         return;
@@ -336,7 +336,7 @@ export function createUnitFrames(host: HTMLElement) {
       targetOfTarget.root.hidden = !attackingPlayer;
       if (attackingPlayer && recipient) {
         targetOfTarget.portrait.src = publicUrl('assets/ui/characters/' + recipient.player.archetype + '.webp');
-        health(targetOfTarget, recipient.name, recipient.player.health, recipient.player.maximumHealth, recipient.id, recipient.id === character.id ? snapshot.progression.level : undefined);
+        health(targetOfTarget, recipient.name, recipient.player.health, recipient.player.maximumHealth, recipient.id, recipient.player.level);
         stamina(targetOfTarget, recipient.player);
       }
     },
