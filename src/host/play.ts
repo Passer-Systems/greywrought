@@ -594,6 +594,7 @@ function syncEncounter(): void {
   const { game, world, character } = running;
   updateParty();
   world.setPartyMembers(game.party?.members.map(member => member.id) ?? []);
+  world.setPartyPings(game.party?.pings ?? []);
   if (game.snapshot.phase === 'lost') { showFallenCharacter(character); return; }
   const state = `${game.online}:${game.reconnecting}:${game.session.id}:${game.session.mode}:${game.inputEnabled}:${game.pendingTransition}:${backgrounded}`;
   const changed = state !== lastEncounterState;
@@ -922,7 +923,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   mapCenter = player.position;
   minimap.update(mapCenter.x, mapCenter.z);
   const mapMembers = running?.game.players.filter(remote => running?.game.party?.members.some(member => member.id === remote.id && member.online && member.sameEncounter)) ?? [];
-  worldMap.update(player, mapMembers);
+  worldMap.update(player, mapMembers, running?.game.party?.pings ?? []);
   for (const [id, marker] of mapParty) if (!mapMembers.some(member => member.id === id)) { marker.remove(); mapParty.delete(id); }
   for (const member of mapMembers) {
     let marker = mapParty.get(member.id);
@@ -1057,7 +1058,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     audio.reset();
     // Prepare the scene before joining: loading must not expose an adventurer
     // to combat or hold up their connection's heartbeat.
-    const world = preparingWorld = createAdventureWorld(element("world-wrap"), createAdventure({ archetype: character.archetype }).snapshot, id => { if (!paused) running?.game.interactNpc(id); }, destination => running?.game.previewBait(destination) ?? Promise.resolve(null), { selfId: character.id, selfName: character.name, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu });
+    const world = preparingWorld = createAdventureWorld(element("world-wrap"), createAdventure({ archetype: character.archetype }).snapshot, id => { if (!paused) running?.game.interactNpc(id); }, destination => running?.game.previewBait(destination) ?? Promise.resolve(null), { selfId: character.id, selfName: character.name, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu }, preview => combatPlan.setMovementPreview(preview));
     await world.ready;
     if (!alive) { world.dispose(); return; }
     const game = await connectAdventure(character);

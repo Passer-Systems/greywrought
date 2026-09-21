@@ -2,6 +2,8 @@ import type { AdventureSnapshot, CombatAction, CombatActionTiming, ThreatAbility
 import { classAction } from "../game/class-kit.js";
 import type { CombatPreview } from "./ground-telegraphs.js";
 import { enemyResponse } from "./enemy-response.js";
+import { combatOutcome } from "./combat-outcome.js";
+import type { MovementPlanPreview } from "./movement-preview.js";
 import { publicUrl } from "./public-url.js";
 
 const actions: Record<CombatAction, { name: string; icon: string }> = {
@@ -86,11 +88,15 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     button.addEventListener("click", () => { if (editing()) callbacks.onTiming(timing); }); return button;
   });
   node("span", "combat-plan-timing-suffix", editor).textContent = "movement";
+  const outcome = node("div", "combat-plan-outcome", root); outcome.id = "combat-plan-outcome";
+  outcome.setAttribute("role", "status"); outcome.setAttribute("aria-atomic", "true");
+  outcome.title = "Predicted result with the current plans. Changes to anyone’s plan can change the result.";
+  const outcomeLabel = node("span", "combat-plan-outcome-label", outcome);
+  const outcomeCopy = node("strong", "combat-plan-outcome-copy", outcome);
   const enemyLabel = node("strong", "combat-plan-enemy-heading", root);
   const enemyCells = [node("div", "combat-plan-cell combat-plan-enemy", root)];
   const inspect = node("div", "combat-plan-inspect", root);
   const inspectTitle = node("strong", "combat-plan-inspect-title", inspect);
-  const forecastSummary = node("p", "combat-plan-forecast-summary", inspect);
   const inspectCopy = node("p", "combat-plan-inspect-copy", inspect);
   const unpin = node("button", "combat-plan-unpin", inspect); unpin.type = "button"; unpin.textContent = "Clear preview";
   unpin.addEventListener("click", () => { pinnedPreview = transientPreview = null; updatePreview(); });
@@ -98,6 +104,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   let selectedId: number | null = null, lastId: number | null = null;
   let snapshot: AdventureSnapshot | null = null, enemyKey = "";
   let pinnedPreview: CombatPreview | null = null, transientPreview: CombatPreview | null = null;
+  let movementPreview: MovementPlanPreview | null = null;
   let previousCycle = -1;
   let autoReadyScheduled = false, autoReadyGeneration = 0, lastAutoReadyPlan = "", disposed = false;
   function scheduleAutoReady(): void {
@@ -119,7 +126,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   function updatePreview(): void {
     const preview = editing() ? transientPreview ?? pinnedPreview : null;
     callbacks.onPreview(preview);
-    inspect.hidden = !editing() || !preview;
+    inspect.hidden = !editing() || !preview || Boolean(movementPreview);
     unpin.hidden = !pinnedPreview;
     let title = "Turn their attacks against them";
     let copy = "";
@@ -139,13 +146,19 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       const consequences = events.filter(event => event.kind !== "hit").slice(0, 3);
       copy += " If started now: " + (consequences.length ? consequences.map(event => event.time.toFixed(1) + "s · " + event.text).join("; ") : "inspect the path; positions can change while planning.");
     }
-    const forecast = snapshot?.combat.forecast;
-    const playerOutcome = forecast?.outcomes.find(outcome => outcome.id === forecast.playerId);
-    const defeats = forecast?.outcomes.filter(outcome => outcome.health === 0 && snapshot?.threats.some(threat => threat.id === outcome.id && threat.health > 0)).map(outcome => snapshot!.threats.find(threat => threat.id === outcome.id)!.name) ?? [];
-    forecastSummary.hidden = !preview || !playerOutcome;
-    if (playerOutcome && snapshot) write(forecastSummary, "If started now · Your health " + Math.ceil(snapshot.player.health) + " → " + Math.ceil(playerOutcome.health) + (defeats.length ? " · Defeats: " + defeats.join(", ") : ""));
     write(inspectTitle, title); write(inspectCopy, copy);
     for (const button of enemyCells.flatMap(cell => [...cell.querySelectorAll<HTMLButtonElement>("button")])) button.setAttribute("aria-pressed", String(preview?.kind === "enemy" && button.dataset.threatId === preview.threatId));
+  }
+  function updateOutcome(): void {
+    outcome.hidden = !snapshot || snapshot.combat.phase !== "preparation";
+    if (!snapshot || outcome.hidden) return;
+    const hovered = editing() ? movementPreview : null;
+    const forecast = hovered ? hovered.forecast : snapshot.combat.forecast;
+    const result = forecast ? combatOutcome(snapshot, forecast) : null;
+    write(outcomeLabel, hovered ? "This tile" : "Plan");
+    write(outcomeCopy, hovered?.pending ? "Checking…" : result?.text ?? "Forecast unavailable");
+    outcome.dataset.source = hovered ? "destination" : "plan";
+    outcome.dataset.tone = hovered?.pending ? "pending" : result?.tone ?? "pending";
   }
   function inspectControl(button: HTMLButtonElement, preview: CombatPreview): void {
     button.addEventListener("mouseenter", () => { transientPreview = preview; updatePreview(); });
@@ -222,11 +235,16 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     node("span", "combat-plan-damage", actionArt).textContent = status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "";
   }
   return {
-    reset(): void { autoReadyGeneration++; autoReadyScheduled = false; lastAutoReadyPlan = ""; selectedId = lastId = null; snapshot = null; enemyKey = ""; pinnedPreview = transientPreview = null; previousCycle = -1; callbacks.onPreview(null); },
+    setMovementPreview(preview: MovementPlanPreview | null): void {
+      movementPreview = preview;
+      updateOutcome();
+      updatePreview();
+    },
+    reset(): void { autoReadyGeneration++; autoReadyScheduled = false; lastAutoReadyPlan = ""; selectedId = lastId = null; snapshot = null; enemyKey = ""; pinnedPreview = transientPreview = null; previousCycle = -1; movementPreview = null; outcome.hidden = true; callbacks.onPreview(null); },
     update(next: AdventureSnapshot): void {
       snapshot = next;
       const combat = next.combat;
-      if (combat.phase !== "preparation" || combat.cycle !== previousCycle) pinnedPreview = transientPreview = null;
+      if (combat.phase !== "preparation" || combat.cycle !== previousCycle) { pinnedPreview = transientPreview = null; movementPreview = null; }
       previousCycle = combat.cycle;
       const pinned = pinnedPreview;
       if (pinned?.kind === "move" && !combat.queued.some(move => move.id === pinned.queueId)) pinnedPreview = null;
@@ -267,11 +285,11 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           });
           buttons.set(move.id, button);
         }
-        const ranged = next.player.archetype !== "warrior" && move.action === "strike";
         const moveName = actionLabel(move.action);
-        const moveIcon = String(move.action) === "equip" ? "defensive-shield.png" : ranged ? (next.player.archetype === "mage" ? "wand-bolt.svg" : "bow-shot.svg") : actions[move.action].icon + ".png";
+        const moveIcon = String(move.action) === "equip" ? "assets/ui/icons/spells/defensive-shield.png" : classAction(next.player.archetype,move.action).icon;
         const moveImage = button.querySelector<HTMLImageElement>("img");
-        if (moveImage && !moveImage.src.endsWith("/" + moveIcon)) moveImage.src = publicUrl("assets/ui/icons/" + (moveIcon.startsWith("items/") ? "" : "spells/") + moveIcon);
+        const source = publicUrl(moveIcon);
+        if (moveImage && moveImage.getAttribute("src") !== source) moveImage.src = source;
         if (button.parentElement !== cell) cell.append(button);
         button.dataset.status = move.status; button.dataset.queuedAction = move.action; button.dataset.offset = String(move.offsetSeconds);
 
@@ -299,6 +317,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       }
       write(enemyLabel, choosing ? "Enemies choosing…" : `Incoming · ${attackers.length}`); enemyLabel.title = "Hover an enemy to preview its attack and pursuit";
       updateEditor();
+      updateOutcome();
       updatePreview();
       scheduleAutoReady();
     },

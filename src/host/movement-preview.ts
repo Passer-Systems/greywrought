@@ -1,5 +1,11 @@
 import type { AdventureSnapshot, CombatForecast, Position } from '../game/adventure-types.js';
 
+export interface MovementPlanPreview {
+  readonly destination: Position;
+  readonly pending: boolean;
+  readonly forecast: CombatForecast | null;
+}
+
 export function movementPreviewKey(snapshot: AdventureSnapshot, destination: Position): string {
   const { combat, player, threats } = snapshot;
   const positionKey = (position: Position) => [Math.round(position.x / 2.5), Math.round(position.z / 2.5)];

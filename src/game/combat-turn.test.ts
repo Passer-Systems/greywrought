@@ -48,6 +48,7 @@ test('Attack order changes range and the forecast matches execution', () => {
     const play = createAdventure({ save:JSON.stringify(saved) });
     expect(play.queueBait({x:-2.5,y:0,z:27.5})).toBe(true); tap(play,'strike'); play.setActionTiming(timing);
     const forecast = play.snapshot.combat.forecast!;
+    expect(forecast.actions.find(action => action.actorId === 'solo' && action.action === 'strike')?.result).toBe(timing === 'before' ? 'out-of-range' : 'executed');
     play.readyCombat(); finishCycle(play);
     expect(play.snapshot.threats.find(t=>t.id==='scout')!.health).toBe(forecast.outcomes.find(o=>o.id==='scout')!.health);
     expect(play.snapshot.threats.find(t=>t.id==='scout')!.health).toBe(timing==='before'?96:78);

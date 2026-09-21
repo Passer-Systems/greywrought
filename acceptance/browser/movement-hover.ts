@@ -1,3 +1,4 @@
+import { supportHeight } from '../../src/game/movement.js';
 import { createSharedAdventure } from '../../src/game/adventure.js';
 import { createWorldService, type WorldSocketData } from '../../src/server/world-service.js';
 import type { Position } from '../../src/game/adventure-types.js';
@@ -9,12 +10,12 @@ const character = { id: 'hover-fixture', name: 'Hover Explorer', archetype: 'mag
 const token = 'hover-fixture-token-00000000000000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
-Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -2.5, y: 0, z: 35 } });
+Object.assign(saved.characters[0].state, { phase: 'expedition', position: { x: -17.5, y: supportHeight(-17.5,42.5), z: 42.5 } });
 saved.clock = { phase: 'preparation', cycle: 1, elapsedSeconds: 0 };
 for (const threat of saved.world.threats) {
-  if (['patrol', 'nest', 'scout'].includes(threat.id)) {
+  if (threat.id === 'patrol') {
     Object.assign(threat, { aggro: true, phase: 'preparation', joinCycle: 1, windowCycle: 1, specialOffset: threat.id === 'patrol' ? .85 : 1.7, remainingSeconds: 1.7, castDuration: 1.7, comboOpened: true, targetPlayerId: character.id, combatants: [character.id] });
-    threat.position = threat.id === 'nest' ? {x:0,y:0,z:35} : threat.id === 'patrol' ? {x:-7.5,y:0,z:35} : {x:-4,y:0,z:32};
+    threat.position = {x:-17.5,y:supportHeight(-17.5,45),z:45};
   } else if (threat.active) Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3600000 });
 }
 const savePath = `${process.cwd()}/build/browser/hover-${process.pid}.json`;
@@ -27,11 +28,11 @@ try {
   for(let i=0;i<100;i++){try {if((await fetch(url)).ok)break;}catch{}await Bun.sleep(100);}
   page = await openBrowser('movement-hover',{beforeNavigate:async call=>{
     await call('Network.enable'); await call('Network.setBlockedURLs',{urls:[url+'__dev/events']});
-    await call('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Hover Test',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});window.hoverRequests=0;const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4342/world':url,...args);this.addEventListener('message',e=>{const d=JSON.parse(e.data);if(d.type==='state')window.hoverState=d.snapshot;});}send(data){if(JSON.parse(data).command?.type==='previewBait')window.hoverRequests++;super.send(data);}};`});
+    await call('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Hover Test',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});localStorage.setItem('greywrought/combat-auto-ready-v1','false');localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});window.hoverRequests=0;const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4342/world':url,...args);this.addEventListener('message',e=>{const d=JSON.parse(e.data);if(d.type==='state')window.hoverState=d.snapshot;});}send(data){if(JSON.parse(data).command?.type==='previewBait')window.hoverRequests++;super.send(data);}};`});
   }});
   await page.waitFor('document.body.dataset.entryRoute==="roster"'); await page.click('#entry-enter-world');
-  await page.waitFor('document.body.dataset.rigState==="ready"&&document.body.dataset.environmentState==="ready"&&window.hoverState?.combat.phase==="preparation"');
-  await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){window.hoverCamera=camera;window.hoverScene=scene;};window.projectHover=(p)=>{const v=new Vector3(p.x,p.y,p.z).project(window.hoverCamera),r=document.getElementById('world-canvas').getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};};})()`);
+  await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"&&document.body.dataset.environmentState==="ready"&&window.hoverState?.combat.phase==="preparation"');
+  await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){if(camera.isPerspectiveCamera&&renderer.getRenderTarget()===null){window.hoverCamera=camera;window.hoverScene=scene;}};window.projectHover=(p)=>{const v=new Vector3(p.x,p.y,p.z).project(window.hoverCamera),r=document.getElementById('world-canvas').getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};};})()`);
   await page.click('#combat-plan-aim-move');
   await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles||"[]").length>0&&Boolean(window.hoverCamera)');
   const before = await page.evaluate<string>('JSON.stringify(window.hoverState.combat.queued)');
@@ -41,15 +42,22 @@ try {
     const p=await page.evaluate<{x:number;y:number}>(`window.projectHover(${JSON.stringify(tile)})`);
     if(!await page.evaluate(`document.elementFromPoint(${p.x},${p.y})?.id==='world-canvas'`))continue;
     await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...p,buttons:0});
-    try {await page.waitFor(`(()=>{const p=JSON.parse(document.getElementById('world-canvas').dataset.movePreview||'null');return p?.forecast&&p.destination.x===${tile.x}&&p.destination.z===${tile.z};})()`,3000);chosen=tile;break;}catch{}
+    try {await page.waitFor(`(()=>{const p=JSON.parse(document.getElementById('world-canvas').dataset.movePreview||'null');return p?.forecast&&p.destination.x===${tile.x}&&p.destination.z===${tile.z};})()`,3000);if(await page.evaluate('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).some(p=>p.ability==="pursuit")')){chosen=tile;break;}}catch{}
   }
   check(chosen,'A reachable hovered tile receives its simulation');
-  check(await page.evaluate('!document.getElementById("move-preview-outcome").hidden&&document.getElementById("move-preview-outcome").textContent.includes("Health")'),'Hover shows health and enemy damage');
+  check(await page.evaluate('(()=>{const e=document.getElementById("combat-plan-outcome");return !e.hidden&&e.dataset.source==="destination"&&/damage|You fall/.test(e.textContent)&&getComputedStyle(e).visibility==="visible";})()'),'Hover shows compact consequences beside the visible plan');
+  await page.shot('hover-consequences');
   check(await page.evaluate('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).some(p=>p.previewKind==="destination"&&p.ability==="pursuit")'),'Hover draws actual enemy pursuit');
   check(await page.evaluate<string>('JSON.stringify(window.hoverState.combat.queued)')===before,'Hover preserves the chosen plan');
   check(await page.evaluate('(()=>{let found=false;window.hoverScene?.traverse(o=>{if(o.material?.color?.getHex?.()===0xe64d55)found=true;});return found;})()'),'Hover draws red pursuit tiles');
   const firstPursuit = await page.evaluate<string>('JSON.stringify(JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).filter(p=>p.ability==="pursuit").map(p=>p.path))');
-  const alternate = tiles.find(tile => tile.x !== chosen!.x || tile.z !== chosen!.z);
+  let alternate: Position | undefined;
+  for (const tile of tiles) {
+    if(tile.x===chosen!.x&&tile.z===chosen!.z)continue;
+    const p=await page.evaluate<{x:number;y:number}>(`window.projectHover(${JSON.stringify(tile)})`);
+    if(await page.evaluate(`document.elementFromPoint(${p.x},${p.y})?.id==='world-canvas'`)){alternate=tile;break;}
+  }
+  check(alternate,'An alternate visible tile is available');
   if (alternate) {
     const p=await page.evaluate<{x:number;y:number}>(`window.projectHover(${JSON.stringify(alternate)})`);
     await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...p,buttons:0});
@@ -61,15 +69,24 @@ try {
   await page.call('Input.dispatchMouseEvent',{type:'mousePressed',x:clickPoint.x,y:clickPoint.y,button:'left',buttons:1});
   await page.call('Input.dispatchMouseEvent',{type:'mouseReleased',x:clickPoint.x,y:clickPoint.y,button:'left',buttons:0});
   await page.waitFor('window.hoverState.combat.queued.some(entry=>entry.action==="bait")');
-  await page.click('.combat-plan-move[data-queued-action="bait"]');
   await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs||"[]").some(p=>p.previewKind==="move"&&p.ability==="pursuit")');
   check(await page.evaluate('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).some(p=>p.previewKind==="move"&&p.ability==="pursuit"&&p.kind==="movement")'),'Queued Move keeps enemy pursuit visible');
   check(await page.evaluate('window.hoverState.combat.queued.some(entry=>entry.action==="bait")'),'Queued Move is retained while inspecting pursuit');
   const requests=await page.evaluate<number>('window.hoverRequests'); await Bun.sleep(700);
   check(await page.evaluate<number>('window.hoverRequests')===requests,'Stationary hover does not request on countdown broadcasts');
   await page.shot('enemy-pursuit-and-damage');
+  await page.waitFor('document.getElementById("combat-plan-outcome").dataset.source==="plan"');
+  await page.click('#combat-plan-aim-move');
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...clickPoint,buttons:0});
+  await page.waitFor('document.getElementById("combat-plan-outcome").dataset.source==="destination"');
   await page.press('Escape');
-  await page.waitFor('document.getElementById("move-preview-outcome").hidden&&JSON.parse(document.getElementById("world-canvas").dataset.movePreview||"null")===null');
+  await page.waitFor('document.getElementById("combat-plan-outcome").dataset.source==="plan"&&JSON.parse(document.getElementById("world-canvas").dataset.movePreview||"null")===null');
+  await page.click('#combat-plan .combat-plan-edit[data-action="brace"]');
+  await page.waitFor('document.getElementById("combat-plan-outcome").textContent.includes("Defend activates")');
+  await page.shot('committed-plan-consequences');
+  await page.click('.combat-plan-ready');
+  await page.waitFor('window.hoverState.combat.phase==="active"');
+  check(await page.evaluate('document.getElementById("combat-plan-outcome").hidden&&JSON.parse(document.getElementById("world-canvas").dataset.telegraphs||"[]").length===0'),'Playback clears the forecast and pursuit previews');
   check(page.errors.length===0,'No browser exceptions');
   console.log('PASS live hover, actual pursuit, damage, untouched plan, countdown cache, cancellation',page.output);
 } catch(error){await page?.shot('failure');console.error(await page?.evaluate('({state:window.hoverState,preview:document.getElementById("world-canvas")?.dataset.movePreview,requests:window.hoverRequests})'));throw error;}

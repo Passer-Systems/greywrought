@@ -3,7 +3,7 @@ import { dryOverworldHeight, LAKE_CENTER, LAKE_RADIUS, lakeBoundary, STREAM_POIN
 import { CAVE_ENTRANCE } from '../game/cave-layout.js';
 import { YARD } from '../game/yard-content.js';
 import type { AdventureSnapshot } from '../game/adventure-types.js';
-import type { RemotePlayerView } from '../game/multiplayer-types.js';
+import type { RemotePlayerView, PartyPingView } from '../game/multiplayer-types.js';
 import { BELLRUNNER_STOPS, flightDuration, flightPosition } from '../game/bellrunner.js';
 
 const width = bounds.maxX - bounds.minX, height = bounds.maxZ - bounds.minZ;
@@ -39,6 +39,7 @@ const css = `
 #world-map-panel .atlas-hint{font:11px sans-serif;opacity:.8;margin:0 16px 9px}
 #map-waypoint{position:absolute;z-index:6;color:#f0b452;font-size:21px;transform:translate(-50%,-50%);pointer-events:none;text-shadow:0 1px 3px #000}
 .map-party{position:absolute;z-index:4;width:16px;height:20px;pointer-events:none;filter:drop-shadow(0 1px 2px #000)}
+.map-ping,.atlas-ping{position:absolute;z-index:7;transform:translate(-50%,-50%);color:#ffd76d;font:22px/1 system-ui;text-shadow:0 1px 3px #000;cursor:help}
 .map-party svg{display:block;width:100%;height:100%}
 #world-waypoint-guide{position:absolute;top:18px;left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:3px;background:#171a17c9;color:#f0d399;font:13px Georgia,serif;pointer-events:none}
 #world-map-open svg{width:28px;height:28px;fill:none;stroke:currentColor;stroke-width:1.5;color:#d3bf91}
@@ -133,8 +134,27 @@ export function createWorldMap(hud: HTMLElement, trigger: HTMLButtonElement, onO
   panel.querySelector('#world-map-close')!.addEventListener('click', close);
   panel.addEventListener('cancel',event => { event.preventDefault(); close(); });
   const partyMarkers = new Map<string,HTMLElement>();
-  function update(state: AdventureSnapshot['player'], party: readonly RemotePlayerView[] = []) {
-    last = state;
+  const pingMarkers = new Map<string,{atlas:HTMLElement;mini:HTMLElement}>();
+  let lastParty: readonly RemotePlayerView[] = [], lastPings: readonly PartyPingView[] = [];
+  function update(state: AdventureSnapshot['player'], party: readonly RemotePlayerView[] = lastParty, pings: readonly PartyPingView[] = lastPings) {
+    last = state; lastParty = party; lastPings = pings;
+    for (const [id, nodes] of pingMarkers) if (!pings.some(ping => ping.playerId === id)) { nodes.atlas.remove(); nodes.mini.remove(); pingMarkers.delete(id); }
+    for (const ping of pings) {
+      let nodes = pingMarkers.get(ping.playerId);
+      if (!nodes) {
+        const atlas = document.createElement('span'), mini = document.createElement('span');
+        atlas.className = 'atlas-ping'; mini.className = 'map-ping';
+        for (const node of [atlas,mini]) {node.textContent = '◇';node.dataset.playerId = ping.playerId;node.setAttribute('role','img');}
+        sheet.append(atlas); document.querySelector('#map-field')!.append(mini);
+        nodes = {atlas,mini}; pingMarkers.set(ping.playerId,nodes);
+      }
+      const dx = ping.position.x-state.position.x, dz = ping.position.z-state.position.z;
+      const scale = Math.max(1,Math.abs(dx)/28,Math.abs(dz)/28);
+      nodes.mini.style.left = (50-dx/scale/64*100)+'%'; nodes.mini.style.top = (50-dz/scale/64*100)+'%';
+      locate(nodes.atlas,ping.position.x,ping.position.z);
+      const label = ping.name+'’s ping · '+Math.round(Math.hypot(dx,dz))+' m'+(scale>1?' · beyond map':'');
+      for (const node of [nodes.atlas,nodes.mini]) {node.title=label;node.setAttribute('aria-label',label);}
+    }
     if (panel.open) {
       locate(player,state.position.x,state.position.z); player.style.transform = `translate(-50%,-50%) rotate(${Math.atan2(-state.cameraForward.x,state.cameraForward.z)}rad)`;
       player.dataset.worldX = String(state.position.x); player.dataset.worldZ = String(state.position.z);
@@ -153,5 +173,5 @@ export function createWorldMap(hud: HTMLElement, trigger: HTMLButtonElement, onO
     if(panel.open) { close(); return; } onOpen();
     if(!ready) { paint(sheet.querySelector('canvas')!); ready = true; panel.dataset.ready = 'true'; }
     panel.showModal(); trigger.setAttribute('aria-expanded','true'); if(last) update(last);
-  }, dispose() { panel.remove(); mini.remove(); guide.remove(); style.remove(); } };
+  }, dispose() { for(const nodes of pingMarkers.values()) nodes.mini.remove(); panel.remove(); mini.remove(); guide.remove(); style.remove(); } };
 }

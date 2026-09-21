@@ -13,7 +13,7 @@ test('hover requests ignore countdown, invalidate for plans, and discard stale r
   controller.update({ ...snapshot, combat: { ...snapshot.combat, remainingSeconds: 28, elapsedSeconds: 2 } }, a);
   expect(replies).toHaveLength(1);
   controller.update(snapshot, b);
-  const forecast: CombatForecast = { playerId: 'solo', paths: [], events: [], outcomes: [] };
+  const forecast: CombatForecast = { playerId: 'solo', paths: [], events: [], outcomes: [], actions: [] };
   replies[0]!(forecast); await Promise.resolve();
   expect(controller.forecast).toBeNull();
   replies[1]!(forecast); await Promise.resolve();

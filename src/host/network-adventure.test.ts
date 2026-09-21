@@ -211,7 +211,7 @@ test('action timing sends only its named placement', async () => {
 test('party state and invitations stay available while paused and social commands reach the server', async () => {
   const { game, socket } = await connected('paused');
   const update = state('paused');
-  socket.receive({ ...update, party: { id: 'party', leaderId: character.id, members: [] },
+  socket.receive({ ...update, party: { id: 'party', leaderId: character.id, members: [], pings: [] },
     partyInvites: [{ id: 'invite', inviterId: 'other', inviterName: 'Other', expiresAtMillis: 60000 }] });
   expect(game.party?.id).toBe('party');
   expect(game.partyInvites[0]!.id).toBe('invite');

@@ -12,7 +12,7 @@ const forecast: CombatForecast = {
     { actorId: "self", kind: "move", action: "bait", beat: 0, queueId: 1, points: [origin, landing], radius: 0 },
     { actorId: "other", kind: "move", action: "bait", beat: 0, queueId: 1, points: [landing, origin], radius: 0 },
   ],
-  events: [], outcomes: [],
+  events: [], outcomes: [], actions: [],
 };
 const combat: CombatView = {
   gatheringRemainingSeconds: 0, openingStrikeAvailable: false,

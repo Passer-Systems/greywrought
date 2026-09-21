@@ -11,6 +11,10 @@ const styles = `
 #party-panel { position:absolute; top:18px; left:18px; width:196px; max-width:calc(100vw - 36px); max-height:calc(100dvh - 360px); overflow:auto; z-index:21; color:#f4dda4; pointer-events:auto; }
 #party-panel[hidden],#party-invite[hidden],#party-context-menu[hidden],#party-context-menu [hidden] { display:none; }
 .party-heading { display:flex; align-items:center; justify-content:space-between; margin:0 0 5px; font:600 var(--ui-font-small,12px) Georgia,serif; text-shadow:0 1px 2px #000; }
+.party-coordination,.party-return,.party-pings { margin:4px 0; color:#d8e7cf; font:11px/1.3 system-ui,sans-serif; }
+.party-return,.party-pings { padding:5px; border:1px solid #74886a; background:#14231de8; }
+.party-ping-button { width:100%; margin-top:5px; padding:5px; border:1px solid #928760; border-radius:3px; color:#f0dfae; background:#253d2b; cursor:pointer; }
+.party-ping-button:disabled { opacity:.55; cursor:default; }
 .party-members { display:grid; gap:5px; }
 .party-member { display:flex; align-items:center; width:100%; min-height:52px; padding:3px; border:1px solid #8a886c; border-radius:3px; background:linear-gradient(#343c32eb,#111c18f5); color:#f4dda4; text-align:left; cursor:pointer; box-shadow:0 2px 4px #0009; }
 .party-member[aria-pressed=true] { border-color:#f2d67c; box-shadow:inset 0 0 0 1px #85d467,0 0 6px #9fd26199; background:linear-gradient(#425737,#17281b); }
@@ -45,6 +49,8 @@ export function createPartyPanel(host: HTMLElement, callbacks: {
   const panel = element("section", "", host); panel.id = "party-panel"; panel.hidden = true; panel.setAttribute("aria-label", "Party");
   const heading = element("div", "party-heading", panel);
   const members = element("div", "party-members", panel);
+  const returning = element("div", "party-return", panel); returning.hidden = true; returning.setAttribute("aria-live", "polite");
+  const pings = element("div", "party-pings", panel); pings.hidden = true; pings.setAttribute("aria-live", "polite");
   const invite = element("section", "", host); invite.id = "party-invite"; invite.hidden = true; invite.setAttribute("aria-label", "Party invitation");
   const inviteText = element("div", "", invite); inviteText.setAttribute("aria-live", "polite");
   const inviteActions = element("div", "party-invite-actions", invite);
@@ -54,11 +60,13 @@ export function createPartyPanel(host: HTMLElement, callbacks: {
   let selfId = "", party: PartyView | null = null, activeInvite: PartyInviteView | null = null;
   let menuPlayer: { id: string; name: string } | null = null, menuX = 0, menuY = 0;
   let menuSignature = "";
-  const frames = new Map<string, { root: HTMLButtonElement; portrait: HTMLImageElement; name: HTMLElement; status: HTMLElement; fill: HTMLElement; value: HTMLElement; signature: string }>();
+  const frames = new Map<string, { root: HTMLButtonElement; portrait: HTMLImageElement; name: HTMLElement; status: HTMLElement; coordination: HTMLElement; fill: HTMLElement; value: HTMLElement; signature: string }>();
   function button(host: HTMLElement, label: string, command: string, action: () => void): HTMLButtonElement {
     const node = element("button", "", host); node.type = "button"; node.dataset.partyCommand = command; text(node, label);
     node.addEventListener("click", action, options); return node;
   }
+  const pingButton = button(panel, "Ping my location", "ping", () => callbacks.onCommand({ type: "partyPing" }));
+  pingButton.className = "party-ping-button"; pingButton.title = "Show your party where you are for 20 seconds. You can also type /ping.";
   function closeMenu(): boolean {
     const wasOpen = !menu.hidden; menu.hidden = true; menuPlayer = null; menuSignature = ""; return wasOpen;
   }
@@ -116,6 +124,7 @@ export function createPartyPanel(host: HTMLElement, callbacks: {
     const portrait = element("img", "", root); portrait.alt = ""; portrait.draggable = false;
     const copy = element("span", "party-member-copy", root);
     const name = element("strong", "party-member-name", copy), status = element("span", "party-member-status", copy);
+    const coordination = element("span", "party-coordination", copy); coordination.style.display = "block";
     const health = element("div", "party-member-health", copy);
     const fill = element("span", "party-member-fill", health), value = element("span", "party-member-value", health);
     root.addEventListener("click", () => {
@@ -127,13 +136,19 @@ export function createPartyPanel(host: HTMLElement, callbacks: {
       const current = party?.members.find(candidate => candidate.id === member.id);
       if (current) openPlayerMenu(current, event.clientX, event.clientY);
     }, options);
-    return { root, portrait, name, status, fill, value, signature: "" };
+    return { root, portrait, name, status, coordination, fill, value, signature: "" };
   }
   return {
     update(nextSelfId: string, nextParty: PartyView | null, invites: readonly PartyInviteView[], selectedPlayerId: string | null): void {
       selfId = nextSelfId; party = nextParty;
       panel.hidden = !party;
       text(heading, party ? `Party · ${party.members.length} / 5` : "Party");
+      const pending = party?.members.filter(member => member.returnStatus === 'waiting') ?? [];
+      returning.hidden = !party?.members.some(member => member.returnStatus !== null);
+      text(returning, pending.length ? 'Return · waiting for ' + pending.map(member => member.name + (!member.online ? ' (offline)' : '')).join(', ') : 'Return · everyone confirmed');
+      pings.hidden = !party?.pings.length;
+      text(pings, party?.pings.map(ping => ping.name + ' pinged ' + ping.location.toLowerCase() + ' (' + Math.round(ping.position.x) + ', ' + Math.round(ping.position.z) + ')').join(' · ') ?? '');
+      pingButton.disabled = !party?.members.find(member => member.id === selfId)?.online || Boolean(party?.members.some(member => member.returnStatus !== null));
       const currentIds = new Set(party?.members.map(member => member.id));
       for (const [id, frame] of frames) if (!currentIds.has(id)) { frame.root.remove(); frames.delete(id); }
       party?.members.forEach((member, index) => {
@@ -148,10 +163,14 @@ export function createPartyPanel(host: HTMLElement, callbacks: {
         const status = !member.online ? "Offline" : !member.sameEncounter ? "Elsewhere" : member.health <= 0 ? "Dead" : className;
         text(frame.name, member.name);
         text(frame.status, `${status}${leader ? " · Leader" : ""}`);
+        const ready = !member.combat || member.combat.phase === 'idle' ? '' : member.combat.phase === 'active' ? 'Acting' : member.combat.ready ? 'Ready' : 'Not ready';
+        const target = !member.online || !member.sameEncounter ? '' : 'Target: ' + (member.target?.name ?? 'None');
+        const returnStatus = member.returnStatus === 'confirmed' ? ' · Return confirmed' : member.returnStatus === 'waiting' ? ' · Return unconfirmed' : '';
+        text(frame.coordination, [target, ready].filter(Boolean).join(' · ') + returnStatus);
         attribute(frame.portrait, "src", publicUrl(`assets/ui/characters/${member.archetype}.webp`));
         attribute(frame.root, "aria-pressed", String(selected));
         attribute(frame.root, "aria-disabled", String(!member.online || !member.sameEncounter));
-        attribute(frame.root, "aria-label", `${member.name}, ${className}, ${status}${leader ? ", party leader" : ""}, ${Math.ceil(member.health)} of ${member.maximumHealth} health`);
+        attribute(frame.root, "aria-label", `${member.name}, ${className}, ${status}${leader ? ", party leader" : ""}, ${Math.ceil(member.health)} of ${member.maximumHealth} health, ${target}, ${ready}${returnStatus}`);
         frame.root.title = `${member.name} · ${className}. Right-click for party actions.`;
         frame.fill.style.width = `${Math.max(0, Math.min(100, member.maximumHealth > 0 ? member.health / member.maximumHealth * 100 : 0))}%`;
         text(frame.value, `${Math.ceil(member.health)} / ${member.maximumHealth}`);

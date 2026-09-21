@@ -21,11 +21,22 @@ export interface PartyMemberView {
   readonly maximumHealth: number;
   readonly online: boolean;
   readonly sameEncounter: boolean;
+  readonly target: { readonly id: string; readonly name: string } | null;
+  readonly combat: { readonly phase: AdventureSnapshot['combat']['phase']; readonly ready: boolean } | null;
+  readonly returnStatus: 'waiting' | 'confirmed' | 'not-needed' | null;
+}
+export interface PartyPingView {
+  readonly playerId: string;
+  readonly name: string;
+  readonly position: Position;
+  readonly location: string;
+  readonly expiresAtMillis: number;
 }
 export interface PartyView {
   readonly id: string;
   readonly leaderId: string;
   readonly members: readonly PartyMemberView[];
+  readonly pings: readonly PartyPingView[];
 }
 export interface PartyInviteView {
   readonly id: string;
@@ -38,6 +49,7 @@ export type PartyCommand =
   | { type: 'partyAccept'; inviteId: string }
   | { type: 'partyDecline'; inviteId: string }
   | { type: 'partyLeave' }
+  | { type: 'partyPing' }
   | { type: 'partyKick'; playerId: string };
 export type WorldCommand =
   | { type: "flight"; destination: import("./bellrunner.js").BellrunnerStopId }
