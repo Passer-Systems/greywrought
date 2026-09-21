@@ -313,7 +313,7 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
   const client = new Client(`ws://127.0.0.1:${server.port}/world`);
   try {
-    await client.connect(character, token); await client.state(s => s.snapshot.combat.phase === 'preparation');
+    await client.connect(character, token); const initial = await client.state(s => s.snapshot.combat.phase === 'preparation');
     for (const destination of [{ x: 100, y: 0, z: 28 }, { x: 0, y: 0, z: '8' }, { x: 0, z: 28 }, { x: null, y: 0, z: 28 }]) {
       expect(await client.invalid({ type: 'bait', destination })).toBe(false);
     }
@@ -323,6 +323,23 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
     const planned = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait'));
     const snappedX=Math.round(destination.x/2.5)*2.5, snappedZ=Math.round(destination.z/2.5)*2.5;
     expect(planned.snapshot.combat.queued[0]!.destination).toEqual({x:snappedX,y:terrainHeight(snappedX,snappedZ),z:snappedZ});
+    const origin = initial.snapshot.player.position, via = [planned.snapshot.combat.queued[0]!.destination!];
+    for (const invalid of [null, {}, [{ x: 0, z: 25 }], [{ ...origin, extra: true }], [{ ...origin, x: 10000 }]]) {
+      expect(await client.invalid({ type: 'bait', destination: origin, via: invalid })).toBe(false);
+      expect(await client.invalid({ type: 'previewBait', destination: origin, via: invalid })).toBe(false);
+    }
+    const beforeRoute = client.messages.length;
+    expect(await client.command({ type: 'bait', destination: origin, via })).toBe(true);
+    const received = client.messages.slice(beforeRoute);
+    const routeState = received.findIndex(message => message.type === 'state' && message.snapshot.combat.queued.some(entry => entry.action === 'bait' && entry.via.length === 1));
+    expect(routeState).toBeGreaterThanOrEqual(0);
+    expect(received.findIndex(message => message.type === 'result' && message.accepted)).toBeGreaterThan(routeState);
+    const routed = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait' && e.via.length === 1));
+    expect(routed.snapshot.combat.queued[0]!.destination).toEqual(origin);
+    expect(routed.snapshot.combat.queued[0]!.via).toEqual(via);
+    expect(await client.command({ type: 'previewBait', destination: origin, via })).toBe(true);
+    const preview = await client.wait(message => message.type === 'movePreview');
+    expect(preview.type === 'movePreview' && preview.forecast?.paths.some(path => path.action === 'bait' && path.points.length === 3)).toBe(true);
     expect(await client.command({ type: 'action', action: 'brace', pressed: true })).toBe(true);
     expect(await client.command({ type: 'action', action: 'brace', pressed: false })).toBe(true);
     expect(await client.command({ type: 'actionTiming', timing: 'during' })).toBe(true);
@@ -658,3 +675,83 @@ test('party chat aliases stay private through pause, membership changes and rest
     await service.close(); server.stop(true); await rm(directory, { recursive: true });
   }
 });
+
+async function coordinationFixture(location: 'combat' | 'chest') {
+  const { createSharedAdventure } = await import('../game/adventure.js');
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-coordination-')), savePath = join(directory, 'world.json');
+  const characters: LocalCharacter[] = ['Aster', 'Mira', 'Outside'].map((name, index) => ({ id: `coordination-${index}`, name, archetype: 'mage', createdAtMillis: index + 1 }));
+  const token = crypto.randomUUID(), seed = createSharedAdventure();
+  for (const character of characters) seed.join(character.id, character.name, character.archetype);
+  const saved = JSON.parse(seed.save());
+  for (const [index, entry] of saved.characters.entries()) {
+    const x = location === 'chest' ? 77 + index : index === 2 ? -20 : -3 + index * 2, z = location === 'chest' ? -52 : index === 2 ? -10 : 28;
+    Object.assign(entry.state, { phase: 'expedition', position: { x, y: terrainHeight(x, z), z }, coins: 0, potions: 0 });
+  }
+  for (const threat of saved.world.threats) {
+    if (location === 'combat' && threat.id === 'scout') Object.assign(threat, { health: 5, phase: 'preparation', aggro: true, targetPlayerId: characters[0]!.id, combatants: characters.slice(0, 2).map(character => character.id), contributors: characters.slice(0, 2).map(character => character.id), position: { x: -3, y: terrainHeight(-3, 32), z: 32 } });
+    else if (threat.active) Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
+  }
+  if (location === 'combat') Object.assign(saved.clock, { phase: 'preparation', elapsedSeconds: 0, gatheringRemainingSeconds: 0 });
+  await writeFile(savePath, JSON.stringify({ version: 1, accounts: characters.map(character => ({ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') })), world: JSON.stringify(saved), chat: [], nextChatId: 1, parties: [{ id: 'coordination-party', leaderId: characters[0]!.id, members: characters.slice(0, 2).map(character => character.id) }] }));
+  const service = await createWorldService({ savePath });
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
+  const clients: Client[] = [];
+  for (const character of characters) { const client = new Client(`ws://127.0.0.1:${server.port}/world`); clients.push(client); await client.connect(character, token); await client.state(); }
+  return { clients, characters, close: async () => { for (const client of clients) client.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); } };
+}
+
+test('party coordination reports actual targets, readiness, scoped pings and each return confirmation', async () => {
+  const fixture = await coordinationFixture('combat'), [first, second, outsider] = fixture.clients as [Client, Client, Client];
+  try {
+    await first.state(state => state.snapshot.combat.phase === 'preparation');
+    expect(await first.command({ type: 'target', id: 'scout' })).toBe(true);
+    expect(await first.invalid({ type: 'partyPing', position: { x: 99, y: 0, z: 99 } })).toBe(false);
+    expect(await first.command({ type: 'partyPing' })).toBe(true);
+    const pinged = await second.state(state => state.party!.pings.length === 1);
+    expect(pinged.party!.pings[0]!.playerId).toBe(fixture.characters[0]!.id);
+    expect(pinged.party!.pings[0]!.position).toEqual(pinged.players.find(player => player.id === fixture.characters[0]!.id)!.player.position);
+    expect(pinged.party!.members[0]!.target).toEqual({ id: 'scout', name: pinged.snapshot.threats.find(threat => threat.id === 'scout')!.name });
+    expect((await outsider.state()).party).toBeNull();
+    expect(await outsider.command({ type: 'partyPing' })).toBe(false);
+    expect(await first.command({ type: 'pause' })).toBe(true);
+    const paused = await second.state(state => state.session.mode === 'paused');
+    expect(paused.party!.pings).toEqual([]);
+    expect(await first.command({ type: 'resume' })).toBe(true);
+    expect(await first.command({ type: 'action', action: 'strike', pressed: true })).toBe(true);
+    expect(await first.command({ type: 'action', action: 'strike', pressed: false })).toBe(true);
+    expect(await first.command({ type: 'ready' })).toBe(true);
+    const waiting = await second.state(state => state.party!.members[0]!.combat?.ready === true);
+    expect(waiting.party!.members[1]!.combat?.ready).toBe(false);
+    expect(await second.command({ type: 'ready' })).toBe(true);
+    await first.state(state => state.session.mode === 'viewing', 12000);
+    const viewing = await second.state(state => state.session.mode === 'viewing');
+    expect(viewing.party!.members.map(member => member.returnStatus)).toEqual(['waiting', 'waiting']);
+    expect(viewing.snapshot.carriedSalvage).toBe(0);
+    expect(await first.command({ type: 'rejoin' })).toBe(true);
+    const confirmed = await second.state(state => state.party!.members[0]!.returnStatus === 'confirmed');
+    expect(confirmed.party!.members[1]!.returnStatus).toBe('waiting');
+    expect(confirmed.session.mode).toBe('viewing');
+    expect(await second.command({ type: 'rejoin' })).toBe(true);
+    await first.state(state => state.session.mode === 'shared' && state.party!.members.every(member => member.returnStatus === null));
+  } finally { await fixture.close(); }
+}, 20000);
+
+test('shared chest announces only the successful collector and keeps one shared claim', async () => {
+  const fixture = await coordinationFixture('chest'), [first, second, outsider] = fixture.clients as [Client, Client, Client];
+  try {
+    for (const client of [first, second]) { expect(await client.command({ type: 'loot', id: 'ironback-chest' })).toBe(true); await client.state(state => state.snapshot.lootOpenId === 'ironback-chest'); }
+    expect(await first.command({ type: 'action', action: 'takeLoot', pressed: true })).toBe(true);
+    const collected = await second.state(state => state.chat.some(entry => entry.text.startsWith('collected ')));
+    expect(collected.chat.filter(entry => entry.text.startsWith('collected '))).toHaveLength(1);
+    expect(collected.chat.at(-1)).toMatchObject({ kind: 'loot', name: 'Aster', text: 'collected 18 copper, 2 health potions from Rattagane’s cache.' });
+    expect(await second.command({ type: 'action', action: 'takeLoot', pressed: true })).toBe(true);
+    expect(await first.command({ type: 'action', action: 'takeLoot', pressed: false })).toBe(true);
+    expect(await first.command({ type: 'action', action: 'takeLoot', pressed: true })).toBe(true);
+    second.messages.length = 0;
+    const denied = await second.state();
+    expect(denied.snapshot.coins).toBe(0); expect(denied.snapshot.potions).toBe(0);
+    expect(denied.chat.filter(entry => entry.text.startsWith('collected '))).toHaveLength(1);
+    outsider.messages.length = 0;
+    expect((await outsider.state()).chat.filter(entry => entry.text.startsWith('collected '))).toHaveLength(1);
+  } finally { await fixture.close(); }
+}, 10000);

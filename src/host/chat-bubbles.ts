@@ -14,7 +14,7 @@ export function createChatBubbleFeed() {
       // The first snapshot is history, including messages saved before this visit.
       if (previous === undefined) return;
       for (const message of messages) {
-        if (message.id > previous && message.speakerId !== null && !message.partyId) {
+        if (message.id > previous && message.speakerId !== null && !message.partyId && message.kind !== 'loot') {
           speakers.set(message.speakerId, { message, receivedAt: now });
         }
       }

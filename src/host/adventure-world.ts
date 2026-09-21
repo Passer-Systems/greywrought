@@ -22,6 +22,7 @@ import { createWorldLighting } from "./world-lighting.js";
 import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.js";
 import { createAggroRanges } from "./aggro-ranges.js";
 import type { UnitSelection } from "./unit-selection.js";
+import { createPartyPings } from "./party-pings.js";
 import { createRemotePlayers, type RemotePlayerView } from "./remote-player.js";
 import { createSocialAnimation } from "./social-animation.js";
 import { createPhotonChair } from "./photon-chair.js";
@@ -29,9 +30,9 @@ import { createSnapshotInterpolation } from "./snapshot-interpolation.js";
 import { createOverheadNames, npcQuestMarker } from "./overhead-names.js";
 import { createChatBubbles } from "./chat-bubbles.js";
 import { createFloatingCombatText } from "./floating-combat-text.js";
-import type { SharedChatMessage } from "../game/multiplayer-types.js";
+import type { SharedChatMessage, PartyPingView } from "../game/multiplayer-types.js";
 import { YARD } from "../game/yard-content.js";
-import { createMovementPreview } from "./movement-preview.js";
+import { createMovementPreview, type MovementPlanPreview } from "./movement-preview.js";
 import { createCombatGrid } from "./combat-grid.js";
 import { combatCell } from "../game/combat-grid.js";
 import { updateThreatAnimation, type ThreatAnimationState } from "./threat-animation.js";
@@ -99,7 +100,9 @@ export interface AdventureWorld {
   pickReturnSpot(clientX: number, clientY: number): Position | null;
   setSelectedUnit(selection: UnitSelection): void;
   setPartyMembers(ids: readonly string[]): void;
+  setPartyPings(pings: readonly PartyPingView[]): void;
   setMoveAiming(active: boolean): void;
+  setMoveRoute(route: readonly Position[]): void;
   canMoveTo(destination: Position): boolean;
   projectThreat(id: string): { x: number; y: number; feetY: number } | null;
   dispose(): void;
@@ -143,6 +146,7 @@ function lootGlint(): Sprite {
 function createCombatEffects(scene: Scene) {
   const swarms = new Map<string, Points<BufferGeometry, PointsMaterial>>();
   const swarmMaterial = new PointsMaterial({ color: 0xe2c66b, size: 0.1, transparent: true, opacity: 0.85, depthWrite: false });
+  const residueMaterial = new PointsMaterial({ color: 0xb8cf65, size: 0.13, transparent: true, opacity: 0.75, depthWrite: false });
   const burstGeometry = new SphereGeometry(1, 16, 10);
   const bursts: { mesh: Mesh<SphereGeometry, MeshBasicMaterial>; remaining: number; radius: number }[] = [];
   let highwater: number | undefined;
@@ -163,16 +167,18 @@ function createCombatEffects(scene: Scene) {
         if (!swarm) {
           const geometry = new BufferGeometry();
           geometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(28 * 3), 3));
-          swarm = new Points(geometry, swarmMaterial);
+          swarm = new Points(geometry, hazard.kind === "residue" ? residueMaterial : swarmMaterial);
+          swarm.name = hazard.kind + ":" + hazard.id;
           swarm.frustumCulled = false;
           scene.add(swarm); swarms.set(hazard.id, swarm);
         }
         swarm.position.set(hazard.position.x, hazard.position.y, hazard.position.z);
         const positions = swarm.geometry.getAttribute("position");
         for (let index = 0; index < positions.count; index++) {
-          const angle = index * 2.4 + elapsed * (index % 2 ? 1.5 : -1.2);
+          const residue = hazard.kind === "residue";
+          const angle = index * 2.4 + elapsed * (residue ? 0.18 : index % 2 ? 1.5 : -1.2);
           const radius = hazard.radius * Math.sqrt((index + 0.5) / positions.count);
-          positions.setXYZ(index, Math.cos(angle) * radius, 0.35 + 0.25 * Math.sin(elapsed * 9 + index * 3), Math.sin(angle) * radius);
+          positions.setXYZ(index, Math.cos(angle) * radius, residue ? 0.12 + 0.18 * (1 + Math.sin(elapsed * 2 + index)) : 0.35 + 0.25 * Math.sin(elapsed * 9 + index * 3), Math.sin(angle) * radius);
         }
         positions.needsUpdate = true;
       }
@@ -201,14 +207,15 @@ function createCombatEffects(scene: Scene) {
     dispose() {
       clearBursts(); burstGeometry.dispose();
       for (const swarm of swarms.values()) { swarm.removeFromParent(); swarm.geometry.dispose(); }
-      swarms.clear(); swarmMaterial.dispose();
+      swarms.clear(); swarmMaterial.dispose(); residueMaterial.dispose();
     },
   };
 }
 
-export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; showSelfName?: () => boolean; onSelect: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void }): AdventureWorld {
+export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position, via: readonly Position[]) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; showSelfName?: () => boolean; onSelect: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void }, onMovementPreview?: (preview: MovementPlanPreview | null) => void): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
+  const partyPings = createPartyPings(scene);
   const bellrunners = createBellrunnerFleet(scene);
   let interpolation = createSnapshotInterpolation();
   let lastConnectionRevision = -1;
@@ -505,11 +512,16 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const aggroRanges = createAggroRanges(scene, canvas);
   const combatGrid = createCombatGrid(scene, canvas);
   let moveAiming = false;
-  const movementPreview = createMovementPreview(destination => previewBait?.(destination) ?? Promise.resolve(null));
-  const moveOutcome = document.createElement("div"); moveOutcome.id = "move-preview-outcome"; moveOutcome.hidden = true;
-  moveOutcome.setAttribute("role", "status");
-  Object.assign(moveOutcome.style, { position: "absolute", zIndex: "8", pointerEvents: "none", padding: "8px 10px", maxWidth: "280px", whiteSpace: "pre-line", background: "#112126ef", color: "#fff0cc", border: "1px solid #a9c8b4", borderRadius: "3px", font: "12px/1.45 system-ui" });
-  host.append(moveOutcome);
+  let moveRoute: readonly Position[] = [];
+  const movementPreview = createMovementPreview((destination, via) => previewBait?.(destination, via) ?? Promise.resolve(null));
+  let shownMovementPreview: MovementPlanPreview | null = null;
+  function showMovementPreview(next: MovementPlanPreview | null): void {
+    const previous = shownMovementPreview;
+    if (previous === next || previous && next && previous.forecast === next.forecast && previous.pending === next.pending
+      && previous.destination.x === next.destination.x && previous.destination.z === next.destination.z && previous.candidate === next.candidate && JSON.stringify(previous.via) === JSON.stringify(next.via)) return;
+    shownMovementPreview = next;
+    onMovementPreview?.(next);
+  }
   const ready = Promise.all([bellrunners.ready, knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, regionalHostsReady, creaturesReady, coresReady, signsReady, natureReady, caveReady, chestReady]).then(async()=>{
     if(disposed)return;
     lighting.collectLamps();
@@ -539,6 +551,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (rect.width <= 0 || rect.height <= 0 || x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
     point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
     raycaster.setFromCamera(point, camera);
+    // During route editing the character is the start tile's click target;
+    // projecting through its body would select ground farther behind it.
+    if (moveAiming && moveRoute.length && player.visible && knight && raycaster.intersectObject(knight.model, true).length) {
+      return { ...hoverSnapshot.player.position };
+    }
     const hit = raycaster.intersectObjects(groundSurfaces, false)[0];
     let hitPoint = hit?.point;
     const denominator = raycaster.ray.direction.y;
@@ -626,7 +643,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     setThreatNameplateVisible(id, visible) { overheadNames.suppress(`threat:${id}`, visible); },
     setAggroRangesVisible(visible) { aggroRanges.setVisible("direct", visible); },
     setHelpRangesVisible(visible) { aggroRanges.setVisible("help", visible); },
-    setMoveAiming(active) { moveAiming = active; if (!active) { movementPreview.clear(); moveOutcome.hidden = true; } },
+    setMoveAiming(active) { moveAiming = active; if (!active) { movementPreview.clear(); showMovementPreview(null); } },
+    setMoveRoute(route) { moveRoute = route; },
     canMoveTo(destination) { return combatGrid.accepts(destination); },
     setCombatPreview(preview) { combatPreview = preview; },
     setReturnPreview(plan) {
@@ -640,6 +658,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     pickReturnSpot,
     setSelectedUnit(selection) { selectedUnit = selection; },
     setPartyMembers(ids) { partyMembers = new Set(ids); },
+    setPartyPings(pings) { partyPings.update(pings); },
     projectThreat(id) {
       const rig = rigs.get(id); if (!rig || !rig.root.visible) return null;
       const head = rig.root.position.clone().add(new Vector3(0, rig.height + rig.body.position.y + 0.25, 0)).project(camera);
@@ -653,7 +672,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         interpolation = createSnapshotInterpolation();
         lastHealth = localPlayer.health; lastAttack = localPlayer.attackSequence;
         swimmingWake.clear();
-        combatPreview = null; movementPreview.clear();
+        combatPreview = null; movementPreview.clear(); showMovementPreview(null);
         lastConnectionRevision = connectionRevision;
       }
       hoverSnapshot = snapshot;
@@ -845,26 +864,20 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       combatEffects.update(snapshot.combat, elapsed, delta, connectionRevision);
       aggroRanges.update(snapshot);
       const hoveredTile = moveAiming && hoverPointer ? pickGround(hoverPointer.x, hoverPointer.y) : null;
-      combatGrid.update(snapshot, moveAiming, hoveredTile, otherPlayers.map(p => p.player.position));
-      const destination = hoveredTile && combatGrid.accepts(hoveredTile) ? hoveredTile : null;
-      movementPreview.update(hoverSnapshot, destination);
+      combatGrid.update(snapshot, moveAiming, hoveredTile, otherPlayers.map(p => p.player.position), moveRoute);
+      const candidate = hoveredTile && combatGrid.accepts(hoveredTile) ? hoveredTile : null;
+      const destination = moveAiming ? candidate ?? moveRoute.at(-1) ?? null : null;
+      const via = candidate ? moveRoute : moveRoute.slice(0, -1);
+      movementPreview.update(hoverSnapshot, destination, via);
       const forecast = movementPreview.forecast;
-      telegraphs.update(forecast ? { player: snapshot.player, combat: { ...snapshot.combat, forecast } } : snapshot, forecast ? { kind: "destination" } : combatPreview);
-      moveOutcome.hidden = !destination || snapshot.combat.phase !== "preparation" || snapshot.combat.ready;
-      const previewData = JSON.stringify(destination ? { destination, pending: movementPreview.pending, forecast } : null);
+      const choosingDestination = destination && snapshot.combat.phase === "preparation" && !snapshot.combat.ready;
+      const selectedMovement = snapshot.combat.queued.find(move => move.action === "bait" && move.status === "pending");
+      const planPreview = combatPreview ?? (selectedMovement ? { kind: "move" as const, queueId: selectedMovement.id } : null);
+      telegraphs.update(forecast ? { player: snapshot.player, threats: snapshot.threats, combat: { ...snapshot.combat, forecast } } : snapshot,
+        choosingDestination ? forecast ? { kind: "destination", route: [...via, destination] } : null : planPreview);
+      showMovementPreview(choosingDestination ? { destination, via, candidate: Boolean(candidate), pending: movementPreview.pending, forecast } : null);
+      const previewData = JSON.stringify(choosingDestination ? { destination, via, candidate: Boolean(candidate), pending: movementPreview.pending, forecast } : null);
       if (canvas.dataset.movePreview !== previewData) canvas.dataset.movePreview = previewData;
-      if (!moveOutcome.hidden && hoverPointer) {
-        const health = forecast?.outcomes.find(outcome => outcome.id === forecast.playerId)?.health;
-        const lines = snapshot.threats.filter(t => t.active && t.health > 0 && t.aggro).map(threat => {
-          const damage = forecast?.events.filter(event => event.sourceId === threat.id && event.targetId === forecast.playerId && event.kind === "hit").reduce((sum, event) => sum + event.damage, 0) ?? 0;
-          return threat.name + " · " + (damage > 0 ? Math.ceil(damage) + " damage" : "No damage");
-        });
-        const outcomeText = movementPreview.pending ? "Checking this move…" : !forecast ? "Move preview unavailable" : "If you move here · Health " + Math.ceil(snapshot.player.health) + " → " + Math.ceil(health ?? snapshot.player.health) + "\n" + lines.join("\n");
-        if (moveOutcome.textContent !== outcomeText) moveOutcome.textContent = outcomeText;
-        const rect = host.getBoundingClientRect();
-        moveOutcome.style.left = Math.max(8, Math.min(rect.width - 290, hoverPointer.x - rect.left + 18)) + "px";
-        moveOutcome.style.top = Math.max(8, Math.min(rect.height - moveOutcome.offsetHeight - 8, hoverPointer.y - rect.top + 18)) + "px";
-      }
       // Transition the look target toward eye level as the boom reaches the
       // player. This gives a usable first-person view without a zero-distance
       // lookAt singularity or the character model covering the camera.
@@ -949,8 +962,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (disposed) return;
       disposed = true;
       clearHover();
-      tooltip.remove(); moveOutcome.remove(); movementPreview.clear();
+      tooltip.remove(); movementPreview.clear(); showMovementPreview(null);
       remotePlayers.dispose();
+      partyPings.dispose();
       bellrunners.dispose();
       swimmingWake.dispose();
       underwater.dispose();

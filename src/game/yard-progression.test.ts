@@ -16,13 +16,13 @@ test("Cold Hands requires nearby acceptance, gathered cargo, physical return and
   game.quest("roll-call","accept"); expect(game.snapshot.quests[1]!.status).toBe("locked");
   game=at(game,-2,32,"expedition"); tap(game,"gather"); game.advance(2);
   expect(game.snapshot.cargo).toBe(3); expect(game.snapshot.quests[0]!.status).toBe("ready");
-  game.quest("cold-hands","turnIn"); expect(game.snapshot.progression.level).toBe(1);
+  game.quest("cold-hands","turnIn"); expect(game.snapshot.progression).toMatchObject({level:1,experience:0});
   game=at(game,0,0.02,"expedition");game.setCameraForward(0,-1);game.setAction("forward",true);game.advance(.05);game.setAction("forward",false);
   expect(game.snapshot.phase).toBe("town");expect(game.snapshot.cargo).toBe(3);expect(game.snapshot.supplies).toBe(15);
   game=at(game,3.4,-7.5,"town");game.quest("cold-hands","turnIn");
-  expect(game.snapshot.progression).toMatchObject({level:2,attackBonus:2,ownedGear:["insulated-coat"]});
+  expect(game.snapshot.progression).toMatchObject({level:2,experience:100,attackBonus:2,ownedGear:["insulated-coat"]});
   expect(game.snapshot.potions).toBe(2);expect(game.snapshot.cargo).toBe(0);
-  game.quest("cold-hands","turnIn");expect(game.snapshot.potions).toBe(2);
+  game.quest("cold-hands","turnIn");expect(game.snapshot.potions).toBe(2);expect(game.snapshot.progression.experience).toBe(100);
   game.equip("mainhand","insulated-coat");game.equip("mainhand","yard-weapon");expect(game.snapshot.progression.equipment.mainhand).toBeNull();
   game.equip("chest","insulated-coat");expect(game.snapshot.progression.damageReduction).toBe(2);
   const restored=createAdventure({save:game.save()});expect(restored.snapshot.progression).toEqual(game.snapshot.progression);
@@ -99,9 +99,9 @@ test("each participating quest holder loots a personal Roll; replay waits for cl
   world=createSharedAdventure({save:JSON.stringify(returned)});
   const home=world.join("a","a","mage"),partner=world.join("b","b","mage");world.advance(.01);
   expect(home.snapshot.carriedRelics).toBe(1);expect(home.snapshot.bankedRelics).toBe(0);
-  home.quest("last-shift","turnIn");expect(home.snapshot.progression.level).toBe(3);expect(home.snapshot.supplies).toBe(27);expect(home.snapshot.carriedRelics).toBe(0);
-  expect(partner.snapshot.progression.level).toBe(2);expect(partner.snapshot.carriedRelics).toBe(1);
-  home.quest("last-shift","turnIn");expect(home.snapshot.supplies).toBe(27);
+  home.quest("last-shift","turnIn");expect(home.snapshot.progression).toMatchObject({level:3,experience:300});expect(home.snapshot.supplies).toBe(27);expect(home.snapshot.carriedRelics).toBe(0);
+  expect(partner.snapshot.progression).toMatchObject({level:2,experience:100});expect(partner.snapshot.carriedRelics).toBe(1);
+  home.quest("last-shift","turnIn");expect(home.snapshot.supplies).toBe(27);expect(home.snapshot.progression.experience).toBe(300);
 });
 
 test("clicking an NPC addresses that NPC when both are nearby; range still applies",()=>{

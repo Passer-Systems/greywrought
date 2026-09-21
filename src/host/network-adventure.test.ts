@@ -208,10 +208,44 @@ test('action timing sends only its named placement', async () => {
   game.close();
 });
 
+test('route submission awaits its actual receipt and forwards intermediate preview stops', async () => {
+  const { game, socket } = await connected();
+  const destination = { x: 0, y: 0, z: 25 }, via = [{ x: -2.5, y: 0, z: 25 }];
+  let accepted: boolean | undefined;
+  const submitted = game.submitBait(destination, via).then(value => { accepted = value; });
+  const message = socket.sent.at(-1)!;
+  expect(message).toMatchObject({ type: 'command', command: { type: 'bait', destination, via } });
+  expect(accepted).toBeUndefined();
+  if (message.type !== 'command') throw new Error('Missing movement command');
+  socket.receive({ type: 'result', sequence: message.sequence, accepted: false });
+  await submitted; expect(accepted).toBe(false);
+  const next = game.submitBait(destination, via), receipt = socket.sent.at(-1)!;
+  if (receipt.type !== 'command') throw new Error('Missing movement command');
+  socket.receive({ type: 'result', sequence: receipt.sequence, accepted: true });
+  expect(await next).toBe(true);
+  const preview = game.previewBait(destination, via);
+  const request = socket.sent.at(-1)!;
+  expect(request).toMatchObject({ type: 'command', command: { type: 'previewBait', destination, via } });
+  if (request.type !== 'command') throw new Error('Missing preview command');
+  socket.receive({ type: 'movePreview', sequence: request.sequence, forecast: null });
+  expect(await preview).toBeNull();
+  const pending = game.submitBait(destination, via); socket.close();
+  expect(await pending).toBe(false);
+  expect(await game.submitBait(destination, via)).toBe(false);
+  game.close();
+});
+
+test('closing the game settles a pending movement submission as rejected', async () => {
+  const { game } = await connected();
+  const pending = game.submitBait({ x: 0, y: 0, z: 25 });
+  game.close();
+  expect(await pending).toBe(false);
+});
+
 test('party state and invitations stay available while paused and social commands reach the server', async () => {
   const { game, socket } = await connected('paused');
   const update = state('paused');
-  socket.receive({ ...update, party: { id: 'party', leaderId: character.id, members: [] },
+  socket.receive({ ...update, party: { id: 'party', leaderId: character.id, members: [], pings: [] },
     partyInvites: [{ id: 'invite', inviterId: 'other', inviterName: 'Other', expiresAtMillis: 60000 }] });
   expect(game.party?.id).toBe('party');
   expect(game.partyInvites[0]!.id).toBe('invite');

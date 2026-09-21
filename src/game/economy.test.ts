@@ -36,7 +36,7 @@ test("shops require range, open vendor, correct stock and coins; all purchases e
     expect(game.snapshot.report).toContain(`${vendor.price} copper`);
   }
 });
-test("a credited defeat awards experience before loot, crosses level four and never repeats on loot or reload", () => {
+test("a credited defeat preserves earned experience and awards coins only once through loot", () => {
   const save = soloFixture(0,590);
   Object.assign(save.state,{phase:"expedition",position:{x:-3,y:0,z:28}});
   save.state.threats[0].health = 1;
@@ -44,16 +44,16 @@ test("a credited defeat awards experience before loot, crosses level four and ne
   tap(game,"strike");
   expect(game.snapshot.progression.experience).toBe(590);
   game.readyCombat(); finishGathering(game); game.advance(.01);
-  expect(game.snapshot.progression).toMatchObject({level:4,experience:600,attackBonus:6,levelExperience:0,nextLevelExperience:400});
-  expect(game.snapshot.log.some(entry=>entry.text.includes("Level up!"))).toBe(true);
+  expect(game.snapshot.progression).toMatchObject({level:3,experience:590,attackBonus:4,levelExperience:290,nextLevelExperience:300});
+  expect(game.snapshot.log.some(entry=>entry.text.includes("Level up!"))).toBe(false);
   expect(game.snapshot.coins).toBe(0);
   game.openLoot("scout"); tap(game,"takeLoot");
   expect(game.snapshot.coins).toBe(3);
   game.openLoot("scout"); tap(game,"takeLoot");
-  expect(game.snapshot.coins).toBe(3); expect(game.snapshot.progression.experience).toBe(600);
+  expect(game.snapshot.coins).toBe(3); expect(game.snapshot.progression.experience).toBe(590);
   const restored = createAdventure({save:game.save()});
   restored.openLoot("scout"); tap(restored,"takeLoot");
-  expect(restored.snapshot.coins).toBe(3); expect(restored.snapshot.progression.experience).toBe(600);
+  expect(restored.snapshot.coins).toBe(3); expect(restored.snapshot.progression.experience).toBe(590);
 });
 test("old quest levels migrate without resetting earned lessons, gear or currency", () => {
   const save=soloFixture(); save.state.chapter=earnedChapter();
@@ -62,13 +62,13 @@ test("old quest levels migrate without resetting earned lessons, gear or currenc
   expect(game.snapshot.progression).toMatchObject({level:3,experience:300,attackBonus:4});
   expect(game.snapshot.progression.unlockedActions).toEqual(["strike","brace","bait"]); expect(game.snapshot.coins).toBe(0);
 });
-test("shared contributors receive XP, bystanders do not, and one corpse has one coin purse", () => {
+test("shared contributors and bystanders gain no XP, and one corpse has one coin purse", () => {
   const seed=createSharedAdventure(); for(const id of ["a","b","c"]) seed.join(id,id,"mage");
   const save=JSON.parse(seed.save()); save.world.threats[0].health=36;
   for(const p of save.characters) Object.assign(p.state,{phase:"expedition",position:{x:-3,y:0,z:28}});
   const world=createSharedAdventure({save:JSON.stringify(save)}),a=world.join("a","a","mage"),b=world.join("b","b","mage"),c=world.join("c","c","mage");
   tap(a,"strike");tap(b,"strike");readyParty(a,b,c);finishGathering(a,world);world.advance(.01);
-  expect(a.snapshot.progression.experience).toBe(10); expect(b.snapshot.progression.experience).toBe(10); expect(c.snapshot.progression.experience).toBe(0);
+  expect(a.snapshot.progression.experience).toBe(0); expect(b.snapshot.progression.experience).toBe(0); expect(c.snapshot.progression.experience).toBe(0);
   a.openLoot("scout");tap(a,"takeLoot");b.openLoot("scout");tap(b,"takeLoot");
   expect(a.snapshot.coins+b.snapshot.coins).toBe(3);
 });
@@ -104,5 +104,5 @@ test("personal Foreman rolls share one coin purse without duplicating it", () =>
   travel(b,corpse.position.x,corpse.position.z,world);b.openLoot("ritual-guardian");tap(b,"takeLoot");
   expect(a.snapshot.carriedRelics).toBe(1);expect(b.snapshot.carriedRelics).toBe(1);
   expect(a.snapshot.coins+b.snapshot.coins).toBe(12);
-  expect(a.snapshot.progression.experience).toBe(140);expect(b.snapshot.progression.experience).toBe(140);
+  expect(a.snapshot.progression.experience).toBe(100);expect(b.snapshot.progression.experience).toBe(100);
 });

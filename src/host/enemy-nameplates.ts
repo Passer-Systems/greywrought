@@ -56,7 +56,7 @@ export function createEnemyCastBar(parent: HTMLElement, id: string) {
       const range = enemyRange(snapshot, threat, ability, audience);
       setDataset(root.dataset, { range: range.state });
       const facts = [ability.damage > 0 ? ability.damage + " damage" : "Power / defense", ability.damage <= 0 ? "Self" : ability.id === "maul" ? COMBAT_RULES.wolf.lungeDistance + " m leap · " + ability.range + " m impact radius" : ability.range + " m range"];
-      const response = [enemyResponseLabel(ability.id), enemyResponse(ability.id)].filter(Boolean).join(" · ");
+      const response = [enemyResponseLabel(ability), enemyResponse(ability)].filter(Boolean).join(" · ");
       write(tooltip, [ability.name, facts.join(" · "), response, ability.description, "Casts in " + time + ".", range.text].filter(Boolean).join("\n"));
       setAttribute(root, "aria-label", ability.name + ", " + time + " remaining." + (response ? " " + response : ""));
     },

@@ -1,17 +1,19 @@
 import { BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, type Object3D } from 'three';
-import { COMBAT_CELL_SIZE, combatCell, reachableCombatCells } from '../game/combat-grid.js';
+import { COMBAT_CELL_SIZE, combatCell, combatRouteDistance, reachableCombatCells } from '../game/combat-grid.js';
 import { combatSurfaceHeight } from './terrain-geometry.js';
 import { blockedPosition } from '../game/movement.js';
 import { classKit } from '../game/class-kit.js';
 import type { AdventureSnapshot, Position } from '../game/adventure-types.js';
 
 export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
-  const geometry = new BufferGeometry(), material = new LineBasicMaterial({ color: 0xd9c16f, transparent: true, opacity: .3, depthWrite: false });
+  const geometry = new BufferGeometry(), material = new LineBasicMaterial({ color: 0xc4d4d7, transparent: true, opacity: .15, depthWrite: false });
   const positions = new Float32BufferAttribute(new Float32Array(9 * 2 * 32 * 2 * 3), 3);
   geometry.setAttribute('position', positions);
   const lines = new LineSegments(geometry, material); lines.visible = false; lines.frustumCulled = false; lines.renderOrder = 2; scene.add(lines);
-  const cellsGeometry = new BufferGeometry(), cellsMaterial = new MeshBasicMaterial({ color: 0x7fe8ad, transparent: true, opacity: .25, depthWrite: false });
+  const cellsGeometry = new BufferGeometry(), cellsMaterial = new MeshBasicMaterial({ color: 0x7fe8ad, transparent: true, opacity: .13, depthWrite: false });
   const cells = new Mesh(cellsGeometry, cellsMaterial); cells.frustumCulled = false; cells.renderOrder = 2; scene.add(cells);
+  const edgesGeometry = new BufferGeometry(), edgesMaterial = new LineBasicMaterial({ color: 0x7fe8ad, transparent: true, opacity: .75, depthWrite: false });
+  const edges = new LineSegments(edgesGeometry, edgesMaterial); edges.frustumCulled = false; edges.renderOrder = 3; scene.add(edges);
   const hoverGeometry = new BufferGeometry(), hoverMaterial = new MeshBasicMaterial({ color: 0xc0ffe0, transparent: true, opacity: .6, depthWrite: false });
   const hover = new Mesh(hoverGeometry, hoverMaterial); hover.frustumCulled = false; hover.renderOrder = 3; scene.add(hover);
   let reference: Position | undefined;
@@ -27,15 +29,32 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
     target.setAttribute('position', new Float32BufferAttribute(vertices,3));
     target.setDrawRange(0, vertices.length / 3);
   };
+  const outlines = (tiles: readonly Position[]) => {
+    const vertices: number[] = [], half = COMBAT_CELL_SIZE * .46;
+    for (const tile of tiles) {
+      const corners = [[tile.x-half,tile.z-half],[tile.x-half,tile.z+half],[tile.x+half,tile.z+half],[tile.x+half,tile.z-half]];
+      for (let edge = 0; edge < 4; edge++) {
+        const from = corners[edge]!, to = corners[(edge + 1) % 4]!;
+        for (let step = 0; step < 4; step++) for (const fraction of [step / 4, (step + 1) / 4]) {
+          const x = from[0]! + (to[0]! - from[0]!) * fraction, z = from[1]! + (to[1]! - from[1]!) * fraction;
+          vertices.push(x, sampleHeight(x, z) + .075, z);
+        }
+      }
+    }
+    edgesGeometry.setAttribute('position', new Float32BufferAttribute(vertices, 3));
+    edgesGeometry.setDrawRange(0, vertices.length / 3);
+  };
   return {
     accepts(destination: Position) { return destinations.some(cell => cell.x === destination.x && cell.z === destination.z); },
-    update(snapshot: AdventureSnapshot, aiming: boolean, pointer: Position | null, others: readonly Position[] = []) {
+    update(snapshot: AdventureSnapshot, aiming: boolean, pointer: Position | null, others: readonly Position[] = [], route: readonly Position[] = []) {
       reference = snapshot.player.position;
       lines.visible = snapshot.player.inCombat;
       canvas.dataset.combatGrid = lines.visible ? String(COMBAT_CELL_SIZE) : '0';
-      cells.visible = hover.visible = lines.visible && aiming && snapshot.combat.phase === 'preparation';
-      if (!lines.visible) { destinations = []; canvas.dataset.moveTiles = '[]'; return; }
-      const x = combatCell(snapshot.player.position.x), z = combatCell(snapshot.player.position.z);
+      cells.visible = edges.visible = hover.visible = lines.visible && aiming && snapshot.combat.phase === 'preparation' && !snapshot.combat.ready;
+      if (!lines.visible) { destinations = []; cellSignature = ''; canvas.dataset.moveTiles = '[]'; delete canvas.dataset.moveOrigin; delete canvas.dataset.moveRemaining; return; }
+      const origin = aiming ? route.at(-1) ?? snapshot.player.position : snapshot.player.position;
+      const remaining = Math.max(0, classKit(snapshot.player.archetype).movementTiles - combatRouteDistance(snapshot.player.position, route) / COMBAT_CELL_SIZE);
+      const x = combatCell(origin.x), z = combatCell(origin.z);
       if (x !== previousX || z !== previousZ || reference.y !== previousY) {
         previousX = x; previousZ = z; previousY = reference.y;
         let vertex = 0;
@@ -52,20 +71,22 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
         }
         positions.needsUpdate = true; geometry.setDrawRange(0, vertex);
       }
-      if (!cells.visible) return;
+      if (!cells.visible) { destinations = []; cellSignature = ''; canvas.dataset.moveTiles = '[]'; delete canvas.dataset.moveOrigin; delete canvas.dataset.moveRemaining; return; }
       const occupied = [...snapshot.threats.filter(t=>t.active&&t.health>0).map(t=>t.position), ...others];
-      const origin = snapshot.player.position;
-      const signature = JSON.stringify([origin, classKit(snapshot.player.archetype).movementTiles, occupied]);
+      const signature = JSON.stringify([origin, remaining, occupied]);
       if (signature !== cellSignature) {
         cellSignature = signature;
-        destinations = reachableCombatCells(origin, classKit(snapshot.player.archetype).movementTiles, occupied);
+        destinations = reachableCombatCells(origin, remaining, occupied);
         surface(cellsGeometry, destinations, .06);
+        outlines(destinations);
         canvas.dataset.moveTiles = JSON.stringify(destinations);
+        canvas.dataset.moveOrigin = JSON.stringify(origin);
+        canvas.dataset.moveRemaining = String(remaining);
       }
       const selected = pointer && destinations.find(cell=>cell.x===pointer.x&&cell.z===pointer.z);
       const selectedSignature = selected ? `${selected.x},${selected.y},${selected.z}` : '';
       if (selectedSignature !== hoverSignature) { hoverSignature = selectedSignature; surface(hoverGeometry, selected ? [selected] : [], .075); }
     },
-    dispose() { lines.removeFromParent(); cells.removeFromParent(); hover.removeFromParent(); geometry.dispose(); material.dispose(); cellsGeometry.dispose(); cellsMaterial.dispose(); hoverGeometry.dispose(); hoverMaterial.dispose(); delete canvas.dataset.combatGrid; delete canvas.dataset.moveTiles; },
+    dispose() { lines.removeFromParent(); cells.removeFromParent(); edges.removeFromParent(); hover.removeFromParent(); geometry.dispose(); material.dispose(); cellsGeometry.dispose(); cellsMaterial.dispose(); edgesGeometry.dispose(); edgesMaterial.dispose(); hoverGeometry.dispose(); hoverMaterial.dispose(); delete canvas.dataset.combatGrid; delete canvas.dataset.moveTiles; delete canvas.dataset.moveOrigin; delete canvas.dataset.moveRemaining; },
   };
 }

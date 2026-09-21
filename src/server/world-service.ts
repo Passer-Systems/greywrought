@@ -1,3 +1,4 @@
+import { formatMoney } from "../game/currency.js";
 import { BELLRUNNER_STOPS } from "../game/bellrunner.js";
 import { NPC_IDS, VENDORS } from "../game/economy.js";
 import { isGearItem } from "../game/yard-content.js";
@@ -9,7 +10,7 @@ import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import { createSharedAdventure } from '../game/adventure.js';
 import { WORLD_BOUNDS } from '../game/world-layout.js';
 import type { AdventureAction, AdventureGame } from '../game/adventure-types.js';
-import type { PartyCommand, PartyView, PartyInviteView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
+import type { PartyCommand, PartyPingView, PartyView, PartyInviteView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
 import { DISCONNECT_GRACE_MS, DEPARTURE_CLOSE_CODE } from '../game/multiplayer-types.js';
 import { normalizedCharacterName } from '../host/character-profile.js';
 import type { LocalCharacter } from '../host/character-profile.js';
@@ -49,7 +50,7 @@ function command(value: unknown): value is WorldCommand {
   switch (value.type) {
     case 'partyInvite': case 'partyKick': return keys(value, ['type', 'playerId']) && identifier(value.playerId);
     case 'partyAccept': case 'partyDecline': return keys(value, ['type', 'inviteId']) && identifier(value.inviteId);
-    case 'partyLeave': case 'pause': case 'resume': case 'rejoin': case 'sit': return keys(value, ['type']);
+    case 'partyPing': case 'partyLeave': case 'pause': case 'resume': case 'rejoin': case 'sit': return keys(value, ['type']);
     case 'returnSpot': return keys(value, ['type', 'destination']) && record(value.destination) && keys(value.destination, ['x','y','z']) && finite(value.destination.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(value.destination.y,-100,100) && finite(value.destination.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
     case 'movement': return keys(value, ['type', 'frames']) && Array.isArray(value.frames) && value.frames.length > 0 && value.frames.length <= 30 && value.frames.every((frame, index, frames) => {
       if (!record(frame) || !keys(frame, ['sequence', 'seconds', 'input']) || !finite(frame.sequence, 1, Number.MAX_SAFE_INTEGER, true)
@@ -63,7 +64,11 @@ function command(value: unknown): value is WorldCommand {
     case 'mouseForward': return keys(value, ['type', 'active']) && typeof value.active === 'boolean';
     case 'camera': return keys(value, ['type', 'x', 'z']) && finite(value.x, -1, 1) && finite(value.z, -1, 1) && Math.hypot(value.x, value.z) > 0.001;
     case 'target': case 'loot': return keys(value, ['type', 'id']) && identifier(value.id);
-    case 'previewBait': case 'bait': return keys(value, ['type', 'destination']) && record(value.destination) && keys(value.destination, ['x','y','z']) && finite(value.destination.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(value.destination.y,-100,100) && finite(value.destination.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
+    case 'previewBait': case 'bait': {
+      const position = (point: unknown) => record(point) && keys(point, ['x','y','z']) && finite(point.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(point.y,-100,100) && finite(point.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
+      return keys(value, ['type', 'destination', ...('via' in value ? ['via'] : [])]) && position(value.destination)
+        && (value.via === undefined || Array.isArray(value.via) && value.via.length <= 32 && value.via.every(position));
+    }
     case 'ready': return keys(value, ['type']);
     case 'actionTiming': return keys(value, ['type','timing']) && member(value.timing,['before','during','after']);
     case 'remove': return keys(value,['type','id']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true);
@@ -117,10 +122,10 @@ function decodeSave(source: string): SavedService {
     if (!record(entry) || !finite(entry.id, 1, value.nextChatId - 1, true) || typeof entry.name !== 'string'
       || normalizedCharacterName(entry.name) !== entry.name || typeof entry.text !== 'string'
       || !command({ type: 'chat', text: entry.text }) || (chat.at(-1)?.id ?? 0) >= entry.id
-      || (entry.kind !== undefined && entry.kind !== 'emote')
+      || (entry.kind !== undefined && entry.kind !== 'emote' && entry.kind !== 'loot')
       || (entry.partyId !== undefined && !identifier(entry.partyId))
       || (entry.speakerId !== undefined && entry.speakerId !== null && (!identifier(entry.speakerId) || !ids.has(entry.speakerId)))) throw new Error('Invalid saved shared chat');
-    chat.push({ id: entry.id, speakerId: typeof entry.speakerId === 'string' ? entry.speakerId : null, name: entry.name, text: entry.text, ...(entry.kind === 'emote' ? { kind: 'emote' as const } : {}), ...(typeof entry.partyId === 'string' ? { partyId: entry.partyId } : {}) });
+    chat.push({ id: entry.id, speakerId: typeof entry.speakerId === 'string' ? entry.speakerId : null, name: entry.name, text: entry.text, ...(entry.kind === 'emote' || entry.kind === 'loot' ? { kind: entry.kind } : {}), ...(typeof entry.partyId === 'string' ? { partyId: entry.partyId } : {}) });
   }
   const parties: Party[] = [], grouped = new Set<string>(), partyIds = new Set<string>();
   if (value.parties !== undefined && !Array.isArray(value.parties)) throw new Error('Invalid saved parties');
@@ -153,6 +158,7 @@ export async function createWorldService(options: WorldServiceOptions) {
   const online = new Map<string, ServerWebSocket<WorldSocketData>>();
   const disconnectedUntil = new Map<string, number>();
   const privateChat = new Map<string, SharedChatMessage[]>();
+  const partyPings = new Map<string, PartyPingView & { partyId: string; sessionId: string }>();
   let closed = false;
   let saveQueue = Promise.resolve();
   const onPersistenceError = options.onPersistenceError ?? (() => console.error('Shared world could not be saved.'));
@@ -179,16 +185,36 @@ export async function createWorldService(options: WorldServiceOptions) {
   function partyView(id: string): PartyView | null {
     const party = partyFor(id);
     if (!party) return null;
-    return { id: party.id, leaderId: party.leaderId, members: party.members.map(memberId => {
-      const account = accounts.get(memberId)!, player = world.getPlayer(memberId)!.snapshot.player;
+    const session = world.session(id), sessionId = session.id;
+    return { id: party.id, leaderId: party.leaderId, pings: [...partyPings.values()].filter(ping => session.mode !== 'viewing' && ping.partyId === party.id && party.members.includes(ping.playerId) && ping.sessionId === sessionId && ping.expiresAtMillis > Date.now()).map(({ partyId, sessionId, ...ping }) => ping), members: party.members.map(memberId => {
+      const account = accounts.get(memberId)!, snapshot = world.getPlayer(memberId)!.snapshot, player = snapshot.player;
+      const memberSession = world.session(memberId), sameEncounter = memberSession.id === sessionId;
+      const present = online.has(memberId) && sameEncounter;
+      const target = present ? snapshot.threats.find(threat => threat.id === snapshot.selectedThreat && threat.active && threat.health > 0) : undefined;
       return { id: memberId, name: account.character.name, archetype: account.character.archetype,
-        health: player.health, maximumHealth: player.maximumHealth, online: online.has(memberId), sameEncounter: world.session(memberId).id === world.session(id).id };
+        health: player.health, maximumHealth: player.maximumHealth, online: online.has(memberId), sameEncounter,
+        target: target ? { id: target.id, name: target.name } : null,
+        combat: present ? { phase: player.inCombat ? snapshot.combat.phase : 'idle', ready: player.inCombat && snapshot.combat.ready } : null,
+        returnStatus: sameEncounter && memberSession.returnPlan ? player.health <= 0 || !world.players(sessionId).some(member => member.id === memberId) ? 'not-needed' : memberSession.returnPlan.confirmed ? 'confirmed' : 'waiting' : null };
     }) };
+  }
+  function pingParty(id: string, socket: ServerWebSocket<WorldSocketData>): boolean {
+    const party = partyFor(id), session = world.session(id);
+    if (!party) { error(socket, 'Join a party to share a location.'); return false; }
+    if (session.mode === 'viewing') { error(socket, 'Return to the world before sharing a location.'); return false; }
+    const previous = partyPings.get(id);
+    if (previous && previous.expiresAtMillis - Date.now() > 18_000) return false;
+    const snapshot = world.getPlayer(id)!.snapshot, position = snapshot.player.position;
+    const nearest = [...snapshot.places].sort((a, b) => Math.hypot(a.position.x - position.x, a.position.z - position.z) - Math.hypot(b.position.x - position.x, b.position.z - position.z))[0];
+    partyPings.set(id, { partyId: party.id, sessionId: session.id, playerId: id, name: accounts.get(id)!.character.name,
+      position: { ...position }, location: nearest ? 'Near ' + nearest.name : 'Here', expiresAtMillis: Date.now() + 20_000 });
+    return true;
   }
   function applyParty(id: string, value: PartyCommand, socket: ServerWebSocket<WorldSocketData>): boolean {
     expireInvites();
     const party = partyFor(id);
     const reject = (text: string) => { error(socket, text); return false; };
+    if (value.type === 'partyPing') return pingParty(id, socket);
     if (value.type === 'partyDecline') {
       const invite = invites.get(value.inviteId);
       if (!invite || invite.recipientId !== id) return reject('That invitation is no longer available.');
@@ -305,7 +331,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     const session = world.session(id);
     if (session.mode === 'viewing' && value.type !== 'rejoin' && value.type !== 'returnSpot' && value.type !== 'camera' && value.type !== 'chat') return false;
     switch (value.type) {
-      case 'partyInvite': case 'partyAccept': case 'partyDecline': case 'partyLeave': case 'partyKick': return applyParty(id, value, socket);
+      case 'partyPing': case 'partyInvite': case 'partyAccept': case 'partyDecline': case 'partyLeave': case 'partyKick': return applyParty(id, value, socket);
       case 'pause': return world.pause(id, cohort(id));
       case 'resume': return world.resume(id);
       case 'rejoin': {
@@ -318,11 +344,25 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'returnSpot': return world.returnSpot(id, value.destination);
       case 'movement': return player.enqueueMovement!(value.frames);
       case 'sit': player.sit(); break;
-      case 'action': player.setAction(value.action, value.pressed); break;
+      case 'action': {
+        const before = value.action === 'takeLoot' && value.pressed ? player.snapshot : null;
+        player.setAction(value.action, value.pressed);
+        if (before?.lootOpenId && session.mode === 'shared') {
+          const after = player.snapshot;
+          const gained = [after.coins - before.coins, after.potions - before.potions, after.carriedSalvage - before.carriedSalvage, after.carriedRelics - before.carriedRelics];
+          if (gained.some(amount => amount > 0)) {
+            const source = before.loot.find(item => item.sourceId === before.lootOpenId)?.sourceName ?? 'shared loot';
+            const items = gained.map((amount, index) => amount > 0 ? index === 0 ? formatMoney(amount) : amount + ' ' + ['', amount === 1 ? 'health potion' : 'health potions', 'salvage', 'Last Shift Roll'][index] : '').filter(Boolean).join(', ');
+            chat.push({ id: nextChatId++, speakerId: id, name: accounts.get(id)!.character.name, kind: 'loot', text: 'collected ' + items + ' from ' + source + '.' });
+            if (chat.length > 100) chat.shift();
+          }
+        }
+        break;
+      }
       case 'mouseForward': player.setMouseForward(value.active); break;
       case 'camera': player.setCameraForward(value.x, value.z); break;
       case 'target': player.selectTarget(value.id); break;
-      case 'bait': return player.queueBait(value.destination);
+      case 'bait': return player.queueBait(value.destination, value.via);
       case 'ready': return player.readyCombat();
       case 'actionTiming': return player.setActionTiming(value.timing);
       case 'remove': player.removeQueuedAction(value.id); break;
@@ -349,6 +389,7 @@ export async function createWorldService(options: WorldServiceOptions) {
           const match = /^\/(\S+)(?:\s+(.*))?$/.exec(text);
           if (!match) { error(socket, 'Type /emotes to see the available actions.'); return false; }
           const name = match[1]!.toLowerCase(), argument = match[2]?.trim();
+          if (name === 'ping') { if (argument) { error(socket, 'Use /ping to share where you are.'); return false; } return pingParty(id, socket); }
           if (name === 'emotes') { error(socket, EMOTE_HELP); return true; }
           if (name === 'p' || name === 'party') {
             partyId = partyFor(id)?.id;
@@ -424,10 +465,12 @@ export async function createWorldService(options: WorldServiceOptions) {
           if (!stopping) socket.data.commandsAt.push(now);
           if (value.command.type === 'previewBait') {
             accepted = true;
-            void player.previewBait(value.command.destination).then(forecast => send(socket, { type: 'movePreview', sequence, forecast }));
+            void player.previewBait(value.command.destination, value.command.via).then(forecast => send(socket, { type: 'movePreview', sequence, forecast }));
           } else accepted = apply(player, value.command, socket);
+          // Route submission receipts release the editor; its snapshot must already show the accepted plan.
+          if (accepted && value.command.type === 'bait') broadcast();
           if (accepted && (value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin' || value.command.type.startsWith('party'))) {
-            void persist().catch(onPersistenceError);
+            if (value.command.type !== 'partyPing') void persist().catch(onPersistenceError);
             broadcast();
           }
         }

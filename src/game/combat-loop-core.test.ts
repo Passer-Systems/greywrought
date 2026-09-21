@@ -65,9 +65,9 @@ test("final-slot volleys finish before a new planning window opens",()=>{
   Object.assign(t,{aggro:true,phase:"preparation",joinCycle:2,windowCycle:2,specialOffset:2,castDuration:2,remainingSeconds:.01,damage:36});
   Object.assign(t.head,{opened:true,ability:"fireball",volley:2,castVolley:2});
   const game=createAdventure({save:JSON.stringify(data)});
-  game.advance(1.02); expect(game.snapshot.combat.phase).toBe("active");
+  game.advance(.1); expect(game.snapshot.combat.phase).toBe("active");
   expect(game.snapshot.threats[0]!.fireballs.length).toBeGreaterThan(0);
-  game.advance(.2); expect(game.snapshot.combat.phase).toBe("preparation");
+  game.advance(1.12); expect(game.snapshot.combat.phase).toBe("preparation");
   expect(game.snapshot.player.health).toBe(64);
   const health=game.snapshot.player.health; game.advance(5); expect(game.snapshot.player.health).toBe(health);
 });

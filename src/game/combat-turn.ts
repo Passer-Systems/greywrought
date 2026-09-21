@@ -5,7 +5,7 @@ export const COMBAT_TURN = {
   actionAfter: 1.5, duration: 2.5,
 } as const;
 
-export function actionTimingOffset(timing: CombatActionTiming, hasMovement: boolean): number {
+export function actionTimingOffset(timing: CombatActionTiming, hasMovement: boolean, movementDuration: number = COMBAT_TURN.moveDuration): number {
   if (!hasMovement) return 0;
-  return timing === "before" ? COMBAT_TURN.actionBefore : timing === "during" ? COMBAT_TURN.actionDuring : COMBAT_TURN.actionAfter;
+  return timing === "before" ? COMBAT_TURN.actionBefore : timing === "during" ? COMBAT_TURN.moveStart : COMBAT_TURN.moveStart + movementDuration + .15;
 }

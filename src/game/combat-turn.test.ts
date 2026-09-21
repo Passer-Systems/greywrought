@@ -18,11 +18,11 @@ test('a turn reserves one Move and one replaceable action, with category timing'
   expect(game.queueBait(cells[0]!)).toBe(true); expect(game.queueBait(cells[1]!)).toBe(true);
   expect(game.snapshot.combat.queued).toHaveLength(2);
   expect(game.snapshot.combat.reservedStamina).toBe(1);
-  expect(game.setActionTiming('during')).toBe(false);
+  expect(game.setActionTiming('during')).toBe(true);
   tap(game, 'brace'); expect(game.setActionTiming('during')).toBe(true);
   expect(game.snapshot.combat.reservedStamina).toBe(3);
   tap(game, 'brace'); expect(game.snapshot.combat.queued.find(e => e.action === 'brace')!.timing).toBe('during');
-  tap(game, 'strike'); expect(game.snapshot.combat.queued.find(e => e.action === 'strike')!.timing).toBe('after');
+  tap(game, 'strike'); expect(game.snapshot.combat.queued.find(e => e.action === 'strike')!.timing).toBe('during');
   const move = game.snapshot.combat.queued.find(e => e.action === 'bait')!; game.removeQueuedAction(move.id);
   expect(game.snapshot.combat.queued[0]!.offsetSeconds).toBe(0);
 });
@@ -48,6 +48,7 @@ test('Attack order changes range and the forecast matches execution', () => {
     const play = createAdventure({ save:JSON.stringify(saved) });
     expect(play.queueBait({x:-2.5,y:0,z:27.5})).toBe(true); tap(play,'strike'); play.setActionTiming(timing);
     const forecast = play.snapshot.combat.forecast!;
+    expect(forecast.actions.find(action => action.actorId === 'solo' && action.action === 'strike')?.result).toBe(timing === 'before' ? 'out-of-range' : 'executed');
     play.readyCombat(); finishCycle(play);
     expect(play.snapshot.threats.find(t=>t.id==='scout')!.health).toBe(forecast.outcomes.find(o=>o.id==='scout')!.health);
     expect(play.snapshot.threats.find(t=>t.id==='scout')!.health).toBe(timing==='before'?96:78);
