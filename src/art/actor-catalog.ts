@@ -18,6 +18,7 @@ export const actorAssets: Readonly<Record<string, ActorAsset>> = {
   Artificer: { source: 'quaternius/class-characters/Artificer.gltf', publicPath: 'assets/quaternius/class-characters/Artificer.gltf' },
   RelicWarden: { source: 'openai/relic-warden/relic-warden.glb', publicPath: 'assets/openai/actors/RelicWarden.glb' },
   Rattagane: { source: 'openai/rattagane/rattagane.glb', publicPath: 'assets/openai/actors/Rattagane.glb' },
+  PrimusGrey: { source: 'openai/primus-grey/PrimusGrey.glb', publicPath: 'assets/openai/actors/PrimusGrey.glb' },
 };
 
 const classModels = {

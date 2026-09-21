@@ -2,8 +2,8 @@ import { readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 const releaseRoot = "dist";
-// The self-contained Rattagane rig and authored animation add 5.76 MiB.
-const maximumReleaseBytes = 38 * 1024 * 1024;
+// Rattagane adds 5.76 MiB and Primus Grey adds 7.93 MiB to the original 32 MiB budget.
+const maximumReleaseBytes = 46 * 1024 * 1024;
 const maximumSingleFileBytes = 12 * 1024 * 1024;
 
 interface ReleaseFile {
