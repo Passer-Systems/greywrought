@@ -1,6 +1,7 @@
 import { Box3, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, type Material } from 'three';
 import { terrainHeight } from '../game/cave-layout.js';
 import { lakeWaterAt, streamAt } from '../game/world-elevation.js';
+import { lavaLakeRatio } from '../game/lava-layout.js';
 import { EXPANDED_WORLD_BOUNDS, REGION_BUILDINGS, REGION_LANDMARKS, REGION_ROADS, WORLD_SETTLEMENTS, regionAt } from '../game/world-regions.js';
 import { TOWN_BOUNDS } from '../game/world-layout.js';
 import { prop } from './frostwood-assets.js';
@@ -55,6 +56,7 @@ function nearLine(x: number, z: number, points: readonly (readonly [number, numb
 }
 function accepts(x: number, z: number, tree: boolean): boolean {
   const margin = tree ? 3 : 1;
+  if (lavaLakeRatio(x,z) < (tree ? 1.65 : 1.35)) return false;
   if (x < EXPANDED_WORLD_BOUNDS.minX+3 || x > EXPANDED_WORLD_BOUNDS.maxX-3 || z < EXPANDED_WORLD_BOUNDS.minZ+3 || z > EXPANDED_WORLD_BOUNDS.maxZ-3) return false;
   if (x > TOWN_BOUNDS.minX-margin && x < TOWN_BOUNDS.maxX+margin && z > TOWN_BOUNDS.minZ-margin && z < TOWN_BOUNDS.maxZ+margin) return false;
   if (x > 25 && x < 90 && z > -67 && z < -27) return false;

@@ -1,6 +1,7 @@
 import { Box3, Color, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Quaternion, Vector3, type Material } from 'three';
 import { terrainHeight } from '../game/cave-layout.js';
 import { lakeWaterAt, streamAt } from '../game/world-elevation.js';
+import { lavaLakeRatio } from '../game/lava-layout.js';
 import { EXPANDED_WORLD_BOUNDS, REGION_BUILDINGS, REGION_LANDMARKS, REGION_ROADS, WORLD_SETTLEMENTS, regionAt } from '../game/world-regions.js';
 import { TOWN_BOUNDS } from '../game/world-layout.js';
 import { prop } from './frostwood-assets.js';
@@ -36,6 +37,7 @@ function accepts(x: number, z: number, radius: number): boolean {
   // Check the footprint, not just its center, at stream banks and steep ledges.
   for (const [dx,dz] of [[0,0],[radius,0],[-radius,0],[0,radius],[0,-radius]]) {
     const px=x+dx!, pz=z+dz!, h=terrainHeight(px,pz), water=lakeWaterAt(px,pz), stream=streamAt(px,pz);
+    if (lavaLakeRatio(px,pz) < 1.35) return false;
     if (water !== null && h < water+.3 || stream && h < stream.surface+.35) return false;
     if (Math.hypot(terrainHeight(px+.5,pz)-terrainHeight(px-.5,pz),terrainHeight(px,pz+.5)-terrainHeight(px,pz-.5)) > .45) return false;
   }
