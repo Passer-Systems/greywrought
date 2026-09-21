@@ -51,6 +51,9 @@ export const files: readonly (readonly [string, string])[] = [
   ]),
   ["assets/external/relic-warden/relic-warden-runtime.glb", "dist/assets/quaternius/frostwood/actors/RelicWarden.glb"],
   ["assets/external/relic-warden/QUATERNIUS-LICENSE.txt", "dist/assets/greywrought/QUATERNIUS-LICENSE.txt"],
+  ...["rattagane.glb", "SOURCE.md"].map((name): readonly [string, string] => [
+    `assets/external/openai/rattagane/${name}`, `dist/assets/openai/rattagane/${name}`,
+  ]),
   ...frostwoodFiles.map((name): readonly [string, string] => [
     `assets/external/quaternius/frostwood/${name}`, `dist/assets/quaternius/frostwood/${name}`,
   ]),

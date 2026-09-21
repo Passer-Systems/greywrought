@@ -287,7 +287,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
 
   const hoverTargets: HoverTarget[] = [
     ...bellrunners.moorings.map(({stop,root}): HoverTarget => ({root,pick:{kind:"bellrunner",id:stop.id},name:"Bellrunner · Flights · Free passage",anchor:root.position.clone().add(new Vector3(0,3,0))})),
-    { root: chestRoot, pick: { kind: "chest", id: "ironback-chest" }, name: "Ironback Crab’s cache", anchor: new Vector3(chestPosition.x, chestPosition.y + 1.3, chestPosition.z) },
+    { root: chestRoot, pick: { kind: "chest", id: "ironback-chest" }, name: "Rattagane’s cache", anchor: new Vector3(chestPosition.x, chestPosition.y + 1.3, chestPosition.z) },
     ...vendorActors.map(({vendor, root}): HoverTarget => ({ root, pick: {kind: "npc", id: vendor.id}, name: `${vendor.name} · ${vendor.trade}`, anchor: new Vector3(vendor.position.x, root.position.y + 2.45, vendor.position.z) })),
     ...regionalHosts.map(({spot,root}): HoverTarget => ({ root, pick: {kind: "npc", id: spot.id}, name: `${spot.name} · ${spot.lodging}`, anchor: root.position.clone().add(new Vector3(0,2.45,0)) })),
     { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(corePlace.position.x, 1.4, corePlace.position.z) },
@@ -478,7 +478,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     "rust-skitter": {model:"Crab",height:0.55,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['rust-skitter']},
     "moss-skitter": {model:"Crab",height:0.6,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['moss-skitter']},
     "cave-bat": {model:"Bat",height:1.5,idle:"Flying",walk:"Flying",attack:"Bite_Front",hit:"HitRecieve"},
-    "cave-crab": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
+    "cave-crab": {model:"Rattagane",height:2.87,idle:"Idle",walk:"Walk",attack:"Weapon",hit:"HitReact"},
     "lake-dreadnought": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Shell_Slam",hit:"HitRecieve"},
     "pond-turtle": {model:"Crab",height:0.9,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
     "meadow-rat": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Attack",hit:"Run"},

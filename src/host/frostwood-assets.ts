@@ -32,7 +32,7 @@ export interface ForestActor {
 }
 export async function actor(name: string, height: number, playerModel?: "warrior" | "mage" | "hunter" | "alchemist" | "artificer"): Promise<ForestActor> {
   const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger.glb" : playerModel === "mage" ? "Wizard.glb" : playerModel === "alchemist" ? "Alchemist.gltf" : playerModel === "artificer" ? "Artificer.gltf" : "Warrior.glb"}` : null;
-  const gltf = await source(playerPath ?? (name === "Rat" ? "assets/quaternius/rodents/Rat.glb" : `${root}actors/${name}.glb`));
+  const gltf = await source(playerPath ?? (name === "Rattagane" ? "assets/openai/rattagane/rattagane.glb" : name === "Rat" ? "assets/quaternius/rodents/Rat.glb" : `${root}actors/${name}.glb`));
   const model = clone(gltf.scene);
   const animations = [...gltf.animations];
   if (playerPath !== null) {
@@ -64,6 +64,17 @@ export async function actor(name: string, height: number, playerModel?: "warrior
     }
   }
   const localMaterials: Material[] = [];
+  if (name === "Rattagane") model.traverse(object => {
+    if (!(object instanceof Mesh)) return;
+    const caveFill = (material: Material) => {
+      if (!(material instanceof MeshStandardMaterial) || material.emissiveIntensity > 0 && material.emissive.getHex() !== 0) return material;
+      // Preserve the authored colors while keeping dark fur and metal readable underground.
+      const surface = material.clone();
+      surface.emissive.copy(surface.color); surface.emissiveIntensity = .35;
+      localMaterials.push(surface); return surface;
+    };
+    object.material = Array.isArray(object.material) ? object.material.map(caveFill) : caveFill(object.material);
+  });
   if (name === "Leela") model.traverse(object => {
     if (!(object instanceof Mesh)) return;
     const lightEye = (material: Material) => {

@@ -2,7 +2,8 @@ import { readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 const releaseRoot = "dist";
-const maximumReleaseBytes = 32 * 1024 * 1024;
+// The self-contained Rattagane rig and authored animation add 5.76 MiB.
+const maximumReleaseBytes = 38 * 1024 * 1024;
 const maximumSingleFileBytes = 12 * 1024 * 1024;
 
 interface ReleaseFile {
