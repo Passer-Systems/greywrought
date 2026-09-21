@@ -1,4 +1,8 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
+import { inCave } from "../game/cave-layout.js";
+import { isSubmerged } from "../game/movement.js";
+import { worldRain } from "../game/world-time.js";
+import { createRainAudio } from "./rain-audio.js";
 import { publicUrl } from "./public-url.js";
 
 const cueNames = ["strike", "hit", "brace", "potion", "gather", "purchase", "incoming", "alarm", "defeat", "extraction"] as const;
@@ -7,7 +11,7 @@ const preferenceKey = "greywrought.adventure.audio.v1";
 interface Preferences { music: number; effects: number; muted: boolean; }
 export interface AdventureAudio {
   unlock(): Promise<void>;
-  update(snapshot: AdventureSnapshot, paused: boolean): void;
+  update(snapshot: AdventureSnapshot, paused: boolean, wallTimeMillis: number): void;
   reset(): void;
   dispose(): void;
 }
@@ -35,6 +39,9 @@ export function createAdventureAudio(): AdventureAudio {
   document.body.append(music);
   let context: AudioContext | undefined;
   let effects: GainNode | undefined;
+  let rain: ReturnType<typeof createRainAudio> | undefined;
+  let rainIntensity = 0;
+  let rainShelter: "outdoors" | "cave" | "underwater" = "outdoors";
   let loaded: Promise<void> | undefined;
   const buffers = new Map<Cue, AudioBuffer>();
   const playing = new Set<AudioBufferSourceNode>();
@@ -58,7 +65,12 @@ export function createAdventureAudio(): AdventureAudio {
     for (const source of playing) source.stop();
     playing.clear();
   }
+  function syncRain(): void {
+    const level = rain?.update(rainIntensity, rainShelter, !disposed && unlocked && !paused && !document.hidden) ?? 0;
+    document.body.dataset.adventureRainLevel = String(prefs.muted ? 0 : level * prefs.effects);
+  }
   function sync(): void {
+    syncRain();
     music.volume = prefs.music;
     music.muted = prefs.muted;
     if (effects && context) effects.gain.setTargetAtTime(prefs.muted ? 0 : prefs.effects, context.currentTime, 0.025);
@@ -104,6 +116,7 @@ export function createAdventureAudio(): AdventureAudio {
       if (!effects) {
         effects = context.createGain();
         effects.connect(context.destination);
+        rain = createRainAudio(context, effects);
       }
       // Both autoplay-sensitive operations begin directly in the input handler.
       const resumed = context.resume();
@@ -137,8 +150,11 @@ export function createAdventureAudio(): AdventureAudio {
     document.body.dataset.adventureAudioCue = cue;
     document.body.dataset.adventureAudioCueCount = String(Number(document.body.dataset.adventureAudioCueCount ?? 0) + 1);
   }
-  function update(snapshot: AdventureSnapshot, isPaused: boolean): void {
+  function update(snapshot: AdventureSnapshot, isPaused: boolean, wallTimeMillis: number): void {
     if (disposed) return;
+    rainIntensity = worldRain(wallTimeMillis / 1000);
+    rainShelter = isSubmerged(snapshot.player.position) ? "underwater" : inCave(snapshot.player.position) ? "cave" : "outdoors";
+    syncRain();
     if (paused !== isPaused) { paused = isPaused; if (paused) stopEffects(); sync(); }
     const before = previous;
     previous = snapshot;
@@ -163,7 +179,7 @@ export function createAdventureAudio(): AdventureAudio {
   sync();
   return {
     unlock, update,
-    reset() { previous = undefined; lastWarning = -Infinity; stopEffects(); },
+    reset() { previous = undefined; lastWarning = -Infinity; stopEffects(); rainIntensity = 0; syncRain(); },
     dispose() {
       disposed = true;
       listeners.abort();
@@ -174,6 +190,7 @@ export function createAdventureAudio(): AdventureAudio {
       music.remove();
       panel.remove();
       buffers.clear();
+      rain?.dispose();
       if (context) void context.close();
     },
   };

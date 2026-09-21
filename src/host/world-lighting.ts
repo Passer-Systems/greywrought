@@ -2,7 +2,7 @@ import { BackSide, Color, DirectionalLight, Fog, HemisphereLight, Mesh, PCFShado
 import { lakeWaterAt } from '../game/world-elevation.js';
 import { inCave } from '../game/cave-layout.js';
 import type { Position } from '../game/adventure-types.js';
-import { worldDay } from '../game/world-time.js';
+import { worldDay, worldRain } from '../game/world-time.js';
 import { createLampGlow } from './lamp-glow.js';
 
 /** One celestial shadow map follows the player; local lamps never allocate shadow maps. */
@@ -26,13 +26,14 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
     fillDay: new Color(0xc4d7df), fillNight: new Color(0x7895c4),
     groundDay: new Color(0x59684e), groundNight: new Color(0x35414a),
     sun: new Color(0xffefd4), lowSun: new Color(0xffb779), moon: new Color(0xa7bff0),
+    rainSky: new Color(0x626f77), rainHorizon: new Color(0x8d9b9d), rainFill: new Color(0xb9c8cd),
   };
   const material = new ShaderMaterial({
     side: BackSide, depthWrite: false, fog: false,
     uniforms: {
       zenith: { value: new Color() }, horizon: { value: new Color() },
       sunDirection: { value: new Vector3() }, daylight: { value: 1 },
-      cloudTime: { value: 0 },
+      cloudTime: { value: 0 }, rain: { value: 0 },
     },
     vertexShader: `varying vec3 skyDirection;
       void main() {
@@ -41,7 +42,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
         gl_Position = clip.xyww;
       }`,
     fragmentShader: `uniform vec3 zenith, horizon, sunDirection;
-      uniform float daylight, cloudTime;
+      uniform float daylight, cloudTime, rain;
       varying vec3 skyDirection;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float noise(vec2 p) {
@@ -57,14 +58,14 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
         vec3 color = mix(horizon, zenith, smoothstep(0.06, 0.8, direction.y));
         float cloudBand = smoothstep(0.06, 0.22, direction.y);
         vec2 cloudUv = direction.xz / max(0.18, direction.y + 0.2) * 1.7 + vec2(cloudTime * 0.003, cloudTime * 0.0012);
-        float clouds = cloud(cloudUv);
-        float cloudLight = mix(0.10, 0.90, daylight) * clouds * cloudBand;
+        float clouds = mix(cloud(cloudUv), .45 + .2 * noise(cloudUv * .7), rain);
+        float cloudLight = mix(0.10, 0.90, daylight) * clouds * cloudBand * (1. - rain * .7);
         color = mix(color, vec3(0.92, 0.94, 0.93), cloudLight);
         float sun = dot(direction, sunDirection);
         float moon = dot(direction, -sunDirection);
-        color += vec3(1.0, 0.65, 0.28) * pow(max(0.0, sun), 48.0) * 0.35;
-        color = mix(color, vec3(1.0, 0.93, 0.7), smoothstep(0.9993, 0.99955, sun));
-        color = mix(color, vec3(0.82, 0.88, 1.0), smoothstep(0.9993, 0.99955, moon) * (1.0 - daylight));
+        color += vec3(1.0, 0.65, 0.28) * pow(max(0.0, sun), 48.0) * 0.35 * (1. - rain);
+        color = mix(color, vec3(1.0, 0.93, 0.7), smoothstep(0.9993, 0.99955, sun) * (1. - rain));
+        color = mix(color, vec3(0.82, 0.88, 1.0), smoothstep(0.9993, 0.99955, moon) * (1.0 - daylight) * (1. - rain));
         gl_FragColor = vec4(color, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -94,20 +95,26 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       const water = lakeWaterAt(camera.position.x, camera.position.z);
       const underwater = water !== null && camera.position.y < water - .035;
       const cave = inCave(position) ? Math.min(1, Math.max(0, (position.x - 28) / 10)) : 0;
+      const rain = worldRain(wallTimeMillis * .001) * (1 - cave);
       const sunUp = day.sunDirection.y >= 0;
       direction.copy(sunUp ? day.sunDirection : day.moonDirection);
       const elevation = Math.min(1, direction.y / .2);
       const strength = elevation * elevation * (3 - 2 * elevation);
       fill.color.copy(colors.fillNight).lerp(colors.fillDay, day.daylight * (1 - cave));
+      fill.color.lerp(colors.rainFill, rain * day.daylight * .4);
       fill.groundColor.copy(colors.groundNight).lerp(colors.groundDay, day.daylight * (1 - cave));
       fill.intensity = (.95 + .7 * day.daylight) * (1 - cave) + .95 * cave;
       key.color.copy(sunUp ? colors.lowSun : colors.moon);
       if (sunUp) key.color.lerp(colors.sun, 1 - day.twilight);
       key.intensity = strength * (sunUp ? 2.4 : .9) * (1 - cave * .9);
+      key.intensity *= 1 - rain * .6;
       key.target.position.set(position.x, position.y, position.z);
       key.position.copy(key.target.position).addScaledVector(direction, 100);
       material.uniforms.zenith!.value.copy(colors.night).lerp(colors.day, day.daylight).lerp(colors.dawn, day.twilight * .45);
       material.uniforms.horizon!.value.copy(colors.horizonNight).lerp(colors.horizonDay, day.daylight).lerp(colors.horizonDawn, day.twilight * .7);
+      material.uniforms.zenith!.value.lerp(colors.rainSky, rain * day.daylight * .85);
+      material.uniforms.horizon!.value.lerp(colors.rainHorizon, rain * day.daylight * .8);
+      material.uniforms.rain!.value = rain;
       material.uniforms.sunDirection!.value.copy(day.sunDirection);
       material.uniforms.daylight!.value = day.daylight;
       material.uniforms.cloudTime!.value = (wallTimeMillis % 86_400_000) * 0.001;

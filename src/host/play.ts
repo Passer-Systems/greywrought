@@ -648,7 +648,7 @@ function returnToRoster(): void {
   chatLog.reset();
   partyPanel.closeMenu();
   partyPanel.update("", null, [], null);
-  if (running) audio.update(running.game.snapshot, true);
+  if (running) audio.update(running.game.snapshot, true, running.game.serverWallTimeMillis);
   audio.reset();
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }
@@ -695,7 +695,7 @@ function syncEncounter(): void {
     world.render(game.snapshot, 0, game.renderPlayer, paused ? undefined : game.serverTime, game.connectionRevision, game.serverWallTimeMillis);
     renderHud(game.snapshot);
     nameplates?.render(selectedSnapshot(game.snapshot), world, { selfId: character.id, players: game.players });
-    audio.update(game.snapshot, paused);
+    audio.update(game.snapshot, paused, game.serverWallTimeMillis);
     if (!paused && !menuOpen()) world.canvas.focus();
   }
   const grouped = (game.party?.members.length ?? 0) > 1;
@@ -1417,7 +1417,7 @@ function tick(now: number): void {
   running.game.advance(delta);
   const snapshot = running.game.snapshot;
   if (snapshot.phase === "lost") { showFallenCharacter(running.character); return; }
-  audio.update(snapshot, route !== "world");
+  audio.update(snapshot, route !== "world", running.game.serverWallTimeMillis);
   running.world.updatePlayers(running.game.players.filter(player => player.id !== running!.character.id));
   running.world.updateChat(running.game.chat, running.character.id);
   selectedSnapshot(snapshot);

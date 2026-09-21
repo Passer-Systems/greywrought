@@ -33,3 +33,15 @@ export function formatWorldTime(wallTimeMillis: number): string {
   const minute = Math.floor(worldDay(wallTimeMillis).hour * 60);
   return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 }
+
+/** Shared storm timing for rain, cloud cover, and sound, in server wall-clock seconds. */
+export function worldRain(wallTimeSeconds: number): number {
+  const hash = (i: number) => { const n = Math.sin(i * 127.1 + 91.7) * 43758.5453; return n - Math.floor(n); };
+  const cycleIndex = Math.floor(wallTimeSeconds / 120);
+  const cycle = ((wallTimeSeconds % 120) + 120) % 120;
+  if (hash(cycleIndex + 1801) < .22) return 0;
+  const start = 12 + hash(cycleIndex + 1901) * 22;
+  const duration = 42 + hash(cycleIndex + 2001) * 34;
+  const t = Math.max(0, Math.min(1, (cycle - start) / 10, (start + duration - cycle) / 10));
+  return t * t * (3 - 2 * t);
+}

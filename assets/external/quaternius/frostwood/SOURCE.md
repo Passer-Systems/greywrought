@@ -140,7 +140,10 @@ maximum texture convention and the models reuse the retained Leaves.png.
 The retained `Nature/Stylized Nature MegaKit - July 2024/License_Standard.txt`
 source terms declare CC0 1.0 Universal.
 
-Bellrunner skiffs combine unchanged OBJ/MTL models from the same local archive:
+Bellrunner skiffs combine OBJ/MTL models from the same local archive. The local
+AirBalloon mesh restores four missing faces at the crown; its lower burner
+opening and silhouette are preserved. Other models and materials are unchanged.
+
 - `Characters and Animals/Cute Fish Pack - Feb 2020/OBJ/Boat.{obj,mtl}`
 - `Nature/Old/Cloud Pack - Jun 2016/OBJ/AirBalloon.{obj,mtl}`
 Copied to `greywrought:assets/external/quaternius/frostwood/village/`; both are
