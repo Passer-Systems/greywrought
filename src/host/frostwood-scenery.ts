@@ -6,6 +6,7 @@ import { buildWorldWater } from './world-water.js';
 import { worldHorizonGeometry } from './world-horizon.js';
 import { buildExpansionTerrain } from './expansion-terrain.js';
 import { buildRegionalFoliage } from './regional-foliage.js';
+import { buildWorldDebris } from './world-debris.js';
 import { buildSecondDarkAge, weatherExistingTown } from './second-dark-age.js';
 import { REGION_BUILDINGS, WORLD_REGIONS, regionAt } from '../game/world-regions.js';
 import { buildLakeShore } from './lake-shore.js';
@@ -475,7 +476,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   }
   const updateWater = buildWorldWater(terrain);
   jobs.push(buildLakeShore(terrain));
-  jobs.push(buildRobotRuins(terrain), buildRuinedSettlements(terrain));
+  jobs.push(buildRobotRuins(terrain), buildRuinedSettlements(terrain), buildWorldDebris(terrain));
   for(const [cx,cz,seed] of [[-10,-64,29],[13,-76,87],[-34,-102,14],[8,-116,99],[-31,-55,54],[18,-109,42]]) {
     for(let i=0;i<15;i++) {
       const a=noise(seed!+i*13)*Math.PI*2,r=Math.sqrt(noise(seed!+i*29))*6;
