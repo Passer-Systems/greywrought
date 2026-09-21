@@ -1,6 +1,6 @@
-import { BufferGeometry, Color, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, DoubleSide } from 'three';
+import { Box3, BufferGeometry, Color, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial, DoubleSide, Vector3 } from 'three';
 import { terrainHeight } from '../game/cave-layout.js';
-import { LAKE_WATER_LEVEL, STREAM_POINTS } from '../game/world-elevation.js';
+import { WATERFALL_POINTS } from '../game/world-elevation.js';
 import { prop } from './frostwood-assets.js';
 import { buildWaterfall } from './waterfall.js';
 
@@ -37,10 +37,28 @@ export async function buildLakeShore(parent: Group): Promise<void> {
   const place = (name: string, x: number, z: number, size: number, rotation = 0, tilt = 0, yOverride?: number) => {
     placements.push(prop(name, size).then(model => {
       model.position.set(x, yOverride ?? terrainHeight(x, z), z);
-      model.rotation.set(tilt, rotation, 0); parent.add(model);
+      model.rotation.set(tilt, rotation, 0);
+      if (name.startsWith('nature/Rock_')) {
+        model.updateWorldMatrix(true,true);
+        const bounds=new Box3().setFromObject(model), size=bounds.getSize(new Vector3());
+        let shift=Infinity;
+        // Sink the lower rim into the slope; centre-only placement leaves
+        // the downhill side hanging above the hill.
+        model.traverse(object=>{
+          if(!(object instanceof Mesh))return;
+          const vertices=object.geometry.getAttribute('position'),point=new Vector3();
+          for(let i=0;i<vertices.count;i++) {
+            point.fromBufferAttribute(vertices,i).applyMatrix4(object.matrixWorld);
+            if(point.y>bounds.min.y+size.y*.2)continue;
+            shift=Math.min(shift,terrainHeight(point.x,point.z)-.06-point.y);
+          }
+        });
+        if(Number.isFinite(shift))model.position.y+=shift-size.y*.08;
+      }
+      parent.add(model);
     }));
   };
-  for (const [x, z, size, rotation] of [[-62.5,-89.2,3.8,.4],[-55.8,-104.2,2.8,1.5],[-40.8,-119.3,2.1,-.8],[-18.8,-126.2,1.9,2.2]] as const) place('nature/Rock_Medium_3', x, z, size, rotation);
+  for (const [x, z, size, rotation] of [[-62.5,-89.2,1.15,.4],[-63.8,-88.4,.78,1.1],[-61.4,-90.3,.6,-.7],[-55.8,-104.2,1.7,1.5],[-40.8,-119.3,2.1,-.8],[-18.8,-126.2,1.9,2.2]] as const) place('nature/Rock_Medium_3', x, z, size, rotation);
   for (const [x,z,size,rotation] of [[-47.5,-101,.7,.7],[-1.8,-112.7,.5,2.1],[-17.2,-123.4,.48,1.2]] as const) place('nature/Rock_Medium_1',x,z,size,rotation);
   for (const [x, z, size, rotation] of [[-61,-97.4,5.4,.35],[-28.2,-61.4,4.4,2.2],[8.5,-116.5,4.6,-.7]] as const) place('nature/DeadTree_2', x, z, size, rotation, Math.PI / 2);
   for (const [x, z, size, rotation] of [[-60.8,-93.8,1.7,.2],[-39.8,-121.7,1.0,1.1],[-12.2,-128.2,1.2,-.4],[11.8,-106.2,.8,2.2]] as const) {
@@ -55,10 +73,11 @@ export async function buildLakeShore(parent: Group): Promise<void> {
   // The final stones are keyed from the actual stream endpoint, so they stay
   // attached to the plunge pool if the channel is tuned later.
   for (const [x, z, size, rotation, tilt] of [
-    [-37.1, -65.5, 1.8, .4, .14], [-33.0, -69.6, 1.45, 1.7, -.1],
-    [-30.0, -75.8, 1.05, 2.4, .08],
+    [-69.2, -80.5, .72, .4, .14], [-62.0, -78.2, .46, 2.1, -.08],
+    [-59.0, -73.8, .35, -.6, .11], [-55.0, -73.7, .62, 1.7, -.1],
+    [-54.7, -77.7, .38, -.3, .06], [-52.8, -75.5, .58, 2.4, .08],
   ] as const) place('nature/Rock_Medium_3', x, z, size, rotation, tilt);
-  const plunge = STREAM_POINTS.find(point => point.y <= LAKE_WATER_LEVEL + .02) ?? STREAM_POINTS.at(-1)!;
+  const plunge = WATERFALL_POINTS.at(-1)!;
   for (const [dx, dz, size, rotation] of [
     [-1.45, -.35, .72, .2], [.95, .25, .58, 1.8], [.15, 1.05, .42, 2.7],
   ] as const) {

@@ -45,3 +45,16 @@ test('guard routes clear the authored bell tower and courtyard cart',async()=>{
     for(const guard of YARD_GUARDS)for(let time=0;time<180000;time+=250){const p=guardPatrol(guard.id,time).position;expect(box.containsPoint(new Vector3(p.x,p.y,p.z))).toBe(false);}
   }
 });
+
+test('patrol velocity and heading change continuously through stops and corners',()=>{
+  for(const guard of YARD_GUARDS){
+    let previous=guardPatrol(guard.id,0);
+    for(let time=10;time<180000;time+=10){
+      const next=guardPatrol(guard.id,time);
+      const turn=Math.acos(Math.max(-1,Math.min(1,previous.facing.x*next.facing.x+previous.facing.z*next.facing.z)));
+      expect(turn).toBeLessThan(.041);
+      expect(Math.abs(next.pace-previous.pace)).toBeLessThan(.021);
+      previous=next;
+    }
+  }
+});

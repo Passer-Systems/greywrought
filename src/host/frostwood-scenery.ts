@@ -1,6 +1,6 @@
 import { buildTownPerimeter } from './town-perimeter.js';
 import { terrainHeight } from '../game/cave-layout.js';
-import { lakeWaterAt, streamAt } from '../game/world-elevation.js';
+import { lakeWaterAt, streamAt, STREAM_POINTS } from '../game/world-elevation.js';
 import { TOWN_BOUNDS } from '../game/world-layout.js';
 import { buildWorldWater } from './world-water.js';
 import { worldHorizonGeometry } from './world-horizon.js';
@@ -82,6 +82,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     }));
   }
   function tree(name: string, x: number, z: number, height: number, rotation: number, palette: TreePalette, lean = 0) {
+    if (STREAM_POINTS.some(point => Math.hypot(x-point.x,z-point.z) < point.width+2+height*.2)) return;
     place(name, x, z, height, rotation, terrain, 'height', 0, undefined, 0, lean, palette);
   }
   // Damaged trees use the authored Quaternius dead-tree silhouette. A horizontal
@@ -315,17 +316,25 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     clearingContext.fillStyle=i%3===0?'#d0cbb4':'#f4efd9';
     clearingContext.fillRect(noise(i+311)*256,noise(i+977)*256,1,1);
   }
-  const edge=clearingContext.createRadialGradient(128,128,45,128,128,125);
-  edge.addColorStop(0,'#ffffffc8');edge.addColorStop(.65,'#ffffff90');edge.addColorStop(1,'#ffffff00');
-  clearingContext.globalCompositeOperation='destination-in';
-  clearingContext.fillStyle=edge;clearingContext.fillRect(0,0,256,256);
+  const clearingPixels=clearingContext.getImageData(0,0,256,256);
+  // Wide, broken edges let the detailed forest floor remain visible through
+  // each clearing instead of replacing it with a bright circular swatch.
+  for(let y=0;y<256;y++)for(let x=0;x<256;x++) {
+    const dx=(x-128)/128,dy=(y-128)/128,angle=Math.atan2(dy,dx);
+    const boundary=.84+.07*Math.sin(angle*3+.7)+.045*Math.sin(angle*7-1.1);
+    const radius=Math.hypot(dx,dy)/boundary;
+    const fade=Math.max(0,Math.min(1,(1-radius)/.7));
+    const mottling=.78+.14*Math.sin(x*.073+Math.sin(y*.061)*2)+.08*Math.sin(y*.147-x*.09);
+    clearingPixels.data[(y*256+x)*4+3]=255*fade*fade*(3-2*fade)*mottling;
+  }
+  clearingContext.putImageData(clearingPixels,0,0);
   const clearingMap=new CanvasTexture(clearingCanvas);clearingMap.colorSpace=SRGBColorSpace;
-  const earth=new MeshStandardMaterial({map:clearingMap,color:0x796d4f,roughness:1,transparent:true,depthWrite:false});
-  const meadow=new MeshStandardMaterial({map:clearingMap,color:0x87995a,roughness:1,transparent:true,depthWrite:false});
-  const mulch=new MeshStandardMaterial({map:clearingMap,color:0x434d36,roughness:1,transparent:true,depthWrite:false});
+  const earth=new MeshStandardMaterial({map:clearingMap,color:0x62604e,opacity:.34,roughness:1,transparent:true,depthWrite:false});
+  const meadow=new MeshStandardMaterial({map:clearingMap,color:0x58614c,opacity:.28,roughness:1,transparent:true,depthWrite:false});
+  const mulch=new MeshStandardMaterial({map:clearingMap,color:0x414b3c,opacity:.3,roughness:1,transparent:true,depthWrite:false});
   function clearing(x:number,z:number,width:number,depth:number,material:MeshStandardMaterial) {
     const mesh=new Mesh(new PlaneGeometry(width,depth,Math.ceil(width/2),Math.ceil(depth/2)),material);
-    mesh.rotation.x=-Math.PI/2;mesh.position.set(x,0,z);terrain.add(mesh);conformToTerrain(mesh,.005);mesh.geometry.computeVertexNormals();
+    mesh.rotation.set(-Math.PI/2,0,noise(x*17+z)*Math.PI*2);mesh.position.set(x,0,z);terrain.add(mesh);conformToTerrain(mesh,.005);mesh.geometry.computeVertexNormals();
   }
   clearing(-3,31,21,22,earth);clearing(16,25,28,25,meadow);clearing(-19,47,25,25,earth);
   clearing(-3,49,16,19,earth);clearing(4,61,19,18,earth);
@@ -518,7 +527,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     }
   }
   for (const [name, x, z, height, rotation, palette] of [
-    ['nature/CommonTree_2', -57, -70, 26, .7, 'copper'],
+    ['nature/CommonTree_2', -56, -64, 26, .7, 'copper'],
     ['nature/Pine_5', 37, -82, 30, 2.1, 'blue'],
     ['nature/TwistedTree_2', -37, -135, 23, -.6, 'ochre'],
     ['nature/DeadTree_2', -64, -112, 19, 1.8, 'ash'],

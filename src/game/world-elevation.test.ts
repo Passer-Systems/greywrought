@@ -116,3 +116,50 @@ test('stream stays downhill through the folded western mountain into the lake', 
     expect(overworldHeight(point.x,point.z)).toBeLessThanOrEqual(point.y);
   }
 });
+
+test('the meadow road keeps a dry bank beside the lake', async () => {
+  const { lakeWaterAt } = await import('./world-elevation.js');
+  const road = [[0,-55],[1,-77],[12,-89],[16,-104],[14,-124]] as const;
+  for (let i=1;i<road.length;i++) for (let step=0;step<=40;step++) {
+    const a=road[i-1]!,b=road[i]!,t=step/40;
+    const x=a[0]+(b[0]-a[0])*t,z=a[1]+(b[1]-a[1])*t;
+    // The trail is at most 3.2m across; this also preserves a grassy bank.
+    expect(lakeWaterAt(x-3.5,z)).toBeNull();
+    expect(lakeWaterAt(x,z)).toBeNull();
+  }
+  // The eastern deep pocket must not leave a separate puddle beside the road.
+  expect(overworldHeight(-4,-82)).toBeGreaterThan(.08);
+});
+
+test('the stream stays on its bluff until an unobstructed drop into the lake', async () => {
+  const { STREAM_POINTS, WATERFALL_POINTS, lakeDepthAt, LAKE_WATER_LEVEL } = await import('./world-elevation.js');
+  for (const p of STREAM_POINTS.slice(0,-6)) {
+    expect(lakeDepthAt(p.x,p.z)).toBe(0);
+    expect(p.y-overworldHeight(p.x,p.z)).toBeLessThan(.7);
+    expect(currentDryFloor(p.x,p.z)-overworldHeight(p.x,p.z)).toBeLessThan(2);
+  }
+  const lip=WATERFALL_POINTS[0]!,bottom=WATERFALL_POINTS.at(-1)!;
+  expect(lip.y-bottom.y).toBeGreaterThan(7);
+  expect(Math.hypot(lip.x-bottom.x,lip.z-bottom.z)).toBeLessThan(4);
+  for (const p of WATERFALL_POINTS) expect(overworldHeight(p.x,p.z)).toBeLessThan(p.y);
+  expect(bottom.y).toBeCloseTo(LAKE_WATER_LEVEL,10);
+  expect(lakeDepthAt(bottom.x,bottom.z)).toBeGreaterThan(.8);
+});
+
+test('version six ground and swimming saves follow the new banks exactly once', async () => {
+  const { overworldHeight: floorV6, isSwimmingPosition: swimmingV6 } = await import('./terrain-layout-v6.js');
+  const { lakeWaterAt } = await import('./world-elevation.js');
+  for (const [x,z] of [[1,-77],[-60,-83],[-54,-76],[-27,-95],[72,-46]]) {
+    const before=x===72?-9:floorV6(x!,z!);
+    const root={terrainLayout:6,state:{position:{x:x!,y:before+.3,z:z!}},instances:[{members:[{origin:{x:x!,y:before,z:z!}}]}]};
+    migrateTerrainLayout(root);
+    expect(root.state.position.y).toBeCloseTo(terrainHeight(x!,z!)+.3,10);
+    expect(root.instances[0]!.members[0]!.origin.y).toBeCloseTo(terrainHeight(x!,z!),10);
+    const once=JSON.stringify(root);migrateTerrainLayout(root);expect(JSON.stringify(root)).toBe(once);
+    if (swimmingV6(x!,z!)) {
+      const swimmer={terrainLayout:6,state:{position:{x:x!,y:-.72,z:z!}}};
+      migrateTerrainLayout(swimmer);
+      expect(swimmer.state.position.y).toBeCloseTo(Math.max(terrainHeight(x!,z!), (lakeWaterAt(x!,z!)??-Infinity)-.8),10);
+    }
+  }
+});

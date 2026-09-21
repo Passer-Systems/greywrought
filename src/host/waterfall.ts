@@ -1,12 +1,10 @@
 import { AdditiveBlending, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, Points, ShaderMaterial, Vector2 } from 'three';
-import { LAKE_WATER_LEVEL, STREAM_POINTS } from '../game/world-elevation.js';
+import { WATERFALL_POINTS } from '../game/world-elevation.js';
 import { worldDay } from '../game/world-time.js';
 
-/** The cascade shares the stream's carved channel and ends at its first lake-level sample. */
+/** The cascade falls from the stream's bluff lip into the lake. */
 export function buildWaterfall(parent: Group): void {
-  const start = STREAM_POINTS.findIndex(p => p.x > -38.2 && p.z < -65);
-  const end = STREAM_POINTS.findIndex((p, i) => i > start && p.y <= LAKE_WATER_LEVEL + .02);
-  const route = STREAM_POINTS.slice(start, end + 1);
+  const route = WATERFALL_POINTS;
   const positions: number[] = [], uvs: number[] = [], indices: number[] = [];
   let length = 0;
   for (let i = 0; i < route.length; i++) {

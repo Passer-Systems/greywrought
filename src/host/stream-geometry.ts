@@ -1,5 +1,5 @@
 import { BufferGeometry, Float32BufferAttribute } from 'three';
-import { LAKE_WATER_LEVEL, STREAM_POINTS, lakeDepthAt, overworldHeight } from '../game/world-elevation.js';
+import { LAKE_WATER_LEVEL, STREAM_POINTS, WATERFALL_POINTS, lakeDepthAt, overworldHeight } from '../game/world-elevation.js';
 
 /**
  * Build the visible stream ribbon from the same samples that carve the floor.
@@ -10,10 +10,11 @@ import { LAKE_WATER_LEVEL, STREAM_POINTS, lakeDepthAt, overworldHeight } from '.
 export function buildStreamGeometry(): BufferGeometry {
   const positions: number[] = [], depths: number[] = [], flows: number[] = [], indices: number[] = [];
   const across = 8;
-  for (let i = 0; i < STREAM_POINTS.length; i++) {
-    const point = STREAM_POINTS[i]!;
-    const before = STREAM_POINTS[Math.max(0, i - 1)]!;
-    const after = STREAM_POINTS[Math.min(STREAM_POINTS.length - 1, i + 1)]!;
+  const route = [...STREAM_POINTS, ...WATERFALL_POINTS.slice(1)];
+  for (let i = 0; i < route.length; i++) {
+    const point = route[i]!;
+    const before = route[Math.max(0, i - 1)]!;
+    const after = route[Math.min(route.length - 1, i + 1)]!;
     const dx = after.x - before.x, dz = after.z - before.z, length = Math.hypot(dx, dz) || 1;
     const flowX = dx / length, flowZ = dz / length;
     for (let side = 0; side <= across; side++) {

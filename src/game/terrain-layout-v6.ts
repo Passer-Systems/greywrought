@@ -13,8 +13,7 @@ export function lakeBoundary(angle: number): number {
   const base = 1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4);
   // Preserve the east footpath and northern waterfall bluff while opening
   // the western and southern coves into the larger basin.
-  return base - .08 * Math.max(0, Math.cos(angle)) - .12 * Math.max(0, Math.sin(angle)) ** 4
-    - .3 * Math.exp(-(((angle - .5) / .55) ** 2));
+  return base - .08 * Math.max(0, Math.cos(angle)) - .12 * Math.max(0, Math.sin(angle)) ** 4;
 }
 function deepPocket(x: number, z: number, cx: number, cz: number, rx: number, rz: number, depth: number): number {
   const d = Math.hypot((x - cx) / rx, (z - cz) / rz);
@@ -38,10 +37,7 @@ export function lakeDepthAt(x: number, z: number): number {
   const pockets = deepPocket(x,z,-46,-113,7,5,.9)
     + deepPocket(x,z,-10,-120,8,5,.75)
     + deepPocket(x,z,-4,-82,7,4,.65);
-  // The western bluff projects into the basin. Its rounded lip remains dry
-  // beneath the mountain stream, and the lake starts at the foot of the drop.
-  const bluff = Math.hypot((x + 65) / 12, (z + 77) / 10);
-  return (base * (1 - bar) + pockets * smooth(base / 1.2)) * smooth((bluff - .84) / .16);
+  return (base * (1 - bar) + pockets) * (radial < boundary ? 1 : 0);
 }
 export function lakeWaterAt(x: number, z: number): number | null {
   const depth = lakeDepthAt(x, z);
@@ -185,45 +181,30 @@ export function dryOverworldHeight(x: number, z: number): number {
 }
 
 function basinHeight(x: number, z: number): number {
- let land = dryOverworldHeight(x, z);
- const depth = lakeDepthAt(x, z);
- const dx=(x-LAKE_CENTER.x)/LAKE_RADIUS.x,dz=(z-LAKE_CENTER.z)/LAKE_RADIUS.z;
- if(Math.abs(dx)<1.3&&Math.abs(dz)<1.3){
-  const shore=Math.hypot(dx,dz)-lakeBoundary(Math.atan2(dz,dx));
-  // Even the low meadow needs a bank above the waterline. Otherwise the
-  // nearly level outer rim leaves disconnected shallow puddles on dry grass.
-  land=Math.max(land,.4*(1-smooth(shore/.08)));
- }
+ const land = dryOverworldHeight(x, z), depth = lakeDepthAt(x, z);
  const basin = smooth(depth / .9);
  return land * (1 - basin) + (LAKE_WATER_LEVEL - depth) * basin;
 }
 
-// The approach follows the western bluff; only the final cascade crosses its lip.
-const streamAnchors=[[-70,-87],[-69,-83],[-66,-79],[-62,-76.5],[-59,-75.5],[-56,-75],[-54,-76.4]] as const;
+// The stream winds down the western mountain before cascading into the north cove.
+const streamAnchors=[[-68,-90],[-60,-83],[-54,-76],[-48,-71],[-44,-66],[-39,-65],[-36,-69],[-34,-74],[-30,-84],[-27,-94]] as const;
 export const STREAM_POINTS: readonly {x:number;z:number;y:number;width:number}[] = (()=>{
  const points:{x:number;z:number;y:number;width:number}[]=[];let previous=Infinity;
- for(let i=0;i<streamAnchors.length-1;i++)for(let step=0;step<=(i===streamAnchors.length-2?8:7);step++){
+ for(let i=0;i<streamAnchors.length-1;i++)for(let step=0;step<8;step++){
   const a=streamAnchors[Math.max(0,i-1)]!,b=streamAnchors[i]!,c=streamAnchors[i+1]!,d=streamAnchors[Math.min(streamAnchors.length-1,i+2)]!,t=step/8;
   const coord=(k:0|1)=>.5*((2*b[k])+(-a[k]+c[k])*t+(2*a[k]-5*b[k]+4*c[k]-d[k])*t*t+(-a[k]+3*b[k]-3*c[k]+d[k])*t*t*t);
   const x=coord(0),z=coord(1);
-  const y=Math.min(previous,dryOverworldHeight(x,z)-.22); previous=y;
-  points.push({x,z,y,width:(.82+.10*Math.sin(i+step*.4))*(.08+.92*smooth((i+t)/.75))});
+  const y=Math.max(LAKE_WATER_LEVEL,Math.min(previous,basinHeight(x,z)-.18)); previous=y;
+  points.push({x,z,y,width:1.15+.18*Math.sin(i+step*.4)});
  }
  return points;
-})();
-export const WATERFALL_POINTS = (() => {
- const lip=STREAM_POINTS.at(-1)!;
- return Array.from({length:17},(_,i)=>{
-  const t=i/16;
-  return {x:lip.x+2.5*t,z:lip.z-1.6*t,y:lip.y+(LAKE_WATER_LEVEL-lip.y)*t*t,width:lip.width*(1-.18*t)};
- });
 })();
 export function streamAt(x:number,z:number):{surface:number;bed:number;distance:number;width:number}|null{
  if(x< -72||x> -22||z< -98||z> -60)return null;
  let nearest:{surface:number;bed:number;distance:number;width:number}|null=null;
  for(let i=1;i<STREAM_POINTS.length;i++){
   const a=STREAM_POINTS[i-1]!,b=STREAM_POINTS[i]!,dx=b.x-a.x,dz=b.z-a.z,t=Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/(dx*dx+dz*dz))),distance=Math.hypot(x-a.x-t*dx,z-a.z-t*dz),width=a.width+(b.width-a.width)*t;
-  if(distance>width*2.2||nearest&&distance>=nearest.distance)continue;
+  if(distance>width*1.4||nearest&&distance>=nearest.distance)continue;
   const surface=a.y+(b.y-a.y)*t,profile=Math.max(0,1-(distance/width)**2);
   nearest={surface,bed:surface-(.42+.14*profile)*profile,distance,width};
  }
@@ -235,6 +216,6 @@ export function overworldHeight(x:number,z:number):number{
  // A shallow molten floor and a walkable scorched bank share the visible outline.
  if(lavaRatio<1.35) return (LAVA_LAKE.surface-.1)+(land-(LAVA_LAKE.surface-.1))*smooth((lavaRatio-1)/.35);
  if(!stream)return land;
- const blend=1-smooth((stream.distance/stream.width-1)/1.2);
+ const blend=1-smooth((stream.distance/stream.width-1)/.4);
  return land+(Math.min(land,stream.bed)-land)*blend;
 }

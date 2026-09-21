@@ -150,7 +150,7 @@ test('old solo saves migrate jump and maneuver offsets once, preserving progress
     const restored = createAdventure({ save: flatSave(game.save()), now: () => 1000 });
     const saved = JSON.parse(restored.save());
     near(saved.state.position, expected.state.position);
-    expect(saved.terrainLayout).toBe(6);
+    expect(saved.terrainLayout).toBe(7);
     expect(saved.state.maneuver).toEqual(expected.state.maneuver);
     expect(saved.state.chapter).toEqual(expected.state.chapter);
     expect(saved.state.supplies).toBe(37); expect(saved.state.potions).toBe(4);

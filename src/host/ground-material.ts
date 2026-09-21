@@ -166,10 +166,10 @@ diffuseColor *= texture2D(map, detail + offsetA) * weights.x
 #endif`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 float groundRegion = groundMacro(groundWorldPos.xz);
-vec3 ruinedMoss = vec3(.80, 1.09, .78);
-vec3 ruinedSoil = vec3(1.16, .94, .76);
-vec3 regionTint = mix(ruinedSoil, ruinedMoss, smoothstep(.36, .63, groundRegion));
-diffuseColor.rgb *= regionTint * (.70 + groundRegion * .7);
+vec3 ruinedMoss = vec3(.91, 1.04, .87);
+vec3 ruinedSoil = vec3(1.07, .98, .86);
+vec3 regionTint = mix(ruinedSoil, ruinedMoss, smoothstep(.25, .75, groundRegion));
+diffuseColor.rgb *= regionTint * (.88 + groundRegion * .28);
 float steep = 1. - normalize(groundWorldNormal).y;
 float rockMask = smoothstep(.22, .53, steep + (groundNoise(groundWorldPos.xz * .38) - .5) * .12);
 vec3 stone = mix(vec3(.145, .119, .095), vec3(.125, .151, .15), smoothstep(.3, .7, groundRegion));
