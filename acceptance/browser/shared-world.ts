@@ -47,7 +47,9 @@ try {
   const hp=await first.evaluate<string>(`document.querySelector('#map-threats [data-enemy-id="scout"]').dataset.health`);
   await second.waitFor(`document.querySelector('#map-threats [data-enemy-id="scout"]').dataset.health===${JSON.stringify(hp)}`);
   await second.shot('shared-enemy-damage');
-  await first.evaluate('document.getElementById("return-roster").click()');
+  await first.click('#pause-open');
+  await first.click('#pause-tab-settings');
+  await first.click('#return-roster');
   await second.waitFor('JSON.parse(document.body.dataset.gameRemotePlayers).length===0');
   await first.click('#entry-enter-world');await first.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.gameOnline==="true"');
   await second.waitFor('JSON.parse(document.body.dataset.gameRemotePlayers).length===1');

@@ -30,19 +30,19 @@ class Client {
     });
     this.socket.send(JSON.stringify({ type: 'join', token, character }));
   }
-  wait(predicate: (message: ServerWorldMessage) => boolean): Promise<ServerWorldMessage> {
+  wait(predicate: (message: ServerWorldMessage) => boolean, timeoutMillis = 3000): Promise<ServerWorldMessage> {
     return new Promise((resolve, reject) => {
       const check = () => {
         const found = this.messages.find(predicate);
         if (found) { clearTimeout(timeout); this.watchers.delete(check); resolve(found); }
       };
-      const timeout = setTimeout(() => { this.watchers.delete(check); reject(new Error('Timed out waiting for world message')); }, 3000);
+      const timeout = setTimeout(() => { this.watchers.delete(check); reject(new Error('Timed out waiting for world message')); }, timeoutMillis);
       this.watchers.add(check);
       check();
     });
   }
-  async state(predicate: (message: State) => boolean = () => true): Promise<State> {
-    return await this.wait(message => message.type === 'state' && predicate(message)) as State;
+  async state(predicate: (message: State) => boolean = () => true, timeoutMillis = 3000): Promise<State> {
+    return await this.wait(message => message.type === 'state' && predicate(message), timeoutMillis) as State;
   }
   async command(command: WorldCommand): Promise<boolean> {
     const sequence = this.sequence++;
@@ -115,6 +115,8 @@ test('two socket clients share movement and chat; saved identity survives restar
     const initial = firstState.snapshot.player.position;
     expect(firstState.snapshot.progression.unlockedActions).toEqual(['strike', 'brace', 'bait']);
     expect(await first.command({ type: 'quest', id: 'cold-hands', operation: 'accept' })).toBe(true);
+    expect(await first.invalid({ type: 'flight', destination: 'missing' })).toBe(false);
+    expect(await first.command({ type: 'flight', destination: 'suture' })).toBe(false);
     expect(await first.invalid({ type: 'quest', id: 'cold-hands', operation: 'complete' })).toBe(false);
     expect(await first.invalid({ type: 'equip', slot: 'head', item: 'yard-weapon' })).toBe(false);
     const second = client(); await second.connect(secondCharacter, crypto.randomUUID());
@@ -318,10 +320,14 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
     expect(await client.invalid({ type: 'delay', id: 1, seconds: 1 })).toBe(false);
     expect(await client.invalid({ type: 'replace', id: 1, action: 'strike' })).toBe(false);
     expect(await client.command({ type: 'ready' })).toBe(true);
+    const ready = await client.state(s => s.snapshot.combat.ready);
+    expect(ready.snapshot.combat.phase).toBe('preparation');
+    expect(ready.snapshot.combat.gatheringRemainingSeconds).toBeGreaterThan(0);
+    await client.state(s => s.snapshot.combat.phase === 'active', 8000);
     expect(await client.command({ type: 'actionTiming', timing: 'before' })).toBe(false);
     expect(await client.command({ type: 'bait', destination })).toBe(false);
   } finally { client.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
-});
+}, 12000);
 
 test('slash emotes replicate actions and chat while unknown commands stay private', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'greywrought-emotes-'));
@@ -413,7 +419,7 @@ test('coin shop transport validates stock, balance and distance and saves actual
   const character: LocalCharacter = { id: 'shop-tester', name: 'Shop Tester', archetype: 'warrior', createdAtMillis: 1 };
   const token = crypto.randomUUID(), seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
   const saved = JSON.parse(seed.save());
-  Object.assign(saved.characters[0].state, { position: { x: -9, y: 0, z: -32 }, coins: 12 });
+  Object.assign(saved.characters[0].state, { position: { x: -9, y: terrainHeight(-9, -32), z: -32 }, coins: 12 });
   await writeFile(savePath, JSON.stringify({ version: 1, accounts: [{ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') }], world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
   const service = await createWorldService({ savePath });
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
@@ -537,3 +543,30 @@ test('parties require consent, enforce leadership and capacity, and share encoun
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('diving movement packets carry rise and dive through the authoritative socket', async()=>{
+  const {createSharedAdventure}=await import('../game/adventure.js');
+  const {supportHeight}=await import('../game/movement.js');
+  const directory=await mkdtemp(join(tmpdir(),'greywrought-diving-')),savePath=join(directory,'world.json');
+  const character:LocalCharacter={id:'diver',name:'Diver',archetype:'mage',createdAtMillis:1};
+  const token=crypto.randomUUID(),seed=createSharedAdventure();seed.join(character.id,character.name,character.archetype);
+  const saved=JSON.parse(seed.save());
+  saved.characters[0].state.position={x:-27,y:supportHeight(-27,-95),z:-95};saved.characters[0].state.phase='expedition';
+  for(const threat of saved.world.threats)if(threat.active)Object.assign(threat,{health:0,phase:'cleared',aggro:false,lootClaimed:true,respawnAt:Date.now()+120000});
+  await writeFile(savePath,JSON.stringify({version:1,accounts:[{character,tokenHash:new Bun.CryptoHasher('sha256').update(token).digest('hex')}],world:JSON.stringify(saved),chat:[],nextChatId:1}));
+  const service=await createWorldService({savePath});
+  const server=Bun.serve({hostname:'127.0.0.1',port:0,websocket:service.websocket,fetch:(request,host)=>service.fetch(request,host)});
+  const client=new Client(`ws://127.0.0.1:${server.port}/world`);
+  const frames=(start:number,rise:boolean,dive:boolean)=>Array.from({length:20},(_,i)=>({sequence:start+i,seconds:.05,input:{forward:0,strafe:0,cameraX:0,cameraZ:1,jump:false,rise,dive}}));
+  try{
+    await client.connect(character,token);await client.state();
+    expect(await client.invalid({type:'movement',frames:[{...frames(1,false,true)[0],input:{...frames(1,false,true)[0]!.input,dive:1}}]})).toBe(false);
+    expect(await client.command({type:'movement',frames:frames(1,false,true)})).toBe(true);
+    const deep=await client.state(s=>s.movement.sequence===20&&s.movement.elapsed>=.049);
+    expect(deep.snapshot.player.position.y).toBeCloseTo(supportHeight(-27,-95)-2.2,4);
+    expect(deep.snapshot.player.breathSeconds).toBeLessThan(60);
+    expect(await client.command({type:'movement',frames:frames(21,true,false)})).toBe(true);
+    const surface=await client.state(s=>s.movement.sequence===40&&s.movement.elapsed>=.049);
+    expect(surface.snapshot.player.position.y).toBeCloseTo(supportHeight(-27,-95),4);
+  }finally{client.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true});}
+},10000);

@@ -3,6 +3,7 @@ import type { CharacterArchetype } from "../host/character-profile.js";
 import type { QuestId, QuestOperation, QuestView, ProgressionView, GearSlot, GearItemId } from "./yard-content.js";
 import type { MovementFrame, MovementCheckpoint } from "./movement.js";
 
+import type { BellrunnerStopId, FlightState } from "./bellrunner.js";
 export interface Position { readonly x: number; readonly y: number; readonly z: number; }
 export interface EncounterSession {
   readonly id: string;
@@ -22,7 +23,7 @@ export interface CombatFeedback {
   readonly amount: number;
 }
 export type AdventureAction =
-  | "forward" | "backward" | "left" | "right" | "jump"
+  | "forward" | "backward" | "left" | "right" | "jump" | "dive"
   | "hearthstone" | "cancelHearthstone" | "bait" | "strike" | "brace" | "gather" | "cancelGather" | "ritual" | "interact"
   | "buyPotion" | "drinkPotion" | "rest" | "target" | "openTrade" | "closeTrade" | "acceptTrade" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn" | "closeBank";
 export interface TradeView {
@@ -48,6 +49,8 @@ export interface CombatForecast {
 export interface CombatHazard { readonly id: string; readonly kind: "swarm"; readonly position: Position; readonly radius: number; }
 export interface CombatEffect { readonly id: number; readonly kind: "ignition"; readonly position: Position; readonly radius: number; }
 export interface CombatView {
+  readonly gatheringRemainingSeconds: number;
+  readonly openingStrikeAvailable: boolean;
   readonly forecast: CombatForecast | null;
   readonly hazards: readonly CombatHazard[];
   readonly effects: readonly CombatEffect[];
@@ -99,6 +102,7 @@ export interface ThreatView {
   readonly position: Position;
   readonly homePosition: Position;
   readonly disposition: "hostile" | "neutral";
+  readonly critter: boolean;
   readonly aggroRange: number;
   readonly callForHelpRange: number;
   readonly targetPlayerId?: string | null;
@@ -121,6 +125,7 @@ export interface ThreatView {
   readonly health: number;
   readonly maximumHealth: number;
   readonly active: boolean;
+  readonly corpseVisible: boolean;
   readonly selected: boolean;
   readonly phase: ThreatPhase;
   readonly remainingSeconds: number;
@@ -148,11 +153,14 @@ export interface AdventureSnapshot {
   readonly combatFeedback: readonly CombatFeedback[];
   readonly player: {
     readonly position: Position;
+    readonly flight?: FlightState | null;
     readonly cameraForward: Position;
     readonly archetype: CharacterArchetype;
     readonly health: number;
     readonly maximumHealth: number;
     readonly grounded: boolean;
+    readonly breathSeconds: number;
+    readonly autoSurfacing: boolean;
     readonly moving: boolean;
     readonly backpedaling: boolean;
     readonly attackSequence: number;
@@ -183,6 +191,7 @@ export interface AdventureSnapshot {
   readonly ritualCalled: boolean;
   readonly shopOpen: boolean; readonly trade: TradeView | null;
   readonly innOpen: boolean;
+  readonly restSpot?: import('./economy.js').RestSpotId | null;
   readonly bankOpen: boolean;
   readonly bank: { readonly supplies: number; readonly potions: number };
   readonly log: readonly AdventureLogEntry[];
@@ -221,6 +230,7 @@ export interface AdventureGame {
   bankTransfer(operation: "deposit" | "withdraw", kind: "supplies" | "potions", quantity: number): boolean;
   quest(id: QuestId, operation: QuestOperation): void;
   equip(slot: GearSlot, item: GearItemId | null): void;
+  fly(destination: BellrunnerStopId): boolean;
   save(): string;
 }
 

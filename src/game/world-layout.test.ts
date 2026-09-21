@@ -54,8 +54,8 @@ test('movement reaches the larger world bounds and expanded positions survive sa
 test('returning characters resume clear of newly built town walls, including private origins', () => {
   const world = createSharedAdventure(); world.join('resident', 'Resident', 'warrior'); world.pause('resident');
   const saved = JSON.parse(world.save());
-  Object.assign(saved.characters[0].state, { position: { x: -14, y: 0, z: -10 }, supplies: 37, health: 71 });
-  saved.instances[0].members[0].origin = { x: -14, y: 0, z: -10 };
+  Object.assign(saved.characters[0].state, { position: { x: -14, y: terrainHeight(-14, -10), z: -10 }, supplies: 37, health: 71 });
+  saved.instances[0].members[0].origin = { x: -14, y: terrainHeight(-14, -10), z: -10 };
   const restored = createSharedAdventure({ save: JSON.stringify(saved) });
   const resident = restored.join('resident', 'Resident', 'warrior');
   expect(blockedPosition(resident.snapshot.player.position.x, resident.snapshot.player.position.z)).toBe(false);

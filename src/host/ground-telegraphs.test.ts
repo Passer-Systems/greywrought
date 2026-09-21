@@ -15,6 +15,7 @@ const forecast: CombatForecast = {
   events: [], outcomes: [],
 };
 const combat: CombatView = {
+  gatheringRemainingSeconds: 0, openingStrikeAvailable: false,
   ready: false, phase: "preparation", remainingSeconds: 30, elapsedSeconds: 0, cycle: 1,
   queued: [], reservedStamina: 0, availableStamina: 5, forecast, hazards: [], effects: [],
 };
@@ -48,10 +49,11 @@ test("homing previews draw the forecast path without a dodgeable target circle",
   telegraphs.dispose();
 });
 
-test("a queued move only previews the local player's matching action", () => {
+test("a queued move previews the local move and enemy pursuit", () => {
   const { canvas, telegraphs } = setup();
   telegraphs.update({ combat }, { kind: "move", queueId: 1 });
-  expect(JSON.parse(canvas.dataset.telegraphs!)).toMatchObject([{ previewKind: "move", queueId: 1, actorId: "self", kind: "movement", path: [origin, landing] }]);
+  const paths = JSON.parse(canvas.dataset.telegraphs!).filter((entry: { path?: unknown }) => entry.path);
+  expect(paths.map((entry: { actorId: string }) => entry.actorId)).toEqual(["scout", "patrol", "self", "other"]);
   telegraphs.update({ combat }, { kind: "move", queueId: 9 });
   expect(canvas.dataset.telegraphs).toBe("[]");
   telegraphs.dispose();

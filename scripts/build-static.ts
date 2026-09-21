@@ -6,7 +6,12 @@ import pkg from "../package.json";
 await rm("dist", { recursive: true, force: true });
 for (const [source, target] of files) {
   await mkdir(dirname(target), { recursive: true });
-  if (source.endsWith(".gltf")) await Bun.write(target, JSON.stringify(JSON.parse(await Bun.file(source).text())));
+  if (/\.(gltf|json|webmanifest)$/.test(source)) await Bun.write(target, JSON.stringify(JSON.parse(await Bun.file(source).text())));
+  else if (source.startsWith("node_modules/three/examples/") || source.endsWith(".css")) {
+    const result = await Bun.build({ entrypoints: [source], target: "browser", minify: true, external: ["*"] });
+    if (!result.success || !result.outputs[0]) throw new Error(`Could not build ${source}: ${result.logs.join("\n")}`);
+    await Bun.write(target, result.outputs[0]);
+  }
   else await copyFile(source, target);
 }
 await Bun.write("dist/.nojekyll", "");

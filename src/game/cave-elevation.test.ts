@@ -3,8 +3,24 @@ import { createAdventure, createSharedAdventure } from './adventure.js';
 import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
 import { moveLocomotion, moveManeuverPosition, type MovementState } from './movement.js';
 import { LocalMovement } from '../host/local-movement.js';
-import { earnedChapter, finishCycle, tap } from './yard-test-fixtures.js';
+import { finishGathering, earnedChapter, finishCycle, tap } from './yard-test-fixtures.js';
 import type { Position } from './adventure-types.js';
+import { overworldHeight as oldTerrain, LAKE_WATER_LEVEL } from './terrain-layout-v5.js';
+
+test('lake expansion preserves v5 hillside height and swimming support separately', () => {
+  const hillside = { terrainLayout: 5, position: { x: -57, y: oldTerrain(-57, -70) + .6, z: -70 } };
+  migrateTerrainLayout(hillside);
+  expect(hillside.position.y).toBeCloseTo(terrainHeight(-57, -70) + .6, 7);
+  const swimmer = { terrainLayout: 5, position: { x: -28, y: LAKE_WATER_LEVEL - .8, z: -101 } };
+  migrateTerrainLayout(swimmer);
+  expect(swimmer.position.y).toBeCloseTo(LAKE_WATER_LEVEL - .8, 7);
+  const turtle = { terrainLayout: 5, position: { x: -28, y: oldTerrain(-28, -101), z: -101 } };
+  migrateTerrainLayout(turtle);
+  expect(turtle.position.y).toBeCloseTo(terrainHeight(-28, -101), 7);
+  const shallowTurtle = { terrainLayout: 5, position: { x: -.6615055790801115, y: oldTerrain(-.6615055790801115, -97.50387081568988), z: -97.50387081568988 } };
+  migrateTerrainLayout(shallowTurtle);
+  expect(shallowTurtle.position.y).toBe(terrainHeight(shallowTurtle.position.x, shallowTurtle.position.z));
+});
 
 const ground = (x: number, z = -46): Position => ({ x, y: terrainHeight(x, z), z });
 const height = (p: Position) => p.y - terrainHeight(p.x, p.z);
@@ -25,7 +41,7 @@ function near(actual: Position, expected: Position) {
 function flatSave(serialized: string): string {
   const root = JSON.parse(serialized);
   delete root.terrainLayout;
-  const spatial = new Set(['position', 'targetPosition', 'origin', 'start', 'destination', 'attackOrigin']);
+  const spatial = new Set(['position', 'targetPosition', 'turnTarget', 'origin', 'start', 'destination', 'attackOrigin']);
   const flatten = (value: any) => {
     if (!value || typeof value !== 'object') return;
     for (const [key, child] of Object.entries(value) as [string, any][]) {
@@ -101,7 +117,7 @@ test('cave combat forecasts and executes Move and a saved move at negative eleva
   for (const threat of bait.snapshot.threats.filter(t => t.id.startsWith('cave-'))) expect(height(threat.position)).toBe(0);
 
   let dodge = gameAt(41); dodge.advance(.01); dodge.selectTarget('cave-bat');
-  expect(dodge.queueBait(ground(37.5,-45))).toBe(true); dodge.readyCombat(); dodge.advance(.5);
+  expect(dodge.queueBait(ground(37.5,-45))).toBe(true); finishGathering(dodge); dodge.readyCombat(); dodge.advance(.5);
   expect(dodge.snapshot.player.maneuver).toBe('bait');
   expect(height(dodge.snapshot.player.position)).toBe(0);
   const saved = dodge.save(), before = dodge.snapshot.player.position;
@@ -116,14 +132,14 @@ test('cave combat forecasts and executes Move and a saved move at negative eleva
 test('old solo saves migrate jump and maneuver offsets once, preserving progress and directions', () => {
   for (const maneuver of [false, true]) {
     const game = gameAt(maneuver ? 41 : 35, !maneuver);
-    if (maneuver) { game.advance(.01); game.selectTarget('cave-bat'); expect(game.queueBait(ground(37.5,-45))).toBe(true); game.readyCombat(); }
+    if (maneuver) { game.advance(.01); game.selectTarget('cave-bat'); expect(game.queueBait(ground(37.5,-45))).toBe(true); finishGathering(game); game.readyCombat(); }
     else tap(game, 'jump');
     game.advance(.2);
     const expected = JSON.parse(game.save());
     const restored = createAdventure({ save: flatSave(game.save()), now: () => 1000 });
     const saved = JSON.parse(restored.save());
     near(saved.state.position, expected.state.position);
-    expect(saved.terrainLayout).toBe(2);
+    expect(saved.terrainLayout).toBe(6);
     expect(saved.state.maneuver).toEqual(expected.state.maneuver);
     expect(saved.state.chapter).toEqual(expected.state.chapter);
     expect(saved.state.supplies).toBe(37); expect(saved.state.potions).toBe(4);
@@ -158,7 +174,8 @@ test('old shared private saves retain cave origin, actors and character progress
   world = createSharedAdventure({ save: world.save(), now: () => 1000 }); player = world.join('caver', 'Caver', 'warrior');
   expect(world.resume('caver')).toBe(true);
   player.setCameraForward(1, 0); player.setAction('forward', true); world.advance(.2); player.setAction('forward', false);
+  const beforeRejoin = player.snapshot.player.position;
   expect(world.rejoin('caver')).toBe(true);
-  near(player.snapshot.player.position, ground(55));
+  near(player.snapshot.player.position, beforeRejoin);
   expect(player.snapshot.player.grounded).toBe(true);
 });

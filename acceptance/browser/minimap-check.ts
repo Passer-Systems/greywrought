@@ -1,0 +1,19 @@
+import { check, type openBrowser } from "./session.js";
+
+export async function checkMinimap(page: Awaited<ReturnType<typeof openBrowser>>, location: string): Promise<void> {
+  await page.waitFor('document.getElementById("map-terrain").dataset.ready==="true"');
+  const sample = await page.evaluate<{ colors: number; centered: boolean; square: boolean; span: number }>(`(() => {
+    const canvas=document.getElementById('map-terrain'), context=canvas.getContext('2d'), pixels=context.getImageData(0,0,512,512).data, colors=new Set();
+    for(let i=0;i<pixels.length;i+=64)colors.add((pixels[i]>>4)+','+(pixels[i+1]>>4)+','+(pixels[i+2]>>4));
+    const arrow=document.getElementById('map-player');
+    return {colors:colors.size,centered:arrow.style.left==='50%'&&arrow.style.top==='50%',square:getComputedStyle(document.getElementById('map-field')).borderRadius==='0px',span:Number(canvas.dataset.span)};
+  })()`);
+  check(sample.colors > 30, `${location}: minimap contains shaded scenery detail`);
+  check(sample.centered && sample.square, `${location}: centered arrow and square map`);
+  await page.shot(`minimap-${location}`);
+  check(await page.evaluate(`(() => {
+    const style=getComputedStyle(document.getElementById('map-field'));
+    return !document.querySelector('#map-clock,.map-zoom') && style.borderTopWidth==='1px' && style.borderTopStyle==='solid'
+      && getComputedStyle(document.getElementById('map-field'),'::after').content==='none';
+  })()`), 'Map has a thin edge with no clock, zoom buttons or decorative overlay');
+}

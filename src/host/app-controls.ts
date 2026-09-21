@@ -5,8 +5,17 @@ interface InstallPromptEvent extends Event {
 
 export function createAppControls(entry: HTMLElement, settings: HTMLElement) {
   const ownNameStorageKey = 'greywrought/show-own-name';
+  const neutralNamesStorageKey = 'greywrought/show-neutral-critter-names';
+  const atmosphereStorageKey = 'greywrought/atmosphere-quality';
   let showOwnName = false;
+  let showNeutralCritterNames = false;
+  let atmosphereQuality: 'off' | 'low' | 'high' = 'high';
   try { showOwnName = localStorage.getItem(ownNameStorageKey) === 'true'; } catch {}
+  try { showNeutralCritterNames = localStorage.getItem(neutralNamesStorageKey) === 'true'; } catch {}
+  try {
+    const stored = localStorage.getItem(atmosphereStorageKey);
+    if (stored === 'off' || stored === 'low' || stored === 'high') atmosphereQuality = stored;
+  } catch {}
   const installedDisplay = window.matchMedia('(display-mode: standalone), (display-mode: minimal-ui), (display-mode: fullscreen)');
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let installed = (installedDisplay.matches && !document.fullscreenElement) || (navigator as Navigator & { standalone?: boolean }).standalone === true;
@@ -28,6 +37,8 @@ export function createAppControls(entry: HTMLElement, settings: HTMLElement) {
     .app-controls-entry { position:absolute; top:12px; right:12px; z-index:10; justify-content:flex-end; max-width:calc(100% - 24px); padding:8px; border-radius:4px; background:#101917e8; }
     .app-controls-settings { margin-top:16px; padding-top:12px; border-top:1px solid #86734b; }
     .own-name-setting { display:flex; align-items:center; gap:8px; color:#f3e6c7; font:var(--ui-font-body) system-ui,sans-serif; cursor:pointer; }
+    .atmosphere-setting { display:flex; align-items:center; gap:8px; color:#f3e6c7; font:var(--ui-font-body) system-ui,sans-serif; }
+    .atmosphere-setting select { background:#26302d; color:#f3e6c7; border:1px solid #8e7a50; padding:4px 6px; }
   `;
   document.head.append(style);
   function listen(target: EventTarget, type: string, handler: EventListener): void {
@@ -40,6 +51,28 @@ export function createAppControls(entry: HTMLElement, settings: HTMLElement) {
   listen(ownName, 'change', () => {
     showOwnName = ownName.checked;
     try { localStorage.setItem(ownNameStorageKey, String(showOwnName)); } catch {}
+  });
+  const neutralNamesLabel = document.createElement('label'); neutralNamesLabel.className = 'own-name-setting';
+  const neutralNames = document.createElement('input'); neutralNames.type = 'checkbox'; neutralNames.id = 'show-neutral-critter-names'; neutralNames.checked = showNeutralCritterNames;
+  neutralNamesLabel.append(neutralNames, document.createTextNode('Show neutral critter nameplates')); settings.append(neutralNamesLabel);
+  const syncNeutralNames = () => { document.body.dataset.showNeutralCritterNames = String(showNeutralCritterNames); };
+  syncNeutralNames();
+  listen(neutralNames, 'change', () => {
+    showNeutralCritterNames = neutralNames.checked;
+    syncNeutralNames();
+    try { localStorage.setItem(neutralNamesStorageKey, String(showNeutralCritterNames)); } catch {}
+  });
+  const atmosphereLabel = document.createElement('label'); atmosphereLabel.className = 'atmosphere-setting';
+  const atmosphereSelect = document.createElement('select'); atmosphereSelect.id = 'atmosphere-quality'; atmosphereSelect.setAttribute('aria-label','Atmosphere quality');
+  for (const [value, label] of [['high', 'Atmosphere: High'], ['low', 'Atmosphere: Low'], ['off', 'Atmosphere: Off']] as const) {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = atmosphereQuality === value; atmosphereSelect.append(option);
+  }
+  atmosphereLabel.append(atmosphereSelect); settings.append(atmosphereLabel);
+  document.body.dataset.atmosphereQuality = atmosphereQuality;
+  listen(atmosphereSelect, 'change', () => {
+    const value = atmosphereSelect.value as 'off' | 'low' | 'high';
+    atmosphereQuality = value; document.body.dataset.atmosphereQuality = value;
+    try { localStorage.setItem(atmosphereStorageKey, value); } catch {}
   });
   const views = [entry, settings].map((host, index) => {
     const root = document.createElement('section');
@@ -116,11 +149,12 @@ export function createAppControls(entry: HTMLElement, settings: HTMLElement) {
   render();
   return {
     get showOwnName(): boolean { return showOwnName; },
+    get showNeutralCritterNames(): boolean { return showNeutralCritterNames; },
     dispose(): void {
       disposed = true; pendingInstall = null;
       for (const remove of removeListeners) remove();
       for (const view of views) view.root.remove();
-      ownNameLabel.remove();
+      ownNameLabel.remove(); neutralNamesLabel.remove(); atmosphereLabel.remove();
       style.remove();
     },
   };

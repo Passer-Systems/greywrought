@@ -1,7 +1,7 @@
 import { terrainHeight } from "./cave-layout.js";
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
-import { tap, retreatUntilReleased, finishCycle } from "./yard-test-fixtures.js";
+import { finishGathering, tap, retreatUntilReleased, finishCycle } from "./yard-test-fixtures.js";
 
 function seed(id: "nest" | "patrol") {
   const saved = JSON.parse(createAdventure({ archetype: "mage" }).save());
@@ -93,10 +93,10 @@ test("late arrivals remain frozen during planning and cannot attack until the ne
   saved.state.position = { x: 0, y: 0, z: 30 };
   Object.assign(saved.state.threats.find((t: { id: string }) => t.id === "patrol"), { position: { x: -5, y: 0, z: 30 }, targetPosition: { x: -5, y: 0, z: 30 } });
   const bee = saved.state.threats.find((t: { id: string }) => t.id === "nest");
-  Object.assign(bee, { health: 72, phase: "patrol", lootClaimed: false, position: { x: 5, y: 0, z: 30 }, targetPosition: { x: 5, y: 0, z: 30 } });
+  Object.assign(bee, { remainingSeconds: 60, health: 72, phase: "patrol", lootClaimed: false, position: { x: 5, y: 0, z: 30 }, targetPosition: { x: 5, y: 0, z: 30 } });
   const game = createAdventure({ save: JSON.stringify(saved) });
   game.selectTarget("patrol"); tap(game, "strike"); game.advance(.01);
-  game.selectTarget("nest"); tap(game, "strike");
+  finishGathering(game); game.selectTarget("nest"); tap(game, "strike");
   const enemy = () => game.snapshot.threats.find(t => t.id === "nest")!;
   const before = enemy().position; game.advance(1);
   expect(enemy().position).toEqual(before);

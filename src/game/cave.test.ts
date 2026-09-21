@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createAdventure, createSharedAdventure, getMonsterLore } from './adventure.js';
 import { caveBlockedPosition, terrainHeight } from './cave-layout.js';
-import { finishCycle, travel, tap } from './yard-test-fixtures.js';
+import { finishGathering, finishCycle, travel, tap } from './yard-test-fixtures.js';
 
 function encounter(id: string) {
   const save=JSON.parse(createAdventure().save());
@@ -17,17 +17,17 @@ test('Hollowdeep entrance and chamber passage are open, rock banks block shortcu
 });
 test('old five-creature solo and shared saves retain progress and acquire cave creatures',()=>{
   const save=JSON.parse(createAdventure().save());save.state.supplies=37;save.state.potions=4;
-  save.state.threats=save.state.threats.filter((t:{id:string})=>!t.id.startsWith('cave-'));
+  save.state.threats=save.state.threats.filter((t:{id:string})=>['scout','nest','warder','patrol','ritual-guardian'].includes(t.id));
   const game=createAdventure({save:JSON.stringify(save)});
   expect(game.snapshot.supplies).toBe(37);expect(game.snapshot.potions).toBe(4);
-  expect(game.snapshot.threats).toHaveLength(7);
+  expect(game.snapshot.threats).toHaveLength(30);
   const world=createSharedAdventure();world.join('caver','Caver','warrior');
-  const shared=JSON.parse(world.save());shared.world.threats=shared.world.threats.filter((t:{id:string})=>!t.id.startsWith('cave-'));
+  const shared=JSON.parse(world.save());shared.world.threats=shared.world.threats.filter((t:{id:string})=>['scout','nest','warder','patrol','ritual-guardian'].includes(t.id));
   const restored=createSharedAdventure({save:JSON.stringify(shared)});
   const player=restored.join('caver','Caver','warrior');
-  expect(player.snapshot.threats).toHaveLength(7);expect(restored.pause('caver')).toBe(true);
+  expect(player.snapshot.threats).toHaveLength(30);expect(restored.pause('caver')).toBe(true);
   const fork=createSharedAdventure({save:restored.save()});
-  expect(fork.join('caver','Caver','warrior').snapshot.threats).toHaveLength(7);
+  expect(fork.join('caver','Caver','warrior').snapshot.threats).toHaveLength(30);
   expect(fork.session('caver').mode).toBe('paused');
 });
 test('bat and crab announce different timings and deal their forecast damage',()=>{
@@ -135,7 +135,7 @@ test('Ironback closes ground at its faster pursuit pace before the slam warning'
   const game = createAdventure({ save: JSON.stringify(save) }); game.advance(.01);
   const before = game.snapshot.threats.find(threat => threat.id === 'cave-crab')!;
   expect(before.aggro).toBe(true);
-  game.readyCombat(); game.advance(.5);
+  finishGathering(game); game.readyCombat(); game.advance(.5);
   const after = game.snapshot.threats.find(threat => threat.id === 'cave-crab')!;
   expect(Math.hypot(before.position.x - after.position.x, before.position.z - after.position.z)).toBeCloseTo(2.1, 5);
   expect(after.phase).toBe('preparation');

@@ -1,12 +1,13 @@
+import { terrainHeight } from "./cave-layout.js";
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
-import { earnedChapter, foremanFixture, tap } from "./yard-test-fixtures.js";
+import { finishGathering, earnedChapter, foremanFixture, tap } from "./yard-test-fixtures.js";
 
 test("gear outside combat changes immediately with slot and ownership validation", () => {
   for (const phase of ["town", "expedition"] as const) {
     const save = JSON.parse(createAdventure().save());
     save.state.chapter = earnedChapter(1);
-    Object.assign(save.state, { phase, position: { x: 0, y: 0, z: phase === "town" ? -5 : 3 } });
+    Object.assign(save.state, { phase, position: { x: 0, y: terrainHeight(0, phase === "town" ? -5 : 3), z: phase === "town" ? -5 : 3 } });
     const game = createAdventure({ save: JSON.stringify(save) });
     game.equip("mainhand", "insulated-coat"); game.equip("mainhand", "yard-weapon");
     expect(game.snapshot.progression.equipment.mainhand).toBeNull();
@@ -26,7 +27,7 @@ test("equipment changes during planning cost no stamina and persist immediately"
   expect(game.snapshot.player.stamina).toBe(stamina);
   expect(game.snapshot.player.currentAction).toBe(currentAction);
   expect(game.snapshot.player.actionCooldown).toBe(cooldown);
-  game.readyCombat(); game.equip("chest", "insulated-coat");
+  finishGathering(game); game.readyCombat(); game.equip("chest", "insulated-coat");
   expect(game.snapshot.progression.damageReduction).toBe(0);
   expect(game.snapshot.combat.phase).toBe("active");
   expect(createAdventure({ save: game.save() }).snapshot.progression.damageReduction).toBe(0);

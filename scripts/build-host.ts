@@ -7,6 +7,7 @@ const result = await Bun.build({
   entrypoints: ["src/host/play.ts"],
   outdir: "build/host",
   target: "browser",
+  minify: true,
   naming: "play.js",
   external: ["three", "three/addons/*"],
   sourcemap: "linked",

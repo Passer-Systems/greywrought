@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createSharedAdventure } from "./adventure.js";
-import { earnedChapter, finishCycle, readyParty, travel } from "./yard-test-fixtures.js";
+import { finishGathering, earnedChapter, finishCycle, readyParty, travel } from "./yard-test-fixtures.js";
 
 const tap = (game: ReturnType<ReturnType<typeof createSharedAdventure>["join"]>, action: Parameters<typeof game.setAction>[0]) => {
   game.setAction(action, true); game.setAction(action, false);
@@ -34,7 +34,7 @@ describe("private paused encounters", () => {
     expect(bob.snapshot.carriedRelics).toBe(0);
     expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 5, aggro: true });
 
-    alice.selectTarget("ritual-guardian"); tap(alice, "strike"); alice.readyCombat(); world.advance(.1);
+    alice.selectTarget("ritual-guardian"); tap(alice, "strike"); alice.readyCombat(); finishGathering(alice, world); world.advance(.1);
     expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")!.health).toBe(0);
     alice.openLoot("ritual-guardian"); tap(alice, "takeLoot");
     expect(alice.snapshot.carriedRelics).toBe(1);
@@ -56,7 +56,7 @@ describe("private paused encounters", () => {
     finalBlow.world.threats.find((t: { id: string }) => t.id === "ritual-guardian").health = 5;
     world = createSharedAdventure({ save: JSON.stringify(finalBlow), now: () => 1000 });
     alice = world.join("alice", "alice", "mage"); bob = world.join("bob", "bob", "mage");
-    bob.selectTarget("ritual-guardian"); tap(bob, "strike"); readyParty(alice, bob); world.advance(.1);
+    bob.selectTarget("ritual-guardian"); tap(bob, "strike"); readyParty(alice, bob); finishGathering(bob, world); world.advance(.1);
     expect(bob.snapshot.player.health).toBeGreaterThan(0);
     expect(bob.snapshot.threats.find(t => t.id === "ritual-guardian")!.health).toBe(0);
     finishCycle(bob,world);const corpse=bob.snapshot.loot.find(t=>t.sourceId==="ritual-guardian")!;travel(bob,corpse.position.x,corpse.position.z,world);
@@ -88,7 +88,7 @@ describe("private paused encounters", () => {
     world = createSharedAdventure({ save: JSON.stringify(forked), now: () => 1000 });
     alice = world.join("alice", "Alice", "mage");
     expect(world.resume("alice")).toBe(true);
-    alice.selectTarget("ritual-guardian"); tap(alice, "strike"); alice.readyCombat(); world.advance(.1);
+    alice.selectTarget("ritual-guardian"); tap(alice, "strike"); alice.readyCombat(); finishGathering(alice, world); world.advance(.1);
     expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")!.health).toBe(0);
     alice.openLoot("ritual-guardian"); tap(alice, "takeLoot");
     expect(alice.snapshot.loot.every(loot => !loot.available)).toBe(true);
@@ -136,7 +136,7 @@ describe("private paused encounters", () => {
     expect(world.pause("alice")).toBe(true);
     expect(bob.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 5, aggro: true, targetPlayerId: "bob" });
     expect(world.resume("alice")).toBe(true);
-    alice.selectTarget("ritual-guardian"); tap(alice, "strike"); alice.readyCombat(); world.advance(.1);
+    alice.selectTarget("ritual-guardian"); tap(alice, "strike"); alice.readyCombat(); finishGathering(alice, world); world.advance(.1);
     expect(alice.snapshot.threats.find(t => t.id === "ritual-guardian")!.health).toBe(0);
     expect(world.rejoin("alice")).toBe(true);
     world.advance(1);
@@ -412,13 +412,13 @@ describe('party encounter cohorts', () => {
     expect(world.rejoin('alice')).toBe(false);
     expect(observer.snapshot.threats.find(t => t.id === 'ritual-guardian')!.active).toBe(false);
     expect(world.resume('bob')).toBe(true);
-    tap(bob, 'brace'); readyParty(alice, bob); world.advance(.1);
+    tap(bob, 'brace'); readyParty(alice, bob); finishGathering(bob, world); world.advance(.1);
     const clockBefore = alice.snapshot.combat.elapsedSeconds;
     world.advance(.1);
     expect(alice.snapshot.combat.elapsedSeconds - clockBefore).toBeCloseTo(.1, 5);
     expect(bob.snapshot.combat.elapsedSeconds).toBe(alice.snapshot.combat.elapsedSeconds);
     finishCycle(bob, world);
-    bob.selectTarget('ritual-guardian'); tap(bob, 'strike'); readyParty(alice, bob); world.advance(.1);
+    bob.selectTarget('ritual-guardian'); tap(bob, 'strike'); readyParty(alice, bob); finishGathering(bob, world); world.advance(.1);
     expect(alice.snapshot.threats.find(t => t.id === 'ritual-guardian')!.health).toBe(0);
     for (const player of [alice, bob]) {
       player.openLoot('ritual-guardian'); tap(player, 'takeLoot');

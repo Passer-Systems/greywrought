@@ -1,5 +1,6 @@
-import { conformToTerrain } from "./terrain-geometry.js";
+import { combatSurfaceHeight, conformToTerrain } from "./terrain-geometry.js";
 import { BufferGeometry, CircleGeometry, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, RingGeometry } from "three";
+import { combatCell, COMBAT_CELL_SIZE } from "../game/combat-grid.js";
 import type { AdventureSnapshot, Position } from "../game/adventure-types.js";
 
 export type CombatPreview = { readonly kind: "enemy"; readonly threatId: string }
@@ -15,16 +16,20 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
   const stroke = new MeshBasicMaterial({ color: COLOR, transparent: true, opacity: 0.82, depthWrite: false });
   const enemyStroke = new MeshBasicMaterial({ color: 0xf08b72, transparent: true, opacity: .9, depthWrite: false });
   const playerStroke = new MeshBasicMaterial({ color: 0x84edb1, transparent: true, opacity: .95, depthWrite: false });
+  const enemyTile = new MeshBasicMaterial({ color: 0xe64d55, transparent: true, opacity: .34, depthWrite: false });
+  const playerTile = new MeshBasicMaterial({ color: 0x84edb1, transparent: true, opacity: .2, depthWrite: false });
   const fill = new MeshBasicMaterial({ color: COLOR, transparent: true, opacity: 0.09, depthWrite: false });
   const lineGeometry = new PlaneGeometry(1, 1, 1, 32);
+  const tileGeometry = new PlaneGeometry(COMBAT_CELL_SIZE * .82, COMBAT_CELL_SIZE * .82);
   const ringGeometry = new RingGeometry(0.98, 1, 48);
   const landingGeometry = new RingGeometry(0.2, 0.26, 24);
   const areaGeometry = new CircleGeometry(1, 48);
   const arrowGeometry = new BufferGeometry();
   arrowGeometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0.38, 0.17, 0, -0.16, -0.17, 0, -0.16], 3));
   let signature = "";
+  let reference: Position | undefined;
   function addGround(mesh: Mesh, lift: number) {
-    mesh.geometry = mesh.geometry.clone(); root.add(mesh); conformToTerrain(mesh, lift);
+    mesh.geometry = mesh.geometry.clone(); root.add(mesh); conformToTerrain(mesh, lift, (x,z)=>combatSurfaceHeight(x,z,reference));
   }
   function clear() {
     for (const mesh of root.children) if (mesh instanceof Mesh) mesh.geometry.dispose();
@@ -58,17 +63,32 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
       addGround(disk, GROUND_HEIGHT);
     }
   }
+  function routeTiles(points: readonly Position[], material: MeshBasicMaterial) {
+    const seen = new Set<string>();
+    for (const point of points) {
+      const x = combatCell(point.x), z = combatCell(point.z), key = `${x},${z}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const tile = new Mesh(tileGeometry, material);
+      tile.rotation.x = -Math.PI / 2;
+      tile.position.set(x, GROUND_HEIGHT + .015, z);
+      tile.renderOrder = 2;
+      addGround(tile, GROUND_HEIGHT + .015);
+    }
+  }
 
   return {
-    update(snapshot: Pick<AdventureSnapshot, "combat">, preview: CombatPreview | { readonly kind: "destination" } | null) {
+    update(snapshot: Pick<AdventureSnapshot, "combat"> & Partial<Pick<AdventureSnapshot,"player">>, preview: CombatPreview | { readonly kind: "destination" } | null) {
+      reference = snapshot.player?.position;
       const forecast = snapshot.combat.phase === "preparation" && preview ? snapshot.combat.forecast : null;
+      const hasMove = preview?.kind === "move" && forecast?.paths.some(path => path.actorId === forecast.playerId && path.queueId === preview.queueId);
       const paths = forecast?.paths.filter(path => preview?.kind === "destination" || (preview?.kind === "enemy"
         ? path.actorId === preview.threatId
-        : preview?.kind === "move" && path.queueId === preview.queueId && path.actorId === forecast.playerId)) ?? [];
+        : preview?.kind === "move" && hasMove && (path.actorId !== forecast.playerId || (path.queueId === preview.queueId && path.actorId === forecast.playerId)))) ?? [];
       const events = forecast?.events.filter(event => preview?.kind === "destination" ? event.kind === "hit" && event.targetId === forecast.playerId : (event.kind === "collision" || event.kind === "ignition" || event.kind === "interruption")
         && (preview?.kind === "enemy" ? event.sourceId === preview.threatId
-          : preview?.kind === "move" && event.queueId === preview.queueId && event.sourceId === forecast.playerId)) ?? [];
-      const nextSignature = JSON.stringify({ preview, paths, events });
+          : preview?.kind === "move" && hasMove && event.queueId === preview.queueId && event.sourceId === forecast.playerId)) ?? [];
+      const nextSignature = JSON.stringify({ preview, paths, events, reference });
       if (nextSignature === signature) return;
       signature = nextSignature;
       clear();
@@ -78,7 +98,9 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
       for (const path of paths) {
         const last = path.points.at(-1);
         if (!last) continue;
-        const material = preview?.kind === "destination" ? path.actorId === forecast?.playerId ? playerStroke : enemyStroke : stroke;
+        const isPlayer = path.actorId === forecast?.playerId;
+        const material = preview?.kind === "destination" || preview?.kind === "move" ? isPlayer ? playerStroke : enemyStroke : stroke;
+        if (path.kind === "move") routeTiles(path.points, isPlayer ? playerTile : enemyTile);
         for (let index = 1; index < path.points.length; index++) line(path.points[index - 1]!, path.points[index]!, 0.065, material);
         const before = [...path.points].reverse().find(point => Math.hypot(last.x - point.x, last.z - point.z) > 0.1);
         if (before) {
@@ -109,7 +131,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
     dispose() {
       clear(); root.removeFromParent();
       lineGeometry.dispose(); ringGeometry.dispose(); landingGeometry.dispose(); areaGeometry.dispose(); arrowGeometry.dispose();
-      stroke.dispose(); enemyStroke.dispose(); playerStroke.dispose(); fill.dispose();
+      tileGeometry.dispose(); stroke.dispose(); enemyStroke.dispose(); playerStroke.dispose(); enemyTile.dispose(); playerTile.dispose(); fill.dispose();
       canvas.dataset.telegraphs = "[]";
     },
   };

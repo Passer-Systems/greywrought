@@ -11,7 +11,11 @@ export function tap(game: AdventureGame, action: AdventureAction): void {
 export function readyParty(...players: AdventureGame[]): void {
   for (const player of players) if (player.snapshot.player.inCombat) player.readyCombat();
 }
+export function finishGathering(game: AdventureGame, world?: SharedAdventure): void {
+  (world ?? game).advance(game.snapshot.combat.gatheringRemainingSeconds);
+}
 export function finishCycle(game: AdventureGame, world?: SharedAdventure): void {
+  if (game.snapshot.combat.ready) finishGathering(game, world);
   for (let elapsed = 0; game.snapshot.combat.phase === "active" && elapsed < 30; elapsed += .05) (world ?? game).advance(.05);
   if (game.snapshot.combat.phase === "active") throw new Error("Committed combat did not finish within 30 seconds");
 }
@@ -91,7 +95,7 @@ export function earnedChapter(count = 3) {
   let game = createAdventure();
   for (const q of QUESTS.slice(0, count)) {
     const saved = JSON.parse(game.save());
-    saved.state.position = { x: q.giver === "mara" ? 3.4 : 5, y: 0, z: q.giver === "mara" ? -7.5 : -11 };
+    saved.state.position = { x: q.giver === "mara" ? 3.4 : 5, y: terrainHeight(q.giver === "mara" ? 3.4 : 5, q.giver === "mara" ? -7.5 : -11), z: q.giver === "mara" ? -7.5 : -11 };
     game = createAdventure({ save: JSON.stringify(saved) });
     game.quest(q.id, "accept");
     const objective = JSON.parse(game.save());

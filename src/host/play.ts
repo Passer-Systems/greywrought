@@ -1,7 +1,10 @@
+import { createWorldMap } from "./world-map.js";
+import { regionAt, settlementAt } from "../game/world-regions.js";
+import { createMinimap } from "./minimap.js";
 import { setAttribute, setDataset, setText } from "./dom-updates.js";
 import { createGearShop } from "./gear-shop.js";
 import { createAppControls } from './app-controls.js';
-import { COMBAT_RULES } from "../game/adventure.js";
+import { COMBAT_RULES, createAdventure } from "../game/adventure.js";
 import { classAction, classKit } from "../game/class-kit.js";
 import type { AdventureAction, AdventureSnapshot } from "../game/adventure-types.js";
 import {
@@ -9,6 +12,8 @@ import {
   normalizedCharacterName, normalizedDisplayName,
   type CharacterArchetype, type LocalCharacter, type LocalProfile,
 } from "./character-profile.js";
+import { createBellrunnerPanel } from "./bellrunner.js";
+import { nearbyBellrunner, type BellrunnerStopId } from "../game/bellrunner.js";
 import { createAdventureWorld, type AdventureWorld } from "./adventure-world.js";
 import { createAdventureAudio } from "./adventure-audio.js";
 import { createEnemyNameplates } from "./enemy-nameplates.js";
@@ -98,7 +103,6 @@ function readyCombat(): boolean {
 }
 const hudSize = new ResizeObserver(() => {
   unitFrames.layout();
-  running?.world.setCombatHudHeight(Math.max(0, element("world-wrap").getBoundingClientRect().bottom - element("combat-plan-mount").parentElement!.getBoundingClientRect().top));
 });
 hudSize.observe(element("combat-plan-mount").parentElement!);
 const bank = createBankPanel(element("adventure-hud"), {
@@ -108,6 +112,10 @@ const bank = createBankPanel(element("adventure-hud"), {
   },
   onClose: () => { pulse("closeBank"); running?.world.canvas.focus(); },
 });
+const bellrunner = createBellrunnerPanel(element("adventure-hud"), destination => { if (running?.ready && !paused) running.game.fly(destination); }, () => running?.world.canvas.focus());
+function openBellrunner(id: BellrunnerStopId): void {
+  if (running?.ready && !paused && !running.game.snapshot.player.flight && !running.game.snapshot.player.inCombat && nearbyBellrunner(running.game.snapshot.player.position)?.id === id) bellrunner.show(id);
+}
 const inn = createInnPanel(element("adventure-hud"), {
   onQuest: submitQuest,
   onRest: () => pulse("rest"),
@@ -296,7 +304,7 @@ const classes: Record<CharacterArchetype, { name: string; copy: string }> = {
   artificer: { name: "Artificer", copy: "A works engineer who answers danger with a rivet tool, plated wards, and overclocked machinery." },
 };
 const keyActions: Readonly<Record<string, AdventureAction>> = {
-  KeyW: "forward", KeyS: "backward", KeyA: "left", KeyD: "right", Space: "jump",
+  KeyW: "forward", KeyS: "backward", KeyA: "left", KeyD: "right", Space: "jump", ControlLeft: "dive", ControlRight: "dive",
   KeyG: "gather", KeyR: "ritual",
   KeyF: "interact", KeyT: "rest", Tab: "target",
 };
@@ -363,6 +371,7 @@ function setBaitAiming(value: boolean): void {
 }
 function menuOpen(): boolean { return !element("pause-panel").hidden; }
 function pressAction(action: AdventureAction): void {
+  if (action === "interact" && running?.ready && !paused) { const stop=nearbyBellrunner(running.game.snapshot.player.position); if (stop) {openBellrunner(stop.id);return;} }
   if (menuOpen()) return;
   if (action === "strike" && running?.selection?.kind !== "enemy") return;
   if (action === "target" && running) running.selection = { kind: "enemy", id: running.game.snapshot.selectedThreat };
@@ -372,7 +381,7 @@ function pressAction(action: AdventureAction): void {
     return;
   }
   if (action === "strike" || action === "brace") setBaitAiming(false);
-  if (combatExecutionLocked() && ["forward", "backward", "left", "right", "jump", "strike", "brace", "drinkPotion"].includes(action)) return;
+  if (combatExecutionLocked() && ["forward", "backward", "left", "right", "jump", "dive", "strike", "brace", "drinkPotion"].includes(action)) return;
   running?.game.setAction(action, true);
 }
 function pulse(action: AdventureAction): void {
@@ -404,7 +413,7 @@ function toggleAggroRanges(kind: "direct" | "help" = "direct"): void {
     const { world, game } = running;
     world.setAggroRangesVisible(aggroRangesVisible);
     world.setHelpRangesVisible(helpRangesVisible);
-    if (paused) world.render(game.snapshot, 0, game.renderPlayer, undefined, game.connectionRevision);
+    if (paused) world.render(game.snapshot, 0, game.renderPlayer, undefined, game.connectionRevision, game.serverWallTimeMillis);
   }
 }
 function save(_force = false): void {
@@ -447,6 +456,7 @@ function renderEntry(): void {
   element("adventure-hud").hidden = route !== "world";
   for (const view of ["account", "creator", "roster"]) element(`entry-${view}`).hidden = route !== view;
   if (route === "world") return;
+  worldMap.close();
   const selected = selectedCharacter();
   document.body.dataset.rosterTab = rosterTab;
   for (const tab of ["active", "rip"] as const) button(`entry-roster-${tab}`).setAttribute("aria-pressed", String(rosterTab === tab));
@@ -538,6 +548,7 @@ function deletePendingCharacter(): void {
   renderEntry();
 }
 function returnToRoster(): void {
+  worldMap.close();
   questRewards.reset();
   stopFrames();
   release();
@@ -587,7 +598,7 @@ function syncEncounter(): void {
     button('pause-open').setAttribute('aria-expanded', String(!element('pause-panel').hidden));
     world.updatePlayers(game.players.filter(player => player.id !== character.id));
     world.updateChat(game.chat, character.id);
-    world.render(game.snapshot, 0, game.renderPlayer, paused ? undefined : game.serverTime, game.connectionRevision);
+    world.render(game.snapshot, 0, game.renderPlayer, paused ? undefined : game.serverTime, game.connectionRevision, game.serverWallTimeMillis);
     renderHud(game.snapshot);
     nameplates?.render(selectedSnapshot(game.snapshot), world, { selfId: character.id, players: game.players });
     audio.update(game.snapshot, paused);
@@ -597,20 +608,21 @@ function syncEncounter(): void {
   const waiting = game.online && !game.inputEnabled && game.session.mode !== 'paused';
   text('pause-title', !game.online ? 'Connection lost' : game.pendingTransition === 'resume' ? 'Resuming encounter…' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : game.session.mode === 'shared' ? 'Shared world' : 'Private encounter');
   text('pause-copy', !game.online
-    ? 'Reconnecting… Your encounter pauses when the connection loss is detected. It will stay paused when you return.'
-    : waiting ? grouped ? 'Pausing your party’s encounter while the world continues.' : 'Saving your encounter while the world continues.'
-    : game.session.mode === 'shared' ? grouped ? 'The world keeps running while this menu is open. When any party member pauses, everyone enters the same private encounter without rewards.' : 'The world keeps running while this menu is open. Pause creates a private encounter without rewards; the rest of the world continues.'
-    : game.session.mode === 'paused' ? grouped ? 'Your party’s encounter is paused. Resume continues it for everyone. The rest of the world keeps running.' : 'Your private encounter is paused. The rest of the world continues without you.'
-    : grouped ? 'Your party shares this private encounter. Pausing, resuming, and returning to the main world affect everyone.' : 'Your private encounter keeps running while this menu is open.');
+    ? 'Reconnecting… your encounter will stay paused.'
+    : waiting ? grouped ? 'Pausing for your party…' : 'Saving your encounter…'
+    : game.session.mode === 'shared' ? grouped ? 'Your party is in the shared world.' : 'You are in the shared world.'
+    : game.session.mode === 'paused' ? grouped ? 'Your party’s encounter is paused.' : 'Your private encounter is paused.'
+    : grouped ? 'Your party shares this private encounter.' : 'Your private encounter is active.');
   element('pause-private-warning').hidden = game.session.mode === 'shared';
-  element('pause-rejoin-hint').hidden = game.session.mode === 'shared';
   button('pause-action').disabled = !game.online || !game.inputEnabled;
   element('pause-action').hidden = game.session.mode === 'paused';
   element('pause-resume').hidden = game.session.mode !== 'paused';
   text('pause-toggle-label', game.session.mode === 'paused' ? 'Resume' : 'Pause');
+  text('pause-toggle-tooltip', game.session.mode === 'paused' ? 'Resume' : 'Pause');
+  element('pause-toggle-pause-icon').hidden = game.session.mode === 'paused';
+  element('pause-toggle-play-icon').hidden = game.session.mode !== 'paused';
   button('pause-toggle').setAttribute('aria-label', game.session.mode === 'paused' ? 'Resume encounter' : 'Pause encounter');
   button('pause-toggle').disabled = !game.online || game.pendingTransition !== null;
-  text('pause-rejoin-hint', game.session.canRejoin ? game.session.mode === 'paused' ? 'Out of combat. Resume your encounter to rejoin the main world from the top bar.' : 'Out of combat. Close this menu to rejoin the main world from the top bar.' : 'In combat. Finish the encounter before rejoining the main world.');
   button('pause-resume').disabled = !game.online || game.session.mode !== 'paused' || game.pendingTransition !== null;
   button('encounter-rejoin').disabled = !game.online || !game.session.canRejoin || game.pendingTransition !== null;
   button('encounter-pause').disabled = game.pendingTransition !== null;
@@ -689,10 +701,14 @@ function toggleLorebook(): void {
   lorebook.open(running.game.snapshot.selectedThreat);
   button("lorebook-open").setAttribute("aria-expanded", "true");
 }
+const worldMap = createWorldMap(element("adventure-hud"), button("world-map-open"), release, () => running?.world.canvas.focus());
+click("world-map-open", () => { if (running?.ready && route === "world" && !menuOpen()) worldMap.toggle(); });
+removers.push(() => worldMap.dispose());
+const minimap = createMinimap(element("map-terrain") as HTMLCanvasElement);
 let mapCenter = { x: 0, z: -8 };
 function mapPosition(target: HTMLElement, x: number, z: number): void {
-  target.style.left = `${50 + (x - mapCenter.x) * 100 / 64}%`;
-  target.style.top = `${50 - (z - mapCenter.z) * 100 / 64}%`;
+  target.style.left = `${50 + (x - mapCenter.x) * 100 / minimap.span}%`;
+  target.style.top = `${50 - (z - mapCenter.z) * 100 / minimap.span}%`;
 }
 function makeEnemyInterface(snapshot: AdventureSnapshot): void {
   for (const place of snapshot.places) {
@@ -712,8 +728,6 @@ function makeEnemyInterface(snapshot: AdventureSnapshot): void {
     markers.set(threat.id, marker);
   });
 }
-const serverClockFormat = new Intl.DateTimeFormat('en-GB', {timeZone:'UTC',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
-let displayedServerMinute = -1;
 function selectedSnapshot(snapshot: AdventureSnapshot): AdventureSnapshot {
   const app = running; if (!app) return snapshot;
   if (app.lastEnemyTarget !== snapshot.selectedThreat && app.selection?.kind === "enemy") app.selection = { kind: "enemy", id: snapshot.selectedThreat };
@@ -763,15 +777,6 @@ function clearUnitTarget(): void {
 function renderHud(snapshot: AdventureSnapshot): void {
   snapshot = selectedSnapshot(snapshot);
   updateParty();
-  const wallTime = running?.game.serverWallTimeMillis;
-  const minute = running?.game.online && typeof wallTime === 'number' && Number.isFinite(wallTime) ? Math.floor(wallTime / 60_000) : -1;
-  if (minute !== displayedServerMinute) {
-    displayedServerMinute = minute;
-    const clock = element('map-clock');
-    clock.textContent = minute < 0 ? '--:--' : serverClockFormat.format(minute * 60_000);
-    if (minute < 0) clock.removeAttribute('datetime');
-    else clock.setAttribute('datetime', new Date(minute * 60_000).toISOString());
-  }
   const { player } = snapshot;
   loadActionBarOrder(player.archetype);
   const data = document.body.dataset;
@@ -803,14 +808,10 @@ function renderHud(snapshot: AdventureSnapshot): void {
     gameCombatPhase: snapshot.combat.phase,
     gameCombatRemaining: String(snapshot.combat.remainingSeconds),
   });
-  const stamina = element("combat-stamina");
-  setAttribute(stamina, "aria-valuenow", String(player.stamina));
-  setAttribute(stamina, "aria-valuemin", "0"); setAttribute(stamina, "aria-valuemax", String(player.maximumStamina));
-  setAttribute(stamina, "title", "Stamina " + player.stamina + " / " + player.maximumStamina);
-  element("combat-stamina-fill").style.width = (100 * player.stamina / player.maximumStamina) + "%";
   setDataset(data, { archetype: player.archetype });
   text("bait-aim-hint", moveAimError || `Move · click a destination tile (up to ${classKit(player.archetype).movementTiles} tiles) · Esc cancels`);
-  text("adventure-zone", (snapshot.phase === "town" ? `${YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : YARD.region) + ` · Level ${snapshot.progression.level}`);
+  const settlement = settlementAt(player.position.x, player.position.z);
+  text("adventure-zone", (snapshot.phase === "town" ? `${settlement?.name ?? YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : regionAt(player.position.x,player.position.z).name) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players, running.selection?.kind === "player" ? running.selection.id === running.character.id ? { id: running.character.id, name: running.character.name, player: snapshot.player } : running.game.players.find(player => player.id === running!.selection!.id) : undefined);
   combatPlan.update(snapshot);
   if (snapshot.combat.phase !== "preparation" || snapshot.combat.ready) setBaitAiming(false);
@@ -821,6 +822,8 @@ function renderHud(snapshot: AdventureSnapshot): void {
   setDataset(data, { gameRemotePlayers: JSON.stringify(running?.game.players ?? []) });
   bank.update(snapshot);
   inn.update(snapshot, snapshot.innOpen);
+  bellrunner.update(snapshot);
+  data.gameFlight = JSON.stringify(snapshot.player.flight ?? null);
   shop.update(snapshot); gearShop.update(snapshot);
   trade.update(snapshot);
   const selected = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat);
@@ -838,13 +841,14 @@ function renderHud(snapshot: AdventureSnapshot): void {
     if (control.disabled !== disabled) control.disabled = disabled;
     setAttribute(control, "aria-label", spec.name);
     setAttribute(control, "aria-pressed", String(action === "bait" && baitAiming));
-    setDataset(control.dataset, { range: range.state });
+    const openingStrike = targeted && snapshot.combat.openingStrikeAvailable;
+    setDataset(control.dataset, { range: range.state, openingStrike: String(openingStrike) });
     control.classList.toggle("action-in-range", targeted && range.state === "in" && !control.disabled);
     setText(control.querySelector<HTMLElement>(".action-tooltip strong")!, spec.name);
-    setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, spec.description);
+    setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, spec.description + (openingStrike ? " Attack before you are detected to land an opening hit before the first turn." : ""));
     const art = control.querySelector<HTMLImageElement>(".action-art img")!;
     const source = publicUrl(spec.icon); if (art.getAttribute("src") !== source) art.src = source;
-    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : action === "bait" ? "Click a highlighted tile to plan your movement" : "Plan · " + cost + " stamina";
+    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : openingStrike ? "Opening strike · hit first" : action === "bait" ? "Click a highlighted tile to plan your movement" : "Plan · " + cost + " stamina";
     text(action + "-ready", detail + (range.text ? " · " + range.text : ""));
   }
   const potionControl = actionBar().querySelector<HTMLButtonElement>('[data-action="drinkPotion"]');
@@ -881,7 +885,8 @@ function renderHud(snapshot: AdventureSnapshot): void {
   questLog.update(snapshot);
   questRewards.update(snapshot);
   mapCenter = player.position;
-  setAttribute(element("map-terrain"), "viewBox", `${mapCenter.x - 32} ${-mapCenter.z - 32} 64 64`);
+  minimap.update(mapCenter.x, mapCenter.z);
+  worldMap.update(player, running?.game.players.filter(remote => running?.game.party?.members.some(member => member.id === remote.id)) ?? []);
   for (const place of snapshot.places) {
     const marker = document.querySelector<HTMLElement>(`[data-map-place="${place.id}"]`);
     if (marker) mapPosition(marker, place.position.x, place.position.z);
@@ -951,6 +956,7 @@ function bindWorld(app: RunningAdventure): void {
       }
       const picked = app.world.pick(event.clientX, event.clientY);
       if (picked?.kind === "resource" && event.button === 0) pulse("gather");
+      else if (picked?.kind === "bellrunner" && event.button === 0) openBellrunner(picked.id);
       else if (picked?.kind === "npc" && event.button === 0) app.game.interactNpc(picked.id);
       else if (picked?.kind === "chest") {
         if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
@@ -986,21 +992,27 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
   renderEntry();
   text("entry-enter-world", "Preparing your journey…");
   text("entry-roster-feedback", `Loading ${YARD.settlement} and your adventurer…`);
+  let preparingWorld: AdventureWorld | null = null;
   try {
-    const game = await connectAdventure(character);
-    if (game.snapshot.phase === "lost") { game.close(); showFallenCharacter(character); return; }
     audio.reset();
-    const world = createAdventureWorld(element("world-wrap"), game.snapshot, id => { if (!paused) game.interactNpc(id); }, destination => game.previewBait(destination), { selfId: character.id, selfName: character.name, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu });
+    // Prepare the scene before joining: loading must not expose an adventurer
+    // to combat or hold up their connection's heartbeat.
+    const world = preparingWorld = createAdventureWorld(element("world-wrap"), createAdventure({ archetype: character.archetype }).snapshot, id => { if (!paused) running?.game.interactNpc(id); }, destination => running?.game.previewBait(destination) ?? Promise.resolve(null), { selfId: character.id, selfName: character.name, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu });
+    await world.ready;
+    if (!alive) { world.dispose(); return; }
+    const game = await connectAdventure(character);
+    if (game.snapshot.phase === "lost") { world.dispose(); game.close(); showFallenCharacter(character); return; }
     world.setAggroRangesVisible(aggroRangesVisible);
     world.setHelpRangesVisible(helpRangesVisible);
     world.updateChat(game.chat, character.id);
     const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false, selection: null, lastEnemyTarget: game.snapshot.selectedThreat, attackers: new Set() };
     running = app;
+    preparingWorld = null;
     bindWorld(app);
-    await world.ready;
     if (!alive || running !== app) { world.dispose(); return; }
     if (app.game.snapshot.phase === "lost") { showFallenCharacter(character); return; }
-    world.render(game.snapshot, 0, game.renderPlayer, game.serverTime, game.connectionRevision);
+    minimap.setAtlas(world.minimap);
+    world.render(game.snapshot, 0, game.renderPlayer, game.serverTime, game.connectionRevision, game.serverWallTimeMillis);
     app.ready = true;
     lastTime = 0;
     const forward = world.forward(); game.setCameraForward(forward.x, forward.z);
@@ -1019,6 +1031,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     save(true);
     syncEncounter();
   } catch (cause: unknown) {
+    preparingWorld?.dispose();
     if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }
     text("entry-roster-feedback", "Your journey could not be opened. Existing saved progress has been kept. Reload to try again.");
     console.error("Adventure entry failed", cause);
@@ -1077,6 +1090,7 @@ click("entry-creator-back", () => { route = profile?.characters.length ? "roster
 click("entry-change-character", () => { if (!entering) { route = "creator"; renderEntry(); } });
 click("entry-enter-world", () => { const character = selectedCharacter(); if (character) void enterWorld(character); });
 click("pause-open", () => setMenuOpen(element("pause-panel").hidden, "settings"));
+click("pause-close", () => setMenuOpen(false));
 click("aggro-ranges-toggle", () => toggleAggroRanges());
 click("help-ranges-toggle", () => toggleAggroRanges("help"));
 for (const tab of ["encounter", "settings"] as const) {
@@ -1129,10 +1143,15 @@ listen(window, "keydown", (event) => {
     return;
   }
   if (route !== "world") return;
+  if (worldMap.isOpen) {
+    if (event.code === "Escape" || event.code === "KeyM") { event.preventDefault(); if (!event.repeat) worldMap.close(); }
+    return;
+  }
   if (event.code === "Escape" && partyPanel.closeMenu()) { event.preventDefault(); return; }
   if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
   if (event.target instanceof HTMLElement && event.target.isContentEditable) return;
   if (menuOpen() && event.code !== "Escape" && event.code !== "KeyH" && event.code !== "KeyV") return;
+  if (event.code === "KeyM" && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); if (!event.repeat && running?.ready) worldMap.toggle(); return; }
   if (event.code === "Enter") { event.preventDefault(); release(); chatLog.focusInput(); return; }
   if ((event.code === "KeyH" || event.code === "KeyV") && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
     event.preventDefault();
@@ -1175,6 +1194,7 @@ listen(window, "keydown", (event) => {
       else if ((running?.game.snapshot.shopOpen || running?.game.snapshot.vendorOpen)) pulse("closeShop");
       else if (running?.game.snapshot.bankOpen) pulse("closeBank");
       else if (running?.game.snapshot.innOpen) pulse("closeInn");
+      else if (bellrunner.open) bellrunner.close();
       else if (running?.selection) clearUnitTarget();
       else setMenuOpen(true);
     }
@@ -1232,7 +1252,7 @@ function tick(now: number): void {
   running.world.updatePlayers(running.game.players.filter(player => player.id !== running!.character.id));
   running.world.updateChat(running.game.chat, running.character.id);
   selectedSnapshot(snapshot);
-  running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime, running.game.connectionRevision);
+  running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime, running.game.connectionRevision, running.game.serverWallTimeMillis);
   if (now + 0.5 >= nextHudTime) {
     renderHud(snapshot);
     nextHudTime = Math.max(nextHudTime + 50, now);
@@ -1257,6 +1277,7 @@ window.__GREYWROUGHT_TEARDOWN__ = () => {
   combatPlan.dispose();
   bank.dispose();
   inn.dispose();
+  bellrunner.dispose();
   shop.dispose(); gearShop.dispose();
   trade.dispose();
   lorebook.dispose();

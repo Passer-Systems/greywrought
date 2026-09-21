@@ -8,7 +8,7 @@ const url = "http://127.0.0.1:4295/";
 Bun.env.GREYWROUGHT_GAME_URL = url;
 Bun.env.GREYWROUGHT_DEBUG_PORT = "9457";
 await mkdir("build/browser", { recursive: true });
-const frontend = Bun.spawn([process.execPath, "scripts/dev-server.ts"], {
+const frontend = Bun.spawn([process.execPath, Bun.env.GREYWROUGHT_TEST_BUILT === "1" ? "scripts/static-server.ts" : "scripts/dev-server.ts"], {
   env: { ...Bun.env, GREYWROUGHT_PORT: "4295", GREYWROUGHT_LOCAL_WORLD: "0" },
   stdout: Bun.file("build/browser/relic-frontend.log"), stderr: Bun.file("build/browser/relic-frontend-errors.log"),
 });
@@ -62,7 +62,7 @@ try {
       check(await page.evaluate(`relicState.threats.find(t=>t.id===${JSON.stringify(id)}).name===${JSON.stringify(name)}`), "Updated creature name must reach the client");
       const model = "RelicWarden";
       check(await page.evaluate(`performance.getEntriesByType('resource').some(e=>e.name.endsWith('/${model}.glb'))`), `${name} asset must load`);
-      check(await page.evaluate(`!performance.getEntriesByType('resource').some(e=>['MushroomKing'].some(name=>e.name.endsWith('/'+name+'.glb')))`), "Retired models must not be requested by actors or portraits");
+      check(await page.evaluate(`performance.getEntriesByType('resource').some(e=>e.name.endsWith('/MushroomKing.glb'))`), "The Ossuary King must retain its separate model");
       await page.evaluate(`(async()=>{const {Mesh,SkinnedMesh}=await import('three');window.relicPoses=[];window.relicAttached=[];Mesh.prototype.onBeforeRender=function(){for(let p=this;p;p=p.parent)if(p.userData.threatId===${JSON.stringify(id)}){if(this instanceof SkinnedMesh){const s=Array.from(this.skeleton.boneMatrices).map(n=>n.toFixed(3)).join(',');if(!relicPoses.includes(s)&&relicPoses.length<40)relicPoses.push(s);}else if(this.userData.authoredSurface&&!relicAttached.includes(this.name))relicAttached.push(this.name);break;}};})()`);
       const distance = `(()=>{const t=relicState.threats.find(t=>t.id===${JSON.stringify(id)}),p=relicState.player.position;return Math.hypot(t.position.x-p.x,t.position.z-p.z)})()`;
       async function approach(range: number, stopOnCombat = false) {

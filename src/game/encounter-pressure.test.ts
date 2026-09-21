@@ -2,7 +2,8 @@ import { createAdventure, createSharedAdventure } from './adventure.js';
 import {test,expect} from 'bun:test';
 import type {AdventureGame, AdventureAction} from './adventure-types.js';
 import type {CharacterArchetype} from '../host/character-profile.js';
-import { earnedChapter, travel } from './yard-test-fixtures.js';
+import { finishGathering, earnedChapter, travel } from './yard-test-fixtures.js';
+import { terrainHeight } from './cave-layout.js';
 function tap(g:AdventureGame,a:AdventureAction){g.setAction(a,true);g.setAction(a,false);}
 test('all available creatures patrol, including the bee; pauses stay brief',()=>{
  const g=createAdventure(),before=g.snapshot;
@@ -30,8 +31,46 @@ test('social aggro reaches a nearby ally outside player detection; neutral bee s
 test('threat views expose the gameplay detection and call-for-help radii',()=>{
  const threats=createAdventure().snapshot.threats;
  expect(threats.map(t=>[t.id,t.aggroRange,t.callForHelpRange])).toEqual([
-  ['scout',6,9],['nest',0,9],['warder',8,9],['patrol',6,9],['ritual-guardian',8,9],['cave-bat',7,9],['cave-crab',8,9],
+    ['scout',6,9],['nest',0,9],['warder',8,9],['patrol',6,9],['ritual-guardian',8,9],['cave-bat',7,9],['cave-crab',8,9],['pond-turtle',0,0],['meadow-rat',0,9],['meadow-rat-2',0,9],['meadow-bird',0,9],['meadow-bird-2',0,9],['meadow-bird-3',0,9],['scrap-skitter',0,0],['rust-skitter',0,0],['moss-skitter',0,0],['pond-turtle-west',0,0],['pond-turtle-north',0,0],['pond-turtle-south',0,0],['lake-dreadnought',7,0],
+    ['glassmire-lantern',6,9],['glassmire-stalker',6,9],['glassmire-grazer',0,0],['choir-cantor',7,9],['choir-hound',7,9],['choir-sacristan',7,9],['ossuary-king',6,9],['ossuary-wing',6,9],['brinewood-bee',0,0],['suture-scavenger',0,0],
  ]);
+});
+
+test('small scavenger bots remain neutral until attacked and never call hostile help',()=>{
+ const data=JSON.parse(createAdventure({archetype:'mage'}).save());
+ Object.assign(data.state,{phase:'expedition',position:{x:-12,y:terrainHeight(-12,20),z:20}});
+ for(const t of data.state.threats){
+  if(t.id==='rust-skitter')t.position={x:-12,y:terrainHeight(-12,21),z:21};
+  else if(t.id==='scout')t.position={x:-12,y:terrainHeight(-12,28),z:28};
+  else if(t.active)Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
+ }
+ const game=createAdventure({save:JSON.stringify(data)});
+ game.advance(.01);
+ expect(game.snapshot.threats.find(t=>t.id==='rust-skitter')).toMatchObject({critter:true,aggro:false,disposition:'neutral',health:24,callForHelpRange:0});
+ game.selectTarget('rust-skitter');tap(game,'strike');game.advance(.01);
+ expect(game.snapshot.threats.find(t=>t.id==='rust-skitter')!.aggro).toBe(true);
+ expect(game.snapshot.threats.find(t=>t.id==='scout')!.aggro).toBe(false);
+});
+
+test('older solo, shared and private worlds gain scavenger bots without resetting existing creatures',()=>{
+ const solo=JSON.parse(createAdventure().save());
+ solo.state.threats=solo.state.threats.filter((t:{id:string})=>!t.id.endsWith('-skitter'));
+ solo.state.threats.find((t:{id:string})=>t.id==='scout').health=53;
+ const restoredSolo=createAdventure({save:JSON.stringify(solo)});
+ expect(restoredSolo.snapshot.threats.find(t=>t.id==='scout')!.health).toBe(53);
+ expect(restoredSolo.snapshot.threats.filter(t=>t.id.endsWith('-skitter'))).toHaveLength(3);
+ const seed=createSharedAdventure({now:()=>1000});seed.join('traveller','Traveller','mage');seed.pause('traveller');
+ const shared=JSON.parse(seed.save());
+ for(const world of [shared.world,shared.instances[0].world]){
+  world.threats=world.threats.filter((t:{id:string})=>!t.id.endsWith('-skitter'));
+  world.threats.find((t:{id:string})=>t.id==='scout').health=53;
+ }
+ const restored=createSharedAdventure({save:JSON.stringify(shared),now:()=>1000});
+ for(const game of [restored.join('traveller','Traveller','mage'),restored.join('observer','Observer','mage')]){
+  expect(game.snapshot.threats.find(t=>t.id==='scout')!.health).toBe(53);
+  expect(game.snapshot.threats.filter(t=>t.id.endsWith('-skitter'))).toHaveLength(3);
+ }
+ expect(restored.session('traveller').mode).toBe('paused');
 });
 
 function sharedSocialPull(){
@@ -148,13 +187,13 @@ test('summoning during planning preserves the existing committed cast',()=>{
 test('engaging another enemy during planning preserves the existing committed cast',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
  Object.assign(data.state,{phase:'expedition',position:{x:0,y:0,z:32.5}});
- data.state.threats.find((t:{id:string})=>t.id==='nest').position={x:7.5,y:0,z:32.5};
+ Object.assign(data.state.threats.find((t:{id:string})=>t.id==='nest'), { position:{x:7.5,y:0,z:32.5}, remainingSeconds:60 });
  for(const t of data.state.threats)if(t.active&&!['scout','nest'].includes(t.id))Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
  const game=createAdventure({save:JSON.stringify(data)});game.advance(.01);
  const scout=()=>game.snapshot.threats.find(t=>t.id==='scout')!;
  const bee=()=>game.snapshot.threats.find(t=>t.id==='nest')!;
  const first=scout().cast!;expect(first.duration).toBeGreaterThanOrEqual(.9);expect(first.duration).toBeLessThanOrEqual(1.1);
- game.advance(1);const remaining=scout().cast!.remainingSeconds;
+ finishGathering(game); game.advance(1);const remaining=scout().cast!.remainingSeconds;
  game.selectTarget('nest');tap(game,'strike');game.advance(.01);
  expect(bee().cast).toBeNull();expect(bee().joinsNextWindow).toBe(true);
  expect(scout().cast!.remainingSeconds).toBeCloseTo(remaining);

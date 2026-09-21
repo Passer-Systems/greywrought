@@ -153,9 +153,14 @@ character and world progress are saved by the shared server.
 
 ## Versions and archives
 
-`main` is the supported Greywrought game. Releases use `vMAJOR.MINOR.PATCH`
-tags; deployed directories use `greywrought-VERSION-COMMIT`. The browser pivot
-is version **0.3.0**. A deployment's `release.json` identifies its source version.
+`main` is the supported Greywrought game and ships as a rolling build at
+https://play.greywrought.com/. The version in `greywrought:package.json` identifies
+the current build; updates do not require a GitHub Release, a new tag, release
+notes, or a changelog. Git history records changes.
+
+Deployments use `greywrought-VERSION-COMMIT` directories, and each build's
+`release.json` identifies its version and source commit. GitHub Actions checks
+changes; it does not publish a separate GitHub Pages copy of the game.
 
 Previous experiments are preserved by Git tags:
 

@@ -3,7 +3,9 @@ import { check, openBrowser } from "./session.js";
 const page = await openBrowser("character-deletion");
 try {
   await page.enter();
-  await page.evaluate('document.getElementById("return-roster").click()');
+  await page.click('#pause-open');
+  await page.click('#pause-tab-settings');
+  await page.click('#return-roster');
   await page.waitFor('document.body.dataset.entryRoute === "roster"');
   await page.click("#entry-change-character");
   await page.waitFor('document.body.dataset.entryRoute === "creator"');

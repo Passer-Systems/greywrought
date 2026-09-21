@@ -126,7 +126,16 @@ export async function openBrowser(label: string, options: BrowserOptions = {}) {
     const read = () => evaluate<Record<string, string>>('({...document.body.dataset})');
     async function reload(): Promise<void> {
       const origin = await evaluate<number>("performance.timeOrigin");
+      const loaded = new Promise<void>((resolve, reject) => {
+        const onMessage = (event: MessageEvent) => {
+          if (JSON.parse(String(event.data)).method !== "Page.loadEventFired") return;
+          clearTimeout(timer); socket!.removeEventListener('message', onMessage); resolve();
+        };
+        const timer = setTimeout(() => { socket!.removeEventListener('message', onMessage); reject(new Error('Reload did not finish loading')); }, 15_000);
+        socket!.addEventListener('message', onMessage);
+      });
       await call("Page.reload");
+      await loaded;
       await waitFor(`performance.timeOrigin > ${origin} && document.readyState !== "loading"`);
     }
     await call("Runtime.enable");

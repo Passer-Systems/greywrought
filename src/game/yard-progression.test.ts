@@ -1,11 +1,12 @@
+import { terrainHeight } from "./cave-layout.js";
 import { expect, test } from "bun:test";
 import { createAdventure, createSharedAdventure } from "./adventure.js";
-import { earnedChapter, foremanFixture, fightForeman, tap, readyParty, finishCycle, travel } from "./yard-test-fixtures.js";
+import { finishGathering, earnedChapter, foremanFixture, fightForeman, tap, readyParty, finishCycle, travel } from "./yard-test-fixtures.js";
 import type { AdventureGame } from "./adventure-types.js";
 
 function at(game: AdventureGame, x: number, z: number, phase: "town"|"expedition"): AdventureGame {
   const data=JSON.parse(game.save());
-  Object.assign(data.state,{position:{x,y:0,z},phase});
+  Object.assign(data.state,{position:{x, y: terrainHeight(x, z), z},phase});
   const restored=createAdventure({save:JSON.stringify(data)}); restored.advance(.01); return restored;
 }
 test("Cold Hands requires nearby acceptance, gathered cargo, physical return and a single explicit reward",()=>{
@@ -45,7 +46,7 @@ test("shared scout kills grant saved credit to current contributors, excluding b
   for(const p of save.characters){p.state.chapter=earnedChapter(1);p.state.chapter.accepted.push("roll-call");p.state.phase="expedition";p.state.position={x:-3,y:0,z:28};}
   save.world.threats[0].health=60;
   const world=createSharedAdventure({save:JSON.stringify(save)}),a=world.join("a","a","mage"),b=world.join("b","b","mage"),c=world.join("c","c","mage");
-  tap(a,"strike");tap(b,"strike");readyParty(a,b,c);world.advance(.01);
+  tap(a,"strike");tap(b,"strike");readyParty(a,b,c);finishGathering(a,world);world.advance(.01);
   expect(a.snapshot.player.inCombat).toBe(true);expect(b.snapshot.player.inCombat).toBe(true);
   world.leave("a");finishCycle(b,world);tap(b,"strike");readyParty(b,c);world.advance(.01);
   expect(b.snapshot.quests[1]!.status).toBe("ready");expect(c.snapshot.quests[1]!.status).toBe("active");
@@ -68,7 +69,7 @@ test("coat applies after Block, preserves complete blocks, and enforces one dama
     const cast=game.snapshot.threats.find(t=>t.id==="ritual-guardian")!.cast!;
     expect(game.snapshot.player.health).toBe(100);
     if(block){tap(game,"brace");}
-    game.readyCombat();game.advance(cast.remainingSeconds+.5);expect(game.snapshot.player.health).toBe(100-expected);
+    finishGathering(game);game.readyCombat();game.advance(cast.remainingSeconds+.5);expect(game.snapshot.player.health).toBe(100-expected);
   }
 });
 test("each participating quest holder loots a personal Roll; replay waits for claims and preserves turn-in",()=>{
@@ -78,7 +79,7 @@ test("each participating quest holder loots a personal Roll; replay waits for cl
   for(const t of save.world.threats)if(t.id==="ritual-guardian")Object.assign(t,{active:true,health:40});else Object.assign(t,{health:0,phase:"cleared",lootClaimed:true});
   let world=createSharedAdventure({save:JSON.stringify(save)});const a=world.join("a","a","mage"),b=world.join("b","b","mage"),c=world.join("c","c","mage");
   a.selectTarget("ritual-guardian");b.selectTarget("ritual-guardian");
-  tap(a,"strike");tap(b,"strike");readyParty(a,b,c);world.advance(.01);
+  tap(a,"strike");tap(b,"strike");readyParty(a,b,c);finishGathering(a,world);world.advance(.01);
   expect(c.snapshot.loot.find(t=>t.sourceId==="ritual-guardian")!.available).toBe(false);
   a.openLoot("ritual-guardian");tap(a,"takeLoot");
   expect(a.snapshot.carriedRelics).toBe(1);expect(b.snapshot.loot.find(t=>t.sourceId==="ritual-guardian")!.available).toBe(true);
@@ -94,7 +95,7 @@ test("each participating quest holder loots a personal Roll; replay waits for cl
   b.openLoot("ritual-guardian");tap(b,"takeLoot");expect(b.snapshot.carriedRelics).toBe(1);
   travel(a,2,58.5,world);tap(a,"ritual");expect(a.snapshot.cargo).toBe(0);expect(a.snapshot.threats.find(t=>t.id==="ritual-guardian")!.health).toBe(200);
   const returned=JSON.parse(world.save());
-  for(const p of returned.characters)Object.assign(p.state,{position:{x:5,y:0,z:-11},phase:"expedition"});
+  for(const p of returned.characters)Object.assign(p.state,{position:{x: 5, y: terrainHeight(5, -11), z: -11},phase:"expedition"});
   world=createSharedAdventure({save:JSON.stringify(returned)});
   const home=world.join("a","a","mage"),partner=world.join("b","b","mage");world.advance(.01);
   expect(home.snapshot.carriedRelics).toBe(1);expect(home.snapshot.bankedRelics).toBe(0);

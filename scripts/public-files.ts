@@ -1,5 +1,7 @@
 const frostwoodFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/frostwood",onlyFiles:true}));
 const pirateFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/pirate",onlyFiles:true}));
+const reclaimedRobotFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/reclaimed-robot",onlyFiles:true}));
+const rodentFiles = await Array.fromAsync(new Bun.Glob("*.{glb,md}").scan({cwd:"assets/external/quaternius/rodents",onlyFiles:true}));
 const iconFiles = await Array.fromAsync(
   new Bun.Glob("**/*.{png,svg}").scan({ cwd: "assets/ui/icons", onlyFiles: true }),
 );
@@ -11,7 +13,7 @@ const entryAssetFiles = await Array.fromAsync(
 );
 
 export const files: readonly (readonly [string, string])[] = [
-  ...["frost-waltz.mp3", "strike.ogg", "hit.ogg", "brace.ogg", "potion.ogg", "gather.ogg", "purchase.ogg", "windup.ogg", "alarm.ogg", "defeat.ogg", "extraction.ogg", "SOURCE.md", "Kenney-RPG-LICENSE.txt", "Kenney-Interface-LICENSE.txt"].map((name): readonly [string, string] => [
+  ...["shadowlands-codex.mp3", "strike.ogg", "hit.ogg", "brace.ogg", "potion.ogg", "gather.ogg", "purchase.ogg", "incoming.ogg", "alarm.ogg", "defeat.ogg", "extraction.ogg", "SOURCE.md", "Kenney-RPG-LICENSE.txt", "Kenney-Interface-LICENSE.txt"].map((name): readonly [string, string] => [
     `assets/audio/${name}`, `dist/assets/audio/${name}`,
   ]),
   ["src/host/play.html", "dist/index.html"],
@@ -21,8 +23,9 @@ export const files: readonly (readonly [string, string])[] = [
   ["src/host/quest-log.css", "dist/app/greywrought/quest-log.css"],
   ["src/host/equipment-panel.css", "dist/app/greywrought/equipment-panel.css"],
   ["build/host/play.js", "dist/app/greywrought/play.js"],
-  ["node_modules/three/build/three.module.js", "dist/vendor/three.module.js"],
-  ["node_modules/three/build/three.core.js", "dist/vendor/three.core.js"],
+  ["node_modules/three/build/three.module.min.js", "dist/vendor/three.module.js"],
+  ["node_modules/three/build/three.core.min.js", "dist/vendor/three.core.min.js"],
+  ["node_modules/three/examples/jsm/objects/Reflector.js", "dist/vendor/three-addons/objects/Reflector.js"],
   ["node_modules/three/examples/jsm/loaders/OBJLoader.js", "dist/vendor/three-addons/loaders/OBJLoader.js"],
   ["node_modules/three/examples/jsm/loaders/MTLLoader.js", "dist/vendor/three-addons/loaders/MTLLoader.js"],
   ["node_modules/three/examples/jsm/loaders/GLTFLoader.js", "dist/vendor/three-addons/loaders/GLTFLoader.js"],
@@ -48,10 +51,16 @@ export const files: readonly (readonly [string, string])[] = [
   ]),
   ["assets/external/relic-warden/relic-warden-runtime.glb", "dist/assets/quaternius/frostwood/actors/RelicWarden.glb"],
   ["assets/external/relic-warden/QUATERNIUS-LICENSE.txt", "dist/assets/greywrought/QUATERNIUS-LICENSE.txt"],
-  ...frostwoodFiles.filter(name => name !== "actors/MushroomKing.glb").map((name): readonly [string, string] => [
+  ...frostwoodFiles.map((name): readonly [string, string] => [
     `assets/external/quaternius/frostwood/${name}`, `dist/assets/quaternius/frostwood/${name}`,
   ]),
   ...pirateFiles.map((name): readonly [string, string] => [
     `assets/external/quaternius/pirate/${name}`, `dist/assets/quaternius/pirate/${name}`,
+  ]),
+  ...reclaimedRobotFiles.map((name): readonly [string, string] => [
+    `assets/external/quaternius/reclaimed-robot/${name}`, `dist/assets/quaternius/reclaimed-robot/${name}`,
+  ]),
+  ...rodentFiles.map((name): readonly [string, string] => [
+    `assets/external/quaternius/rodents/${name}`, `dist/assets/quaternius/rodents/${name}`,
   ]),
 ];

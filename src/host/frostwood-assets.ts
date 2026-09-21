@@ -1,9 +1,10 @@
-import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
+import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Color, Float32BufferAttribute, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { clone, retargetClip } from "three/addons/utils/SkeletonUtils.js";
 import { publicUrl } from "./public-url.js";
+import { canopyMaterial } from "./canopy-material.js";
 
 const root = "assets/quaternius/frostwood/";
 const loader = new GLTFLoader();
@@ -31,7 +32,7 @@ export interface ForestActor {
 }
 export async function actor(name: string, height: number, playerModel?: "warrior" | "mage" | "hunter" | "alchemist" | "artificer"): Promise<ForestActor> {
   const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger.glb" : playerModel === "mage" ? "Wizard.glb" : playerModel === "alchemist" ? "Alchemist.gltf" : playerModel === "artificer" ? "Artificer.gltf" : "Warrior.glb"}` : null;
-  const gltf = await source(playerPath ?? `${root}actors/${name}.glb`);
+  const gltf = await source(playerPath ?? (name === "Rat" ? "assets/quaternius/rodents/Rat.glb" : `${root}actors/${name}.glb`));
   const model = clone(gltf.scene);
   const animations = [...gltf.animations];
   if (playerPath !== null) {
@@ -46,6 +47,7 @@ export async function actor(name: string, height: number, playerModel?: "warrior
     model.updateMatrixWorld(true); sourceModel.updateMatrixWorld(true);
     const scale = targetBody.getWorldPosition(new Vector3()).y / sourceBody.getWorldPosition(new Vector3()).y;
     // Retarget rotations and hip motion while preserving each class's bind proportions.
+    let sliceStarted = performance.now();
     for (const clip of donor.animations) {
       sourceRig.skeleton.pose(); sourceModel.updateMatrixWorld(true);
       const social = retargetClip(targetRig, sourceRig, clip, {
@@ -55,6 +57,10 @@ export async function actor(name: string, height: number, playerModel?: "warrior
       for (const track of social.tracks) track.name = track.name.replace(/^\.bones\[([^\]]+)\]/, "$1");
       animations.push(social);
       targetRig.skeleton.pose(); model.updateMatrixWorld(true);
+      if (performance.now() - sliceStarted > 8) {
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        sliceStarted = performance.now();
+      }
     }
   }
   const localMaterials: Material[] = [];
@@ -65,6 +71,9 @@ export async function actor(name: string, height: number, playerModel?: "warrior
       const eye = material.clone(); eye.emissive.setHex(0x9cdfff); eye.emissiveIntensity = 1.2; localMaterials.push(eye); return eye;
     };
     object.material = Array.isArray(object.material) ? object.material.map(lightEye) : lightEye(object.material);
+  });
+  model.traverse(object => {
+    if (object instanceof Mesh) { object.castShadow = true; object.receiveShadow = true; }
   });
   const wrapper = fit(model, height);
   const shadowCanvas = document.createElement("canvas"); shadowCanvas.width=shadowCanvas.height=64;
@@ -94,20 +103,35 @@ const props = new Map<string, Promise<Object3D>>();
 export async function prop(name: string, size: number, axis: "height" | "width" = "height"): Promise<Group> {
   let promise = props.get(name);
   if (!promise) {
-    promise = name.startsWith("nature/") ? source(`${root}${name}.gltf`).then(g => g.scene) : name.startsWith("pirate/") ? source(`assets/quaternius/${name}.gltf`).then(g => g.scene) : (async () => {
-      const base = publicUrl(`${root}${name.startsWith("works/") ? name : `village/${name}`}`);
+  promise = name.startsWith("nature/") ? source(`${root}${name}.gltf`).then(g => g.scene) : name.startsWith("pirate/") ? source(`assets/quaternius/${name}.gltf`).then(g => g.scene) : (async () => {
+      const base = publicUrl(name.startsWith("reclaimed/") ? `assets/quaternius/reclaimed-robot/${name.slice("reclaimed/".length)}` : `${root}${name.startsWith("works/") ? name : `village/${name}`}`);
       const materials = await new MTLLoader().loadAsync(`${base}.mtl`);
       const response = await fetch(`${base}.obj`);
       if (!response.ok) throw Error(`Unable to load ${base}.obj: ${response.status}`);
       // Mixed OBJ face/edge objects become LineSegments in OBJLoader; retain their surfaces.
       const surfaces = (await response.text()).replace(/^l[ \t].*$/gm, "");
       const mesh = new OBJLoader().setMaterials(materials).parse(surfaces);
+      const weathered = !name.startsWith('reclaimed/') && !['Sword', 'Crystal2', 'WoodenTorch_Fire', 'Sign_LeftRight'].includes(name);
+      const bounds = weathered ? new Box3().setFromObject(mesh) : null;
       mesh.traverse(o => {
         if (!(o instanceof Mesh)) return;
+        if (bounds) {
+          const positions = o.geometry.getAttribute('position'), colors = new Float32Array(positions.count * 3);
+          const height = Math.max(.01, bounds.max.y - bounds.min.y);
+          for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+            const grain = Math.sin(x * 37.1 + y * 17.7 + z * 91.3) * 43758.5453;
+            const damp = Math.max(0, 1 - (y - bounds.min.y) / (height * .32));
+            const value = .84 + (grain - Math.floor(grain)) * .15 - damp * .14;
+            colors.set([value * (1 - damp * .06), value, value * .97], i * 3);
+          }
+          o.geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+        }
         const surface = (m: Material) => {
-          const color = "color" in m ? (m as MeshStandardMaterial).color.clone().convertLinearToSRGB() : 0xffffff;
+          const color = "color" in m ? (m as MeshStandardMaterial).color.clone().convertLinearToSRGB() : new Color(0xffffff);
           const flame = name === "WoodenTorch_Fire" && (m.name === "Fire" || m.name === "Yellow");
-          return new MeshStandardMaterial({ name: m.name, color, roughness: 0.95, transparent: m.transparent, opacity: m.opacity,
+          if (weathered) color.lerp(new Color(name.startsWith('works/') ? '#777968' : '#858074'), .24);
+          return new MeshStandardMaterial({ name: m.name, color, vertexColors: weathered, roughness: 0.98, metalness: name.startsWith('works/') ? .16 : 0, transparent: m.transparent, opacity: m.opacity,
             emissive: flame ? m.name === "Fire" ? 0xff712b : 0xffc461 : 0x000000, emissiveIntensity: flame ? 1.5 : 0 });
         };
         // A material array requires geometry groups; preserve single-surface meshes.
@@ -117,5 +141,13 @@ export async function prop(name: string, size: number, axis: "height" | "width" 
     })();
     props.set(name, promise);
   }
-  return fit((await promise).clone(true), size, axis);
+  const model = (await promise).clone(true);
+  model.traverse(object => {
+    if (!(object instanceof Mesh)) return;
+    object.material = Array.isArray(object.material) ? object.material.map(canopyMaterial) : canopyMaterial(object.material);
+    object.receiveShadow = true;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    object.castShadow = !materials.some(material => material.transparent);
+  });
+  return fit(model, size, axis);
 }

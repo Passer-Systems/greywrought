@@ -1,5 +1,6 @@
 import { Vector3, type Object3D, type PerspectiveCamera } from "three";
 import { QUESTS, type QuestView, type QuestDefinition } from "../game/yard-content.js";
+import { NAMEPLATE_DISTANCE } from "./nameplate-range.js";
 
 type Disposition = "player" | "friendly" | "neutral" | "hostile";
 type QuestMarker = "available" | "active" | "ready";
@@ -17,7 +18,7 @@ export function npcQuestMarker(quests: readonly QuestView[], giver: QuestDefinit
   return priority.find(status => states.some(quest => quest.status === status)) ?? null;
 }
 
-export function createOverheadNames(host: HTMLElement, camera: PerspectiveCamera) {
+export function createOverheadNames(host: HTMLElement, camera: PerspectiveCamera, player: Object3D) {
   const style = document.createElement("style");
   style.textContent = `
     [data-overhead-names] { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:4; }
@@ -42,6 +43,7 @@ export function createOverheadNames(host: HTMLElement, camera: PerspectiveCamera
   const suppressed = new Set<string>();
   const present = new Set<string>();
   const anchor = new Vector3();
+  const playerPosition = new Vector3();
   const measure = document.createElement("canvas").getContext("2d")!;
   measure.font = "600 14px system-ui";
   const widths = new Map<string, number>();
@@ -51,6 +53,7 @@ export function createOverheadNames(host: HTMLElement, camera: PerspectiveCamera
     begin() {
       // Read the viewport before changing any labels, once for the whole frame.
       viewportWidth = host.clientWidth; viewportHeight = host.clientHeight;
+      player.getWorldPosition(playerPosition);
       present.clear(); creatures.length = 0;
     },
     show(id: string, name: string, actor: Object3D, height: number, disposition: Disposition, alive = true, quest: QuestMarker | null = null, onActivate?: () => void, playerName?: PlayerNameOptions) {
@@ -89,7 +92,7 @@ export function createOverheadNames(host: HTMLElement, camera: PerspectiveCamera
       element.dataset.disposition = disposition;
       if (!name || !alive || !actor.visible || suppressed.has(id)) { element.hidden = true; return; }
       actor.getWorldPosition(anchor);
-      if (anchor.distanceToSquared(camera.position) > 40 * 40) { element.hidden = true; return; }
+      if (Math.hypot(anchor.x-playerPosition.x, anchor.z-playerPosition.z) > NAMEPLATE_DISTANCE) { element.hidden = true; return; }
       anchor.y += height; anchor.project(camera);
       if (anchor.z < -1 || anchor.z > 1 || Math.abs(anchor.x) > 1 || Math.abs(anchor.y) > 1) { element.hidden = true; return; }
       const x = (anchor.x + 1) * viewportWidth / 2;

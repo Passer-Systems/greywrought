@@ -35,6 +35,10 @@ try {
   await page.waitFor('document.getElementById("target-frame").dataset.kind==="player"&&document.getElementById("target-frame").dataset.targetId==="selection-companion"');
   check(await page.evaluate('document.getElementById("target-frame").dataset.health==="70"&&document.querySelector("#target-frame .unit-frame-name").textContent==="Mira"'),'Friendly name and current health appear');
   check(await page.evaluate('document.querySelector("#target-frame .unit-frame-image").src.endsWith("mage.webp")'),'Friendly frame uses class portrait');
+  check(await page.evaluate('!document.getElementById("combat-stamina")'),'Separate centered stamina bar is absent');
+  check(await page.evaluate('document.querySelector("#player-frame .unit-frame-level").textContent===String(window.selectionState.snapshot.progression.level)&&!document.querySelector("#player-frame .unit-frame-level").hidden'),'Player medallion shows actual level');
+  check(await page.evaluate(`['player-frame','target-frame'].every(id=>{const root=document.getElementById(id),portrait=root.querySelector('.unit-frame-portrait'),health=root.querySelector('.unit-frame-health'),stamina=root.querySelector('.unit-frame-stamina');return getComputedStyle(portrait).borderRadius==='50%'&&health.clientHeight>=20&&!stamina.hidden&&stamina.clientHeight<health.clientHeight;})`),'Player and allied frames have circular portraits, larger health and thinner stamina');
+  check(await page.evaluate('document.querySelector("#player-frame .unit-frame-stamina").getAttribute("aria-valuenow")===String(window.selectionState.snapshot.player.stamina)&&document.querySelector("#target-frame .unit-frame-stamina").getAttribute("aria-valuenow")===String(window.selectionState.players.find(p=>p.id==="selection-companion").player.stamina)'),'Both frames show current stamina');
   check(await page.evaluate('document.querySelector(\'.adventure-actions [data-action="strike"]\').disabled'),'Attack is disabled for friendly targets');
   const strikes=await page.evaluate<number>('window.selectionCommands.filter(c=>c.type==="action"&&c.action==="strike"&&c.pressed).length');
   await page.press('Digit1');
@@ -45,6 +49,9 @@ try {
   await page.shot('friendly-name-health-and-portrait');
   await page.press('Tab');
   await page.waitFor('document.getElementById("target-frame").dataset.kind==="enemy"&&JSON.parse(document.body.dataset.selectedUnit).kind==="enemy"');
+  check(await page.evaluate('document.querySelector("#target-frame .unit-frame-stamina").hidden'),'Enemies without stamina have no invented energy');
+  check(await page.evaluate('document.querySelector("#target-frame .unit-frame-level").textContent===String(window.selectionState.snapshot.threats.find(t=>t.id===document.getElementById("target-frame").dataset.targetId).level)'),'Mirrored enemy medallion shows actual level');
+  await page.shot('classic-enemy-frame');
   await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){const root=this.children.find(o=>o.userData.playerId==='selection-companion');if(root){const p=root.position.clone().add(new Vector3(0,1.1,0)).project(camera),r=document.getElementById('world-canvas').getBoundingClientRect();window.companionPoint={x:r.left+(p.x+1)*r.width/2,y:r.top+(1-p.y)*r.height/2};}};})()`);
   await page.waitFor('window.companionPoint');
   const center=await page.evaluate<{x:number;y:number}>('window.companionPoint');
@@ -92,7 +99,25 @@ try {
   await page.waitFor('!document.getElementById("pause-panel").hidden');
   check(await page.evaluate('window.selectionState.session.mode==="shared"'),'Escape menu does not pause the world');
   await page.shot('escape-cleared-target');
+  await page.click('#pause-tab-settings');
+  await page.evaluate('document.getElementById("unit-frames-locked").scrollIntoView({block:"center"})');
+  await page.click('#unit-frames-locked'); await page.press('Escape');
+  const frameStart=await page.evaluate<{x:number,y:number}>('(() => {const r=document.getElementById("player-frame").getBoundingClientRect();return {x:r.x+30,y:r.y+30};})()');
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...frameStart,buttons:0});
+  await page.call('Input.dispatchMouseEvent',{type:'mousePressed',...frameStart,button:'left',buttons:1,clickCount:1});
+  await page.waitFor('document.getElementById("player-frame").classList.contains("unit-frame-dragging")');
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:frameStart.x-40,y:frameStart.y-80,button:'left',buttons:1});
+  await page.evaluate('new Promise(resolve=>requestAnimationFrame(resolve))');
+  await page.call('Input.dispatchMouseEvent',{type:'mouseReleased',x:frameStart.x-40,y:frameStart.y-80,button:'left',buttons:0,clickCount:1});
+  check(await page.evaluate(`(() => {const p=document.getElementById('player-frame').getBoundingClientRect(),t=document.querySelector('.unit-frame-target-group').getBoundingClientRect();return Math.abs(p.x+30-(${frameStart.x}-40))<2&&Math.abs(p.y-t.y)<1&&Math.abs(p.x+t.x+p.width-innerWidth)<1;})()`),'Dragging larger frames preserves mirrored positions');
+  const frameLayout=await page.evaluate<string>('localStorage.getItem("greywrought.adventure.unit-frames.v1")');
+  check(JSON.parse(frameLayout).positions,'Dragged frame positions are saved');
+  await page.shot('mirrored-frames');
+  await page.reload();
+  await page.waitFor('document.body.dataset.entryRoute==="roster"'); await page.click('#entry-enter-world');
+  await page.waitFor('document.body.dataset.rigState==="ready"');
+  check(await page.evaluate(`localStorage.getItem('greywrought.adventure.unit-frames.v1')===${JSON.stringify(frameLayout)}&&Math.abs(document.getElementById('player-frame').getBoundingClientRect().x+30-(${frameStart.x}-40))<2`),'Saved frame position is restored after reload');
   check(page.errors.length===0,'No browser exceptions');
-  console.log('PASS player selection, new attacker targeting, Escape clearing, blocked untargeted attacks, Tab reselection and unpaused Escape menu',page.output);
-} catch(error){await page?.shot('failure');console.error(await page?.evaluate('({state:window.selectionState,selected:document.body.dataset.selectedUnit,frame:document.getElementById("target-frame")?.outerHTML,point:window.companionPoint})'));throw error;}
+  console.log('PASS unit frame appearance, live health/stamina, mirrored saved dragging, player selection, Escape clearing and Tab reselection',page.output);
+} catch(error){await page?.shot('failure').catch(()=>{});console.error(await page?.evaluate('({state:window.selectionState,selected:document.body.dataset.selectedUnit,frame:document.getElementById("target-frame")?.outerHTML,point:window.companionPoint})').catch(()=>undefined));throw error;}
 finally{bot.close();await page?.close();await service.close();server.stop(true);frontend.kill();await frontend.exited;}

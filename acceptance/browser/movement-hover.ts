@@ -31,9 +31,9 @@ try {
   }});
   await page.waitFor('document.body.dataset.entryRoute==="roster"'); await page.click('#entry-enter-world');
   await page.waitFor('document.body.dataset.rigState==="ready"&&document.body.dataset.environmentState==="ready"&&window.hoverState?.combat.phase==="preparation"');
-  await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){window.hoverCamera=camera;};window.projectHover=(p)=>{const v=new Vector3(p.x,p.y,p.z).project(window.hoverCamera),r=document.getElementById('world-canvas').getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};};})()`);
+  await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){window.hoverCamera=camera;window.hoverScene=scene;};window.projectHover=(p)=>{const v=new Vector3(p.x,p.y,p.z).project(window.hoverCamera),r=document.getElementById('world-canvas').getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};};})()`);
   await page.click('#combat-plan-aim-move');
-  await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles||"[]").length>0&&window.hoverCamera');
+  await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles||"[]").length>0&&Boolean(window.hoverCamera)');
   const before = await page.evaluate<string>('JSON.stringify(window.hoverState.combat.queued)');
   const tiles = await page.evaluate<Position[]>('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles)');
   let chosen: Position | undefined;
@@ -47,6 +47,24 @@ try {
   check(await page.evaluate('!document.getElementById("move-preview-outcome").hidden&&document.getElementById("move-preview-outcome").textContent.includes("Health")'),'Hover shows health and enemy damage');
   check(await page.evaluate('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).some(p=>p.previewKind==="destination"&&p.ability==="pursuit")'),'Hover draws actual enemy pursuit');
   check(await page.evaluate<string>('JSON.stringify(window.hoverState.combat.queued)')===before,'Hover preserves the chosen plan');
+  check(await page.evaluate('(()=>{let found=false;window.hoverScene?.traverse(o=>{if(o.material?.color?.getHex?.()===0xe64d55)found=true;});return found;})()'),'Hover draws red pursuit tiles');
+  const firstPursuit = await page.evaluate<string>('JSON.stringify(JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).filter(p=>p.ability==="pursuit").map(p=>p.path))');
+  const alternate = tiles.find(tile => tile.x !== chosen!.x || tile.z !== chosen!.z);
+  if (alternate) {
+    const p=await page.evaluate<{x:number;y:number}>(`window.projectHover(${JSON.stringify(alternate)})`);
+    await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...p,buttons:0});
+    await page.waitFor(`(()=>{const p=JSON.parse(document.getElementById('world-canvas').dataset.movePreview||'null');return p?.forecast&&p.destination.x===${alternate.x}&&p.destination.z===${alternate.z};})()`);
+    check(await page.evaluate<string>('JSON.stringify(JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).filter(p=>p.ability==="pursuit").map(p=>p.path))')!==firstPursuit,'Changing destination changes enemy pursuit');
+  }
+  const clickPoint=await page.evaluate<{x:number;y:number}>(`window.projectHover(${JSON.stringify(chosen)})`);
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...clickPoint,buttons:0});
+  await page.call('Input.dispatchMouseEvent',{type:'mousePressed',x:clickPoint.x,y:clickPoint.y,button:'left',buttons:1});
+  await page.call('Input.dispatchMouseEvent',{type:'mouseReleased',x:clickPoint.x,y:clickPoint.y,button:'left',buttons:0});
+  await page.waitFor('window.hoverState.combat.queued.some(entry=>entry.action==="bait")');
+  await page.click('.combat-plan-move[data-queued-action="bait"]');
+  await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs||"[]").some(p=>p.previewKind==="move"&&p.ability==="pursuit")');
+  check(await page.evaluate('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).some(p=>p.previewKind==="move"&&p.ability==="pursuit"&&p.kind==="movement")'),'Queued Move keeps enemy pursuit visible');
+  check(await page.evaluate('window.hoverState.combat.queued.some(entry=>entry.action==="bait")'),'Queued Move is retained while inspecting pursuit');
   const requests=await page.evaluate<number>('window.hoverRequests'); await Bun.sleep(700);
   check(await page.evaluate<number>('window.hoverRequests')===requests,'Stationary hover does not request on countdown broadcasts');
   await page.shot('enemy-pursuit-and-damage');

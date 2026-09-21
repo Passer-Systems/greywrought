@@ -15,7 +15,7 @@ const styles = `
 .party-member { display:flex; align-items:center; width:100%; min-height:52px; padding:3px; border:1px solid #8a886c; border-radius:3px; background:linear-gradient(#343c32eb,#111c18f5); color:#f4dda4; text-align:left; cursor:pointer; box-shadow:0 2px 4px #0009; }
 .party-member[aria-pressed=true] { border-color:#f2d67c; box-shadow:inset 0 0 0 1px #85d467,0 0 6px #9fd26199; background:linear-gradient(#425737,#17281b); }
 .party-member[aria-disabled=true] { opacity:.65; cursor:default; }
-.party-member img { flex:0 0 36px; width:36px; height:42px; object-fit:cover; object-position:50% 18%; border:1px solid #9a8e66; }
+.party-member img { flex:0 0 42px; width:42px; height:42px; box-sizing:border-box; border-radius:50%; object-fit:cover; object-position:50% 18%; border:2px solid #9a8e66; box-shadow:0 1px 3px #000b; }
 .party-member-copy { flex:1; min-width:0; padding-left:5px; }
 .party-member-name { display:block; overflow-wrap:anywhere; font:600 var(--ui-font-small,12px)/1.1 Georgia,serif; }
 .party-member-status { display:block; margin:2px 0; color:#c4ccb5; font:10px/1.15 system-ui,sans-serif; }

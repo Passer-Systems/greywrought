@@ -1,7 +1,7 @@
 import type { AdventureSnapshot } from "../game/adventure-types.js";
 import { publicUrl } from "./public-url.js";
 
-const cueNames = ["strike", "hit", "brace", "potion", "gather", "purchase", "windup", "alarm", "defeat", "extraction"] as const;
+const cueNames = ["strike", "hit", "brace", "potion", "gather", "purchase", "incoming", "alarm", "defeat", "extraction"] as const;
 type Cue = typeof cueNames[number];
 const preferenceKey = "greywrought.adventure.audio.v1";
 interface Preferences { music: number; effects: number; muted: boolean; }
@@ -28,7 +28,7 @@ export function createAdventureAudio(): AdventureAudio {
   const prefs = preferences();
   const music = document.createElement("audio");
   music.id = "adventure-music";
-  music.src = publicUrl("assets/audio/frost-waltz.mp3");
+  music.src = publicUrl("assets/audio/shadowlands-codex.mp3");
   music.loop = true;
   music.preload = "metadata";
   music.hidden = true;
@@ -51,7 +51,7 @@ export function createAdventureAudio(): AdventureAudio {
     <label style="display:flex;align-items:center;gap:10px">Music <input data-volume="music" aria-label="Music volume" type="range" min="0" max="100" style="flex:1;min-width:70px"><output data-level="music"></output></label>
     <label style="display:flex;align-items:center;gap:10px">Effects <input data-volume="effects" aria-label="Effects volume" type="range" min="0" max="100" style="flex:1;min-width:70px"><output data-level="effects"></output></label>
     <label style="display:flex;align-items:center;gap:8px"><input data-mute type="checkbox"> Mute all sound</label>
-    <small style="line-height:1.4">“Frost Waltz” by <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100516" target="_blank" rel="noopener noreferrer" style="color:inherit">Kevin MacLeod (incompetech.com)</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style="color:inherit">CC BY 4.0</a><br>Sound effects: Kenney · CC0</small>`;
+    <small style="line-height:1.4">“Shadowlands 7 – Codex” by <a href="https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1700040" target="_blank" rel="noopener noreferrer" style="color:inherit">Kevin MacLeod (incompetech.com)</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" style="color:inherit">CC BY 4.0</a><br>Sound effects: Kenney · CC0</small>`;
   document.querySelector("#pause-settings")?.append(panel);
   const listeners = new AbortController();
   function stopEffects(): void {
@@ -156,7 +156,7 @@ export function createAdventureAudio(): AdventureAudio {
     const alarm = snapshot.threats.some(t => t.damage === 0 && t.actionSequence > (before.threats.find(old => old.id === t.id)?.actionSequence ?? t.actionSequence));
     const warning = snapshot.threats.some(t => t.active && t.phase === "preparation" && before.threats.find(old => old.id === t.id)?.phase !== "preparation" && Math.hypot(t.position.x - snapshot.player.position.x, t.position.z - snapshot.player.position.z) < Math.max(12, t.reach));
     if ((alarm || warning) && performance.now() - lastWarning >= 900) {
-      play(alarm ? "alarm" : "windup");
+      play(alarm ? "alarm" : "incoming");
       lastWarning = performance.now();
     }
   }

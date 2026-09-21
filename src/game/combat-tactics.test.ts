@@ -178,3 +178,23 @@ test("hovering a movement tile uses the execution forecast without changing the 
   for (let i = 0; i < 240 && game.snapshot.combat.phase === "active"; i++) game.advance(1 / 60);
   for (const outcome of preview!.outcomes) expect(outcome.health).toBe(outcome.id === "solo" ? game.snapshot.player.health : game.snapshot.threats.find(t => t.id === outcome.id)!.health);
 });
+
+test("pursuit follows the executed destination on fixed ticks", async () => {
+  const data = fixture(); data.state.threats.find((threat: { id: string }) => threat.id === "nest").position = { x: 8, y: 0, z: 30 };
+  const game = createAdventure({ save: JSON.stringify(data) });
+  const destination = { x: 5, y: 0, z: 30 };
+  const forecast = await game.previewBait(destination);
+  const pursuit = forecast!.paths.find(path => path.actorId === "nest" && path.action === "pursuit");
+  expect(pursuit).toBeDefined();
+  // Nest starts east at x=8. Its committed turnTarget is x=0, but the
+  // planned move ends at x=5; live pursuit must stop near that destination.
+  expect(pursuit!.points.at(-1)!.x).toBeGreaterThan(3.5);
+  expect(game.queueBait(destination)).toBe(true);
+  game.readyCombat();
+  const frames = [0.017, 0.031, 0.083, 0.011, 0.058, 0.1];
+  for (let index = 0; index < 240 && game.snapshot.combat.phase === "active"; index++) game.advance(frames[index % frames.length]!);
+  for (const outcome of forecast!.outcomes) {
+    const actual = outcome.id === "solo" ? game.snapshot.player.health : game.snapshot.threats.find(threat => threat.id === outcome.id)!.health;
+    expect(actual).toBe(outcome.health);
+  }
+});

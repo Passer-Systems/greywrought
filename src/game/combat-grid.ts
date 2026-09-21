@@ -1,5 +1,5 @@
 import type { Position } from './adventure-types.js';
-import { blockedPosition, MOVEMENT_BARRIERS } from './movement.js';
+import { blockedPosition, MOVEMENT_BARRIERS, movementHeight } from './movement.js';
 import { terrainHeight } from './cave-layout.js';
 import { WORLD_BOUNDS } from './world-layout.js';
 
@@ -21,7 +21,7 @@ export function snapCombatPosition(position: Position, from: Position = position
   let best: Position | undefined, score = Infinity;
   for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) {
     const x = centerX + dx * COMBAT_CELL_SIZE, z = centerZ + dz * COMBAT_CELL_SIZE;
-    const candidate = { x, y: terrainHeight(x, z), z };
+    const candidate = { x, y: movementHeight(x, z, from), z };
     if (x < WORLD_BOUNDS.minX || x > WORLD_BOUNDS.maxX || z < WORLD_BOUNDS.minZ || z > WORLD_BOUNDS.maxZ || blockedPosition(x, z)
       || Math.hypot(x - from.x, z - from.z) > maximumDistance + 1e-8 || !clearCombatSegment(from, candidate)
       || occupied.some(p => Math.hypot(p.x - x, p.z - z) < COMBAT_CELL_SIZE * .8)) continue;
@@ -40,7 +40,7 @@ export function reachableCombatCells(origin: Position, movementTiles: number, oc
   for (let dx = -movementTiles; dx <= movementTiles; dx++) for (let dz = -movementTiles; dz <= movementTiles; dz++) {
     if (dx === 0 && dz === 0 || Math.hypot(dx, dz) > movementTiles + 1e-8) continue;
     const x = centerX + dx * COMBAT_CELL_SIZE, z = centerZ + dz * COMBAT_CELL_SIZE;
-    const candidate = { x, y: terrainHeight(x, z), z };
+    const candidate = { x, y: movementHeight(x, z, origin), z };
     if (x < WORLD_BOUNDS.minX || x > WORLD_BOUNDS.maxX || z < WORLD_BOUNDS.minZ || z > WORLD_BOUNDS.maxZ || blockedPosition(x, z)
       || Math.hypot(x - origin.x, z - origin.z) > maxDistance + 1e-8 || !clearCombatSegment(origin, candidate)
       || occupied.some(p => Math.hypot(p.x - x, p.z - z) < COMBAT_CELL_SIZE * .8)) continue;

@@ -1,3 +1,4 @@
+import { BELLRUNNER_STOPS } from "../game/bellrunner.js";
 import { NPC_IDS, VENDORS } from "../game/economy.js";
 import { isGearItem } from "../game/yard-content.js";
 import { EMOTE_HELP, emoteText, findEmote } from '../game/emotes.js';
@@ -13,7 +14,7 @@ import { normalizedCharacterName } from '../host/character-profile.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 
 const ACTIONS = [
-  'forward', 'backward', 'left', 'right', 'jump', 'strike', 'brace', 'bait', 'gather', 'cancelGather', 'ritual', 'interact', 'buyPotion', 'drinkPotion',
+  'forward', 'backward', 'left', 'right', 'jump', 'dive', 'strike', 'brace', 'bait', 'gather', 'cancelGather', 'ritual', 'interact', 'buyPotion', 'drinkPotion',
   'hearthstone', 'cancelHearthstone', 'rest', 'target', 'openTrade', 'closeTrade', 'acceptTrade',
   'closeShop', 'takeLoot', 'closeLoot', 'closeInn', 'closeBank',
 ] as const satisfies readonly AdventureAction[];
@@ -52,9 +53,9 @@ function command(value: unknown): value is WorldCommand {
       if (!record(frame) || !keys(frame, ['sequence', 'seconds', 'input']) || !finite(frame.sequence, 1, Number.MAX_SAFE_INTEGER, true)
         || !finite(frame.seconds, Number.MIN_VALUE, 0.05) || !record(frame.input)) return false;
       const input = frame.input;
-      return keys(input, ['forward', 'strafe', 'cameraX', 'cameraZ', 'jump']) && finite(input.forward, -1, 1, true) && finite(input.strafe, -1, 1, true)
+      return keys(input, ['forward', 'strafe', 'cameraX', 'cameraZ', 'jump', ...('rise' in input ? ['rise'] : []), ...('dive' in input ? ['dive'] : [])]) && finite(input.forward, -1, 1, true) && finite(input.strafe, -1, 1, true)
         && finite(input.cameraX, -1, 1) && finite(input.cameraZ, -1, 1) && Math.abs(Math.hypot(input.cameraX, input.cameraZ) - 1) < 0.000001
-        && typeof input.jump === 'boolean' && (index === 0 || frame.sequence > frames[index - 1].sequence);
+        && typeof input.jump === 'boolean' && (input.rise === undefined || typeof input.rise === 'boolean') && (input.dive === undefined || typeof input.dive === 'boolean') && (index === 0 || frame.sequence > frames[index - 1].sequence);
     });
     case 'action': return keys(value, ['type', 'action', 'pressed']) && member(value.action, ACTIONS) && typeof value.pressed === 'boolean';
     case 'mouseForward': return keys(value, ['type', 'active']) && typeof value.active === 'boolean';
@@ -67,6 +68,7 @@ function command(value: unknown): value is WorldCommand {
     case 'clear': return keys(value,['type']);
     case 'bank': return keys(value, ['type', 'operation', 'kind', 'quantity']) && member(value.operation, ['deposit', 'withdraw']) && member(value.kind, ['supplies', 'potions']) && finite(value.quantity, 1, Number.MAX_SAFE_INTEGER, true);
     case 'trade': return keys(value, ['type', 'kind', 'quantity']) && member(value.kind, ['supplies', 'potions']) && finite(value.quantity, 0, 100_000, true);
+    case 'flight': return keys(value, ['type', 'destination']) && member(value.destination, BELLRUNNER_STOPS.map(stop => stop.id));
     case 'interactNpc': return keys(value, ['type', 'id']) && member(value.id, NPC_IDS);
     case 'buyGear': return keys(value, ['type', 'vendor', 'item']) && member(value.vendor, VENDORS.map(v => v.id)) && isGearItem(value.item);
     case 'quest': return keys(value, ['type', 'id', 'operation']) && member(value.id, ['cold-hands', 'roll-call', 'last-shift']) && member(value.operation, ['accept', 'turnIn']);
@@ -164,7 +166,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     return next;
   }
   function send(socket: ServerWebSocket<WorldSocketData>, message: ServerWorldMessage): void {
-    socket.send(JSON.stringify(message));
+    socket.send(JSON.stringify(message), message.type === 'state');
   }
   function error(socket: ServerWebSocket<WorldSocketData>, text: string): void { send(socket, { type: 'error', text }); }
   function partyFor(id: string): Party | undefined { return [...parties.values()].find(party => party.members.includes(id)); }
@@ -311,6 +313,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'bank': return player.bankTransfer(value.operation, value.kind, value.quantity);
       case 'trade': player.setTradeOffer(value.kind, value.quantity); break;
       case 'buyGear': return player.buyGear(value.vendor, value.item);
+      case 'flight': return player.fly(value.destination);
       case 'interactNpc': player.interactNpc(value.id); break;
       case 'quest': player.quest(value.id, value.operation); break;
       case 'equip': player.equip(value.slot, value.item); break;
@@ -364,6 +367,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     return true;
   }
   const websocket: WebSocketHandler<WorldSocketData> = {
+    perMessageDeflate: true,
     maxPayloadLength: MAX_PAYLOAD,
     // Application broadcasts do not prove that a client can receive traffic.
     // The tick below owns an explicit native ping/pong lease instead.

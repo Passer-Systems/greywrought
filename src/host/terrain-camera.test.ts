@@ -44,3 +44,12 @@ test('flat town and ordinary cave ramps keep their existing camera orbit', () =>
     expect(terrainCameraLift(target, camera)).toBe(0);
   }
 });
+
+test('negative pitch keeps the requested zoom and lifts only to ground clearance', () => {
+  const target = { x: 0, y: terrainHeight(0, -8) + 1.1, z: -8 };
+  const distance = 15;
+  const camera = { x: target.x, y: target.y + Math.sin(-.65) * distance, z: target.z - Math.cos(-.65) * distance };
+  const lift = terrainCameraLift(target, camera);
+  expect(Math.hypot(camera.x - target.x, camera.z - target.z)).toBeCloseTo(Math.cos(-.65) * distance, 5);
+  expect(camera.y + lift - terrainHeight(camera.x, camera.z)).toBeGreaterThanOrEqual(.49);
+});

@@ -196,6 +196,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     setTradeOffer(kind,quantity) { if (inputEnabled()) send({type:'trade',kind,quantity}); },
     bankTransfer(operation,kind,quantity) { return inputEnabled() && send({type:"bank",operation,kind,quantity}) !== null; },
     buyGear(vendor,item) { return inputEnabled() && send({type:"buyGear",vendor,item}) !== null; },
+    fly(destination) { return inputEnabled() && send({type:'flight',destination}) !== null; },
     interactNpc(id) { if (inputEnabled()) send({type:"interactNpc",id}); },
     quest(id, operation) { if (inputEnabled()) send({type:"quest",id,operation}); },
     equip(slot, item) { if (inputEnabled()) send({type:"equip",slot,item}); },
