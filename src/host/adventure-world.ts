@@ -9,7 +9,7 @@ import {
   Sprite, SpriteMaterial, SRGBColorSpace, Texture, Vector2, Vector3, WebGLRenderer,
   Raycaster,
 } from "three";
-import type { AdventureSnapshot, CombatView, CombatForecast, Position } from "../game/adventure-types.js";
+import type { AdventureSnapshot, CombatView, CombatForecast, EncounterSession, Position } from "../game/adventure-types.js";
 import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildWorldSigns } from "./world-signs.js";
 import { captureMinimap } from "./minimap.js";
@@ -92,6 +92,10 @@ export interface AdventureWorld {
   setAggroRangesVisible(visible: boolean): void;
   setHelpRangesVisible(visible: boolean): void;
   setCombatPreview(preview: CombatPreview | null): void;
+  /** Show the short live-world re-entry window after a forked encounter. */
+  setReturnPreview(plan: EncounterSession["returnPlan"]): void;
+  /** Pick one of the server-offered re-entry markers from canvas coordinates. */
+  pickReturnSpot(clientX: number, clientY: number): Position | null;
   setSelectedUnit(selection: UnitSelection): void;
   setPartyMembers(ids: readonly string[]): void;
   setMoveAiming(active: boolean): void;
@@ -309,6 +313,74 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     canvas.style.cursor = "";
   };
   const player = new Group();
+  // Re-entry markers are deliberately kept in a small, dedicated group. They
+  // are rebuilt only when the server's plan changes, rather than traversing the
+  // terrain or adding a large projected HUD overlay every frame.
+  const returnPreviewGroup = new Group();
+  returnPreviewGroup.name = "return-preview-spots";
+  scene.add(returnPreviewGroup);
+  const returnSpotGeometry = new RingGeometry(.3, .52, 24);
+  let returnPlan: EncounterSession["returnPlan"] = null;
+  let returnPlanKey = "";
+  let returnGhostBlend = 0;
+  let returnGhostTarget = 0;
+  let lastGhostScan = -Infinity;
+  const returnSpotMeshes: Mesh<RingGeometry, MeshBasicMaterial>[] = [];
+  type GhostMaterial = Material & { opacity?: number; transparent?: boolean; depthWrite?: boolean; color?: Color; emissive?: Color; emissiveIntensity?: number };
+  type GhostRecord = { readonly mesh: Mesh; readonly original: Material | Material[]; readonly ghosts: GhostMaterial[]; readonly baseOpacity: number[] };
+  const ghostRecords = new Set<GhostRecord>();
+  const ghostMeshes = new WeakSet<Mesh>();
+  const ghostTint = new Color(0x74d7df);
+  const makeGhostMaterial = (source: Material): GhostMaterial => {
+    const ghost = source.clone() as GhostMaterial;
+    const base = ghost as GhostMaterial;
+    base.transparent = true;
+    base.depthWrite = false;
+    if (base.color instanceof Color) base.color.lerp(ghostTint, .28);
+    if (base.emissive instanceof Color) {
+      base.emissive.lerp(ghostTint, .62);
+      base.emissiveIntensity = Math.max(base.emissiveIntensity ?? 0, .38);
+    }
+    return base;
+  };
+  const ghostRoot = (root: Object3D) => {
+    root.traverse(object => {
+      if (!(object instanceof Mesh) || ghostMeshes.has(object)) return;
+      const original = object.material;
+      const sources = Array.isArray(original) ? original : [original];
+      const ghosts = sources.map(makeGhostMaterial);
+      ghostRecords.add({ mesh: object, original, ghosts, baseOpacity: ghosts.map((material, index) => material.opacity ?? (Array.isArray(original) ? original[index]!.opacity : (original as Material & { opacity?: number }).opacity) ?? 1) });
+      ghostMeshes.add(object);
+      object.material = Array.isArray(original) ? ghosts : ghosts[0]!;
+    });
+  };
+  const restoreGhosts = () => {
+    for (const record of ghostRecords) {
+      record.mesh.material = record.original;
+      for (const material of record.ghosts) material.dispose();
+      ghostMeshes.delete(record.mesh);
+    }
+    ghostRecords.clear();
+  };
+  const updateGhostOpacity = (blend: number) => {
+    const factor = 1 - blend * .62;
+    for (const record of ghostRecords) record.ghosts.forEach((material, index) => { material.opacity = record.baseOpacity[index]! * factor; });
+  };
+  const rebuildReturnSpots = (plan: EncounterSession["returnPlan"]) => {
+    for (const mesh of returnSpotMeshes) { mesh.removeFromParent(); mesh.material.dispose(); }
+    returnSpotMeshes.length = 0;
+    if (!plan) return;
+    for (const spot of plan.spots) {
+      const selected = Math.hypot(spot.position.x - plan.destination.x, spot.position.z - plan.destination.z) < .08 && Math.abs(spot.position.y - plan.destination.y) < .08;
+      const mesh = new Mesh(returnSpotGeometry, new MeshBasicMaterial({ color: spot.dangerous ? 0xf08773 : 0x69d4d4, transparent: true, opacity: selected ? .95 : .64, depthWrite: false }));
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(spot.position.x, spot.position.y + .035, spot.position.z);
+      mesh.scale.setScalar(selected ? 1.16 : 1);
+      mesh.userData.returnSpot = spot.position;
+      mesh.userData.returnDangerous = spot.dangerous;
+      returnPreviewGroup.add(mesh); returnSpotMeshes.push(mesh);
+    }
+  };
   const swimmingWake = createSwimmingWake(scene);
   const underwater = createUnderwater(scene, host, canvas);
   const photonChair = createPhotonChair(player);
@@ -536,6 +608,24 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     }
     return null;
   };
+  const pickReturnSpot = (clientX: number, clientY: number): Position | null => {
+    if (!returnPlan || returnSpotMeshes.length === 0) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0 || clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
+    point.set((clientX - rect.left) / rect.width * 2 - 1, -(clientY - rect.top) / rect.height * 2 + 1);
+    raycaster.setFromCamera(point, camera);
+    const hit = raycaster.intersectObjects(returnSpotMeshes, false)[0];
+    if (hit?.object.userData.returnSpot) return hit.object.userData.returnSpot as Position;
+    let nearest: Position | null = null; let nearestDistance = 24;
+    for (const mesh of returnSpotMeshes) {
+      const projected = mesh.position.clone().project(camera);
+      const sx = rect.left + (projected.x + 1) * rect.width / 2;
+      const sy = rect.top + (1 - projected.y) * rect.height / 2;
+      const distance = Math.hypot(clientX - sx, clientY - sy);
+      if (distance < nearestDistance) { nearestDistance = distance; nearest = mesh.userData.returnSpot as Position; }
+    }
+    return nearest;
+  };
   const updateHover = () => {
     if (!hoverPointer || document.elementFromPoint(hoverPointer.x, hoverPointer.y) !== canvas) { clearHover(); return; }
     const hit = pick(hoverPointer.x, hoverPointer.y);
@@ -571,6 +661,15 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     setMoveAiming(active) { moveAiming = active; if (!active) { movementPreview.clear(); moveOutcome.hidden = true; } },
     canMoveTo(destination) { return combatGrid.accepts(destination); },
     setCombatPreview(preview) { combatPreview = preview; },
+    setReturnPreview(plan) {
+      returnPlan = plan;
+      const key = plan ? JSON.stringify({ remainingSeconds: plan.remainingSeconds, center: plan.center, destination: plan.destination, spots: plan.spots, confirmed: plan.confirmed }) : "";
+      if (key !== returnPlanKey) { returnPlanKey = key; rebuildReturnSpots(plan); }
+      returnGhostTarget = plan ? 1 : 0;
+      returnPreviewGroup.visible = Boolean(plan);
+      canvas.dataset.returnPreview = plan ? "active" : "hidden";
+    },
+    pickReturnSpot,
     setSelectedUnit(selection) { selectedUnit = selection; },
     setPartyMembers(ids) { partyMembers = new Set(ids); },
     projectThreat(id) {
@@ -608,7 +707,31 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       remotePlayers.update(visiblePlayers);
       remotePlayers.render(delta);
       document.body.dataset.rigRemoteAnimations = JSON.stringify(Array.from(remotePlayers.entries(), ([id, rig]) => ({ id, animation: rig.root.userData.animation, time: rig.root.userData.animationTime })));
-      player.position.set(localPlayer.position.x, localPlayer.position.y, localPlayer.position.z);
+      const displayedPosition = returnPlan?.destination ?? localPlayer.position;
+      player.position.set(displayedPosition.x, displayedPosition.y, displayedPosition.z);
+      returnGhostBlend += (returnGhostTarget - returnGhostBlend) * (1 - Math.exp(-delta / .7));
+      if (returnGhostTarget > 0) {
+        // Models can finish loading after the transition starts, so rescan at
+        // a low cadence for newcomers instead of traversing every actor every
+        // render frame.
+        if (elapsed - lastGhostScan > .5) {
+          ghostRoot(player);
+          for (const rig of rigs.values()) ghostRoot(rig.root);
+          for (const [, rig] of remotePlayers.entries()) ghostRoot(rig.root);
+          lastGhostScan = elapsed;
+        }
+        updateGhostOpacity(returnGhostBlend);
+      } else if (returnGhostBlend > .001) {
+        updateGhostOpacity(returnGhostBlend);
+      } else if (ghostRecords.size > 0) {
+        returnGhostBlend = 0;
+        restoreGhosts();
+      }
+      returnPreviewGroup.visible = Boolean(returnPlan);
+      for (const mesh of returnSpotMeshes) {
+        const selected = mesh.scale.x > 1;
+        mesh.material.opacity = (selected ? .84 : .56) + Math.sin(elapsed * 2.2) * (selected ? .08 : .04);
+      }
       const swimmers = [{ id: 'self', position: localPlayer.position, active: localPlayer.health > 0 && localPlayer.moving && isSwimming(localPlayer.position) && localPlayer.position.y >= supportHeight(localPlayer.position.x, localPlayer.position.z) - .15 },
         ...visiblePlayers.map(other => ({ id: other.id, position: other.player.position, active: other.player.health > 0 && other.player.moving && isSwimming(other.player.position) && other.player.position.y >= supportHeight(other.player.position.x, other.player.position.z) - .15 }))];
       swimmingWake.update(delta, swimmers, worldTimeMillis);
@@ -877,6 +1000,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       regionalHosts.forEach(entry => entry.actor?.dispose());
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose(); banker?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();
+      restoreGhosts();
+      for (const mesh of returnSpotMeshes) mesh.material.dispose();
+      returnSpotMeshes.length = 0;
+      returnSpotGeometry.dispose();
+      returnPreviewGroup.removeFromParent();
       disposeObjects(scene);
       scene.clear();
       renderer.dispose();
