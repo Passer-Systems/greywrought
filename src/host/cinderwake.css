@@ -2213,3 +2213,7 @@ body[data-bait-aiming="true"] .combat-plan-inspect {display:none;}
 .combat-plan-route-editor {display:flex;align-items:center;gap:5px;margin:4px 0;}
 .combat-plan-route-budget {flex:1;color:#c6e0c8;font-size:11px;}
 .combat-plan[data-route-editing=true] .combat-plan-grid {display:none;}
+
+.combat-plan-energy {display:block;color:#a9ccea;font-size:10px;margin:2px 0;}
+.combat-plan-sprint {display:inline-flex;align-items:center;gap:3px;white-space:nowrap;}
+.combat-plan-sprint img {width:16px;height:16px;object-fit:contain;}

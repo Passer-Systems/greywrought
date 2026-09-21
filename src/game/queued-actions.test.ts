@@ -26,7 +26,7 @@ describe("committed attack resources", () => {
       expect(scout(game).health).toBe(96);
       game.readyCombat(); game.advance(.001);
       expect(scout(game).health).toBe(96 - damage);
-      expect(game.snapshot.player.stamina).toBe(5);
+      expect(game.snapshot.player.stamina).toBe(100);
       const sequence = game.snapshot.player.attackSequence;
       finishCycle(game);
       expect(scout(game).health).toBe(96 - damage);
@@ -34,32 +34,34 @@ describe("committed attack resources", () => {
       expect(game.snapshot.player.position).toEqual(position);
       expect(game.snapshot.player.maneuver).toBe("none");
       game.readyCombat(); finishCycle(game);
-      expect(scout(game).health).toBe(96 - damage);
+      expect(game.snapshot.player.attackSequence).toBe(sequence);
+      expect(scout(game).health).toBe(96 - damage - (archetype === "alchemist" ? 12 : 0));
+      if (archetype === "alchemist") expect(game.snapshot.combat.effects.some(effect => effect.kind === "ignition")).toBe(true);
     }
   });
 
-  test("Block reserves stamina during planning and spends it at the chosen movement timing", () => {
+  test("Defend and Move reserve no energy and use the chosen movement timing", () => {
     const game = setup(); game.advance(.001); tap(game, "brace");
     expect(game.queueBait({ x: -2.5, y: 0, z: 25 })).toBe(true);
     expect(game.setActionTiming("after")).toBe(true);
     expect(game.snapshot.player.block).toBe(0);
-    expect(game.snapshot.player.stamina).toBe(5);
-    expect(game.snapshot.combat.reservedStamina).toBe(3);
+    expect(game.snapshot.player.stamina).toBe(100);
+    expect(game.snapshot.combat.reservedStamina).toBe(0);
     const after = game.snapshot.combat.queued.find(e => e.action === "brace")!.offsetSeconds;
     game.readyCombat(); game.advance(after - .01);
     expect(game.snapshot.player.block).toBe(0);
     game.advance(.02);
     expect(game.snapshot.player.block).toBe(24);
-    expect(game.snapshot.player.stamina).toBe(2);
+    expect(game.snapshot.player.stamina).toBe(100);
   });
 
-  test("stamina recovers outside combat and Block works in town", () => {
+  test("Defend works in town without spending energy", () => {
     const game = createAdventure(); tap(game, "brace");
     expect(game.snapshot.player.block).toBe(24);
-    expect(game.snapshot.player.stamina).toBe(3);
-    game.advance(1.499); expect(game.snapshot.player.stamina).toBe(3);
-    game.advance(.001); expect(game.snapshot.player.stamina).toBe(4);
-    game.advance(1.5); expect(game.snapshot.player.stamina).toBe(5);
+    expect(game.snapshot.player.stamina).toBe(100);
+    game.advance(1.499); expect(game.snapshot.player.stamina).toBe(100);
+    game.advance(.001); expect(game.snapshot.player.stamina).toBe(100);
+    game.advance(1.5); expect(game.snapshot.player.stamina).toBe(100);
   });
 
   test("an out-of-range melee strike is rejected without lunging or banking damage", () => {

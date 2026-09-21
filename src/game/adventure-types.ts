@@ -33,14 +33,14 @@ export interface CombatFeedback {
 }
 export type AdventureAction =
   | "forward" | "backward" | "left" | "right" | "jump" | "dive"
-  | "hearthstone" | "cancelHearthstone" | "bait" | "strike" | "brace" | "gather" | "cancelGather" | "ritual" | "interact"
+  | "special" | "hearthstone" | "cancelHearthstone" | "bait" | "strike" | "brace" | "gather" | "cancelGather" | "ritual" | "interact"
   | "buyPotion" | "drinkPotion" | "rest" | "target" | "openTrade" | "closeTrade" | "acceptTrade" | "closeShop" | "takeLoot" | "closeLoot" | "closeInn" | "closeBank";
 export interface TradeView {
   readonly kind: "supplies" | "potions"; readonly quantity: number; readonly receivedQuantity: number;
   readonly available: number; readonly canAccept: boolean; readonly reason: string; readonly step: number;
 }
 export type CombatActionTiming = "before" | "during" | "after";
-export type CombatAction = "bait" | "strike" | "brace";
+export type CombatAction = "bait" | "strike" | "brace" | "special";
 export type CombatMove = { readonly action: CombatAction } | { readonly action: "equip"; readonly gear: { readonly slot: GearSlot; readonly item: GearItemId | null } };
 export interface QueuedCombatAction {
   readonly id: number; readonly action: CombatAction; readonly targetId: string | null;
@@ -61,8 +61,9 @@ export interface CombatForecast {
   readonly outcomes: readonly { readonly id: string; readonly health: number; readonly staggered: boolean; readonly inCombat: boolean }[];
 }
 export interface CombatHazard { readonly id: string; readonly kind: "swarm" | "residue"; readonly position: Position; readonly radius: number; }
-export interface CombatEffect { readonly id: number; readonly kind: "ignition"; readonly position: Position; readonly radius: number; }
+export interface CombatEffect { readonly id: number; readonly kind: "ignition" | "whirlwind" | "piercing-arrow" | "frost-nova" | "volatile-flask" | "disruptor-shot"; readonly position: Position; readonly destination?: Position; readonly radius: number; }
 export interface CombatView {
+  readonly sprinting: boolean;
   readonly gatheringRemainingSeconds: number;
   readonly openingStrikeAvailable: boolean;
   readonly forecast: CombatForecast | null;
@@ -112,6 +113,7 @@ export interface ThreatForecastEntry {
 export interface ThreatView {
   readonly volatileResidue: boolean;
   readonly exposed: boolean;
+  readonly slowed: boolean;
   readonly staggered: boolean;
   readonly id: string;
   readonly name: string;
@@ -188,6 +190,7 @@ export interface AdventureSnapshot {
     readonly repositioned: boolean;
     readonly guardSeconds: number;
     readonly block: number;
+    readonly movementTiles: number; readonly movementRange: number; readonly combatMovementSpeed: number;
     readonly stamina: number; readonly maximumStamina: number; readonly staminaRecoverySeconds: number;
     readonly inCombat: boolean; readonly sitting: boolean; readonly emote: { readonly name: string; readonly sequence: number } | null;
     readonly maneuver: "none" | "lunge" | "bait";
@@ -240,6 +243,7 @@ export interface AdventureGame {
   selectTarget(id: string): void;
   queueBait(destination: Position, via?: readonly Position[]): boolean;
   previewBait(destination: Position, via?: readonly Position[]): Promise<CombatForecast | null>;
+  setSprint(active: boolean): boolean;
   readyCombat(): boolean;
   setActionTiming(timing: CombatActionTiming): boolean;
   removeQueuedAction(id: number): void;

@@ -146,3 +146,11 @@ test('one retreat names the creature when another opponent keeps fighting', asyn
   expect(game.snapshot.threats.find(enemy => enemy.id === 'scout')!.aggro).toBe(false);
   expect(game.snapshot.threats.find(enemy => enemy.id === 'patrol')!.aggro).toBe(true);
 });
+
+test("class skills name their own forecast and empty bursts report no enemies", () => {
+  const game=createAdventure({save:JSON.stringify(fixture())});
+  tap(game,"special");
+  expect(outcome(game).text).toContain("Whirlwind connects");
+  const snapshot=game.snapshot,forecast=snapshot.combat.forecast!;
+  expect(combatOutcome(snapshot,{...forecast,events:[]}).text).toContain("Whirlwind hits no enemies");
+});

@@ -444,11 +444,12 @@ describe('party encounter cohorts', () => {
     seed.join('alice', 'Alice', 'mage'); seed.pause('alice');
     const saved = JSON.parse(seed.save()), instance = saved.instances[0];
     saved.version = 4; instance.ownerId = instance.members[0].id; instance.origin = instance.members[0].origin; delete instance.members;
+    for (const character of saved.characters) character.state.stamina = 5;
     const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => 1000 });
     world.join('alice', 'Alice', 'mage');
     expect(world.session('alice').origin).toEqual(instance.origin);
     expect(world.rejoin('alice')).toBe(true);
-    expect(JSON.parse(world.save()).version).toBe(5);
+    expect(JSON.parse(world.save()).version).toBe(6);
   });
 });
 

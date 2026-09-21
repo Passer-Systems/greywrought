@@ -29,10 +29,10 @@ test("Cold Hands requires nearby acceptance, gathered cargo, physical return and
   game.advance(1.5);game.equip("chest",null);expect(game.snapshot.progression.damageReduction).toBe(0);
 });
 test("three combat actions and earned level bonuses persist",()=>{
-  let game=at(createAdventure(),-3,28,"expedition");expect(game.snapshot.player.currentAction).toBeNull();expect(game.snapshot.player.stamina).toBe(5);
+  let game=at(createAdventure(),-3,28,"expedition");expect(game.snapshot.player.currentAction).toBeNull();expect(game.snapshot.player.stamina).toBe(100);
   const c=earnedChapter();expect(c.level).toBe(3);expect(c.completed).toEqual(["cold-hands","roll-call","last-shift"]);
   const save=JSON.parse(game.save());save.state.chapter=c;
-  game=createAdventure({save:JSON.stringify(save)});expect(game.snapshot.progression.attackBonus).toBe(4);expect(game.snapshot.progression.unlockedActions).toEqual(["strike","brace","bait"]);
+  game=createAdventure({save:JSON.stringify(save)});expect(game.snapshot.progression.attackBonus).toBe(4);expect(game.snapshot.progression.unlockedActions).toEqual(["strike","brace","bait","special"]);
 });
 test("legacy character inventory survives while the new chapter becomes available",()=>{
   const save=JSON.parse(createAdventure().save());delete save.state.chapter;

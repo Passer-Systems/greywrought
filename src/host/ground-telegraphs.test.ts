@@ -18,7 +18,7 @@ const forecast: CombatForecast = {
   events: [], outcomes: [], actions: [],
 };
 const combat: CombatView = {
-  gatheringRemainingSeconds: 0, openingStrikeAvailable: false,
+  sprinting: false, gatheringRemainingSeconds: 0, openingStrikeAvailable: false,
   ready: false, phase: "preparation", remainingSeconds: 30, elapsedSeconds: 0, cycle: 1,
   queued: [], reservedStamina: 0, availableStamina: 5, forecast, hazards: [], effects: [],
 };
@@ -165,5 +165,15 @@ test("a real Maul turns pale when the planned return escapes its committed landi
   expect(areas[0].position.z).toBeCloseTo(stop.z, 7);
   expect(Math.abs(areas[1].position.z-stop.z)).toBeLessThan(1);
   expect(Math.abs(areas[1].position.z-start.z)).toBeGreaterThan(areas[1].radius);
+  telegraphs.dispose();
+});
+
+test("self skills preview their area and aimed skills preview their trace", () => {
+  const {canvas,telegraphs}=setup();
+  const area={actorId:"self",kind:"attack" as const,action:"special" as const,beat:.5,queueId:9,points:[origin],radius:5};
+  telegraphs.update({combat:{...combat,forecast:{...forecast,paths:[area]}}},{kind:"move",queueId:9});
+  expect(JSON.parse(canvas.dataset.telegraphs!)).toContainEqual(expect.objectContaining({ability:"special",kind:"area",radius:5,position:origin}));
+  telegraphs.update({combat:{...combat,forecast:{...forecast,paths:[{...area,points:[origin,landing],radius:0}]}}},{kind:"move",queueId:9});
+  expect(JSON.parse(canvas.dataset.telegraphs!)).toContainEqual(expect.objectContaining({ability:"special",kind:"target",path:[origin,landing]}));
   telegraphs.dispose();
 });

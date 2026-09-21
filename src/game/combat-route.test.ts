@@ -24,7 +24,7 @@ test('a returning route spends total movement and preserves the Attack after mov
   const forecast = await game.previewBait(start, [stop]);
   expect(forecast!.paths.find(path => path.action === 'bait')!.points.map(p => [p.x, p.z])).toEqual([start, stop, start].map(p => [p.x, p.z]));
   expect(game.snapshot.combat.queued).toHaveLength(2);
-  expect(game.snapshot.combat.reservedStamina).toBe(1);
+  expect(game.snapshot.combat.reservedStamina).toBe(0);
   game.readyCombat(); game.advance(.85);
   expect(game.snapshot.player.position.x).toBeCloseTo(stop.x, 7);
   expect(game.snapshot.combat.queued.find(entry => entry.action === 'strike')!.status).toBe('pending');

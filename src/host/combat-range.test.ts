@@ -77,3 +77,11 @@ test("enemy range refers to its actual multiplayer target", () => {
   expect(cue.text).toContain("targeting Rowan");
   expect(enemyRange(snapshot, threat, scout.currentAbility, { ...audience, players: [] }).state).toBe("unknown");
 });
+
+test("class skill targeting distinguishes self bursts from aimed skills", () => {
+  for (const archetype of ["warrior", "mage", "hunter", "alchemist", "artificer"] as const) {
+    const view = {...snapshot, player: {...snapshot.player, archetype}, threats: [{...scout, inRangeActions: ["special"] as const}]};
+    expect(playerRange(view, "special").state).toBe(archetype === "warrior" || archetype === "mage" ? "none" : "in");
+    if (archetype === "hunter") expect(playerRange({...view, threats: [{...view.threats[0]!, position: {x:15.1,y:0,z:0}}]}, "special").state).toBe("out");
+  }
+});

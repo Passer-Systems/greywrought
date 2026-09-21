@@ -2,7 +2,6 @@ import { BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments
 import { COMBAT_CELL_SIZE, combatCell, combatRouteDistance, reachableCombatCells } from '../game/combat-grid.js';
 import { combatSurfaceHeight } from './terrain-geometry.js';
 import { blockedPosition } from '../game/movement.js';
-import { classKit } from '../game/class-kit.js';
 import type { AdventureSnapshot, Position } from '../game/adventure-types.js';
 
 export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
@@ -62,7 +61,7 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
       cells.visible = edges.visible = hover.visible = lines.visible && aiming && snapshot.combat.phase === 'preparation' && !snapshot.combat.ready;
       if (!lines.visible) { destinations = []; cellSignature = ''; canvas.dataset.moveTiles = '[]'; delete canvas.dataset.moveOrigin; delete canvas.dataset.moveRemaining; return; }
       const origin = aiming ? route.at(-1) ?? snapshot.player.position : snapshot.player.position;
-      const remaining = Math.max(0, classKit(snapshot.player.archetype).movementTiles - combatRouteDistance(snapshot.player.position, route) / COMBAT_CELL_SIZE);
+      const remaining = Math.max(0, snapshot.player.movementTiles - combatRouteDistance(snapshot.player.position, route) / COMBAT_CELL_SIZE);
       const x = combatCell(origin.x), z = combatCell(origin.z);
       if (x !== previousX || z !== previousZ || reference.y !== previousY) {
         previousX = x; previousZ = z; previousY = reference.y;

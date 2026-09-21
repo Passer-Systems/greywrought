@@ -7,7 +7,7 @@ import { setAttribute, setDataset, setText } from "./dom-updates.js";
 import { createGearShop } from "./gear-shop.js";
 import { createAppControls } from './app-controls.js';
 import { COMBAT_RULES, createAdventure } from "../game/adventure.js";
-import { classAction, classKit } from "../game/class-kit.js";
+import { classAction, classKit, SPRINT_COST } from "../game/class-kit.js";
 import type { AdventureAction, AdventureSnapshot, Position } from "../game/adventure-types.js";
 import { COMBAT_CELL_SIZE, combatRouteDistance } from "../game/combat-grid.js";
 import {
@@ -105,6 +105,7 @@ const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   onAction: action => pulse(action),
   onReady: readyCombat,
   onAimMove: () => pulse("bait"),
+  onSprint: active => { if (running?.ready && !paused && !moveSubmitting) { running.game.setSprint(active); combatPlan.update(running.game.snapshot); updateMoveRoute(); } },
   onUndoMove: undoMove,
   onFinishMove: () => { void finishMove(); },
   onPreview: preview => running?.world.setCombatPreview(preview),
@@ -195,7 +196,13 @@ function loadActionBarOrder(archetype: CharacterArchetype): void {
   for (const action of parsed) order.push(action !== null && order.includes(action) ? null : action);
   for (const action of defaults) if (action !== null && !order.includes(action)) {
     const empty = order.indexOf(null);
-    if (empty >= 0) order[empty] = action; else order.push(action);
+    if (empty >= 0) order[empty] = action;
+    else if (order.length < defaults.length) order.push(action);
+    else {
+      let optional = order.length - 1;
+      while (optional >= 0 && defaults.includes(order[optional]!)) optional--;
+      if (optional >= 0) order[optional] = action;
+    }
   }
   while (order.length < defaults.length) order.push(null);
   actionBarOrder = order.slice(0, defaults.length);
@@ -412,7 +419,7 @@ function updateMoveRoute(): void {
   running?.world.setMoveRoute(moveRoute);
   const snapshot = running?.game.snapshot;
   const used = snapshot ? combatRouteDistance(snapshot.player.position, moveRoute) / COMBAT_CELL_SIZE : 0;
-  const total = snapshot ? classKit(snapshot.player.archetype).movementTiles : 0;
+  const total = snapshot ? snapshot.player.movementTiles : 0;
   combatPlan.setRouteEditing(baitAiming, used, total, moveRoute.length, moveSubmitting);
   if (running) running.world.canvas.dataset.moveRoute = JSON.stringify(moveRoute);
 }
@@ -432,8 +439,8 @@ async function finishMove(after?: () => void): Promise<void> {
   if (!accepted) {
     moveSubmitting = false;
     const combat = app.game.snapshot.combat;
-    moveAimError = combat.availableStamina + (combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) < 1
-      ? "Not enough stamina for Move. Cancel and change your action."
+    moveAimError = combat.availableStamina + (combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) < (combat.sprinting ? SPRINT_COST : 0)
+      ? "Not enough Energy to Sprint. Change your action or turn Sprint off."
       : "That route is no longer clear. Undo the last stop and choose another tile.";
     updateMoveRoute(); return;
   }
@@ -447,20 +454,20 @@ function pressAction(action: AdventureAction): void {
   if (running?.game.session.mode === "viewing") return;
   if (action === "interact" && running?.ready && !paused) { const stop=nearbyBellrunner(running.game.snapshot.player.position); if (stop) {openBellrunner(stop.id);return;} }
   if (menuOpen()) return;
-  if (action === "strike" && running?.selection?.kind !== "enemy") return;
+  if ((action === "strike" || action === "special" && running && classAction(running.game.snapshot.player.archetype, action).target === "unit") && running?.selection?.kind !== "enemy") return;
   if (action === "target" && running) running.selection = { kind: "enemy", id: running.game.snapshot.selectedThreat };
   if (action === "bait") {
     if (moveSubmitting) return;
     const snapshot = running?.game.snapshot;
-    if (snapshot?.combat.phase === "preparation" && !snapshot.combat.ready && snapshot.combat.availableStamina + (snapshot.combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) >= 1) setBaitAiming(!baitAiming);
+    if (snapshot?.combat.phase === "preparation" && !snapshot.combat.ready && snapshot.combat.availableStamina + (snapshot.combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) >= (snapshot.combat.sprinting ? SPRINT_COST : 0)) setBaitAiming(!baitAiming);
     return;
   }
-  if ((action === "strike" || action === "brace") && running) running.autocast.suppress(running.game.snapshot, running.game.session.id);
-  if ((action === "strike" || action === "brace") && baitAiming) {
+  if ((action === "strike" || action === "brace" || action === "special") && running) running.autocast.suppress(running.game.snapshot, running.game.session.id);
+  if ((action === "strike" || action === "brace" || action === "special") && baitAiming) {
     void finishMove(() => { running?.game.setAction(action, true); running?.game.setAction(action, false); });
     return;
   }
-  if (combatExecutionLocked() && ["forward", "backward", "left", "right", "jump", "dive", "strike", "brace", "drinkPotion"].includes(action)) return;
+  if (combatExecutionLocked() && ["forward", "backward", "left", "right", "jump", "dive", "strike", "brace", "special", "drinkPotion"].includes(action)) return;
   running?.game.setAction(action, true);
 }
 function pulse(action: AdventureAction): void {
@@ -471,7 +478,7 @@ function pulse(action: AdventureAction): void {
 function release(): void {
   setBaitAiming(false);
   if (running) {
-    for (const action of new Set<AdventureAction>([...Object.values(keyActions), "strike", "brace", "bait"])) running.game.setAction(action, false);
+    for (const action of new Set<AdventureAction>([...Object.values(keyActions), "strike", "brace", "bait", "special"])) running.game.setAction(action, false);
     running.game.setMouseForward(false);
   }
   keys.clear();
@@ -546,7 +553,7 @@ function renderEntry(): void {
   text("entry-creator-class", classes[draft].name);
   text("entry-lore-title", classes[draft].name);
   text("entry-lore-copy", classes[draft].copy);
-  text("entry-lore-kit", `Movement ${classKit(draft).movementTiles} · ${classKit(draft).movementTiles} tiles per turn · Attack · Defend`);
+  text("entry-lore-kit", `Movement ${classKit(draft).movementTiles} · ${classKit(draft).movementTiles} tiles per turn · Attack · Defend · ${classAction(draft, "special").name}`);
   text("entry-creator-preview-name", normalizedCharacterName(input("entry-character-name").value) ?? "Unnamed Adventurer");
   avatar("entry-creator", draft);
   for (const choice of document.querySelectorAll<HTMLElement>("[data-entry-archetype]")) choice.setAttribute("aria-pressed", String(choice.dataset.entryArchetype === draft));
@@ -914,6 +921,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
     gameCombatRemaining: String(snapshot.combat.remainingSeconds),
   });
   setDataset(data, { archetype: player.archetype });
+  if (baitAiming) updateMoveRoute();
   text("bait-aim-hint", moveAimError || "Green tiles: next stop · Enter: done · Backspace: undo · Esc: cancel");
   const settlement = settlementAt(player.position.x, player.position.z);
   text("adventure-zone", (snapshot.phase === "town" ? `${settlement?.name ?? YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : regionAt(player.position.x,player.position.z).name) + ` · Level ${snapshot.progression.level}`);
@@ -933,30 +941,30 @@ function renderHud(snapshot: AdventureSnapshot): void {
   shop.update(snapshot); gearShop.update(snapshot);
   trade.update(snapshot);
   const selected = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat);
-  for (const action of ["strike", "brace", "bait"] as const) {
+  for (const action of ["strike", "brace", "bait", "special"] as const) {
     const spec = classAction(player.archetype, action);
-    const cost = spec.cost ?? 1;
-    const targeted = action === "strike";
+    const cost = action === "bait" && snapshot.combat.sprinting ? SPRINT_COST : spec.cost ?? 0;
+    const targeted = action === "strike" || spec.target === "unit";
     const planning = snapshot.combat.phase === "preparation";
     const available = targeted ? Boolean(selected?.active && selected.health > 0) : player.inCombat;
     const range = playerRange(snapshot, action);
     const control = document.querySelector<HTMLButtonElement>('.adventure-actions [data-action="' + action + '"]')!;
     const reserved = snapshot.combat.queued.find(entry => (entry.action === "bait") === (action === "bait"))?.cost ?? 0;
     const availableStamina = snapshot.combat.availableStamina + reserved;
-    const disabled = running?.game.session.mode === "viewing" || !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.ready || availableStamina < cost || targeted && range.state !== "in" && !(planning && selected?.aggro);
+    const disabled = running?.game.session.mode === "viewing" || !available || !(planning || action === "strike" && snapshot.combat.phase === "idle") || snapshot.combat.ready || availableStamina < cost || targeted && range.state !== "in" && !(planning && selected?.aggro);
     if (control.disabled !== disabled) control.disabled = disabled;
-    const autocast = targeted && Boolean(running?.autocast.enabled);
+    const autocast = action === "strike" && Boolean(running?.autocast.enabled);
     setAttribute(control, "aria-label", spec.name + (autocast ? " · Autocast on" : ""));
-    if (targeted) setDataset(control.dataset, { autocast: String(autocast) });
+    if (action === "strike") setDataset(control.dataset, { autocast: String(autocast) });
     setAttribute(control, "aria-pressed", String(action === "bait" && baitAiming));
-    const openingStrike = targeted && snapshot.combat.openingStrikeAvailable;
+    const openingStrike = action === "strike" && snapshot.combat.openingStrikeAvailable;
     setDataset(control.dataset, { range: range.state, openingStrike: String(openingStrike) });
     control.classList.toggle("action-in-range", targeted && range.state === "in" && !control.disabled);
     setText(control.querySelector<HTMLElement>(".action-tooltip strong")!, spec.name);
-    setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, spec.description + (targeted ? autocast ? " Autocast on: queue Attack once each turn. Right-click to turn off. Your chosen action and timing stay yours." : " Right-click to autocast: queue Attack once each turn in combat." : "") + (openingStrike ? " Attack before you are detected to land an opening hit before the first turn." : ""));
+    setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, (cost ? cost + " Energy. " : "Free. ") + spec.description + (action === "strike" ? autocast ? " Autocast on: queue Attack once each turn. Right-click to turn off. Your chosen action and timing stay yours." : " Right-click to autocast: queue Attack once each turn in combat." : "") + (openingStrike ? " Attack before you are detected to land an opening hit before the first turn." : ""));
     const art = control.querySelector<HTMLImageElement>(".action-art img")!;
     const source = publicUrl(spec.icon); if (art.getAttribute("src") !== source) art.src = source;
-    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : openingStrike ? "Opening strike · hit first" : action === "bait" ? "Click a highlighted tile to plan your movement" : "Plan · " + cost + " stamina";
+    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " Energy" : openingStrike ? "Opening strike · hit first" : action === "bait" ? "Click a highlighted tile to plan your movement" : cost ? "Plan · " + cost + " Energy" : "Free";
     text(action + "-ready", detail + (range.text ? " · " + range.text : ""));
   }
   for (const item of usableItems) {
@@ -1273,7 +1281,7 @@ for (const target of [element("map-threats"), element("enemy-intents")]) listen(
 for (const control of document.querySelectorAll<HTMLElement>("[data-action]:not(#adventure-actions > button):not(.combat-plan-edit)")) listen(control, "click", () => {
   if (performance.now() < suppressActionClickUntil) return;
   const action = control.dataset.action;
-  if (action && ["strike", "brace", "bait", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
+  if (action && ["strike", "brace", "bait", "special", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);
 });
 bindActionBar();
 listen(window, "click", (event) => {

@@ -363,6 +363,16 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
     const routed = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait' && e.via.length === 1));
     expect(routed.snapshot.combat.queued[0]!.destination).toEqual(origin);
     expect(routed.snapshot.combat.queued[0]!.via).toEqual(via);
+    expect(await client.invalid({ type: 'sprint', active: 1 })).toBe(false);
+    expect(await client.command({ type: 'sprint', active: true })).toBe(true);
+    const sprint = await client.state(s => s.snapshot.combat.sprinting);
+    expect(sprint.snapshot.player.movementTiles).toBe(4);
+    expect(sprint.snapshot.combat.reservedStamina).toBe(30);
+    expect(await client.command({ type: 'action', action: 'special', pressed: true })).toBe(true);
+    expect(await client.command({ type: 'action', action: 'special', pressed: false })).toBe(true);
+    const skill = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'special'));
+    expect(skill.snapshot.combat.reservedStamina).toBe(70);
+    expect(await client.command({ type: 'sprint', active: false })).toBe(true);
     expect(await client.command({ type: 'previewBait', destination: origin, via })).toBe(true);
     const preview = await client.wait(message => message.type === 'movePreview');
     expect(preview.type === 'movePreview' && preview.forecast?.paths.some(path => path.action === 'bait' && path.points.length === 3)).toBe(true);
@@ -379,6 +389,7 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
     expect(ready.snapshot.combat.phase).toBe('preparation');
     expect(ready.snapshot.combat.gatheringRemainingSeconds).toBeGreaterThan(0);
     await client.state(s => s.snapshot.combat.phase === 'active', 8000);
+    expect(await client.command({ type: 'sprint', active: true })).toBe(false);
     expect(await client.command({ type: 'actionTiming', timing: 'before' })).toBe(false);
     expect(await client.command({ type: 'bait', destination })).toBe(false);
   } finally { client.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }

@@ -148,7 +148,7 @@ function createCombatEffects(scene: Scene) {
   const swarmMaterial = new PointsMaterial({ color: 0xe2c66b, size: 0.1, transparent: true, opacity: 0.85, depthWrite: false });
   const residueMaterial = new PointsMaterial({ color: 0xb8cf65, size: 0.13, transparent: true, opacity: 0.75, depthWrite: false });
   const burstGeometry = new SphereGeometry(1, 16, 10);
-  const bursts: { mesh: Mesh<SphereGeometry, MeshBasicMaterial>; remaining: number; radius: number }[] = [];
+  const bursts: { mesh: Mesh<SphereGeometry, MeshBasicMaterial>; remaining: number; radius: number; length?: number }[] = [];
   let highwater: number | undefined;
   let connection: number | undefined;
   let lastUpdate = 0;
@@ -187,9 +187,21 @@ function createCombatEffects(scene: Scene) {
         highwater = latest; connection = revision; clearBursts();
       } else {
         for (const effect of combat.effects) if (effect.id > highwater) {
-          const mesh = new Mesh(burstGeometry, new MeshBasicMaterial({ color: 0xff8a35, transparent: true, opacity: 0.5, depthWrite: false }));
+          const color = { ignition: 0xff8a35, whirlwind: 0xffda85, "frost-nova": 0x83dfff, "volatile-flask": 0xb8e56a, "piercing-arrow": 0xffe1a1, "disruptor-shot": 0xb3a0ff }[effect.kind];
+          const mesh = new Mesh(burstGeometry, new MeshBasicMaterial({ color, transparent: true, opacity: 0.5, depthWrite: false }));
           mesh.position.set(effect.position.x, effect.position.y + 0.3, effect.position.z);
           scene.add(mesh); bursts.push({ mesh, remaining: 0.65, radius: effect.radius });
+          if (effect.destination) {
+            const from = new Vector3(effect.position.x, effect.position.y + 1, effect.position.z);
+            const to = new Vector3(effect.destination.x, effect.destination.y + 1, effect.destination.z);
+            const direction = to.clone().sub(from), length = direction.length();
+            if (length > .01) {
+              const trace = new Mesh(burstGeometry, new MeshBasicMaterial({ color, transparent: true, opacity: .8, depthWrite: false }));
+              trace.position.copy(from).lerp(to, .5);
+              trace.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), direction.normalize());
+              scene.add(trace); bursts.push({ mesh: trace, remaining: .65, radius: .12, length });
+            }
+          }
         }
         highwater = latest;
       }
@@ -200,7 +212,8 @@ function createCombatEffects(scene: Scene) {
         if (burst.remaining <= 0) { burst.mesh.removeFromParent(); burst.mesh.material.dispose(); bursts.splice(index, 1); continue; }
         const progress = 1 - burst.remaining / 0.65;
         const radius = burst.radius * (0.25 + 0.75 * Math.min(1, progress * 3));
-        burst.mesh.scale.set(radius, 0.3 + progress * 0.75, radius);
+        if (burst.length) burst.mesh.scale.set(.1, .1, burst.length / 2);
+        else burst.mesh.scale.set(radius, 0.3 + progress * 0.75, radius);
         burst.mesh.material.opacity = (1 - progress) * 0.5;
       }
     },

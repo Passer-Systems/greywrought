@@ -16,7 +16,7 @@ import { normalizedCharacterName } from '../host/character-profile.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 
 const ACTIONS = [
-  'forward', 'backward', 'left', 'right', 'jump', 'dive', 'strike', 'brace', 'bait', 'gather', 'cancelGather', 'ritual', 'interact', 'buyPotion', 'drinkPotion',
+  'forward', 'backward', 'left', 'right', 'jump', 'dive', 'strike', 'special', 'brace', 'bait', 'gather', 'cancelGather', 'ritual', 'interact', 'buyPotion', 'drinkPotion',
   'hearthstone', 'cancelHearthstone', 'rest', 'target', 'openTrade', 'closeTrade', 'acceptTrade',
   'closeShop', 'takeLoot', 'closeLoot', 'closeInn', 'closeBank',
 ] as const satisfies readonly AdventureAction[];
@@ -61,6 +61,7 @@ function command(value: unknown): value is WorldCommand {
         && typeof input.jump === 'boolean' && (input.rise === undefined || typeof input.rise === 'boolean') && (input.dive === undefined || typeof input.dive === 'boolean') && (index === 0 || frame.sequence > frames[index - 1].sequence);
     });
     case 'action': return keys(value, ['type', 'action', 'pressed']) && member(value.action, ACTIONS) && typeof value.pressed === 'boolean';
+    case 'sprint':
     case 'mouseForward': return keys(value, ['type', 'active']) && typeof value.active === 'boolean';
     case 'camera': return keys(value, ['type', 'x', 'z']) && finite(value.x, -1, 1) && finite(value.z, -1, 1) && Math.hypot(value.x, value.z) > 0.001;
     case 'target': case 'loot': return keys(value, ['type', 'id']) && identifier(value.id);
@@ -364,6 +365,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'camera': player.setCameraForward(value.x, value.z); break;
       case 'target': player.selectTarget(value.id); break;
       case 'bait': return player.queueBait(value.destination, value.via);
+      case 'sprint': return player.setSprint(value.active);
       case 'ready': return player.readyCombat();
       case 'actionTiming': return player.setActionTiming(value.timing);
       case 'remove': player.removeQueuedAction(value.id); break;

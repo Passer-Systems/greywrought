@@ -1,5 +1,5 @@
 import type { AdventureSnapshot, CombatAction, CombatActionTiming, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
-import { classAction } from "../game/class-kit.js";
+import { classAction, SPRINT_COST } from "../game/class-kit.js";
 import type { CombatPreview } from "./ground-telegraphs.js";
 import { enemyResponse, enemyResponseLabel } from "./enemy-response.js";
 import { combatOutcome } from "./combat-outcome.js";
@@ -10,6 +10,7 @@ const actions: Record<CombatAction, { name: string; icon: string }> = {
   bait: { name: "Move", icon: "mobility-boots" },
   strike: { name: "Attack", icon: "sword-strike" },
   brace: { name: "Defend", icon: "defensive-shield" },
+  special: { name: "Class skill", icon: "energy-burst" },
 };
 const enemyArt: Record<string, string> = {
   "ember-beam": "lightning-bolt", fireball: "fire-spell", "ember-ward": "defensive-shield",
@@ -36,6 +37,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   onAction: (action: CombatAction) => void;
   onReady: () => boolean | void;
   onAimMove: () => void;
+  onSprint: (active: boolean) => void;
   onUndoMove: () => void;
   onFinishMove: () => void;
   onPreview: (preview: CombatPreview | null) => void;
@@ -62,7 +64,10 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     scheduleAutoReady();
   });
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
+  const energy = node("small", "combat-plan-energy", root); energy.id = "combat-plan-energy";
+  energy.title = "Plans reserve Energy until the turn starts. Recover 20 Energy each turn.";
   const grid = node("div", "combat-plan-grid", root);
+  let sprint: HTMLButtonElement;
   const cells: HTMLElement[] = [], emptyLabels: HTMLElement[] = [];
   for (const [index, label] of ["Movement", "Action"].entries()) {
     const row = node("div", "combat-plan-row", grid); row.dataset.category = index === 0 ? "movement" : "action";
@@ -75,6 +80,12 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       if (kind === "bait") { edit.id = "combat-plan-aim-move"; edit.title = "Choose or change your movement route"; }
       edit.addEventListener("click", () => kind === "bait" ? callbacks.onAimMove() : callbacks.onAction(kind));
     }
+    if (index === 0) {
+      sprint = node("button", "combat-plan-edit combat-plan-sprint", row); sprint.type = "button"; sprint.id = "combat-plan-sprint";
+      art(sprint, "mobility-boots"); node("span", "", sprint).textContent = "Sprint";
+      sprint.title = "Sprint · 30 Energy · double movement"; sprint.setAttribute("aria-label", sprint.title);
+      sprint.addEventListener("click", () => { if (editing() && snapshot) callbacks.onSprint(!snapshot.combat.sprinting); });
+    }
     const remove = node("button", "combat-plan-remove", row); remove.type = "button"; remove.textContent = "×";
     remove.title = "Clear " + label.toLowerCase(); remove.setAttribute("aria-label", remove.title);
     remove.addEventListener("click", () => {
@@ -82,6 +93,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       if (editing() && entry) callbacks.onRemove(entry.id);
     });
   }
+  const sprintHome = sprint!.parentElement!;
+  const sprintNext = sprint!.nextSibling;
   const routeEditor = node("div", "combat-plan-route-editor", root); routeEditor.hidden = true;
   const routeBudget = node("span", "combat-plan-route-budget", routeEditor);
   const undoMove = node("button", "combat-plan-edit", routeEditor); undoMove.type = "button"; undoMove.id = "combat-plan-undo-move"; undoMove.textContent = "Undo"; undoMove.addEventListener("click", callbacks.onUndoMove);
@@ -206,25 +219,29 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const movement = snapshot.combat.queued.find(entry => entry.action === "bait");
     const action = snapshot.combat.queued.find(entry => entry.action !== "bait");
     editor.hidden = snapshot.combat.phase !== "preparation";
-    write(timingLabel, action?.action === "brace" ? "Defend timing" : "Attack timing");
+    write(timingLabel, action ? actionLabel(action.action) + " timing" : "Action timing");
     for (const button of timingButtons) {
-      const onContact = button.dataset.timing === "during" && action?.action !== "brace";
+      const targeted = action && (action.action === "strike" || classAction(snapshot.player.archetype, action.action).target === "unit");
+      const onContact = button.dataset.timing === "during" && targeted;
       const mobile = action && classAction(snapshot.player.archetype, action.action).movementProfile === "mobile";
       write(button, onContact ? "In reach" : button.dataset.timing![0]!.toUpperCase() + button.dataset.timing!.slice(1));
       button.disabled = !editing() || !action;
-      button.title = onContact ? "Attack once when your target comes into reach along the route. " + (mobile ? "Keep moving after the shot." : "Stop to attack and hold position for the rest of the turn.") : button.textContent + " movement";
+      button.title = onContact ? "Use this action once when your target comes into reach along the route. " + (mobile ? "Keep moving afterward." : "Stop to use it and hold position for the rest of the turn.") : button.textContent + " movement";
       button.setAttribute("aria-pressed", String(action?.timing === button.dataset.timing));
     }
-    write(timingSuffix, action?.action === "strike" && action.timing === "during" ? classAction(snapshot.player.archetype, action.action).movementProfile === "mobile" ? "keep moving" : "then hold" : "movement");
+    write(timingSuffix, action && (action.action === "strike" || action.action === "special") && action.timing === "during" ? classAction(snapshot.player.archetype, action.action).movementProfile === "mobile" ? "keep moving" : "then hold" : "movement");
     if (movement && action && autoReady.checked && (confirmedTiming?.cycle !== snapshot.combat.cycle || confirmedTiming.queueId !== action.id || confirmedTiming.action !== action.action)) write(timingSuffix, "choose timing");
+    write(energy, snapshot.combat.availableStamina + " Energy available · " + snapshot.combat.reservedStamina + " reserved");
+    sprint!.disabled = !editing() || !snapshot.combat.sprinting && snapshot.combat.availableStamina + (movement?.cost ?? 0) < SPRINT_COST;
+    sprint!.setAttribute("aria-pressed", String(snapshot.combat.sprinting));
     for (const [index, row] of [...grid.children].entries()) {
       const entry = index === 0 ? movement : action;
       emptyLabels[index]!.hidden = Boolean(entry);
       write(emptyLabels[index]!, index === 0 ? "Stay" : "None");
-      for (const button of row.querySelectorAll<HTMLButtonElement>(".combat-plan-edit")) {
+      for (const button of row.querySelectorAll<HTMLButtonElement>(".combat-plan-edit[data-action]")) {
         const kind = button.dataset.action as CombatAction;
         const available = snapshot.combat.availableStamina + (entry?.cost ?? 0);
-        button.disabled = !editing() || available < (classAction(snapshot.player.archetype, kind).cost ?? 1) || kind === "strike" && !snapshot.threats.some(threat => threat.id === snapshot!.selectedThreat && threat.active && threat.health > 0);
+        button.disabled = !editing() || available < (kind === "bait" && snapshot.combat.sprinting ? SPRINT_COST : classAction(snapshot.player.archetype, kind).cost ?? 0) || kind === "strike" && !snapshot.threats.some(threat => threat.id === snapshot!.selectedThreat && threat.active && threat.health > 0);
         button.setAttribute("aria-pressed", String(entry?.action === kind));
       }
       const remove = row.querySelector<HTMLButtonElement>(".combat-plan-remove")!;
@@ -259,6 +276,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   return {
     setRouteEditing(active: boolean, used = 0, total = 0, count = 0, submitting = false): void {
       routeEditing = active; routeEditor.hidden = !active;
+      if (active && sprint!.parentElement !== routeEditor) routeEditor.insertBefore(sprint!, undoMove);
+      else if (!active && sprint!.parentElement !== sprintHome) sprintHome.insertBefore(sprint!, sprintNext);
       const remaining = Math.max(0, total - used);
       write(routeBudget, Number(remaining.toFixed(1)) + " / " + total + " tiles left" + (count ? " · " + count + (count === 1 ? " stop" : " stops") : ""));
       routeBudget.title = "Green tiles show where your next stop can be. Every leg spends movement, including backtracking.";
@@ -318,7 +337,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           });
           buttons.set(move.id, button);
         }
-        const moveName = actionLabel(move.action);
+        const moveName = move.action === "bait" && snapshot?.combat.sprinting ? "Sprint" : actionLabel(move.action);
         const moveIcon = String(move.action) === "equip" ? "assets/ui/icons/spells/defensive-shield.png" : classAction(next.player.archetype,move.action).icon;
         const moveImage = button.querySelector<HTMLImageElement>("img");
         const source = publicUrl(moveIcon);
@@ -328,7 +347,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
 
         button.setAttribute("aria-pressed", String(move.id === selectedId));
         const target = moveTarget(move);
-        const label = moveName + " → " + target + (move.action === "strike" && move.timing === "during" ? " when in reach" : " at " + move.offsetSeconds.toFixed(1) + "s") + " · " + move.cost + " stamina · " + move.status + (move.reason ? ": " + move.reason : "");
+        const label = moveName + " → " + target + ((move.action === "strike" || move.action === "special" && classAction(next.player.archetype, move.action).target === "unit") && move.timing === "during" ? " when in reach" : " at " + move.offsetSeconds.toFixed(1) + "s") + " · " + move.cost + " Energy · " + move.status + (move.reason ? ": " + move.reason : "");
         write(button.querySelector<HTMLElement>(".combat-plan-move-label")!, moveName);
         write(button.querySelector<HTMLElement>(".combat-plan-move-target")!, "→ " + target);
         button.dataset.targetId = move.targetId ?? "";

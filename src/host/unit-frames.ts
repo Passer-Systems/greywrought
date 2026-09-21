@@ -23,7 +23,7 @@ function makeFrame(host: HTMLElement, id: string, kind: string): Frame {
   const health = node("div", "unit-frame-health", bars);
   const fill = node("span", "unit-frame-fill", health), value = node("span", "unit-frame-value", health);
   const stamina = node("div", "unit-frame-stamina", bars); stamina.hidden = true;
-  stamina.setAttribute("role", "meter"); stamina.setAttribute("aria-label", "Stamina");
+  stamina.setAttribute("role", "meter"); stamina.setAttribute("aria-label", "Energy");
   const staminaFill = node("span", "unit-frame-stamina-fill", stamina);
   return { root, portrait, name, level, fill, value, stamina, staminaFill };
 }
@@ -43,7 +43,7 @@ function stamina(frame: Frame, player?: AdventureSnapshot["player"]): void {
   frame.stamina.setAttribute("aria-valuemin", "0");
   frame.stamina.setAttribute("aria-valuemax", String(player.maximumStamina));
   frame.stamina.setAttribute("aria-valuenow", String(player.stamina));
-  frame.stamina.title = "Stamina " + player.stamina + " / " + player.maximumStamina;
+  frame.stamina.title = "Energy " + player.stamina + " / " + player.maximumStamina;
 }
 const styles = `
 .unit-frames { position:absolute; inset:0; pointer-events:none; color:#f4e5ba; font:var(--ui-font-small)/1.2 system-ui,sans-serif; filter:drop-shadow(0 2px 2px #000b); }

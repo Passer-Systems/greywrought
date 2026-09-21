@@ -1,3 +1,4 @@
+import { classAction } from "../game/class-kit.js";
 import type { AdventureSnapshot, CombatForecast } from "../game/adventure-types.js";
 
 export interface CombatOutcome {
@@ -24,7 +25,7 @@ export function combatOutcome(snapshot: AdventureSnapshot, forecast: CombatForec
   let actionText = "No action planned";
   let failed = false;
   if (action) {
-    const name = action.action === "strike" ? "Attack" : "Defend";
+    const name = classAction(snapshot.player.archetype, action.action).name;
     failed = action.result !== "executed";
     switch (action.result) {
       case "executed": {
@@ -33,15 +34,15 @@ export function combatOutcome(snapshot: AdventureSnapshot, forecast: CombatForec
           const hits = forecast.events.filter(event => event.kind === "hit" && event.sourceId === forecast.playerId && event.queueId === action.queueId);
           const defeated = forecast.events.some(event => event.kind === "defeat" && event.sourceId === forecast.playerId && event.queueId === action.queueId && event.targetId === action.targetId);
           const target = snapshot.threats.find(threat => threat.id === action.targetId);
-          actionText = defeated && target ? `${target.name} defeated` : hits.length > 0 && hits.every(hit => hit.damage === 0) ? "Attack blocked" : "Attack connects";
+          actionText = defeated && target ? `${target.name} defeated` : hits.length > 0 && hits.every(hit => hit.damage === 0) ? `${name} blocked` : hits.length ? `${name} connects` : `${name} hits no enemies`;
         }
         break;
       }
-      case "out-of-range": actionText = "Attack out of range"; break;
-      case "behind-cover": actionText = "Attack stopped by cover"; break;
+      case "out-of-range": actionText = `${name} out of range`; break;
+      case "behind-cover": actionText = `${name} stopped by cover`; break;
       case "target-unavailable": actionText = "Target unavailable"; break;
-      case "moving": actionText = "Attack interrupted by movement"; break;
-      case "insufficient-stamina": actionText = `${name} lacks stamina`; break;
+      case "moving": actionText = `${name} interrupted by movement`; break;
+      case "insufficient-stamina": actionText = `${name} lacks Energy`; break;
       case "destination-unreachable": actionText = "Move cannot reach its tile"; break;
       case "not-executed": actionText = `${name} does not happen`; break;
     }

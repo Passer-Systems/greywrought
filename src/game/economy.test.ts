@@ -60,7 +60,7 @@ test("old quest levels migrate without resetting earned lessons, gear or currenc
   delete save.state.chapter.experience; delete save.state.chapter.equipment.offhand; delete save.state.coins;
   const game=createAdventure({save:JSON.stringify(save)});
   expect(game.snapshot.progression).toMatchObject({level:3,experience:300,attackBonus:4});
-  expect(game.snapshot.progression.unlockedActions).toEqual(["strike","brace","bait"]); expect(game.snapshot.coins).toBe(0);
+  expect(game.snapshot.progression.unlockedActions).toEqual(["strike","brace","bait","special"]); expect(game.snapshot.coins).toBe(0);
 });
 test("shared contributors and bystanders gain no XP, and one corpse has one coin purse", () => {
   const seed=createSharedAdventure(); for(const id of ["a","b","c"]) seed.join(id,id,"mage");

@@ -14,10 +14,10 @@ function expedition(archetype: CharacterArchetype): AdventureGame {
 }
 
 describe("new class kits", () => {
-  test("every class has exactly Attack, Defend and Move", () => {
+  test("every class has free Attack, Defend and Move plus its own skill", () => {
     expect(classKit("alchemist").abilities.strike.name).toBe("Attack");
     expect(classKit("artificer").abilities.strike.name).toBe("Attack");
-    for (const kind of ["warrior","mage","hunter","alchemist","artificer"] as const) expect(Object.values(classKit(kind).abilities).map(a=>a.name).sort()).toEqual(["Attack","Defend","Move"]);
+    for (const kind of ["warrior","mage","hunter","alchemist","artificer"] as const) expect(Object.values(classKit(kind).abilities).map(a=>a.name).sort()).toEqual(["Attack","Defend","Move",classKit(kind).abilities.special.name].sort());
     expect(classKit("artificer").abilities.brace.block).toBeGreaterThan(24);
   });
 

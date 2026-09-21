@@ -327,3 +327,14 @@ test('autorun toggles forward motion, follows the camera, and stops on manual mo
   socket.close(); expect(game.autorunning).toBe(false);
   game.close();
 });
+
+test('Sprint forwards its explicit choice and is blocked while viewing', async () => {
+  const {game,socket}=await connected();
+  expect(game.setSprint(true)).toBe(true);
+  expect(socket.sent.at(-1)).toMatchObject({command:{type:'sprint',active:true}});
+  socket.receive(state('viewing'));
+  const sent=socket.sent.length;
+  expect(game.setSprint(false)).toBe(false);
+  expect(socket.sent.length).toBe(sent);
+  game.close();
+});

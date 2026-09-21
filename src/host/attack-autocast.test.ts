@@ -39,3 +39,11 @@ test('waits for an eligible target and never pulls a neutral creature or another
   expect(auto.takeTarget({...snapshot,combat:{...snapshot.combat,ready:true}},'shared')).toBeNull();
   expect(auto.takeTarget({...snapshot,selectedThreat:'missing'},'shared')).toBe('scout');
 });
+
+test('manually chosen class skill is never replaced by basic Attack autocast',()=>{
+  const {snapshot,storage}=fixture(),auto=new AttackAutocast('p',storage);auto.toggle();
+  const planned={...snapshot,combat:{...snapshot.combat,queued:[{id:1,action:'special' as const,targetId:null,destination:null,via:[],timing:'during' as const,offsetSeconds:.5,cost:40,status:'pending' as const,reason:null}]}};
+  expect(auto.takeTarget(planned,'shared')).toBeNull();
+  expect(auto.takeTarget(snapshot,'shared')).toBeNull();
+  expect(auto.takeTarget(nextTurn(snapshot),'shared')).toBe('scout');
+});

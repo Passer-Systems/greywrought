@@ -11,7 +11,7 @@ export interface MovementPlanPreview {
 export function movementPreviewKey(snapshot: AdventureSnapshot, destination: Position, via: readonly Position[] = []): string {
   const { combat, player, threats } = snapshot;
   const positionKey = (position: Position) => [Math.round(position.x / 2.5), Math.round(position.z / 2.5)];
-  return JSON.stringify([destination, via, combat.cycle, combat.queued, combat.availableStamina,
+  return JSON.stringify([destination, via, combat.cycle, combat.queued, combat.availableStamina, combat.sprinting,
     player.position, player.health, player.stamina, player.archetype,
     // Preparation broadcasts update continuously while enemies finish their
     // opening approach. Those transient coordinates must not restart an

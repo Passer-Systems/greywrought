@@ -69,6 +69,7 @@ export type WorldCommand =
   | { type: 'target'; id: string }
   | { type: 'bait'; destination: Position; via?: readonly Position[] }
   | { type: 'previewBait'; destination: Position; via?: readonly Position[] }
+  | { type: 'sprint'; active: boolean }
   | { type: 'ready' }
   | { type: 'actionTiming'; timing: CombatActionTiming }
   | { type: 'remove'; id: number }

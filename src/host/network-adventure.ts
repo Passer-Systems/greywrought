@@ -249,6 +249,7 @@ export async function connectAdventure(character: LocalCharacter, onCharacter?: 
       });
     },
     readyCombat() { send({type:'ready'}); return online; },
+    setSprint(active) { return inputEnabled() && send({type:'sprint',active}) !== null; },
     setActionTiming(timing) { send({type:'actionTiming',timing}); return online; },
     removeQueuedAction(id) { send({type:'remove',id}); },
     clearQueuedActions() { send({type:'clear'}); },

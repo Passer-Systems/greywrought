@@ -23,7 +23,7 @@ describe("legacy combat save migration", () => {
     expect(game.snapshot.combat.queued).toEqual([]);
     expect(game.snapshot.combat.phase).toBe("idle");
     const saved = JSON.parse(game.save());
-    expect(saved.version).toBe(11);
+    expect(saved.version).toBe(12);
     expect(saved.state.combat.queued).toEqual([]);
     expect(createAdventure({ save: game.save() }).snapshot.progression).toEqual(game.snapshot.progression);
   });
@@ -39,7 +39,7 @@ describe("legacy combat save migration", () => {
     expect(player.snapshot).toMatchObject({ supplies: 39, potions: 3, resourceRemaining: 6 });
     expect(player.snapshot.progression.ownedGear).toEqual(["insulated-coat", "yard-weapon"]);
     const saved = JSON.parse(game.save());
-    expect(saved.version).toBe(5);
+    expect(saved.version).toBe(6);
     expect(saved.instances).toEqual([]);
     expect(saved.clock.phase).toBe("idle");
     expect(saved.characters[0].state.combat.queued).toEqual([]);

@@ -12,11 +12,12 @@ function reach(from: Position, to: Position, metres: number, target = ""): Range
 }
 
 export function playerRange(snapshot: AdventureSnapshot, action: CombatAction, targetId: string | null = snapshot.selectedThreat): RangeCue {
-  if (action !== "strike") return none;
+  const spec = classAction(snapshot.player.archetype, action);
+  if (action !== "strike" && spec.target !== "unit") return none;
   const target = snapshot.threats.find(threat => threat.id === targetId && threat.active && threat.health > 0);
   if (!target) return { state: "unknown", text: "No living target selected." };
   if (target.phase === "returning") return { state: "out", text: "Returning home and recovering. Cannot be attacked until it returns." };
-  const metres = classAction(snapshot.player.archetype, action).range ?? COMBAT_RULES[action].range;
+  const metres = spec.range ?? 0;
   const cue = reach(snapshot.player.position, target.position, metres);
   return cue.state === "in" && !target.inRangeActions.includes(action)
     ? { state: "out", text: "Target is behind cover or cannot be attacked now." }

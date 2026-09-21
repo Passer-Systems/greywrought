@@ -66,7 +66,7 @@ describe("one shared Frostwood", () => {
     expect(a.snapshot.player.health).toBe(healthAfterAttack);
     expect(a.snapshot.player.block).toBe(24 - damage);
     expect(b.snapshot.player.block).toBe(0);
-    expect(b.snapshot.player.stamina).toBe(5);
+    expect(b.snapshot.player.stamina).toBe(100);
   });
 
   test("another character neither doubles enemy time nor redirects damage to their block", () => {

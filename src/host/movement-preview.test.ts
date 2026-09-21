@@ -56,3 +56,14 @@ test('changing the route refreshes a preview even when its final tile stays the 
   replies[1]!(forecast); await Promise.resolve();
   expect(controller.pending).toBe(false); expect(controller.forecast).toBe(forecast);
 });
+
+test('Sprint refreshes an uncommitted route preview', () => {
+  const base=createAdventure().snapshot;
+  const snapshot={...base,combat:{...base.combat,phase:'preparation' as const}};
+  let requests=0;
+  const controller=createMovementPreview(async()=>{requests++;return null;});
+  const destination={x:2.5,y:0,z:0};
+  controller.update(snapshot,destination);
+  controller.update({...snapshot,combat:{...snapshot.combat,sprinting:true}},destination);
+  expect(requests).toBe(2);
+});
