@@ -139,10 +139,10 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(14, 24), point(16, 26), point(18, 24), point(16, 22)],
     preparation: "Enraged wings gathering", intention: "Enraged Swarm", damage: 16, reach: 3,
     benefit: "Defeat the bee to make the briar passage safer." },
-  { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2, name: "Cablekeeper", position: point(-3, 50), health: 72,
+  { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2, name: "Relic Warden", position: point(-3, 50), health: 72,
     patrol: [point(-3, 50), point(-5, 47), point(-1, 50), point(-3, 53)],
-    preparation: "Raising thorn wards", intention: "Thorn lash", damage: 18, reach: 5,
-    benefit: "Clear the warder to gather coolant crystals without cutting thorns." },
+    preparation: "Drawing back its relic blade", intention: "Relic cleave", damage: 18, reach: 5,
+    benefit: "Clear the warder to gather coolant crystals without live cabling." },
   { id: "patrol", level: 2, behavior: "wolf", disposition: "hostile", aggroRange: 6, leash: 30, speed: 4.2, name: "Ash hound", position: point(-17, 45), health: 72,
     patrol: [point(-17, 45), point(-19, 43), point(-21, 46), point(-18, 48)],
     preparation: "Drawing back to pounce", intention: "Lunging Maul", damage: 4, reach: 2,
@@ -1405,7 +1405,7 @@ class Adventure implements AdventureGame {
     s.world.resourceRespawns.push({ at: this.now() + WORLD_RESPAWN_MILLISECONDS, quantity: 3 });
     this.report("You gather Coolant crystals × 3. Return alive to keep them.");
     if (s.world.threats.some(t => t.id === "warder" && t.health > 0)) {
-      this.hurt(8, "The warder's thorns");
+      this.hurt(8, "The warder's live cabling");
     }
   }
   private ritual(): void {
@@ -2394,9 +2394,9 @@ export function getMonsterLore(): readonly MonsterLoreEntry[] {
       strategy: "Bring your coat, weapon and potions. Plan Block for Pulse, a retreat for Press, and healing while Shield is raised.",
     };
     return { id:d.id, name:d.name, health:d.health, disposition:d.disposition,
-      description: d.description ?? (d.id === "lake-dreadnought" ? "An armored dredging turtle still guarding the deep lake. Notices swimmers within 7 metres and pursues within 12 metres of home. Carries four pieces of salvage." : d.critter ? d.benefit : d.id === "nest" ? "A neutral bee in the eastern flower glade. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill its swarm; Watchman fireballs ignite the cloud." : "Guards the coolant crystals. Its living thorns deal 8 damage whenever you gather; defeating it removes the hazard."),
+      description: d.description ?? (d.id === "lake-dreadnought" ? "An armored dredging turtle still guarding the deep lake. Notices swimmers within 7 metres and pursues within 12 metres of home. Carries four pieces of salvage." : d.critter ? d.benefit : d.id === "nest" ? "A neutral bee in the eastern flower glade. Attacking enrages it into a fast pursuit within 18 metres of home. Collisions spill its swarm; Watchman fireballs ignite the cloud." : "Guards the coolant crystals. Its exposed cables deal 8 damage whenever you gather; defeating it removes the hazard."),
       opener: "Announces its first attack before you plan.",
-      abilities: [ordinaryAbility(d), ...(d.id === "warder" ? [{ id: "harvest-thorns", name: "Gathering thorns", description: "Gathering while the Cablekeeper lives deals 8 damage. Block absorbs it.", damage: 8, range: 0, noticeSeconds: 0 }] : [])],
+      abilities: [ordinaryAbility(d), ...(d.id === "warder" ? [{ id: "harvest-thorns", name: "Live cabling", description: "Gathering while the Relic Warden lives deals 8 damage. Block absorbs it.", damage: 8, range: 0, noticeSeconds: 0 }] : [])],
       sequences: [{ name: d.intention, abilityIds:[d.id], offsetsSeconds:[], description:"Commits one attack per turn, then chooses again before the next plan." }],
       strategy: d.id === "nest" ? "Make a hound collide with the bee to interrupt Swarm. The spilled cloud lasts through the next sequence; Watchman fireballs ignite it for 36 damage within 3 metres. Move clear or Block the blast." : "Plan a retreat or Block before its attack.",
     };
