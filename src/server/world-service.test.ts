@@ -198,8 +198,19 @@ test('authenticated characters recover a renamed identity without trusting the c
   const service = await createWorldService({ savePath });
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
   let returning: Client | undefined;
-  const imposter = new Client(`ws://127.0.0.1:${server.port}/world`);
+  let imposter: Client | undefined;
+  const roster = new Client(`ws://127.0.0.1:${server.port}/world`);
   try {
+    await new Promise<void>(resolve => { roster.socket.onopen = () => resolve(); });
+    roster.socket.send(JSON.stringify({ type: 'characters', token: crypto.randomUUID(), ids: [character.id] }));
+    expect(await roster.wait(message => message.type === 'characters')).toEqual({ type: 'characters', characters: [] });
+    roster.messages.length = 0;
+    roster.socket.send(JSON.stringify({ type: 'characters', token, ids: [character.id, 'unknown-character'] }));
+    expect(await roster.wait(message => message.type === 'characters')).toEqual({ type: 'characters', characters: [character] });
+    expect((await (await fetch(`http://127.0.0.1:${server.port}/health`)).json()).players).toBe(0);
+    expect(roster.messages.some(message => message.type === 'state' || message.type === 'joined')).toBe(false);
+    roster.socket.close();
+    imposter = new Client(`ws://127.0.0.1:${server.port}/world`);
     await imposter.connect({ ...character, name: 'asdfasdf' }, crypto.randomUUID());
     expect((await imposter.wait(message => message.type === 'error')).type).toBe('error');
     returning = new Client(`ws://127.0.0.1:${server.port}/world`);
@@ -210,7 +221,7 @@ test('authenticated characters recover a renamed identity without trusting the c
     expect(await returning.command({ type: 'chat', text: 'New name, same journey.' })).toBe(true);
     const state = await returning.state(state => state.chat.some(message => message.text === 'New name, same journey.'));
     expect(state.chat.at(-1)?.name).toBe('Pasta Archer');
-  } finally { returning?.socket.close(); imposter.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
+  } finally { returning?.socket.close(); imposter?.socket.close(); roster.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
 });
 
 test('releasing movement survives a burst of camera input', async () => {
@@ -780,7 +791,7 @@ test('shared chest announces only the successful collector and keeps one shared 
     expect(await first.command({ type: 'action', action: 'takeLoot', pressed: true })).toBe(true);
     const collected = await second.state(state => state.chat.some(entry => entry.text.startsWith('collected ')));
     expect(collected.chat.filter(entry => entry.text.startsWith('collected '))).toHaveLength(1);
-    expect(collected.chat.at(-1)).toMatchObject({ kind: 'loot', name: 'Aster', text: 'collected 18 copper, 2 health potions from Ironback Crab’s cache.' });
+    expect(collected.chat.at(-1)).toMatchObject({ kind: 'loot', name: 'Aster', text: 'collected 18 copper, 2 health potions from Rattagane’s cache.' });
     expect(await second.command({ type: 'action', action: 'takeLoot', pressed: true })).toBe(true);
     expect(await first.command({ type: 'action', action: 'takeLoot', pressed: false })).toBe(true);
     expect(await first.command({ type: 'action', action: 'takeLoot', pressed: true })).toBe(true);

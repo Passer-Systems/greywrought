@@ -451,6 +451,18 @@ export async function createWorldService(options: WorldServiceOptions) {
       let value: unknown;
       try { value = JSON.parse(payload); } catch { error(socket, 'That message could not be read.'); return; }
       if (!record(value)) { error(socket, 'That message could not be read.'); return; }
+      if (value.type === 'characters') {
+        if (socket.data.id !== null || !keys(value, ['type', 'token', 'ids']) || typeof value.token !== 'string'
+          || !/^[a-zA-Z0-9_-]{32,128}$/.test(value.token) || !Array.isArray(value.ids) || value.ids.length > 8 || !value.ids.every(identifier)) {
+          error(socket, 'Your characters could not be loaded.'); return;
+        }
+        const hash = new Bun.CryptoHasher('sha256').update(value.token).digest('hex');
+        send(socket, { type: 'characters', characters: value.ids.flatMap(id => {
+          const account = accounts.get(id);
+          return account?.tokenHash === hash ? [account.character] : [];
+        }) });
+        return;
+      }
       if (value.type === 'join') { join(socket, value); return; }
       const sequence = value.sequence;
       if (value.type !== 'command' || !finite(sequence, 0, Number.MAX_SAFE_INTEGER, true)) { error(socket, 'That action could not be read.'); return; }

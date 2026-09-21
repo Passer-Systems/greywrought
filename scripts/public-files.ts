@@ -1,7 +1,8 @@
+import { actorAssetFiles } from "./art/public-assets.js";
+const actorFiles = await actorAssetFiles();
 const frostwoodFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/frostwood",onlyFiles:true}));
 const pirateFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/pirate",onlyFiles:true}));
 const reclaimedRobotFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/reclaimed-robot",onlyFiles:true}));
-const rodentFiles = await Array.fromAsync(new Bun.Glob("*.{glb,md}").scan({cwd:"assets/external/quaternius/rodents",onlyFiles:true}));
 const iconFiles = await Array.fromAsync(
   new Bun.Glob("**/*.{png,svg}").scan({ cwd: "assets/ui/icons", onlyFiles: true }),
 );
@@ -31,8 +32,6 @@ export const files: readonly (readonly [string, string])[] = [
   ["node_modules/three/examples/jsm/loaders/GLTFLoader.js", "dist/vendor/three-addons/loaders/GLTFLoader.js"],
   ["node_modules/three/examples/jsm/utils/BufferGeometryUtils.js", "dist/vendor/three-addons/utils/BufferGeometryUtils.js"],
   ["node_modules/three/examples/jsm/utils/SkeletonUtils.js", "dist/vendor/three-addons/utils/SkeletonUtils.js"],
-  ...["Warrior.glb", "Wizard.glb", "Ranger.glb", "Alchemist.gltf", "Artificer.gltf", "ultimate-character-license.txt", "LICENSE.txt", "SOURCE.md"].map((name): readonly [string, string] => [`assets/external/quaternius/class-characters/${name}`, `dist/assets/quaternius/class-characters/${name}`]),
-  ["assets/external/quaternius/class-characters/Social.glb", "dist/assets/quaternius/class-characters/Social.glb"],
   ["assets/ui/icons/SOURCE.md", "dist/assets/ui/icons/SOURCE.md"],
   ["assets/ui/icons/manifest.json", "dist/assets/ui/icons/manifest.json"],
   ["assets/ui/cursors/SOURCE.md", "dist/assets/ui/cursors/SOURCE.md"],
@@ -49,9 +48,8 @@ export const files: readonly (readonly [string, string])[] = [
     `assets/ui/${name}`,
     `dist/assets/ui/${name}`,
   ]),
-  ["assets/external/relic-warden/relic-warden-runtime.glb", "dist/assets/quaternius/frostwood/actors/RelicWarden.glb"],
-  ["assets/external/relic-warden/QUATERNIUS-LICENSE.txt", "dist/assets/greywrought/QUATERNIUS-LICENSE.txt"],
-  ...frostwoodFiles.map((name): readonly [string, string] => [
+  ...actorFiles,
+  ...frostwoodFiles.filter(name => !name.startsWith("actors/") && !actorFiles.some(([source]) => source === `assets/external/quaternius/frostwood/${name}`)).map((name): readonly [string, string] => [
     `assets/external/quaternius/frostwood/${name}`, `dist/assets/quaternius/frostwood/${name}`,
   ]),
   ...pirateFiles.map((name): readonly [string, string] => [
@@ -59,8 +57,5 @@ export const files: readonly (readonly [string, string])[] = [
   ]),
   ...reclaimedRobotFiles.map((name): readonly [string, string] => [
     `assets/external/quaternius/reclaimed-robot/${name}`, `dist/assets/quaternius/reclaimed-robot/${name}`,
-  ]),
-  ...rodentFiles.map((name): readonly [string, string] => [
-    `assets/external/quaternius/rodents/${name}`, `dist/assets/quaternius/rodents/${name}`,
   ]),
 ];

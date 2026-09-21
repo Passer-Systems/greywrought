@@ -1,3 +1,4 @@
+import { threatAppearances as appearances } from "./threat-appearances.js";
 import { createBellrunnerFleet } from "./bellrunner.js";
 import type { BellrunnerStopId } from "../game/bellrunner.js";
 import { VENDORS, REST_SPOTS, type NpcId } from "../game/economy.js";
@@ -308,7 +309,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
 
   const hoverTargets: HoverTarget[] = [
     ...bellrunners.moorings.map(({stop,root}): HoverTarget => ({root,pick:{kind:"bellrunner",id:stop.id},name:"Bellrunner · Flights · Free passage",anchor:root.position.clone().add(new Vector3(0,3,0))})),
-    { root: chestRoot, pick: { kind: "chest", id: "ironback-chest" }, name: "Ironback Crab’s cache", anchor: new Vector3(chestPosition.x, chestPosition.y + 1.3, chestPosition.z) },
+    { root: chestRoot, pick: { kind: "chest", id: "ironback-chest" }, name: "Rattagane’s cache", anchor: new Vector3(chestPosition.x, chestPosition.y + 1.3, chestPosition.z) },
     ...vendorActors.map(({vendor, root}): HoverTarget => ({ root, pick: {kind: "npc", id: vendor.id}, name: `${vendor.name} · ${vendor.trade}`, anchor: new Vector3(vendor.position.x, root.position.y + 2.45, vendor.position.z) })),
     ...regionalHosts.map(({spot,root}): HoverTarget => ({ root, pick: {kind: "npc", id: spot.id}, name: `${spot.name} · ${spot.lodging}`, anchor: root.position.clone().add(new Vector3(0,2.45,0)) })),
     { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(corePlace.position.x, 1.4, corePlace.position.z) },
@@ -484,38 +485,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     innkeeper = mounted; rowan.add(mounted.root); mounted.play("Idle");
     document.body.dataset.innkeeperState = "ready";
   });
-  const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string; metalColor?: number; tint?: number; glow?: number; lift?: number}> = {
-    "glassmire-lantern": {model:"Skull",height:1.45,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve",tint:0x90cfac,glow:0x245d43,lift:1.15},
-    "glassmire-stalker": {model:"Wolf",height:1.7,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1",tint:0xb5d0ce},
-    "glassmire-grazer": {model:"Crab",height:1.15,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:0x639780},
-    "choir-cantor": {model:"Skull",height:1.85,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve",tint:0xaf828d,glow:0x66374c,lift:1.3},
-    "choir-hound": {model:"Wolf",height:1.85,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1",tint:0x7d838a,glow:0x45272e},
-    "choir-sacristan": {model:"Leela",height:2.75,idle:"Idle",walk:"Walk",attack:"Kick",hit:"HitRecieve_1",tint:0x9c7770,glow:0x3a1820},
-    "ossuary-king": {model:"MushroomKing",height:2.9,idle:"Idle",walk:"Run",attack:"Punch",hit:"HitReact",tint:0xd7c9ba,glow:0x372146},
-    "ossuary-wing": {model:"Bat",height:1.55,idle:"Flying",walk:"Flying",attack:"Bite_Front",hit:"HitRecieve",tint:0xd5d0c5,lift:1.1},
-    "brinewood-bee": {model:"Armabee",height:1.4,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact",tint:0xbf8c58},
-    "suture-scavenger": {model:"Crab",height:.65,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:0xb49c69},
-    "scrap-skitter": {model:"Crab",height:0.62,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['scrap-skitter']},
-    "rust-skitter": {model:"Crab",height:0.55,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['rust-skitter']},
-    "moss-skitter": {model:"Crab",height:0.6,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['moss-skitter']},
-    "cave-bat": {model:"Bat",height:1.5,idle:"Flying",walk:"Flying",attack:"Bite_Front",hit:"HitRecieve"},
-    "cave-crab": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
-    "lake-dreadnought": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Shell_Slam",hit:"HitRecieve"},
-    "pond-turtle": {model:"Crab",height:0.9,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
-    "meadow-rat": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Attack",hit:"Run"},
-    "meadow-rat-2": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Attack",hit:"Run"},
-    "meadow-bird": {model:"Birb",height:0.7,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve"},
-    "meadow-bird-2": {model:"Birb",height:0.7,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve"},
-    "meadow-bird-3": {model:"Birb",height:0.7,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve"},
-    scout: {model:"Skull",height:1.6,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
-    nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
-    warder: {model:"RelicWarden",height:2.65,idle:"Idle",walk:"Run",attack:"SwordSlash",hit:"HitRecieve_1"},
-    patrol: {model:"Wolf",height:1.6,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1"},
-    "ritual-guardian": {model:"Leela",height:3.2,idle:"Idle",walk:"Walk",attack:"Kick",hit:"HitRecieve_1"},
-  };
   const creaturesReady = Promise.all(initial.threats.map(async threat => {
     const look = appearances[threat.id.startsWith("pond-turtle") ? "pond-turtle" : threat.id]; if(!look) throw Error(`No appearance for ${threat.id}`);
-    const creature = (threat.id.startsWith("pond-turtle") || threat.id === "lake-dreadnought") ? mechanicalTurtle(threat.id === "lake-dreadnought") : look.metalColor !== undefined ? await robotCritter(look.height, look.metalColor) : await actor(look.model, look.height);
+    const creature = (threat.id.startsWith("pond-turtle") || threat.id === "lake-dreadnought") ? mechanicalTurtle(threat.id === "lake-dreadnought") : look.metalColor !== undefined ? await robotCritter(look.height, look.metalColor) : await actor(look.model, look.height, undefined, look.materialFill);
     if (disposed) { creature.dispose(); return; }
     if (look.tint !== undefined) creature.model.traverse(object => {
       if (!(object instanceof Mesh)) return;

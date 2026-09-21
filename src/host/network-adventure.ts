@@ -33,14 +33,42 @@ export interface NetworkAdventure extends AdventureGame {
   subscribe(listener: () => void): () => void;
   close(): void;
 }
-export async function connectAdventure(character: LocalCharacter, onCharacter?: (character: LocalCharacter) => void): Promise<NetworkAdventure> {
-  const tokenKey = 'greywrought/world-token';
-  let token = localStorage.getItem(tokenKey);
-  if (!token) { token = crypto.randomUUID() + crypto.randomUUID(); localStorage.setItem(tokenKey, token); }
+function worldUrl(): URL {
   const configured = document.querySelector<HTMLMetaElement>('meta[name=greywrought-world]')?.content;
   const url = new URL(configured ?? '/world', location.href);
   if (url.protocol === 'https:') url.protocol = 'wss:';
   else if (url.protocol === 'http:') url.protocol = 'ws:';
+  return url;
+}
+export async function readCharacterNames(characters: readonly LocalCharacter[]): Promise<readonly LocalCharacter[]> {
+  const token = localStorage.getItem('greywrought/world-token');
+  const ids = characters.filter(character => character.fallenAtMillis === undefined).map(character => character.id);
+  if (!token || !ids.length) return [];
+  return new Promise(resolve => {
+    const socket = new WebSocket(worldUrl());
+    let settled = false;
+    const finish = (result: readonly LocalCharacter[]) => {
+      if (settled) return;
+      settled = true; clearTimeout(timeout); socket.close(); resolve(result);
+    };
+    const timeout = setTimeout(() => finish([]), 5000);
+    socket.onopen = () => {
+      const message: ClientWorldMessage = { type: 'characters', token, ids };
+      socket.send(JSON.stringify(message));
+    };
+    socket.onmessage = event => {
+      const message = JSON.parse(String(event.data)) as ServerWorldMessage;
+      if (message.type === 'characters') finish(message.characters);
+      else if (message.type === 'error') finish([]);
+    };
+    socket.onerror = socket.onclose = () => finish([]);
+  });
+}
+export async function connectAdventure(character: LocalCharacter, onCharacter?: (character: LocalCharacter) => void): Promise<NetworkAdventure> {
+  const tokenKey = 'greywrought/world-token';
+  let token = localStorage.getItem(tokenKey);
+  if (!token) { token = crypto.randomUUID() + crypto.randomUUID(); localStorage.setItem(tokenKey, token); }
+  const url = worldUrl();
   let socket: WebSocket;
   let snapshot: AdventureSnapshot;
   let session: EncounterSession;
