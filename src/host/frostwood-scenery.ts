@@ -307,8 +307,6 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     terrain.add(new Mesh(geometry,aged?earthTrailMaterial:trailMaterial));
   }
   trail([[0,6,4.8],[0,14,4.8],[-1.2,23,5],[-3,31,6],[-3.6,37,5],[-3.7,44,4.5],[-1.5,51,4.2],[2,60,5.5],[2,66,5]]);
-  trail([[-2,24,3.2],[5,23,3.3],[10,24,3.6],[16,25,4.8]],true);
-  trail([[-4,42,2.8],[-10,43,3],[-17,46,4.5]],true);
   const clearingCanvas=document.createElement('canvas');clearingCanvas.width=clearingCanvas.height=256;
   const clearingContext=clearingCanvas.getContext('2d')!;
   clearingContext.fillStyle='#eae7d7';clearingContext.fillRect(0,0,256,256);

@@ -15,7 +15,6 @@ const oldPaths = [
   [[0,-40],[0,-55],[1,-77],[12,-89],[16,-104],[14,-124]],
   [[0,-46],[9,-45],[21,-46],[28,-46]],
   [[0,0],[0,14],[-1.2,23],[-3,31],[-3.7,44],[-1.5,51],[2,60],[2,69]],
-  [[-2,24],[5,23],[10,24],[16,25]], [[-4,42],[-10,43],[-17,46]],
 ] as const;
 function nearPath(x: number, z: number, points: readonly (readonly [number, number])[], width: number): boolean {
   return points.slice(1).some((to, i) => {

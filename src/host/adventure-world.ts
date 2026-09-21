@@ -854,7 +854,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         if (threat.health > 0) rig.root.rotation.y = Math.atan2(threat.facing.x, threat.facing.z);
         if (rig.root.visible && rig.selection.visible) conformToTerrain(rig.selection, 0.06, selectionHeight);
         const preparation = updateThreatAnimation(rig, threat, delta);
-        rig.body.position.y = threat.health > 0 && appearances[threat.id]?.lift ? appearances[threat.id]!.lift! : threat.id === "scout" ? 1.25 : threat.id === "cave-bat" && threat.health > 0 ? 1.1 : threat.id.startsWith("meadow-bird") && threat.health > 0 ? 4.2 + Math.sin(elapsed * 2.1 + threat.id.length) * .25 : 0;
+        rig.body.position.y = threat.health > 0 ? appearances[threat.id]?.lift ?? (threat.id === "cave-bat" ? 1.1 : threat.id.startsWith("meadow-bird") ? 4.2 + Math.sin(elapsed * 2.1 + threat.id.length) * .25 : 0) : 0;
+        if (threat.id === "scout" && threat.health <= 0) {
+          const death = rig.actor.action!;
+          const fall = Math.min(1, (death.time + delta) / death.getClip().duration);
+          rig.body.position.y = appearances.scout!.lift! * (1 - fall * fall);
+        }
         rig.body.rotation.x = -0.12*preparation;
         rig.body.position.z = -0.18*preparation;
         rig.ward.position.y = rig.height*0.55 + rig.body.position.y;

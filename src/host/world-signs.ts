@@ -4,7 +4,7 @@ import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { YARD } from "../game/yard-content.js";
 import { prop } from "./frostwood-assets.js";
 
-function shopPlaque(name: string): Group {
+export function shopPlaque(name: string): Group {
   const root = new Group(), canvas = document.createElement("canvas");
   canvas.width = 256; canvas.height = 192;
   const paint = canvas.getContext("2d")!;

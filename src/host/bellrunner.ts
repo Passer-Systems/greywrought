@@ -1,4 +1,5 @@
-import { Box3, Group, Mesh, MeshStandardMaterial, PointLight, Vector3, type BufferGeometry, type Scene } from 'three';
+import { Box3, CylinderGeometry, Group, Mesh, MeshStandardMaterial, PointLight, Quaternion, Vector3, type BufferGeometry, type Scene } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { supportHeight } from '../game/movement.js';
 import { prop } from './frostwood-assets.js';
 import type { AdventureSnapshot } from '../game/adventure-types.js';
@@ -12,6 +13,11 @@ export function createBellrunnerFleet(scene: Scene) {
     const light = new PointLight(0xffa34b, 0, 3, 2); fleet.add(light); return light;
   });
   const flameGeometry: Mesh['geometry'][] = [];
+  const riggingMaterials = [
+    new MeshStandardMaterial({color:0x66503a,roughness:1}),
+    new MeshStandardMaterial({color:0xa08c61,roughness:1}),
+    new MeshStandardMaterial({color:0x43463c,roughness:.8,metalness:.55}),
+  ];
   const envelopeMaterial = new MeshStandardMaterial({color:0x656953,roughness:.92,metalness:.1,vertexColors:true});
   const moorings = BELLRUNNER_STOPS.map(stop => {
     const root = new Group(), dock = bellrunnerDock(stop.id);
@@ -40,8 +46,8 @@ export function createBellrunnerFleet(scene: Scene) {
     return (routeLifts.get(from+to) ?? 0)*(1-blend)+(routeLifts.get(to+from) ?? 0)*blend;
   };
   const ready = Promise.all([
-    prop('Boat',5.4,'width'), prop('AirBalloon',5.5), prop('works/Props_Vessel',1.8), prop('works/Details_Pipes_Long',2), prop('works/Column_1',2.6), prop('Sign_LeftRight',1.7), prop('WoodenTorch_Fire',1),
-  ]).then(([boat,balloon,vessel,pipes,column,sign,torch]) => {
+    prop('Boat',5.4,'width'), prop('AirBalloon',5.5), prop('works/Props_Vessel',1.8), prop('works/Column_1',2.6), prop('Sign_LeftRight',1.7), prop('WoodenTorch_Fire',1),
+  ]).then(([boat,balloon,vessel,column,sign,torch]) => {
     if (disposed) return;
     template = new Group();
     boat.position.y=-.7; template.add(boat);
@@ -69,12 +75,38 @@ export function createBellrunnerFleet(scene: Scene) {
       geometry.translate(-center.x,-bounds.min.y,-center.z); geometry.scale(scale,scale,scale);
       flameGeometry.push(geometry); flame.add(new Mesh(geometry,object.material));
     });
+    const rigging: BufferGeometry[][] = [[],[],[]];
+    const spar = (start: number[], end: number[], radius: number, material: number) => {
+      const a=new Vector3(...start), b=new Vector3(...end), direction=b.clone().sub(a);
+      const geometry=new CylinderGeometry(radius,radius,direction.length(),material===0 ? 4 : 6);
+      geometry.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0,1,0),direction.normalize()));
+      geometry.translate(...a.add(b).multiplyScalar(.5).toArray()); rigging[material]!.push(geometry);
+    };
+    for (const z of [-.8,.8]) spar([-1.85,1.96,z],[1.85,1.96,z],.075,0);
     for (const side of [-1,1]) {
       const bag=balloon.clone(true); bag.scale.set(.58,.62,.9); bag.position.set(side*1.5,2,0); template.add(bag);
       const tank=vessel.clone(true); tank.position.set(side*1.7,-.3,-1.2); tank.scale.setScalar(.7); template.add(tank);
-      const pipe=pipes.clone(true); pipe.position.set(side*1.5,.6,0); pipe.rotation.z=side*.17; template.add(pipe);
-      const burner=flame.clone(true); burner.position.set(side*1.5,2.29,0); template.add(burner);
+      for (const fore of [-1,1]) {
+        spar([side*1.18,.25,fore*1.5],[side*1.5,1.96,fore*.8],.085,0);
+        spar([side*1.13,.18,fore*1.52],[side*1.23,.51,fore*1.4],.115,2);
+        spar([side*1.5,1.96,fore*.8],[side*1.5,2.51,fore*.46],.045,1);
+      }
+      spar([side*1.5,1.96,-.86],[side*1.5,1.96,.86],.08,0);
+      // Sling follows the authored envelope's vertex rings, outside its front/back surface.
+      const rings=[[.824,.511],[1.775,.794],[2.25,1.25],[3.338,1.823],[4.272,1.794],[5.031,1.396],[5.5,.476]];
+      for (const fore of [-1,1]) for (let i=1;i<rings.length;i++) {
+        const [y0,r0]=rings[i-1]!, [y1,r1]=rings[i]!;
+        spar([side*1.5,2+y0!*.62,fore*(r0!*.9+.025)],[side*1.5,2+y1!*.62,fore*(r1!*.9+.025)],.035,1);
+      }
+      spar([side*1.5,5.435,-.453],[side*1.5,5.435,.453],.035,1);
+      spar([side*1.7,.7,-1.2],[side*1.5,1.96,-.8],.035,2);
+      spar([side*1.5,1.96,-.8],[side*1.5,2.12,0],.035,2);
+      const burner=flame.clone(true); burner.position.set(side*1.493,2.18,-.01); template.add(burner);
     }
+    rigging.forEach((parts,index) => {
+      const geometry=mergeGeometries(parts)!; parts.forEach(part=>part.dispose()); flameGeometry.push(geometry);
+      const mesh=new Mesh(geometry,riggingMaterials[index]); mesh.name='bellrunner-rigging'; mesh.castShadow=true; mesh.receiveShadow=true; template!.add(mesh);
+    });
     bounds.setFromObject(template);
     for (const from of BELLRUNNER_STOPS) for (const to of BELLRUNNER_STOPS) if (from!==to) routeLifts.set(from.id+to.id,groundLift(from.id,Math.atan2(to.x-from.x,to.z-from.z)));
     for (const {root,stop} of moorings) {
@@ -113,7 +145,7 @@ export function createBellrunnerFleet(scene: Scene) {
         light.intensity=litCraft.visible ? (player.flight ? 3.5 : .5)*(1+Math.sin(elapsed*13+index*2)*.13) : 0;
       });
     },
-    dispose() { disposed=true; riders.clear(); fleet.removeFromParent(); envelopeMaterial.dispose(); for (const geometry of flameGeometry) geometry.dispose(); },
+    dispose() { disposed=true; riders.clear(); fleet.removeFromParent(); envelopeMaterial.dispose(); riggingMaterials.forEach(material=>material.dispose()); for (const geometry of flameGeometry) geometry.dispose(); },
   };
 }
 

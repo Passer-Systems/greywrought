@@ -17,6 +17,8 @@ function source(path: string) {
 }
 export function fit(model: Object3D, size: number, axis: "height" | "width" = "height"): Group {
   const wrapper = new Group();
+  // Cloned skins need current bone and bind matrices before measuring their pose.
+  model.updateMatrixWorld(true);
   const bounds = new Box3().setFromObject(model);
   const dimensions = bounds.getSize(new Vector3());
   model.scale.multiplyScalar(size / (axis === "height" ? dimensions.y : Math.max(dimensions.x, dimensions.z)));

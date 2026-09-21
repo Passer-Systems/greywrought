@@ -1,7 +1,8 @@
-import { Box3, BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, TorusGeometry, Vector3, type Material, type Object3D } from 'three';
+import { Box3, BoxGeometry, BufferGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Raycaster, TorusGeometry, Vector3, type Material, type Object3D } from 'three';
 import { terrainHeight } from '../game/cave-layout.js';
 import { REGION_BUILDINGS, REGION_LANDMARKS, REGION_ROADS, WORLD_SETTLEMENTS } from '../game/world-regions.js';
 import { prop } from './frostwood-assets.js';
+import { shopPlaque } from './world-signs.js';
 
 export interface RegionalSign { root: Group; id: string; name: string }
 const iron = new MeshStandardMaterial({ color: '#535851', roughness: .96, metalness: .3 });
@@ -147,7 +148,16 @@ export async function buildSecondDarkAge(parent: Group): Promise<{ signs: Region
     const footprint=new Group();footprint.add(model);footprint.scale.set(building.width/size.x,1,building.depth/size.z);
     footprint.position.set(building.x,terrainHeight(building.x,building.z),building.z);footprint.name=building.sign;root.add(footprint);
     const y=terrainHeight(building.x,building.z), inward=building.town==='suture'?(building.x<157?1:-1):(building.x< -125?1:-1);
-    sign(`sign-${building.town}-${building.x}-${building.z}`,building.sign,building.x+inward*(building.width/2+.7),building.z+1.4,Math.PI/2);
+    // Model bounds include roof overhangs; anchor the bracket to the actual wall below them.
+    footprint.updateWorldMatrix(true,true);
+    const mountHeight=building.model==='Inn'?1.85:2.6;
+    const wall = new Raycaster(new Vector3(building.x+inward*(building.width/2+2),y+mountHeight,building.z+1.4),new Vector3(-inward,0,0)).intersectObject(model,true)[0];
+    if (!wall) throw new Error(`Missing sign wall for ${building.sign}`);
+    const plaque=shopPlaque(building.sign);
+    plaque.name=`sign-${building.town}-${building.x}-${building.z}`;
+    plaque.position.set(wall.point.x+inward*.83,y+mountHeight-3.05,wall.point.z);
+    plaque.rotation.y=inward*Math.PI/2;plaque.userData.sign=true;root.add(plaque);
+    signs.push({root:plaque,id:plaque.name,name:building.sign});
     const attachments=new Group();attachments.position.set(building.x,y,building.z);root.add(attachments);
     // Apparatus and repair beds remain inside the building's blocked footprint.
     const edge=-inward*(building.width/2-.8);
