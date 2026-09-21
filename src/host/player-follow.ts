@@ -7,7 +7,7 @@ export class PlayerFollow {
   destination(player: AdventureSnapshot['player'], players: readonly RemotePlayerView[], party: PartyView | null) {
     const target = players.find(candidate => candidate.id === this.targetId);
     const member = party?.members.find(candidate => candidate.id === this.targetId);
-    if (!target || player.inCombat || player.flight || player.health <= 0 || target.player.inCombat || target.player.flight || target.player.health <= 0
+    if (!target || player.flight || player.health <= 0 || target.player.flight || target.player.health <= 0
       || member && (!member.online || !member.sameEncounter)) { this.stop(); return null; }
     return target.player.position;
   }

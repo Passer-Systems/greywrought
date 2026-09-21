@@ -233,8 +233,8 @@ export function createBagPanel(host: HTMLElement, callbacks: { onUsePotion(): vo
     equip.disabled = next.phase === "lost" || next.combat.phase === "active";
     setText(equip, currentGear ? "Replace equipped item" : "Equip");
     usePotion.hidden = selected !== "potions";
-    usePotion.disabled = next.phase === "lost" || next.player.inCombat || next.potions < 1 || next.player.health >= next.player.maximumHealth;
-    setText(usePotion, next.player.inCombat ? "Unavailable in combat" : next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
+    usePotion.disabled = next.phase === "lost" || next.player.inCombat && next.combat.phase === "active" || next.potions < 1 || next.player.health >= next.player.maximumHealth;
+    setText(usePotion, next.player.inCombat && next.combat.phase === "active" ? "Wait for your next turn" : next.player.health >= next.player.maximumHealth ? "Health full" : "Drink potion");
     useHearthstone.hidden = selected !== "hearthstone";
     useHearthstone.disabled = next.phase === "lost" || next.player.inCombat || next.player.currentAction === "hearthstone";
     setText(useHearthstone, next.player.inCombat ? "Unavailable in combat" : next.player.currentAction === "hearthstone" ? "Returning…" : "Return to town");

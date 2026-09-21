@@ -15,7 +15,6 @@ export function createNpcQuests(
   style.textContent = `.npc-quests [hidden] { display:none !important; }
     .npc-quest-menu { display:grid; gap:7px; padding:0 0 12px; }
     .npc-quest-menu button { width:100%; text-align:left; }
-    .npc-quest-menu [data-quest-status="completed"] { color:#bdc1aa; }
     .npc-quest-actions { display:flex; gap:8px; margin:10px 0; }
     .npc-quest-service { margin:0 -12px; }
     .npc-quest-greeting { padding:5px 0; }
@@ -55,11 +54,11 @@ export function createNpcQuests(
       const menu = node("div", content, "", "npc-quest-menu");
       for (const definition of definitions) {
         const view = snapshot.quests.find(q => q.id === definition.id)!;
-        if (view.status === "locked") continue;
-        const marker = view.status === "available" ? "!" : view.status === "ready" ? "?" : view.status === "completed" ? "✓" : "•";
+        if (view.status === "locked" || view.status === "completed") continue;
+        const marker = view.status === "available" ? "!" : view.status === "ready" ? "?" : "•";
         const control = button(menu, `${marker} ${definition.title}`);
         control.dataset.questId = view.id; control.dataset.questSelect = view.id; control.dataset.questStatus = view.status;
-        control.setAttribute("aria-label", `${definition.title} · ${view.status === "available" ? "Available quest" : view.status === "ready" ? "Ready to complete" : view.status === "completed" ? "Completed" : "In progress"}`);
+        control.setAttribute("aria-label", `${definition.title} · ${view.status === "available" ? "Available quest" : view.status === "ready" ? "Ready to complete" : "In progress"}`);
       }
       button(menu, service.label).dataset.npcService = giver;
       return;

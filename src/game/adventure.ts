@@ -1118,8 +1118,8 @@ class Adventure implements AdventureGame {
         }
         break;
       case "drinkPotion":
-        if (!this.inCombat() && s.potions > 0 && s.health < 100) { const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--; this.feedback(null, "heal", healing); this.report(`Your health potion restores ${healing} health.`); }
-        else this.report(s.potions < 1 ? "No health potions. Visit Mara." : this.inCombat() ? "Unavailable in combat." : "Your health is already full.");
+        if (s.potions > 0 && s.health < 100) { const healing = Math.min(30, 100 - s.health); s.health += healing; s.potions--; this.feedback(null, "heal", healing); this.report(`Your health potion restores ${healing} health.`); }
+        else this.report(s.potions < 1 ? "No health potions. Visit Mara." : "Your health is already full.");
         break;
       case "rest": {
         const inn = REST_SPOTS.find(spot => this.near(spot.id, 2.5));
@@ -1595,6 +1595,7 @@ class Adventure implements AdventureGame {
   }
   private returnToTown(): void {
     const s = this.state;
+    const convertedSalvage = s.carriedSalvage;
       const reservedCrystals = s.chapter.accepted.includes("cold-hands") && !s.chapter.completed.includes("cold-hands") ? Math.min(3, s.cargo) : 0;
       const reservedRoll = s.chapter.accepted.includes("last-shift") && !s.chapter.completed.includes("last-shift") ? s.carriedRelics : 0;
       s.phase = "town"; s.supplies += s.cargo - reservedCrystals + s.carriedSalvage; s.bankedRelics += s.carriedRelics - reservedRoll;
@@ -1602,7 +1603,7 @@ class Adventure implements AdventureGame {
       s.maneuver = null; s.position.y = supportHeight(s.position.x, s.position.z); s.verticalSpeed = 0; this.lootOpenId = null; this.trade = null;
       if (!this.shared) for (const t of s.world.threats) if (t.health > 0) this.releaseThreat(t);
 
-      this.report(`You return to ${settlementAt(s.position.x,s.position.z)?.name ?? YARD.settlement}. Salvage and spare crystals are secured.${reservedCrystals ? " Bring your coolant crystals to Mara." : ""}${reservedRoll ? " Bring the Last Shift Roll to Rowan." : ""} Visit the inn before your next trip.`);
+      this.report(`You return to ${settlementAt(s.position.x,s.position.z)?.name ?? YARD.settlement}. ${convertedSalvage ? `Exchanged ${convertedSalvage} forest salvage for ${convertedSalvage} supplies. ` : ""}Salvage and spare crystals are secured.${reservedCrystals ? " Bring your coolant crystals to Mara." : ""}${reservedRoll ? " Bring the Last Shift Roll to Rowan." : ""} Visit the inn before your next trip.`);
   }
   private advanceAction(dt: number): void {
     const s = this.state;

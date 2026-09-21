@@ -66,6 +66,12 @@ try {
     await page!.waitFor('window.autoReadySnapshot.combat.queued.some(action=>action.action==="bait")');
   }
   await enter();
+  check(await page.evaluate(`(()=>{const r=document.getElementById('combat-plan').getBoundingClientRect();return r.width<=500&&r.height<230;})()`), 'Planner leaves the world visible in a compact panel');
+  check(await page.evaluate(`(()=>{const rows=[...document.querySelectorAll('.combat-plan-row')];return rows.length===2&&rows[0].dataset.category==='movement'&&rows[1].dataset.category==='action'&&rows[1].getBoundingClientRect().top>=rows[0].getBoundingClientRect().bottom;})()`), 'Movement and action have one row each');
+  await page.click('.combat-plan-enemy-move[data-threat-id="scout"]');
+  await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 20, y: 20, buttons: 0 });
+  check(await page.evaluate(`!document.querySelector('.combat-plan-inspect').hidden&&!document.querySelector('.combat-plan-forecast-summary').hidden&&document.querySelector('.combat-plan-enemy-target').textContent==='→ You'`), 'Enemy target and pinned forecast remain available');
+  await page.click('.combat-plan-unpin');
   check(await page.evaluate('document.getElementById("combat-plan-auto-ready").checked'), 'Auto-ready defaults on');
   check(await page.evaluate('window.readyCommands===0'), 'Empty plan does not auto-ready');
   await chooseMovement();
@@ -86,6 +92,10 @@ try {
   await page.click('.combat-plan-timing[data-timing="before"]');
   await page.waitFor('window.autoReadySnapshot.combat.queued.some(action=>action.action==="brace"&&action.timing==="before")');
   await page.shot('manual-timing');
+  await page.call('Emulation.setDeviceMetricsOverride', { width: 600, height: 800, deviceScaleFactor: 1, mobile: false });
+  check(await page.evaluate(`(()=>{const r=document.getElementById('combat-plan').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<innerHeight&&r.height<250;})()`), 'Complete plan fits the narrow viewport');
+  await page.shot('compact-narrow');
+  await page.call('Emulation.clearDeviceMetricsOverride');
   console.log('Reloading to check the saved manual preference');
   await page.reload(); await enter();
   check(await page.evaluate('!document.getElementById("combat-plan-auto-ready").checked'), 'Disabled preference survives reload');

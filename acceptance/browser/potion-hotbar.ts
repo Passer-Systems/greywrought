@@ -10,8 +10,16 @@ const character = { id: 'potion-fixture', name: 'Apothecary', archetype: 'warrio
 const token = 'potion-fixture-token-000000000000000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
-Object.assign(saved.characters[0].state, { phase: 'expedition', position: {x: 0, y: 0, z: 12}, health: 5, potions: 3 });
-for (const threat of saved.world.threats) if (threat.active) Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
+Object.assign(saved.characters[0].state, { phase: 'expedition', position: {x: -3, y: 0, z: 35}, health: 5, potions: 3 });
+saved.characters[0].state.combat.phase = 'preparation';
+Object.assign(saved.clock, { phase: 'preparation', elapsedSeconds: 0, cycle: 1 });
+for (const threat of saved.world.threats) {
+  if (threat.id === 'scout') {
+    const position = { x: -4, y: 0, z: 32 };
+    Object.assign(threat, { position, targetPosition: {...position}, aggro: true, targetPlayerId: character.id, combatants: [character.id], phase: 'preparation', joinCycle: 1, windowCycle: 1, specialOffset: 2, castDuration: 2, remainingSeconds: 2, comboOpened: true });
+    Object.assign(threat.head, { ability: 'fireball', opened: true });
+  } else if (threat.active) Object.assign(threat, { health: 0, phase: 'cleared', lootClaimed: true, respawnAt: Date.now() + 3_600_000 });
+}
 const savePath = `${process.cwd()}/build/browser/potion-${process.pid}.json`;
 await Bun.write(savePath, JSON.stringify({ version: 1, accounts: [{ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') }], world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
 const service = await createWorldService({ savePath, allowedOrigins: [url.slice(0, -1)] });
@@ -26,7 +34,8 @@ try {
   } });
   await page.waitFor('document.body.dataset.entryRoute==="roster"');
   await page.click('#entry-enter-world');
-  await page.waitFor('document.body.dataset.rigState==="ready"&&window.potionState.phase==="expedition"');
+  await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"&&window.potionState.combat.phase==="preparation"');
+  check(await page.evaluate('window.potionState.player.inCombat'), 'Potion journey starts in combat');
   await page.click('#bag-open');
   await page.click('[data-bag-item="potions"]');
   await page.click('#bag-use-potion');
@@ -57,7 +66,7 @@ try {
   await page.call("Page.reload");
   await Bun.sleep(300);
   await page.waitFor('document.body.dataset.entryRoute==="roster"'); await page.click('#entry-enter-world');
-  await page.waitFor('window.potionState?.phase==="expedition"&&document.body.dataset.rigState==="ready"');
+  await page.waitFor('document.body.dataset.entryRoute==="world"&&window.potionState?.phase==="expedition"&&document.body.dataset.rigState==="ready"');
   if (await page.evaluate('!document.getElementById("pause-panel").hidden')) await page.click('#pause-resume');
   await page.waitFor(`document.querySelector('[data-action="drinkPotion"]')?.dataset.actionSlot==="4"`);
   await page.waitFor('document.getElementById("pause-panel").hidden&&document.body.dataset.gamePaused==="false"');
@@ -67,6 +76,6 @@ try {
   check(await page.evaluate(`document.querySelectorAll("#adventure-actions > button").length===12&&["strike","brace","bait"].every(a=>document.querySelector('[data-action="'+a+'"]'))`), 'Original abilities and twelve slots remain');
   await page.shot('potion-empty');
   check(page.errors.length === 0, 'No browser exceptions');
-  console.log('PASS outside-town backpack drink, native drag to bar, click, reorder, reload, hotkey and empty-stack disable', page.output);
+  console.log('PASS in-combat backpack drink, native drag to bar, click, reorder, reload, hotkey and empty-stack disable', page.output);
 } catch (error) { console.error(error); await page?.shot('failure').catch(() => {}); throw error; }
 finally { await page?.close(); await service.close(); server.stop(true); frontend.kill(); await frontend.exited; }

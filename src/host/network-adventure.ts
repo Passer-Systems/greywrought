@@ -181,7 +181,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       const target = players.find(player => player.id === id);
       const destination = inputEnabled() && snapshot.phase !== 'lost' ? follow.destination(snapshot.player, players, party) : null;
       if (!destination) stopFollowing();
-      notices.push({ id: noticeId--, speakerId: null, name: 'Notice', text: destination ? 'Following ' + target!.name + '. Move to stop.' : 'Select a nearby player who is exploring to follow.' });
+      notices.push({ id: noticeId--, speakerId: null, name: 'Notice', text: destination ? 'Following ' + target!.name + '. Move to stop.' : 'Select a nearby player to follow.' });
       notify();
     },
     advance(seconds) {

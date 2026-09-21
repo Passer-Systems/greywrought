@@ -40,11 +40,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   root.setAttribute("aria-label", "Combat plan");
   const header = node("header", "combat-plan-heading", root);
   const phase = node("strong", "combat-plan-phase", header); phase.id = "combat-plan-phase";
-  const resources = node("span", "combat-plan-resources", header);
-  const move = node("button", "combat-plan-move-button", header); move.id = "combat-plan-aim-move"; move.type = "button"; move.textContent = "Move";
-  move.title = "Choose or change your destination";
-  move.addEventListener("click", callbacks.onAimMove);
-  const clear = node("button", "combat-plan-clear", header); clear.type = "button"; clear.textContent = "Clear";
+  const clear = node("button", "combat-plan-clear", header); clear.type = "button"; clear.textContent = "Reset";
+  clear.title = "Clear movement and action";
   clear.addEventListener("click", callbacks.onClear);
   const ready = node("button", "combat-plan-ready", header); ready.type = "button"; ready.textContent = "Ready (R)";
   ready.setAttribute("aria-keyshortcuts", "R");
@@ -60,8 +57,6 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     try { localStorage.setItem(autoReadyStorageKey, String(autoReady.checked)); } catch { /* The choice still applies for this visit. */ }
     scheduleAutoReady();
   });
-  const danger = node("p", "combat-plan-danger", root); danger.id = "combat-plan-danger";
-  danger.setAttribute("role", "status");
   const clock = node("div", "combat-plan-clock", root), clockFill = node("span", "", clock);
   const grid = node("div", "combat-plan-grid", root);
   const cells: HTMLElement[] = [], emptyLabels: HTMLElement[] = [];
@@ -73,21 +68,24 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     for (const kind of index === 0 ? ["bait"] as const : ["strike", "brace"] as const) {
       const edit = node("button", "combat-plan-edit", row); edit.type = "button";
       edit.dataset.action = kind; edit.textContent = actions[kind].name;
+      if (kind === "bait") { edit.id = "combat-plan-aim-move"; edit.title = "Choose or change your destination"; }
       edit.addEventListener("click", () => kind === "bait" ? callbacks.onAimMove() : callbacks.onAction(kind));
     }
-    const remove = node("button", "combat-plan-remove", row); remove.type = "button"; remove.textContent = "Remove";
+    const remove = node("button", "combat-plan-remove", row); remove.type = "button"; remove.textContent = "×";
+    remove.title = "Clear " + label.toLowerCase(); remove.setAttribute("aria-label", remove.title);
     remove.addEventListener("click", () => {
       const entry = snapshot?.combat.queued.find(entry => (entry.action === "bait") === (index === 0));
       if (editing() && entry) callbacks.onRemove(entry.id);
     });
   }
   const editor = node("div", "combat-plan-editor", root);
-  node("span", "combat-plan-selection", editor).textContent = "Action timing";
+  node("span", "combat-plan-selection", editor).textContent = "Act";
   const timingButtons = (["before", "during", "after"] as const).map(timing => {
     const button = node("button", "combat-plan-timing", editor); button.type = "button";
     button.dataset.timing = timing; button.textContent = timing[0]!.toUpperCase() + timing.slice(1);
     button.addEventListener("click", () => { if (editing()) callbacks.onTiming(timing); }); return button;
   });
+  node("span", "combat-plan-timing-suffix", editor).textContent = "movement";
   const enemyLabel = node("strong", "combat-plan-enemy-heading", root);
   const enemyCells = [node("div", "combat-plan-cell combat-plan-enemy", root)];
   const inspect = node("div", "combat-plan-inspect", root);
@@ -182,6 +180,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     for (const button of timingButtons) {
       const unavailable = button.dataset.timing === "during" && action && classAction(snapshot.player.archetype, action.action).movementProfile === "stationary";
       button.disabled = !editing() || Boolean(unavailable);
+      button.hidden = Boolean(unavailable);
       button.title = unavailable ? "This attack needs you to stand still" : button.textContent + " movement";
       button.setAttribute("aria-pressed", String(action?.timing === button.dataset.timing));
     }
@@ -193,8 +192,11 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         const kind = button.dataset.action as CombatAction;
         const available = snapshot.combat.availableStamina + (entry?.cost ?? 0);
         button.disabled = !editing() || available < (classAction(snapshot.player.archetype, kind).cost ?? 1) || kind === "strike" && !snapshot.threats.some(threat => threat.id === snapshot!.selectedThreat && threat.active && threat.health > 0);
+        button.setAttribute("aria-pressed", String(entry?.action === kind));
       }
-      row.querySelector<HTMLButtonElement>(".combat-plan-remove")!.disabled = !editing() || !entry;
+      const remove = row.querySelector<HTMLButtonElement>(".combat-plan-remove")!;
+      remove.disabled = !editing() || !entry;
+      remove.hidden = !entry;
     }
   }
   function enemyMove(cell: HTMLElement, ability: ThreatAbilityView, seconds: number, status: string, enemyName: string, threatId: string, targetId: string | null, target: string): void {
@@ -231,18 +233,13 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       const attackers = next.threats.filter(threat => threat.active && (threat.health > 0 || combat.phase === "active" && threat.windowAction !== null) && (threat.aggro || threat.joinsNextWindow || threat.windowAction !== null || threat.forecast.length > 0));
       const gathering = combat.phase === "preparation" && combat.gatheringRemainingSeconds > 0;
       root.dataset.enemies = String(attackers.length);
-      danger.hidden = !gathering && attackers.length < 2;
-      danger.dataset.severity = "tactics";
-      write(danger, gathering ? "Nearby enemies can join this turn. Plan now; Ready waits for the countdown." : `${attackers.length} enemies · Make their attacks work for you`);
-      danger.title = attackers.map(threat => threat.name).join("\n");
       root.hidden = next.phase !== "expedition" || combat.phase === "idle" || attackers.length === 0;
       Object.assign(root.dataset, { phase: combat.phase, cycle: String(combat.cycle), remaining: String(combat.remainingSeconds), gathering: String(combat.gatheringRemainingSeconds), elapsed: String(combat.elapsedSeconds), queued: JSON.stringify(combat.queued), selectedId: String(selectedId ?? "") });
       const choosing = combat.phase === "choosing";
       write(phase, combat.phase === "idle" ? "Opening plan · enter range to begin" : choosing ? "Enemies choose · momentarily" : gathering ? "Gathering enemies · " + Math.ceil(combat.gatheringRemainingSeconds) + "s" : combat.phase === "preparation" ? "Planning · " + Math.ceil(combat.remainingSeconds) + "s" : "Playing turn");
-      write(resources, combat.availableStamina + " stamina");
-      move.disabled = !editing() || combat.availableStamina + (combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) < 1;
       clockFill.style.width = (combat.phase === "idle" ? 0 : 100 * combat.elapsedSeconds / (combat.elapsedSeconds + combat.remainingSeconds)) + "%";
       clear.disabled = !editing() || !combat.queued.some(entry => entry.status === "pending");
+      clear.hidden = clear.disabled;
       ready.hidden = combat.phase !== "preparation";
       ready.disabled = combat.phase !== "preparation" || combat.ready;
       write(ready, combat.ready ? "Ready ✓" : "Ready (R)");
@@ -259,11 +256,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         if (!button) {
           button = node("button", "combat-plan-move", cell); button.type = "button";
           button.dataset.queueId = String(move.id); art(button, String(move.action) === "equip" ? "defensive-shield" : actions[move.action].icon);
-          node("span", "combat-plan-move-time", button);
           node("span", "combat-plan-move-label", button);
           node("span", "combat-plan-move-target", button);
-          const cost = node("span", "combat-plan-move-cost", button);
-          cost.textContent = String(move.cost); cost.title = move.cost + " stamina";
           inspectControl(button, { kind: "move", queueId: move.id });
           button.addEventListener("click", () => {
             pinnedPreview = { kind: "move", queueId: move.id }; transientPreview = null; updatePreview();
@@ -288,7 +282,6 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         write(button.querySelector<HTMLElement>(".combat-plan-move-target")!, "→ " + target);
         button.dataset.targetId = move.targetId ?? "";
         button.title = label; button.setAttribute("aria-label", label);
-        write(button.querySelector<HTMLElement>(".combat-plan-move-time")!, move.status === "executed" ? "✓" : move.status === "failed" ? "×" : move.offsetSeconds.toFixed(1) + "s");
       }
       const shown: ShownEnemyMove[] = choosing ? [] : attackers.flatMap<ShownEnemyMove>(threat => {
         if (threat.joinsNextWindow && combat.phase === "active") return [];
@@ -304,7 +297,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
           if (cell) enemyMove(cell, move.ability, Math.max(0, move.seconds), move.status, move.enemy, move.id, move.targetId, move.target);
         }
       }
-      write(enemyLabel, choosing ? "Enemies · choosing next moves" : `Enemies · ${attackers.length} engaged`); enemyLabel.title = choosing ? "Enemies are choosing their next moves" : "Each icon shows one engaged enemy’s announced move";
+      write(enemyLabel, choosing ? "Enemies choosing…" : `Incoming · ${attackers.length}`); enemyLabel.title = "Hover an enemy to preview its attack and pursuit";
       updateEditor();
       updatePreview();
       scheduleAutoReady();

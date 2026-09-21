@@ -26,13 +26,24 @@ test('follow uses ordinary authoritative movement, stops near two metres, and pr
   expect(local.player.facing.x).toBeCloseTo(1);
 });
 
-test('follow ends when either player fights, dies, flies, or the target leaves', () => {
+test('follow stays selected through either player entering combat', () => {
+  const player = createAdventure().snapshot.player;
+  const target = { id: 'friend', name: 'Friend', player: { ...player, position: { ...player.position, x: 10 } } };
+  const follow = new PlayerFollow(); follow.targetId = target.id;
+  expect(follow.destination(player, [{ ...target, player: { ...target.player, inCombat: true } }], null)).toEqual(target.player.position);
+  expect(follow.targetId).toBe(target.id);
+  expect(follow.destination({ ...player, inCombat: true }, [target], null)).toEqual(target.player.position);
+  expect(follow.targetId).toBe(target.id);
+  expect(follow.destination(player, [target], null)).toEqual(target.player.position);
+});
+
+test('follow ends when either player dies, flies, or the target leaves', () => {
   const player = createAdventure().snapshot.player;
   const target = { id: 'friend', name: 'Friend', player };
   const follow = new PlayerFollow();
   follow.targetId = target.id;
   expect(follow.destination(player, [target], null)).toEqual(player.position);
-  for (const changed of [{ ...player, inCombat: true }, { ...player, health: 0 }, { ...player, flight: { from: 'yard' as const, to: 'suture' as const, elapsed: 0 } }]) {
+  for (const changed of [{ ...player, health: 0 }, { ...player, flight: { from: 'yard' as const, to: 'suture' as const, elapsed: 0 } }]) {
     follow.targetId = target.id;
     expect(follow.destination(changed, [target], null)).toBeNull();
     expect(follow.targetId).toBeNull();

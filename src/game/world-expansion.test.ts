@@ -34,7 +34,24 @@ test('new town walls collide, service approaches stay open, and town arrivals se
     game.advance(.1);
     expect(game.snapshot.phase).toBe('town'); expect(game.snapshot.supplies).toBe(supplies+4);
     expect(game.snapshot.report).toContain(town.name);
+    expect(game.snapshot.report).toContain('Exchanged 4 forest salvage for 4 supplies.');
   }
+});
+
+test('Rowan conversations and rest preserve the salvage value secured on arrival', () => {
+  const inn = REST_SPOTS.find(spot => spot.id === 'inn')!;
+  const save = JSON.parse(createAdventure().save());
+  Object.assign(save.state, { phase: 'expedition', position: at(inn.position.x, inn.position.z), carriedSalvage: 4, health: 60 });
+  const game = createAdventure({ save: JSON.stringify(save) });
+  game.advance(.1);
+  expect(game.snapshot.supplies).toBe(19);
+  expect(game.snapshot.carriedSalvage).toBe(0);
+  expect(game.snapshot.report).toContain('Exchanged 4 forest salvage for 4 supplies.');
+  game.interactNpc('inn');
+  tap(game, 'rest');
+  tap(game, 'rest');
+  expect(game.snapshot.supplies).toBe(19);
+  expect(game.snapshot.carriedSalvage).toBe(0);
 });
 
 test('regional inns restore health, close out of range and survive save reload in town', () => {

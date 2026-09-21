@@ -2107,34 +2107,37 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .adventure-actions button[data-auto-active=true] .action-art {border-color:#f6d35b;box-shadow:inset 0 0 5px #f6d35b,0 0 7px #e3bc3b;}
 
 
-.combat-plan { box-sizing:border-box; width:100%; margin:0 auto 9px; padding:10px 12px; border:1px solid #80745a; border-radius:3px; background:linear-gradient(#192422f5,#0d1516f5); box-shadow:0 2px 8px #0009,inset 0 0 0 1px #292f27; color:#ded5bb; font:12px/1.3 system-ui,sans-serif; pointer-events:auto; }
-.combat-plan[hidden],.combat-plan-editor[hidden] {display:none;}
-.combat-plan-heading {display:flex;align-items:center;gap:8px;min-height:20px;}
-.combat-plan-auto-ready {display:inline-flex;align-items:center;gap:4px;color:#ddd3b6;font:11px system-ui,sans-serif;white-space:nowrap;cursor:pointer;}
+.combat-plan { box-sizing:border-box; width:min(500px,100%); margin:0 auto 8px; padding:7px 8px; border:1px solid #80745a; border-radius:3px; background:linear-gradient(#192422f5,#0d1516f5); box-shadow:0 2px 8px #0009,inset 0 0 0 1px #292f27; color:#ded5bb; font:12px/1.3 system-ui,sans-serif; pointer-events:auto; }
+.combat-plan[hidden],.combat-plan [hidden] {display:none!important;}
+.combat-plan-heading {display:flex;align-items:center;gap:6px;min-height:24px;}
+.combat-plan-auto-ready {display:inline-flex;align-items:center;gap:4px;color:#ddd3b6;font:10px system-ui,sans-serif;white-space:nowrap;cursor:pointer;}
 .combat-plan-auto-ready input {margin:0;accent-color:#9fc67b;}
-.combat-plan-phase {color:#e5d59a;font-size:13px;flex:1;}
-.combat-plan-resources {font-size:10px;color:#cabf95;white-space:nowrap;}
+.combat-plan-phase {color:#e5d59a;font-size:12px;flex:1;min-width:0;}
 .combat-plan button {font:inherit;cursor:pointer;}
-.combat-plan-clear,.combat-plan-ready,.combat-plan-move-button,.combat-plan-remove,.combat-plan-edit,.combat-plan-timing {padding:2px 5px;min-height:21px;border:1px solid #756c50;border-radius:2px;background:#26322f;color:#e6d9b4;}
+.combat-plan-clear,.combat-plan-ready,.combat-plan-remove,.combat-plan-edit,.combat-plan-timing {padding:2px 5px;min-height:21px;border:1px solid #756c50;border-radius:2px;background:#26322f;color:#e6d9b4;}
+.combat-plan-clear,.combat-plan-remove {border-color:transparent;background:transparent;color:#b6baa9;}
+.combat-plan-clear {font-size:10px!important;}
+.combat-plan-remove {font-size:18px!important;line-height:18px;padding:0 4px;}
+.combat-plan-edit[aria-pressed=true] {border-color:#b6a16a;background:#4c4a30;}
 .combat-plan button:disabled {opacity:.4;cursor:default;}
 .combat-plan button:focus-visible {outline:2px solid #f8e3a2;outline-offset:2px;}
 .combat-plan-clock {height:3px;background:#090e10;margin:4px 0 3px;}
 .combat-plan-clock>span {display:block;height:100%;background:#d0b563;}
 .combat-plan[data-phase=active] .combat-plan-clock>span {background:#d96a46;}
 .combat-plan-grid {display:grid;gap:3px;}
-.combat-plan-cell {position:relative;min-height:46px;display:flex;align-items:center;gap:6px;background:#111b1c;}
+.combat-plan-cell {position:relative;min-height:32px;display:flex;align-items:center;gap:6px;background:#111b1c;}
 .combat-plan-player {justify-content:flex-start;min-width:0;flex:1;padding:0 4px;}
 .combat-plan-move-target {color:#bce4ed;font:600 10px/13px system-ui;text-align:left;overflow-wrap:anywhere;}
-.combat-plan-enemy {padding:4px;overflow-x:auto;}
+.combat-plan-enemy {padding:0;display:flex;flex-direction:column;align-items:stretch;max-height:100px;overflow-y:auto;overflow-x:hidden;gap:3px;}
 .combat-plan-move,.combat-plan-enemy-move {display:block;position:relative;flex:0 0 44px;width:44px;height:44px;padding:1px;border:1px solid #8e7951;border-radius:2px;background:radial-gradient(at 30% 25%,#56654a,#14221f);}
 .combat-plan-move img,.combat-plan-enemy-move img {width:100%;height:100%;object-fit:contain;}
-.combat-plan-enemy-move {display:flex;align-items:center;gap:5px;flex:0 0 150px;width:150px;min-height:54px;height:auto;align-self:stretch;border-color:#995945;text-align:left;}
-.combat-plan-enemy-art {position:relative;flex:0 0 36px;width:36px;height:36px;}
-.combat-plan-enemy-identity {display:flex;align-items:center;gap:3px;min-width:0;}
-.combat-plan-enemy-move .combat-plan-portrait {width:24px;height:30px;object-fit:cover;}
-.combat-plan-enemy-words {display:flex;flex-direction:column;min-width:0;}
-.combat-plan-enemy-name {font-size:9px;line-height:11px;color:#ead9ac;}
-.combat-plan-enemy-action {font-size:9px;line-height:11px;color:#fff0d1;}
+.combat-plan-enemy-move {display:flex;align-items:center;gap:6px;flex:0 0 auto;width:100%;min-height:28px;height:auto;align-self:stretch;border-color:#59443a;background:#271f1b;text-align:left;}
+.combat-plan-enemy-art {position:relative;flex:0 0 23px;width:23px;height:23px;}
+.combat-plan-enemy-identity {display:flex;align-items:center;gap:5px;min-width:0;flex:1;}
+.combat-plan-enemy-move .combat-plan-portrait {width:23px;height:23px;object-fit:cover;border-radius:50%;}
+.combat-plan-enemy-words {display:flex;align-items:center;gap:6px;min-width:0;flex:1;}
+.combat-plan-enemy-name {font-size:11px;line-height:14px;color:#ead9ac;flex:1;min-width:0;overflow-wrap:anywhere;}
+.combat-plan-enemy-action {font-size:10px;line-height:13px;color:#c3b29b;}
 .combat-plan-enemy-target {font:600 10px/12px system-ui;color:#bce4ed;overflow-wrap:anywhere;}
 .combat-plan-enemy-move[data-target-self=true] .combat-plan-enemy-target {color:#ffb7a1;}
 .combat-plan-move-label {color:#fff0c9;font:600 11px/13px system-ui;}
@@ -2144,22 +2147,19 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-move[aria-pressed=true] {outline:2px solid #e9d68d;outline-offset:1px;}
 .combat-plan-move[data-status=executed] {filter:saturate(.4);opacity:.5;}
 .combat-plan-move[data-status=failed] {border-color:#ff7770;opacity:.65;}
-.combat-plan-move-time,.combat-plan-damage {position:absolute;bottom:-1px;right:0;background:#071010d9;color:#fff;font:bold 11px/13px system-ui,sans-serif;padding:0 2px;text-shadow:0 1px 2px #000;}
-.combat-plan-move-time {top:0;bottom:auto;}
-.combat-plan-move-cost {position:absolute;top:0;left:0;background:#101717ed;color:#f4d985;font:bold 10px/13px system-ui;padding:0 3px;}
-.combat-plan-editor {display:flex;align-items:center;gap:4px;margin-top:6px;}
-.combat-plan-selection {flex:1;color:#dacb9e;font-size:10px;}
+.combat-plan-damage {position:absolute;bottom:-1px;right:0;background:#071010d9;color:#fff;font:bold 9px/11px system-ui,sans-serif;padding:0 1px;text-shadow:0 1px 2px #000;}
+.combat-plan-editor {display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:5px;}
+.combat-plan-selection,.combat-plan-timing-suffix {color:#dacb9e;font-size:10px;}
 .combat-plan-timing[aria-pressed=true] {background:#71603a;border-color:#dfcb91;}
 .combat-plan-feedback {min-height:16px;margin:3px 0 0;color:#ead6ac;text-align:center;font-size:12px;white-space:normal;}
 @media(max-width:850px) {.combat-plan {padding:5px;max-width:490px;}}
 
-.combat-plan-enemy-move { cursor: pointer; padding: 0; font: inherit; }
+.combat-plan-enemy-move { cursor:pointer;padding:2px 5px;font:inherit;}
 .combat-plan-enemy-move:hover, .combat-plan-enemy-move:focus-visible, .combat-plan-enemy-move[aria-pressed="true"] { outline: 2px solid #eccb78; outline-offset: 2px; }
 .combat-plan-inspect { position: relative; padding: 6px 8px; background: #172126; border-left: 2px solid #d6b767; color: #e7deca; }
 .combat-plan-inspect-title { font-size: 12px; padding-right: 90px; display: block; }
 .combat-plan-inspect-copy { margin: 3px 0 0; font-size: 11px; line-height: 1.4; max-height: 48px; overflow-y: auto; }
 .combat-plan-unpin { position: absolute; right: 6px; top: 4px; background: transparent; border: 0; color: #d7bd86; font: 11px system-ui; cursor: pointer; }
-.combat-plan-danger[data-severity="tactics"] { color: #d7c692; background: #302b1f; border-color: #655536; }
 #bait-aim-hint { margin: 4px 0; padding: 7px 12px; color: #fff1bc; background: #182d32ed; border: 1px solid #91cbb4; font: 13px system-ui; }
 body[data-bait-aiming="true"] #world-canvas { cursor: crosshair; }
 .adventure-actions button[aria-pressed="true"] .action-art { outline: 2px solid #a0e4ce; }
@@ -2170,11 +2170,9 @@ body[data-bait-aiming="true"] .combat-plan { visibility: hidden; pointer-events:
 .combat-plan {position:relative;padding:6px 8px;}
 .combat-plan-inspect[hidden] {display:none;}
 .combat-plan-inspect-copy { max-height: 32px; }
-@media(min-width:1200px) {.combat-plan-inspect {left:auto;right:calc(100% + 8px);top:0;bottom:auto;width:calc((100vw - 720px) / 2 - 20px);max-height:180px;} .combat-plan-inspect-copy {max-height:95px;}}
 .combat-plan-forecast-summary[hidden] {display:none;}
-.combat-plan-danger {margin:2px 0;font-size:10px;}
 .combat-plan-feedback {font-size:10px;max-height:26px;overflow:auto;}
-@media(max-width:600px) {.combat-plan-heading {flex-wrap:wrap;gap:4px;} .combat-plan-phase {font-size:11px;} .combat-plan-resources {font-size:9px;} .combat-plan-row {gap:3px;} .combat-plan-category {width:55px;font-size:10px;} .combat-plan-enemy-move {flex-basis:134px;width:134px;} .combat-plan-enemy-art {width:30px;height:30px;flex-basis:30px;}}
+@media(max-width:600px) {.combat-plan-heading {flex-wrap:wrap;gap:4px;} .combat-plan-phase {font-size:11px;} .combat-plan-row {gap:3px;} .combat-plan-category {width:55px;font-size:10px;} .combat-plan-enemy-name {font-size:10px;} .combat-plan-enemy-words {gap:4px;}}
 
 #pause-toggle { min-width: 58px; color: #f4dfad; font: 700 var(--ui-font-small) system-ui; }
 .pause-icon-button { position: relative; display: grid; place-items: center; }
@@ -2182,13 +2180,13 @@ body[data-bait-aiming="true"] .combat-plan { visibility: hidden; pointer-events:
 .pause-icon-button:hover svg { color: #fff0bf; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-.combat-plan-row {display:flex;align-items:center;gap:5px;min-height:40px;}
-.combat-plan-category {width:62px;flex-shrink:0;font-size:11px;color:#cabf95;}
+.combat-plan-row {display:flex;align-items:center;gap:5px;min-height:32px;}
+.combat-plan-category {width:60px;flex-shrink:0;font-size:11px;color:#cabf95;}
 .combat-plan-empty {color:#aeb7a7;}
 .combat-plan-empty[hidden] {display:none;}
-.combat-plan-player .combat-plan-move {display:grid;grid-template-columns:30px minmax(0,1fr);grid-template-rows:16px 16px;column-gap:5px;align-items:center;flex:1;width:auto;height:36px;padding:2px 24px 2px 3px;text-align:left;}
-.combat-plan-player .combat-plan-move img {grid-row:1 / 3;width:30px;height:30px;}
-.combat-plan-move-cost {display:none;}
-.combat-plan-enemy-heading {display:block;margin:5px 0 2px;font-size:10px;color:#cabf95;}
+.combat-plan-player .combat-plan-move {display:grid;grid-template-columns:25px minmax(0,1fr);grid-template-rows:14px 14px;column-gap:5px;align-items:center;flex:1;min-width:0;width:auto;height:32px;padding:1px 4px;text-align:left;}
+.combat-plan-player .combat-plan-move img {grid-row:1 / 3;width:25px;height:25px;}
+
+.combat-plan-enemy-heading {display:block;margin:6px 0 3px;padding-top:5px;border-top:1px solid #34403a;font-size:10px;color:#aaa18b;}
 
 .adventure-actions .action-quantity { position:absolute; bottom:0; right:2px; color:#fff; font:bold var(--ui-font-prominent)/1 system-ui,sans-serif; text-shadow:-1px -1px #000,1px 1px #000,0 0 3px #000; }

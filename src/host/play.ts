@@ -863,12 +863,12 @@ function renderHud(snapshot: AdventureSnapshot): void {
   }
   const potionControl = actionBar().querySelector<HTMLButtonElement>('[data-action="drinkPotion"]');
   if (potionControl) {
-    potionControl.disabled = snapshot.phase === "lost" || player.inCombat || snapshot.potions < 1 || player.health >= player.maximumHealth;
+    potionControl.disabled = snapshot.phase === "lost" || combatExecutionLocked() || snapshot.potions < 1 || player.health >= player.maximumHealth;
     setAttribute(potionControl, "aria-label", `Health potion × ${snapshot.potions}`);
     setDataset(potionControl.dataset, { quantity: String(snapshot.potions) });
     setText(potionControl.querySelector<HTMLElement>(".action-quantity")!, String(snapshot.potions));
-    setText(potionControl.querySelector<HTMLElement>(".action-tooltip small")!, snapshot.potions < 1 ? "No potions" : player.inCombat ? "Unavailable in combat" : player.health >= player.maximumHealth ? "Health full" : "Drink potion");
-    setText(potionControl.querySelector<HTMLElement>(".action-tooltip span:last-child")!, `Restores ${snapshot.potionHealing} health.`);
+    setText(potionControl.querySelector<HTMLElement>(".action-tooltip small")!, snapshot.potions < 1 ? "No potions" : combatExecutionLocked() ? "Wait for your next turn" : player.health >= player.maximumHealth ? "Health full" : "Drink potion");
+    setText(potionControl.querySelector<HTMLElement>(".action-tooltip span:last-child")!, `Restores ${snapshot.potionHealing} health. Can be used while planning a turn.`);
   }
   const recovery = element("player-action-bar");
   const recoveryHidden = player.actionCooldown <= 0.001 || (player.currentAction !== "gather" && player.currentAction !== "ritual" && player.currentAction !== "hearthstone");
@@ -1152,7 +1152,7 @@ for (const target of [element("map-threats"), element("enemy-intents")]) listen(
   const id = event.target.closest<HTMLElement>("[data-enemy-id]")?.dataset.enemyId;
   if (id) { selectEnemyTarget(id); running.world.canvas.focus(); }
 });
-for (const control of document.querySelectorAll<HTMLElement>("[data-action]:not(#adventure-actions > button)")) listen(control, "click", () => {
+for (const control of document.querySelectorAll<HTMLElement>("[data-action]:not(#adventure-actions > button):not(.combat-plan-edit)")) listen(control, "click", () => {
   if (performance.now() < suppressActionClickUntil) return;
   const action = control.dataset.action;
   if (action && ["strike", "brace", "bait", "gather", "ritual", "interact", "rest"].includes(action)) pulse(action as AdventureAction);

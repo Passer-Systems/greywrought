@@ -68,6 +68,37 @@ describe("personal combat feedback", () => {
     expect(inn.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 3 }]);
   });
 
+  test("combat potions heal during planning without replacing the plan and wait during playback", () => {
+    const saved = seed(); Object.assign(saved.state, { health: 45, potions: 3 });
+    const game = createAdventure({ save: JSON.stringify(saved) });
+    game.advance(.001); finishGathering(game); tap(game, "brace");
+    expect(game.snapshot.player.inCombat).toBe(true);
+    expect(game.snapshot.combat.phase).toBe("preparation");
+    const before = game.snapshot;
+    tap(game, "drinkPotion");
+    expect(game.snapshot.player.health).toBe(75);
+    expect(game.snapshot.potions).toBe(2);
+    expect(game.snapshot.combat.queued).toEqual(before.combat.queued);
+    expect(game.snapshot.combat.availableStamina).toBe(before.combat.availableStamina);
+    expect(game.snapshot.combat.forecast!.outcomes.find(o => o.id === "solo")!.health)
+      .toBe(before.combat.forecast!.outcomes.find(o => o.id === "solo")!.health + 30);
+    game.readyCombat();
+    expect(game.snapshot.combat.phase).toBe("active");
+    tap(game, "drinkPotion");
+    expect(game.snapshot.player.health).toBe(75);
+    expect(game.snapshot.potions).toBe(2);
+  });
+
+  test("combat potions cap healing and keep the bottle when health is full", () => {
+    const saved = seed(); Object.assign(saved.state, { health: 95, potions: 2 });
+    const game = createAdventure({ save: JSON.stringify(saved) }); game.advance(.001);
+    expect(game.snapshot.player.inCombat).toBe(true);
+    tap(game, "drinkPotion"); tap(game, "drinkPotion");
+    expect(game.snapshot.player.health).toBe(100);
+    expect(game.snapshot.potions).toBe(1);
+    expect(game.snapshot.combatFeedback).toEqual([{ id: 1, targetId: null, kind: "heal", amount: 5 }]);
+  });
+
   test("keeps distinct events between snapshots, copies entries, and clears on restore", () => {
     const game = createAdventure({ save: JSON.stringify(seed()) });
     tap(game, "strike"); finishGathering(game); game.readyCombat(); game.advance(2.5);
