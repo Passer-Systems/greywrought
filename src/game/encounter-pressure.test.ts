@@ -164,10 +164,10 @@ test('an attacked neutral creature can call hostile help only across a clear pat
 
 test('a helper does not inherit an opponent beyond its own leash',()=>{
  const data=JSON.parse(createAdventure({archetype:'mage'}).save());
- Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:30}});
+ Object.assign(data.state,{phase:'expedition',position:{x:-3,y:0,z:17.5}});
  for(const t of data.state.threats){
-  if(t.id==='scout')t.position={x:-3,y:0,z:36};
-  else if(t.id==='warder')t.position={x:-3,y:0,z:44};
+  if(t.id==='scout')t.position={x:-3,y:0,z:25};
+  else if(t.id==='warder')t.position={x:-3,y:0,z:32.5};
   else if(t.active)Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
  }
  const game=createAdventure({save:JSON.stringify(data)});game.selectTarget('scout');tap(game,'strike');game.advance(.01);

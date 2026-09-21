@@ -157,7 +157,7 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(14, 24), point(16, 26), point(18, 24), point(16, 22)],
     preparation: "Enraged wings gathering", intention: "Enraged Swarm", damage: 16, reach: 3,
     benefit: "Defeat the bee to make the briar passage safer." },
-  { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 11, speed: 2, name: "Relic Warden", position: point(-3, 50), health: 144,
+  { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 30, speed: 2, name: "Relic Warden", position: point(-3, 50), health: 144,
     patrol: [point(-3, 50), point(-4, 49), point(-2, 49), point(-2, 51)],
     preparation: "Drawing back its relic blade", intention: "Relic cleave", damage: 18, reach: 5,
     benefit: "Clear the warder to gather coolant crystals without live cabling." },
