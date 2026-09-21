@@ -197,3 +197,14 @@ test('a legacy claim by an offline or private character consumes the shared ches
   expect(alice.snapshot.loot.find(loot => loot.sourceId === 'ironback-chest')?.available).toBe(false);
   expect(JSON.parse(restored.save()).world.chestClaimed).toBe(true);
 });
+
+test("existing cave boss saves show Rattagane without resetting damage", () => {
+  const saved = JSON.parse(createAdventure().save());
+  Object.assign(saved.state.threats.find((t: { id: string }) => t.id === "cave-crab"), { health: 78 });
+  const game = createAdventure({ save: JSON.stringify(saved) });
+  expect(game.snapshot.threats.find(t => t.id === "cave-crab")).toMatchObject({ name: "Rattagane", health: 78, maximumHealth: 624 });
+  const lore = getMonsterLore().find(t => t.id === "cave-crab")!;
+  expect(lore.name).toBe("Rattagane");
+  expect(lore.abilities[0]).toMatchObject({ name: "Hook Sweep", damage: 52, noticeSeconds: 1.1, range: 4.5 });
+  expect(lore.abilities[0]!.description).toContain("iron hook");
+});

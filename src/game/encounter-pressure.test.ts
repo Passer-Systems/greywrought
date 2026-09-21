@@ -1,10 +1,16 @@
-import { createAdventure, createSharedAdventure } from './adventure.js';
+import { createAdventure, createSharedAdventure, getMonsterLore } from './adventure.js';
 import {test,expect} from 'bun:test';
 import type {AdventureGame, AdventureAction} from './adventure-types.js';
 import type {CharacterArchetype} from '../host/character-profile.js';
 import { finishGathering, earnedChapter, travel } from './yard-test-fixtures.js';
 import { terrainHeight } from './cave-layout.js';
 function tap(g:AdventureGame,a:AdventureAction){g.setAction(a,true);g.setAction(a,false);}
+test('Relic Warden retains the warder save identity', () => {
+  const game = createAdventure(), restored = createAdventure({ save: game.save() });
+  expect(restored.snapshot.threats.find(threat => threat.id === 'warder')?.name).toBe('Relic Warden');
+  expect(getMonsterLore().find(threat => threat.id === 'warder')?.name).toBe('Relic Warden');
+});
+
 test('all available creatures patrol, including the bee; pauses stay brief',()=>{
  const g=createAdventure(),before=g.snapshot;
  g.advance(2);
@@ -255,4 +261,29 @@ test('retreating from a committed double pull breaks contact and preserves the r
  expect(game.snapshot.player.position.z).toBeLessThan(0);
  expect(game.snapshot.phase).toBe('town'); expect(game.snapshot.player.health).toBeGreaterThan(0);
  expect(game.snapshot.threats.filter(t=>t.aggro).length).toBe(0);
+});
+
+test("patrolling creatures face travel through turns and hold their heading at stops", () => {
+  const game = createAdventure();
+  const headings = new Map<string, Set<string>>();
+  let previous = game.snapshot;
+  for (let step = 0; step < 480; step++) {
+    game.advance(1 / 30);
+    const current = game.snapshot;
+    for (const threat of current.threats.filter(t => t.phase === "patrol")) {
+      const before = previous.threats.find(t => t.id === threat.id)!;
+      const dx = threat.position.x - before.position.x, dz = threat.position.z - before.position.z;
+      const length = Math.hypot(dx, dz);
+      if (length > 1e-6) {
+        expect((dx * threat.facing.x + dz * threat.facing.z) / length).toBeCloseTo(1, 5);
+        const seen = headings.get(threat.id) ?? new Set<string>();
+        seen.add(`${threat.facing.x.toFixed(2)},${threat.facing.z.toFixed(2)}`);
+        headings.set(threat.id, seen);
+      } else expect(threat.facing).toEqual(before.facing);
+    }
+    previous = current;
+  }
+  expect(headings.get("warder")!.size).toBeGreaterThan(2);
+  const restored = createAdventure({ save: game.save() });
+  expect(restored.snapshot.threats.find(t => t.id === "warder")!.facing).toEqual(game.snapshot.threats.find(t => t.id === "warder")!.facing);
 });

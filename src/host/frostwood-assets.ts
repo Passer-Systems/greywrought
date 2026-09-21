@@ -1,3 +1,4 @@
+import { actorAssetPath, type PlayerModel } from "../art/actor-catalog.js";
 import { AnimationMixer, Box3, Color, Float32BufferAttribute, Group, LoopOnce, LoopRepeat, Mesh, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
@@ -30,12 +31,11 @@ export interface ForestActor {
   play(name: string, loop?: boolean, duration?: number, fade?: number): AnimationAction;
   dispose(): void;
 }
-export async function actor(name: string, height: number, playerModel?: "warrior" | "mage" | "hunter" | "alchemist" | "artificer"): Promise<ForestActor> {
-  const playerPath = playerModel ? `assets/quaternius/class-characters/${playerModel === "hunter" ? "Ranger.glb" : playerModel === "mage" ? "Wizard.glb" : playerModel === "alchemist" ? "Alchemist.gltf" : playerModel === "artificer" ? "Artificer.gltf" : "Warrior.glb"}` : null;
-  const gltf = await source(playerPath ?? (name === "Rat" ? "assets/quaternius/rodents/Rat.glb" : `${root}actors/${name}.glb`));
+export async function actor(name: string, height: number, playerModel?: PlayerModel, materialFill?: number): Promise<ForestActor> {
+  const gltf = await source(actorAssetPath(name, playerModel));
   const model = clone(gltf.scene);
   const animations = [...gltf.animations];
-  if (playerPath !== null) {
+  if (playerModel) {
     const donor = await source("assets/quaternius/class-characters/Social.glb");
     const sourceModel = clone(donor.scene);
     let targetRig: SkinnedMesh | undefined, sourceRig: SkinnedMesh | undefined;
@@ -64,6 +64,17 @@ export async function actor(name: string, height: number, playerModel?: "warrior
     }
   }
   const localMaterials: Material[] = [];
+  if (materialFill !== undefined) model.traverse(object => {
+    if (!(object instanceof Mesh)) return;
+    const caveFill = (material: Material) => {
+      if (!(material instanceof MeshStandardMaterial) || material.emissiveIntensity > 0 && material.emissive.getHex() !== 0) return material;
+      // Preserve the authored colors while keeping dark fur and metal readable underground.
+      const surface = material.clone();
+      surface.emissive.copy(surface.color); surface.emissiveIntensity = materialFill;
+      localMaterials.push(surface); return surface;
+    };
+    object.material = Array.isArray(object.material) ? object.material.map(caveFill) : caveFill(object.material);
+  });
   if (name === "Leela") model.traverse(object => {
     if (!(object instanceof Mesh)) return;
     const lightEye = (material: Material) => {

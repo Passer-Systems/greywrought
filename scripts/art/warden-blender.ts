@@ -7,7 +7,7 @@ import bpy, json, math, os, sys, bmesh
 from mathutils import Matrix, Vector, noise
 from mathutils.kdtree import KDTree
 root = os.getcwd()
-folder = os.path.join(root, 'assets/external/relic-warden')
+folder = os.path.join(root, 'build/warden')
 build = os.path.join(root, 'build/warden')
 with open(os.path.join(build,'surfaces.json')) as f: data=json.load(f)
 bpy.ops.object.select_all(action='SELECT')
