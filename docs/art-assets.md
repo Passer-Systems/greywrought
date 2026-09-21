@@ -2,14 +2,14 @@
 
 All file-backed actors are registered in `src/art/actor-catalog.ts`, including
 Quaternius creatures, player classes, NPCs and OpenAI models. Every entry has
-only a source path and public path. The same loader, packager and art tests
+one relative path shared by the repository and public URL. The same loader, packager and art tests
 consume every entry; provenance does not define an actor type.
 
 OpenAI runtime routes are `assets/openai/actors/<ModelName>.glb`.
 Quaternius Frostwood routes are
 `assets/quaternius/frostwood/actors/<ModelName>.glb`; other packs keep their
-existing paths. Keep each OpenAI model's GLB and SOURCE.md under
-`assets/external/openai/<asset>/`. Packaging includes registered models and
+existing paths. Keep OpenAI GLBs under `assets/external/openai/actors/` with their combined
+`SOURCE.md` in that directory. Packaging includes registered models and
 nearby source notes/licenses, never local Blender sources or experiments.
 
 Encounter appearance settings live in `src/host/threat-appearances.ts`: model,

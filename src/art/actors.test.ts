@@ -6,9 +6,9 @@ import { threatAppearances } from '../host/threat-appearances.js';
 const files = await actorAssetFiles();
 for (const [name, asset] of Object.entries(actorAssets)) {
   test(`${name}: runtime route, source and encounter animations are valid`, async () => {
-    expect(files).toContainEqual([`assets/external/${asset.source}`, `dist/${actorAssetPath(name)}`]);
-    const bytes = await Bun.file(`assets/external/${asset.source}`).arrayBuffer();
-    const json = asset.source.endsWith('.glb')
+    expect(files).toContainEqual([`assets/external/${asset}`, `dist/${actorAssetPath(name)}`]);
+    const bytes = await Bun.file(`assets/external/${asset}`).arrayBuffer();
+    const json = asset.endsWith('.glb')
       ? new TextDecoder().decode(bytes.slice(20, 20 + new DataView(bytes).getUint32(12, true)))
       : new TextDecoder().decode(bytes);
     const gltf = JSON.parse(json);

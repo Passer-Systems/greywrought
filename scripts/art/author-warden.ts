@@ -15,7 +15,7 @@ if(typeof globalThis.FileReader==='undefined') Object.defineProperty(globalThis,
   readAsArrayBuffer(blob:Blob){void blob.arrayBuffer().then(b=>{this.result=b;this.onloadend?.();});}
   readAsDataURL(blob:Blob){void blob.arrayBuffer().then(b=>{this.result=`data:${blob.type};base64,${Buffer.from(b).toString('base64')}`;this.onloadend?.();});}
 }});
-const build='build/warden',output='assets/external/openai/relic-warden';
+const build='build/warden',output='assets/external/openai/actors';
 await mkdir(build,{recursive:true});await mkdir(output,{recursive:true});
 const sourcePath=process.env.WARDEN_RIG_SOURCE;
 if(!sourcePath) throw new Error('Set WARDEN_RIG_SOURCE to your local Quaternius Mike.gltf file. The source pack is not included in this repository.');
@@ -100,6 +100,6 @@ const runtimeResolved=await Bun.file(`${build}/evaluated-runtime.json`).json() a
 const runtimeTriangles=attach(runtimeResolved);root.updateMatrixWorld(true);
 const runtime=await exporter.parseAsync(root,{binary:true,animations:source.animations.filter(a=>runtimeNames.has(a.name))});
 if(!(runtime instanceof ArrayBuffer))throw new Error('Expected GLB');
-await Bun.write(`${output}/relic-warden.glb`,runtime);
+await Bun.write(`${output}/RelicWarden.glb`,runtime);
 await Bun.write(`${build}/manifest.json`,JSON.stringify({...root.userData,triangles,runtimeTriangles,controlSurfaces:panels.length,bones:bones.size,fullBytes:full.byteLength,runtimeBytes:runtime.byteLength,animations:source.animations.map(a=>({name:a.name,duration:a.duration})),runtimeAnimations:[...runtimeNames],blenderVersion:'4.3.2',blenderSource:'relic-warden.blend'},null,2)+'\n');
 console.log(`Warden: ${triangles} detailed triangles; ${runtimeTriangles} game triangles; ${panels.length} surfaces; ${source.animations.length} original clips; full ${(full.byteLength/1048576).toFixed(2)} MiB; game ${(runtime.byteLength/1048576).toFixed(2)} MiB.`);
