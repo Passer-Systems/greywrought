@@ -70,7 +70,10 @@ export function movePosition(p: MovementState['position'], dx: number, dz: numbe
   p.y = movementHeight(p.x, p.z, previous) + Math.max(0, offset);
 }
 export function startJump(state: MovementState): void {
-  if (!isSwimming(state.position) && state.position.y === supportHeight(state.position.x, state.position.z) && state.verticalSpeed === 0) state.verticalSpeed = 5.5;
+  // A swimmer can breach from the surface.  Underwater Space is handled by
+  // the rise input in moveLocomotion; only a swimmer already at the surface
+  // receives a jump impulse so holding Space cannot launch from the lake bed.
+  if (state.position.y === supportHeight(state.position.x, state.position.z) && state.verticalSpeed === 0) state.verticalSpeed = 5.5;
 }
 export function moveManeuverPosition(state: MovementState, maneuver: MovementManeuver, seconds: number): boolean {
   const old = { ...state.position }, elapsed = Math.min(seconds, maneuver.remainingSeconds);

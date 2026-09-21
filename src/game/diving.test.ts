@@ -6,6 +6,7 @@ import { moveLocomotion, moveManeuverPosition, movementHeight, movementHeightSam
 import { reachableCombatCells, snapCombatPosition } from './combat-grid.js';
 import { bellrunnerDock, flightPosition } from './bellrunner.js';
 import { combatSurfaceHeight } from '../host/terrain-geometry.js';
+import { lakeWaterAt } from './world-elevation.js';
 
 const neutral: MovementInput={forward:0,strafe:0,cameraX:0,cameraZ:1,jump:false};
 const center={x:-27,z:-95};
@@ -33,6 +34,17 @@ test('Ctrl dives, neutral input holds depth, Space rises and the bed bounds feet
   game.setAction('jump',true);game.advance(3);game.setAction('jump',false);
   expect(game.snapshot.player.position.y).toBeCloseTo(supportHeight(center.x,center.z));
   expect(game.snapshot.player.health).toBe(100);
+});
+
+test('Space breaches from the water surface and settles without repeated bouncing',()=>{
+  const surface = supportHeight(center.x, center.z);
+  const state: MovementState = { position: { ...center, y: surface }, verticalSpeed: 0, breathSeconds: 60 };
+  moveLocomotion(state, { ...neutral, jump: true, rise: true }, .2);
+  expect(state.position.y).toBeGreaterThan(surface);
+  expect(state.position.y).toBeGreaterThan(lakeWaterAt(center.x, center.z)! - .8);
+  moveLocomotion(state, { ...neutral, jump: false, rise: true }, 1);
+  expect(state.position.y).toBeCloseTo(surface);
+  expect(state.verticalSpeed).toBe(0);
 });
 
 test('saved depth and breath survive reload; exhaustion returns the swimmer to air',()=>{
