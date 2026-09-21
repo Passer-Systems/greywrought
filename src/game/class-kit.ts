@@ -15,7 +15,7 @@ export interface ClassKit {
 }
 function kit(movementTiles: number, movementSpeed: number, strike: Omit<ClassActionSpec, "name" | "movementProfile">, brace: Omit<ClassActionSpec, "name" | "movementProfile">): ClassKit {
   return { archetype: "warrior", movementTiles, movementSpeed, abilities: {
-    bait: { movementProfile: "mobile", name: "Move", icon: "assets/ui/icons/spells/mobility-boots.png", description: `Move up to ${movementTiles} tiles. Costs 1 stamina.`, cost: 1, range: movementTiles * COMBAT_CELL_SIZE, duration: 1 },
+    bait: { movementProfile: "mobile", name: "Move", icon: "assets/ui/icons/spells/mobility-boots.png", description: `Choose multiple stops to move up to ${movementTiles} tiles in total. Backtracking counts toward your distance. Costs 1 stamina.`, cost: 1, range: movementTiles * COMBAT_CELL_SIZE, duration: 1 },
     strike: { ...strike, movementProfile: "stationary", name: "Attack" },
     brace: { ...brace, movementProfile: "mobile", name: "Defend" },
   } };

@@ -29,6 +29,7 @@ export interface NetworkAdventure extends AdventureGame {
   resume(): void;
   rejoin(): void;
   selectReturnSpot(destination: Position): boolean;
+  submitBait(destination: Position, via?: readonly Position[]): Promise<boolean>;
   subscribe(listener: () => void): () => void;
   close(): void;
 }
@@ -54,6 +55,8 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let noticeId = -1_000_000_000;
   const previews = new Map<number, (forecast: CombatForecast | null) => void>();
   function clearPreviews() { for (const resolve of previews.values()) resolve(null); previews.clear(); }
+  const submissions = new Map<number, (accepted: boolean) => void>();
+  function clearSubmissions() { for (const resolve of submissions.values()) resolve(false); submissions.clear(); }
   let sequence = 0, closed = false, online = false, connectionRevision = 0;
   let reconnecting = false;
   let disconnectGrace: ReturnType<typeof setTimeout> | undefined;
@@ -74,7 +77,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   const timeout = setTimeout(() => { if (!snapshot) { close(); readyReject(new Error('The world could not be reached.')); } }, 15000);
   function close(): void {
     if (online) send({type:'pause'});
-    clearPreviews();
+    clearPreviews(); clearSubmissions();
     closed = true; online = false; socketGeneration++; clearTimeout(timeout); clearTimeout(handshakeTimeout); clearTimeout(livenessTimeout); clearTimeout(reconnect); clearTimeout(disconnectGrace); reconnecting = false; socket?.close(DEPARTURE_CLOSE_CODE, 'Leaving world');
   }
   function send(command: WorldCommand): number | null {
@@ -102,7 +105,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       socketGeneration++;
       clearTimeout(handshakeTimeout); handshakeTimeout = undefined;
       clearTimeout(livenessTimeout); livenessTimeout = undefined;
-      clearPreviews();
+      clearPreviews(); clearSubmissions();
       if (online) {
         reconnecting = true;
         disconnectGrace = setTimeout(() => { reconnecting = false; disconnectGrace = undefined; notify(); }, DISCONNECT_GRACE_MS);
@@ -121,6 +124,9 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     current.onmessage = event => {
       if (closed || generation !== socketGeneration) return;
       const message = JSON.parse(String(event.data)) as ServerWorldMessage;
+      if (message.type === 'result' && submissions.has(message.sequence)) {
+        submissions.get(message.sequence)!(message.accepted); submissions.delete(message.sequence);
+      }
       if (message.type === 'movePreview') {
         previews.get(message.sequence)?.(message.forecast); previews.delete(message.sequence);
       } else if (message.type === 'result' && !message.accepted && previews.has(message.sequence)) {
@@ -224,11 +230,17 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     sit() { if (inputEnabled()) send({ type: 'sit' }); },
     setCameraForward(x,z) { prediction.setCameraForward(x,z); if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
     selectTarget(id) { send({type:'target',id}); },
-    queueBait(destination) { send({type:'bait',destination}); return online; },
-    previewBait(destination) {
+    queueBait(destination, via = []) { send({type:'bait',destination,via}); return online; },
+    submitBait(destination, via = []) {
+      return new Promise(resolve => {
+        const id = inputEnabled() ? send({type:'bait',destination,via}) : null;
+        if (id === null) resolve(false); else submissions.set(id, resolve);
+      });
+    },
+    previewBait(destination, via = []) {
       clearPreviews();
       return new Promise(resolve => {
-        const id = inputEnabled() ? send({type:'previewBait',destination}) : null;
+        const id = inputEnabled() ? send({type:'previewBait',destination,via}) : null;
         if (id === null) resolve(null); else previews.set(id, resolve);
       });
     },

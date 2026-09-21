@@ -67,8 +67,8 @@ export type WorldCommand =
   | { type: 'mouseForward'; active: boolean }
   | { type: 'camera'; x: number; z: number }
   | { type: 'target'; id: string }
-  | { type: 'bait'; destination: Position }
-  | { type: 'previewBait'; destination: Position }
+  | { type: 'bait'; destination: Position; via?: readonly Position[] }
+  | { type: 'previewBait'; destination: Position; via?: readonly Position[] }
   | { type: 'ready' }
   | { type: 'actionTiming'; timing: CombatActionTiming }
   | { type: 'remove'; id: number }

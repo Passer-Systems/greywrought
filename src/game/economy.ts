@@ -23,5 +23,4 @@ export const REGIONAL_GREETINGS: Partial<Record<NpcId, string>> = {
 };
 export const experienceForLevel = (level: number): number => 50 * level * (level - 1);
 export const levelForExperience = (experience: number): number => Math.floor((1 + Math.sqrt(1 + experience / 12.5)) / 2);
-export const enemyExperience = (level: number): number => level * 10;
 export const enemyCoins = (level: number): number => level * 3;

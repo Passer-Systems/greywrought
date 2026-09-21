@@ -87,7 +87,7 @@ test('regional patrols have legal ground and hostile combat intentions; peaceful
   }
 });
 
-test('a regional defeat awards experience and recoverable coins and salvage exactly once', () => {
+test('a regional defeat awards no experience and recoverable coins and salvage exactly once', () => {
   const d = REGIONAL_THREATS.find(d => d.id === 'ossuary-wing')!;
   const save = JSON.parse(createAdventure({archetype:'mage'}).save());
   Object.assign(save.state,{phase:'expedition',position:at(d.position.x,d.position.z-2)});
@@ -95,7 +95,7 @@ test('a regional defeat awards experience and recoverable coins and salvage exac
   const game = createAdventure({save:JSON.stringify(save)});
   game.selectTarget(d.id); tap(game,'strike'); game.readyCombat(); finishGathering(game); game.advance(.01);
   expect(game.snapshot.threats.find(t => t.id === d.id)!.health).toBe(0);
-  expect(game.snapshot.progression.experience).toBe(40);
+  expect(game.snapshot.progression.experience).toBe(0);
   game.openLoot(d.id); tap(game,'takeLoot');
   expect(game.snapshot.coins).toBe(12); expect(game.snapshot.carriedSalvage).toBe(2);
   const restored = createAdventure({save:game.save()}); restored.openLoot(d.id); tap(restored,'takeLoot');

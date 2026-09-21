@@ -7,7 +7,8 @@ import { createGearShop } from "./gear-shop.js";
 import { createAppControls } from './app-controls.js';
 import { COMBAT_RULES, createAdventure } from "../game/adventure.js";
 import { classAction, classKit } from "../game/class-kit.js";
-import type { AdventureAction, AdventureSnapshot } from "../game/adventure-types.js";
+import type { AdventureAction, AdventureSnapshot, Position } from "../game/adventure-types.js";
+import { COMBAT_CELL_SIZE, combatRouteDistance } from "../game/combat-grid.js";
 import {
   archiveFallenCharacter, characterProfileStorageKey, decodeCharacterProfile, encodeCharacterProfile,
   normalizedCharacterName, normalizedDisplayName,
@@ -97,17 +98,19 @@ const partyPanel = createPartyPanel(element("adventure-hud"), {
 const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   portrait: id => unitFrames.portrait(id),
   playerName: id => running?.character.id === id ? "You" : running?.game.players.find(player => player.id === id)?.name,
-  onRemove: id => { if (running?.ready && !paused) { running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
-  onClear: () => { if (running?.ready && !paused) { running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
+  onRemove: id => { if (running?.ready && !paused && !moveSubmitting) { setBaitAiming(false); running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
+  onClear: () => { if (running?.ready && !paused && !moveSubmitting) { setBaitAiming(false); running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
   onTiming: timing => { if (running?.ready && !paused) { running.game.setActionTiming(timing); combatPlan.update(running.game.snapshot); } },
   onAction: action => pulse(action),
   onReady: readyCombat,
   onAimMove: () => pulse("bait"),
+  onUndoMove: undoMove,
+  onFinishMove: () => { void finishMove(); },
   onPreview: preview => running?.world.setCombatPreview(preview),
 });
 function readyCombat(): boolean {
-  setBaitAiming(false);
   if (!running?.ready || paused) return false;
+  if (baitAiming) { void finishMove(() => { running?.game.readyCombat(); }); return false; }
   running.game.readyCombat(); combatPlan.update(running.game.snapshot);
   return true;
 }
@@ -329,6 +332,10 @@ let actionBarArchetype: CharacterArchetype | null = null;
 let suppressActionClickUntil = 0;
 let baitAiming = false;
 let moveAimError = "";
+let moveRoute: Position[] = [];
+let moveSubmitting = false;
+let moveRevision = 0;
+let moveContext = "";
 const resumeKey = "greywrought/adventure-active-character";
 interface RunningAdventure {
   readonly character: LocalCharacter;
@@ -376,11 +383,55 @@ function combatExecutionLocked(): boolean {
   return Boolean(snapshot?.player.inCombat && snapshot.combat.phase === "active");
 }
 function setBaitAiming(value: boolean): void {
+  if (value === baitAiming) return;
   baitAiming = value;
   moveAimError = "";
+  moveSubmitting = false;
+  moveRevision++;
+  const queued = value ? running?.game.snapshot.combat.queued.find(entry => entry.action === "bait") : null;
+  moveRoute = queued?.destination ? [...queued.via, queued.destination] : [];
+  moveContext = value ? currentMoveContext() : "";
   running?.world.setMoveAiming(value);
+  updateMoveRoute();
   document.body.dataset.baitAiming = String(value);
   element("bait-aim-hint").hidden = !value;
+}
+function currentMoveContext(): string {
+  return running ? `${running.character.id}:${running.game.connectionRevision}:${running.game.snapshot.combat.cycle}` : "";
+}
+function updateMoveRoute(): void {
+  running?.world.setMoveRoute(moveRoute);
+  const snapshot = running?.game.snapshot;
+  const used = snapshot ? combatRouteDistance(snapshot.player.position, moveRoute) / COMBAT_CELL_SIZE : 0;
+  const total = snapshot ? classKit(snapshot.player.archetype).movementTiles : 0;
+  combatPlan.setRouteEditing(baitAiming, used, total, moveRoute.length, moveSubmitting);
+  if (running) running.world.canvas.dataset.moveRoute = JSON.stringify(moveRoute);
+}
+function undoMove(): void {
+  if (!baitAiming || moveSubmitting) return;
+  moveRoute = moveRoute.slice(0, -1); moveAimError = ""; updateMoveRoute();
+  running?.world.canvas.focus();
+}
+async function finishMove(after?: () => void): Promise<void> {
+  const app = running, destination = moveRoute.at(-1);
+  if (!baitAiming || moveSubmitting || !app?.ready || paused) return;
+  if (!destination) { setBaitAiming(false); after?.(); return; }
+  moveSubmitting = true; updateMoveRoute();
+  const revision = moveRevision;
+  const accepted = await app.game.submitBait(destination, moveRoute.slice(0, -1));
+  if (revision !== moveRevision || running !== app || currentMoveContext() !== moveContext) return;
+  if (!accepted) {
+    moveSubmitting = false;
+    const combat = app.game.snapshot.combat;
+    moveAimError = combat.availableStamina + (combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) < 1
+      ? "Not enough stamina for Move. Cancel and change your action."
+      : "That route is no longer clear. Undo the last stop and choose another tile.";
+    updateMoveRoute(); return;
+  }
+  combatPlan.update(app.game.snapshot);
+  setBaitAiming(false);
+  after?.();
+  app.world.canvas.focus();
 }
 function menuOpen(): boolean { return !element("pause-panel").hidden; }
 function pressAction(action: AdventureAction): void {
@@ -390,11 +441,15 @@ function pressAction(action: AdventureAction): void {
   if (action === "strike" && running?.selection?.kind !== "enemy") return;
   if (action === "target" && running) running.selection = { kind: "enemy", id: running.game.snapshot.selectedThreat };
   if (action === "bait") {
+    if (moveSubmitting) return;
     const snapshot = running?.game.snapshot;
     if (snapshot?.combat.phase === "preparation" && !snapshot.combat.ready && snapshot.combat.availableStamina + (snapshot.combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) >= 1) setBaitAiming(!baitAiming);
     return;
   }
-  if (action === "strike" || action === "brace") setBaitAiming(false);
+  if ((action === "strike" || action === "brace") && baitAiming) {
+    void finishMove(() => { running?.game.setAction(action, true); running?.game.setAction(action, false); });
+    return;
+  }
   if (combatExecutionLocked() && ["forward", "backward", "left", "right", "jump", "dive", "strike", "brace", "drinkPotion"].includes(action)) return;
   running?.game.setAction(action, true);
 }
@@ -840,12 +895,12 @@ function renderHud(snapshot: AdventureSnapshot): void {
     gameCombatRemaining: String(snapshot.combat.remainingSeconds),
   });
   setDataset(data, { archetype: player.archetype });
-  text("bait-aim-hint", moveAimError || `Move · click a destination tile (up to ${classKit(player.archetype).movementTiles} tiles) · Esc cancels`);
+  text("bait-aim-hint", moveAimError || "Click route stops · Enter finishes · Backspace undoes · Esc cancels");
   const settlement = settlementAt(player.position.x, player.position.z);
   text("adventure-zone", (snapshot.phase === "town" ? `${settlement?.name ?? YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : regionAt(player.position.x,player.position.z).name) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players, running.selection?.kind === "player" ? running.selection.id === running.character.id ? { id: running.character.id, name: running.character.name, player: snapshot.player } : running.game.players.find(player => player.id === running!.selection!.id) : undefined);
+  if (snapshot.combat.phase !== "preparation" || snapshot.combat.ready || baitAiming && (!running?.game.online || currentMoveContext() !== moveContext)) setBaitAiming(false);
   combatPlan.update(snapshot);
-  if (snapshot.combat.phase !== "preparation" || snapshot.combat.ready) setBaitAiming(false);
   setDataset(data, { gameCombatPlan: String(!element("combat-plan").hidden) });
   const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, party: !!entry.partyId, text: entry.partyId ? `[Party] ${entry.name}: ${entry.text}` : entry.kind === 'emote' ? `* ${entry.name} ${entry.text}` : entry.name + ": " + entry.text })) ?? [];
   chatLog.update([...snapshot.log, ...sharedChat]);
@@ -1004,10 +1059,11 @@ function bindWorld(app: RunningAdventure): void {
         return;
       }
       if (baitAiming) {
+        if (moveSubmitting) return;
         if (event.button === 0) {
           const destination = app.world.pickGround(event.clientX, event.clientY);
           if (destination && app.world.canMoveTo(destination)) {
-            if (app.game.queueBait(destination)) setBaitAiming(false);
+            moveRoute = [...moveRoute, destination]; moveAimError = ""; updateMoveRoute();
           } else {
             moveAimError = "That tile is blocked or out of reach. Choose one of the highlighted tiles · Esc cancels";
           }
@@ -1058,7 +1114,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     audio.reset();
     // Prepare the scene before joining: loading must not expose an adventurer
     // to combat or hold up their connection's heartbeat.
-    const world = preparingWorld = createAdventureWorld(element("world-wrap"), createAdventure({ archetype: character.archetype }).snapshot, id => { if (!paused) running?.game.interactNpc(id); }, destination => running?.game.previewBait(destination) ?? Promise.resolve(null), { selfId: character.id, selfName: character.name, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu }, preview => combatPlan.setMovementPreview(preview));
+    const world = preparingWorld = createAdventureWorld(element("world-wrap"), createAdventure({ archetype: character.archetype }).snapshot, id => { if (!paused) running?.game.interactNpc(id); }, (destination, via) => running?.game.previewBait(destination, via) ?? Promise.resolve(null), { selfId: character.id, selfName: character.name, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu }, preview => combatPlan.setMovementPreview(preview));
     await world.ready;
     if (!alive) { world.dispose(); return; }
     const game = await connectAdventure(character);
@@ -1213,6 +1269,11 @@ listen(window, "keydown", (event) => {
   if (event.target instanceof HTMLElement && event.target.isContentEditable) return;
   if (menuOpen() && event.code !== "Escape" && event.code !== "KeyH" && event.code !== "KeyV") return;
   if (event.code === "KeyM" && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); if (!event.repeat && running?.ready) worldMap.toggle(); return; }
+  if (baitAiming && (event.code === "Enter" || event.code === "Backspace")) {
+    event.preventDefault();
+    if (!event.repeat) { if (event.code === "Enter") void finishMove(); else undoMove(); }
+    return;
+  }
   if (event.code === "Enter") { event.preventDefault(); release(); chatLog.focusInput(); return; }
   if (event.code === "Backquote" && !event.ctrlKey && !event.metaKey && !event.altKey) {
     event.preventDefault();

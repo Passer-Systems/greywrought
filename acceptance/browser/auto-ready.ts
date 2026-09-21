@@ -54,6 +54,7 @@ try {
     }
   }
   async function chooseMovement(): Promise<void> {
+    const readyBefore = await page!.evaluate<number>('window.readyCommands');
     await page!.click('#combat-plan-aim-move');
     await page!.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles||"[]").length>0&&window.planCamera');
     const point = await page!.evaluate<{ x: number; y: number }>(`(()=>{
@@ -67,6 +68,10 @@ try {
       throw new Error('No visible movement tile');})()`);
     await page!.call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', buttons: 1, clickCount: 1 });
     await page!.call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', buttons: 0, clickCount: 1 });
+    await page!.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveRoute||"[]").length>0');
+    await Bun.sleep(150);
+    check(await page!.evaluate<number>('window.readyCommands')===readyBefore,'Auto-ready waits while the movement route is still being edited');
+    await page!.click('#combat-plan-finish-move');
     await page!.waitFor('window.autoReadySnapshot.combat.queued.some(action=>action.action==="bait")');
   }
   await enter();
@@ -88,11 +93,18 @@ try {
   await page.shot('auto-ready-playing');
   await page.waitFor(`window.autoReadySnapshot.combat.phase==="preparation"&&window.autoReadySnapshot.combat.cycle>${cycle}`, 15000);
   check(await page.evaluate('window.readyCommands===1'), 'Resolution and next empty plan do not send another Ready');
+  await page.click('.combat-plan-edit[data-action="strike"]');
+  await page.waitFor('window.autoReadySnapshot.combat.queued.some(action=>action.action==="strike")');
+  const secondCycle = await page.evaluate<number>('window.autoReadySnapshot.combat.cycle');
+  await chooseMovement();
+  await page.waitFor('window.autoReadySnapshot.combat.phase==="active"');
+  check(await page.evaluate('window.readyCommands===2'),'An action chosen first waits for Done before auto-ready');
+  await page.waitFor(`window.autoReadySnapshot.combat.phase==="preparation"&&window.autoReadySnapshot.combat.cycle>${secondCycle}`,15000);
   await page.click('#combat-plan-auto-ready');
   await page.click('.combat-plan-edit[data-action="brace"]');
   await chooseMovement();
   await Bun.sleep(250);
-  check(await page.evaluate('window.readyCommands===1&&window.autoReadySnapshot.combat.phase==="preparation"&&!window.autoReadySnapshot.combat.ready'), 'Disabled complete plan remains editable');
+  check(await page.evaluate('window.readyCommands===2&&window.autoReadySnapshot.combat.phase==="preparation"&&!window.autoReadySnapshot.combat.ready'), 'Disabled complete plan remains editable');
   await page.click('.combat-plan-timing[data-timing="before"]');
   await page.waitFor('window.autoReadySnapshot.combat.queued.some(action=>action.action==="brace"&&action.timing==="before")');
   await page.shot('manual-timing');

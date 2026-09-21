@@ -1,6 +1,5 @@
 import type { Position } from './adventure-types.js';
 import { blockedPosition, MOVEMENT_BARRIERS, movementHeight } from './movement.js';
-import { terrainHeight } from './cave-layout.js';
 import { WORLD_BOUNDS } from './world-layout.js';
 
 export const COMBAT_CELL_SIZE = 2.5;
@@ -32,18 +31,50 @@ export function snapCombatPosition(position: Position, from: Position = position
   return best ?? { ...from };
 }
 
-/** Every legal destination for one Move action from an origin cell. */
+/** Horizontal distance travelled, including every return leg. Route excludes the origin. */
+export function combatRouteDistance(origin: Position, route: readonly Position[]): number {
+  let total = 0, previous = origin;
+  for (const point of route) { total += Math.hypot(point.x - previous.x, point.z - previous.z); previous = point; }
+  return total;
+}
+
+function clearOccupiedSegment(a: Position, b: Position, occupied: readonly Position[]): boolean {
+  const dx = b.x - a.x, dz = b.z - a.z, lengthSquared = dx * dx + dz * dz;
+  return occupied.every(p => {
+    const fraction = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / lengthSquared));
+    return Math.hypot(p.x - a.x - fraction * dx, p.z - a.z - fraction * dz) >= COMBAT_CELL_SIZE * .8;
+  });
+}
+
+/** Normalize every stop of one Move, allowing a return to its origin. */
+export function validateCombatRoute(origin: Position, route: readonly Position[], movementTiles: number, occupied: readonly Position[] = []): Position[] | null {
+  if (!route.length) return null;
+  const normalized: Position[] = [];
+  let previous = origin, remaining = movementTiles * COMBAT_CELL_SIZE;
+  for (const stop of route) {
+    if (!stop || !Number.isFinite(stop.x) || !Number.isFinite(stop.z)) return null;
+    const x = combatCell(stop.x), z = combatCell(stop.z), length = Math.hypot(x - previous.x, z - previous.z);
+    const point = { x, y: movementHeight(x, z, origin), z };
+    if (length < 1e-8 || length > remaining + 1e-8 || x < WORLD_BOUNDS.minX || x > WORLD_BOUNDS.maxX || z < WORLD_BOUNDS.minZ || z > WORLD_BOUNDS.maxZ
+      || blockedPosition(x, z) || !clearCombatSegment(previous, point) || !clearOccupiedSegment(previous, point, occupied)) return null;
+    normalized.push(point); previous = point; remaining -= length;
+  }
+  return normalized;
+}
+
+/** Every legal next stop, including when earlier legs leave a fractional tile budget. */
 export function reachableCombatCells(origin: Position, movementTiles: number, occupied: readonly Position[] = []): Position[] {
   const cells: Position[] = [];
   const maxDistance = movementTiles * COMBAT_CELL_SIZE;
   const centerX = combatCell(origin.x), centerZ = combatCell(origin.z);
-  for (let dx = -movementTiles; dx <= movementTiles; dx++) for (let dz = -movementTiles; dz <= movementTiles; dz++) {
+  const radius = Math.ceil(movementTiles);
+  for (let dx = -radius; dx <= radius; dx++) for (let dz = -radius; dz <= radius; dz++) {
     if (dx === 0 && dz === 0 || Math.hypot(dx, dz) > movementTiles + 1e-8) continue;
     const x = centerX + dx * COMBAT_CELL_SIZE, z = centerZ + dz * COMBAT_CELL_SIZE;
     const candidate = { x, y: movementHeight(x, z, origin), z };
     if (x < WORLD_BOUNDS.minX || x > WORLD_BOUNDS.maxX || z < WORLD_BOUNDS.minZ || z > WORLD_BOUNDS.maxZ || blockedPosition(x, z)
       || Math.hypot(x - origin.x, z - origin.z) > maxDistance + 1e-8 || !clearCombatSegment(origin, candidate)
-      || occupied.some(p => Math.hypot(p.x - x, p.z - z) < COMBAT_CELL_SIZE * .8)) continue;
+      || !clearOccupiedSegment(origin, candidate, occupied)) continue;
     cells.push(candidate);
   }
   return cells;

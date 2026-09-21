@@ -14,7 +14,7 @@ export const REGION_LANDMARK_BARRIERS: readonly Barrier[] = [
 export const MOVEMENT_BARRIERS: readonly Barrier[] = [...TOWN_FENCE_BARRIERS, THICKET, ...CAVE_BARRIERS, ...TOWN_BUILDING_BARRIERS, ...REGION_LANDMARK_BARRIERS];
 export interface MovementInput { forward: number; strafe: number; cameraX: number; cameraZ: number; jump: boolean; rise?: boolean; dive?: boolean; }
 export interface MovementFrame { sequence: number; seconds: number; input: MovementInput; }
-export interface MovementManeuver { kind: 'lunge' | 'bait'; start: Position; destination: Position; remainingSeconds: number; duration: number; }
+export interface MovementManeuver { kind: 'lunge' | 'bait'; start: Position; destination: Position; via?: readonly Position[]; traveledDistance?: number; remainingSeconds: number; duration: number; }
 export interface MovementCheckpoint { sequence: number; elapsed: number; verticalSpeed: number; maneuver?: MovementManeuver | null; }
 export interface MovementState { position: { x: number; y: number; z: number }; verticalSpeed: number; breathSeconds?: number; autoSurfacing?: boolean; }
 /** Feet support: terrain on land, and 0.8m below the surface once water is deep enough to swim. */
@@ -76,17 +76,30 @@ export function startJump(state: MovementState): void {
   if (state.position.y === supportHeight(state.position.x, state.position.z) && state.verticalSpeed === 0) state.verticalSpeed = 5.5;
 }
 export function moveManeuverPosition(state: MovementState, maneuver: MovementManeuver, seconds: number): boolean {
-  const old = { ...state.position }, elapsed = Math.min(seconds, maneuver.remainingSeconds);
-  movePosition(state.position, (maneuver.destination.x - maneuver.start.x) * elapsed / maneuver.duration,
-    (maneuver.destination.z - maneuver.start.z) * elapsed / maneuver.duration);
+  const elapsed = Math.min(seconds, maneuver.remainingSeconds);
+  const route = [maneuver.start, ...(maneuver.via ?? []), maneuver.destination];
+  const lengths = route.slice(1).map((point, index) => Math.hypot(point.x - route[index]!.x, point.z - route[index]!.z));
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  const before = total * (1 - maneuver.remainingSeconds / maneuver.duration);
+  const after = Math.min(total, before + total * elapsed / maneuver.duration);
+  let offset = 0, travelled = 0;
+  for (let index = 0; index < lengths.length; index++) {
+    const length = lengths[index]!, end = offset + length;
+    const amount = Math.max(0, Math.min(after, end) - Math.max(before, offset));
+    if (amount > 0 && length > 0) {
+      const start = route[index]!, destination = route[index + 1]!, old = { ...state.position };
+      movePosition(state.position, (destination.x - start.x) * amount / length, (destination.z - start.z) * amount / length);
+      travelled += Math.hypot(state.position.x - old.x, state.position.z - old.z);
+    }
+    offset = end;
+  }
+  maneuver.traveledDistance = (maneuver.traveledDistance ?? before) + travelled;
   maneuver.remainingSeconds = Math.max(0, maneuver.remainingSeconds - seconds);
-  const progress = 1 - maneuver.remainingSeconds / maneuver.duration;
-  const water = lakeWaterAt(state.position.x, state.position.z);
   const ground = movementHeight(state.position.x, state.position.z, maneuver.start);
   state.position.y = ground;
   advanceBreath(state, elapsed);
   if (maneuver.remainingSeconds <= 1e-9) { state.position.y = ground; state.verticalSpeed = 0; }
-  return Math.hypot(state.position.x - old.x, state.position.z - old.z) > 1e-9;
+  return travelled > 1e-9;
 }
 export function moveLocomotion(state: MovementState, input: MovementInput, seconds: number, movementSpeed = 5.2): { moving: boolean; backpedaling: boolean } {
   if (input.jump) startJump(state);

@@ -313,7 +313,7 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
   const client = new Client(`ws://127.0.0.1:${server.port}/world`);
   try {
-    await client.connect(character, token); await client.state(s => s.snapshot.combat.phase === 'preparation');
+    await client.connect(character, token); const initial = await client.state(s => s.snapshot.combat.phase === 'preparation');
     for (const destination of [{ x: 100, y: 0, z: 28 }, { x: 0, y: 0, z: '8' }, { x: 0, z: 28 }, { x: null, y: 0, z: 28 }]) {
       expect(await client.invalid({ type: 'bait', destination })).toBe(false);
     }
@@ -323,6 +323,23 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
     const planned = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait'));
     const snappedX=Math.round(destination.x/2.5)*2.5, snappedZ=Math.round(destination.z/2.5)*2.5;
     expect(planned.snapshot.combat.queued[0]!.destination).toEqual({x:snappedX,y:terrainHeight(snappedX,snappedZ),z:snappedZ});
+    const origin = initial.snapshot.player.position, via = [planned.snapshot.combat.queued[0]!.destination!];
+    for (const invalid of [null, {}, [{ x: 0, z: 25 }], [{ ...origin, extra: true }], [{ ...origin, x: 10000 }]]) {
+      expect(await client.invalid({ type: 'bait', destination: origin, via: invalid })).toBe(false);
+      expect(await client.invalid({ type: 'previewBait', destination: origin, via: invalid })).toBe(false);
+    }
+    const beforeRoute = client.messages.length;
+    expect(await client.command({ type: 'bait', destination: origin, via })).toBe(true);
+    const received = client.messages.slice(beforeRoute);
+    const routeState = received.findIndex(message => message.type === 'state' && message.snapshot.combat.queued.some(entry => entry.action === 'bait' && entry.via.length === 1));
+    expect(routeState).toBeGreaterThanOrEqual(0);
+    expect(received.findIndex(message => message.type === 'result' && message.accepted)).toBeGreaterThan(routeState);
+    const routed = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait' && e.via.length === 1));
+    expect(routed.snapshot.combat.queued[0]!.destination).toEqual(origin);
+    expect(routed.snapshot.combat.queued[0]!.via).toEqual(via);
+    expect(await client.command({ type: 'previewBait', destination: origin, via })).toBe(true);
+    const preview = await client.wait(message => message.type === 'movePreview');
+    expect(preview.type === 'movePreview' && preview.forecast?.paths.some(path => path.action === 'bait' && path.points.length === 3)).toBe(true);
     expect(await client.command({ type: 'action', action: 'brace', pressed: true })).toBe(true);
     expect(await client.command({ type: 'action', action: 'brace', pressed: false })).toBe(true);
     expect(await client.command({ type: 'actionTiming', timing: 'during' })).toBe(true);

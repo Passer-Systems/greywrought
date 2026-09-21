@@ -45,6 +45,7 @@ export type CombatMove = { readonly action: CombatAction } | { readonly action: 
 export interface QueuedCombatAction {
   readonly id: number; readonly action: CombatAction; readonly targetId: string | null;
   readonly destination: Position | null;
+  readonly via: readonly Position[];
   readonly timing: CombatActionTiming | null;
   readonly offsetSeconds: number; readonly cost: number;
   readonly status: "pending" | "executed" | "failed"; readonly reason: string | null;
@@ -236,8 +237,8 @@ export interface AdventureGame {
   emote(name: string): void;
   setCameraForward(x: number, z: number): void;
   selectTarget(id: string): void;
-  queueBait(destination: Position): boolean;
-  previewBait(destination: Position): Promise<CombatForecast | null>;
+  queueBait(destination: Position, via?: readonly Position[]): boolean;
+  previewBait(destination: Position, via?: readonly Position[]): Promise<CombatForecast | null>;
   readyCombat(): boolean;
   setActionTiming(timing: CombatActionTiming): boolean;
   removeQueuedAction(id: number): void;

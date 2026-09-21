@@ -1,10 +1,10 @@
 import { BELLRUNNER_STOPS, bellrunnerDock, bellrunnerStop, nearbyBellrunner, flightDuration, flightPosition, flightFacing, readFlight, type FlightState, type BellrunnerStopId } from "./bellrunner.js";
 import { formatMoney } from "./currency.js";
-import { snapCombatPosition, combatCell, reachableCombatCells, COMBAT_CELL_SIZE } from './combat-grid.js';
+import { snapCombatPosition, combatCell, validateCombatRoute, combatRouteDistance, COMBAT_CELL_SIZE } from './combat-grid.js';
 import { terrainHeight, migrateTerrainLayout, TERRAIN_LAYOUT, inCave, caveBlockedPosition } from './cave-layout.js';
 import { lakeWaterAt, isSwimmingPosition } from './world-elevation.js';
 import { restoreTownPosition } from './town-layout.js';
-import { VENDORS, REST_SPOTS, REGIONAL_GREETINGS, experienceForLevel, levelForExperience, enemyExperience, enemyCoins, type NpcId, type VendorId, type RestSpotId } from "./economy.js";
+import { VENDORS, REST_SPOTS, REGIONAL_GREETINGS, experienceForLevel, levelForExperience, enemyCoins, type NpcId, type VendorId, type RestSpotId } from "./economy.js";
 import { settlementAt, WORLD_SETTLEMENTS } from './world-regions.js';
 import { REGIONAL_THREATS } from './regional-threats.js';
 import { inTown, WORLD_BOUNDS, migrateSpatialLayout } from './world-layout.js';
@@ -44,6 +44,7 @@ const CALL_FOR_HELP_RANGE = 9;
 interface Maneuver {
   kind: "lunge" | "bait"; targetId: string; remainingSeconds: number;
   start: Vector; destination: Vector; facing: Vector;
+  via: readonly Position[]; traveledDistance: number;
 }
 interface WolfMotion {
   kind: "lunge"; start: Vector; destination: Vector;
@@ -510,8 +511,11 @@ class Adventure implements AdventureGame {
     };
     const beginViewing = (ctx: SharedContext): void => {
       if (ctx.mode === 'viewing') return;
+      // A final blow can end combat inside beginExecution, before the next combat tick.
+      Object.assign(ctx.clock, newClock());
       ctx.mode = 'viewing'; ctx.returnStartedAt = ctx.now(); ctx.returnDestinations.clear(); ctx.returnConfirmed.clear();
       for (const [id, game] of ctx.characters) {
+        game.state.combat = newCombat(ctx.clock);
         ctx.origins.set(id, { ...game.state.position });
         ctx.returnDestinations.set(id, { ...game.state.position });
         clearInputs(game);
@@ -945,8 +949,8 @@ class Adventure implements AdventureGame {
     for (const player of this.combatants()) {
       const move = player.state.combat.queued.find(entry => entry.action === "bait" && entry.status === "pending");
       if (move?.destination) {
-        const reachable = reachableCombatCells(player.state.position, classKit(player.state.archetype).movementTiles, [...player.occupiedCells(player.state.position), ...destinations]);
-        if (!reachable.some(cell => cell.x === move.destination!.x && cell.z === move.destination!.z)) {
+        const route = validateCombatRoute(player.state.position, [...move.via, move.destination], classKit(player.state.archetype).movementTiles, [...player.occupiedCells(player.state.position), ...destinations]);
+        if (!route) {
           move.status = "failed"; move.reason = "Another combatant has claimed that destination.";
         } else destinations.push(move.destination);
       }
@@ -1032,15 +1036,15 @@ class Adventure implements AdventureGame {
     const queued = this.state.combat.queued, hasMovement = queued.some(e => e.action === "bait");
     for (const entry of queued) entry.offsetSeconds = entry.action === "bait" ? COMBAT_TURN.moveStart : actionTimingOffset(entry.timing!, hasMovement);
   }
-  queueBait(destination: Position): boolean {
+  queueBait(destination: Position, via: readonly Position[] = []): boolean {
     const c = this.state.combat, existing = c.queued.find(e => e.action === "bait");
     if (!this.editableQueue() || !this.inCombat() || c.clock.phase !== "preparation" || this.queueReason("bait", existing?.id)) return false;
     if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z)) { this.report("Choose a highlighted tile.", "combat"); return false; }
-    const x = combatCell(destination.x), z = combatCell(destination.z);
-    const target = reachableCombatCells(this.state.position, classKit(this.state.archetype).movementTiles, this.occupiedCells(this.state.position)).find(cell => cell.x === x && cell.z === z);
-    if (!target) { this.report("That tile is blocked or out of reach. Choose a highlighted tile.", "combat"); return false; }
-    if (existing) existing.destination = target;
-    else c.queued.push({ id: c.nextId++, action: "bait", destination: target, targetId: null, timing: null, offsetSeconds: COMBAT_TURN.moveStart, cost: 1, status: "pending", reason: null });
+    const route = validateCombatRoute(this.state.position, [...via, destination], classKit(this.state.archetype).movementTiles, this.occupiedCells(this.state.position));
+    if (!route) { this.report("That route is blocked or out of reach. Choose a highlighted tile.", "combat"); return false; }
+    const target = route.at(-1)!, stops = route.slice(0, -1);
+    if (existing) { existing.destination = target; existing.via = stops; }
+    else c.queued.push({ id: c.nextId++, action: "bait", destination: target, via: stops, targetId: null, timing: null, offsetSeconds: COMBAT_TURN.moveStart, cost: 1, status: "pending", reason: null });
     this.derivePlanTiming(); c.ready = false; return true;
   }
   private queueAction(action: CombatAction): void {
@@ -1068,7 +1072,7 @@ class Adventure implements AdventureGame {
       if (c.clock.phase === "idle") this.beginPlanning();
     }
     const timing = existing?.timing && !(existing.timing === "during" && classAction(this.state.archetype, action).movementProfile === "stationary") ? existing.timing : "after";
-    const entry: QueueEntry = { id: existing?.id ?? c.nextId++, action, destination: null, targetId: target?.id ?? null, timing, offsetSeconds: 0, cost: this.actionCost(action), status: "pending", reason: null };
+    const entry: QueueEntry = { id: existing?.id ?? c.nextId++, action, destination: null, via: [], targetId: target?.id ?? null, timing, offsetSeconds: 0, cost: this.actionCost(action), status: "pending", reason: null };
     c.queued = [...c.queued.filter(e => e.action === "bait"), entry];
     this.derivePlanTiming(); c.ready = false;
   }
@@ -1346,9 +1350,6 @@ class Adventure implements AdventureGame {
   }
   private defeat(t: ThreatState, sourceId: string): void {
     if (t.health === 0 && t.phase !== "cleared") {
-      if (!this.inPrivateInstance()) for (const player of this.shared ? this.shared.characters.values() : [this]) {
-        if (player.state.health > 0 && t.contributors.includes(player.playerId ?? "solo")) player.gainExperience(enemyExperience(definition(t.id).level));
-      }
       if (this.hasUnresolvedCast(t)) t.cancelledWindow = true;
       this.traceEvent("defeat", sourceId, t.id, t.position, 0, definition(t.id).name + " falls.");
       if (t.id === "scout" && !this.inPrivateInstance()) for (const player of this.shared ? this.shared.characters.values() : [this]) {
@@ -1381,16 +1382,16 @@ class Adventure implements AdventureGame {
     if (!this.recording || this.recording.outcomes.length) return;
     this.recording.outcomes = [...this.state.world.threats.map(t => ({ id: t.id, health: t.health, staggered: t.staggered })), ...this.participants().map(p => ({ id: p.playerId ?? "solo", health: p.state.health, staggered: false }))];
   }
-  async previewBait(destination: Position): Promise<CombatForecast | null> {
-    return this.forecast(destination);
+  async previewBait(destination: Position, via: readonly Position[] = []): Promise<CombatForecast | null> {
+    return this.forecast(destination, via);
   }
-  private forecast(destination?: Position): CombatForecast | null {
+  private forecast(destination?: Position, via: readonly Position[] = []): CombatForecast | null {
     if (this.recording || this.state.combat.clock.phase !== "preparation" || !this.inCombat()) return null;
     const players = this.participants();
     if (!players.includes(this)) players.push(this);
     // Every participant predicts the same execution; only the viewing player id differs.
     // Keep the full state key so plans, movement and clocks invalidate immediately.
-    const key = JSON.stringify([destination, players.map(p => ({ id: p.playerId, state: p.state, camera: p.cameraForward }))]);
+    const key = JSON.stringify([destination, via, players.map(p => ({ id: p.playerId, state: p.state, camera: p.cameraForward }))]);
     const cached = destination ? this.movementForecastCache : this.shared ? this.shared.forecastCache : this.forecastCache;
     if (cached?.key === key) return { ...cached.value, playerId: this.playerId ?? "solo" };
     const world = structuredClone(this.state.world), clock = structuredClone(this.state.combat.clock), recording = { actions: [] as CombatForecast["actions"][number][], paths: [] as CombatForecast["paths"][number][], events: [] as CombatForecast["events"][number][], outcomes: [] as CombatForecast["outcomes"][number][] };
@@ -1405,7 +1406,7 @@ class Adventure implements AdventureGame {
       if (context) { context.online.set(copy.playerId!, copy); context.characters.set(copy.playerId!, copy); }
       return copy;
     });
-    if (destination && !copies[players.indexOf(this)]!.queueBait(destination)) return null;
+    if (destination && !copies[players.indexOf(this)]!.queueBait(destination, via)) return null;
     recording.actions = copies.flatMap(player => player.state.combat.queued.map(entry => ({ actorId: player.playerId ?? "solo", queueId: entry.id, action: entry.action, targetId: entry.targetId, result: "not-executed" as const })));
     const driver = copies[0]!;
     clock.gatheringRemainingSeconds = 0;
@@ -1629,14 +1630,16 @@ class Adventure implements AdventureGame {
     const s = this.state, m = s.maneuver;
     if (!m) return;
     const duration = m.kind === "bait" ? COMBAT_RULES.bait.duration : COMBAT_RULES.strike.duration;
-    const motion = { ...m, duration };
+    const motion = { ...m, duration }, previous = { ...s.position };
     this.moving = moveManeuverPosition(s, motion, dt);
+    if (this.moving) m.facing = this.direction(previous, s.position);
     m.remainingSeconds = motion.remainingSeconds;
+    m.traveledDistance = motion.traveledDistance;
     this.backpedaling = false;
     if (m.remainingSeconds > EPSILON) return;
     s.position.y = movementHeight(s.position.x, s.position.z, m.start);
     s.verticalSpeed = 0; s.maneuver = null;
-    if (m.kind === "bait" && s.archetype === "hunter" && distance(m.start, s.position) >= COMBAT_CELL_SIZE - EPSILON) {
+    if (m.kind === "bait" && s.archetype === "hunter" && m.traveledDistance >= COMBAT_CELL_SIZE - EPSILON) {
       s.repositioned = true; this.report("Repositioned: your next Attack this turn gains 8 damage.", "combat");
     }
     if (m.kind === "lunge") {
@@ -1830,14 +1833,13 @@ class Adventure implements AdventureGame {
       } else {
         s.currentAction = null;
         if (entry.action === "bait") {
-          const desired = entry.destination!;
-          const end = reachableCombatCells(s.position, classKit(s.archetype).movementTiles).find(cell => cell.x === desired.x && cell.z === desired.z);
-          if (!end) { entry.status = "failed"; entry.reason = "The destination is no longer reachable."; this.report(entry.reason, "combat"); this.traceAction(entry, "destination-unreachable"); s.selectedThreat = selected; this.executingQueueId = null; continue; }
-          const facing = this.direction(s.position, end);
+          const route = validateCombatRoute(s.position, [...entry.via, entry.destination!], classKit(s.archetype).movementTiles, this.occupiedCells(s.position));
+          if (!route) { entry.status = "failed"; entry.reason = "The route is no longer reachable."; this.report(entry.reason, "combat"); this.traceAction(entry, "destination-unreachable"); s.selectedThreat = selected; this.executingQueueId = null; continue; }
+          const end = route.at(-1)!, facing = this.direction(s.position, route[0]!);
           this.spendStamina(1); this.recover("bait", COMBAT_RULES.bait.duration);
           if (s.focusReady) { s.focusReady = false; this.classFeedback("Move breaks focus"); }
-          s.maneuver = { kind: "bait", targetId: s.selectedThreat, start: { ...s.position }, destination: end, facing, remainingSeconds: COMBAT_RULES.bait.duration };
-          this.tracePath(this.playerId ?? "solo", "move", "bait", [s.position, end], 0);
+          s.maneuver = { kind: "bait", targetId: s.selectedThreat, start: { ...s.position }, destination: end, via: route.slice(0, -1), traveledDistance: 0, facing, remainingSeconds: COMBAT_RULES.bait.duration };
+          this.tracePath(this.playerId ?? "solo", "move", "bait", [s.position, ...route], 0);
         } else {
           if (s.stamina < this.actionCost("brace")) result = "insufficient-stamina";
           this.useAbility("brace", true);
@@ -2438,7 +2440,7 @@ function readSave(serialized: string, now = Date.now()): State {
     const action = e.action;
     const timing = action === "bait" ? null : e.timing === undefined ? "after" : choice(e.timing, ["before", "during", "after"] as const);
     if (action === "strike" && timing === "during") throw new Error("Invalid adventure save: Attack cannot occur during movement.");
-    queued.push({ id: number(e.id,1,Number.MAX_SAFE_INTEGER,true), action, targetId: e.targetId === null ? null : text(e.targetId), destination: e.destination === undefined || e.destination === null ? null : groundPosition(e.destination), timing, offsetSeconds: number(e.offsetSeconds,0,2), cost: classAction(player.archetype, action).cost ?? 0, status: choice(e.status,["pending","executed","failed"] as const), reason: e.reason === null ? null : text(e.reason) });
+    queued.push({ id: number(e.id,1,Number.MAX_SAFE_INTEGER,true), action, targetId: e.targetId === null ? null : text(e.targetId), destination: e.destination === undefined || e.destination === null ? null : groundPosition(e.destination), via: action === "bait" ? readRouteStops(e.via) : [], timing, offsetSeconds: number(e.offsetSeconds,0,2), cost: classAction(player.archetype, action).cost ?? 0, status: choice(e.status,["pending","executed","failed"] as const), reason: e.reason === null ? null : text(e.reason) });
   }
   if (queued.some(e => e.action === "bait" && e.destination === null || e.action !== "bait" && e.destination !== null) || queued.filter(e => e.action === "bait").length > 1 || queued.filter(e => e.action !== "bait").length > 1 || new Set(queued.map(e => e.id)).size !== queued.length) throw new Error("Invalid adventure save: invalid combat plan.");
   const movement = queued.some(e => e.action === "bait");
@@ -2478,15 +2480,23 @@ function readWolf(value: unknown, v8 = false): WolfState {
     nextAttackSeconds: number(w.nextAttackSeconds, 0, v8 ? 10 : COMBAT_RULES.enemy.preparation), circling: boolean(w.circling),
     attackOrigin: groundPosition(w.attackOrigin) };
 }
+function readRouteStops(value: unknown): Position[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("Invalid adventure save: invalid movement route.");
+  return value.map(stop => groundPosition(stop));
+}
 function readManeuver(value: unknown): Maneuver | null {
   if (value === null) return null;
   const m = record(value);
   if (m.kind !== "lunge" && m.kind !== "bait") return null;
   const kind = m.kind, f = record(m.facing);
+  const start = groundPosition(m.start, 2), destination = groundPosition(m.destination), via = readRouteStops(m.via);
+  const duration = kind === "bait" ? COMBAT_RULES.bait.duration : COMBAT_RULES.strike.duration;
+  const remainingSeconds = number(m.remainingSeconds, 0, duration);
   return { kind, targetId: choice(m.targetId, DEFINITIONS.map(t => t.id)),
-    start: groundPosition(m.start, 2), destination: groundPosition(m.destination),
+    start, destination, via, traveledDistance: m.traveledDistance === undefined ? combatRouteDistance(start, [...via, destination]) * (1 - remainingSeconds / duration) : number(m.traveledDistance),
     facing: { x: number(f.x, -1, 1), y: number(f.y, 0, 0), z: number(f.z, -1, 1) },
-    remainingSeconds: number(m.remainingSeconds, 0, kind === "bait" ? COMBAT_RULES.bait.duration : COMBAT_RULES.strike.duration) };
+    remainingSeconds };
 }
 
 export function createAdventure(options: AdventureOptions = {}): AdventureGame {

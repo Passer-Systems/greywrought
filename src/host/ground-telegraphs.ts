@@ -1,5 +1,5 @@
 import { combatSurfaceHeight, conformToTerrain } from "./terrain-geometry.js";
-import { BufferGeometry, CircleGeometry, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, RingGeometry } from "three";
+import { BufferGeometry, CanvasTexture, CircleGeometry, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, RingGeometry, Sprite, SpriteMaterial } from "three";
 import { combatCell, COMBAT_CELL_SIZE } from "../game/combat-grid.js";
 import type { AdventureSnapshot, Position } from "../game/adventure-types.js";
 
@@ -28,6 +28,22 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
   arrowGeometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0.38, 0.17, 0, -0.16, -0.17, 0, -0.16], 3));
   let signature = "";
   let reference: Position | undefined;
+  const stopLabels = new Map<number, SpriteMaterial>();
+  function labelStop(position: Position, number: number) {
+    let material = stopLabels.get(number);
+    if (!material) {
+      const label = document.createElement('canvas'); label.width = label.height = 64;
+      const context = label.getContext('2d')!;
+      context.fillStyle = '#111d19'; context.fillRect(6, 6, 52, 52);
+      context.fillStyle = '#afffd0'; context.font = 'bold 40px sans-serif'; context.textAlign = 'center'; context.textBaseline = 'middle';
+      context.fillText(String(number), 32, 34);
+      material = new SpriteMaterial({ map: new CanvasTexture(label), transparent: true, depthTest: false, depthWrite: false });
+      stopLabels.set(number, material);
+    }
+    const label = new Sprite(material); label.scale.setScalar(.8);
+    label.position.set(position.x, combatSurfaceHeight(position.x, position.z, reference) + .65, position.z);
+    label.renderOrder = 4; root.add(label);
+  }
   function addGround(mesh: Mesh, lift: number) {
     mesh.geometry = mesh.geometry.clone(); root.add(mesh); conformToTerrain(mesh, lift, (x,z)=>combatSurfaceHeight(x,z,reference));
   }
@@ -78,7 +94,7 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
   }
 
   return {
-    update(snapshot: Pick<AdventureSnapshot, "combat"> & Partial<Pick<AdventureSnapshot,"player">>, preview: CombatPreview | { readonly kind: "destination" } | null) {
+    update(snapshot: Pick<AdventureSnapshot, "combat"> & Partial<Pick<AdventureSnapshot,"player">>, preview: CombatPreview | { readonly kind: "destination"; readonly route?: readonly Position[] } | null) {
       reference = snapshot.player?.position;
       const forecast = snapshot.combat.phase === "preparation" && preview ? snapshot.combat.forecast : null;
       const hasMove = preview?.kind === "move" && forecast?.paths.some(path => path.actorId === forecast.playerId && path.queueId === preview.queueId);
@@ -88,7 +104,9 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
       const events = forecast?.events.filter(event => preview?.kind === "destination" ? event.kind === "hit" && event.targetId === forecast.playerId : (event.kind === "collision" || event.kind === "ignition" || event.kind === "interruption")
         && (preview?.kind === "enemy" ? event.sourceId === preview.threatId
           : preview?.kind === "move" && hasMove && event.queueId === preview.queueId && event.sourceId === forecast.playerId)) ?? [];
-      const nextSignature = JSON.stringify({ preview, paths, events, reference });
+      const move = preview?.kind === 'move' ? snapshot.combat.queued.find(entry => entry.id === preview.queueId) : null;
+      const stops = preview?.kind === 'destination' ? preview.route ?? [] : move?.destination ? [...move.via, move.destination] : [];
+      const nextSignature = JSON.stringify({ preview, paths, events, reference, stops });
       if (nextSignature === signature) return;
       signature = nextSignature;
       clear();
@@ -126,12 +144,17 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
         diagnostics.push({ ...selection, kind: event.kind === "ignition" ? "area" : "target", event: event.kind,
           position: event.position, radius: event.radius, targetId: event.targetId, damage: event.damage, sourceId: event.sourceId });
       }
+      if (stops.length > 1 && forecast) stops.forEach((stop, index) => {
+        labelStop(stop, index + 1);
+        diagnostics.push({ ...selection, kind: 'stop', order: index + 1, position: stop });
+      });
       canvas.dataset.telegraphs = JSON.stringify(diagnostics);
     },
     dispose() {
       clear(); root.removeFromParent();
       lineGeometry.dispose(); ringGeometry.dispose(); landingGeometry.dispose(); areaGeometry.dispose(); arrowGeometry.dispose();
       tileGeometry.dispose(); stroke.dispose(); enemyStroke.dispose(); playerStroke.dispose(); enemyTile.dispose(); playerTile.dispose(); fill.dispose();
+      for (const material of stopLabels.values()) { material.map?.dispose(); material.dispose(); }
       canvas.dataset.telegraphs = "[]";
     },
   };

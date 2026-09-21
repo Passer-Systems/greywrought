@@ -6,7 +6,7 @@ import { check, openBrowser } from './session.js';
 
 const url = 'http://127.0.0.1:4341/';
 Object.assign(Bun.env, { GREYWROUGHT_GAME_URL: url, GREYWROUGHT_DEBUG_PORT: '9541', GREYWROUGHT_VULKAN: '1' });
-const character = { id: 'hover-fixture', name: 'Hover Explorer', archetype: 'mage' as const, createdAtMillis: Date.now() };
+const character = { id: 'hover-fixture', name: 'Hover Explorer', archetype: 'hunter' as const, createdAtMillis: Date.now() };
 const token = 'hover-fixture-token-00000000000000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
 const saved = JSON.parse(seed.save());
@@ -36,9 +36,11 @@ try {
   await page.click('#combat-plan-aim-move');
   await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles||"[]").length>0&&Boolean(window.hoverCamera)');
   const before = await page.evaluate<string>('JSON.stringify(window.hoverState.combat.queued)');
+  const origin = await page.evaluate<Position>('window.hoverState.player.position');
   const tiles = await page.evaluate<Position[]>('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles)');
   let chosen: Position | undefined;
   for(const tile of tiles){
+    if (Math.hypot(tile.x-origin.x,tile.z-origin.z)>5) continue;
     const p=await page.evaluate<{x:number;y:number}>(`window.projectHover(${JSON.stringify(tile)})`);
     if(!await page.evaluate(`document.elementFromPoint(${p.x},${p.y})?.id==='world-canvas'`))continue;
     await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...p,buttons:0});
@@ -68,7 +70,24 @@ try {
   await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...clickPoint,buttons:0});
   await page.call('Input.dispatchMouseEvent',{type:'mousePressed',x:clickPoint.x,y:clickPoint.y,button:'left',buttons:1});
   await page.call('Input.dispatchMouseEvent',{type:'mouseReleased',x:clickPoint.x,y:clickPoint.y,button:'left',buttons:0});
+  await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveRoute||"[]").length===1');
+  check(await page.evaluate<string>('JSON.stringify(window.hoverState.combat.queued)')===before,'Clicking a stop edits a draft without prematurely committing');
+  const returnPoint=await page.evaluate<{x:number;y:number}>(`window.projectHover(${JSON.stringify(origin)})`);
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...returnPoint,buttons:0});
+  await page.waitFor(`(()=>{const p=JSON.parse(document.getElementById('world-canvas').dataset.movePreview||'null');return p?.forecast&&p.via.length===1&&p.destination.x===${origin.x}&&p.destination.z===${origin.z};})()`);
+  await page.call('Input.dispatchMouseEvent',{type:'mousePressed',...returnPoint,button:'left',buttons:1});
+  await page.call('Input.dispatchMouseEvent',{type:'mouseReleased',...returnPoint,button:'left',buttons:0});
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',x:20,y:20,buttons:0});
+  await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveRoute||"[]").length===2&&JSON.parse(document.getElementById("world-canvas").dataset.telegraphs||"[]").filter(p=>p.kind==="stop").length===2');
+  await page.shot('out-and-back-route');
+  await page.press('Backspace');
+  await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.moveRoute).length===1');
+  await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...returnPoint,buttons:0});
+  await page.call('Input.dispatchMouseEvent',{type:'mousePressed',...returnPoint,button:'left',buttons:1});
+  await page.call('Input.dispatchMouseEvent',{type:'mouseReleased',...returnPoint,button:'left',buttons:0});
+  await page.press('Enter');
   await page.waitFor('window.hoverState.combat.queued.some(entry=>entry.action==="bait")');
+  check(await page.evaluate('window.hoverState.combat.queued.find(entry=>entry.action==="bait").via.length===1'),'Done commits the full returning route');
   await page.waitFor('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs||"[]").some(p=>p.previewKind==="move"&&p.ability==="pursuit")');
   check(await page.evaluate('JSON.parse(document.getElementById("world-canvas").dataset.telegraphs).some(p=>p.previewKind==="move"&&p.ability==="pursuit"&&p.kind==="movement")'),'Queued Move keeps enemy pursuit visible');
   check(await page.evaluate('window.hoverState.combat.queued.some(entry=>entry.action==="bait")'),'Queued Move is retained while inspecting pursuit');

@@ -56,13 +56,13 @@ test('a lethal opening hit immediately credits the defeat and preserves its rewa
   game.selectTarget('scout'); tap(game, 'strike');
   expect(game.snapshot.threats[0]!.health).toBe(0);
   expect(game.snapshot.player.attackSequence).toBe(1);
-  expect(game.snapshot.progression.experience).toBe(10);
+  expect(game.snapshot.progression.experience).toBe(0);
   expect(game.snapshot.quests.find(quest => quest.id === 'roll-call')!.status).toBe('ready');
   expect(game.snapshot.loot.find(loot => loot.sourceId === 'scout')!.available).toBe(true);
   expect(game.snapshot.combat.queued).toEqual([]);
   expect(game.snapshot.combat.phase).toBe('idle');
   const restored = createAdventure({ save: game.save(), now: () => 1000 });
-  expect(restored.snapshot.progression.experience).toBe(10);
+  expect(restored.snapshot.progression.experience).toBe(0);
   expect(restored.snapshot.threats[0]!.health).toBe(0);
 });
 

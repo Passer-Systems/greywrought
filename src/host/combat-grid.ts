@@ -1,5 +1,5 @@
 import { BufferGeometry, Float32BufferAttribute, LineBasicMaterial, LineSegments, Mesh, MeshBasicMaterial, type Object3D } from 'three';
-import { COMBAT_CELL_SIZE, combatCell, reachableCombatCells } from '../game/combat-grid.js';
+import { COMBAT_CELL_SIZE, combatCell, combatRouteDistance, reachableCombatCells } from '../game/combat-grid.js';
 import { combatSurfaceHeight } from './terrain-geometry.js';
 import { blockedPosition } from '../game/movement.js';
 import { classKit } from '../game/class-kit.js';
@@ -29,7 +29,7 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
   };
   return {
     accepts(destination: Position) { return destinations.some(cell => cell.x === destination.x && cell.z === destination.z); },
-    update(snapshot: AdventureSnapshot, aiming: boolean, pointer: Position | null, others: readonly Position[] = []) {
+    update(snapshot: AdventureSnapshot, aiming: boolean, pointer: Position | null, others: readonly Position[] = [], route: readonly Position[] = []) {
       reference = snapshot.player.position;
       lines.visible = snapshot.player.inCombat;
       canvas.dataset.combatGrid = lines.visible ? String(COMBAT_CELL_SIZE) : '0';
@@ -54,11 +54,12 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
       }
       if (!cells.visible) return;
       const occupied = [...snapshot.threats.filter(t=>t.active&&t.health>0).map(t=>t.position), ...others];
-      const origin = snapshot.player.position;
-      const signature = JSON.stringify([origin, classKit(snapshot.player.archetype).movementTiles, occupied]);
+      const origin = route.at(-1) ?? snapshot.player.position;
+      const remaining = Math.max(0, classKit(snapshot.player.archetype).movementTiles - combatRouteDistance(snapshot.player.position, route) / COMBAT_CELL_SIZE);
+      const signature = JSON.stringify([origin, remaining, occupied]);
       if (signature !== cellSignature) {
         cellSignature = signature;
-        destinations = reachableCombatCells(origin, classKit(snapshot.player.archetype).movementTiles, occupied);
+        destinations = reachableCombatCells(origin, remaining, occupied);
         surface(cellsGeometry, destinations, .06);
         canvas.dataset.moveTiles = JSON.stringify(destinations);
       }

@@ -64,7 +64,11 @@ function command(value: unknown): value is WorldCommand {
     case 'mouseForward': return keys(value, ['type', 'active']) && typeof value.active === 'boolean';
     case 'camera': return keys(value, ['type', 'x', 'z']) && finite(value.x, -1, 1) && finite(value.z, -1, 1) && Math.hypot(value.x, value.z) > 0.001;
     case 'target': case 'loot': return keys(value, ['type', 'id']) && identifier(value.id);
-    case 'previewBait': case 'bait': return keys(value, ['type', 'destination']) && record(value.destination) && keys(value.destination, ['x','y','z']) && finite(value.destination.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(value.destination.y,-100,100) && finite(value.destination.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
+    case 'previewBait': case 'bait': {
+      const position = (point: unknown) => record(point) && keys(point, ['x','y','z']) && finite(point.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(point.y,-100,100) && finite(point.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
+      return keys(value, ['type', 'destination', ...('via' in value ? ['via'] : [])]) && position(value.destination)
+        && (value.via === undefined || Array.isArray(value.via) && value.via.length <= 32 && value.via.every(position));
+    }
     case 'ready': return keys(value, ['type']);
     case 'actionTiming': return keys(value, ['type','timing']) && member(value.timing,['before','during','after']);
     case 'remove': return keys(value,['type','id']) && finite(value.id,1,Number.MAX_SAFE_INTEGER,true);
@@ -358,7 +362,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'mouseForward': player.setMouseForward(value.active); break;
       case 'camera': player.setCameraForward(value.x, value.z); break;
       case 'target': player.selectTarget(value.id); break;
-      case 'bait': return player.queueBait(value.destination);
+      case 'bait': return player.queueBait(value.destination, value.via);
       case 'ready': return player.readyCombat();
       case 'actionTiming': return player.setActionTiming(value.timing);
       case 'remove': player.removeQueuedAction(value.id); break;
@@ -461,8 +465,10 @@ export async function createWorldService(options: WorldServiceOptions) {
           if (!stopping) socket.data.commandsAt.push(now);
           if (value.command.type === 'previewBait') {
             accepted = true;
-            void player.previewBait(value.command.destination).then(forecast => send(socket, { type: 'movePreview', sequence, forecast }));
+            void player.previewBait(value.command.destination, value.command.via).then(forecast => send(socket, { type: 'movePreview', sequence, forecast }));
           } else accepted = apply(player, value.command, socket);
+          // Route submission receipts release the editor; its snapshot must already show the accepted plan.
+          if (accepted && value.command.type === 'bait') broadcast();
           if (accepted && (value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin' || value.command.type.startsWith('party'))) {
             if (value.command.type !== 'partyPing') void persist().catch(onPersistenceError);
             broadcast();

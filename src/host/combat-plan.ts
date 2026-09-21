@@ -36,6 +36,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   onAction: (action: CombatAction) => void;
   onReady: () => boolean | void;
   onAimMove: () => void;
+  onUndoMove: () => void;
+  onFinishMove: () => void;
   onPreview: (preview: CombatPreview | null) => void;
 }) {
   const root = node("section", "combat-plan", host); root.id = "combat-plan"; root.hidden = true;
@@ -70,7 +72,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     for (const kind of index === 0 ? ["bait"] as const : ["strike", "brace"] as const) {
       const edit = node("button", "combat-plan-edit", row); edit.type = "button";
       edit.dataset.action = kind; edit.textContent = actions[kind].name;
-      if (kind === "bait") { edit.id = "combat-plan-aim-move"; edit.title = "Choose or change your destination"; }
+      if (kind === "bait") { edit.id = "combat-plan-aim-move"; edit.title = "Choose or change your movement route"; }
       edit.addEventListener("click", () => kind === "bait" ? callbacks.onAimMove() : callbacks.onAction(kind));
     }
     const remove = node("button", "combat-plan-remove", row); remove.type = "button"; remove.textContent = "×";
@@ -80,6 +82,10 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       if (editing() && entry) callbacks.onRemove(entry.id);
     });
   }
+  const routeEditor = node("div", "combat-plan-route-editor", root); routeEditor.hidden = true;
+  const routeBudget = node("span", "combat-plan-route-budget", routeEditor);
+  const undoMove = node("button", "combat-plan-edit", routeEditor); undoMove.type = "button"; undoMove.id = "combat-plan-undo-move"; undoMove.textContent = "Undo"; undoMove.addEventListener("click", callbacks.onUndoMove);
+  const finishMove = node("button", "combat-plan-edit", routeEditor); finishMove.type = "button"; finishMove.id = "combat-plan-finish-move"; finishMove.textContent = "Done (Enter)"; finishMove.addEventListener("click", callbacks.onFinishMove);
   const editor = node("div", "combat-plan-editor", root);
   node("span", "combat-plan-selection", editor).textContent = "Act";
   const timingButtons = (["before", "during", "after"] as const).map(timing => {
@@ -105,6 +111,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   let snapshot: AdventureSnapshot | null = null, enemyKey = "";
   let pinnedPreview: CombatPreview | null = null, transientPreview: CombatPreview | null = null;
   let movementPreview: MovementPlanPreview | null = null;
+  let routeEditing = false;
   let previousCycle = -1;
   let autoReadyScheduled = false, autoReadyGeneration = 0, lastAutoReadyPlan = "", disposed = false;
   function scheduleAutoReady(): void {
@@ -114,10 +121,10 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     queueMicrotask(() => {
       if (generation !== autoReadyGeneration || disposed) return;
       autoReadyScheduled = false;
-      if (!autoReady.checked || !snapshot || snapshot.phase !== "expedition" || !editing()) return;
+      if (routeEditing || !autoReady.checked || !snapshot || snapshot.phase !== "expedition" || !editing()) return;
       const pending = snapshot.combat.queued.filter(entry => entry.status === "pending");
       if (!pending.some(entry => entry.action === "bait") || !pending.some(entry => entry.action !== "bait")) return;
-      const plan = JSON.stringify([snapshot.combat.cycle, pending.map(entry => [entry.id, entry.action, entry.timing, entry.destination, entry.targetId])]);
+      const plan = JSON.stringify([snapshot.combat.cycle, pending.map(entry => [entry.id, entry.action, entry.timing, entry.destination, entry.via, entry.targetId])]);
       if (plan === lastAutoReadyPlan) return;
       lastAutoReadyPlan = plan;
       if (callbacks.onReady() === false) lastAutoReadyPlan = "";
@@ -155,7 +162,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const hovered = editing() ? movementPreview : null;
     const forecast = hovered ? hovered.forecast : snapshot.combat.forecast;
     const result = forecast ? combatOutcome(snapshot, forecast) : null;
-    write(outcomeLabel, hovered ? "This tile" : "Plan");
+    write(outcomeLabel, hovered ? hovered.candidate ? "Add tile" : "Route" : "Plan");
     write(outcomeCopy, hovered?.pending ? "Checking…" : result?.text ?? "Forecast unavailable");
     outcome.dataset.source = hovered ? "destination" : "plan";
     outcome.dataset.tone = hovered?.pending ? "pending" : result?.tone ?? "pending";
@@ -176,7 +183,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   }
   function moveTarget(move: QueuedCombatAction): string {
     if (move.targetId) return snapshot?.threats.find(threat => threat.id === move.targetId)?.name ?? "Unavailable target";
-    return move.destination ? `Tile ${move.destination.x}, ${move.destination.z}` : "Self";
+    return move.destination ? `${move.via.length ? (move.via.length + 1) + " stops → " : ""}Tile ${move.destination.x}, ${move.destination.z}` : "Self";
   }
   function enemyTarget(threat: ThreatView, ability: ThreatAbilityView): string {
     if (ability.damage <= 0) return "Self";
@@ -235,12 +242,20 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     node("span", "combat-plan-damage", actionArt).textContent = status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "";
   }
   return {
+    setRouteEditing(active: boolean, used = 0, total = 0, count = 0, submitting = false): void {
+      routeEditing = active; routeEditor.hidden = !active;
+      write(routeBudget, count ? count + (count === 1 ? " stop · " : " stops · ") + Number(used.toFixed(1)) + " / " + total + " tiles" : "Click tiles to build a route");
+      undoMove.disabled = submitting || count === 0;
+      finishMove.disabled = submitting || count === 0;
+      write(finishMove, submitting ? "Saving…" : "Done (Enter)");
+      root.dataset.routeEditing = String(active);
+    },
     setMovementPreview(preview: MovementPlanPreview | null): void {
       movementPreview = preview;
       updateOutcome();
       updatePreview();
     },
-    reset(): void { autoReadyGeneration++; autoReadyScheduled = false; lastAutoReadyPlan = ""; selectedId = lastId = null; snapshot = null; enemyKey = ""; pinnedPreview = transientPreview = null; previousCycle = -1; movementPreview = null; outcome.hidden = true; callbacks.onPreview(null); },
+    reset(): void { autoReadyGeneration++; autoReadyScheduled = false; lastAutoReadyPlan = ""; selectedId = lastId = null; snapshot = null; enemyKey = ""; pinnedPreview = transientPreview = null; previousCycle = -1; movementPreview = null; routeEditing = false; routeEditor.hidden = true; outcome.hidden = true; callbacks.onPreview(null); },
     update(next: AdventureSnapshot): void {
       snapshot = next;
       const combat = next.combat;

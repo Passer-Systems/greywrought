@@ -101,6 +101,7 @@ export interface AdventureWorld {
   setPartyMembers(ids: readonly string[]): void;
   setPartyPings(pings: readonly PartyPingView[]): void;
   setMoveAiming(active: boolean): void;
+  setMoveRoute(route: readonly Position[]): void;
   canMoveTo(destination: Position): boolean;
   projectThreat(id: string): { x: number; y: number; feetY: number } | null;
   dispose(): void;
@@ -210,7 +211,7 @@ function createCombatEffects(scene: Scene) {
   };
 }
 
-export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; showSelfName?: () => boolean; onSelect: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void }, onMovementPreview?: (preview: MovementPlanPreview | null) => void): AdventureWorld {
+export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position, via: readonly Position[]) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; showSelfName?: () => boolean; onSelect: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void }, onMovementPreview?: (preview: MovementPlanPreview | null) => void): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
   const partyPings = createPartyPings(scene);
@@ -539,12 +540,13 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const aggroRanges = createAggroRanges(scene, canvas);
   const combatGrid = createCombatGrid(scene, canvas);
   let moveAiming = false;
-  const movementPreview = createMovementPreview(destination => previewBait?.(destination) ?? Promise.resolve(null));
+  let moveRoute: readonly Position[] = [];
+  const movementPreview = createMovementPreview((destination, via) => previewBait?.(destination, via) ?? Promise.resolve(null));
   let shownMovementPreview: MovementPlanPreview | null = null;
   function showMovementPreview(next: MovementPlanPreview | null): void {
     const previous = shownMovementPreview;
     if (previous === next || previous && next && previous.forecast === next.forecast && previous.pending === next.pending
-      && previous.destination.x === next.destination.x && previous.destination.z === next.destination.z) return;
+      && previous.destination.x === next.destination.x && previous.destination.z === next.destination.z && previous.candidate === next.candidate && JSON.stringify(previous.via) === JSON.stringify(next.via)) return;
     shownMovementPreview = next;
     onMovementPreview?.(next);
   }
@@ -665,6 +667,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     setAggroRangesVisible(visible) { aggroRanges.setVisible("direct", visible); },
     setHelpRangesVisible(visible) { aggroRanges.setVisible("help", visible); },
     setMoveAiming(active) { moveAiming = active; if (!active) { movementPreview.clear(); showMovementPreview(null); } },
+    setMoveRoute(route) { moveRoute = route; },
     canMoveTo(destination) { return combatGrid.accepts(destination); },
     setCombatPreview(preview) { combatPreview = preview; },
     setReturnPreview(plan) {
@@ -884,17 +887,19 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       combatEffects.update(snapshot.combat, elapsed, delta, connectionRevision);
       aggroRanges.update(snapshot);
       const hoveredTile = moveAiming && hoverPointer ? pickGround(hoverPointer.x, hoverPointer.y) : null;
-      combatGrid.update(snapshot, moveAiming, hoveredTile, otherPlayers.map(p => p.player.position));
-      const destination = hoveredTile && combatGrid.accepts(hoveredTile) ? hoveredTile : null;
-      movementPreview.update(hoverSnapshot, destination);
+      combatGrid.update(snapshot, moveAiming, hoveredTile, otherPlayers.map(p => p.player.position), moveRoute);
+      const candidate = hoveredTile && combatGrid.accepts(hoveredTile) ? hoveredTile : null;
+      const destination = moveAiming ? candidate ?? moveRoute.at(-1) ?? null : null;
+      const via = candidate ? moveRoute : moveRoute.slice(0, -1);
+      movementPreview.update(hoverSnapshot, destination, via);
       const forecast = movementPreview.forecast;
       const choosingDestination = destination && snapshot.combat.phase === "preparation" && !snapshot.combat.ready;
       const selectedMovement = snapshot.combat.queued.find(move => move.action === "bait" && move.status === "pending");
       const planPreview = combatPreview ?? (selectedMovement ? { kind: "move" as const, queueId: selectedMovement.id } : null);
       telegraphs.update(forecast ? { player: snapshot.player, combat: { ...snapshot.combat, forecast } } : snapshot,
-        choosingDestination ? forecast ? { kind: "destination" } : null : planPreview);
-      showMovementPreview(choosingDestination ? { destination, pending: movementPreview.pending, forecast } : null);
-      const previewData = JSON.stringify(choosingDestination ? { destination, pending: movementPreview.pending, forecast } : null);
+        choosingDestination ? forecast ? { kind: "destination", route: [...via, destination] } : null : planPreview);
+      showMovementPreview(choosingDestination ? { destination, via, candidate: Boolean(candidate), pending: movementPreview.pending, forecast } : null);
+      const previewData = JSON.stringify(choosingDestination ? { destination, via, candidate: Boolean(candidate), pending: movementPreview.pending, forecast } : null);
       if (canvas.dataset.movePreview !== previewData) canvas.dataset.movePreview = previewData;
       // Transition the look target toward eye level as the boom reaches the
       // player. This gives a usable first-person view without a zero-distance
