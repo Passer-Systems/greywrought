@@ -25,7 +25,7 @@ export function createLampGlow(scene: Scene) {
       for (const light of lamps) {
         if (glows.some(glow => glow.light === light)) continue;
         const material = new SpriteMaterial({ map: texture, transparent: true, opacity: 0.45, depthWrite: false, blending: AdditiveBlending });
-        material.color.multiplyScalar(5);
+        material.color.multiplyScalar(2.5);
         const sprite = new Sprite(material); sprite.name = "lamp-warm-halo";
         sprite.scale.setScalar(Math.min(2.3, Math.max(1.1, light.distance * 0.15)));
         scene.add(sprite); glows.push({ light, sprite, base: light.userData.nightIntensity });
@@ -35,7 +35,8 @@ export function createLampGlow(scene: Scene) {
       const night = Math.max(0, 1 - daylight);
       for (const glow of glows) {
         glow.light.getWorldPosition(glow.sprite.position);
-        const flicker = 0.9 + 0.1 * Math.sin(time * 7.1 + glow.light.id * 1.73) + 0.035 * Math.sin(time * 13.7 + glow.light.id);
+        const phase = glow.sprite.position.x * 1.73 + glow.sprite.position.z * .91;
+        const flicker = 0.9 + 0.1 * Math.sin(time * 7.1 + phase) + 0.035 * Math.sin(time * 13.7 + phase);
         glow.sprite.visible = glow.light.visible && night > 0.02;
         glow.sprite.material.opacity = Math.min(0.62, 0.18 + night * 0.34) * flicker;
         glow.light.intensity = glow.base * (0.78 + 0.22 * flicker) * (0.35 + 0.65 * night);

@@ -1,16 +1,16 @@
-import { Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, type Material } from 'three';
+import { Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, Quaternion, Vector3, type Material } from 'three';
 import { terrainHeight } from '../game/cave-layout.js';
-import { lakeWaterAt, streamAt } from '../game/world-elevation.js';
+import { LAKE_CENTER, LAKE_RADIUS, LAKE_WATER_LEVEL, lakeBoundary, lakeWaterAt, streamAt } from '../game/world-elevation.js';
 import { lavaLakeRatio } from '../game/lava-layout.js';
 import { EXPANDED_WORLD_BOUNDS, REGION_BUILDINGS, REGION_LANDMARKS, REGION_ROADS, WORLD_SETTLEMENTS, regionAt } from '../game/world-regions.js';
 import { TOWN_BOUNDS } from '../game/world-layout.js';
 import { prop } from './frostwood-assets.js';
 import { groundTree } from './tree-grounding.js';
 
-type Palette = 'copper' | 'wine' | 'reed' | 'ash' | 'blue' | 'rust' | 'ivory' | 'violet' | 'pine';
+type Palette = 'copper' | 'wine' | 'reed' | 'ash' | 'blue' | 'rust' | 'ivory' | 'violet' | 'pine' | 'moss';
 const colors: Record<Palette, number> = {
   copper: 0x9f7148, wine: 0x70454b, reed: 0xb0a477, ash: 0x929c8c,
-  blue: 0x627f84, rust: 0x925343, ivory: 0xc0bba4, violet: 0x85738e, pine: 0x46594d,
+  blue: 0x627f84, rust: 0x925343, ivory: 0xc0bba4, violet: 0x85738e, pine: 0x46594d, moss: 0x73804f,
 };
 const materials = new Map<string, Material>();
 function foliageMaterial(source: Material, palette: Palette): Material {
@@ -59,7 +59,7 @@ function accepts(x: number, z: number, tree: boolean): boolean {
   if (x < EXPANDED_WORLD_BOUNDS.minX+3 || x > EXPANDED_WORLD_BOUNDS.maxX-3 || z < EXPANDED_WORLD_BOUNDS.minZ+3 || z > EXPANDED_WORLD_BOUNDS.maxZ-3) return false;
   if (x > TOWN_BOUNDS.minX-margin && x < TOWN_BOUNDS.maxX+margin && z > TOWN_BOUNDS.minZ-margin && z < TOWN_BOUNDS.maxZ+margin) return false;
   if (x > 25 && x < 90 && z > -67 && z < -27) return false;
-  if (clearings.some(([px,pz,r]) => Math.hypot(x-px,z-pz) < r*(tree ? 1 : .55)+margin)) return false;
+  if (tree && clearings.some(([px,pz,r]) => Math.hypot(x-px,z-pz) < r+margin)) return false;
   if (REGION_BUILDINGS.some(b => Math.abs(x-b.x) < Math.max(b.width,b.depth)/2+margin+1 && Math.abs(z-b.z) < Math.max(b.width,b.depth)/2+margin+1)) return false;
   if (WORLD_SETTLEMENTS.some(t => Math.hypot(x-t.x,z-t.z) < 10+margin)) return false;
   if (REGION_LANDMARKS.some(l => Math.hypot(x-l.x,z-l.z) < (l.id === 'glass-heart' ? (tree ? 12 : 3) : l.id === 'choir-engine' ? 18 : 10)+margin)) return false;
@@ -67,17 +67,17 @@ function accepts(x: number, z: number, tree: boolean): boolean {
   if (oldTrails.some(points => nearLine(x,z,points,tree ? 3+margin : 2.8))) return false;
   const height = terrainHeight(x,z), water = lakeWaterAt(x,z), stream = streamAt(x,z);
   if (water !== null && height < water+.25 || stream && height < stream.surface+.25) return false;
-  return Math.hypot(terrainHeight(x+.5,z)-terrainHeight(x-.5,z), terrainHeight(x,z+.5)-terrainHeight(x,z-.5)) < (tree ? 1.1 : .7);
+  return Math.hypot(terrainHeight(x+.5,z)-terrainHeight(x-.5,z), terrainHeight(x,z+.5)-terrainHeight(x,z-.5)) < (tree ? 1.1 : 1.65);
 }
 
 type Plant = readonly [name: string, palette: Palette, height: number, width: number];
 const communities = {
-  copper: [['Bush_Common','wine',.95,1.15], ['Fern_1','copper',.62,1.25], ['Flower_4_Group','reed',.55,.7]],
+  copper: [['Bush_Common','wine',.95,1.15], ['Fern_1','moss',.7,1.55], ['Flower_4_Group','reed',.55,.7]],
   marsh: [['Grass_Common_Short','reed',1.85,.6], ['Fern_1','blue',.95,1.4], ['Bush_Common','ash',1.15,1.25]],
   rust: [['Fern_1','rust',.58,1.25], ['Grass_Common_Short','reed',.68,.85], ['Flower_3_Group','wine',.52,.75]],
   spores: [['Mushroom_Common','ivory',.7,1.3], ['Mushroom_Common','violet',.32,1.55], ['Fern_1','ash',.48,1.25]],
-  shade: [['Fern_1','blue',.65,1.5], ['Mushroom_Common','ivory',.38,1.1], ['Bush_Common','wine',.72,1.3]],
-  dry: [['Grass_Common_Short','reed',.65,.65], ['Fern_1','rust',.52,1.2], ['Flower_4_Group','ash',.48,.85]],
+  shade: [['Fern_1','moss',.72,1.6], ['Mushroom_Common','ivory',.38,1.1], ['Bush_Common','wine',.72,1.3]],
+  dry: [['Grass_Common_Short','moss',.5,1.7], ['Fern_1','rust',.52,1.2], ['Flower_4_Group','ash',.48,.85]],
 } as const satisfies Record<string, readonly Plant[]>;
 type Community = keyof typeof communities;
 function communityAt(x: number, z: number, seed: number): Community {
@@ -115,14 +115,24 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
   const names = new Set<string>(Object.values(communities).flatMap(c => c.map(p => p[0])));
   for (const name of ['CommonTree_2','TwistedTree_2','Pine_5','DeadTree_2']) names.add(name);
   const templates = new Map(await Promise.all([...names].map(async name => [name, await prop(`nature/${name}`, 1)] as const)));
-  let plants = 0, trees = 0;
+  let plants = 0, trees = 0, clearingPlants = 0, shorePlants = 0;
   const plantsByRegion: Record<string,number> = {};
   const treePositions: { x: number; z: number }[] = [];
   const treeAssets: Record<string,number> = {};
   function place(name: string, palette: Palette, x: number, z: number, height: number, width: number, turn: number, tree = false) {
     if (!accepts(x,z,tree)) return false;
     if (tree && treePositions.some(p => Math.hypot(x-p.x,z-p.z)<2.8)) return false;
-    if (!tree && clearings.some(([px,pz,r]) => Math.hypot(x-px,z-pz) < r+1)) height = Math.min(height,.38);
+    if (!tree) {
+      // Low blades continue through the clearing; tall silhouettes taper away
+      // before the combat floor rather than leaving a bare circular hole.
+      const edge = Math.min(...clearings.map(([px,pz,r]) => Math.hypot(x-px,z-pz)-r));
+      if (edge < 3) {
+        const openness = Math.max(0,Math.min(1,(edge+5)/8));
+        name = 'Grass_Common_Short'; palette = 'moss';
+        height = Math.min(height,.14+openness*.32);
+        width = 2.2;
+      }
+    }
     const model = templates.get(name)!.clone(true);
     model.position.set(x,terrainHeight(x,z)-.06,z);
     model.scale.set(height*width,height,height*width*(.85+random(x+z)*.3));
@@ -132,11 +142,18 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
       groundTree(model,x,z,(px,pz) => terrainHeight(px,pz)-.08);
       trees++; treePositions.push({x,z}); treeAssets[name]=(treeAssets[name]??0)+1;
     } else {
-      // Sink the uphill edge of broad plants into the slope rather than float
-      // their downhill roots; their authored silhouettes remain upright.
-      const radius = Math.min(.7,height*width*.35);
-      model.position.y = Math.min(terrainHeight(x-radius,z),terrainHeight(x+radius,z),terrainHeight(x,z-radius),terrainHeight(x,z+radius))-.07;
+      if (name==='Grass_Common_Short' || name==='Fern_1') {
+        // Short mats follow the bank instead of disappearing below its uphill
+        // sample when the slope is taller than the plant itself.
+        const normal = new Vector3(terrainHeight(x-.5,z)-terrainHeight(x+.5,z),1,terrainHeight(x,z-.5)-terrainHeight(x,z+.5)).normalize();
+        model.quaternion.premultiply(new Quaternion().setFromUnitVectors(new Vector3(0,1,0),normal));
+        model.position.y=terrainHeight(x,z)-.025;
+      } else {
+        const radius = Math.min(.7,height*width*.35);
+        model.position.y = Math.min(terrainHeight(x-radius,z),terrainHeight(x+radius,z),terrainHeight(x,z-radius),terrainHeight(x,z+radius))-.07;
+      }
       plants++;
+      if (clearings.some(([px,pz,r]) => Math.hypot(x-px,z-pz)<r)) clearingPlants++;
       const region = regionAt(x,z).id;
       plantsByRegion[region] = (plantsByRegion[region]??0)+1;
     }
@@ -145,7 +162,8 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
       if (!(object instanceof Mesh)) return;
       const material = Array.isArray(object.material) ? object.material.map(m => foliageMaterial(m,palette)) : foliageMaterial(object.material,palette);
       const list = Array.isArray(material) ? material : [material];
-      const key = [Math.floor(x/24),Math.floor(z/24),object.geometry.uuid,...list.map(m=>m.uuid)].join(':');
+      const cellSize = tree ? 24 : 36;
+      const key = [Math.floor(x/cellSize),Math.floor(z/cellSize),object.geometry.uuid,...list.map(m=>m.uuid)].join(':');
       let batch = batches.get(key);
       if (!batch) { batch = {source:object,material,matrices:[],tree}; batches.set(key,batch); }
       batch.matrices.push(object.matrixWorld.clone());
@@ -162,18 +180,18 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
       const seed = cx*41+cz*137+92017, turn = random(seed)*Math.PI*2;
       const x = cx+(random(seed+1)-.5)*spacing*.65, z = cz+(random(seed+2)-.5)*spacing*.65;
       const communityName = communityAt(x,z,seed+3), community = communities[communityName];
-      const count = 18+Math.floor(random(seed+4)*13), reach = 7+random(seed+5)*4;
+      const count = 52+Math.floor(random(seed+4)*25), reach = 11+random(seed+5)*5;
       // Ferns and grass carry broad ground coverage; costlier bushes, flowers
       // and fungi are accents rather than repeated across an entire clump.
       const primary = communityName === 'copper' ? 1 : communityName === 'shade' ? 0 : communityName === 'spores' ? 2 : random(seed+6) < .6 ? 0 : 1;
-      const accent = primary === 0 ? 1 : 0;
       for (let i=0;i<count;i++) {
         const angle = random(seed+i*17+10)*Math.PI*2, radius = Math.sqrt(random(seed+i*31+11));
         const along = Math.cos(angle)*radius*reach;
-        const across = Math.sin(angle)*radius*reach*.42+Math.sin(along*.6)*1.2;
+        const across = Math.sin(angle)*radius*reach*.65+Math.sin(along*.35)*1.8;
         const px = x+along*Math.cos(turn)-across*Math.sin(turn), pz = z+along*Math.sin(turn)+across*Math.cos(turn);
-        const plant = community[i===count-1 ? 2 : i%8===0 ? accent : primary];
-        const size = .65+random(seed+i*47+12)*.65;
+        // Broad beds share one species; authored patches carry the accents.
+        const plant = community[primary];
+        const size = .7+random(seed+i*47+12)*.7;
         if (place(plant[0],plant[1],px,pz,plant[2]*size,plant[3],angle)) fieldPlants++;
       }
     }
@@ -188,6 +206,32 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
       const plant = plants[i%9 < 5 ? 0 : i%9 < 8 ? 1 : 2];
       const size = .58+random(seed+i*47+5)*.94;
       place(plant[0],plant[1],x,z,plant[2]*size,plant[3],angle);
+    }
+  }
+  // Read the current lake rim, including its bluff, instead of the retired
+  // small lake coordinates. Broken shoreline beds leave swimming approaches.
+  for (let bank=0;bank<34;bank++) {
+    const seed = 19031+bank*127;
+    if (random(seed)<.22) continue;
+    const angle = (bank+random(seed+1)*.7)/34*Math.PI*2;
+    const dx=Math.cos(angle)*LAKE_RADIUS.x,dz=Math.sin(angle)*LAKE_RADIUS.z;
+    let inner=0,outer=lakeBoundary(angle)*1.4;
+    for (let step=0;step<14;step++) {
+      const middle=(inner+outer)/2;
+      if (terrainHeight(LAKE_CENTER.x+dx*middle,LAKE_CENTER.z+dz*middle)<LAKE_WATER_LEVEL+.3) inner=middle;
+      else outer=middle;
+    }
+    const cx=LAKE_CENTER.x+dx*outer,cz=LAKE_CENTER.z+dz*outer;
+    for (let plant=0;plant<42;plant++) {
+      const along=(random(seed+plant*19+2)-.5)*11;
+      const outward=random(seed+plant*31+3)*5;
+      const x=cx-Math.sin(angle)*along+Math.cos(angle)*outward;
+      const z=cz+Math.cos(angle)*along+Math.sin(angle)*outward;
+      const reed=outward<1.7, shrub=!reed && plant%13===0;
+      if (place(shrub?'Bush_Common':reed?'Grass_Common_Short':'Fern_1',
+        shrub?'ash':reed?'reed':'moss',x,z,
+        shrub?.75+random(seed+plant)*.45:reed?.65+random(seed+plant)*.7:.36+random(seed+plant)*.4,
+        reed?.6:1.6,random(seed+plant*43)*6.28)) shorePlants++;
     }
   }
   // Interlocking lobes form broken forest edges, with open road-facing gaps.
@@ -216,8 +260,8 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
         placed++;
         // Broad understory clumps join the trunks to the existing plant beds.
         const community=palette==='ash'||palette==='blue' ? communities.marsh : palette==='pine' ? communities.shade : communities.copper;
-        for(let p=0;p<3;p++) {
-          const plant=community[p]!,az=angle+p*2.3,offset=1.6+random(seed+attempt+p)*2.2;
+        for(let p=0;p<9;p++) {
+          const plant=community[palette==='pine'?(p===0?1:0):p===0?0:1]!,az=angle+p*2.3,offset=.9+random(seed+attempt+p)*3.2;
           place(plant[0],plant[1],x+Math.cos(az)*offset,z+Math.sin(az)*offset,plant[2]*(.9+random(seed+p+attempt)*.6),plant[3],az);
         }
       }
@@ -236,5 +280,5 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
     root.add(instances);
     drawCalls += Array.isArray(batch.material) ? batch.material.length : 1;
   }
-  root.userData.foliage = {plants,fieldPlants,plantsByRegion,trees,treeAssets,batches:batches.size,drawCalls};
+  root.userData.foliage = {plants,fieldPlants,clearingPlants,shorePlants,plantsByRegion,trees,treeAssets,batches:batches.size,drawCalls};
 }

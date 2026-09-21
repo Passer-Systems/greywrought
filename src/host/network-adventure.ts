@@ -30,7 +30,7 @@ export interface NetworkAdventure extends AdventureGame {
   resume(): void;
   rejoin(): void;
   selectReturnSpot(destination: Position): boolean;
-  submitBait(destination: Position, via?: readonly Position[]): Promise<boolean>;
+  submitBait(destination: Position, via?: readonly Position[], waitTicks?: number): Promise<boolean>;
   subscribe(listener: () => void): () => void;
   close(): void;
 }
@@ -266,17 +266,17 @@ export async function connectAdventure(character: LocalCharacter, onCharacter?: 
     sit() { if (inputEnabled()) send({ type: 'sit' }); },
     setCameraForward(x,z) { prediction.setCameraForward(x,z); if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
     selectTarget(id) { send({type:'target',id}); },
-    queueBait(destination, via = []) { send({type:'bait',destination,via}); return online; },
-    submitBait(destination, via = []) {
+    queueBait(destination, via = [], waitTicks = 0) { send({type:'bait',destination,via,waitTicks}); return online; },
+    submitBait(destination, via = [], waitTicks = 0) {
       return new Promise(resolve => {
-        const id = inputEnabled() ? send({type:'bait',destination,via}) : null;
+        const id = inputEnabled() ? send({type:'bait',destination,via,waitTicks}) : null;
         if (id === null) resolve(false); else submissions.set(id, resolve);
       });
     },
-    previewBait(destination, via = []) {
+    previewBait(destination, via = [], waitTicks = 0) {
       clearPreviews();
       return new Promise(resolve => {
-        const id = inputEnabled() ? send({type:'previewBait',destination,via}) : null;
+        const id = inputEnabled() ? send({type:'previewBait',destination,via,waitTicks}) : null;
         if (id === null) resolve(null); else previews.set(id, resolve);
       });
     },

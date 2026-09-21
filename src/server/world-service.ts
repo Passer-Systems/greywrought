@@ -8,6 +8,7 @@ import { dirname } from 'node:path';
 import { randomInt } from 'node:crypto';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import { createSharedAdventure } from '../game/adventure.js';
+import { COMBAT_TURN } from '../game/combat-turn.js';
 import { WORLD_BOUNDS } from '../game/world-layout.js';
 import { regionAt } from '../game/world-regions.js';
 import { worldRain } from '../game/world-time.js';
@@ -69,8 +70,9 @@ function command(value: unknown): value is WorldCommand {
     case 'target': case 'loot': return keys(value, ['type', 'id']) && identifier(value.id);
     case 'previewBait': case 'bait': {
       const position = (point: unknown) => record(point) && keys(point, ['x','y','z']) && finite(point.x,WORLD_BOUNDS.minX,WORLD_BOUNDS.maxX) && finite(point.y,-100,100) && finite(point.z,WORLD_BOUNDS.minZ,WORLD_BOUNDS.maxZ);
-      return keys(value, ['type', 'destination', ...('via' in value ? ['via'] : [])]) && position(value.destination)
-        && (value.via === undefined || Array.isArray(value.via) && value.via.length <= 32 && value.via.every(position));
+      return keys(value, ['type', 'destination', ...('via' in value ? ['via'] : []), ...('waitTicks' in value ? ['waitTicks'] : [])]) && position(value.destination)
+        && (value.via === undefined || Array.isArray(value.via) && value.via.length <= 32 && value.via.every(position))
+        && (value.waitTicks === undefined || finite(value.waitTicks, 0, COMBAT_TURN.maxWaitTicks, true));
     }
     case 'ready': return keys(value, ['type']);
     case 'actionTiming': return keys(value, ['type','timing']) && member(value.timing,['before','during','after']);
@@ -377,7 +379,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       case 'mouseForward': player.setMouseForward(value.active); break;
       case 'camera': player.setCameraForward(value.x, value.z); break;
       case 'target': player.selectTarget(value.id); break;
-      case 'bait': return player.queueBait(value.destination, value.via);
+      case 'bait': return player.queueBait(value.destination, value.via, value.waitTicks);
       case 'sprint': return player.setSprint(value.active);
       case 'ready': return player.readyCombat();
       case 'actionTiming': return player.setActionTiming(value.timing);
@@ -503,7 +505,7 @@ export async function createWorldService(options: WorldServiceOptions) {
           if (!stopping) socket.data.commandsAt.push(now);
           if (value.command.type === 'previewBait') {
             accepted = true;
-            void player.previewBait(value.command.destination, value.command.via).then(forecast => send(socket, { type: 'movePreview', sequence, forecast }));
+            void player.previewBait(value.command.destination, value.command.via, value.command.waitTicks).then(forecast => send(socket, { type: 'movePreview', sequence, forecast }));
           } else accepted = apply(player, value.command, socket);
           // Route submission receipts release the editor; its snapshot must already show the accepted plan.
           if (accepted && value.command.type === 'bait') broadcast();

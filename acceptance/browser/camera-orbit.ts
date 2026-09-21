@@ -120,7 +120,7 @@ try {
       const expected = locations.find(entry => entry.id === location)!;
       await page.waitFor(`window.cameraState.player.position.x===${expected.x}&&window.cameraState.player.position.z===${expected.z}`);
       const normal = await capture(`${location}-default`);
-      if (location === 'cave') check(Math.hypot(normal.camera.x-normal.player.x, normal.camera.y-normal.player.y-1.1, normal.camera.z-normal.player.z) >= 14.9, 'Cave ceiling preserves the chosen camera distance');
+      if (location === 'cave') check(Math.hypot(normal.camera.x-normal.player.x, normal.camera.y-normal.player.y-1.1, normal.camera.z-normal.player.z) >= 14.9, 'Open space below the high cave ceiling preserves the chosen camera distance');
       if (location === 'hill') {
         await page.evaluate('window.cameraFrames=[];window.trackCamera=true');
         await page.key('KeyW', true); await Bun.sleep(1800); await page.key('KeyW', false);

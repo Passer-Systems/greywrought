@@ -13,7 +13,7 @@ import { buildLakeShore } from './lake-shore.js';
 import { buildRobotRuins } from './robot-ruins.js';
 import { buildRuinedSettlements } from './ruined-settlements.js';
 import { conformToTerrain } from './terrain-geometry.js';
-import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Color } from "three";
+import { BufferGeometry, Float32BufferAttribute, Group, Mesh, InstancedMesh, Matrix4, PlaneGeometry, MeshStandardMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace, PointLight, Box3, Vector3, Quaternion, Color } from "three";
 import { TOWN_BUILDINGS } from "../game/town-layout.js";
 import { prop } from "./frostwood-assets.js";
 import { createRuinedGroundMaterial } from "./ground-material.js";
@@ -41,10 +41,18 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
           : treePaletteMaterial(object.material, palette);
       });
       parent.add(model);
-      if (name === 'nature/Grass_Common_Short') model.traverse(object => {
+      if (/^nature\/(Grass_|Fern_|Flower_|Mushroom_)/.test(name)) model.traverse(object => {
         if (object instanceof Mesh) object.castShadow = false;
       });
+      if (name==='nature/Grass_Common_Short' || name==='nature/Fern_1') {
+        const normal=new Vector3(terrainHeight(x-.5,z)-terrainHeight(x+.5,z),1,terrainHeight(x,z-.5)-terrainHeight(x,z+.5)).normalize();
+        model.quaternion.premultiply(new Quaternion().setFromUnitVectors(new Vector3(0,1,0),normal));
+      }
       const tree = name.includes('Tree_') || name.startsWith('nature/Pine_');
+      if (tree && Math.abs(tilt) < Math.PI / 4) {
+        model.scale.x *= .8 + (Math.sin(x * 13.7 + z * 3.1) * .5 + .5) * .5;
+        model.scale.z *= .76 + (Math.sin(x * 5.1 - z * 11.3) * .5 + .5) * .48;
+      }
       if (tree && Math.abs(tilt) < Math.PI / 4) groundTree(model, x, z, (px, pz) => terrainHeight(px, pz) - .06 + y);
       if (name === "works/Props_Vessel" && z < 0) model.traverse(object => {
         if (!(object instanceof Mesh)) return;
@@ -63,7 +71,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
         if (materials.some(material => material.transparent || coolingMaterials.includes(material))) return;
         // Low cover shares wider cells to amortize dense drifts; tall scenery
         // keeps its finer culling boundary.
-        const cellSize = name === 'nature/Grass_Common_Short' || name === 'nature/Fern_1' ? 24 : 12;
+        const cellSize = /^nature\/(Grass_|Fern_|Flower_|Mushroom_|Bush_|Rock_)/.test(name) ? 32 : tree ? 24 : 12;
         const key = [parent.id, cellSize, Math.floor(x / cellSize), Math.floor(z / cellSize), object.geometry.uuid, ...materials.map(material => material.uuid)].join(":");
         let batch = batches.get(key);
         if (!batch) { batch = { parent, meshes: [] }; batches.set(key, batch); }
@@ -75,7 +83,18 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   }
   function tree(name: string, x: number, z: number, height: number, rotation: number, palette: TreePalette, lean = 0) {
     if (STREAM_POINTS.some(point => Math.hypot(x-point.x,z-point.z) < point.width+2+height*.2)) return;
+    const water=lakeWaterAt(x,z);
+    if (water!==null && terrainHeight(x,z)<water+.25) return;
     place(name, x, z, height, rotation, terrain, 'height', 0, undefined, 0, lean, palette);
+    // Root mats connect each canopy to its ground bed without a uniform ring.
+    for (let plant=0;plant<9;plant++) {
+      const angle=rotation+plant*2.399, spread=.6+Math.sqrt(plant)*.72;
+      const px=x+Math.cos(angle)*spread,pz=z+Math.sin(angle)*spread*.7;
+      const water=lakeWaterAt(px,pz);
+      if (water!==null && terrainHeight(px,pz)<water+.15 || !clearOfPatrols(px,pz,6)) continue;
+      place(plant%4===0?'nature/Fern_1':'nature/Grass_Common_Short',px,pz,
+        plant%4===0?.48+noise(x+z+plant)*.34:.24+noise(x-z+plant)*.25,angle,terrain,'height',-.045);
+    }
   }
   // Damaged trees use the authored Quaternius dead-tree silhouette. A horizontal
   // placement reads as a fallen trunk while retaining the low-poly bark detail.
@@ -341,8 +360,8 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       if(!clearOfPatrols(px,pz,7))continue;
       const age = noise(seed * 31 + member * 7);
       const name = age < .23 ? 'nature/DeadTree_2' : (seed+member)%3===0 ? 'nature/Pine_5' : (seed+member)%3===1 ? 'nature/TwistedTree_2' : 'nature/CommonTree_2';
-      const height = age < .28 ? 1.6 + age * 9 : age > .8 ? 12 + (age-.8) * 30 : 4 + (age-.28) * 10;
-      const palette = (['moss', 'ochre', 'copper', 'ash', 'blue'] as const)[(seed + member * 2) % 5]!;
+      const height = age < .23 ? 3 + age * 15 : age > .8 ? 16 + (age-.8) * 35 : 7 + (age-.23) * 13;
+      const palette = (['moss', 'moss', 'blue', 'ochre', 'copper'] as const)[(seed + (member===1?1:0)) % 5]!;
       tree(name,px,pz,height,angle,palette,(noise(seed+member+911)-.5)*.13);
       for(let plant=0;plant<3;plant++) {
         const a=angle+plant*2.1;
@@ -532,12 +551,11 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     if (x > TOWN_BOUNDS.minX - 1 && x < TOWN_BOUNDS.maxX + 1 &&
         z > TOWN_BOUNDS.minZ - 1 && z < TOWN_BOUNDS.maxZ + 1) return false;
     if (x > 27 && x < 87 && z > -65 && z < -29) return false;
-    if (!clearOfPatrols(x, z, 6)) return false;
     const height = terrainHeight(x, z), water = lakeWaterAt(x, z), stream = streamAt(x, z);
     if (water !== null && height < water + .15 || stream && height < stream.surface + .15) return false;
     const slope = Math.hypot(terrainHeight(x + .5, z) - terrainHeight(x - .5, z),
       terrainHeight(x, z + .5) - terrainHeight(x, z - .5));
-    if (slope > .8) return false;
+    if (slope > 1.65) return false;
     return trailFootprints.every(points => points.slice(1).every((to, index) => {
       const from = points[index]!, dx = to[0] - from[0], dz = to[1] - from[1];
       const t = Math.max(0, Math.min(1, ((x - from[0]) * dx + (z - from[1]) * dz) / (dx * dx + dz * dz)));
@@ -555,20 +573,21 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     [26,-103,6], [20,-125,5], [43,-82,7], [45,-113,6], [-8,-54,4],
   ].entries()) {
     const seed = 3101 + patch * 137, turn = noise(seed) * Math.PI * 2;
-    const count = 42 + Math.floor(noise(seed + 1) * 32);
+    const count = 74 + Math.floor(noise(seed + 1) * 40);
     for (let item = 0; item < count; item++) {
       // Three unequal lobes, with thin tails and gaps between dense root mats.
       const lobe = item % 3, radius = Math.sqrt(noise(seed + item * 17 + 3));
       const angle = noise(seed + item * 23 + 4) * Math.PI * 2;
       const along = (lobe - 1) * reach! * .6 + Math.cos(angle) * radius * reach! * .46;
-      const across = Math.sin(angle) * radius * reach! * (.19 + lobe * .055) + Math.sin(lobe * 3 + seed) * 1.1;
+      const across = Math.sin(angle) * radius * reach! * (.43 + lobe * .07) + Math.sin(lobe * 3 + seed) * 1.1;
       const x = cx! + along * Math.cos(turn) - across * Math.sin(turn);
       const z = cz! + along * Math.sin(turn) + across * Math.cos(turn);
       if (!acceptsCover(x, z)) continue;
       const variation = noise(seed + item * 31 + 8);
-      const fern = item % 17 === 0, stone = item % 23 === 0 && !fern;
+      const clearingEdge = Math.max(0, Math.min(1, (Math.min(...encounterPatrols.map(([px,pz])=>Math.hypot(x-px,z-pz)))-3)/5));
+      const fern = clearingEdge>.8 && item % 17 === 0, stone = clearingEdge>.8 && item % 23 === 0 && !fern;
       place(fern ? 'nature/Fern_1' : stone ? 'nature/Rock_Medium_1' : 'nature/Grass_Common_Short',
-        x, z, fern ? .42 + variation * .27 : stone ? .2 + variation * .36 : .3 + variation * .34,
+        x, z, fern ? .42 + variation * .27 : stone ? .2 + variation * .36 : .13 + clearingEdge * (.24 + variation * .3),
         angle + turn, terrain, stone ? 'width' : 'height', -.035);
     }
   }

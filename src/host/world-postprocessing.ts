@@ -50,6 +50,18 @@ export function createWorldPostprocessing(renderer: WebGLRenderer, scene: Scene,
         renderer.setRenderTarget(previousTarget);
       }
       await compilation;
+      // Compilation leaves link diagnostics and uniform/attribute discovery
+      // until first use. Finish them here so turning toward new scenery does
+      // not force that driver work into a playable frame.
+      let sliceStarted = performance.now();
+      for (const program of renderer.info.programs ?? []) {
+        program.getUniforms();
+        program.getAttributes();
+        if (performance.now() - sliceStarted > 8) {
+          await new Promise<void>(resolve => setTimeout(resolve, 0));
+          sliceStarted = performance.now();
+        }
+      }
     },
     render(delta: number): void {
       composer.render(delta);

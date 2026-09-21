@@ -11,9 +11,10 @@ const url = 'http://127.0.0.1:4300/';
 Object.assign(Bun.env, { GREYWROUGHT_GAME_URL: url, GREYWROUGHT_VULKAN: '1', GREYWROUGHT_DEBUG_PORT: '9451' });
 const label = Bun.env.GREYWROUGHT_PERFORMANCE_LABEL ?? 'performance';
 const locations = [
-  { id: 'town', x: 0, z: -25 }, { id: 'woods', x: -16, z: 45 },
-  { id: 'lake', x: -4, z: -125 }, { id: 'cave', x: 45, z: -46 },
+  { id: 'town', x: 0, z: -25 }, { id: 'woods', x: 37, z: -79 },
+  { id: 'lake', x: 10, z: -99 }, { id: 'cave', x: 45, z: -46 },
   { id: 'hills', x: 60, z: 15 }, { id: 'combat', x: -7.5, z: 27.5 },
+  { id: 'rain', x: 0, z: -25 },
 ];
 const characters = locations.map(location => ({ id: `performance-${location.id}`, name: 'Frame Walker', archetype: 'warrior' as const, createdAtMillis: 1 }));
 const token = 'performance-fixture-token-000000000000000';
@@ -28,7 +29,7 @@ const savePath = `${process.cwd()}/build/browser/performance-world-${process.pid
 await Bun.write(savePath, JSON.stringify({ version: 1, accounts: characters.map(character => ({ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') })), world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
 const service = await createWorldService({ savePath, allowedOrigins: [url.slice(0, -1)] });
 const server = Bun.serve<WorldSocketData>({ hostname: '127.0.0.1', port: 4301, fetch: (request, host) => service.fetch(request, host), websocket: service.websocket });
-const frontend = Bun.spawn([process.execPath, 'scripts/dev-server.ts'], {
+const frontend = Bun.spawn([process.execPath, Bun.env.GREYWROUGHT_PERFORMANCE_STATIC === '1' ? 'scripts/static-server.ts' : 'scripts/dev-server.ts'], {
   env: { ...Bun.env, GREYWROUGHT_PORT: '4300', GREYWROUGHT_LOCAL_WORLD: '0' },
   stdout: Bun.file(`build/browser/performance-${process.pid}-frontend.log`), stderr: Bun.file(`build/browser/performance-${process.pid}-frontend-errors.log`),
 });
@@ -48,13 +49,14 @@ try {
       localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Performance', characters, selectedCharacterId: characters[0]!.id, savedAtMillis: 1 }))});
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
       const clockStart=performance.now();const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4301/world':url,...args);}
-        set onmessage(callback){super.onmessage=event=>{const m=JSON.parse(event.data);if(m.type==='state'){m.serverWallTimeMillis=${seattleNoon}+performance.now()-clockStart;window.performanceState=m.snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};` });
+        set onmessage(callback){super.onmessage=event=>{const m=JSON.parse(event.data);if(m.type==='state'){m.serverWallTimeMillis=${seattleNoon}+performance.now()-clockStart;m.rainIntensity=window.performanceRain??0;window.performanceState=m.snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};` });
   } });
   await page.waitFor('document.body.dataset.entryRoute === "roster"');
   await page.evaluate(performanceProbe);
   await page.call('Profiler.enable'); await page.call('Performance.enable');
   async function enter(id: string) {
     const browser = page!;
+    await browser.evaluate(`window.performanceRain=${id === 'rain' ? 1 : 0}`);
     await browser.evaluate(`document.querySelector('[data-character-id="performance-${id}"]').scrollIntoView({block:'center'})`);
     await browser.click(`[data-character-id="performance-${id}"]`);
     const start = performance.now();
@@ -65,6 +67,12 @@ try {
     if (await browser.evaluate('!document.getElementById("pause-panel").hidden')) await browser.press('Escape');
     loading.push({ id, milliseconds: performance.now() - start, metrics: (await browser.call('Performance.getMetrics')).result });
     await Bun.sleep(1500);
+    if (id === 'lake') {
+      await browser.call('Input.dispatchMouseEvent', { type: 'mousePressed', x: 500, y: 400, button: 'right', buttons: 2, clickCount: 1 });
+      await browser.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 814, y: 280, button: 'right', buttons: 2 });
+      await browser.call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 814, y: 280, button: 'right', buttons: 0, clickCount: 1 });
+      await Bun.sleep(500);
+    }
   }
   async function leave() {
     const browser = page!;

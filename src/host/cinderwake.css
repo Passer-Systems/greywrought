@@ -2210,7 +2210,7 @@ body[data-bait-aiming="true"] .combat-plan-inspect {display:none;}
 
 .adventure-actions .action-quantity { position:absolute; bottom:0; right:2px; color:#fff; font:bold var(--ui-font-prominent)/1 system-ui,sans-serif; text-shadow:-1px -1px #000,1px 1px #000,0 0 3px #000; }
 
-.combat-plan-route-editor {display:flex;align-items:center;gap:5px;margin:4px 0;}
+.combat-plan-route-editor {display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:4px 0;}
 .combat-plan-route-budget {flex:1;color:#c6e0c8;font-size:11px;}
 .combat-plan[data-route-editing=true] .combat-plan-grid {display:none;}
 

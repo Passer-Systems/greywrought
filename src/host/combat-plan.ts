@@ -1,7 +1,8 @@
 import type { AdventureSnapshot, CombatAction, CombatActionTiming, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
+import { COMBAT_TURN } from "../game/combat-turn.js";
 import { classAction, SPRINT_COST } from "../game/class-kit.js";
 import type { CombatPreview } from "./ground-telegraphs.js";
-import { enemyResponse, enemyResponseLabel } from "./enemy-response.js";
+import { enemyResponse, enemyResponseLabel, enemyTimingLabel } from "./enemy-response.js";
 import { combatOutcome } from "./combat-outcome.js";
 import type { MovementPlanPreview } from "./movement-preview.js";
 import { publicUrl } from "./public-url.js";
@@ -39,6 +40,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   onAimMove: () => void;
   onSprint: (active: boolean) => void;
   onUndoMove: () => void;
+  onWaitMove: () => void;
   onFinishMove: () => void;
   onPreview: (preview: CombatPreview | null) => void;
 }) {
@@ -97,6 +99,9 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const sprintNext = sprint!.nextSibling;
   const routeEditor = node("div", "combat-plan-route-editor", root); routeEditor.hidden = true;
   const routeBudget = node("span", "combat-plan-route-budget", routeEditor);
+  const waitMove = node("button", "combat-plan-edit", routeEditor); waitMove.type = "button"; waitMove.id = "combat-plan-wait-move";
+  waitMove.title = "Wait before moving. Each click adds 0.25s; after 1s, click again to clear. Distance and Energy are unchanged.";
+  waitMove.addEventListener("click", callbacks.onWaitMove);
   const undoMove = node("button", "combat-plan-edit", routeEditor); undoMove.type = "button"; undoMove.id = "combat-plan-undo-move"; undoMove.textContent = "Undo"; undoMove.addEventListener("click", callbacks.onUndoMove);
   const finishMove = node("button", "combat-plan-edit", routeEditor); finishMove.type = "button"; finishMove.id = "combat-plan-finish-move"; finishMove.textContent = "Done (Enter)"; finishMove.addEventListener("click", callbacks.onFinishMove);
   const editor = node("div", "combat-plan-editor", root);
@@ -145,7 +150,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       if (!pending.some(entry => entry.action === "bait") || !pending.some(entry => entry.action !== "bait")) return;
       const action = pending.find(entry => entry.action !== "bait")!;
       if (confirmedTiming?.cycle !== snapshot.combat.cycle || confirmedTiming.queueId !== action.id || confirmedTiming.action !== action.action || confirmedTiming.timing !== action.timing) return;
-      const plan = JSON.stringify([snapshot.combat.cycle, pending.map(entry => [entry.id, entry.action, entry.timing, entry.destination, entry.via, entry.targetId])]);
+      const plan = JSON.stringify([snapshot.combat.cycle, pending.map(entry => [entry.id, entry.action, entry.timing, entry.destination, entry.via, entry.waitTicks, entry.targetId])]);
       if (plan === lastAutoReadyPlan) return;
       lastAutoReadyPlan = plan;
       if (callbacks.onReady() === false) lastAutoReadyPlan = "";
@@ -205,7 +210,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   }
   function moveTarget(move: QueuedCombatAction): string {
     if (move.targetId) return snapshot?.threats.find(threat => threat.id === move.targetId)?.name ?? "Unavailable target";
-    return move.destination ? `${move.via.length ? (move.via.length + 1) + " stops → " : ""}Tile ${move.destination.x}, ${move.destination.z}` : "Self";
+    return move.destination ? `${move.waitTicks ? "Wait " + (move.waitTicks * COMBAT_TURN.waitTick).toFixed(2) + "s → " : ""}${move.via.length ? (move.via.length + 1) + " stops → " : ""}Tile ${move.destination.x}, ${move.destination.z}` : "Self";
   }
   function enemyTarget(threat: ThreatView, ability: ThreatAbilityView): string {
     if (ability.damage <= 0) return "Self";
@@ -263,7 +268,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const words = node("span", "combat-plan-enemy-words", identity);
     node("strong", "combat-plan-enemy-name", words).textContent = enemyName;
     const action = node("span", "combat-plan-enemy-action", words); action.textContent = ability.name;
-    const behavior = node("span", "combat-plan-enemy-behavior", action); behavior.textContent = enemyResponseLabel(ability); behavior.hidden = !behavior.textContent;
+    const behavior = node("span", "combat-plan-enemy-behavior", action); behavior.textContent = [enemyResponseLabel(ability), enemyTimingLabel(ability, seconds)].filter(Boolean).join(" · "); behavior.hidden = !behavior.textContent;
     behavior.title = enemyResponse(ability);
     node("span", "combat-plan-enemy-target", words).textContent = "→ " + target;
     icon.dataset.targetId = targetId ?? ""; icon.dataset.targetSelf = String(target === "You");
@@ -274,13 +279,16 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     node("span", "combat-plan-damage", actionArt).textContent = status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "";
   }
   return {
-    setRouteEditing(active: boolean, used = 0, total = 0, count = 0, submitting = false): void {
+    setRouteEditing(active: boolean, used = 0, total = 0, count = 0, submitting = false, waitTicks = 0): void {
       routeEditing = active; routeEditor.hidden = !active;
       if (active && sprint!.parentElement !== routeEditor) routeEditor.insertBefore(sprint!, undoMove);
       else if (!active && sprint!.parentElement !== sprintHome) sprintHome.insertBefore(sprint!, sprintNext);
       const remaining = Math.max(0, total - used);
       write(routeBudget, Number(remaining.toFixed(1)) + " / " + total + " tiles left" + (count ? " · " + count + (count === 1 ? " stop" : " stops") : ""));
       routeBudget.title = "Green tiles show where your next stop can be. Every leg spends movement, including backtracking.";
+      write(waitMove, "Wait " + (waitTicks * COMBAT_TURN.waitTick).toFixed(2) + "s");
+      waitMove.dataset.waitTicks = String(waitTicks); waitMove.disabled = submitting;
+      waitMove.setAttribute("aria-label", "Wait before movement: " + (waitTicks * COMBAT_TURN.waitTick).toFixed(2) + " seconds. " + (waitTicks === COMBAT_TURN.maxWaitTicks ? "Clear the wait." : "Add a quarter second."));
       undoMove.disabled = submitting || count === 0;
       finishMove.disabled = submitting || count === 0;
       write(finishMove, submitting ? "Saving…" : "Done (Enter)");
@@ -355,7 +363,11 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       }
       const shown: ShownEnemyMove[] = choosing ? [] : attackers.flatMap<ShownEnemyMove>(threat => {
         if (threat.joinsNextWindow && combat.phase === "active") return [];
-        if (threat.windowAction) return [{ id: threat.id, enemy: threat.name, ability: threat.windowAction.ability, seconds: threat.windowAction.offsetSeconds, status: threat.windowAction.status, targetId: threat.targetPlayerId ?? null, target: enemyTarget(threat, threat.windowAction.ability) }];
+        if (threat.windowAction) {
+          const ability = threat.windowAction.ability;
+          const forecast = combat.forecast?.paths.find(path => path.actorId === threat.id && path.kind === "attack" && path.action === ability.id);
+          return [{ id: threat.id, enemy: threat.name, ability, seconds: forecast?.beat ?? threat.windowAction.offsetSeconds, status: threat.windowAction.status, targetId: threat.targetPlayerId ?? null, target: enemyTarget(threat, ability) }];
+        }
         return threat.forecast.slice(0, 1).map(move => ({ id: threat.id, enemy: threat.name, ability: move.ability, seconds: 0, status: move.status, targetId: threat.targetPlayerId ?? null, target: enemyTarget(threat, move.ability) }));
       });
       const key = JSON.stringify([combat.phase, shown.map(move => Boolean(callbacks.portrait(move.id))), attackers.map(threat => [threat.id, threat.joinsNextWindow]), shown.map(move => [move.enemy, move.ability.id, move.ability.profile, move.seconds, move.ability.damage, move.status, move.targetId, move.target])]);

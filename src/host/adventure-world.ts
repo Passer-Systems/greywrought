@@ -19,7 +19,7 @@ import { captureMinimap } from "./minimap.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
 import { combatSurfaceHeight, conformToTerrain } from "./terrain-geometry.js";
 import { terrainCameraLift } from "./terrain-camera.js";
-import { createSceneryCutaway } from './scenery-cutaway.js';
+import { createCameraCollision } from './camera-collision.js';
 import { settlementAt } from '../game/world-regions.js';
 import { buildHollowdeep } from "./hollowdeep-scenery.js";
 import { createWorldLighting } from "./world-lighting.js";
@@ -107,7 +107,7 @@ export interface AdventureWorld {
   setPartyMembers(ids: readonly string[]): void;
   setPartyPings(pings: readonly PartyPingView[]): void;
   setMoveAiming(active: boolean): void;
-  setMoveRoute(route: readonly Position[]): void;
+  setMoveRoute(route: readonly Position[], waitTicks?: number): void;
   canMoveTo(destination: Position): boolean;
   projectThreat(id: string): { x: number; y: number; feetY: number } | null;
   dispose(): void;
@@ -232,7 +232,7 @@ function createCombatEffects(scene: Scene) {
   };
 }
 
-export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position, via: readonly Position[]) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; showSelfName?: () => boolean; onSelect: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void }, onMovementPreview?: (preview: MovementPlanPreview | null) => void): AdventureWorld {
+export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapshot, onNpcInteract?: (id: NpcId) => void, previewBait?: (destination: Position, via: readonly Position[], waitTicks: number) => Promise<CombatForecast | null>, playerSelection?: { selfId: string; selfName: string; showSelfName?: () => boolean; onSelect: (id: string) => void; onContextMenu?: (id: string, x: number, y: number) => void }, onMovementPreview?: (preview: MovementPlanPreview | null) => void): AdventureWorld {
   const scene = new Scene();
   const remotePlayers = createRemotePlayers(scene);
   const partyPings = createPartyPings(scene);
@@ -541,7 +541,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     hoverTargets.push({ root, pick: {kind:"place",id}, name, anchor: root.position.clone().add(new Vector3(0,2,0)) });
   }).then(update=>{updateScenery=update;document.body.dataset.environmentState="ready";});
   const caveReady = buildHollowdeep(terrain);
-  const sceneryCutaway = createSceneryCutaway();
+  const cameraCollision = createCameraCollision();
   const telegraphs = createGroundTelegraphs(scene, canvas);
   const combatEffects = createCombatEffects(scene);
   let combatPreview: CombatPreview | null = null;
@@ -549,7 +549,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const combatGrid = createCombatGrid(scene, canvas);
   let moveAiming = false;
   let moveRoute: readonly Position[] = [];
-  const movementPreview = createMovementPreview((destination, via) => previewBait?.(destination, via) ?? Promise.resolve(null));
+  let moveWaitTicks = 0;
+  const movementPreview = createMovementPreview((destination, via, waitTicks) => previewBait?.(destination, via, waitTicks) ?? Promise.resolve(null));
   let shownMovementPreview: MovementPlanPreview | null = null;
   function showMovementPreview(next: MovementPlanPreview | null): void {
     const previous = shownMovementPreview;
@@ -563,7 +564,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     lighting.collectLamps();
     await captureMinimap(renderer, terrain, minimap);
     if(disposed)return;
-    sceneryCutaway.install(terrain, [mara, rowan, elian, chestRoot, coreRoot, ...vendorActors.map(entry => entry.root), ...regionalHosts.map(entry => entry.root), ...flightMasters.map(entry => entry.root)]);
+    cameraCollision.install(terrain, [mara, rowan, elian, chestRoot, coreRoot, ...vendorActors.map(entry => entry.root), ...regionalHosts.map(entry => entry.root), ...flightMasters.map(entry => entry.root)]);
     atmosphere.attach();
     await postprocessing.compile();
   });
@@ -670,7 +671,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     setAggroRangesVisible(visible) { aggroRanges.setVisible("direct", visible); },
     setHelpRangesVisible(visible) { aggroRanges.setVisible("help", visible); },
     setMoveAiming(active) { moveAiming = active; if (!active) { movementPreview.clear(); showMovementPreview(null); } },
-    setMoveRoute(route) { moveRoute = route; },
+    setMoveRoute(route, waitTicks = 0) { moveRoute = route; moveWaitTicks = waitTicks; },
     canMoveTo(destination) { return combatGrid.accepts(destination); },
     setCombatPreview(preview) { combatPreview = preview; },
     setReturnPreview(plan) {
@@ -913,7 +914,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       const candidate = hoveredTile && combatGrid.accepts(hoveredTile) ? hoveredTile : null;
       const destination = moveAiming ? candidate ?? moveRoute.at(-1) ?? null : null;
       const via = candidate ? moveRoute : moveRoute.slice(0, -1);
-      movementPreview.update(hoverSnapshot, destination, via);
+      movementPreview.update(hoverSnapshot, destination, via, moveWaitTicks);
       const forecast = movementPreview.forecast;
       const choosingDestination = destination && snapshot.combat.phase === "preparation" && !snapshot.combat.ready;
       const selectedMovement = snapshot.combat.queued.find(move => move.action === "bait" && move.status === "pending");
@@ -946,14 +947,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       cameraTerrainLift = distance === 0 ? 0 : delta === 0 ? requiredLift : Math.max(requiredLift, cameraTerrainLift + (requiredLift - cameraTerrainLift) * (1 - Math.exp(-delta * 8)));
       camera.position.y += cameraTerrainLift;
       updateScenery?.(coolingRestored, shiftEnded, worldTimeMillis, rainIntensity);
+      cameraCollision.update(target, camera.position, delta);
       if (distance === 0) {
         camera.lookAt(target.x + facing.x * Math.cos(pitch), target.y - Math.sin(pitch), target.z + facing.z * Math.cos(pitch));
       } else {
-        const collisionLift = terrainCameraLift(target, camera.position);
-        if (collisionLift > 0) camera.position.y += collisionLift;
         camera.lookAt(target.x, target.y, target.z);
       }
-      sceneryCutaway.update(camera.position, snapshot.player.position, aimHeight, snapshot.player.movementRange, delta, firstPersonBlend < .8);
       player.visible = firstPersonBlend < .8 && Math.hypot(camera.position.x-target.x, camera.position.y-target.y, camera.position.z-target.z) > 1.8;
       const selectedPlayer = selectedUnit?.kind === "player" ? selectedUnit.id : null;
       const friendlyRoot = [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
@@ -964,7 +963,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       npcSelection.visible = Boolean(interactingNpc);
       if (interactingNpc) { npcSelection.position.copy(interactingNpc.position); conformToTerrain(npcSelection, .06, combatSurfaceHeight); }
       canvas.dataset.selectedPlayer = selectedPlayer ?? "";
-      lighting.update(worldTimeMillis, snapshot.player.position, camera, rainIntensity);
+      lighting.update(worldTimeMillis, snapshot.player.position, camera, rainIntensity, elapsed);
       const far = lakeWaterAt(camera.position.x, camera.position.z) !== null && camera.position.y < lakeSurface.waterLevel - .035 ? 25 : 210;
       if (camera.far !== far) { camera.far = far; camera.updateProjectionMatrix(); }
       underwater.update(elapsed, camera.position, snapshot.player);
@@ -1027,6 +1026,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       photonChair.dispose();
       telegraphs.dispose();
       combatEffects.dispose();
+      cameraCollision.dispose();
       lighting.dispose();
       atmosphere.dispose();
       vendorActors.forEach(entry => entry.actor?.dispose());

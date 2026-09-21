@@ -67,3 +67,20 @@ test('Sprint refreshes an uncommitted route preview', () => {
   controller.update({...snapshot,combat:{...snapshot.combat,sprinting:true}},destination);
   expect(requests).toBe(2);
 });
+
+test('changing wait beats refreshes an identical route and discards its old forecast', async () => {
+  const base = createAdventure().snapshot;
+  const snapshot = { ...base, combat: { ...base.combat, phase: 'preparation' as const } };
+  const waits: number[] = [], replies: Array<(forecast: CombatForecast | null) => void> = [];
+  const controller = createMovementPreview((_destination, _via, waitTicks) => {
+    waits.push(waitTicks); return new Promise(resolve => replies.push(resolve));
+  });
+  const destination = { x: 2.5, y: 0, z: 0 };
+  controller.update(snapshot, destination, [], 0);
+  controller.update(snapshot, destination, [], 2);
+  expect(waits).toEqual([0, 2]);
+  replies[0]!({ playerId: 'solo', paths: [], events: [], outcomes: [], actions: [] }); await Promise.resolve();
+  expect(controller.pending).toBe(true); expect(controller.forecast).toBeNull();
+  replies[1]!(null); await Promise.resolve();
+  expect(controller.pending).toBe(false);
+});

@@ -9,6 +9,7 @@ import { createAppControls } from './app-controls.js';
 import { COMBAT_RULES, createAdventure } from "../game/adventure.js";
 import { classAction, classKit, SPRINT_COST } from "../game/class-kit.js";
 import type { AdventureAction, AdventureSnapshot, Position } from "../game/adventure-types.js";
+import { COMBAT_TURN } from "../game/combat-turn.js";
 import { COMBAT_CELL_SIZE, combatRouteDistance } from "../game/combat-grid.js";
 import {
   archiveFallenCharacter, characterProfileStorageKey, decodeCharacterProfile, encodeCharacterProfile,
@@ -106,6 +107,7 @@ const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   onAimMove: () => pulse("bait"),
   onSprint: active => { if (running?.ready && !paused && !moveSubmitting) { running.game.setSprint(active); combatPlan.update(running.game.snapshot); updateMoveRoute(); } },
   onUndoMove: undoMove,
+  onWaitMove: () => { if (baitAiming && !moveSubmitting) { moveWaitTicks = (moveWaitTicks + 1) % (COMBAT_TURN.maxWaitTicks + 1); updateMoveRoute(); } },
   onFinishMove: () => { void finishMove(); },
   onPreview: preview => running?.world.setCombatPreview(preview),
 });
@@ -344,6 +346,7 @@ let suppressActionClickUntil = 0;
 let baitAiming = false;
 let moveAimError = "";
 let moveRoute: Position[] = [];
+let moveWaitTicks = 0;
 let moveSubmitting = false;
 let moveRevision = 0;
 let moveContext = "";
@@ -402,6 +405,7 @@ function setBaitAiming(value: boolean): void {
   moveRevision++;
   const queued = value ? running?.game.snapshot.combat.queued.find(entry => entry.action === "bait") : null;
   moveRoute = queued?.destination ? [...queued.via, queued.destination] : [];
+  moveWaitTicks = queued?.waitTicks ?? 0;
   moveContext = value ? currentMoveContext() : "";
   running?.world.setMoveAiming(value);
   updateMoveRoute();
@@ -412,11 +416,11 @@ function currentMoveContext(): string {
   return running ? `${running.character.id}:${running.game.connectionRevision}:${running.game.snapshot.combat.cycle}` : "";
 }
 function updateMoveRoute(): void {
-  running?.world.setMoveRoute(moveRoute);
+  running?.world.setMoveRoute(moveRoute, moveWaitTicks);
   const snapshot = running?.game.snapshot;
   const used = snapshot ? combatRouteDistance(snapshot.player.position, moveRoute) / COMBAT_CELL_SIZE : 0;
   const total = snapshot ? snapshot.player.movementTiles : 0;
-  combatPlan.setRouteEditing(baitAiming, used, total, moveRoute.length, moveSubmitting);
+  combatPlan.setRouteEditing(baitAiming, used, total, moveRoute.length, moveSubmitting, moveWaitTicks);
   if (running) running.world.canvas.dataset.moveRoute = JSON.stringify(moveRoute);
 }
 function undoMove(): void {
@@ -430,7 +434,7 @@ async function finishMove(after?: () => void): Promise<void> {
   if (!destination) { setBaitAiming(false); after?.(); return; }
   moveSubmitting = true; updateMoveRoute();
   const revision = moveRevision;
-  const accepted = await app.game.submitBait(destination, moveRoute.slice(0, -1));
+  const accepted = await app.game.submitBait(destination, moveRoute.slice(0, -1), moveWaitTicks);
   if (revision !== moveRevision || running !== app || currentMoveContext() !== moveContext) return;
   if (!accepted) {
     moveSubmitting = false;
@@ -1137,7 +1141,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     audio.reset();
     // Prepare the scene before joining: loading must not expose an adventurer
     // to combat or hold up their connection's heartbeat.
-    const world = preparingWorld = createAdventureWorld(element("world-wrap"), createAdventure({ archetype: character.archetype }).snapshot, id => { if (!paused) running?.game.interactNpc(id); }, (destination, via) => running?.game.previewBait(destination, via) ?? Promise.resolve(null), { selfId: character.id, get selfName() { return character.name; }, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu }, preview => combatPlan.setMovementPreview(preview));
+    const world = preparingWorld = createAdventureWorld(element("world-wrap"), createAdventure({ archetype: character.archetype }).snapshot, id => { if (!paused) running?.game.interactNpc(id); }, (destination, via, waitTicks) => running?.game.previewBait(destination, via, waitTicks) ?? Promise.resolve(null), { selfId: character.id, get selfName() { return character.name; }, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu }, preview => combatPlan.setMovementPreview(preview));
     await world.ready;
     if (!alive) { world.dispose(); return; }
     const game = await connectAdventure(character, current => {

@@ -14,6 +14,9 @@ const entryAssetFiles = await Array.fromAsync(
 );
 
 export const files: readonly (readonly [string, string])[] = [
+  ...["forest-floor-color.webp", "forest-floor-normal.webp", "moss-color.webp", "moss-normal.webp", "stone-color.webp", "stone-normal.webp", "SOURCE.md"].map((name): readonly [string, string] => [
+    `assets/external/polyhaven/ground/${name}`, `dist/assets/ground/${name}`,
+  ]),
   ...["shadowlands-codex.mp3", "strike.ogg", "hit.ogg", "brace.ogg", "potion.ogg", "gather.ogg", "purchase.ogg", "incoming.ogg", "alarm.ogg", "defeat.ogg", "extraction.ogg", "SOURCE.md", "Kenney-RPG-LICENSE.txt", "Kenney-Interface-LICENSE.txt"].map((name): readonly [string, string] => [
     `assets/audio/${name}`, `dist/assets/audio/${name}`,
   ]),

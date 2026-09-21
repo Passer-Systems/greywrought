@@ -365,8 +365,12 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
       expect(await client.invalid({ type: 'bait', destination: origin, via: invalid })).toBe(false);
       expect(await client.invalid({ type: 'previewBait', destination: origin, via: invalid })).toBe(false);
     }
+    for (const waitTicks of [-1, 1.5, 5, '2', null]) {
+      expect(await client.invalid({ type: 'bait', destination: origin, via, waitTicks })).toBe(false);
+      expect(await client.invalid({ type: 'previewBait', destination: origin, via, waitTicks })).toBe(false);
+    }
     const beforeRoute = client.messages.length;
-    expect(await client.command({ type: 'bait', destination: origin, via })).toBe(true);
+    expect(await client.command({ type: 'bait', destination: origin, via, waitTicks: 2 })).toBe(true);
     const received = client.messages.slice(beforeRoute);
     const routeState = received.findIndex(message => message.type === 'state' && message.snapshot.combat.queued.some(entry => entry.action === 'bait' && entry.via.length === 1));
     expect(routeState).toBeGreaterThanOrEqual(0);
@@ -374,6 +378,8 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
     const routed = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'bait' && e.via.length === 1));
     expect(routed.snapshot.combat.queued[0]!.destination).toEqual(origin);
     expect(routed.snapshot.combat.queued[0]!.via).toEqual(via);
+    expect(routed.snapshot.combat.queued[0]!.waitTicks).toBe(2);
+    expect(routed.snapshot.combat.queued[0]!.offsetSeconds).toBeCloseTo(.85, 6);
     expect(await client.invalid({ type: 'sprint', active: 1 })).toBe(false);
     expect(await client.command({ type: 'sprint', active: true })).toBe(true);
     const sprint = await client.state(s => s.snapshot.combat.sprinting);
@@ -384,9 +390,9 @@ test.each([[-3, 28, 0], [41, -46, 38]])('Bait transport validates ground and que
     const skill = await client.state(s => s.snapshot.combat.queued.some(e => e.action === 'special'));
     expect(skill.snapshot.combat.reservedStamina).toBe(70);
     expect(await client.command({ type: 'sprint', active: false })).toBe(true);
-    expect(await client.command({ type: 'previewBait', destination: origin, via })).toBe(true);
+    expect(await client.command({ type: 'previewBait', destination: origin, via, waitTicks: 2 })).toBe(true);
     const preview = await client.wait(message => message.type === 'movePreview');
-    expect(preview.type === 'movePreview' && preview.forecast?.paths.some(path => path.action === 'bait' && path.points.length === 3)).toBe(true);
+    expect(preview.type === 'movePreview' && preview.forecast?.paths.some(path => path.action === 'bait' && path.points.length === 3 && Math.abs(path.beat - .85) < .00001)).toBe(true);
     expect(await client.command({ type: 'action', action: 'brace', pressed: true })).toBe(true);
     expect(await client.command({ type: 'action', action: 'brace', pressed: false })).toBe(true);
     expect(await client.command({ type: 'actionTiming', timing: 'during' })).toBe(true);

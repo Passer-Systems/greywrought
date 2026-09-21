@@ -9,7 +9,7 @@ const label = before ? 'before' : 'after';
 const url = 'http://127.0.0.1:4441/';
 const midnight = Date.parse('2026-07-15T00:00:00-07:00');
 Object.assign(Bun.env, { GREYWROUGHT_GAME_URL: url, GREYWROUGHT_DEBUG_PORT: '9641', GREYWROUGHT_VULKAN: '1' });
-const locations = [{ id: 'town', x: 0, z: -18 }, { id: 'lake', x: 10, z: -99 }, { id: 'woods', x: -16, z: 45 }, { id: 'cave', x: 47, z: -46 }, { id: 'underwater', x: -27, z: -95 }];
+const locations = [{ id: 'town', x: 0, z: -18 }, { id: 'lake', x: 10, z: -99 }, { id: 'woods', x: 37, z: -79 }, { id: 'clearing', x: -16, z: 45 }, { id: 'meadow', x: 25, z: -85 }, { id: 'brinewood', x: -145, z: 115 }, { id: 'cave', x: 47, z: -46 }, { id: 'underwater', x: -27, z: -95 }];
 const characters = locations.map(location => ({ id: `bloom-${location.id}`, name: 'Light Walker', archetype: 'warrior' as const, createdAtMillis: 1 }));
 const token = 'bloom-fixture-token-00000000000000000000';
 const seed = createSharedAdventure();
@@ -54,6 +54,8 @@ try {
     await Bun.sleep(1500);
   }
   async function capture(location: string, hour: number) {
+    const shaderErrors = await page!.evaluate<unknown[]>(`(()=>{const r=performanceProbe.renderer,g=r.getContext();return r.info.programs.filter(p=>!g.getProgramParameter(p.program,g.LINK_STATUS)).map(p=>({log:g.getProgramInfoLog(p.program),vertex:g.getShaderInfoLog(p.vertexShader),fragment:g.getShaderInfoLog(p.fragmentShader)}))})()`);
+    check(shaderErrors.length === 0, `World shaders compile: ${JSON.stringify(shaderErrors)}`);
     await page!.evaluate(`window.lightingHour=${hour}`);
     await page!.waitFor(`Math.abs(Number(document.getElementById('world-canvas').dataset.worldHour)-${hour})<.01`);
     await Bun.sleep(1200);

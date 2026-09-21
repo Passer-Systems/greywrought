@@ -88,3 +88,56 @@ test('a rush near its territory edge ends inside its leash instead of silently r
   tap(game,'brace');game.readyCombat();game.advance(1.8);
   expect(game.snapshot.threats.find(t=>t.id==='scout')!.position.x).toBeCloseTo(target.x,6);
 });
+
+test('new rushes end behind close and distant targets rather than at a fixed distance', () => {
+  for (const x of [-2.5, 5]) {
+    const saved = fixture(); saved.state.position = point(x, 30);
+    Object.assign(saved.state.threats.find((t: {id: string}) => t.id === 'scout').head, { opened: false, ability: 'ember-beam' });
+    const game = createAdventure({ save: JSON.stringify(saved) });
+    tap(game, 'brace'); game.readyCombat(); finishCycle(game);
+    const rush = game.snapshot.threats.find(t => t.id === 'scout')!;
+    expect(rush.currentAbility.id).toBe('fire-rush');
+    expect(rush.targetPosition).toEqual(point(x + COMBAT_RULES.fireRush.overshoot, 30));
+    const forecast = game.snapshot.combat.forecast!;
+    expect(forecast.paths.find(p => p.action === 'fire-rush')!.points.at(-1)).toEqual(rush.targetPosition);
+    expect(forecast.outcomes.find(o => o.id === 'solo')!.health).toBeLessThan(100);
+    game.readyCombat(); game.advance(1.8);
+    expect(game.snapshot.threats.find(t => t.id === 'scout')!.position.x).toBeCloseTo(rush.targetPosition.x, 6);
+  }
+});
+
+test('shared rush follows its actual opponent past them even when another player drives the world', () => {
+  const seed = createSharedAdventure(); seed.join('driver', 'Driver', 'warrior'); seed.join('opponent', 'Opponent', 'warrior');
+  const saved = JSON.parse(seed.save()), solo = fixture();
+  saved.world.threats = solo.state.threats; Object.assign(saved.clock, solo.state.combat);
+  for (const character of saved.characters) Object.assign(character.state, { phase: 'expedition', position: point(character.id === 'driver' ? -5 : 5, character.id === 'driver' ? 25 : 30) });
+  const scout = saved.world.threats.find((t: {id: string}) => t.id === 'scout');
+  Object.assign(scout, { targetPlayerId: 'opponent', combatants: ['opponent'] });
+  Object.assign(scout.head, { opened: false, ability: 'ember-beam' });
+  const world = createSharedAdventure({ save: JSON.stringify(saved) });
+  world.join('driver', 'Driver', 'warrior'); const opponent = world.join('opponent', 'Opponent', 'warrior');
+  tap(opponent, 'brace'); opponent.readyCombat(); finishCycle(opponent, world);
+  const rush = opponent.snapshot.threats.find(t => t.id === 'scout')!;
+  expect(rush.targetPlayerId).toBe('opponent');
+  expect(rush.targetPosition).toEqual(point(8, 30));
+  const forecast = opponent.snapshot.combat.forecast!;
+  expect(forecast.paths.find(p => p.action === 'fire-rush')!.points.at(-1)).toEqual(rush.targetPosition);
+  opponent.readyCombat(); finishCycle(opponent, world);
+  expect(opponent.snapshot.player.health).toBe(forecast.outcomes.find(o => o.id === 'opponent')!.health);
+});
+
+test('cover clips the committed rush and its forecast at the same visible endpoint', () => {
+  const saved = fixture(), scout = saved.state.threats.find((t: {id: string}) => t.id === 'scout');
+  saved.state.position = point(5, 40); scout.position = point(0, 35);
+  Object.assign(scout.head, { opened: false, ability: 'ember-beam' });
+  const game = createAdventure({ save: JSON.stringify(saved) });
+  tap(game, 'brace'); game.readyCombat(); finishCycle(game);
+  const rush = game.snapshot.threats.find(t => t.id === 'scout')!;
+  expect(rush.currentAbility.id).toBe('fire-rush');
+  expect(rush.targetPosition.z).toBeLessThan(38);
+  expect(rush.targetPosition.z).toBeGreaterThan(37.9);
+  expect(game.snapshot.combat.forecast!.paths.find(p => p.action === 'fire-rush')!.points.at(-1)).toEqual(rush.targetPosition);
+  game.readyCombat(); game.advance(1.8);
+  expect(game.snapshot.threats.find(t => t.id === 'scout')!.position.z).toBeCloseTo(rush.targetPosition.z, 6);
+  expect(game.snapshot.player.health).toBe(100);
+});

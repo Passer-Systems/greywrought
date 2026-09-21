@@ -50,6 +50,10 @@ export async function openBrowser(label: string, options: BrowserOptions = {}) {
     socket.onmessage = event => {
       const message = JSON.parse(String(event.data)) as Reply;
       if (message.method === "Runtime.exceptionThrown") errors.push(message.params);
+      if (message.method === "Runtime.consoleAPICalled") {
+        const entry = message.params as { type: string; args: { value?: unknown }[] };
+        if (entry.type === "error" && entry.args.some(arg => typeof arg.value === "string" && arg.value.includes("THREE.WebGLProgram"))) errors.push(entry);
+      }
       if (message.method === "Network.requestWillBeSent") requests.push((message.params as { request: { url: string } }).request.url);
       if (message.method === "Network.webSocketCreated") requests.push((message.params as { url: string }).url);
       if (message.id !== undefined) {

@@ -30,3 +30,14 @@ export function enemyResponseLabel(ability: ThreatAbilityView): string {
     case "self": return "Area pulse";
   }
 }
+
+export function enemyTimingLabel(ability: ThreatAbilityView, triggerSeconds: number): string {
+  const trigger = triggerSeconds.toFixed(2) + "s";
+  const impact = (triggerSeconds + ability.noticeSeconds).toFixed(2) + "s";
+  if (ability.damage <= 0) return "at " + trigger;
+  if (ability.id === "fire-rush") return "locked · rush " + trigger;
+  if (ability.id === "warden-smash") return "locked · hit " + impact;
+  if (ability.profile.aim === "ground") return "lock " + trigger + " · hit " + impact;
+  if (ability.profile.aim === "direction") return "fires " + trigger;
+  return "hit " + impact;
+}

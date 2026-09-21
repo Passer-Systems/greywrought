@@ -35,7 +35,7 @@ export const COMBAT_RULES = {
   drinkPotion: { cost: 1, recovery: 1 },
   enemy: { preparation: 3, action: 0.65, recovery: 2 },
   head: { beamDamage: 8, fireballDamage: 18, fireballTravel: 0.9, fireballSpacing: 0.2, warning: 3, ward: 6, wardDuration: 2, kindleDuration: 5 },
-  fireRush: { damage: 16, distance: 8, duration: .65, radius: .85, burnDamage: 4, burnInterval: .75, burnDuration: 6 },
+  fireRush: { damage: 16, overshoot: 3, duration: .65, radius: .85, burnDamage: 4, burnInterval: .75, burnDuration: 6 },
   wolf: { circleRange: 5.5, circleRadius: 4.5, circleSpeed: 1.5, lungeDistance: 8, lungeHeight: 0.9, impactRadius: 2 },
 } as const;
 export const PLAYER_COMBAT_ACTIONS = ["strike", "brace", "bait", "special"] as const;
@@ -1097,17 +1097,18 @@ class Adventure implements AdventureGame {
   private derivePlanTiming(): void {
     const queued = this.state.combat.queued, movement = queued.find(e => e.action === "bait"), hasMovement = !!movement;
     const duration = movement?.destination ? combatRouteDistance(this.state.position, [...movement.via, movement.destination]) / this.combatMovementSpeed() : 0;
-    for (const entry of queued) entry.offsetSeconds = entry.action === "bait" ? COMBAT_TURN.moveStart : actionTimingOffset(entry.timing!, hasMovement, duration);
+    for (const entry of queued) entry.offsetSeconds = entry.action === "bait" ? COMBAT_TURN.moveStart + (movement?.waitTicks ?? 0) * COMBAT_TURN.waitTick : actionTimingOffset(entry.timing!, hasMovement, duration, movement?.waitTicks);
   }
-  queueBait(destination: Position, via: readonly Position[] = []): boolean {
+  queueBait(destination: Position, via: readonly Position[] = [], waitTicks = 0): boolean {
     const c = this.state.combat, existing = c.queued.find(e => e.action === "bait");
     if (!this.editableQueue() || !this.inCombat() || c.clock.phase !== "preparation" || this.queueReason("bait", existing?.id)) return false;
+    if (!Number.isInteger(waitTicks) || waitTicks < 0 || waitTicks > COMBAT_TURN.maxWaitTicks) return false;
     if (!destination || !Number.isFinite(destination.x) || !Number.isFinite(destination.z)) { this.report("Choose a highlighted tile.", "combat"); return false; }
     const route = validateCombatRoute(this.state.position, [...via, destination], this.movementTiles(), this.occupiedCells(this.state.position));
     if (!route) { this.report("That route is blocked or out of reach. Choose a highlighted tile.", "combat"); return false; }
     const target = route.at(-1)!, stops = route.slice(0, -1);
-    if (existing) { existing.destination = target; existing.via = stops; }
-    else c.queued.push({ id: c.nextId++, action: "bait", destination: target, via: stops, targetId: null, timing: null, offsetSeconds: COMBAT_TURN.moveStart, cost: this.actionCost("bait"), status: "pending", reason: null });
+    if (existing) { existing.destination = target; existing.via = stops; existing.waitTicks = waitTicks; }
+    else c.queued.push({ id: c.nextId++, action: "bait", destination: target, via: stops, waitTicks, targetId: null, timing: null, offsetSeconds: COMBAT_TURN.moveStart, cost: this.actionCost("bait"), status: "pending", reason: null });
     this.derivePlanTiming(); c.ready = false; return true;
   }
   private queueAction(action: CombatAction): void {
@@ -1486,16 +1487,16 @@ class Adventure implements AdventureGame {
     if (!this.recording || this.recording.outcomes.length) return;
     this.recording.outcomes = [...this.state.world.threats.map(t => ({ id: t.id, health: t.health, staggered: t.staggered, inCombat: t.aggro && t.health > 0 })), ...this.participants().map(p => ({ id: p.playerId ?? "solo", health: p.state.health, staggered: false, inCombat: p.inCombat() }))];
   }
-  async previewBait(destination: Position, via: readonly Position[] = []): Promise<CombatForecast | null> {
-    return this.forecast(destination, via);
+  async previewBait(destination: Position, via: readonly Position[] = [], waitTicks = 0): Promise<CombatForecast | null> {
+    return this.forecast(destination, via, waitTicks);
   }
-  private forecast(destination?: Position, via: readonly Position[] = []): CombatForecast | null {
+  private forecast(destination?: Position, via: readonly Position[] = [], waitTicks = 0): CombatForecast | null {
     if (this.recording || this.state.combat.clock.phase !== "preparation" || !this.inCombat()) return null;
     const players = this.participants();
     if (!players.includes(this)) players.push(this);
     // Every participant predicts the same execution; only the viewing player id differs.
     // Keep the full state key so plans, movement and clocks invalidate immediately.
-    const key = JSON.stringify([destination, via, players.map(p => ({ id: p.playerId, state: p.state, camera: p.cameraForward }))]);
+    const key = JSON.stringify([destination, via, waitTicks, players.map(p => ({ id: p.playerId, state: p.state, camera: p.cameraForward }))]);
     const cached = destination ? this.movementForecastCache : this.shared ? this.shared.forecastCache : this.forecastCache;
     if (cached?.key === key) return { ...cached.value, playerId: this.playerId ?? "solo" };
     const world = structuredClone(this.state.world), clock = structuredClone(this.state.combat.clock), recording = { actions: [] as CombatForecast["actions"][number][], paths: [] as CombatForecast["paths"][number][], events: [] as CombatForecast["events"][number][], outcomes: [] as CombatForecast["outcomes"][number][] };
@@ -1510,7 +1511,7 @@ class Adventure implements AdventureGame {
       if (context) { context.online.set(copy.playerId!, copy); context.characters.set(copy.playerId!, copy); }
       return copy;
     });
-    if (destination && !copies[players.indexOf(this)]!.queueBait(destination, via)) return null;
+    if (destination && !copies[players.indexOf(this)]!.queueBait(destination, via, waitTicks)) return null;
     recording.actions = copies.flatMap(player => player.state.combat.queued.map(entry => ({ actorId: player.playerId ?? "solo", queueId: entry.id, action: entry.action, targetId: entry.targetId, result: "not-executed" as const })));
     const driver = copies[0]!;
     clock.gatheringRemainingSeconds = 0;
@@ -2052,7 +2053,7 @@ class Adventure implements AdventureGame {
       if (t.head.ability === "fire-rush") t.specialOffset = 1.1;
       t.damage = this.ability(t).damage;
     }
-    t.turnTarget = { ...this.state.position };
+    t.turnTarget = { ...(this.targetPlayer(t)?.state.position ?? this.state.position) };
     t.castDuration = t.specialOffset;
     t.remainingSeconds = t.specialOffset;
     t.targetPosition = t.wolf ? this.wolfEndpoint(t) : { ...t.position };
@@ -2061,7 +2062,7 @@ class Adventure implements AdventureGame {
       const home = definition(t.id), dx = t.position.x - home.position.x, dz = t.position.z - home.position.z;
       const projection = dx * direction.x + dz * direction.z;
       const limit = Math.max(0, -projection + Math.sqrt(Math.max(0, projection * projection + home.leash ** 2 - dx * dx - dz * dz)) - .01);
-      const travel = Math.min(COMBAT_RULES.fireRush.distance, limit);
+      const travel = Math.min(distance(t.position, t.turnTarget) + COMBAT_RULES.fireRush.overshoot, limit);
       t.targetPosition = this.reachableEndpoint(t.position, point(t.position.x + direction.x * travel, t.position.z + direction.z * travel));
     }
     if (t.id === "warder" && t.abilityIndex === 2) t.targetPosition = { ...t.turnTarget };
@@ -2659,12 +2660,12 @@ function readSave(serialized: string, now = Date.now()): State {
     if (legacyPlan && queued.some(existing => (existing.action === "bait") === (e.action === "bait"))) continue;
     const action = e.action;
     const timing = action === "bait" ? null : e.timing === undefined ? "after" : choice(e.timing, ["before", "during", "after"] as const);
-    queued.push({ id: number(e.id,1,Number.MAX_SAFE_INTEGER,true), action, targetId: e.targetId === null ? null : text(e.targetId), destination: e.destination === undefined || e.destination === null ? null : groundPosition(e.destination), via: action === "bait" ? readRouteStops(e.via) : [], timing, offsetSeconds: number(e.offsetSeconds,0,2), cost: action === "bait" && sprinting ? SPRINT_COST : classAction(player.archetype, action).cost ?? 0, status: choice(e.status,["pending","executed","failed"] as const), reason: e.reason === null ? null : text(e.reason) });
+    queued.push({ id: number(e.id,1,Number.MAX_SAFE_INTEGER,true), action, targetId: e.targetId === null ? null : text(e.targetId), destination: e.destination === undefined || e.destination === null ? null : groundPosition(e.destination), via: action === "bait" ? readRouteStops(e.via) : [], ...(action === "bait" ? { waitTicks: e.waitTicks === undefined ? 0 : number(e.waitTicks,0,COMBAT_TURN.maxWaitTicks,true) } : {}), timing, offsetSeconds: number(e.offsetSeconds,0,COMBAT_TURN.duration), cost: action === "bait" && sprinting ? SPRINT_COST : classAction(player.archetype, action).cost ?? 0, status: choice(e.status,["pending","executed","failed"] as const), reason: e.reason === null ? null : text(e.reason) });
   }
   if (queued.some(e => e.action === "bait" && e.destination === null || e.action !== "bait" && e.destination !== null) || queued.filter(e => e.action === "bait").length > 1 || queued.filter(e => e.action !== "bait").length > 1 || new Set(queued.map(e => e.id)).size !== queued.length) throw new Error("Invalid adventure save: invalid combat plan.");
   const movement = queued.find(e => e.action === "bait");
   const duration = player.maneuver?.duration ?? (movement?.destination ? combatRouteDistance(player.position, [...movement.via, movement.destination]) / (classKit(player.archetype).combatMovementSpeed * (sprinting ? 2 : 1)) : 0);
-  if (clock.phase !== "active") for (const entry of queued) entry.offsetSeconds = entry.action === "bait" ? COMBAT_TURN.moveStart : actionTimingOffset(entry.timing!, !!movement, duration);
+  if (clock.phase !== "active") for (const entry of queued) entry.offsetSeconds = entry.action === "bait" ? COMBAT_TURN.moveStart + (movement?.waitTicks ?? 0) * COMBAT_TURN.waitTick : actionTimingOffset(entry.timing!, !!movement, duration, movement?.waitTicks);
   return { ...player, combat: { clock, queued, sprinting, ready: legacyPlan || rawCombat?.ready === undefined ? false : boolean(rawCombat.ready), nextId: rawCombat ? number(rawCombat.nextId, 1, Number.MAX_SAFE_INTEGER, true) : 1 }, world: { threats: restoredThreats, resourceRemaining, resourceRespawns, ritualCalled, chestClaimed } };
 }
 
@@ -2757,7 +2758,7 @@ function wardenAbility(index: number, damage: number): ThreatAbilityView {
   return { profile: { aim: "ground", movement: "hold", friendlyFire: true }, id: "warden-sweep", name: "Relic Sweep", description: "Holds its ground and sweeps within 5 metres, 0.7 seconds after winding up. Retreat clear or Defend. Nearby enemies can be caught in the sweep.", damage, range: 5, noticeSeconds: .7 };
 }
 function headAbility(id: HeadAbilityId, volley: number, homing = false): ThreatAbilityView {
-  if (id === "fire-rush") return { profile: { aim: "direction", movement: "lunge", friendlyFire: false }, id, name: "Fire Rush", description: "Commits to a path up to 8 metres before you plan. Rushes after 1.1 seconds for 16 damage. Step sideways to bait it past you. The trail burns for 6 seconds of combat, dealing 4 damage on contact and every 0.75 seconds; planning pauses the flames. Defend absorbs damage.", damage: COMBAT_RULES.fireRush.damage, range: COMBAT_RULES.fireRush.distance, noticeSeconds: COMBAT_RULES.fireRush.duration };
+  if (id === "fire-rush") return { profile: { aim: "direction", movement: "lunge", friendlyFire: false }, id, name: "Fire Rush", description: "Aims through its target to 3 metres beyond them before you plan, stopping at cover or the edge of its territory. Rushes after 1.1 seconds for 16 damage. Step sideways to bait it past you. The trail burns for 6 seconds of combat, dealing 4 damage on contact and every 0.75 seconds; planning pauses the flames. Defend absorbs damage.", damage: COMBAT_RULES.fireRush.damage, range: definition("scout").leash * 2, noticeSeconds: COMBAT_RULES.fireRush.duration };
   if (id === "ember-beam") return { profile: { aim: "tracking", movement: "hold", friendlyFire: false }, id, name: "Ember Beam", description: "Deals 8 damage during the turn within 10 metres. Defend before impact, or plan a move behind cover or out of reach before it fires.", damage: COMBAT_RULES.head.beamDamage, range: 10, noticeSeconds: 0 };
   if (id === "ember-ward") return { profile: { aim: "self", movement: "hold", friendlyFire: false }, id, name: "Ember Ward", description: "Raises 6 Block for 2 seconds during the turn. Attack before the shield rises or recover while it holds.", damage: 0, range: 10, noticeSeconds: 0 };
   if (id === "kindle") return { profile: { aim: "self", movement: "hold", friendlyFire: false }, id, name: "Kindle", description: "Adds one fireball to every later volley during the turn. Use the opening to attack.", damage: 0, range: 0, noticeSeconds: 0 };

@@ -1,192 +1,119 @@
-import { CanvasTexture, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace } from 'three';
+import { MeshStandardMaterial, NoColorSpace, RepeatWrapping, SRGBColorSpace, TextureLoader } from 'three';
 
-/** A compact, authored procedural floor: broad broken soil/grass regions with fine
- * leaf litter, grass blades and pebbles. It is generated once and repeated in
- * world-sized cells, so it adds texture detail without shipping a bitmap. */
+/** Shared world-space layers: leaf-strewn earth, stony moss and exposed rock.
+ * Texture fields remain on the material so the world's shared-resource disposer
+ * owns their lifetime, including the extra layers used by the shader. */
 export function createRuinedGroundMaterial() {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 384;
-  const ctx = canvas.getContext('2d')!;
-  const hash = (x: number, y: number) => {
-    const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-    return n - Math.floor(n);
+  const loader = new TextureLoader();
+  const texture = (name: string, color: boolean) => {
+    const map = loader.load(`/assets/ground/${name}.webp`);
+    map.colorSpace = color ? SRGBColorSpace : NoColorSpace;
+    map.wrapS = map.wrapT = RepeatWrapping;
+    map.anisotropy = 8;
+    return map;
   };
-  const smooth = (x: number, y: number, cells: number) => {
-    const px = x / 384 * cells, py = y / 384 * cells;
-    const ix = Math.floor(px), iy = Math.floor(py), fx = px - ix, fy = py - iy;
-    const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
-    const at = (a: number, b: number) => hash((a % cells + cells) % cells, (b % cells + cells) % cells);
-    return (at(ix, iy) * (1 - u) + at(ix + 1, iy) * u) * (1 - v) +
-      (at(ix, iy + 1) * (1 - u) + at(ix + 1, iy + 1) * u) * v;
-  };
-  const image = ctx.createImageData(384, 384);
-  for (let y = 0; y < 384; y++) for (let x = 0; x < 384; x++) {
-    const broad = smooth(x, y, 5) * .58 + smooth(x, y, 11) * .3 + smooth(x, y, 25) * .12;
-    const grain = (hash(x, y) - .5) * 18;
-    const soil = Math.max(0, Math.min(1, (broad - .43) * 4));
-    // Dark, desaturated Greywrought palette: grass, dead grass and exposed earth.
-    const r = 52 + soil * 35 + grain;
-    const g = 63 + soil * 25 + grain * .72;
-    const b = 48 + soil * 18 + grain * .45;
-    const i = (y * 384 + x) * 4;
-    image.data[i] = r; image.data[i + 1] = g; image.data[i + 2] = b; image.data[i + 3] = 255;
-  }
-  ctx.putImageData(image, 0, 0);
-  const wrap = (draw: () => void) => {
-    for (const x of [-384, 0, 384]) for (const y of [-384, 0, 384]) {
-      ctx.save(); ctx.translate(x, y); draw(); ctx.restore();
-    }
-  };
-  // Macro broken patches: irregular dry soil islands, rather than soft circles.
-  for (let i = 0; i < 90; i++) {
-    const x = hash(i, 3) * 384, y = hash(i, 9) * 384;
-    const rx = 4 + hash(i, 11) * 20, ry = 2 + hash(i, 13) * 10;
-    wrap(() => { ctx.save(); ctx.translate(x, y); ctx.rotate(hash(i, 17) * Math.PI);
-    ctx.fillStyle = i % 4 === 0 ? 'rgba(125,105,78,.38)' : 'rgba(20,31,24,.3)';
-    ctx.beginPath();
-    for (let p = 0; p < 9; p++) {
-      const a = p / 9 * Math.PI * 2, radius = .78 + hash(i * 19 + p, i * 23 + p) * .38;
-      const px = Math.cos(a) * rx * radius, py = Math.sin(a) * ry * radius;
-      if (p === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.closePath(); ctx.fill(); ctx.restore(); });
-  }
-  // Flat, irregular stones sit in loose clusters. A dark offset edge gives
-  // them readable contact shading without adding geometry or payload bytes.
-  for (let i = 0; i < 32; i++) {
-    const x = hash(i, 301) * 384, y = hash(i, 307) * 384;
-    const rx = 2 + hash(i, 311) * 6, ry = 1 + hash(i, 313) * 2.8;
-    const rotation = hash(i, 317) * Math.PI;
-    wrap(() => {
-      for (const [offset, fill] of [[1.1, 'rgba(12,18,17,.4)'], [0, 'rgba(126,133,125,.58)']] as const) {
-        ctx.save(); ctx.translate(x + offset, y + offset * .55); ctx.rotate(rotation);
-        ctx.fillStyle = fill; ctx.beginPath();
-        for (let p = 0; p < 7; p++) {
-          const a = p / 7 * Math.PI * 2, radius = .8 + hash(i * 41 + p, i * 43 + p) * .3;
-          const px = Math.cos(a) * rx * radius, py = Math.sin(a) * ry * radius;
-          if (p === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        }
-        ctx.closePath(); ctx.fill();
-        if (offset === 0) { ctx.strokeStyle = 'rgba(181,184,167,.35)'; ctx.lineWidth = .7; ctx.stroke(); }
-        ctx.restore();
-      }
-    });
-  }
-  // Dense, low blades form the directional organic grain of the floor. Most
-  // stay short and bent into the surface; a few lighter blades stand taller so
-  // the separately placed tufts still read as accents rather than a grid.
-  for (let i = 0; i < 7200; i++) {
-    const x = hash(i, 101) * 384, y = hash(i, 107) * 384;
-    const h = .45 + hash(i, 113) * (i % 13 === 0 ? 4.8 : 2.8);
-    const lean = (hash(i, 127) - .5) * (2.2 + h * .55);
-    ctx.strokeStyle = i % 11 === 0 ? 'rgba(157,137,88,.48)' :
-      i % 5 === 0 ? 'rgba(113,128,79,.5)' : 'rgba(82,106,67,.48)';
-    ctx.lineWidth = .32 + hash(i, 131) * .62;
-    wrap(() => {
-      ctx.beginPath(); ctx.moveTo(x, y + 1); ctx.quadraticCurveTo(x + lean * .35, y - h * .25, x + lean, y - h); ctx.stroke();
-      if (i % 4 === 0) {
-        ctx.beginPath(); ctx.moveTo(x + .5, y + .6); ctx.quadraticCurveTo(x - lean * .2, y - h * .18, x - lean * .42, y - h * .62); ctx.stroke();
-      }
-    });
-  }
-  for (let i = 0; i < 240; i++) {
-    const drift = Math.floor(i / 12);
-    const x = (hash(drift, 211) * 384 + (hash(i, 219) - .5) * 48 + 384) % 384;
-    const y = (hash(drift, 223) * 384 + (hash(i, 221) - .5) * 27 + 384) % 384;
-    const s = 1.4 + hash(i, 227) * 3.1;
-    wrap(() => {
-      ctx.save(); ctx.translate(x, y); ctx.rotate(hash(i, 233) * Math.PI * 2);
-      ctx.fillStyle = i % 3 ? 'rgba(138,112,68,.72)' : 'rgba(71,48,31,.8)';
-      ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(-s * .15, -s * .48);
-      ctx.lineTo(s, 0); ctx.lineTo(s * .12, s * .4); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(39,34,23,.5)'; ctx.lineWidth = .55;
-      ctx.beginPath(); ctx.moveTo(-s * 1.25, 0); ctx.lineTo(s * .65, 0); ctx.stroke();
-      ctx.restore();
-    });
-  }
-  const map = new CanvasTexture(canvas);
-  map.colorSpace = SRGBColorSpace;
-  map.wrapS = map.wrapT = RepeatWrapping;
-  map.repeat.set(13, 17);
-  const material = new MeshStandardMaterial({ map, roughness: .98, metalness: 0, vertexColors: true });
-  // Blend three independently offset samples across a triangular lattice so
-  // the authored litter and soil marks cannot repeat as recognizable tiles.
+  const material = Object.assign(new MeshStandardMaterial({
+    map: texture('forest-floor-color', true),
+    normalMap: texture('forest-floor-normal', false),
+    roughness: .94, metalness: 0, vertexColors: true,
+  }), {
+    groundMossMap: texture('moss-color', true),
+    groundMossNormal: texture('moss-normal', false),
+    groundStoneMap: texture('stone-color', true),
+    groundStoneNormal: texture('stone-normal', false),
+  });
   material.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, {
+      groundMossMap: { value: material.groundMossMap },
+      groundMossNormal: { value: material.groundMossNormal },
+      groundStoneMap: { value: material.groundStoneMap },
+      groundStoneNormal: { value: material.groundStoneNormal },
+    });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 groundWorldPos;\nvarying vec3 groundWorldNormal;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\ngroundWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\ngroundWorldNormal = normalize(mat3(modelMatrix) * normal);');
+      .replace('#include <common>', `#include <common>
+varying vec3 groundWorldPos;
+varying vec3 groundWorldNormal;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+groundWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+groundWorldNormal = normalize(mat3(modelMatrix) * normal);`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 varying vec3 groundWorldPos;
 varying vec3 groundWorldNormal;
-float groundHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+uniform sampler2D groundMossMap;
+uniform sampler2D groundMossNormal;
+uniform sampler2D groundStoneMap;
+uniform sampler2D groundStoneNormal;
+float groundHash(vec2 p) {
+  vec3 q = fract(vec3(p.xyx) * .1031);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.x + q.y) * q.z);
+}
 float groundNoise(vec2 p) {
   vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(groundHash(i), groundHash(i + vec2(1.0, 0.0)), u.x),
-             mix(groundHash(i + vec2(0.0, 1.0)), groundHash(i + vec2(1.0)), u.x), u.y);
-}
-float stoneHash(vec3 p) {
-  p = fract(p * .1031);
-  p += dot(p, p.yzx + 33.33);
-  return fract((p.x + p.y) * p.z);
-}
-float stoneNoise(vec3 p) {
-  vec3 i = floor(p), f = fract(p), u = f * f * (3. - 2. * f);
-  return mix(
-    mix(mix(stoneHash(i), stoneHash(i + vec3(1., 0., 0.)), u.x),
-        mix(stoneHash(i + vec3(0., 1., 0.)), stoneHash(i + vec3(1., 1., 0.)), u.x), u.y),
-    mix(mix(stoneHash(i + vec3(0., 0., 1.)), stoneHash(i + vec3(1., 0., 1.)), u.x),
-        mix(stoneHash(i + vec3(0., 1., 1.)), stoneHash(i + vec3(1.)), u.x), u.y), u.z);
-}
-float groundMacro(vec2 p) {
-  vec2 warp = vec2(groundNoise(p * .11 + 4.7), groundNoise(p * .09 - 8.2));
-  float broad = groundNoise(p * .024 + warp * 1.8);
-  float mid = groundNoise(p * .067 - warp * 2.3);
-  return broad * .48 + mid * .32 + groundNoise(p * .21 + warp) * .2;
+  return mix(mix(groundHash(i), groundHash(i + vec2(1., 0.)), u.x),
+    mix(groundHash(i + vec2(0., 1.)), groundHash(i + vec2(1.)), u.x), u.y);
 }`)
       .replace('#include <map_fragment>', `
-#ifdef USE_MAP
-vec2 tile = groundWorldPos.xz * .083;
-vec2 cell = floor(tile), f = fract(tile);
-vec2 a = cell, b = cell + vec2(1., 0.), c = cell + vec2(0., 1.);
-vec3 weights = vec3(1. - f.x - f.y, f.x, f.y);
-if (f.x + f.y > 1.) {
-  a = cell + vec2(1.); b = cell + vec2(0., 1.); c = cell + vec2(1., 0.);
-  weights = vec3(f.x + f.y - 1., 1. - f.x, 1. - f.y);
+// Independent scales/orientations keep the two authored surfaces from forming
+// a repeated composite tile. Only the narrow irregular edges mix their detail.
+vec2 groundP = groundWorldPos.xz;
+vec2 litterUv = groundP * .32;
+vec2 mossUv = mat2(.8, -.6, .6, .8) * groundP * .19 + vec2(.37, .61);
+vec3 litter = texture2D(map, litterUv).rgb;
+vec3 moss = texture2D(groundMossMap, mossUv).rgb;
+float largePatch = groundNoise(groundP * .047);
+float surfacePatch = largePatch * .5 + groundNoise(groundP * .17 + largePatch * 3.) * .34
+  + groundNoise(groundP * .63) * .16;
+float mossCover = smoothstep(.40, .57, surfacePatch + (moss.g - litter.r) * .16);
+float slope = 1. - max(0., normalize(groundWorldNormal).y);
+float rockCover = smoothstep(.16, .46, slope + (surfacePatch - .5) * .13);
+vec3 groundColor = mix(litter * vec3(.78, .73, .64), moss * vec3(.74, .86, .65), mossCover);
+vec3 stoneWeights = pow(abs(normalize(groundWorldNormal)), vec3(4.));
+stoneWeights /= dot(stoneWeights, vec3(1.));
+vec3 stoneP = groundWorldPos * .27;
+if (rockCover > .001) {
+  vec3 stone = texture2D(groundStoneMap, stoneP.zy).rgb * stoneWeights.x
+    + texture2D(groundStoneMap, stoneP.xz).rgb * stoneWeights.y
+    + texture2D(groundStoneMap, stoneP.xy).rgb * stoneWeights.z;
+  groundColor = mix(groundColor, stone * vec3(.78, .81, .77), rockCover);
 }
-weights = weights * weights * (3. - 2. * weights);
-weights /= dot(weights, vec3(1.));
-vec2 detail = groundWorldPos.xz * .105;
-vec2 offsetA = vec2(groundHash(a), groundHash(a + 93.));
-vec2 offsetB = vec2(groundHash(b), groundHash(b + 93.));
-vec2 offsetC = vec2(groundHash(c), groundHash(c + 93.));
-diffuseColor *= texture2D(map, detail + offsetA) * weights.x
-  + texture2D(map, detail + offsetB) * weights.y
-  + texture2D(map, detail + offsetC) * weights.z;
+diffuseColor.rgb *= groundColor * mix(.86, 1.08, largePatch);`)
+      .replace('#include <color_fragment>', `
+#ifdef USE_COLOR
+// Vertex colours describe regional terrain tint, not a second dark albedo.
+diffuseColor.rgb *= mix(vec3(1.), vColor.rgb, .32);
+#ifdef USE_COLOR_ALPHA
+diffuseColor.a *= vColor.a;
+#endif
 #endif`)
-      .replace('#include <color_fragment>', `#include <color_fragment>
-float groundRegion = groundMacro(groundWorldPos.xz);
-vec3 ruinedMoss = vec3(.91, 1.04, .87);
-vec3 ruinedSoil = vec3(1.07, .98, .86);
-vec3 regionTint = mix(ruinedSoil, ruinedMoss, smoothstep(.25, .75, groundRegion));
-diffuseColor.rgb *= regionTint * (.88 + groundRegion * .28);
-float steep = 1. - normalize(groundWorldNormal).y;
-float rockMask = smoothstep(.22, .53, steep + (groundNoise(groundWorldPos.xz * .38) - .5) * .12);
-vec3 stone = mix(vec3(.145, .119, .095), vec3(.125, .151, .15), smoothstep(.3, .7, groundRegion));
-// Equal scale on all three axes keeps cliff detail from stretching into
-// elevation bands; displaced coordinates break up aligned noise cells.
-vec3 rockPoint = groundWorldPos * .31;
-vec3 rockWarp = vec3(stoneNoise(rockPoint * .43),
-  stoneNoise(rockPoint * .43 + 17.3), stoneNoise(rockPoint * .43 - 9.1));
-vec3 brokenPoint = rockPoint + (rockWarp - .5) * 2.4;
-float blocks = stoneNoise(brokenPoint);
-float chips = stoneNoise(brokenPoint * 3.17 + 11.8);
-float grain = stoneNoise(groundWorldPos * 5.3);
-stone = mix(stone * vec3(.83, .9, .98), stone * vec3(1.16, 1.04, .87), smoothstep(.29, .72, blocks));
-stone *= .73 + blocks * .42 + chips * .22 + grain * .1;
-float fractures = (1. - smoothstep(.19, .34, chips)) * smoothstep(.44, .66, blocks);
-stone *= 1. - fractures * .21;
-diffuseColor.rgb = mix(diffuseColor.rgb, stone, rockMask);`);
+      .replace('#include <normal_fragment_maps>', `
+// Derivative frames keep relief aligned with each world-space projection on
+// curved terrain; geometry and gameplay heights remain untouched.
+vec3 groundBaseNormal = normal;
+mat3 litterFrame = getTangentFrame(-vViewPosition, groundBaseNormal, litterUv);
+mat3 mossFrame = getTangentFrame(-vViewPosition, groundBaseNormal, mossUv);
+vec3 litterN = texture2D(normalMap, litterUv).xyz * 2. - 1.;
+vec3 mossN = texture2D(groundMossNormal, mossUv).xyz * 2. - 1.;
+litterN.xy *= .7;
+mossN.xy *= .85;
+vec3 floorN = normalize(mix(normalize(litterFrame * litterN), normalize(mossFrame * mossN), mossCover));
+// Calculate derivative frames outside the slope branch, where all fragments
+// in the quad participate, to keep shoreline transitions well-defined.
+mat3 stoneFrameX = getTangentFrame(-vViewPosition, groundBaseNormal, stoneP.zy);
+mat3 stoneFrameY = getTangentFrame(-vViewPosition, groundBaseNormal, stoneP.xz);
+mat3 stoneFrameZ = getTangentFrame(-vViewPosition, groundBaseNormal, stoneP.xy);
+if (rockCover > .001) {
+  vec3 nx = texture2D(groundStoneNormal, stoneP.zy).xyz * 2. - 1.;
+  vec3 ny = texture2D(groundStoneNormal, stoneP.xz).xyz * 2. - 1.;
+  vec3 nz = texture2D(groundStoneNormal, stoneP.xy).xyz * 2. - 1.;
+  nx.xy *= .85; ny.xy *= .85; nz.xy *= .85;
+  vec3 stoneN = normalize((stoneFrameX * nx) * stoneWeights.x
+    + (stoneFrameY * ny) * stoneWeights.y + (stoneFrameZ * nz) * stoneWeights.z);
+  floorN = normalize(mix(floorN, stoneN, rockCover));
+}
+normal = floorN;`);
   };
+  material.customProgramCacheKey = () => 'ruined-ground-layered-v1';
   return material;
 }

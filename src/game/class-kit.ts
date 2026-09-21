@@ -25,7 +25,7 @@ const specials: Readonly<Record<CharacterArchetype, ClassActionSpec>> = {
 };
 function kit(archetype: CharacterArchetype, movementTiles: number, movementSpeed: number, strike: Omit<ClassActionSpec, "name" | "movementProfile">, brace: Omit<ClassActionSpec, "name" | "movementProfile">): ClassKit {
   return { archetype, movementTiles, movementSpeed, combatMovementSpeed: movementTiles * COMBAT_CELL_SIZE, abilities: {
-    bait: { movementProfile: "mobile", name: "Move", icon: "assets/ui/icons/spells/mobility-boots.png", description: `Choose multiple stops to move up to ${movementTiles} tiles in total. Backtracking counts toward your distance. Free. Sprint doubles your distance and speed for 30 energy.`, cost: 0, range: movementTiles * COMBAT_CELL_SIZE, duration: 1 },
+    bait: { movementProfile: "mobile", name: "Move", icon: "assets/ui/icons/spells/mobility-boots.png", description: `Choose multiple stops to move up to ${movementTiles} tiles in total. Backtracking counts toward your distance. Wait in quarter-second beats before moving. Free. Sprint doubles your distance and speed for 30 energy.`, cost: 0, range: movementTiles * COMBAT_CELL_SIZE, duration: 1 },
     strike: { ...strike, movementProfile: "stationary", name: "Attack" },
     brace: { ...brace, movementProfile: "mobile", name: "Defend" },
     special: specials[archetype],

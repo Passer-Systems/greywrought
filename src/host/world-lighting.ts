@@ -4,6 +4,7 @@ import { inCave } from '../game/cave-layout.js';
 import type { Position } from '../game/adventure-types.js';
 import { worldDay, worldRain } from '../game/world-time.js';
 import { createLampGlow } from './lamp-glow.js';
+import { updateTorchFlames } from './torch-flame.js';
 
 /** One celestial shadow map follows the player; local lamps never allocate shadow maps. */
 export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
@@ -91,7 +92,7 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       });
       lampGlow.sync(lamps);
     },
-    update(wallTimeMillis: number, position: Position, camera: PerspectiveCamera, rainIntensity = worldRain(wallTimeMillis * .001)) {
+    update(wallTimeMillis: number, position: Position, camera: PerspectiveCamera, rainIntensity = worldRain(wallTimeMillis * .001), animationTimeSeconds: number) {
       const day = worldDay(wallTimeMillis);
       const water = lakeWaterAt(camera.position.x, camera.position.z);
       const underwater = water !== null && camera.position.y < water - .035;
@@ -129,8 +130,8 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       if (scene.background instanceof Color) scene.background.copy(fog.color);
       sky.position.copy(camera.position);
       sky.visible = cave < 1 && !underwater;
-      for (const lamp of lamps) lamp.intensity = lamp.userData.nightIntensity * (1 - day.daylight * .65);
-      lampGlow.update(wallTimeMillis * 0.001, day.daylight);
+      updateTorchFlames(animationTimeSeconds);
+      lampGlow.update(animationTimeSeconds, day.daylight);
       const data = renderer.domElement.dataset;
       data.worldPhase = day.phase; data.worldHour = day.hour.toFixed(3);
       data.shadowOwner = sunUp ? 'sun' : 'moon';

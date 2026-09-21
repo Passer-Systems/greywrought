@@ -1,4 +1,74 @@
-# Performance examination — 20 September 2026
+# Performance examination — 21 September 2026
+
+## Terrain, foliage, camera and timed-combat update (0.21.50)
+
+The assembled world was measured at 1440 × 900, DPR 1, on an AMD Radeon
+890M through Chromium ANGLE/Vulkan. The browser journey covered town, woods,
+the lake, cave, hills, rain, combat planning/execution, movement, and seven
+world-entry/teardown cycles. The separate server journey used one and five
+real WebSocket clients. These are short local measurements, not a 60 FPS or
+long-session guarantee.
+
+Regional vegetation increased from 12,449 to 35,296 plants, including low
+clearing cover and 900 shoreline plants. Grouping compatible instances reduced
+regional batches from 1,620 to 699. The assembled scene fell from approximately
+6,134 nodes / 3,595 meshes to 4,930 nodes / 2,558 meshes. Six ground textures
+add 781,224 bytes; the complete client remains within its 46 MiB download gate.
+
+The camera-orbit CPU profile exposed deferred shader link diagnostics and
+uniform discovery on first use: 338 samples in `getProgramInfoLog`, despite
+an unchanged shader-program count. Completing that work in yielding slices
+during loading removed those samples in the focused repeat. Orbit CPU
+median/p95 improved from 27.3/63.4 ms to 25.1/53.5 ms. Shader error checking
+remains enabled. This removes one measured hitch source; wide views still
+have substantial scene submission and geometry costs.
+
+| Scenario | CPU median / p95 | GPU median / p95 |
+|---|---:|---:|
+| Town | 19.1 / 22.5 ms | 10.19 / 11.02 ms |
+| Running in town | 18.2 / 23.6 ms | 11.32 / 12.09 ms |
+| Woods (after shader warmup) | 12.8 / 15.7 ms | 7.13 / 7.61 ms |
+| Camera orbit (after shader warmup) | 25.1 / 53.5 ms | 13.26 / 25.10 ms |
+| Lake (after shader warmup) | 20.8 / 26.0 ms | 17.58 / 19.61 ms |
+| Running beside lake (after shader warmup) | 22.3 / 27.6 ms | 16.08 / 20.44 ms |
+| Cave | 17.4 / 19.6 ms | 7.32 / 7.60 ms |
+| Hills | 10.8 / 13.8 ms | 9.85 / 10.71 ms |
+| Running on hills | 11.9 / 15.3 ms | 9.94 / 10.46 ms |
+| Combat planning | 19.1 / 21.5 ms | 14.08 / 14.49 ms |
+| Combat execution | 19.1 / 23.5 ms | 14.11 / 14.57 ms |
+| Rain | 18.4 / 21.5 ms | 10.35 / 11.07 ms |
+
+Rendered land movement remained 5.2 m/s in town and hills. The focused final
+repeat loaded its first world in 6.36 seconds and the next in 4.23 seconds.
+All seven entries and teardowns passed in the complete journey. Whole-frame
+measurements include reflections and postprocessing. The browser harness now
+captures Three.js shader console failures, and the visual comparison checks
+program link status; an earlier broken-ground sample was excluded. Lake and
+woods fixtures were moved to match the expanded world, and rain was added.
+
+Five-player server tick p95 stayed approximately 51–52 ms on the 50 ms
+schedule; command p95 reached 37.7 ms. Planning used 87% of one CPU core,
+execution approximately 32%. Total compressed traffic was 951–1,010 KiB/s;
+decoded snapshots were approximately 1.4–1.5 MB/s per player, with 84–85% of
+threat fields repeated. Snapshot size remains an identified optimization
+opportunity; no network format change is included in this update.
+
+Remaining costs: orbit/lake views submit around five to six million triangles
+across the complete frame, and rendering/material setup dominates the remaining
+orbit profile. Distant detail/reflection geometry and repeated snapshots are
+the next measured targets. Nearby scenery is not hidden as a performance
+shortcut. Headless presentation and long-duration memory limits described below
+still apply; reported callback and GPU times do not establish interactive FPS.
+
+Raw evidence:
+
+- `greywrought:build/browser/richness-profile-683531/`
+- `greywrought:build/browser/richness-warmed-695732/`
+- `greywrought:build/browser/bloom-before-649863/`
+- `greywrought:build/browser/bloom-after-667513/`
+- `greywrought:build/server-performance/richness-server-689805/`
+
+## Earlier examination — 20 September 2026
 
 The assembled 0.21.15 world was profiled in town, woods, the lake, the cave,
 on hills, during camera orbit, and in combat planning and execution. Measurements
