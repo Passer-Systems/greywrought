@@ -451,9 +451,24 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
   forestPlace('works/Props_Capsule',7.8,21,3.8,0,thicket);
   forestPlace('works/Details_Pipes_Long',6.5,21,2.8,0,thicket);
   place('nature/CommonTree_2',10,41,7.2,2,thicket);
-  for(let row=0;row<4;row++) for(let col=0;col<7;col++) {
-    const x=2.8+col*1.5+Math.sin(col*8+row)*.2,z=18.45+row*1.65+Math.sin(col*3+row)*.2;
-    forestPlace('nature/Bush_Common',x,z,1.1+(col%3)*.12,col,thicket);
+  // Unequal banks of scrub keep the blocked thicket legible around the capsule,
+  // with its southern face open to the coolant deposit.
+  for (const [x,z,size,yaw,palette] of [
+    [3.1,39.1,1.4,.4,'moss'],[4.7,38.7,.85,2.1,'ochre'],[5.2,40.4,1.65,1.2,'moss'],
+    [3.2,41.1,1.1,2.9,'blue'],[3.9,43,1.75,.9,'moss'],[6.1,42.9,.95,3.8,'copper'],
+    [8.7,43.1,1.35,1.7,'ochre'],[10.7,42.7,1.8,4.5,'moss'],[11.3,40.8,1.2,2.3,'blue'],
+    [10.6,38.7,1.4,.3,'copper'],[9.2,38.4,.72,3.4,'moss'],[6.4,39,.6,1.8,'ochre'],
+  ] as const) place('nature/Bush_Common',x,z,size,yaw,thicket,'height',0,undefined,0,0,palette);
+  for (const [x,z,size,yaw] of [[2.8,42.8,2.3,.3],[11.6,42.1,1.65,1.6]] as const)
+    place('nature/DeadTree_2',x,z,size,yaw,thicket);
+  place('nature/DeadTree_2',4.3,39.5,2.6,1.1,thicket,'height',.12,undefined,Math.PI/2);
+  for (const [cx,cz,seed,count] of [[3.4,38.5,671,13],[9.9,42.9,893,21],[6.3,44.3,1093,8]] as const) {
+    for (let i=0;i<count;i++) {
+      const angle=noise(seed+i*13)*Math.PI*2, radius=Math.sqrt(noise(seed+i*29))*1.9;
+      const x=cx+Math.cos(angle)*radius,z=cz+Math.sin(angle)*radius*.63;
+      const name=i%7===0?'nature/Mushroom_Common':i%5===0?'nature/Flower_4_Group':i%3===0?'nature/Grass_Common_Short':'nature/Fern_1';
+      place(name,x,z,.24+noise(seed+i*47)*.38,angle,thicket);
+    }
   }
   for(const [x,z] of [[-9,64],[10,62],[13,71],[-9,72]])place('nature/TwistedTree_2',x!,z!,4.6,x!);
   const apron = new Mesh(new PlaneGeometry(12,11),new MeshStandardMaterial({color:0x797565,roughness:1}));

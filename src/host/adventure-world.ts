@@ -1,6 +1,7 @@
+import { createYardGuards } from "./yard-guards.js";
 import { threatAppearances as appearances } from "./threat-appearances.js";
 import { createBellrunnerFleet } from "./bellrunner.js";
-import type { BellrunnerStopId } from "../game/bellrunner.js";
+import { BELLRUNNER_STOPS, flightMasterId, flightMasterPosition } from "../game/bellrunner.js";
 import { VENDORS, REST_SPOTS, type NpcId } from "../game/economy.js";
 import {
   BufferGeometry, CanvasTexture, Color, Float32BufferAttribute,
@@ -65,7 +66,6 @@ interface ThreatRig extends ThreatAnimationState {
 export type WorldPick = { readonly kind: "threat"; readonly id: string }
   | { readonly kind: "player"; readonly id: string }
   | { readonly kind: "chest"; readonly id: "ironback-chest" }
-  | { readonly kind: "bellrunner"; readonly id: BellrunnerStopId }
   | { readonly kind: "npc"; readonly id: NpcId }
   | { readonly kind: "resource"; readonly id: "frost-cores" }
   | { readonly kind: "place"; readonly id: string };
@@ -231,6 +231,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const remotePlayers = createRemotePlayers(scene);
   const partyPings = createPartyPings(scene);
   const bellrunners = createBellrunnerFleet(scene);
+  const yardGuards = createYardGuards(scene);
   let interpolation = createSnapshotInterpolation();
   let lastConnectionRevision = -1;
   let selectionDepth: number | null = null;
@@ -284,9 +285,15 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     terrain.add(root);
     return { spot, root, actor: null as ForestActor | null };
   });
+  const flightMasters = BELLRUNNER_STOPS.map(stop => {
+    const root = new Group(), position = flightMasterPosition(stop.id);
+    root.position.set(position.x,position.y,position.z); root.rotation.y = -Math.PI / 2;
+    terrain.add(root);
+    return {stop,root,actor:null as ForestActor | null};
+  });
   const coreRoot = new Group();
   const corePlace = initial.places.find(place => place.id === "frost-cores")!;
-  coreRoot.position.set(corePlace.position.x, 0, corePlace.position.z);
+  coreRoot.position.set(corePlace.position.x, corePlace.position.y, corePlace.position.z);
   const coresReady = Promise.all([1.2, 0.75, 0.65].map(async (height, index) => {
     const crystal = await prop("Crystal2", height);
     if (disposed) return;
@@ -308,11 +315,12 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   terrain.add(ritual);
 
   const hoverTargets: HoverTarget[] = [
-    ...bellrunners.moorings.map(({stop,root}): HoverTarget => ({root,pick:{kind:"bellrunner",id:stop.id},name:"Bellrunner · Flights · Free passage",anchor:root.position.clone().add(new Vector3(0,3,0))})),
+    ...yardGuards.guards.map(({guard,root,anchor}): HoverTarget => ({root,anchor,pick:{kind:"npc",id:guard.id},name:`${guard.name} · Yard guard`})),
+    ...flightMasters.map(({stop,root}): HoverTarget => ({root,pick:{kind:"npc",id:flightMasterId(stop.id)},name:`${stop.master} · Flight master`,anchor:root.position.clone().add(new Vector3(0,2.45,0))})),
     { root: chestRoot, pick: { kind: "chest", id: "ironback-chest" }, name: "Rattagane’s cache", anchor: new Vector3(chestPosition.x, chestPosition.y + 1.3, chestPosition.z) },
     ...vendorActors.map(({vendor, root}): HoverTarget => ({ root, pick: {kind: "npc", id: vendor.id}, name: `${vendor.name} · ${vendor.trade}`, anchor: new Vector3(vendor.position.x, root.position.y + 2.45, vendor.position.z) })),
     ...regionalHosts.map(({spot,root}): HoverTarget => ({ root, pick: {kind: "npc", id: spot.id}, name: `${spot.name} · ${spot.lodging}`, anchor: root.position.clone().add(new Vector3(0,2.45,0)) })),
-    { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(corePlace.position.x, 1.4, corePlace.position.z) },
+    { root: coreRoot, pick: { kind: "resource", id: "frost-cores" }, name: YARD.resource, anchor: new Vector3(corePlace.position.x, corePlace.position.y + 1.4, corePlace.position.z) },
     { root: mara, pick: { kind: "npc", id: "mara" }, name: "Mara · Supplies", anchor: new Vector3(3.4, mara.position.y + 2.45, -7.5) },
     { root: elian, pick: { kind: "npc", id: "bank" }, name: "Elian · Banker", anchor: new Vector3(bankPosition.x, bankPosition.y + 2.45, bankPosition.z) },
     { root: rowan, pick: { kind: "npc", id: "inn" }, name: "Rowan · Innkeeper", anchor: new Vector3(innPosition.x, innPosition.y + 2.45, innPosition.z) },
@@ -475,6 +483,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (disposed) { mounted.dispose(); return; }
     entry.actor = mounted; entry.root.add(mounted.root); mounted.play("Idle");
   }));
+  const flightMastersReady = Promise.all(flightMasters.map(async entry => {
+    const mounted = await actor("Cleric",1.95,"artificer");
+    if (disposed) { mounted.dispose(); return; }
+    entry.actor=mounted; entry.root.add(mounted.root); mounted.play("Idle");
+  }));
   const bankerReady = actor("Cleric", 1.95).then(mounted => {
     if (disposed) { mounted.dispose(); return; }
     banker = mounted; elian.add(mounted.root); mounted.play("Idle");
@@ -536,7 +549,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     shownMovementPreview = next;
     onMovementPreview?.(next);
   }
-  const ready = Promise.all([bellrunners.ready, knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, regionalHostsReady, creaturesReady, coresReady, signsReady, natureReady, caveReady, chestReady]).then(async()=>{
+  const ready = Promise.all([yardGuards.ready, bellrunners.ready, flightMastersReady, knightReady, merchantReady, innkeeperReady, bankerReady, vendorsReady, regionalHostsReady, creaturesReady, coresReady, signsReady, natureReady, caveReady, chestReady]).then(async()=>{
     if(disposed)return;
     lighting.collectLamps();
     await captureMinimap(renderer, terrain, minimap);
@@ -630,7 +643,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const hit = pick(hoverPointer.x, hoverPointer.y);
     const target = hit && hoverTargets.find(target => target.pick.kind === hit.kind && target.pick.id === hit.id);
     tooltip.hidden = !target;
-    canvas.style.cursor = hit?.kind === "resource" ? gatherCursor : (hit?.kind === "npc" || hit?.kind === "player" || hit?.kind === "bellrunner") ? "pointer" : "";
+    canvas.style.cursor = hit?.kind === "resource" ? gatherCursor : (hit?.kind === "npc" || hit?.kind === "player") ? "pointer" : "";
     if (hit) { canvas.dataset.hoverKind = hit.kind; canvas.dataset.hoverId = hit.id; }
     else { delete canvas.dataset.hoverKind; delete canvas.dataset.hoverId; }
     if (!target) return;
@@ -704,12 +717,17 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         selectionDepth = depth;
         selectionHeight = depth === null ? combatSurfaceHeight : movementHeightSampler(localPlayer.position);
       }
+      yardGuards.update(worldTimeMillis,delta);
       bellrunners.update(localPlayer, visiblePlayers, elapsed);
       remotePlayers.update(visiblePlayers);
       remotePlayers.render(delta);
+      for (const [id,rig] of remotePlayers.entries()) {
+        const remote=visiblePlayers.find(entry=>entry.id===id);
+        if (remote?.player.flight) rig.root.position.y += bellrunners.riderLift(remote.player);
+      }
       document.body.dataset.rigRemoteAnimations = JSON.stringify(Array.from(remotePlayers.entries(), ([id, rig]) => ({ id, animation: rig.root.userData.animation, time: rig.root.userData.animationTime })));
       const displayedPosition = returnPlan?.destination ?? localPlayer.position;
-      player.position.set(displayedPosition.x, displayedPosition.y, displayedPosition.z);
+      player.position.set(displayedPosition.x, displayedPosition.y + bellrunners.riderLift(localPlayer), displayedPosition.z);
       returnGhostBlend += (returnGhostTarget - returnGhostBlend) * (1 - Math.exp(-delta / .7));
       if (returnGhostTarget > 0) {
         // Models can finish loading after the transition starts, so rescan at
@@ -787,6 +805,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       }
       for (const entry of vendorActors) {
         if (snapshot.vendorOpen === entry.vendor.id) entry.root.rotation.y = Math.atan2(position.x - entry.root.position.x, position.z - entry.root.position.z);
+        entry.actor?.mixer.update(delta);
+      }
+      for (const entry of flightMasters) {
+        if (snapshot.flightMasterOpen === entry.stop.id) entry.root.rotation.y = Math.atan2(position.x-entry.root.position.x,position.z-entry.root.position.z);
         entry.actor?.mixer.update(delta);
       }
       for (const entry of regionalHosts) {
@@ -928,7 +950,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       const friendlyRoot = [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
       friendlySelection.visible = Boolean(friendlyRoot?.visible);
       if (friendlyRoot && friendlySelection.visible) { friendlySelection.position.copy(friendlyRoot.position); conformToTerrain(friendlySelection, .06, combatSurfaceHeight); }
-      const interactingNpc = snapshot.shopOpen ? mara : snapshot.bankOpen ? elian : snapshot.innOpen ? regionalHosts.find(entry => entry.spot.id === snapshot.restSpot)?.root ?? rowan
+      const interactingNpc = snapshot.selectedGuard ? yardGuards.guards.find(entry=>entry.guard.id===snapshot.selectedGuard)?.root : snapshot.flightMasterOpen ? flightMasters.find(entry=>entry.stop.id===snapshot.flightMasterOpen)?.root : snapshot.shopOpen ? mara : snapshot.bankOpen ? elian : snapshot.innOpen ? regionalHosts.find(entry => entry.spot.id === snapshot.restSpot)?.root ?? rowan
         : vendorActors.find(entry => entry.vendor.id === snapshot.vendorOpen)?.root;
       npcSelection.visible = Boolean(interactingNpc);
       if (interactingNpc) { npcSelection.position.copy(interactingNpc.position); conformToTerrain(npcSelection, .06, combatSurfaceHeight); }
@@ -942,6 +964,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       updateHover();
       overheadNames.begin();
       for (const {vendor, root} of vendorActors) overheadNames.show(`npc:${vendor.id}`, `${vendor.name} · ${vendor.trade}`, root, 2.35, "friendly", true, null, onNpcInteract ? () => onNpcInteract(vendor.id) : undefined);
+      for (const {guard,root} of yardGuards.guards) overheadNames.show(`npc:${guard.id}`, `${guard.name} · Yard guard`, root, 2.45, "friendly", true, null, onNpcInteract ? () => onNpcInteract(guard.id) : undefined);
+      for (const {stop,root} of flightMasters) overheadNames.show(`npc:${flightMasterId(stop.id)}`, `${stop.master} · Flight master`, root, 2.35, "friendly", true, null, onNpcInteract ? () => onNpcInteract(flightMasterId(stop.id)) : undefined);
       for (const {spot,root} of regionalHosts) overheadNames.show(`npc:${spot.id}`, `${spot.name} · Rest`, root, 2.35, "friendly", true, null, onNpcInteract ? () => onNpcInteract(spot.id) : undefined);
       overheadNames.show("npc:mara", "Mara", mara, 2.35, "friendly", true, npcQuestMarker(snapshot.quests,"mara"));
       overheadNames.show("npc:elian", "Elian · Bank", elian, 2.35, "friendly", true);
@@ -982,6 +1006,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       tooltip.remove(); movementPreview.clear(); showMovementPreview(null);
       remotePlayers.dispose();
       partyPings.dispose();
+      yardGuards.dispose();
       bellrunners.dispose();
       swimmingWake.dispose();
       underwater.dispose();
@@ -997,6 +1022,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       atmosphere.dispose();
       vendorActors.forEach(entry => entry.actor?.dispose());
       regionalHosts.forEach(entry => entry.actor?.dispose());
+      flightMasters.forEach(entry => entry.actor?.dispose());
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose(); banker?.dispose();
       for (const rig of rigs.values()) rig.actor.dispose();
       restoreGhosts();

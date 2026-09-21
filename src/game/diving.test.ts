@@ -4,7 +4,7 @@ import { terrainHeight } from './cave-layout.js';
 import { LocalMovement } from '../host/local-movement.js';
 import { moveLocomotion, moveManeuverPosition, movementHeight, movementHeightSampler, supportHeight, isSubmerged, type MovementInput, type MovementState } from './movement.js';
 import { reachableCombatCells, snapCombatPosition } from './combat-grid.js';
-import { bellrunnerDock, flightPosition } from './bellrunner.js';
+import { flightMasterPosition, flightPosition } from './bellrunner.js';
 import { combatSurfaceHeight } from '../host/terrain-geometry.js';
 import { lakeWaterAt } from './world-elevation.js';
 
@@ -91,8 +91,8 @@ test('dive input leaves land walking and jumping unchanged; flight takes precede
   moveLocomotion(ordinary,{...neutral,forward:1,jump:true},.4);
   moveLocomotion(diving,{...neutral,forward:1,jump:true,dive:true,rise:true},.4);
   expect(diving.position).toEqual(ordinary.position);expect(diving.verticalSpeed).toBe(ordinary.verticalSpeed);
-  const save=JSON.parse(createAdventure().save());save.state.position=bellrunnerDock('yard');
-  const flight=createAdventure({save:JSON.stringify(save)});expect(flight.fly('suture')).toBe(true);
+  const save=JSON.parse(createAdventure().save());save.state.position=flightMasterPosition('yard');
+  const flight=createAdventure({save:JSON.stringify(save)});flight.interactNpc('flight-master-yard');expect(flight.fly('suture')).toBe(true);
   flight.setAction('dive',true);flight.setAction('jump',true);flight.advance(5);
   expect(flight.snapshot.player.position).toEqual(flightPosition({from:'yard',to:'suture',elapsed:flight.snapshot.player.flight!.elapsed}));
   expect(flight.snapshot.player.breathSeconds).toBe(60);

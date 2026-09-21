@@ -16,7 +16,6 @@ import {
   type CharacterArchetype, type LocalCharacter, type LocalProfile,
 } from "./character-profile.js";
 import { createBellrunnerPanel } from "./bellrunner.js";
-import { nearbyBellrunner, type BellrunnerStopId } from "../game/bellrunner.js";
 import { createAdventureWorld, type AdventureWorld } from "./adventure-world.js";
 import { createAdventureAudio } from "./adventure-audio.js";
 import { createEnemyNameplates } from "./enemy-nameplates.js";
@@ -127,10 +126,7 @@ const bank = createBankPanel(element("adventure-hud"), {
   },
   onClose: () => { pulse("closeBank"); running?.world.canvas.focus(); },
 });
-const bellrunner = createBellrunnerPanel(element("adventure-hud"), destination => { if (running?.ready && !paused) running.game.fly(destination); }, () => running?.world.canvas.focus());
-function openBellrunner(id: BellrunnerStopId): void {
-  if (running?.ready && !paused && !running.game.snapshot.player.flight && !running.game.snapshot.player.inCombat && nearbyBellrunner(running.game.snapshot.player.position)?.id === id) bellrunner.show(id);
-}
+const bellrunner = createBellrunnerPanel(element("adventure-hud"), destination => { if (running?.ready && !paused) running.game.fly(destination); }, () => { pulse("closeShop"); running?.world.canvas.focus(); });
 const inn = createInnPanel(element("adventure-hud"), {
   onQuest: submitQuest,
   onRest: () => pulse("rest"),
@@ -452,7 +448,6 @@ async function finishMove(after?: () => void): Promise<void> {
 function menuOpen(): boolean { return !element("pause-panel").hidden; }
 function pressAction(action: AdventureAction): void {
   if (running?.game.session.mode === "viewing") return;
-  if (action === "interact" && running?.ready && !paused) { const stop=nearbyBellrunner(running.game.snapshot.player.position); if (stop) {openBellrunner(stop.id);return;} }
   if (menuOpen()) return;
   if ((action === "strike" || action === "special" && running && classAction(running.game.snapshot.player.archetype, action).target === "unit") && running?.selection?.kind !== "enemy") return;
   if (action === "target" && running) running.selection = { kind: "enemy", id: running.game.snapshot.selectedThreat };
@@ -959,12 +954,12 @@ function renderHud(snapshot: AdventureSnapshot): void {
     setAttribute(control, "aria-pressed", String(action === "bait" && baitAiming));
     const openingStrike = action === "strike" && snapshot.combat.openingStrikeAvailable;
     setDataset(control.dataset, { range: range.state, openingStrike: String(openingStrike) });
-    control.classList.toggle("action-in-range", targeted && range.state === "in" && !control.disabled);
+    control.classList.toggle("action-in-range", targeted && range.state === "in" && !snapshot.combat.ready && snapshot.combat.phase !== "active");
     setText(control.querySelector<HTMLElement>(".action-tooltip strong")!, spec.name);
     setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, (cost ? cost + " Energy. " : "Free. ") + spec.description + (action === "strike" ? autocast ? " Autocast on: queue Attack once each turn. Right-click to turn off. Your chosen action and timing stay yours." : " Right-click to autocast: queue Attack once each turn in combat." : "") + (openingStrike ? " Attack before you are detected to land an opening hit before the first turn." : ""));
     const art = control.querySelector<HTMLImageElement>(".action-art img")!;
     const source = publicUrl(spec.icon); if (art.getAttribute("src") !== source) art.src = source;
-    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " Energy" : openingStrike ? "Opening strike · hit first" : action === "bait" ? "Click a highlighted tile to plan your movement" : cost ? "Plan · " + cost + " Energy" : "Free";
+    const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : action === "special" && !player.inCombat ? "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " Energy" : openingStrike ? "Opening strike · hit first" : action === "bait" ? "Click a highlighted tile to plan your movement" : cost ? "Plan · " + cost + " Energy" : "Free";
     text(action + "-ready", detail + (range.text ? " · " + range.text : ""));
   }
   for (const item of usableItems) {
@@ -1102,7 +1097,6 @@ function bindWorld(app: RunningAdventure): void {
       }
       const picked = app.world.pick(event.clientX, event.clientY);
       if (picked?.kind === "resource" && event.button === 0) pulse("gather");
-      else if (picked?.kind === "bellrunner" && event.button === 0) openBellrunner(picked.id);
       else if (picked?.kind === "npc" && event.button === 0) app.game.interactNpc(picked.id);
       else if (picked?.kind === "chest") {
         if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);

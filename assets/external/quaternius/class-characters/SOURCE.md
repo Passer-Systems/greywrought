@@ -35,3 +35,6 @@ the archive's license. `Wave` and `Train` are original Greywrought skeletal
 gestures authored on the character's idle pose. No Blizzard art or audio is used.
 `greywrought:scripts/prepare-emotes.mjs` prepares this compact animation donor.
 Three.js retargets its clips to each class's skeleton and proportions.
+
+The Warrior also retains its native `Walk` clip from the same source model for
+the Yard guards. Existing geometry, materials, skeleton and other clips are unchanged.

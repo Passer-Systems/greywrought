@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createAdventure } from "../game/adventure.js";
+import { terrainHeight } from "../game/cave-layout.js";
 import { enemyRange, playerRange } from "./combat-range.js";
 
 const base = createAdventure().snapshot;
@@ -84,4 +85,20 @@ test("class skill targeting distinguishes self bursts from aimed skills", () => 
     expect(playerRange(view, "special").state).toBe(archetype === "warrior" || archetype === "mage" ? "none" : "in");
     if (archetype === "hunter") expect(playerRange({...view, threats: [{...view.threats[0]!, position: {x:15.1,y:0,z:0}}]}, "special").state).toBe("out");
   }
+});
+
+test("real Ranger snapshots light Piercing Arrow to its own range, including before combat", () => {
+  const saved = JSON.parse(createAdventure({ archetype: "hunter" }).save());
+  Object.assign(saved.state, { phase: "expedition", position: { x: 0, y: terrainHeight(0,20), z: 20 }, selectedThreat: "scout" });
+  const enemy = saved.state.threats.find((t: { id: string }) => t.id === "scout");
+  for (const x of [12.5, 15, 15.01]) {
+    enemy.position = { x, y: terrainHeight(x,20), z: 20 };
+    const view = createAdventure({ save: JSON.stringify(saved) }).snapshot;
+    expect(playerRange(view, "strike").state).toBe(x <= 12.5 ? "in" : "out");
+    expect(playerRange(view, "special").state).toBe(x <= 15 ? "in" : "out");
+    expect(view.threats.find(t => t.id === "scout")!.inRangeActions.includes("special")).toBe(x <= 15);
+  }
+  saved.state.position = { x: 4, y: 0, z: 37 };
+  enemy.position = { x: 4, y: 0, z: 45 };
+  expect(playerRange(createAdventure({ save: JSON.stringify(saved) }).snapshot, "special").state).toBe("out");
 });

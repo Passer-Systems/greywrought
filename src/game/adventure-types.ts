@@ -1,3 +1,4 @@
+import type { YardGuardId } from "./yard-guards.js";
 import type { NpcId, VendorId } from "./economy.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
 import type { QuestId, QuestOperation, QuestView, ProgressionView, GearSlot, GearItemId } from "./yard-content.js";
@@ -162,7 +163,7 @@ export interface PlaceView {
   readonly id: string;
   readonly name: string;
   readonly position: Position;
-  readonly kind: "town" | "gate" | "resource" | "ritual" | "shop" | "inn" | "bank";
+  readonly kind: "town" | "gate" | "resource" | "ritual" | "shop" | "inn" | "bank" | "flight" | "guard";
 }
 export interface AdventureSnapshot {
   readonly quests: readonly QuestView[];
@@ -205,6 +206,8 @@ export interface AdventureSnapshot {
   readonly selectedThreat: string;
   readonly supplies: number;
   readonly coins: number;
+  readonly selectedGuard: YardGuardId | null;
+  readonly flightMasterOpen: BellrunnerStopId | null;
   readonly vendorOpen: VendorId | null;
   readonly cargo: number;
   readonly resourceRemaining: number;

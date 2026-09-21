@@ -1,4 +1,4 @@
-import { AdditiveBlending, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, Points, PointsMaterial, ShaderMaterial } from 'three';
+import { AdditiveBlending, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, Points, ShaderMaterial, Vector2 } from 'three';
 import { LAKE_WATER_LEVEL, STREAM_POINTS } from '../game/world-elevation.js';
 import { worldDay } from '../game/world-time.js';
 
@@ -42,15 +42,51 @@ export function buildWaterfall(parent: Group): void {
   sheet.onBeforeRender=()=>{material.uniforms.time!.value=performance.now()*.001;material.uniforms.light!.value=.35+.65*worldDay(Date.now()).daylight;};
   parent.add(sheet);
   const bottom=route.at(-1)!;
-  const foamPositions:number[]=[];
-  for(let i=0;i<28;i++){const a=i*2.399;foamPositions.push(bottom.x+Math.cos(a)*(.45+(i%4)*.18),bottom.y+.07,bottom.z+Math.sin(a)*(.4+(i%3)*.13));}
-  const foamGeometry=new BufferGeometry();foamGeometry.setAttribute('position',new Float32BufferAttribute(foamPositions,3));
-  const foam=new Points(foamGeometry,new PointsMaterial({color:0xcfe9df,size:.15,transparent:true,opacity:.6,depthWrite:false}));
+  const foamPositions:number[]=[], foamSeeds:number[]=[];
+  for(let i=0;i<28;i++){
+    const angle=i*2.399, radius=Math.sqrt((i+.5)/28);
+    foamPositions.push(bottom.x+Math.cos(angle)*radius*.55,bottom.y+.08,bottom.z+Math.sin(angle)*radius*.4);
+    foamSeeds.push((i*.618034)%1,(i*.414214)%1);
+  }
+  const foamGeometry=new BufferGeometry();
+  foamGeometry.setAttribute('position',new Float32BufferAttribute(foamPositions,3));
+  foamGeometry.setAttribute('seed',new Float32BufferAttribute(foamSeeds,2));
+  foamGeometry.computeBoundingSphere();foamGeometry.boundingSphere!.radius+=1.5;
+  const previous=route.at(-2)!;
+  const flow=new Vector2(bottom.x-previous.x,bottom.z-previous.z).normalize();
+  const foamMaterial=new ShaderMaterial({transparent:true,depthWrite:false,
+    uniforms:{time:{value:0},light:{value:1},pixelScale:{value:1},flow:{value:flow}},
+    vertexShader:`attribute vec2 seed;uniform float time,pixelScale;uniform vec2 flow;
+      varying float vFade,vSeed;
+      void main(){
+        float age=fract(time*(.24+seed.y*.13)+seed.x);
+        float spread=.12+age*.85;
+        float angle=seed.y*6.283185;
+        vec3 p=position;
+        p.xz+=vec2(cos(angle),sin(angle))*spread+flow*age*.65;
+        p.y+=sin(age*3.141593)*(.06+seed.y*.13);
+        vec4 viewPosition=modelViewMatrix*vec4(p,1.);
+        gl_Position=projectionMatrix*viewPosition;
+        gl_PointSize=clamp((.22+seed.y*.18+age*.16)*pixelScale/-viewPosition.z,1.,64.);
+        vFade=smoothstep(0.,.16,age)*(1.-smoothstep(.55,1.,age));
+        vSeed=seed.y;
+      }`,
+    fragmentShader:`uniform float light;varying float vFade,vSeed;
+      void main(){
+        vec2 p=(gl_PointCoord-.5)*2.;
+        float angle=atan(p.y,p.x);
+        float edge=.74+.10*sin(angle*3.+vSeed*17.)+.06*sin(angle*5.-vSeed*11.);
+        float softness=1.-smoothstep(edge*.32,edge,length(p));
+        gl_FragColor=vec4(vec3(.57,.73,.70)*light,softness*vFade*.34);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`});
+  const foam=new Points(foamGeometry,foamMaterial), viewport=new Vector2();
   foam.name='lake-waterfall-foam';foam.renderOrder=4;
-  foam.onBeforeRender=()=>{
-    const now=performance.now()*.001, position=foam.geometry.getAttribute('position');
-    for(let i=0;i<28;i++){const phase=now*2.2+i*1.7;position.setY(i,foamPositions[i*3+1]!+.035*Math.sin(phase));position.setX(i,foamPositions[i*3]!+.06*Math.sin(phase*.7));}
-    position.needsUpdate=true;
+  foam.onBeforeRender=(renderer,_scene,camera)=>{
+    foamMaterial.uniforms.time!.value=performance.now()*.001;
+    foamMaterial.uniforms.light!.value=.35+.65*worldDay(Date.now()).daylight;
+    foamMaterial.uniforms.pixelScale!.value=renderer.getDrawingBufferSize(viewport).y*camera.projectionMatrix.elements[5]!*.5;
   };
   parent.add(foam);
 }

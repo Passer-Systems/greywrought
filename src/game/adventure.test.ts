@@ -47,7 +47,7 @@ describe("Frostwood world and persistent rewards",()=>{
     const game = approachWarder();
     game.advance(3.5);
     finish(game, "warder");
-    walk(game, -8, 46.6); walk(game, -8, 32); walk(game, -2, 32);
+    walk(game, -8, 46.6); walk(game, -8, 32); walk(game, 7.2, 36.1);
     const health = game.snapshot.player.health;
     expect(health).toBeLessThan(100);
     tap(game, "gather"); expect(game.snapshot.player.health).toBe(health);

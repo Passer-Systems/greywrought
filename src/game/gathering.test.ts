@@ -6,7 +6,7 @@ function seed() {
   const world = createSharedAdventure({now:()=>1000});
   for (const id of ['a','b']) world.join(id,id,'mage');
   const saved = JSON.parse(world.save());
-  for (const character of saved.characters) Object.assign(character.state,{phase:'expedition',position:{x:-2,y:0,z:32}});
+  for (const character of saved.characters) Object.assign(character.state,{phase:'expedition',position:{x:7.2,y:0,z:36.1}});
   for (const threat of saved.world.threats) if (['scout','nest','patrol'].includes(threat.id)) Object.assign(threat,{health:0,phase:'cleared',lootClaimed:true});
   return saved;
 }
@@ -52,7 +52,7 @@ test('saved pending timer resumes and shared final batch is awarded to only one 
 });
 
 test('old saved gather cooldown cannot award a second batch',()=>{
-  const data=JSON.parse(createAdventure().save());Object.assign(data.state,{phase:'expedition',position:{x:-2,y:0,z:32},currentAction:'gather',actionDuration:2,actionCooldown:2,actionRemainingSeconds:2,cargo:3,resourceRemaining:9});delete data.state.gatherPending;
+  const data=JSON.parse(createAdventure().save());Object.assign(data.state,{phase:'expedition',position:{x:7.2,y:0,z:36.1},currentAction:'gather',actionDuration:2,actionCooldown:2,actionRemainingSeconds:2,cargo:3,resourceRemaining:9});delete data.state.gatherPending;
   for(const t of data.state.threats)if(['scout','nest','patrol'].includes(t.id))Object.assign(t,{health:0,phase:'cleared',lootClaimed:true});
   const game=createAdventure({save:JSON.stringify(data),now:()=>1000});game.advance(2);
   expect(game.snapshot.cargo).toBe(3);expect(game.snapshot.resourceRemaining).toBe(9);

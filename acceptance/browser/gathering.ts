@@ -7,7 +7,7 @@ Bun.env.GREYWROUGHT_GAME_URL=url;Bun.env.GREYWROUGHT_DEBUG_PORT='9597';Bun.env.G
 const character={id:'gather-fixture',name:'Crystal Gatherer',archetype:'warrior' as const,createdAtMillis:Date.now()};
 const token='gather-fixture-token-0000000000000000';
 const seed=createSharedAdventure();seed.join(character.id,character.name,character.archetype);
-const saved=JSON.parse(seed.save());Object.assign(saved.characters[0].state,{phase:'expedition',position:{x:-2,y:0,z:32}});
+const saved=JSON.parse(seed.save());Object.assign(saved.characters[0].state,{phase:'expedition',position:{x:7.2,y:0,z:36.1}});
 for(const enemy of saved.world.threats)if(['scout','nest','patrol'].includes(enemy.id))Object.assign(enemy,{health:0,phase:'cleared',lootClaimed:true});
 const savePath=`${process.cwd()}/build/browser/gathering-${process.pid}.json`;
 await Bun.write(savePath,JSON.stringify({version:1,accounts:[{character,tokenHash:new Bun.CryptoHasher('sha256').update(token).digest('hex')}],world:JSON.stringify(saved),chat:[],nextChatId:1}));
@@ -19,7 +19,7 @@ const page=await openBrowser('gathering');
 try {
   await page.call('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Gather Test',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4398/world':url,...args);this.addEventListener('message',e=>{const d=JSON.parse(e.data);if(d.type==='state')window.gatherState=d.snapshot;});}};`});
   await page.reload();await page.waitFor('document.body.dataset.entryRoute==="roster"');await page.click('#entry-enter-world');
-  await page.waitFor('document.body.dataset.rigState==="ready" && document.body.dataset.environmentState==="ready"');
+  await page.waitFor('document.body.dataset.entryRoute==="world" && document.body.dataset.rigState==="ready" && document.body.dataset.environmentState==="ready"');
   await page.press('KeyG');await page.waitFor('!document.getElementById("player-action-bar").hidden');
   check(await page.evaluate('window.gatherState.cargo===0 && window.gatherState.resourceRemaining===12'),'Cast start grants nothing');
   await page.shot('gathering-before-reward');

@@ -157,7 +157,7 @@ describe("two-minute world regrowth", () => {
   test("each harvested batch returns independently after 120 seconds and retains its deadline through restart", () => {
     let time = 50_000;
     const saved = seed();
-    saved.characters[0].state.position = { x: -2, y: 0, z: 32 };
+    saved.characters[0].state.position = { x: 7.2, y: 0, z: 36.1 };
     dead(saved.world.threats[0]); dead(saved.world.threats[2]); dead(saved.world.threats[3]);
     const world = createSharedAdventure({ save: JSON.stringify(saved), now: () => time });
     const player = world.join("a", "Ada", "mage");

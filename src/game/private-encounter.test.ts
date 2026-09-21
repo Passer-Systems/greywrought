@@ -47,10 +47,10 @@ describe("private paused encounters", () => {
     finishCycle(bob, world);
 
     const walkBob = (x: number, z: number) => travel(bob,x,z,world);
-    walkBob(-2, 32);
+    walkBob(-8, 46); walkBob(-8, 32); walkBob(7.2, 36.1);
     tap(bob, "gather"); world.advance(2); tap(bob, "gather"); world.advance(2);
     expect(bob.snapshot.cargo).toBe(6);
-    walkBob(2, 58.5);
+    walkBob(-8, 32); walkBob(-8, 46); walkBob(2, 58.5);
     tap(bob, "ritual"); world.advance(1);
     expect(bob.snapshot.cargo).toBe(0);
     expect(bob.snapshot.threats.find(t => t.id === "ritual-guardian")).toMatchObject({ active: true, health: 200, aggro: true });

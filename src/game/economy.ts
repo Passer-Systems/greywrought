@@ -1,3 +1,5 @@
+import { YARD_GUARDS, type YardGuardId } from "./yard-guards.js";
+import { BELLRUNNER_STOPS, flightMasterId, type FlightMasterId } from "./bellrunner.js";
 import { terrainHeight } from "./cave-layout.js";
 import type { GearItemId } from "./yard-content.js";
 
@@ -15,8 +17,8 @@ export const REST_SPOTS = [
   { id: "brinewick-inn", name: "Sister Sable", lodging: "The Drowned Saint", position: { x: -131, y: terrainHeight(-131,118), z: 118 }, greeting: "Leave your boots by the copper saint. The voices in the walls are only dreaming." },
 ] as const;
 export type RestSpotId = typeof REST_SPOTS[number]["id"];
-export type NpcId = "mara" | "bank" | RestSpotId | VendorId;
-export const NPC_IDS: readonly NpcId[] = ["mara", "bank", ...REST_SPOTS.map(v => v.id), ...VENDORS.map(v => v.id)];
+export type NpcId = "mara" | "bank" | YardGuardId | FlightMasterId | RestSpotId | VendorId;
+export const NPC_IDS: readonly NpcId[] = ["mara", "bank", ...YARD_GUARDS.map(guard=>guard.id), ...BELLRUNNER_STOPS.map(stop => flightMasterId(stop.id)), ...REST_SPOTS.map(v => v.id), ...VENDORS.map(v => v.id)];
 export const REGIONAL_GREETINGS: Partial<Record<NpcId, string>> = {
   "suture-vendor": "The kings are dust, but a good edge remains a good edge. I have repaired these for hands like yours.",
   "brinewick-vendor": "Salt for the flesh, copper for the thinking dead. Wear this when the mire begins to sing.",

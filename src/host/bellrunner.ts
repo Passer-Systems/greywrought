@@ -1,8 +1,9 @@
 import { Box3, Group, Mesh, MeshStandardMaterial, PointLight, Vector3, type BufferGeometry, type Scene } from 'three';
+import { supportHeight } from '../game/movement.js';
 import { prop } from './frostwood-assets.js';
 import type { AdventureSnapshot } from '../game/adventure-types.js';
 import type { RemotePlayerView } from '../game/multiplayer-types.js';
-import { BELLRUNNER_STOPS, bellrunnerDock, bellrunnerStop, nearbyBellrunner, flightDuration, type BellrunnerStopId } from '../game/bellrunner.js';
+import { BELLRUNNER_STOPS, bellrunnerDock, bellrunnerStop, flightDuration, type BellrunnerStopId } from '../game/bellrunner.js';
 
 export function createBellrunnerFleet(scene: Scene) {
   const fleet = new Group(); scene.add(fleet);
@@ -18,6 +19,26 @@ export function createBellrunnerFleet(scene: Scene) {
     return { stop, root };
   });
   let template: Group | null = null, disposed = false;
+  const bounds = new Box3();
+  const groundLift = (id: BellrunnerStopId, turn = 0) => {
+    const dock=bellrunnerDock(id), cos=Math.cos(turn), sin=Math.sin(turn);
+    let floor=dock.y;
+    // Sample the loaded craft's footprint, including its edges, across uneven ground.
+    for (let ix=0;ix<=16;ix++) for (let iz=0;iz<=16;iz++) {
+      const x=bounds.min.x+(bounds.max.x-bounds.min.x)*ix/16;
+      const z=bounds.min.z+(bounds.max.z-bounds.min.z)*iz/16;
+      floor=Math.max(floor,supportHeight(dock.x+x*cos+z*sin,dock.z+z*cos-x*sin));
+    }
+    return floor-dock.y-bounds.min.y+.3;
+  };
+  const routeLifts = new Map<string,number>();
+  const riderLift = (player: AdventureSnapshot['player']) => {
+    if (!player.flight || !template) return 0;
+    const {from,to,elapsed}=player.flight, duration=flightDuration(from,to);
+    const progress=Math.max(0,Math.min(1,(elapsed-4)/(duration-8)));
+    const blend=progress*progress*(3-2*progress);
+    return (routeLifts.get(from+to) ?? 0)*(1-blend)+(routeLifts.get(to+from) ?? 0)*blend;
+  };
   const ready = Promise.all([
     prop('Boat',5.4,'width'), prop('AirBalloon',5.5), prop('works/Props_Vessel',1.8), prop('works/Details_Pipes_Long',2), prop('works/Column_1',2.6), prop('Sign_LeftRight',1.7), prop('WoodenTorch_Fire',1),
   ]).then(([boat,balloon,vessel,pipes,column,sign,torch]) => {
@@ -54,14 +75,16 @@ export function createBellrunnerFleet(scene: Scene) {
       const pipe=pipes.clone(true); pipe.position.set(side*1.5,.6,0); pipe.rotation.z=side*.17; template.add(pipe);
       const burner=flame.clone(true); burner.position.set(side*1.5,2.29,0); template.add(burner);
     }
-    for (const {root} of moorings) {
+    bounds.setFromObject(template);
+    for (const from of BELLRUNNER_STOPS) for (const to of BELLRUNNER_STOPS) if (from!==to) routeLifts.set(from.id+to.id,groundLift(from.id,Math.atan2(to.x-from.x,to.z-from.z)));
+    for (const {root,stop} of moorings) {
       const post=column.clone(true); post.position.set(2.9,0,0); root.add(post);
       const board=sign.clone(true); board.position.set(2.9,.7,0); root.add(board);
-      const skiff=template.clone(true); skiff.position.set(0,.2,0); root.add(skiff);
+      const skiff=template.clone(true); skiff.position.set(0,groundLift(stop.id),0); skiff.userData.groundLift=skiff.position.y; root.add(skiff);
     }
   });
   return {
-    moorings, ready,
+    moorings, ready, riderLift,
     update(player: AdventureSnapshot['player'], others: readonly RemotePlayerView[], elapsed: number) {
       if (!template) return;
       const travellers=[{id:'self',player},...others].filter(entry => entry.player.flight);
@@ -70,14 +93,14 @@ export function createBellrunnerFleet(scene: Scene) {
       for (const entry of travellers) {
         let craft=riders.get(entry.id);
         if (!craft) { craft=template.clone(true); fleet.add(craft); riders.set(entry.id,craft); }
-        craft.position.set(entry.player.position.x,entry.player.position.y,entry.player.position.z);
+        craft.position.set(entry.player.position.x,entry.player.position.y+riderLift(entry.player),entry.player.position.z);
         craft.rotation.y=Math.atan2(entry.player.facing.x,entry.player.facing.z);
         animateBurners(craft,elapsed,true);
       }
       for (const {stop,root} of moorings) {
         const skiff=root.children.at(-1)!;
         skiff.visible=!travellers.some(entry => entry.player.flight?.from===stop.id || (entry.player.flight?.to===stop.id && flightDuration(entry.player.flight.from,stop.id)-entry.player.flight.elapsed < 4));
-        skiff.position.y=.2+Math.sin(elapsed*1.2)*.12;
+        skiff.position.y=skiff.userData.groundLift+Math.sin(elapsed*1.2)*.12;
         if (skiff instanceof Group) animateBurners(skiff,elapsed,false);
       }
       // Two nearby, unshadowed lights bound the cost as the shared fleet grows.
@@ -118,6 +141,7 @@ export function createBellrunnerPanel(host: HTMLElement, fly: (destination: Bell
     get open() { return !panel.hidden; }, close,
     show(id: BellrunnerStopId) {
       origin=id; panel.hidden=false;
+      panel.querySelector("h2")!.textContent=`${bellrunnerStop(id).master} · Flight master`;
       const routes=panel.querySelector<HTMLElement>('#bellrunner-routes')!; routes.replaceChildren();
       for (const stop of BELLRUNNER_STOPS) if (stop.id!==id) {
         const button=document.createElement('button'); button.type='button'; button.dataset.destination=stop.id;
@@ -126,7 +150,9 @@ export function createBellrunnerPanel(host: HTMLElement, fly: (destination: Bell
       }
     },
     update(snapshot: AdventureSnapshot) {
-      if (origin && (snapshot.player.flight || snapshot.player.inCombat || nearbyBellrunner(snapshot.player.position)?.id!==origin)) close();
+      const master = snapshot.flightMasterOpen;
+      if (master && master !== origin) this.show(master);
+      else if (origin && !master) { origin=null; panel.hidden=true; }
       const flight=snapshot.player.flight; status.hidden=!flight;
       if (flight) status.textContent=`Bellrunner → ${bellrunnerStop(flight.to).name} · ${Math.max(1,Math.ceil(flightDuration(flight.from,flight.to)-flight.elapsed))} sec`;
     },

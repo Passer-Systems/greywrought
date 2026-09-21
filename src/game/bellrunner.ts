@@ -2,9 +2,9 @@ import type { Position } from './adventure-types.js';
 import { supportHeight } from './movement.js';
 
 export const BELLRUNNER_STOPS = [
-  { id: 'yard', name: 'Nine-Bell Yard', x: -8, z: -28 },
-  { id: 'suture', name: 'Suture', x: 157, z: 117 },
-  { id: 'brinewick', name: 'Brinewick', x: -125, z: 128 },
+  { id: 'yard', name: 'Nine-Bell Yard', master: 'Perrin', x: -8, z: -28 },
+  { id: 'suture', name: 'Suture', master: 'Latch', x: 157, z: 117 },
+  { id: 'brinewick', name: 'Brinewick', master: 'Merrit', x: -125, z: 128 },
 ] as const;
 export type BellrunnerStopId = typeof BELLRUNNER_STOPS[number]['id'];
 export interface FlightState { readonly from: BellrunnerStopId; readonly to: BellrunnerStopId; readonly elapsed: number; }
@@ -13,8 +13,21 @@ export function bellrunnerDock(id: BellrunnerStopId): Position {
   const stop = bellrunnerStop(id);
   return { x: stop.x, y: supportHeight(stop.x, stop.z), z: stop.z };
 }
+export type FlightMasterId = `flight-master-${BellrunnerStopId}`;
+export const flightMasterId = (id: BellrunnerStopId): FlightMasterId => `flight-master-${id}`;
+export function flightMasterPosition(id: BellrunnerStopId): Position {
+  const stop = bellrunnerStop(id), x = stop.x + 3.6, z = stop.z + 1.5;
+  return { x, y: supportHeight(x,z), z };
+}
+export function bellrunnerLanding(id: BellrunnerStopId): Position {
+  const master = flightMasterPosition(id), z = master.z + 1.5;
+  return { x: master.x, y: supportHeight(master.x,z), z };
+}
 export function nearbyBellrunner(position: Position) {
-  return BELLRUNNER_STOPS.find(stop => Math.hypot(position.x-stop.x, position.z-stop.z, position.y-supportHeight(stop.x,stop.z)) <= 4);
+  return BELLRUNNER_STOPS.find(stop => {
+    const master = flightMasterPosition(stop.id);
+    return Math.hypot(position.x-master.x,position.z-master.z,position.y-master.y) <= 2.5;
+  });
 }
 export function flightDuration(from: BellrunnerStopId, to: BellrunnerStopId): number {
   const a = bellrunnerStop(from), b = bellrunnerStop(to);

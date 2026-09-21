@@ -1,6 +1,6 @@
 # Quaternius Frostwood selection
 
-Physical shop, gate and cave signs use the unchanged authored OBJ and material
+Physical gate and cave direction signs use the unchanged authored OBJ and material
 from `Nature/Platformer Pack - Nov 2018/OBJ/Sign_LeftRight.obj` and
 `Nature/Platformer Pack - Nov 2018/OBJ/Sign_LeftRight.mtl` in the same local
 all-in-one archive, stored in `greywrought:assets/external/quaternius/frostwood/village/`.

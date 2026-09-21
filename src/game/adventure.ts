@@ -1,4 +1,5 @@
-import { BELLRUNNER_STOPS, bellrunnerDock, bellrunnerStop, nearbyBellrunner, flightDuration, flightPosition, flightFacing, readFlight, type FlightState, type BellrunnerStopId } from "./bellrunner.js";
+import { YARD_GUARDS, guardPatrol, type YardGuardId } from "./yard-guards.js";
+import { BELLRUNNER_STOPS, flightMasterId, flightMasterPosition, bellrunnerLanding, bellrunnerDock, bellrunnerStop, nearbyBellrunner, flightDuration, flightPosition, flightFacing, readFlight, type FlightState, type BellrunnerStopId } from "./bellrunner.js";
 import { formatMoney } from "./currency.js";
 import { snapCombatPosition, combatCell, validateCombatRoute, combatRouteDistance, COMBAT_CELL_SIZE } from './combat-grid.js';
 import { terrainHeight, migrateTerrainLayout, TERRAIN_LAYOUT, inCave, caveBlockedPosition } from './cave-layout.js';
@@ -242,13 +243,14 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
 const IRONBACK_CHEST_ID = "ironback-chest";
 const IRONBACK_CHEST_POSITION = point(78, -52);
 const PLACES: readonly PlaceView[] = [
+  ...BELLRUNNER_STOPS.map(stop => ({id: flightMasterId(stop.id), name: `${stop.master} / Flight master`, position: flightMasterPosition(stop.id), kind: "flight" as const})),
   ...WORLD_SETTLEMENTS.map(town => ({ id: town.id, name: town.name, position: point(town.x,town.z), kind: "town" as const })),
   ...VENDORS.map(v => ({ id: v.id, name: `${v.name} / ${v.trade}`, position: v.position, kind: "shop" as const })),
   { id: "hollowdeep", name: "Hollowdeep Cave · Danger", position: point(28,-46), kind: "gate" },
   { id: "hollowdeep-exit", name: "Exit to the meadow", position: point(30,-46), kind: "gate" },
   { id: "hearthstead", name: YARD.settlement, position: point(0, -8), kind: "town" },
   { id: "forest-gate", name: YARD.gate, position: point(0, 0), kind: "gate" },
-  { id: "frost-cores", name: YARD.resource, position: point(-2, 32), kind: "resource" },
+  { id: "frost-cores", name: YARD.resource, position: point(7.2, 36.1), kind: "resource" },
   { id: "ritual-site", name: YARD.works, position: point(2, 60), kind: "ritual" },
   { id: "mara", name: "Mara / Apothecary", position: point(3.4, -7.5), kind: "shop" },
   { id: "bank", name: "Elian / Bank", position: point(-9, -10), kind: "bank" },
@@ -340,6 +342,8 @@ class Adventure implements AdventureGame {
   private cameraForward: Vector = { x: 0, y: 0, z: 1 };
   private moving = false;
   private backpedaling = false;
+  private selectedGuard: YardGuardId | null = null;
+  private flightMasterOpen: BellrunnerStopId | null = null;
   private shopOpen = false;
   private vendorOpen: VendorId | null = null;
   private trade: { kind: "supplies" | "potions"; quantity: number } | null = null;
@@ -434,7 +438,7 @@ class Adventure implements AdventureGame {
     const clearInputs = (game: Adventure) => {
       game.cancelGather();
       game.held.clear(); game.mouseForward = false; game.moving = false; game.backpedaling = false;
-      game.enableNetworkMovement(false); game.vendorOpen = null; game.shopOpen = false; game.innOpen = false; game.bankOpen = false; game.trade = null; game.lootOpenId = null;
+      game.enableNetworkMovement(false); game.flightMasterOpen = null; game.vendorOpen = null; game.shopOpen = false; game.innOpen = false; game.bankOpen = false; game.trade = null; game.lootOpenId = null;
     };
     const pause = (id: string, memberIds: readonly string[] = [id]): boolean => {
       const existing = sessions.get(id);
@@ -730,7 +734,7 @@ class Adventure implements AdventureGame {
           attackOrigin: t.wolf && t.phase === "action" && t.abilityIndex === 1 ? { ...t.wolf.attackOrigin } : point(t.position.x, t.position.z),
           block: t.head?.block ?? t.shield, blockSeconds: t.head?.blockSeconds ?? t.shieldSeconds, volley: t.head?.volley ?? 0, fireballs: t.head?.fireballs.map(p => ({ ...p, origin: { ...p.origin }, position: { ...p.position } })) ?? [],
           canStrike: this.canUseAttack(t, "strike"), cast: this.castView(t),
-          inRangeActions: (t.active && this.attackInRange(t, "strike") ? ["strike"] : []),
+          inRangeActions: (["strike", "special"] as const).filter(action => (action === "strike" || classAction(s.archetype, action).target === "unit") && this.attackInRange(t, action)),
           selected: t.id === s.selectedThreat, phaseDuration: this.phaseDuration(t), windowAction: (t.aggro || t.cancelledWindow && s.combat.clock.phase === "active") && t.windowCycle === s.combat.clock.cycle && t.joinCycle <= s.combat.clock.cycle ? { ability: this.ability(t), offsetSeconds: t.specialOffset, status: t.cancelledWindow ? "cancelled" : t.phase === "recovery" || t.phase === "approach" ? "resolved" : t.phase === "action" ? "active" : "pending" } : null, forecast: t.aggro && t.windowCycle === s.combat.clock.cycle ? [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialOffset - s.combat.clock.elapsedSeconds), status: t.phase === "recovery" || t.phase === "approach" ? "active" : "pending" }] : [],
           preparation: d.preparation,
           currentActivity: this.currentActivity(t), currentAbility: this.ability(t),
@@ -749,8 +753,8 @@ class Adventure implements AdventureGame {
         available: this.chestLootAvailable(), reachable: this.canLootChest(),
       }],
       lootOpenId: this.lootOpenId, carriedSalvage: s.carriedSalvage,
-      places: PLACES.map(p => ({ ...p, position: { ...p.position } })),
-      selectedThreat: s.selectedThreat, supplies: s.supplies, coins: s.coins, vendorOpen: this.vendorOpen, cargo: s.cargo,
+      places: [...PLACES.map(p => ({ ...p, position: { ...p.position } })), ...YARD_GUARDS.map(guard=>({id:guard.id,name:`${guard.name} / Yard guard`,kind:"guard" as const,position:guardPatrol(guard.id,this.now()).position}))],
+      selectedThreat: s.selectedThreat, supplies: s.supplies, coins: s.coins, selectedGuard: this.selectedGuard, flightMasterOpen: this.flightMasterOpen, vendorOpen: this.vendorOpen, cargo: s.cargo,
       resourceRemaining: s.world.resourceRemaining, potions: s.potions, carriedRelics: s.carriedRelics,
       bankedRelics: s.bankedRelics, presence: s.presence, ritualCalled: s.world.ritualCalled,
       bank: { ...s.bank }, bankOpen: this.bankOpen, shopOpen: this.shopOpen, trade: this.tradeView(), innOpen: this.innOpen, restSpot: this.innOpen ? this.restSpot : null, log: this.events.map(entry => ({ ...entry })), potionPrice: MARA_TRADE_RULES.suppliesPerPotion, potionHealing: 30, report: s.report,
@@ -759,11 +763,11 @@ class Adventure implements AdventureGame {
 
   fly(destination: BellrunnerStopId): boolean {
     const s = this.state, origin = nearbyBellrunner(s.position);
-    if (s.flight || s.health <= 0 || this.instancePaused() || this.inPrivateInstance() || this.inCombat() || !origin || destination === origin.id || !BELLRUNNER_STOPS.some(stop => stop.id === destination)) { this.report("Board at a Bellrunner mooring when you are clear of danger."); return false; }
+    if (s.flight || s.health <= 0 || this.instancePaused() || this.inPrivateInstance() || this.inCombat() || !origin || this.flightMasterOpen !== origin.id || destination === origin.id || !BELLRUNNER_STOPS.some(stop => stop.id === destination)) { this.report("Speak to the flight master when you are clear of danger."); return false; }
     this.cancelGather(); this.cancelHearthstone(); this.held.clear(); this.mouseForward = false;
     s.sitting = false; this.activeEmote = null; s.maneuver = null; s.verticalSpeed = 0; s.fallPeakHeight = null;
     s.currentAction = null; s.actionCooldown = 0; s.actionRemainingSeconds = 0; s.actionDuration = 0;
-    s.combat.queued = []; this.shopOpen = false; this.vendorOpen = null; this.trade = null; this.innOpen = false; this.bankOpen = false; this.lootOpenId = null;
+    s.combat.queued = []; this.flightMasterOpen = null; this.shopOpen = false; this.vendorOpen = null; this.trade = null; this.innOpen = false; this.bankOpen = false; this.lootOpenId = null;
     s.flight = { from: origin.id, to: destination, elapsed: 0 }; s.position = { ...bellrunnerDock(origin.id) };
     this.report("The Bellrunner casts off for " + bellrunnerStop(destination).name + ". Hold fast.");
     return true;
@@ -791,22 +795,26 @@ class Adventure implements AdventureGame {
     });
   }
   interactNpc(id: NpcId): void {
+    const guard = YARD_GUARDS.find(guard=>guard.id===id);
+    const master = BELLRUNNER_STOPS.find(stop => flightMasterId(stop.id) === id);
     const vendor = VENDORS.find(v => v.id === id);
     const inn = REST_SPOTS.find(v => v.id === id);
     if (this.instancePaused() || this.inPrivateInstance()) { this.report("Services are available only in the shared world."); return; }
     if (this.state.phase === "lost") return;
     if (this.state.phase !== "town" || !this.near(id, 2.5)) {
-      this.report(`Move closer to ${vendor?.name ?? inn?.name ?? (id === "mara" ? "Mara" : "Elian")} to talk.`);
+      this.report(`Move closer to ${guard?.name ?? master?.master ?? vendor?.name ?? inn?.name ?? (id === "mara" ? "Mara" : "Elian")} to talk.`);
       return;
     }
     this.lootOpenId = null;
     this.trade = null;
+    this.selectedGuard = guard?.id ?? null;
+    this.flightMasterOpen = master?.id ?? null;
     this.vendorOpen = vendor?.id ?? null;
     this.shopOpen = id === "mara";
     this.innOpen = Boolean(inn);
     this.restSpot = inn?.id ?? null;
     this.bankOpen = id === "bank";
-    this.report(vendor ? `${vendor.name} says: ${REGIONAL_GREETINGS[id] ?? "Good gear earns its keep. Take a look."}` : id === "mara" ? "Mara says: A little preparation goes a long way."
+    this.report(guard ? `${guard.name} says: ${guard.greeting}` : master ? `${master.master} says: The Bellrunner is ready. Where are you headed?` : vendor ? `${vendor.name} says: ${REGIONAL_GREETINGS[id] ?? "Good gear earns its keep. Take a look."}` : id === "mara" ? "Mara says: A little preparation goes a long way."
       : id === "bank" ? "Elian says: Store supplies and potions for your next expedition."
       : `${inn!.name} says: Welcome to ${inn!.lodging}. ${inn!.greeting}`);
   }
@@ -1186,7 +1194,8 @@ class Adventure implements AdventureGame {
   }
 
   private near(id: string, range: number): boolean {
-    const place = PLACES.find(p => p.id === id);
+    const guard=YARD_GUARDS.find(guard=>guard.id===id);
+    const place = guard ? {position:guardPatrol(guard.id,this.now()).position} : PLACES.find(p => p.id === id);
     return place !== undefined && distance(this.state.position, place.position) <= range + EPSILON;
   }
   private ready(): boolean {
@@ -1200,7 +1209,7 @@ class Adventure implements AdventureGame {
       return;
     }
     if (action === "closeBank") { this.bankOpen = false; return; }
-    if (action === "closeShop") { this.vendorOpen = null; this.shopOpen = false; this.trade = null; return; }
+    if (action === "closeShop") { this.flightMasterOpen = null; this.vendorOpen = null; this.shopOpen = false; this.trade = null; return; }
     if (action === "closeTrade") { this.trade = null; return; }
     if (action === "openTrade") { if (this.shopOpen && this.near("mara", 2.5) && s.phase === "town") this.trade = { kind: "supplies", quantity: 3 }; return; }
     if (action === "acceptTrade") {
@@ -1235,7 +1244,7 @@ class Adventure implements AdventureGame {
       case "takeLoot": this.takeLoot(); break;
       case "interact": {
         this.lootOpenId = null;
-        const service = s.phase === "town" ? PLACES.filter(p => (p.kind === "shop" || p.kind === "inn" || p.kind === "bank") && this.near(p.id, 2.5))
+        const service = s.phase === "town" ? this.snapshot.places.filter(p => (p.kind === "shop" || p.kind === "inn" || p.kind === "bank" || p.kind === "flight" || p.kind === "guard") && this.near(p.id, 2.5))
           .sort((a,b) => distance(s.position,a.position) - distance(s.position,b.position))[0] : undefined;
         if (service) this.interactNpc(service.id as NpcId);
         else {
@@ -1306,8 +1315,8 @@ class Adventure implements AdventureGame {
   private attackPath(t: ThreatState): boolean {
     return this.clearPath(this.state.position, t.position);
   }
-  private attackInRange(t: ThreatState, action: "strike"): boolean {
-    return this.attackFailure(t) === null;
+  private attackInRange(t: ThreatState, action: "strike" | "special"): boolean {
+    return this.attackFailure(t, action) === null;
   }
   private attackFailure(t: ThreatState, action: "strike" | "special" = "strike"): "target-unavailable" | "out-of-range" | "behind-cover" | null {
     const s = this.state;
@@ -1774,7 +1783,7 @@ class Adventure implements AdventureGame {
       s.flight = { ...s.flight, elapsed: Math.min(flightDuration(s.flight.from,s.flight.to), s.flight.elapsed+dt) };
       s.position = { ...flightPosition(s.flight) }; s.verticalSpeed = 0; s.fallPeakHeight = null; this.moving = false; this.backpedaling = false;
       if (s.flight.elapsed >= flightDuration(s.flight.from,s.flight.to)-EPSILON) {
-        const stop = bellrunnerStop(s.flight.to); s.position = { ...bellrunnerDock(stop.id) }; s.flight = null; s.phase = "town";
+        const stop = bellrunnerStop(s.flight.to); s.position = { ...bellrunnerLanding(stop.id) }; s.flight = null; s.phase = "town";
         this.report("The Bellrunner ties up at " + stop.name + ". Safe travels.");
       }
       return;
@@ -1795,6 +1804,8 @@ class Adventure implements AdventureGame {
     if (s.health === 0) return;
     if (s.currentAction === "hearthstone" && (this.moving || s.verticalSpeed !== 0 || this.inCombat() || this.inPrivateInstance())) this.cancelHearthstone();
     this.closeMissingLoot();
+    if (this.selectedGuard && (s.phase !== "town" || !this.near(this.selectedGuard, 4))) this.selectedGuard = null;
+    if (this.flightMasterOpen && (s.phase !== "town" || this.inCombat() || !this.near(flightMasterId(this.flightMasterOpen), 2.5))) this.flightMasterOpen = null;
     if (this.vendorOpen && (this.state.phase !== "town" || !this.near(this.vendorOpen, 2.5))) this.vendorOpen = null;
     if (this.shopOpen && !this.near("mara", 2.5)) { this.shopOpen = false; this.trade = null; }
     if (this.innOpen && (!this.restSpot || !this.near(this.restSpot, 2.5))) this.innOpen = false;
