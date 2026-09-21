@@ -2,9 +2,10 @@ import { checkMinimap } from "./minimap-check.js";
 import { createSharedAdventure } from '../../src/game/adventure.js';
 import { terrainHeight } from '../../src/game/cave-layout.js';
 import { LAKE_WATER_LEVEL } from '../../src/game/world-elevation.js';
-import { WORLD_DAY_MILLISECONDS } from '../../src/game/world-time.js';
 import { createWorldService, type WorldSocketData } from '../../src/server/world-service.js';
 import { openBrowser, check } from './session.js';
+
+const seattleNoon = Date.parse('2026-07-15T12:00:00-07:00');
 
 const url='http://127.0.0.1:4451/';
 Object.assign(Bun.env,{GREYWROUGHT_GAME_URL:url,GREYWROUGHT_DEBUG_PORT:'9651',GREYWROUGHT_VULKAN:'1'});
@@ -29,7 +30,7 @@ try{
    window.frameSamples=[];window.measuring=false;window.lastFrame=0;const nativeFrame=requestAnimationFrame;window.requestAnimationFrame=callback=>nativeFrame.call(window,now=>{const start=performance.now();callback(now);if(window.measuring&&callback.name==='tick'){window.frameSamples.push({duration:performance.now()-start,interval:window.lastFrame?now-window.lastFrame:0});window.lastFrame=now;}});
    if(!localStorage.getItem('greywrought/local-profile-v1'))localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Nature Test',characters,selectedCharacterId:characters[0]!.id,savedAtMillis:Date.now()}))});
    localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
-   const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4452/world':url,...args);}set onmessage(callback){super.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){m.serverWallTimeMillis=Math.floor(m.serverWallTimeMillis/${WORLD_DAY_MILLISECONDS})*${WORLD_DAY_MILLISECONDS}+${WORLD_DAY_MILLISECONDS/2};window.natureState=m.snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};`});
+   const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4452/world':url,...args);}set onmessage(callback){super.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){m.serverWallTimeMillis=${seattleNoon};window.natureState=m.snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};`});
  }});
  async function enter(){
   await page!.waitFor('document.body.dataset.entryRoute==="roster"');

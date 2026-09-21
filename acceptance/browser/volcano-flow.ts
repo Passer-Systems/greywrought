@@ -1,8 +1,9 @@
 import { createSharedAdventure } from '../../src/game/adventure.js';
-import { WORLD_DAY_MILLISECONDS } from '../../src/game/world-time.js';
 import { terrainHeight } from '../../src/game/cave-layout.js';
 import { createWorldService, type WorldSocketData } from '../../src/server/world-service.js';
 import { openBrowser, check } from '../../acceptance/browser/session.js';
+
+const seattleNoon = Date.parse('2026-07-15T12:00:00-07:00');
 const url='http://127.0.0.1:4482/';
 Object.assign(Bun.env,{GREYWROUGHT_GAME_URL:url,GREYWROUGHT_DEBUG_PORT:'9682',GREYWROUGHT_VULKAN:'1'});
 const character={id:'volcano-proof',name:'Ridge Walker',archetype:'warrior' as const,createdAtMillis:1},token='volcano-fixture-token-0000000000000000000';
@@ -18,7 +19,7 @@ let page:Awaited<ReturnType<typeof openBrowser>>|undefined;
 try{
  for(let i=0;i<100;i++){try{if((await fetch(url)).ok)break;}catch{}await Bun.sleep(100);}
  page=await openBrowser('volcano-flow',{localOnly:true,beforeNavigate:async call=>{
-  await call('Page.addScriptToEvaluateOnNewDocument',{source:`window.EventSource=class{};localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Volcano Test',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4483/world':url,...args);}set onmessage(callback){super.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state')m.serverWallTimeMillis=Math.floor(m.serverWallTimeMillis/${WORLD_DAY_MILLISECONDS})*${WORLD_DAY_MILLISECONDS}+${WORLD_DAY_MILLISECONDS/2};callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};`});
+  await call('Page.addScriptToEvaluateOnNewDocument',{source:`window.EventSource=class{};localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Volcano Test',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4483/world':url,...args);}set onmessage(callback){super.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state')m.serverWallTimeMillis=${seattleNoon};callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};`});
  }});
  await page.waitFor('document.body.dataset.entryRoute==="roster"');
  await page.evaluate(`(async()=>{const{Scene}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){if(renderer.domElement.id==='world-canvas'&&renderer.getRenderTarget()===null&&camera.isPerspectiveCamera){window.volcanoScene=scene;window.volcanoCamera=camera;window.volcanoRenderer=renderer;}};Scene.prototype.onBeforeRender=function(renderer,scene,camera){if(window.volcanoDetail&&renderer.domElement.id==='world-canvas'&&renderer.getRenderTarget()===null&&camera.isPerspectiveCamera){const root=scene.getObjectByName('greywrought.landmark.eastern-volcano');camera.position.set(root.position.x+12,root.position.y+37,root.position.z+43);camera.lookAt(root.position.x-1,root.position.y+10,root.position.z+5);camera.updateMatrixWorld();}};})()`);

@@ -1,8 +1,9 @@
 import { createSharedAdventure } from '../../src/game/adventure.js';
 import { supportHeight } from '../../src/game/movement.js';
-import { WORLD_DAY_MILLISECONDS } from '../../src/game/world-time.js';
 import { createWorldService, type WorldSocketData } from '../../src/server/world-service.js';
 import { openBrowser, check } from './session.js';
+
+const seattleNoon = Date.parse('2026-07-15T12:00:00-07:00');
 
 const url = 'http://127.0.0.1:4397/';
 Object.assign(Bun.env, { GREYWROUGHT_GAME_URL: url, GREYWROUGHT_DEBUG_PORT: '9597', GREYWROUGHT_VULKAN: '1' });
@@ -37,7 +38,7 @@ try {
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
       const Native=WebSocket;window.WebSocket=class extends Native{
         constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4398/world':url,...args);}
-        set onmessage(callback){super.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){m.serverWallTimeMillis=Math.floor(m.serverWallTimeMillis/${WORLD_DAY_MILLISECONDS})*${WORLD_DAY_MILLISECONDS}+${WORLD_DAY_MILLISECONDS / 2};window.corpseState=m.snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}
+        set onmessage(callback){super.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){m.serverWallTimeMillis=${seattleNoon};window.corpseState=m.snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}
       };` });
   } });
   await page.waitFor('document.body.dataset.entryRoute==="roster"');

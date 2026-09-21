@@ -1,6 +1,6 @@
 # Nine-Bell Yard: The Last Shift
 
-Greywrought follows a shared 40-minute day and night. Sunlight warms the yard
+Greywrought follows a shared real-time 24-hour day and night following Seattle time, including daylight saving time. Sunlight warms the yard
 through the day; moonlight and warm torches keep the road and hostile silhouettes
 readable at night. Darkness establishes the place without hiding combat.
 

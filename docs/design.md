@@ -7,7 +7,7 @@ The intended complete experience is roughly ten minutes; the first release
 must first make its route and a short encounter understandable through play.
 
 The current chapter is **The Last Shift**, set in Nine-Bell Yard beneath a shared
-40-minute sun-and-moon cycle.
+24-hour sun-and-moon cycle following Seattle time, including daylight saving time.
 See `greywrought:docs/nine-bell-yard.md` for the playable story, three explicit
 quests, equipment and skill rewards, Foreman Nine, and the torchlit setting.
 That chapter supersedes the early generic forest milestone names below.

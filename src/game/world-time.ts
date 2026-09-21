@@ -1,4 +1,20 @@
-export const WORLD_DAY_MILLISECONDS = 40 * 60_000;
+export const WORLD_DAY_MILLISECONDS = 24 * 60 * 60_000;
+const realmClock = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Los_Angeles', hourCycle: 'h23', hour: '2-digit', minute: '2-digit',
+});
+let cachedUtcMinute = NaN;
+let cachedRealmMinute = 0;
+
+function realmTimeMillis(wallTimeMillis: number): number {
+  const utcMinute = Math.floor(wallTimeMillis / 60_000);
+  if (utcMinute !== cachedUtcMinute) {
+    const parts = realmClock.formatToParts(wallTimeMillis);
+    cachedRealmMinute = Number(parts.find(part => part.type === 'hour')!.value) * 60
+      + Number(parts.find(part => part.type === 'minute')!.value);
+    cachedUtcMinute = utcMinute;
+  }
+  return cachedRealmMinute * 60_000 + (wallTimeMillis - utcMinute * 60_000);
+}
 export type WorldDayPhase = 'dawn' | 'day' | 'dusk' | 'night';
 export interface WorldDay {
   readonly fraction: number;
@@ -15,7 +31,7 @@ function smoothstep(low: number, high: number, value: number): number {
 }
 
 export function worldDay(wallTimeMillis: number): WorldDay {
-  const fraction = ((wallTimeMillis % WORLD_DAY_MILLISECONDS) + WORLD_DAY_MILLISECONDS) % WORLD_DAY_MILLISECONDS / WORLD_DAY_MILLISECONDS;
+  const fraction = realmTimeMillis(wallTimeMillis) / WORLD_DAY_MILLISECONDS;
   const hour = fraction * 24;
   const angle = (fraction - .25) * Math.PI * 2;
   const sunDirection = { x: Math.cos(angle), y: Math.sin(angle) * Math.cos(Math.PI / 6), z: Math.sin(angle) * .5 };
@@ -30,7 +46,7 @@ export function worldDay(wallTimeMillis: number): WorldDay {
 }
 
 export function formatWorldTime(wallTimeMillis: number): string {
-  const minute = Math.floor(worldDay(wallTimeMillis).hour * 60);
+  const minute = Math.floor(realmTimeMillis(wallTimeMillis) / 60_000);
   return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 }
 

@@ -1,8 +1,9 @@
 import { createSharedAdventure } from '../../src/game/adventure.js';
 import { terrainHeight } from '../../src/game/cave-layout.js';
-import { WORLD_DAY_MILLISECONDS } from '../../src/game/world-time.js';
 import { createWorldService, type WorldSocketData } from '../../src/server/world-service.js';
 import { openBrowser, check } from './session.js';
+
+const seattleMidnight = Date.parse('2026-07-15T00:00:00-07:00');
 
 const label = Bun.env.LIGHTING_PHASE ?? 'after';
 const url = 'http://127.0.0.1:4431/';
@@ -37,7 +38,7 @@ try {
       const raf=requestAnimationFrame;window.requestAnimationFrame=callback=>raf(now=>{const start=performance.now();callback(now);if(window.measureLight&&callback.name==='tick'){window.lightSamples.push({duration:performance.now()-start,interval:window.lastLightFrame?now-window.lastLightFrame:0});window.lastLightFrame=now;}});
       const Native=WebSocket;window.WebSocket=class extends Native{
         constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4432/world':url,...args);}
-        set onmessage(callback){super.onmessage=event=>{const message=JSON.parse(event.data);if(message.type==='state'){message.serverWallTimeMillis=Math.floor(message.serverWallTimeMillis/${WORLD_DAY_MILLISECONDS})*${WORLD_DAY_MILLISECONDS}+window.lightingHour/24*${WORLD_DAY_MILLISECONDS};window.lightingState=message;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(message)}));};}
+        set onmessage(callback){super.onmessage=event=>{const message=JSON.parse(event.data);if(message.type==='state'){message.serverWallTimeMillis=${seattleMidnight}+window.lightingHour*3_600_000;window.lightingState=message;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(message)}));};}
       };` });
   } });
   async function enter() {
@@ -60,6 +61,7 @@ try {
     await Bun.sleep(900);
     await page!.evaluate('window.lightSamples=[];window.lastLightFrame=0;window.measureLight=true');
     await Bun.sleep(2200);
+    await page!.waitFor('window.lightSamples.length > 30');
     const data = await page!.evaluate<{ samples: { duration: number; interval: number }[]; scene: Record<string, unknown>; calls: number }>(`(()=>{
       window.measureLight=false;const scene=window.lightingScene,renderer=window.lightingRenderer,lights=[],casters=[],receivers=[];
       scene.traverse(o=>{if(o.isLight)lights.push({name:o.name,type:o.type,intensity:o.intensity,color:o.color.getHex(),position:o.position.toArray(),shadow:o.castShadow,shadowSize:o.shadow?.mapSize.toArray(),hasShadowMap:!!o.shadow?.map});if(o.isMesh){if(o.castShadow)casters.push(o.id);if(o.receiveShadow)receivers.push(o.id);}});
