@@ -769,7 +769,7 @@ test('shared chest announces only the successful collector and keeps one shared 
     expect(await first.command({ type: 'action', action: 'takeLoot', pressed: true })).toBe(true);
     const collected = await second.state(state => state.chat.some(entry => entry.text.startsWith('collected ')));
     expect(collected.chat.filter(entry => entry.text.startsWith('collected '))).toHaveLength(1);
-    expect(collected.chat.at(-1)).toMatchObject({ kind: 'loot', name: 'Aster', text: 'collected 18 copper, 2 health potions from Ironback Crab’s cache.' });
+    expect(collected.chat.at(-1)).toMatchObject({ kind: 'loot', name: 'Aster', text: 'collected 18 copper, 2 health potions from Rattagane’s cache.' });
     expect(await second.command({ type: 'action', action: 'takeLoot', pressed: true })).toBe(true);
     expect(await first.command({ type: 'action', action: 'takeLoot', pressed: false })).toBe(true);
     expect(await first.command({ type: 'action', action: 'takeLoot', pressed: true })).toBe(true);

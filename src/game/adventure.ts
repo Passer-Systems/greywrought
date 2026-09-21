@@ -165,11 +165,12 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     patrol: [point(43,-46),point(45,-50),point(48,-46),point(43,-42)],
     preparation: "Folding its wings for a bite", intention: "Echo Bite", damage: 26, reach: 2.2,
     benefit: "Search its remains for three pieces of cave salvage." },
+  // Retain the original encounter ID for saved health, combat and loot ownership.
   { id: "cave-crab", level: 5, disposition: "hostile", aggroRange: 8, leash: 16, speed: 2.1, pursuitSpeed: 4.2,
-    name: "Ironback cave crab", position: point(69,-47), health: 624,
+    name: "Rattagane", position: point(69,-47), health: 624,
     patrol: [point(69,-47),point(73,-51),point(77,-47),point(73,-41)],
-    preparation: "Raising both heavy claws", intention: "Cavern Slam", damage: 52, reach: 4.5,
-    benefit: "Search its shell for six pieces of cave salvage." },
+    preparation: "Drawing back his iron hook", intention: "Hook Sweep", damage: 52, reach: 4.5,
+    benefit: "Search his remains for six pieces of cave salvage and open Rattagane’s cache." },
   { id: "pond-turtle", critter: true, callsForHelp: false, level: 1, disposition: "neutral", aggroRange: 0, leash: 10, speed: 0.45, pursuitSpeed: 0.8,
     name: "Lake turtle", position: point(-4, -98), health: 38,
     patrol: [point(-8, -98), point(-4, -95), point(0, -98), point(-4, -101)],
@@ -738,7 +739,7 @@ class Adventure implements AdventureGame {
         kind: t.id === "ritual-guardian" ? "relic" : "salvage", quantity: salvageQuantity(t.id), coins: t.lootClaimed ? 0 : enemyCoins(definition(t.id).level),
         available: this.lootAvailable(t), reachable: this.canLoot(t),
       })), {
-        sourceId: IRONBACK_CHEST_ID, sourceName: "Ironback Crab’s cache", position: { ...IRONBACK_CHEST_POSITION },
+        sourceId: IRONBACK_CHEST_ID, sourceName: "Rattagane’s cache", position: { ...IRONBACK_CHEST_POSITION },
         itemName: `${formatMoney(18)} and 2 health potions`, kind: "salvage", quantity: 2, coins: 18,
         available: this.chestLootAvailable(), reachable: this.canLootChest(),
       }],
@@ -1126,7 +1127,7 @@ class Adventure implements AdventureGame {
       this.lootOpenId = null;
       if (!this.canLootChest()) return;
       s.world.chestClaimed = true; s.coins += 18; s.potions += 2;
-      this.report(`You open the Ironback Crab’s cache: ${formatMoney(18)} and 2 health potions.`);
+      this.report(`You open Rattagane’s cache: ${formatMoney(18)} and 2 health potions.`);
       return;
     }
     const corpse = s.world.threats.find(t => t.id === this.lootOpenId);
@@ -2567,7 +2568,7 @@ function salvageQuantity(id: string): number { return definition(id).salvage ?? 
 function ordinaryAbility(d: ThreatDefinition, damage = d.damage): ThreatAbilityView {
   if (d.id === "lake-dreadnought") return { profile: { aim: "ground", movement: "hold", friendlyFire: true }, id: d.id, name: d.intention, description: "Raises its armored shell, then slams the marked 3.5-metre area after 1 second. Move clear before impact or Block; one Block will not absorb the whole blow. Later slams grow stronger.", damage, range: d.reach, noticeSeconds: 1 };
   if (d.id === "cave-bat") return { profile: { aim: "ground", movement: "hold", friendlyFire: true }, id: "echo-bite", name: d.intention, description: "Closes to 2.2 metres, then bites 0.3 seconds after winding up. Block at impact or retreat before the bite. Its next bite grows stronger.", damage, range: d.reach, noticeSeconds: .3 };
-  if (d.id === "cave-crab") return { profile: { aim: "ground", movement: "hold", friendlyFire: true }, id: "cavern-slam", name: d.intention, description: "Raises both claws and slams the marked 4.5-metre area 1.1 seconds after winding up. Retreat out of the ring or Block; one Block may not absorb the whole slam. Its next slam grows stronger.", damage, range: d.reach, noticeSeconds: 1.1 };
+  if (d.id === "cave-crab") return { profile: { aim: "ground", movement: "hold", friendlyFire: true }, id: "cavern-slam", name: d.intention, description: "Draws back his iron hook and sweeps the marked 4.5-metre area 1.1 seconds after winding up. Retreat out of the ring or Block; one Block may not absorb the whole sweep. His next sweep grows stronger.", damage, range: d.reach, noticeSeconds: 1.1 };
   if (d.id === "nest") return { profile: { aim: "ground", movement: "hold", friendlyFire: true }, id: d.id, name: d.intention, description: "Swarm hits within 3 metres, 0.35 seconds after winding up. Collisions interrupt it and spill a cloud. Bait a hound through the bee or Move to lure enemies together. Watchman fireballs ignite the cloud; stay clear or Block.", damage, range: d.reach, noticeSeconds: .35 };
   return { profile: { aim: "ground", movement: "hold", friendlyFire: true }, id: d.id, name: d.intention, description: d.preparation + ". Approaches until in reach, holds position, then strikes the marked area after 0.35 seconds. Plan a retreat or Block. Each attack raises its next damage by 15% of base damage, up to double.", damage, range: d.reach, noticeSeconds: .35 };
 }

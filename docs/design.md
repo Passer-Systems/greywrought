@@ -443,7 +443,12 @@ intentions, combat clock, gathered resources and corpse claims. Character health
 movement, inventory and abilities remain individual. The first nearby player
 to loot receives that corpse's reward. Returning to town never resets the shared
 forest. Ordinary enemies and harvested resources respawn after two minutes.
-The Ironback cache has one shared set of contents: the first player to loot it
+Rattagane guards Hollowdeep's deep chamber, using his authored horned rat model,
+iron hook wind-up and Hook Sweep. The sweep retains the cave boss's 1.1-second
+warning, 4.5-metre area and escalating damage. Defeating him yields six cave
+salvage and unlocks his cache. The original encounter and chest save IDs remain
+stable so existing wounds, defeats and claimed rewards persist.
+Rattagane’s cache has one shared set of contents: the first player to loot it
 empties it for everyone, permanently, including after a server restart.
 
 The action bar has individual squares labelled 1–9, 0, -, =. Attack starts on 1,
