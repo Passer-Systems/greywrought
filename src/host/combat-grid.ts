@@ -56,7 +56,6 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
       if (signature !== warningSignature) { warningSignature = signature; surface(warningGeometry, destination ? [destination] : [], .09); }
       canvas.dataset.moveWarning = JSON.stringify(destination);
     },
-    get revealTiles(): readonly Position[] { return cells.visible ? destinations : []; },
     accepts(destination: Position) { return destinations.some(cell => cell.x === destination.x && cell.z === destination.z); },
     update(snapshot: AdventureSnapshot, aiming: boolean, pointer: Position | null, others: readonly Position[] = [], route: readonly Position[] = []) {
       reference = snapshot.player.position;

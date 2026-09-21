@@ -20,6 +20,7 @@ import { buildFrostwood } from "./frostwood-scenery.js";
 import { combatSurfaceHeight, conformToTerrain } from "./terrain-geometry.js";
 import { terrainCameraLift } from "./terrain-camera.js";
 import { createSceneryCutaway } from './scenery-cutaway.js';
+import { settlementAt } from '../game/world-regions.js';
 import { buildHollowdeep } from "./hollowdeep-scenery.js";
 import { createWorldLighting } from "./world-lighting.js";
 import { createGroundTelegraphs, type CombatPreview } from "./ground-telegraphs.js";
@@ -280,9 +281,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   terrain.add(elian);
   const vendorActors = VENDORS.map(vendor => {
     const root = new Group(); root.position.set(vendor.position.x, terrainHeight(vendor.position.x, vendor.position.z), vendor.position.z);
-    root.rotation.y = vendor.position.x < 0 ? Math.PI / 2 : -Math.PI / 2;
+    const town = settlementAt(vendor.position.x, vendor.position.z);
+    const idleFacing = Math.atan2((town?.x ?? 0) - vendor.position.x, (town?.z ?? vendor.position.z) - vendor.position.z);
+    root.rotation.y = idleFacing;
     terrain.add(root);
-    return { vendor, root, actor: null as ForestActor | null };
+    return { vendor, root, idleFacing, actor: null as ForestActor | null };
   });
   const regionalHosts = REST_SPOTS.filter(spot => spot.id !== "inn").map(spot => {
     const root = new Group(); root.position.set(spot.position.x,spot.position.y,spot.position.z);
@@ -810,7 +813,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         merchant.play(snapshot.shopOpen ? "Idle_Weapon" : "Idle"); merchant.mixer.update(delta);
       }
       for (const entry of vendorActors) {
-        if (snapshot.vendorOpen === entry.vendor.id) entry.root.rotation.y = Math.atan2(position.x - entry.root.position.x, position.z - entry.root.position.z);
+        entry.root.rotation.y = snapshot.vendorOpen === entry.vendor.id
+          ? Math.atan2(position.x - entry.root.position.x, position.z - entry.root.position.z) : entry.idleFacing;
         entry.actor?.mixer.update(delta);
       }
       for (const entry of flightMasters) {
@@ -956,7 +960,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         if (collisionLift > 0) camera.position.y += collisionLift;
         camera.lookAt(target.x, target.y, target.z);
       }
-      sceneryCutaway.update(camera.position, snapshot.player.position, aimHeight, combatGrid.revealTiles, delta, firstPersonBlend < .8);
+      sceneryCutaway.update(camera.position, snapshot.player.position, aimHeight, snapshot.player.movementRange, delta, firstPersonBlend < .8);
       player.visible = firstPersonBlend < .8 && Math.hypot(camera.position.x-target.x, camera.position.y-target.y, camera.position.z-target.z) > 1.8;
       const selectedPlayer = selectedUnit?.kind === "player" ? selectedUnit.id : null;
       const friendlyRoot = [...remotePlayers.entries()].find(([id]) => id === selectedPlayer)?.[1].root;
