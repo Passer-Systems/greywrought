@@ -34,10 +34,7 @@
     "test:production": "bun scripts/production-smoke.ts",
     "build:world": "bun build --compile --target=bun-linux-x64-baseline scripts/world-server.ts --outfile build/server/greywrought-world",
     "test:multiplayer": "bun test src/server/world-service.test.ts && bun acceptance/browser/shared-world.ts",
-    "art:warden": "bun scripts/art/author-warden.ts",
-    "art:warden:open": "bun scripts/art/open-warden.ts",
-    "test:warden": "bun test ./src/host/relic-warden.test.ts && bun acceptance/browser/relic-warden.ts",
-    "test:rattagane": "bun test ./src/host/rattagane.test.ts ./src/game/cave.test.ts && bun acceptance/browser/rattagane.ts"
+    "test:art": "bun test ./src/art && bun acceptance/browser/art.ts"
   },
   "dependencies": {
     "three": "^0.185.1"

@@ -1,3 +1,4 @@
+import { authoredAppearances } from "../art/actor-catalog.js";
 import { createBellrunnerFleet } from "./bellrunner.js";
 import type { BellrunnerStopId } from "../game/bellrunner.js";
 import { VENDORS, REST_SPOTS, type NpcId } from "../game/economy.js";
@@ -464,6 +465,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     document.body.dataset.innkeeperState = "ready";
   });
   const appearances: Record<string, {model: string; height: number; idle: string; walk: string; attack: string; hit: string; metalColor?: number; tint?: number; glow?: number; lift?: number}> = {
+    ...authoredAppearances,
     "glassmire-lantern": {model:"Skull",height:1.45,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve",tint:0x90cfac,glow:0x245d43,lift:1.15},
     "glassmire-stalker": {model:"Wolf",height:1.7,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1",tint:0xb5d0ce},
     "glassmire-grazer": {model:"Crab",height:1.15,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:0x639780},
@@ -478,7 +480,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     "rust-skitter": {model:"Crab",height:0.55,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['rust-skitter']},
     "moss-skitter": {model:"Crab",height:0.6,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve",metalColor:ROBOT_CRITTER_COLORS['moss-skitter']},
     "cave-bat": {model:"Bat",height:1.5,idle:"Flying",walk:"Flying",attack:"Bite_Front",hit:"HitRecieve"},
-    "cave-crab": {model:"Rattagane",height:2.87,idle:"Idle",walk:"Walk",attack:"Weapon",hit:"HitReact"},
     "lake-dreadnought": {model:"Crab",height:2.3,idle:"Idle",walk:"Walk",attack:"Shell_Slam",hit:"HitRecieve"},
     "pond-turtle": {model:"Crab",height:0.9,idle:"Idle",walk:"Walk",attack:"Bite_InPlace",hit:"HitRecieve"},
     "meadow-rat": {model:"Rat",height:0.65,idle:"Idle",walk:"Walk",attack:"Attack",hit:"Run"},
@@ -488,7 +489,6 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     "meadow-bird-3": {model:"Birb",height:0.7,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve"},
     scout: {model:"Skull",height:1.6,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
     nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
-    warder: {model:"RelicWarden",height:2.65,idle:"Idle",walk:"Run",attack:"SwordSlash",hit:"HitRecieve_1"},
     patrol: {model:"Wolf",height:1.6,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1"},
     "ritual-guardian": {model:"Leela",height:3.2,idle:"Idle",walk:"Walk",attack:"Kick",hit:"HitRecieve_1"},
   };

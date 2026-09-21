@@ -1,11 +1,13 @@
+import { authoredAppearances } from "../art/actor-catalog.js";
 import { Color, DirectionalLight, HemisphereLight, Mesh, OrthographicCamera, Scene, SRGBColorSpace, WebGLRenderer } from "three";
 import { actor } from "./frostwood-assets.js";
 import { mechanicalTurtle } from "./mechanical-turtle.js";
 import { robotCritter, ROBOT_CRITTER_COLORS } from "./robot-critter.js";
 
 const appearances = [
-  ["cave-bat", "Bat"], ["cave-crab", "Rattagane"],
-  ["scout", "Skull"], ["nest", "Armabee"], ["warder", "RelicWarden"],
+  ["cave-bat", "Bat"],
+  ...Object.entries(authoredAppearances).map(([id, look]) => [id, look.model] as const),
+  ["scout", "Skull"], ["nest", "Armabee"],
   ["patrol", "Wolf"], ["ritual-guardian", "Leela"],
   ["lake-dreadnought", "mechanical-turtle"], ["pond-turtle", "mechanical-turtle"], ["pond-turtle-west", "mechanical-turtle"], ["pond-turtle-north", "mechanical-turtle"], ["pond-turtle-south", "mechanical-turtle"], ["meadow-rat", "Rat"], ["meadow-rat-2", "Rat"],
   ["meadow-bird", "Birb"], ["meadow-bird-2", "Birb"], ["meadow-bird-3", "Birb"],

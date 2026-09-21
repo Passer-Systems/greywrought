@@ -1,3 +1,5 @@
+import { authoredAssetFiles } from "./art/public-assets.js";
+const authoredFiles = await authoredAssetFiles();
 const frostwoodFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/frostwood",onlyFiles:true}));
 const pirateFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/pirate",onlyFiles:true}));
 const reclaimedRobotFiles = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd:"assets/external/quaternius/reclaimed-robot",onlyFiles:true}));
@@ -49,11 +51,7 @@ export const files: readonly (readonly [string, string])[] = [
     `assets/ui/${name}`,
     `dist/assets/ui/${name}`,
   ]),
-  ["assets/external/relic-warden/relic-warden-runtime.glb", "dist/assets/quaternius/frostwood/actors/RelicWarden.glb"],
-  ["assets/external/relic-warden/QUATERNIUS-LICENSE.txt", "dist/assets/greywrought/QUATERNIUS-LICENSE.txt"],
-  ...["rattagane.glb", "SOURCE.md"].map((name): readonly [string, string] => [
-    `assets/external/openai/rattagane/${name}`, `dist/assets/openai/rattagane/${name}`,
-  ]),
+  ...authoredFiles,
   ...frostwoodFiles.map((name): readonly [string, string] => [
     `assets/external/quaternius/frostwood/${name}`, `dist/assets/quaternius/frostwood/${name}`,
   ]),
