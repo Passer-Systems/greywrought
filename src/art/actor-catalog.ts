@@ -1,4 +1,4 @@
-/** Paths are relative to assets/external in source and assets in the client. */
+/** Source paths are relative to assets/external; public actor routes use model names. */
 export interface AuthoredActor {
   readonly path: string;
   readonly encounterId: string;
@@ -27,7 +27,7 @@ export const authoredAppearances = Object.fromEntries(
 
 const actorPaths: Readonly<Record<string, string>> = {
   Rat: "quaternius/rodents/Rat.glb",
-  ...Object.fromEntries(Object.entries(authoredActors).map(([name, asset]) => [name, asset.path])),
+  ...Object.fromEntries(Object.keys(authoredActors).map(name => [name, `openai/actors/${name}.glb`])),
 };
 const classModels = {
   warrior: "Warrior.glb", mage: "Wizard.glb", hunter: "Ranger.glb",

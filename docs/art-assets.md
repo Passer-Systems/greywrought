@@ -6,8 +6,11 @@ encounter ID. World appearances, portraits, loading, release packaging and art
 checks consume that catalog.
 
 Keep OpenAI models under `assets/external/openai/<asset>/` and place their source
-notes and licenses beside the runtime GLB. Public URLs preserve that directory
-structure under `assets/`. Only registered models and adjacent Markdown/text
+notes and licenses beside the runtime GLB. Registered models publish at
+`assets/openai/actors/<ModelName>.glb`, including `Rattagane.glb` and
+`RelicWarden.glb`. Quaternius's default actor route is
+`assets/quaternius/frostwood/actors/<ModelName>.glb`. Attribution retains its
+source directory structure under `assets/`. Only registered models and adjacent Markdown/text
 attribution are packaged; Blender sources and unregistered experiments remain
 outside the release. Quaternius actors retain their existing default directory,
 with explicit mappings for alternative packs and player classes.

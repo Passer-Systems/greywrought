@@ -13,6 +13,7 @@ for (const [name, asset] of Object.entries(authoredActors)) {
   test(`${name}: packaged model and attribution resolve through the runtime catalog`, async () => {
     const files = await authoredAssetFiles();
     const source = `assets/external/${asset.path}`;
+    expect(actorAssetPath(name)).toBe(`assets/openai/actors/${name}.glb`);
     expect(files).toContainEqual([source, `dist/${actorAssetPath(name)}`]);
     for (const [path] of files) expect(await Bun.file(path).exists()).toBe(true);
     const directory = source.slice(0, source.lastIndexOf("/"));
