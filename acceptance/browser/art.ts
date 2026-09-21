@@ -5,12 +5,12 @@ import { terrainHeight } from "../../src/game/cave-layout.js";
 import { createWorldService, type WorldSocketData } from "../../src/server/world-service.js";
 import { openBrowser, check } from "./session.js";
 
-const url = "http://127.0.0.1:4305/";
+const url = "http://127.0.0.1:4295/";
 Bun.env.GREYWROUGHT_GAME_URL = url;
-Bun.env.GREYWROUGHT_DEBUG_PORT = "9467";
+Bun.env.GREYWROUGHT_DEBUG_PORT = "9457";
 await mkdir("build/browser", { recursive: true });
 const frontend = Bun.spawn([process.execPath, Bun.env.GREYWROUGHT_TEST_BUILT === "1" ? "scripts/static-server.ts" : "scripts/dev-server.ts"], {
-  env: { ...Bun.env, GREYWROUGHT_PORT: "4305", GREYWROUGHT_LOCAL_WORLD: "0" },
+  env: { ...Bun.env, GREYWROUGHT_PORT: "4295", GREYWROUGHT_LOCAL_WORLD: "0" },
   stdout: Bun.file("build/browser/art-frontend.log"), stderr: Bun.file("build/browser/art-frontend-errors.log"),
 });
 const cases = Object.entries(authoredActors);
@@ -36,14 +36,14 @@ try {
     const savePath = `${process.cwd()}/build/browser/art-${id}-${process.pid}.json`;
     await Bun.write(savePath, JSON.stringify({ version: 1, accounts: [{ character, tokenHash: new Bun.CryptoHasher("sha256").update(token).digest("hex") }], world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
     const service = await createWorldService({ savePath, allowedOrigins: [url.slice(0, -1)] });
-    const server = Bun.serve<WorldSocketData>({ hostname: "127.0.0.1", port: 4306, fetch: (request, host) => service.fetch(request, host), websocket: service.websocket });
+    const server = Bun.serve<WorldSocketData>({ hostname: "127.0.0.1", port: 4296, fetch: (request, host) => service.fetch(request, host), websocket: service.websocket });
     let page: Awaited<ReturnType<typeof openBrowser>> | undefined;
     try {
       page = await openBrowser("art-mob-" + id, { beforeNavigate: async call => {
         await call("Page.addScriptToEvaluateOnNewDocument", { source: `window.EventSource=class{};localStorage.setItem("greywrought/combat-auto-ready-v1","false");
           localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: "Art Test", characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});
           localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
-          window.artHistory=[];const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4306/world':url,...args);this.addEventListener('message',e=>{const d=JSON.parse(e.data);if(d.type==='state'){window.artState=d.snapshot;window.artHistory.push(d.snapshot);}});}};` });
+          window.artHistory=[];const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4296/world':url,...args);this.addEventListener('message',e=>{const d=JSON.parse(e.data);if(d.type==='state'){window.artState=d.snapshot;window.artHistory.push(d.snapshot);}});}};` });
       } });
       await page.waitFor('document.body.dataset.entryRoute==="roster"', 30000);
       await page.click("#entry-enter-world");
