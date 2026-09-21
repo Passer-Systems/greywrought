@@ -1,4 +1,4 @@
-import { actorAssetPath, authoredActors, type PlayerModel } from "../art/actor-catalog.js";
+import { actorAssetPath, type PlayerModel } from "../art/actor-catalog.js";
 import { AnimationMixer, Box3, Color, Float32BufferAttribute, Group, LoopOnce, LoopRepeat, Mesh, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
@@ -31,7 +31,7 @@ export interface ForestActor {
   play(name: string, loop?: boolean, duration?: number, fade?: number): AnimationAction;
   dispose(): void;
 }
-export async function actor(name: string, height: number, playerModel?: PlayerModel): Promise<ForestActor> {
+export async function actor(name: string, height: number, playerModel?: PlayerModel, materialFill?: number): Promise<ForestActor> {
   const gltf = await source(actorAssetPath(name, playerModel));
   const model = clone(gltf.scene);
   const animations = [...gltf.animations];
@@ -64,7 +64,6 @@ export async function actor(name: string, height: number, playerModel?: PlayerMo
     }
   }
   const localMaterials: Material[] = [];
-  const materialFill = authoredActors[name]?.materialFill;
   if (materialFill !== undefined) model.traverse(object => {
     if (!(object instanceof Mesh)) return;
     const caveFill = (material: Material) => {

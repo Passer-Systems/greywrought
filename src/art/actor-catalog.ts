@@ -1,41 +1,33 @@
-/** Source paths are relative to assets/external; public actor routes use model names. */
-export interface AuthoredActor {
-  readonly path: string;
-  readonly encounterId: string;
-  readonly height: number;
-  readonly idle: string;
-  readonly walk: string;
-  readonly attack: string;
-  readonly hit: string;
-  readonly materialFill?: number;
+/** All actor assets use the same source-to-public-path mapping, regardless of origin. */
+export interface ActorAsset {
+  readonly source: string;
+  readonly publicPath: string;
 }
 
-export const authoredActors: Readonly<Record<string, AuthoredActor>> = {
-  RelicWarden: {
-    path: "openai/relic-warden/relic-warden.glb", encounterId: "warder",
-    height: 2.65, idle: "Idle", walk: "Run", attack: "SwordSlash", hit: "HitRecieve_1",
-  },
-  Rattagane: {
-    path: "openai/rattagane/rattagane.glb", encounterId: "cave-crab",
-    height: 2.87, idle: "Idle", walk: "Walk", attack: "Weapon", hit: "HitReact", materialFill: .35,
-  },
+function pack(directory: string, names: readonly string[]): Record<string, ActorAsset> {
+  return Object.fromEntries(names.map(name => [name, {
+    source: `${directory}/${name}.glb`, publicPath: `assets/${directory}/${name}.glb`,
+  }]));
+}
+
+export const actorAssets: Readonly<Record<string, ActorAsset>> = {
+  ...pack('quaternius/frostwood/actors', ['Armabee', 'Bat', 'Birb', 'Chef_Male', 'Cleric', 'Crab', 'Leela', 'MushroomKing', 'Skull', 'Wolf']),
+  ...pack('quaternius/rodents', ['Rat']),
+  ...pack('quaternius/class-characters', ['Warrior', 'Wizard', 'Ranger', 'Social']),
+  Alchemist: { source: 'quaternius/class-characters/Alchemist.gltf', publicPath: 'assets/quaternius/class-characters/Alchemist.gltf' },
+  Artificer: { source: 'quaternius/class-characters/Artificer.gltf', publicPath: 'assets/quaternius/class-characters/Artificer.gltf' },
+  RelicWarden: { source: 'openai/relic-warden/relic-warden.glb', publicPath: 'assets/openai/actors/RelicWarden.glb' },
+  Rattagane: { source: 'openai/rattagane/rattagane.glb', publicPath: 'assets/openai/actors/Rattagane.glb' },
 };
 
-export const authoredAppearances = Object.fromEntries(
-  Object.entries(authoredActors).map(([model, asset]) => [asset.encounterId, { model, ...asset }]),
-);
-
-const actorPaths: Readonly<Record<string, string>> = {
-  Rat: "quaternius/rodents/Rat.glb",
-  ...Object.fromEntries(Object.keys(authoredActors).map(name => [name, `openai/actors/${name}.glb`])),
-};
 const classModels = {
-  warrior: "Warrior.glb", mage: "Wizard.glb", hunter: "Ranger.glb",
-  alchemist: "Alchemist.gltf", artificer: "Artificer.gltf",
+  warrior: 'Warrior', mage: 'Wizard', hunter: 'Ranger', alchemist: 'Alchemist', artificer: 'Artificer',
 } as const;
 export type PlayerModel = keyof typeof classModels;
 
 export function actorAssetPath(name: string, playerModel?: PlayerModel): string {
-  if (playerModel) return `assets/quaternius/class-characters/${classModels[playerModel]}`;
-  return `assets/${actorPaths[name] ?? `quaternius/frostwood/actors/${name}.glb`}`;
+  const key = playerModel ? classModels[playerModel] : name;
+  const asset = actorAssets[key];
+  if (!asset) throw new Error(`Unknown actor: ${key}`);
+  return asset.publicPath;
 }

@@ -1,9 +1,7 @@
 import { CanvasTexture, Material, Mesh, MeshBasicMaterial, MeshStandardMaterial, Texture } from "three";
 import { actor, type ForestActor } from "./frostwood-assets.js";
 
-export const ROBOT_CRITTER_COLORS = {
-  'scrap-skitter': 0xb1aca0, 'rust-skitter': 0xa88063, 'moss-skitter': 0x819f91,
-} as const;
+export { ROBOT_CRITTER_COLORS } from "./robot-critter-colors.js";
 
 /** Keep the authored shell, joints and native Crab animation rig under worn metal. */
 export async function robotCritter(height: number, color: number): Promise<ForestActor> {
