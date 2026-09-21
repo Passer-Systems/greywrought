@@ -54,6 +54,9 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
   input.id = "chat-log-input"; input.type = "text"; input.maxLength = 280;
   input.placeholder = "Enter to chat · /p for party"; input.setAttribute("aria-label", "Chat message; /p for party");
   input.autocomplete = "off";
+  input.setAttribute("autocorrect", "off");
+  input.autocapitalize = "off";
+  input.spellcheck = false;
   input.setAttribute("data-bwignore", "true");
   input.setAttribute("data-1p-ignore", "true");
   input.setAttribute("data-lpignore", "true");

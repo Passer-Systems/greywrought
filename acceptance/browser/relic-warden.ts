@@ -44,6 +44,7 @@ try {
       await page.waitFor('document.body.dataset.entryRoute==="roster"', 30000);
       await page.click("#entry-enter-world");
       await page.waitFor('document.body.dataset.rigState==="ready" && document.body.dataset.creatureRigState==="ready" && document.body.dataset.environmentState==="ready"', 45000);
+      await page.waitFor('document.body.dataset.entryRoute==="world"', 90000);
       await page.shot("loaded");
       await Bun.sleep(1500);
       // Slow headless shader compilation can trigger the normal reconnect pause.
@@ -63,7 +64,10 @@ try {
       const model = "RelicWarden";
       check(await page.evaluate(`performance.getEntriesByType('resource').some(e=>e.name.endsWith('/${model}.glb'))`), `${name} asset must load`);
       check(await page.evaluate(`performance.getEntriesByType('resource').some(e=>e.name.endsWith('/MushroomKing.glb'))`), "The Ossuary King must retain its separate model");
-      await page.evaluate(`(async()=>{const {Mesh,SkinnedMesh}=await import('three');window.relicPoses=[];window.relicAttached=[];Mesh.prototype.onBeforeRender=function(){for(let p=this;p;p=p.parent)if(p.userData.threatId===${JSON.stringify(id)}){if(this instanceof SkinnedMesh){const s=Array.from(this.skeleton.boneMatrices).map(n=>n.toFixed(3)).join(',');if(!relicPoses.includes(s)&&relicPoses.length<40)relicPoses.push(s);}else if(this.userData.authoredSurface&&!relicAttached.includes(this.name))relicAttached.push(this.name);break;}};})()`);
+      await page.evaluate(`(async()=>{const {Mesh,SkinnedMesh}=await import('three');window.relicPoses=[];window.relicAttached=[];window.relicPatrol=[];Mesh.prototype.onBeforeRender=function(){for(let p=this;p;p=p.parent)if(p.userData.threatId===${JSON.stringify(id)}){if(this instanceof SkinnedMesh){const s=Array.from(this.skeleton.boneMatrices).map(n=>n.toFixed(3)).join(',');if(!relicPoses.includes(s)&&relicPoses.length<40)relicPoses.push(s);const t=relicState.threats.find(t=>t.id===${JSON.stringify(id)});if(t.phase==='patrol'){const before=relicPatrol.at(-1),sample={x:p.position.x,z:p.position.z,yaw:p.rotation.y};if(!before||Math.hypot(sample.x-before.x,sample.z-before.z)>.03)relicPatrol.push(sample);}}else if(this.userData.authoredSurface&&!relicAttached.includes(this.name))relicAttached.push(this.name);break;}};})()`);
+      await page.waitFor('new Set(relicPatrol.map(p=>p.yaw.toFixed(1))).size>=3', 20000);
+      check(await page.evaluate(`relicPatrol.slice(1).filter((p,i)=>{const b=relicPatrol[i];return Math.abs(p.yaw-b.yaw)<.01}).every(p=>{const i=relicPatrol.indexOf(p),b=relicPatrol[i-1],dx=p.x-b.x,dz=p.z-b.z;return (dx*Math.sin(p.yaw)+dz*Math.cos(p.yaw))/Math.hypot(dx,dz)>.99})`), "Rendered Warden faces forward while patrolling through turns");
+      await page.shot("patrol-facing");
       const distance = `(()=>{const t=relicState.threats.find(t=>t.id===${JSON.stringify(id)}),p=relicState.player.position;return Math.hypot(t.position.x-p.x,t.position.z-p.z)})()`;
       async function approach(range: number, stopOnCombat = false) {
         const held = new Set<string>(), deadline = performance.now() + 25000;

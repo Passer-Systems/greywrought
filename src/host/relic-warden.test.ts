@@ -42,3 +42,28 @@ test("Relic Warden retains the warder save identity", () => {
   expect(restored.snapshot.threats.find(t=>t.id==="warder")?.name).toBe("Relic Warden");
   expect(getMonsterLore().find(t=>t.id==="warder")?.name).toBe("Relic Warden");
 });
+
+test("patrolling creatures face travel through turns and hold their heading at stops", () => {
+  const game = createAdventure();
+  const headings = new Map<string, Set<string>>();
+  let previous = game.snapshot;
+  for (let step = 0; step < 480; step++) {
+    game.advance(1 / 30);
+    const current = game.snapshot;
+    for (const threat of current.threats.filter(t => t.phase === "patrol")) {
+      const before = previous.threats.find(t => t.id === threat.id)!;
+      const dx = threat.position.x - before.position.x, dz = threat.position.z - before.position.z;
+      const length = Math.hypot(dx, dz);
+      if (length > 1e-6) {
+        expect((dx * threat.facing.x + dz * threat.facing.z) / length).toBeCloseTo(1, 5);
+        const seen = headings.get(threat.id) ?? new Set<string>();
+        seen.add(`${threat.facing.x.toFixed(2)},${threat.facing.z.toFixed(2)}`);
+        headings.set(threat.id, seen);
+      } else expect(threat.facing).toEqual(before.facing);
+    }
+    previous = current;
+  }
+  expect(headings.get("warder")!.size).toBeGreaterThan(2);
+  const restored = createAdventure({ save: game.save() });
+  expect(restored.snapshot.threats.find(t => t.id === "warder")!.facing).toEqual(game.snapshot.threats.find(t => t.id === "warder")!.facing);
+});

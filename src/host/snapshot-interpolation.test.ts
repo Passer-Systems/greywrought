@@ -50,3 +50,22 @@ test('a corpse stays at its death position until its respawn snapshot', () => {
   expect(respawn.health).toBe(threat.maximumHealth);
   expect(respawn.position).toEqual(threat.position);
 });
+
+test('fireballs interpolate their server path independently of the viewing player', () => {
+  const base = createAdventure().snapshot;
+  const threat = base.threats[0]!;
+  const ball = {id: 1, origin: {x: -3, y: 0, z: 30}, position: {x: -3, y: 0, z: 28}, remainingSeconds: .6, duration: .9, damage: 18};
+  const sample = (viewerX: number) => {
+    const buffer = createSnapshotInterpolation();
+    const snapshot = {...base, player: {...base.player, position: {x: viewerX, y: 0, z: 15}}};
+    buffer.push({...snapshot, threats: [{...threat, targetPlayerId: 'fighter', fireballs: [ball]}]}, [], 10);
+    buffer.push({...snapshot, threats: [{...threat, targetPlayerId: 'fighter', fireballs: [{...ball, position: {x: -2, y: 0, z: 27}, remainingSeconds: .55}]}]}, [], 10.05);
+    return buffer.sample(.17).threats[0]!.fireballs[0]!;
+  };
+  const first = sample(-20), second = sample(20);
+  expect(first).toEqual(second);
+  expect(first.position.x).toBeGreaterThan(-3);
+  expect(first.position.x).toBeLessThan(-2);
+  expect(first.position.z).toBeGreaterThan(27);
+  expect(first.position.z).toBeLessThan(28);
+});

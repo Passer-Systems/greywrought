@@ -80,7 +80,7 @@ interface ThreatState {
   castDuration: number; shieldSeconds: number;
   remainingSeconds: number; actionSequence: number; lastActionHit: boolean; damage: number;
   position: Vector; turnTarget: Vector; targetPosition: Vector; targetPlayerId: string | null; aggro: boolean; lootClaimed: boolean;
-  patrolIndex: number; moving: boolean; abilityIndex: number;
+  patrolIndex: number; moving: boolean; abilityIndex: number; travelFacing: Vector;
   wolf: WolfState | null; head: HeadState | null;
 }
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -268,7 +268,7 @@ const newThreat = (t: ThreatDefinition): ThreatState => ({
   castDuration: 0, shieldSeconds: 0,
   remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: t.behavior === "wolf" ? 18 : t.damage,
   position: { ...t.position }, turnTarget: { ...t.position }, targetPosition: { ...t.position }, targetPlayerId: null, aggro: false,
-  lootClaimed: false, patrolIndex: 1, moving: false, abilityIndex: 0,
+  lootClaimed: false, patrolIndex: 1, moving: false, abilityIndex: 0, travelFacing: { x: 0, y: 0, z: 1 },
   wolf: t.behavior === "wolf" ? { ...newWolf(), attackOrigin: { ...t.position } } : null, head: t.behavior === "head" ? newHead() : null,
 });
 const newThreats = (): ThreatState[] => DEFINITIONS.map(newThreat);
@@ -614,10 +614,10 @@ class Adventure implements AdventureGame {
           staggered: t.staggered, disposition: d.disposition, critter: d.critter === true, joinsNextWindow: t.aggro && t.joinCycle > s.combat.clock.cycle, moving: s.phase !== "lost" && t.moving, maximumHealth: d.health,
           aggroRange: d.aggroRange, callForHelpRange: d.callsForHelp === false ? 0 : CALL_FOR_HELP_RANGE,
           movementMode: this.movementMode(t), motionProgress: t.wolf?.motion ? 1 - t.wolf.motion.remainingSeconds / t.wolf.motion.duration : 0,
-          facing: { ...(t.wolf?.facing ?? this.direction(t.position, t.aggro ? (this.targetPlayer(t)?.state.position ?? s.position) : t.targetPosition)) },
+          facing: { ...(t.wolf?.facing ?? (t.aggro ? this.direction(t.position, this.targetPlayer(t)?.state.position ?? s.position) : t.travelFacing)) },
           nextAttackSeconds: t.wolf?.nextAttackSeconds ?? t.remainingSeconds,
           attackOrigin: t.wolf && t.phase === "action" && t.abilityIndex === 1 ? { ...t.wolf.attackOrigin } : point(t.position.x, t.position.z),
-          block: t.head?.block ?? t.shield, blockSeconds: t.head?.blockSeconds ?? t.shieldSeconds, volley: t.head?.volley ?? 0, fireballs: t.head?.fireballs.map(p => ({ ...p, origin: { ...p.origin } })) ?? [],
+          block: t.head?.block ?? t.shield, blockSeconds: t.head?.blockSeconds ?? t.shieldSeconds, volley: t.head?.volley ?? 0, fireballs: t.head?.fireballs.map(p => ({ ...p, origin: { ...p.origin }, position: { ...p.position } })) ?? [],
           canStrike: this.canUseAttack(t, "strike"), cast: this.castView(t),
           inRangeActions: (t.active && this.attackInRange(t, "strike") ? ["strike"] : []),
           selected: t.id === s.selectedThreat, phaseDuration: this.phaseDuration(t), windowAction: (t.aggro || t.cancelledWindow && s.combat.clock.phase === "active") && t.windowCycle === s.combat.clock.cycle && t.joinCycle <= s.combat.clock.cycle ? { ability: this.ability(t), offsetSeconds: t.specialOffset, status: t.cancelledWindow ? "cancelled" : t.phase === "recovery" || t.phase === "approach" ? "resolved" : t.phase === "action" ? "active" : "pending" } : null, forecast: t.aggro && t.windowCycle === s.combat.clock.cycle ? [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialOffset - s.combat.clock.elapsedSeconds), status: t.phase === "recovery" || t.phase === "approach" ? "active" : "pending" }] : [],
@@ -1877,10 +1877,11 @@ class Adventure implements AdventureGame {
       const before = distance(t.position, entry.destination), after = Math.hypot(x-entry.destination.x, z-entry.destination.z);
       return after < COMBAT_CELL_SIZE * .8 && after < before;
     }))) return;
+    t.travelFacing = this.direction(t.position, next);
     t.position.x = x; t.position.z = z;
     t.position.y = terrainHeight(t.position.x, t.position.z);
     t.moving = true;
-    if (t.wolf) t.wolf.facing = this.direction(t.position, next);
+    if (t.wolf) t.wolf.facing = { ...t.travelFacing };
   }
   private positionThreat(t: ThreatState, dt: number): void {
     if (t.wolf) { this.positionWolf(t, dt); t.targetPosition = this.wolfEndpoint(t); }
@@ -2187,6 +2188,7 @@ function readSave(serialized: string, now = Date.now()): State {
       targetPlayerId: t.targetPlayerId === undefined || t.targetPlayerId === null ? null : text(t.targetPlayerId),
       lootClaimed: version >= 3 ? boolean(t.lootClaimed) : id === "ritual-guardian" && health === 0,
       patrolIndex: t.patrolIndex === undefined ? 1 : number(t.patrolIndex, 0, d.patrol?.length ?? 1, true), moving: t.moving === undefined ? false : boolean(t.moving),
+      travelFacing: t.travelFacing === undefined ? { x: 0, y: 0, z: 1 } : { x: number(record(t.travelFacing).x, -1, 1), y: number(record(t.travelFacing).y, 0, 0), z: number(record(t.travelFacing).z, -1, 1) },
       abilityIndex: t.abilityIndex === undefined ? 0 : number(t.abilityIndex, 0, 2, true),
       wolf: d.behavior === "wolf" ? realtime ? readWolf(t.wolf, true) : newWolf() : null,
       head: d.behavior === "head" ? t.head ? readHead(t.head, realtime) : newHead() : null,

@@ -55,7 +55,7 @@ export function createSnapshotInterpolation() {
             remainingSeconds: sameAction ? before.remainingSeconds + (after.remainingSeconds - before.remainingSeconds) * t : before.remainingSeconds,
             fireballs: before.fireballs.map(ball => {
               const next = after.fireballs.find(item => item.id === ball.id);
-              return next ? {...ball, remainingSeconds: ball.remainingSeconds + (next.remainingSeconds - ball.remainingSeconds) * t} : ball;
+              return next ? {...ball, position: position(ball.position, next.position, t), remainingSeconds: ball.remainingSeconds + (next.remainingSeconds - ball.remainingSeconds) * t} : ball;
             }),
           };
         }),

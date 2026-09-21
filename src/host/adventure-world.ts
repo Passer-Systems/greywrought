@@ -326,11 +326,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const shield = new Mesh(new SphereGeometry(0.95, 20, 12), new MeshBasicMaterial({ color: 0x9bdfff, transparent: true, opacity: 0.22, wireframe: true, depthWrite: false }));
   shield.position.y = 0.9;
   player.add(shield);
-  const playerHalo = new Mesh(new RingGeometry(0.5, 0.57, 32), new MeshBasicMaterial({ color: 0xffdf8a, side: 2 }));
-  playerHalo.rotation.x = -Math.PI / 2;
+  const selectionCircle = selectionCircles();
+  const playerHalo = selectionCircle(.62, 0xffdf8a);
+  playerHalo.visible = true;
   playerHalo.position.y = 0.04;
   player.add(playerHalo);
-  const selectionCircle = selectionCircles();
   const friendlySelection = selectionCircle(.9, 0x63f076);
   const npcSelection = selectionCircle(.95, 0x63f076); scene.add(npcSelection);
   friendlySelection.rotation.x = -Math.PI / 2; friendlySelection.visible = false; scene.add(friendlySelection);
@@ -443,7 +443,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const root = new Group(), body = creature.root;
     root.add(body); root.userData.threatId = threat.id; scene.add(root);
     creature.play(threat.health <= 0 ? "Death" : look.idle, threat.health > 0);
-    const ring = new Mesh(new RingGeometry(0.93, 1.03, 48), new MeshBasicMaterial({ color: 0xffd278, side: 2 }));
+    const ring = selectionCircle(Math.max(.55, look.height * .6), 0xffd278);
+    ring.material.opacity = .6;
     ring.rotation.x = -Math.PI/2; ring.position.y=0.05; root.add(ring);
     const selection = selectionCircle(Math.max(.55, look.height * .6), 0xff3232);
     selection.rotation.x = -Math.PI/2; selection.position.y=0.06; root.add(selection);
@@ -718,7 +719,8 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.beamTime=Math.max(0,rig.beamTime-delta);rig.beam.visible=rig.beamTime>0;
         if (rig.beam.visible) {
           const mouth=new Vector3(threat.position.x,threat.position.y+rig.body.position.y+rig.height*0.65,threat.position.z);
-          const recipient = visiblePlayers.find(other => other.id === threat.targetPlayerId)?.player.position ?? position;
+          const recipient = visiblePlayers.find(other => other.id === threat.targetPlayerId)?.player.position
+            ?? (threat.targetPlayerId === playerSelection?.selfId ? position : threat.targetPosition);
           const end=new Vector3(recipient.x,recipient.y+1.2,recipient.z),direction=end.clone().sub(mouth);
           rig.beam.position.copy(mouth).add(end).multiplyScalar(0.5);
           rig.beam.scale.y=direction.length();rig.beam.quaternion.setFromUnitVectors(new Vector3(0,1,0),direction.normalize());
@@ -731,12 +733,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           if (!ball) {ball=new Mesh(new SphereGeometry(0.23,12,8),new MeshBasicMaterial({color:0xff7c2a}));rig.fireballs.set(projectile.id,ball);scene.add(ball);}
           ball.visible=projectile.remainingSeconds<=projectile.duration;
           const progress=Math.max(0,Math.min(1,1-projectile.remainingSeconds/projectile.duration));
-          ball.position.set(projectile.origin.x+(position.x-projectile.origin.x)*progress,
-            (projectile.origin.y+rig.body.position.y+rig.height*0.65)*(1-progress)+(position.y+1.2)*progress+Math.sin(progress*Math.PI)*0.35,
-            projectile.origin.z+(position.z-projectile.origin.z)*progress);
-          const lateral=Math.sin(progress*Math.PI)*0.55*((projectile.id%3)-1);
-          const dx=position.x-projectile.origin.x,dz=position.z-projectile.origin.z,length=Math.hypot(dx,dz)||1;
-          ball.position.x+=-dz/length*lateral;ball.position.z+=dx/length*lateral;
+          ball.position.set(projectile.position.x,
+            (projectile.origin.y+rig.body.position.y+rig.height*0.65)*(1-progress)+(projectile.position.y+1.2)*progress+Math.sin(progress*Math.PI)*0.35,
+            projectile.position.z);
           ball.scale.setScalar(1+Math.sin(elapsed*28+projectile.id)*0.12);
         }
         rig.actor.mixer.update(delta);

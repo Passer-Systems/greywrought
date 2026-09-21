@@ -88,7 +88,7 @@ export interface MonsterLoreEntry {
   readonly strategy: string;
 }
 export interface FireballView {
-  readonly id: number; readonly origin: Position; readonly remainingSeconds: number;
+  readonly id: number; readonly origin: Position; readonly position: Position; readonly remainingSeconds: number;
   readonly duration: number; readonly damage: number;
 }
 export interface ThreatForecastEntry {
