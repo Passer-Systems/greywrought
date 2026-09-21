@@ -12,6 +12,7 @@ import {
   Float32BufferAttribute,
 } from "three";
 import { terrainHeight } from "../game/cave-layout.js";
+import { LAVA_LAKE, LAVA_LAKE_SHORE, lavaLakeRatio } from '../game/lava-layout.js';
 
 export function buildVolcanoLandmark(terrain: Group) {
   const root = new Group();
@@ -65,14 +66,14 @@ normal=normalize(abs(rockDet)*normal-rockGradient);`);
   };
   const time = { value: 0 };
   const lava = new ShaderMaterial({
-    uniforms: { time, channel: { value: 0 } },
-    vertexShader: `uniform float time,channel;varying vec2 ground;varying vec2 flow;
+    uniforms: { time, channel: { value: 0 }, basin: { value: 0 } },
+    vertexShader: `uniform float time,channel,basin;varying vec2 ground;varying vec2 flow;
       void main(){
         ground=position.xz;flow=uv;vec3 p=position;
-        p.y+=(1.-channel)*(.07*sin(p.z*1.5-time*2.)+.04*sin(p.x*2.+time*1.7));
+        p.y+=(1.-channel)*(1.-basin*.8)*(.07*sin(p.z*1.5-time*2.)+.04*sin(p.x*2.+time*1.7));
         gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
       }`,
-    fragmentShader: `uniform float time,channel; varying vec2 ground;varying vec2 flow;
+    fragmentShader: `uniform float time,channel,basin; varying vec2 ground;varying vec2 flow;
       float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float noise(vec2 p){
         vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
@@ -87,7 +88,8 @@ normal=normalize(abs(rockDet)*normal-rockGradient);`);
         float river=mix(1.-smoothstep(.15,2.8,abs(ground.x-1.3*sin(ground.y*.35))),
           1.-smoothstep(.15,1.,abs(flow.x)),channel);
         float tongue=smoothstep(.32,.78,noise(vec2(p.x*2.2,p.y*.7)+4.));
-        float edge=channel*smoothstep(.65,1.,abs(flow.x))*.7;
+        float edge=channel*smoothstep(.65,1.,abs(flow.x))*.7
+          +basin*smoothstep(.72,1.,length(flow))*(.48+detail*.3);
         float molten=clamp(.35+river*.35+tongue*.45-crust*.95-edge,0.,1.);
         vec3 rock=mix(vec3(.024,.014,.01),vec3(.12,.035,.009),detail);
         vec3 glow=mix(vec3(1.3,.08,.003),vec3(2.8,.72,.05),molten);
@@ -140,6 +142,14 @@ normal=normalize(abs(rockDet)*normal-rockGradient);`);
     const floors = [17.72, 17.1, 9.6, ringPoint(rings[3]!, channelAngle(t))[1]];
     const floor = floors[band]! + (floors[band + 1]! - floors[band]!) * f;
     point[1] -= Math.max(0, point[1] - floor) * cut;
+    const wx = x + point[0] * Math.cos(-.18) + point[2] * Math.sin(-.18);
+    const wz = z - point[0] * Math.sin(-.18) + point[2] * Math.cos(-.18);
+    const basinEdge = lavaLakeRatio(wx, wz);
+    if (basinEdge < 1.35) {
+      // Open the mountain's toe over the basin instead of burying hot ground under rock.
+      const blend = Math.max(0, (basinEdge - 1) / .35);
+      point[1] += (terrainHeight(wx, wz) - ground - .08 - point[1]) * (1 - blend * blend * (3 - 2 * blend));
+    }
     return point;
   };
   const vertices: number[] = [], indices: number[] = [];
@@ -174,12 +184,13 @@ normal=normalize(abs(rockDet)*normal-rockGradient);`);
     if (previous) travelled += Math.hypot(center[0] - previous[0], center[1] - previous[1], center[2] - previous[2]);
     previous = center;
     const radius = t <= .2 ? 6.4 + t / .2 * 3.6 : t <= .58 ? 10 + (t - .2) / .38 * 6 : 16 + (t - .58) / .42 * 9;
-    const taper = 1 - Math.max(0, (t - .88) / .12) * .82;
     for (let col = 0; col <= across; col++) {
       const side = col / across * 2 - 1;
-      const edge = channelWidth(t) * .92 * taper * (1 + .045 * Math.sin(t * 83 + side * 4));
+      const edge = channelWidth(t) * .92 * (1 + .045 * Math.sin(t * 83 + side * 4));
       const point = surfacePoint(t, angle + side * edge / radius);
       point[1] += .12;
+      const outlet = Math.max(0, (t - .9) / .1);
+      point[1] = Math.max(point[1], (LAVA_LAKE.surface - ground + .02) * outlet + point[1] * (1 - outlet));
       flowVertices.push(...point); flowUvs.push(side, travelled);
     }
   }
@@ -198,6 +209,44 @@ normal=normalize(abs(rockDet)*normal-rockGradient);`);
   const river = new Mesh(flowGeometry, flowMaterial);
   river.name = 'greywrought.landmark.eastern-volcano.lava-river';
   root.add(river);
+
+  // World-space basin meshes share their exact shoreline with terrain and damage.
+  const lakeVertices: number[] = [LAVA_LAKE.x, LAVA_LAKE.surface, LAVA_LAKE.z], lakeUvs = [0, 0], lakeIndices: number[] = [];
+  const bankVertices: number[] = [], bankIndices: number[] = [];
+  for (const [index, shore] of LAVA_LAKE_SHORE.entries()) {
+    const px = LAVA_LAKE.x + shore.x * LAVA_LAKE.radiusX, pz = LAVA_LAKE.z + shore.z * LAVA_LAKE.radiusZ;
+    lakeVertices.push(px, LAVA_LAKE.surface, pz);
+    const length = Math.hypot(shore.x, shore.z);
+    lakeUvs.push(shore.x / length, shore.z / length);
+    lakeIndices.push(0, (index + 1) % LAVA_LAKE_SHORE.length + 1, index + 1);
+    for (const scale of [.985, 1.09, 1.28]) {
+      const bx = LAVA_LAKE.x + shore.x * LAVA_LAKE.radiusX * scale, bz = LAVA_LAKE.z + shore.z * LAVA_LAKE.radiusZ * scale;
+      const ridge = scale === 1.09 ? .16 + .06 * Math.sin(index * 1.7) : .025;
+      bankVertices.push(bx, terrainHeight(bx, bz) + ridge, bz);
+    }
+    for (let band = 0; band < 2; band++) {
+      const a = index * 3 + band, b = (index + 1) % LAVA_LAKE_SHORE.length * 3 + band;
+      bankIndices.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+  const lakeGeometry = new BufferGeometry();
+  lakeGeometry.setAttribute('position', new Float32BufferAttribute(lakeVertices, 3));
+  lakeGeometry.setAttribute('uv', new Float32BufferAttribute(lakeUvs, 2));
+  lakeGeometry.setIndex(lakeIndices); lakeGeometry.computeVertexNormals();
+  const lakeMaterial = lava.clone(); lakeMaterial.uniforms.time = time; lakeMaterial.uniforms.basin!.value = 1;
+  const lake = new Mesh(lakeGeometry, lakeMaterial);
+  lake.name = 'greywrought.landmark.eastern-volcano.lava-lake'; terrain.add(lake);
+  const bankGeometry = new BufferGeometry();
+  bankGeometry.setAttribute('position', new Float32BufferAttribute(bankVertices, 3));
+  bankGeometry.setIndex(bankIndices); bankGeometry.computeVertexNormals();
+  const scorched = basalt.clone(), compileBasalt = basalt.onBeforeCompile;
+  scorched.onBeforeCompile = (shader, renderer) => {
+    compileBasalt.call(scorched, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader.replace('diffuseColor.rgb=stone;', 'diffuseColor.rgb=stone*.32;');
+  };
+  scorched.customProgramCacheKey = () => 'volcano-scorched-bank';
+  const bank = new Mesh(bankGeometry, scorched);
+  bank.name = 'greywrought.landmark.eastern-volcano.scorched-bank'; bank.receiveShadow = true; terrain.add(bank);
 
   const light = new PointLight(0xff5528, 2.1, 34, 2);
   light.name = "greywrought.landmark.eastern-volcano.glow";

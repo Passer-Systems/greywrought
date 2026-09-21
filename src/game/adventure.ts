@@ -11,6 +11,7 @@ import { REGIONAL_THREATS } from './regional-threats.js';
 import { inTown, WORLD_BOUNDS, migrateSpatialLayout } from './world-layout.js';
 import { findEmote } from './emotes.js';
 import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, supportHeight, movementHeight, isSwimming, MAX_BREATH_SECONDS, MOVEMENT_BARRIERS, THICKET, fallDamage, JUMP_SPEED, type MovementInput, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
+import { LAVA_LAKE, touchesLavaLake } from './lava-layout.js';
 import type { CharacterArchetype } from "../host/character-profile.js";
 import { YARD, QUESTS, GEAR, gearName, type QuestId, type QuestOperation, type QuestView, type ProgressionView, type GearSlot, type GearItemId } from "./yard-content.js";
 import type {
@@ -341,6 +342,7 @@ class Adventure implements AdventureGame {
   }
   private cameraForward: Vector = { x: 0, y: 0, z: 1 };
   private moving = false;
+  private lavaExposureSeconds = 0;
   private backpedaling = false;
   private selectedGuard: YardGuardId | null = null;
   private flightMasterOpen: BellrunnerStopId | null = null;
@@ -1801,6 +1803,13 @@ class Adventure implements AdventureGame {
     }
     else if (this.movementFrames) this.consumeMovement(dt, false);
     else this.move(dt);
+    if (s.health > 0 && touchesLavaLake(s.position)) {
+      this.lavaExposureSeconds += dt;
+      if (this.lavaExposureSeconds >= .25 - EPSILON) {
+        this.lavaExposureSeconds -= .25;
+        this.hurt(LAVA_LAKE.damagePerSecond * .25, "The lava", true);
+      }
+    } else this.lavaExposureSeconds = 0;
     if (s.health === 0) return;
     if (s.currentAction === "hearthstone" && (this.moving || s.verticalSpeed !== 0 || this.inCombat() || this.inPrivateInstance())) this.cancelHearthstone();
     this.closeMissingLoot();

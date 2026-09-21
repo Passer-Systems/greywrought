@@ -1,6 +1,7 @@
 const smooth = (value: number) => { const t = Math.max(0, Math.min(1, value)); return t * t * (3 - 2 * t); };
 import { townHeight } from './town-elevation.js';
 import { REGION_ROADS, WORLD_SETTLEMENTS } from './world-regions.js';
+import { LAVA_LAKE, lavaLakeRatio } from './lava-layout.js';
 /** The southern meadow lake: a shallow, walkable rim around a deeper swimming basin. */
 // The southern basin is intentionally broad enough to read as a real lake from
 // the normal camera.  Its eastern edge stops short of the x=16 footpath while
@@ -211,6 +212,9 @@ export function streamAt(x:number,z:number):{surface:number;bed:number;distance:
 }
 export function overworldHeight(x:number,z:number):number{
  const land=basinHeight(x,z),stream=streamAt(x,z);
+ const lavaRatio=lavaLakeRatio(x,z);
+ // A shallow molten floor and a walkable scorched bank share the visible outline.
+ if(lavaRatio<1.35) return (LAVA_LAKE.surface-.1)+(land-(LAVA_LAKE.surface-.1))*smooth((lavaRatio-1)/.35);
  if(!stream)return land;
  const blend=1-smooth((stream.distance/stream.width-1)/.4);
  return land+(Math.min(land,stream.bed)-land)*blend;
