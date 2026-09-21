@@ -90,12 +90,12 @@ export function createWorldLighting(scene: Scene, renderer: WebGLRenderer) {
       });
       lampGlow.sync(lamps);
     },
-    update(wallTimeMillis: number, position: Position, camera: PerspectiveCamera) {
+    update(wallTimeMillis: number, position: Position, camera: PerspectiveCamera, rainIntensity = worldRain(wallTimeMillis * .001)) {
       const day = worldDay(wallTimeMillis);
       const water = lakeWaterAt(camera.position.x, camera.position.z);
       const underwater = water !== null && camera.position.y < water - .035;
       const cave = inCave(position) ? Math.min(1, Math.max(0, (position.x - 28) / 10)) : 0;
-      const rain = worldRain(wallTimeMillis * .001) * (1 - cave);
+      const rain = rainIntensity * (1 - cave);
       const sunUp = day.sunDirection.y >= 0;
       direction.copy(sunUp ? day.sunDirection : day.moonDirection);
       const elevation = Math.min(1, direction.y / .2);

@@ -53,7 +53,7 @@ afterEach(() => {
 const character = { id: 'client-test', name: 'Tester', archetype: 'warrior' as const, createdAtMillis: 1 };
 function state(mode: EncounterSession['mode']): Extract<ServerWorldMessage, { type: 'state' }> {
   const game = createAdventure();
-  return { type: 'state', snapshot: game.snapshot, players: [], chat: [], party: null, partyInvites: [], serverTime: 1, serverWallTimeMillis: 1,
+  return { type: 'state', snapshot: game.snapshot, players: [], chat: [], party: null, partyInvites: [], serverTime: 1, serverWallTimeMillis: 1, rainIntensity: 0,
     movement: game.movementCheckpoint!, session: { id: mode === 'shared' ? 'shared' : 'private:test', mode, returnPlan: null, canRejoin: mode !== 'shared', origin: mode === 'shared' ? null : { x: 0, y: 0, z: -8 } } };
 }
 async function connected(mode: EncounterSession['mode'] = 'shared') {
@@ -336,5 +336,16 @@ test('Sprint forwards its explicit choice and is blocked while viewing', async (
   const sent=socket.sent.length;
   expect(game.setSprint(false)).toBe(false);
   expect(socket.sent.length).toBe(sent);
+  game.close();
+});
+
+test('regional rain intensity follows authoritative states without changing the world clock', async () => {
+  const { game, socket } = await connected();
+  const message = state('shared');
+  socket.receive({ ...message, rainIntensity: .75 });
+  expect(game.rainIntensity).toBe(.75);
+  expect(game.serverWallTimeMillis).toBe(message.serverWallTimeMillis);
+  socket.receive({ ...message, rainIntensity: 0 });
+  expect(game.rainIntensity).toBe(0);
   game.close();
 });

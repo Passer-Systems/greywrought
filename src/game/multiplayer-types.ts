@@ -86,7 +86,7 @@ export type ClientWorldMessage =
 export type ServerWorldMessage =
   | { type: 'characters'; characters: readonly LocalCharacter[] }
   | { type: 'joined'; character: LocalCharacter }
-  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; movement: MovementCheckpoint; session: EncounterSession; party: PartyView | null; partyInvites: readonly PartyInviteView[] }
+  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; rainIntensity: number; movement: MovementCheckpoint; session: EncounterSession; party: PartyView | null; partyInvites: readonly PartyInviteView[] }
   | { type: 'result'; sequence: number; accepted: boolean }
   | { type: 'movePreview'; sequence: number; forecast: CombatForecast | null }
   | { type: 'error'; text: string };

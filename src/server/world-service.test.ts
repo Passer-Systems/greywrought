@@ -803,3 +803,74 @@ test('shared chest announces only the successful collector and keeps one shared 
     expect((await outsider.state()).chat.filter(entry => entry.text.startsWith('collected '))).toHaveLength(1);
   } finally { await fixture.close(); }
 }, 10000);
+
+test('/rain controls one region across shared and private encounters, follows chat limits, and resets on restart', async () => {
+  const { createSharedAdventure } = await import('../game/adventure.js');
+  const { worldRain } = await import('../game/world-time.js');
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-rain-'));
+  const savePath = join(directory, 'world.json'), seed = createSharedAdventure();
+  const characters: LocalCharacter[] = [
+    { id: 'rain-maker', name: 'Rain Maker', archetype: 'warrior', createdAtMillis: 1 },
+    { id: 'rain-neighbor', name: 'Rain Neighbor', archetype: 'mage', createdAtMillis: 1 },
+    { id: 'rain-outsider', name: 'Rain Outsider', archetype: 'hunter', createdAtMillis: 1 },
+  ];
+  const tokens = characters.map(() => crypto.randomUUID());
+  for (const character of characters) seed.join(character.id, character.name, character.archetype);
+  const saved = JSON.parse(seed.save());
+  saved.characters[2].state.position = { x: 157, y: terrainHeight(157, 117), z: 117 };
+  await writeFile(savePath, JSON.stringify({ version: 1, accounts: characters.map((character, i) => ({ character, tokenHash: new Bun.CryptoHasher('sha256').update(tokens[i]!).digest('hex') })), world: JSON.stringify(saved), chat: [], nextChatId: 1 }));
+  let service = await createWorldService({ savePath });
+  let server!: Server<WorldSocketData>;
+  const clients: Client[] = [];
+  function listen() { const current = service; server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: current.websocket, fetch: (request, host) => current.fetch(request, host) }); }
+  async function connect(index: number) { const client = new Client(`ws://127.0.0.1:${server.port}/world`); clients.push(client); await client.connect(characters[index]!, tokens[index]!); await client.state(); return client; }
+  try {
+    listen();
+    const maker = await connect(0), neighbor = await connect(1), outsider = await connect(2);
+    const initial = await maker.state();
+    expect(initial.rainIntensity).toBe(worldRain(initial.serverWallTimeMillis / 1000));
+    expect(await neighbor.command({ type: 'pause' })).toBe(true);
+    expect(await neighbor.command({ type: 'resume' })).toBe(true);
+    await neighbor.state(s => s.session.mode === 'private');
+    expect(await maker.command({ type: 'chat', text: '/rain off' })).toBe(true);
+    await maker.wait(m => m.type === 'error' && m.text === 'Frostwood: skies clearing.');
+    await maker.state(s => s.rainIntensity === 0);
+    maker.messages.length = 0; neighbor.messages.length = 0; outsider.messages.length = 0;
+    expect(await maker.command({ type: 'chat', text: '/rain' })).toBe(true);
+    const transition = await maker.state(s => s.rainIntensity > 0 && s.rainIntensity < 1);
+    expect(transition.serverWallTimeMillis).toBeLessThanOrEqual(Date.now());
+    await maker.state(s => s.rainIntensity === 1);
+    await neighbor.state(s => s.session.mode === 'private' && s.rainIntensity === 1);
+    await maker.wait(m => m.type === 'error' && m.text === 'Frostwood: rain begins.');
+    for (const message of outsider.messages) if (message.type === 'state') expect(message.rainIntensity).toBe(worldRain(message.serverWallTimeMillis / 1000));
+
+    expect(await maker.command({ type: 'chat', text: '/rain sideways' })).toBe(false);
+    await maker.wait(m => m.type === 'error' && m.text === 'Use /rain, /rain off, or /rain auto.');
+    expect(await maker.command({ type: 'chat', text: '/RAIN ON' })).toBe(true);
+    expect(await maker.command({ type: 'chat', text: '/rain on' })).toBe(true);
+    expect(await maker.command({ type: 'chat', text: '/rain off' })).toBe(false);
+    await maker.wait(m => m.type === 'error' && m.text === 'Give others a moment to speak.');
+
+    maker.messages.length = 0; neighbor.messages.length = 0;
+    expect(await neighbor.command({ type: 'chat', text: '/rain off' })).toBe(true);
+    await maker.state(s => s.rainIntensity === 0);
+    await neighbor.state(s => s.rainIntensity === 0);
+    const automaticAfter = Date.now() + 2100;
+    expect(await neighbor.command({ type: 'chat', text: '/rain auto' })).toBe(true);
+    await neighbor.wait(m => m.type === 'error' && m.text === 'Frostwood: natural weather restored.');
+    const automatic = await maker.state(s => s.serverWallTimeMillis >= automaticAfter);
+    expect(automatic.rainIntensity).toBe(worldRain(automatic.serverWallTimeMillis / 1000));
+
+    maker.messages.length = 0;
+    expect(await maker.command({ type: 'chat', text: '/rain on' })).toBe(true);
+    await maker.state(s => s.rainIntensity === 1);
+    for (const client of clients) client.socket.close();
+    await service.close(); server.stop(true);
+    service = await createWorldService({ savePath }); listen();
+    const reconnected = await connect(0), restarted = await reconnected.state();
+    expect(restarted.rainIntensity).toBe(worldRain(restarted.serverWallTimeMillis / 1000));
+  } finally {
+    for (const client of clients) client.socket.close();
+    await service.close(); server.stop(true); await rm(directory, { recursive: true });
+  }
+}, 20_000);

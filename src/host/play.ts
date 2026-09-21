@@ -499,7 +499,7 @@ function toggleAggroRanges(kind: "direct" | "help" = "direct"): void {
     const { world, game } = running;
     world.setAggroRangesVisible(aggroRangesVisible);
     world.setHelpRangesVisible(helpRangesVisible);
-    if (paused) world.render(game.snapshot, 0, game.renderPlayer, undefined, game.connectionRevision, game.serverWallTimeMillis);
+    if (paused) world.render(game.snapshot, 0, game.renderPlayer, undefined, game.connectionRevision, game.serverWallTimeMillis, game.rainIntensity);
   }
 }
 function save(_force = false): void {
@@ -648,7 +648,7 @@ function returnToRoster(): void {
   chatLog.reset();
   partyPanel.closeMenu();
   partyPanel.update("", null, [], null);
-  if (running) audio.update(running.game.snapshot, true, running.game.serverWallTimeMillis);
+  if (running) audio.update(running.game.snapshot, true, running.game.serverWallTimeMillis, running.game.rainIntensity);
   audio.reset();
   try { sessionStorage.removeItem(resumeKey); } catch { /* A disabled session store cannot retain an active character. */ }
   if (running) { for (const remove of running.unbind) remove(); running.world.dispose(); running.game.close(); running = null; }
@@ -692,10 +692,10 @@ function syncEncounter(): void {
     button('pause-open').setAttribute('aria-expanded', String(!element('pause-panel').hidden));
     world.updatePlayers(game.players.filter(player => player.id !== character.id));
     world.updateChat(game.chat, character.id);
-    world.render(game.snapshot, 0, game.renderPlayer, paused ? undefined : game.serverTime, game.connectionRevision, game.serverWallTimeMillis);
+    world.render(game.snapshot, 0, game.renderPlayer, paused ? undefined : game.serverTime, game.connectionRevision, game.serverWallTimeMillis, game.rainIntensity);
     renderHud(game.snapshot);
     nameplates?.render(selectedSnapshot(game.snapshot), world, { selfId: character.id, players: game.players });
-    audio.update(game.snapshot, paused, game.serverWallTimeMillis);
+    audio.update(game.snapshot, paused, game.serverWallTimeMillis, game.rainIntensity);
     if (!paused && !menuOpen()) world.canvas.focus();
   }
   const grouped = (game.party?.members.length ?? 0) > 1;
@@ -1165,7 +1165,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     if (!alive || running !== app) { world.dispose(); return; }
     if (app.game.snapshot.phase === "lost") { showFallenCharacter(character); return; }
     minimap.setAtlas(world.minimap);
-    world.render(game.snapshot, 0, game.renderPlayer, game.serverTime, game.connectionRevision, game.serverWallTimeMillis);
+    world.render(game.snapshot, 0, game.renderPlayer, game.serverTime, game.connectionRevision, game.serverWallTimeMillis, game.rainIntensity);
     app.ready = true;
     lastTime = 0;
     const forward = world.forward(); game.setCameraForward(forward.x, forward.z);
@@ -1417,11 +1417,11 @@ function tick(now: number): void {
   running.game.advance(delta);
   const snapshot = running.game.snapshot;
   if (snapshot.phase === "lost") { showFallenCharacter(running.character); return; }
-  audio.update(snapshot, route !== "world", running.game.serverWallTimeMillis);
+  audio.update(snapshot, route !== "world", running.game.serverWallTimeMillis, running.game.rainIntensity);
   running.world.updatePlayers(running.game.players.filter(player => player.id !== running!.character.id));
   running.world.updateChat(running.game.chat, running.character.id);
   selectedSnapshot(snapshot);
-  running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime, running.game.connectionRevision, running.game.serverWallTimeMillis);
+  running.world.render(snapshot, delta, running.game.renderPlayer, running.game.serverTime, running.game.connectionRevision, running.game.serverWallTimeMillis, running.game.rainIntensity);
   if (now + 0.5 >= nextHudTime) {
     renderHud(snapshot);
     nextHudTime = Math.max(nextHudTime + 50, now);

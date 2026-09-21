@@ -4,7 +4,7 @@ import { inCave, terrainHeight } from '../game/cave-layout.js';
 import { lakeWaterAt } from '../game/world-elevation.js';
 
 const hash = (i: number) => { const n = Math.sin(i * 127.1 + 91.7) * 43758.5453; return n - Math.floor(n); };
-const COUNT = 4800, IMPACTS = 160, SPAN = 42, HEIGHT = 22;
+const COUNT = 3000, IMPACTS = 120, SPAN = 42, HEIGHT = 22;
 
 /** World-space drops retain their trajectory while the player and camera move. */
 export function createWeatherRain(parent: Group) {
@@ -67,20 +67,20 @@ export function createWeatherRain(parent: Group) {
     update(time: number, delta: number, player: Position, intensity: number, high: boolean, daylight: number) {
       drops.visible = impacts.visible = intensity > .005;
       if (!drops.visible) { initialized = false; ages.fill(1); return; }
-      const count = high ? COUNT : 900, impactCount = high ? IMPACTS : 48;
+      const count = high ? COUNT : 650, impactCount = high ? IMPACTS : 36;
       geometry.setDrawRange(0, count * 2); impacts.count = impactCount;
-      uniforms.opacity.value = intensity * (.30 + .17 * daylight);
+      uniforms.opacity.value = intensity * (.24 + .13 * daylight);
       if (!initialized || Math.hypot(player.x - anchorX, player.z - anchorZ) > SPAN) {
         for (let i = 0; i < COUNT; i++) respawn(i, player, true);
         ages.fill(1); initialized = true;
       }
       anchorX = player.x; anchorZ = player.z;
-      const dt = Math.min(delta, .1), wind = 1.8 + Math.sin(time * .37) * .7 + Math.sin(time * .13) * .5;
+      const dt = Math.min(delta, .1), wind = .95 + Math.sin(time * .37) * .35 + Math.sin(time * .13) * .2;
       floorClock += dt; const refresh = floorClock >= .16; if (refresh) floorClock = 0;
       for (let i = 0; i < impactCount; i++) ages[i] = Math.min(1, ages[i]! + dt / (waters[i] ? .65 : .28));
       let impactBudget = high ? 10 : 3;
       for (let i = 0; i < count; i++) {
-        const k = i * 6, seed = hash(i + 701), speed = 17 + seed * 12;
+        const k = i * 6, seed = hash(i + 701), speed = 12 + seed * 8;
         positions[k] = positions[k + 3]! + wind * dt; positions[k + 2] = positions[k + 5]! + .55 * dt; positions[k + 1] = positions[k + 4]! - speed * dt;
         if (refresh) surface(i);
         if (positions[k + 1]! <= floor[i]!) {
@@ -92,7 +92,7 @@ export function createWeatherRain(parent: Group) {
           }
           respawn(i, player, false);
         } else if (Math.abs(positions[k]! - player.x) > SPAN / 2 || Math.abs(positions[k + 2]! - player.z) > SPAN / 2) respawn(i, player, true);
-        const length = .32 + seed * .65;
+        const length = .18 + seed * .42;
         // The faint tail follows the actual velocity; the bright head hits the surface.
         positions[k + 3] = positions[k]!; positions[k + 4] = positions[k + 1]!; positions[k + 5] = positions[k + 2]!;
         positions[k]! -= wind / speed * length; positions[k + 1]! += length; positions[k + 2]! -= .55 / speed * length;

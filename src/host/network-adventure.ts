@@ -9,6 +9,7 @@ export interface NetworkAdventure extends AdventureGame {
   readonly renderPlayer: AdventureSnapshot['player'];
   readonly serverTime: number;
   readonly serverWallTimeMillis: number;
+  readonly rainIntensity: number;
   readonly online: boolean;
   readonly reconnecting: boolean;
   readonly connectionRevision: number;
@@ -74,6 +75,7 @@ export async function connectAdventure(character: LocalCharacter, onCharacter?: 
   let session: EncounterSession;
   let prediction: LocalMovement;
   let serverTime = 0, serverWallTimeMillis = 0, lastMovementAt = 0;
+  let rainIntensity = 0;
   let players: readonly RemotePlayerView[] = [], chat: readonly SharedChatMessage[] = [];
   let party: PartyView | null = null;
   let partyInvites: readonly PartyInviteView[] = [];
@@ -173,6 +175,7 @@ export async function connectAdventure(character: LocalCharacter, onCharacter?: 
         snapshot = message.snapshot; players = message.players; chat = message.chat; party = message.party; partyInvites = message.partyInvites;
         serverTime = message.serverTime;
         serverWallTimeMillis = message.serverWallTimeMillis;
+        rainIntensity = message.rainIntensity;
         clearTimeout(handshakeTimeout); handshakeTimeout = undefined;
         clearTimeout(livenessTimeout);
         livenessTimeout = setTimeout(function checkLiveness() {
@@ -207,6 +210,7 @@ export async function connectAdventure(character: LocalCharacter, onCharacter?: 
     get renderPlayer() { return inputEnabled() ? prediction.player : snapshot.player; },
     get serverTime() { return serverTime; },
     get serverWallTimeMillis() { return serverWallTimeMillis; },
+    get rainIntensity() { return rainIntensity; },
     get online() { return online; },
     get reconnecting() { return reconnecting; },
     get connectionRevision() { return connectionRevision; },

@@ -122,12 +122,12 @@ export function createEnvironmentAtmosphere(scene: Scene) {
   let rainIntensity = 0;
   return {
     attach,
-    update(wallTimeSeconds:number,delta:number,_player:Position){
+    update(wallTimeSeconds:number,delta:number,_player:Position,weatherRain = worldRain(wallTimeSeconds)){
       const preference=document.body.dataset.atmosphereQuality;if(preference==='off'||preference==='low'||preference==='high')quality=preference;
       uniforms.gwQuality.value=quality==='off'?0:quality==='low'?1:2;root.visible=quality!=='off';
       if(!attached||quality==='off'){ rain.hide(); return; }
       const sheltered = inCave(_player) || isSubmerged(_player);
-      const rainTarget = sheltered ? 0 : worldRain(wallTimeSeconds);
+      const rainTarget = sheltered ? 0 : weatherRain;
       rainIntensity += (rainTarget - rainIntensity) * (1 - Math.exp(-delta * 3.5));
       uniforms.gwStorm.value = rainIntensity;
       root.userData.weather = rainIntensity > .01 ? 'rain' : 'clear';

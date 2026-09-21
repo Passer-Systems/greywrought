@@ -9,6 +9,8 @@ import { randomInt } from 'node:crypto';
 import type { Server, ServerWebSocket, WebSocketHandler } from 'bun';
 import { createSharedAdventure } from '../game/adventure.js';
 import { WORLD_BOUNDS } from '../game/world-layout.js';
+import { regionAt } from '../game/world-regions.js';
+import { worldRain } from '../game/world-time.js';
 import type { AdventureAction, AdventureGame } from '../game/adventure-types.js';
 import type { PartyCommand, PartyPingView, PartyView, PartyInviteView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
 import { DISCONNECT_GRACE_MS, DEPARTURE_CLOSE_CODE } from '../game/multiplayer-types.js';
@@ -159,6 +161,7 @@ export async function createWorldService(options: WorldServiceOptions) {
   const online = new Map<string, ServerWebSocket<WorldSocketData>>();
   const disconnectedUntil = new Map<string, number>();
   const privateChat = new Map<string, SharedChatMessage[]>();
+  const rainOverrides = new Map<string, { target: number | null; from: number; startedAt: number }>();
   const partyPings = new Map<string, PartyPingView & { partyId: string; sessionId: string }>();
   let closed = false;
   let saveQueue = Promise.resolve();
@@ -264,9 +267,17 @@ export async function createWorldService(options: WorldServiceOptions) {
       }
     }
   }
+  function regionRain(regionId: string, wallTimeMillis: number, now: number): number {
+    const natural = worldRain(wallTimeMillis / 1000), override = rainOverrides.get(regionId);
+    if (!override) return natural;
+    const t = Math.min(1, Math.max(0, (now - override.startedAt) / 2000));
+    if (t === 1 && override.target === null) rainOverrides.delete(regionId);
+    return override.from + ((override.target ?? natural) - override.from) * t * t * (3 - 2 * t);
+  }
   function broadcast(): void {
     expireInvites();
     const serverWallTimeMillis = Date.now();
+    const weatherTime = performance.now();
     // Scoped to this synchronous broadcast: never reuse stale or cross-instance views.
     const instancePlayers = new Map<string, ReturnType<typeof world.players>>();
     for (const [id, socket] of online) {
@@ -276,7 +287,9 @@ export async function createWorldService(options: WorldServiceOptions) {
       const playerScope = session.mode === 'viewing' ? 'shared' : session.id;
       let players = instancePlayers.get(playerScope);
       if (!players) { players = world.players(playerScope); instancePlayers.set(playerScope, players); }
-      send(socket, { type: 'state', snapshot: session.mode === 'viewing' ? (world.snapshot(id) ?? player.snapshot) : player.snapshot, players: players.filter(other => other.id !== id), chat: [...chat.filter(message => message.partyId ? message.partyId === partyFor(id)?.id : session.mode === 'shared'), ...(session.mode === 'shared' ? [] : privateChat.get(session.id) ?? [])].sort((a, b) => a.id - b.id), serverTime, serverWallTimeMillis, movement: player.movementCheckpoint!, session, party: partyView(id), partyInvites: [...invites.values()].filter(invite => invite.recipientId === id).map(({ recipientId, ...invite }) => invite) });
+      const snapshot = session.mode === 'viewing' ? (world.snapshot(id) ?? player.snapshot) : player.snapshot;
+      const region = regionAt(snapshot.player.position.x, snapshot.player.position.z);
+      send(socket, { type: 'state', snapshot, rainIntensity: regionRain(region.id, serverWallTimeMillis, weatherTime), players: players.filter(other => other.id !== id), chat: [...chat.filter(message => message.partyId ? message.partyId === partyFor(id)?.id : session.mode === 'shared'), ...(session.mode === 'shared' ? [] : privateChat.get(session.id) ?? [])].sort((a, b) => a.id - b.id), serverTime, serverWallTimeMillis, movement: player.movementCheckpoint!, session, party: partyView(id), partyInvites: [...invites.values()].filter(invite => invite.recipientId === id).map(({ recipientId, ...invite }) => invite) });
     }
   }
   function stopInput(id: string): void {
@@ -392,6 +405,16 @@ export async function createWorldService(options: WorldServiceOptions) {
           const match = /^\/(\S+)(?:\s+(.*))?$/.exec(text);
           if (!match) { error(socket, 'Type /emotes to see the available actions.'); return false; }
           const name = match[1]!.toLowerCase(), argument = match[2]?.trim();
+          if (name === 'rain') {
+            const mode = argument?.toLowerCase() || 'on';
+            if (!['on', 'off', 'auto'].includes(mode)) { error(socket, 'Use /rain, /rain off, or /rain auto.'); return false; }
+            const position = (session.mode === 'viewing' ? world.snapshot(id) ?? player.snapshot : player.snapshot).player.position;
+            const region = regionAt(position.x, position.z);
+            rainOverrides.set(region.id, { target: mode === 'auto' ? null : mode === 'on' ? 1 : 0, from: regionRain(region.id, Date.now(), now), startedAt: now });
+            error(socket, `${region.name}: ${mode === 'auto' ? 'natural weather restored' : mode === 'on' ? 'rain begins' : 'skies clearing'}.`);
+            broadcast();
+            return true;
+          }
           if (name === 'ping') { if (argument) { error(socket, 'Use /ping to share where you are.'); return false; } return pingParty(id, socket); }
           if (name === 'emotes') { error(socket, EMOTE_HELP); return true; }
           if (name === 'p' || name === 'party') {

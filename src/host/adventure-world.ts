@@ -81,7 +81,7 @@ export interface AdventureWorld {
   readonly canvas: HTMLCanvasElement;
   readonly minimap: HTMLCanvasElement;
   readonly ready: Promise<void>;
-  render(snapshot: AdventureSnapshot, delta: number, localPlayer?: AdventureSnapshot['player'], serverTime?: number, connectionRevision?: number, worldTimeMillis?: number): void;
+  render(snapshot: AdventureSnapshot, delta: number, localPlayer?: AdventureSnapshot['player'], serverTime?: number, connectionRevision?: number, worldTimeMillis?: number, rainIntensity?: number): void;
   updatePlayers(players: readonly RemotePlayerView[]): void;
   updateChat(messages: readonly SharedChatMessage[], localPlayerId: string): void;
   orbit(dx: number, dy: number): void;
@@ -680,7 +680,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       if (head.z < -1 || head.z > 1 || Math.abs(head.x) > 1 || Math.abs(head.y) > 1) return null;
       return { x: (head.x + 1) * host.clientWidth / 2, y: (1 - head.y) * host.clientHeight / 2, feetY: (1 - feet.y) * host.clientHeight / 2 };
     },
-    render(snapshot, delta, localPlayer = snapshot.player, serverTime, connectionRevision = 0, worldTimeMillis = Date.now()) {
+    render(snapshot, delta, localPlayer = snapshot.player, serverTime, connectionRevision = 0, worldTimeMillis = Date.now(), rainIntensity) {
       if (disposed) return;
       if (lastConnectionRevision !== connectionRevision) {
         interpolation = createSnapshotInterpolation();
@@ -933,11 +933,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       npcSelection.visible = Boolean(interactingNpc);
       if (interactingNpc) { npcSelection.position.copy(interactingNpc.position); conformToTerrain(npcSelection, .06, combatSurfaceHeight); }
       canvas.dataset.selectedPlayer = selectedPlayer ?? "";
-      lighting.update(worldTimeMillis, snapshot.player.position, camera);
+      lighting.update(worldTimeMillis, snapshot.player.position, camera, rainIntensity);
       const far = lakeWaterAt(camera.position.x, camera.position.z) !== null && camera.position.y < lakeSurface.waterLevel - .035 ? 25 : 210;
       if (camera.far !== far) { camera.far = far; camera.updateProjectionMatrix(); }
       underwater.update(elapsed, camera.position, snapshot.player);
-      atmosphere.update(worldTimeMillis * 0.001, delta, snapshot.player.position);
+      atmosphere.update(worldTimeMillis * 0.001, delta, snapshot.player.position, rainIntensity);
       renderer.render(scene, camera);
       updateHover();
       overheadNames.begin();

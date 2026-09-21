@@ -11,7 +11,7 @@ const preferenceKey = "greywrought.adventure.audio.v1";
 interface Preferences { music: number; effects: number; muted: boolean; }
 export interface AdventureAudio {
   unlock(): Promise<void>;
-  update(snapshot: AdventureSnapshot, paused: boolean, wallTimeMillis: number): void;
+  update(snapshot: AdventureSnapshot, paused: boolean, wallTimeMillis: number, rainIntensity?: number): void;
   reset(): void;
   dispose(): void;
 }
@@ -150,9 +150,9 @@ export function createAdventureAudio(): AdventureAudio {
     document.body.dataset.adventureAudioCue = cue;
     document.body.dataset.adventureAudioCueCount = String(Number(document.body.dataset.adventureAudioCueCount ?? 0) + 1);
   }
-  function update(snapshot: AdventureSnapshot, isPaused: boolean, wallTimeMillis: number): void {
+  function update(snapshot: AdventureSnapshot, isPaused: boolean, wallTimeMillis: number, weatherRain = worldRain(wallTimeMillis / 1000)): void {
     if (disposed) return;
-    rainIntensity = worldRain(wallTimeMillis / 1000);
+    rainIntensity = weatherRain;
     rainShelter = isSubmerged(snapshot.player.position) ? "underwater" : inCave(snapshot.player.position) ? "cave" : "outdoors";
     syncRain();
     if (paused !== isPaused) { paused = isPaused; if (paused) stopEffects(); sync(); }
