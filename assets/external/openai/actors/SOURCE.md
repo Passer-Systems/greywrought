@@ -9,8 +9,8 @@ repository contribution. The local Blender source is saved in the idle pose.
 
 New geometry was procedurally authored in Blender for Greywrought: continuous
 remeshed anatomy, rooted mesh fur, cupped ears, ridged horns, violet incisors,
-whiskers, a segmented tail, cheek medallions, a leather harness, linked chains,
-pierced tally plates, locks, a hollow bell and a gripped iron hook. This is a
+whiskers, a segmented tail, a leather harness, linked chains,
+locks, a hollow bell and a gripped iron hook. This is a
 stylized adaptation of the reference, not a photogrammetric reconstruction.
 The local Blender source retains editable geometry, surface modifiers, named
 equipment collections and the `Patina` color attribute. All exported shading uses vertex
@@ -19,7 +19,12 @@ source-only procedural shaders are required.
 
 The model faces +Z in glTF (-Y in Blender), uses metres, and is approximately
 2.87 m tall including the horns in its initial idle pose. The final mesh has
-91,662 triangles, 53 bones and 11 material batches before shadow passes.
+83,706 triangles, 53 bones and 11 material batches before shadow passes.
+
+The five rectangular tally plates and both cheek medallions were removed from
+the local Blender source, including their borders, markings and fasteners.
+The GLB removes the corresponding geometry while preserving all remaining
+surfaces, materials, skin weights, bind matrices and animation keyframes.
 
 The GLB and local Blender source contain `Idle`, `Walk`, `Run`, `Weapon`,
 `HitReact` and `Death`.
