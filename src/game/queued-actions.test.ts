@@ -45,7 +45,8 @@ describe("committed attack resources", () => {
     expect(game.snapshot.player.block).toBe(0);
     expect(game.snapshot.player.stamina).toBe(5);
     expect(game.snapshot.combat.reservedStamina).toBe(3);
-    game.readyCombat(); game.advance(1.49);
+    const after = game.snapshot.combat.queued.find(e => e.action === "brace")!.offsetSeconds;
+    game.readyCombat(); game.advance(after - .01);
     expect(game.snapshot.player.block).toBe(0);
     game.advance(.02);
     expect(game.snapshot.player.block).toBe(24);

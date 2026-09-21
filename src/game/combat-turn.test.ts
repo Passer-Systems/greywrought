@@ -18,11 +18,11 @@ test('a turn reserves one Move and one replaceable action, with category timing'
   expect(game.queueBait(cells[0]!)).toBe(true); expect(game.queueBait(cells[1]!)).toBe(true);
   expect(game.snapshot.combat.queued).toHaveLength(2);
   expect(game.snapshot.combat.reservedStamina).toBe(1);
-  expect(game.setActionTiming('during')).toBe(false);
+  expect(game.setActionTiming('during')).toBe(true);
   tap(game, 'brace'); expect(game.setActionTiming('during')).toBe(true);
   expect(game.snapshot.combat.reservedStamina).toBe(3);
   tap(game, 'brace'); expect(game.snapshot.combat.queued.find(e => e.action === 'brace')!.timing).toBe('during');
-  tap(game, 'strike'); expect(game.snapshot.combat.queued.find(e => e.action === 'strike')!.timing).toBe('after');
+  tap(game, 'strike'); expect(game.snapshot.combat.queued.find(e => e.action === 'strike')!.timing).toBe('during');
   const move = game.snapshot.combat.queued.find(e => e.action === 'bait')!; game.removeQueuedAction(move.id);
   expect(game.snapshot.combat.queued[0]!.offsetSeconds).toBe(0);
 });

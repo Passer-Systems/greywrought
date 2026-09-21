@@ -10,8 +10,8 @@ export function createLorebook(host: HTMLElement, onClose: () => void, portrait:
   const panel = node("section", host); panel.id = "lorebook-panel"; panel.hidden = true;
   panel.setAttribute("role", "dialog"); panel.setAttribute("aria-labelledby", "lorebook-title");
   const header = node("header", panel, "rpg-window-header");
-  node("h2", header, "rpg-window-title", `${YARD.region} Lorebook`).id = "lorebook-title";
-  const close = node("button", header, "rpg-window-close", "×"); close.type = "button"; close.id = "lorebook-close"; close.setAttribute("aria-label", "Close lorebook");
+  node("h2", header, "rpg-window-title", `${YARD.region} Bestiary`).id = "lorebook-title";
+  const close = node("button", header, "rpg-window-close", "×"); close.type = "button"; close.id = "lorebook-close"; close.setAttribute("aria-label", "Close bestiary");
   const layout = node("div", panel, "lorebook-layout");
   const nav = node("nav", layout, "lorebook-index"); nav.setAttribute("aria-label", "Monsters");
   const article = node("article", layout, "lorebook-entry"); article.id = "lorebook-entry"; article.tabIndex = 0;

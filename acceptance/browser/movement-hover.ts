@@ -43,9 +43,9 @@ try {
   const origin = await page.evaluate<Position>('window.hoverState.player.position');
   const tiles = await page.evaluate<Position[]>('JSON.parse(document.getElementById("world-canvas").dataset.moveTiles)');
   let chosen: Position | undefined;
-  const preferred = tiles.find(tile => tile.x===origin.x&&tile.z===origin.z-2.5);
+  const preferred = tiles.find(tile => tile.x===origin.x&&tile.z===origin.z-5);
   for(const tile of preferred ? [preferred, ...tiles.filter(tile=>tile!==preferred)] : tiles){
-    if (Math.hypot(tile.x-origin.x,tile.z-origin.z)>2.5) continue;
+    if (Math.hypot(tile.x-origin.x,tile.z-origin.z)>5) continue;
     const p=await page.evaluate<{x:number;y:number}>(`window.projectHover(${JSON.stringify(tile)})`);
     if(!await page.evaluate(`document.elementFromPoint(${p.x},${p.y})?.id==='world-canvas'`))continue;
     await page.call('Input.dispatchMouseEvent',{type:'mouseMoved',...p,buttons:0});

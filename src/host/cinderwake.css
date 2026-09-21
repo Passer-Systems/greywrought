@@ -2145,6 +2145,8 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-enemy-words {display:flex;align-items:center;gap:6px;min-width:0;flex:1;}
 .combat-plan-enemy-name {font-size:11px;line-height:14px;color:#ead9ac;flex:1;min-width:0;overflow-wrap:anywhere;}
 .combat-plan-enemy-action {font-size:10px;line-height:13px;color:#c3b29b;}
+.combat-plan-enemy-behavior {display:block;font-size:9px;line-height:11px;color:#dbc68e;}
+.combat-plan-enemy-move[data-aim=tracking] .combat-plan-enemy-behavior {color:#e6ad9e;}
 .combat-plan-enemy-target {font:600 10px/12px system-ui;color:#bce4ed;overflow-wrap:anywhere;}
 .combat-plan-enemy-move[data-target-self=true] .combat-plan-enemy-target {color:#ffb7a1;}
 .combat-plan-move-label {color:#fff0c9;font:600 11px/13px system-ui;}
@@ -2155,7 +2157,7 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .combat-plan-move[data-status=executed] {filter:saturate(.4);opacity:.5;}
 .combat-plan-move[data-status=failed] {border-color:#ff7770;opacity:.65;}
 .combat-plan-damage {position:absolute;bottom:-1px;right:0;background:#071010d9;color:#fff;font:bold 9px/11px system-ui,sans-serif;padding:0 1px;text-shadow:0 1px 2px #000;}
-.combat-plan-editor {display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:5px;}
+.combat-plan-editor {display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:3px;}
 .combat-plan-selection,.combat-plan-timing-suffix {color:#dacb9e;font-size:10px;}
 .combat-plan-timing[aria-pressed=true] {background:#71603a;border-color:#dfcb91;}
 .combat-plan-feedback {min-height:16px;margin:3px 0 0;color:#ead6ac;text-align:center;font-size:12px;white-space:normal;}
@@ -2172,7 +2174,7 @@ body[data-bait-aiming="true"] #world-canvas { cursor: crosshair; }
 .adventure-actions button[aria-pressed="true"] .action-art { outline: 2px solid #a0e4ce; }
 body[data-bait-aiming="true"] .combat-plan-inspect {display:none;}
 
-.combat-plan-outcome {display:flex;align-items:baseline;gap:8px;margin:5px 0;padding:5px 6px;background:#0c1517;border-left:2px solid #8ea995;}
+.combat-plan-outcome {display:flex;align-items:baseline;gap:8px;margin:4px 0;padding:4px 6px;background:#0c1517;border-left:2px solid #8ea995;}
 .combat-plan-outcome-label {flex-shrink:0;font-size:10px;color:#a7b3ad;}
 .combat-plan-outcome-copy {font-size:12px;line-height:16px;color:#c6e0c8;}
 .combat-plan-outcome[data-tone=danger] {border-color:#d38979;}
@@ -2205,5 +2207,4 @@ body[data-bait-aiming="true"] .combat-plan-inspect {display:none;}
 
 .combat-plan-route-editor {display:flex;align-items:center;gap:5px;margin:4px 0;}
 .combat-plan-route-budget {flex:1;color:#c6e0c8;font-size:11px;}
-.combat-plan[data-route-editing=true] .combat-plan-grid,
-.combat-plan[data-route-editing=true] .combat-plan-editor {display:none;}
+.combat-plan[data-route-editing=true] .combat-plan-grid {display:none;}

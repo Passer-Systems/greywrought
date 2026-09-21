@@ -91,3 +91,15 @@ test("no action, unavailable targets and falling before an action remain explici
   const game = createAdventure({ save: JSON.stringify(save) });
   expect(outcome(game).text).toBe("No damage · No action planned · Counterattack ready (+12)");
 });
+
+test("enemy friendly fire names the victim and combines a volley without counting player attacks", () => {
+  const snapshot = createAdventure({ save: JSON.stringify(fixture()) }).snapshot;
+  const base = snapshot.combat.forecast!;
+  const hit = { time: 1, kind: "hit" as const, sourceId: "scout", targetId: "patrol", position: snapshot.player.position, damage: 18, text: "", radius: 0, queueId: null };
+  const result = combatOutcome(snapshot, { ...base, events: [hit, { ...hit, time: 1.2 }, { ...hit, sourceId: "solo", damage: 26 }, { ...hit, sourceId: "patrol", damage: 12 }] });
+  expect(result.text).toBe("No damage · No action planned · Ash hound takes 36 friendly fire");
+  expect(result.detail).toBe("Cinder Watchman hits Ash hound for 36 damage.");
+  const dangerous = combatOutcome(snapshot, { ...base, events: [hit, { ...hit, targetId: "solo", damage: 8 }] });
+  expect(dangerous.text).toContain("Take 8 damage");
+  expect(dangerous.tone).toBe("danger");
+});

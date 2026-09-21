@@ -3,6 +3,7 @@ import type { AdventureSnapshot, CombatForecast } from "../game/adventure-types.
 export interface CombatOutcome {
   readonly text: string;
   readonly tone: "safe" | "danger" | "warning" | "neutral";
+  readonly detail?: string;
 }
 
 export function combatOutcome(snapshot: AdventureSnapshot, forecast: CombatForecast): CombatOutcome {
@@ -39,8 +40,21 @@ export function combatOutcome(snapshot: AdventureSnapshot, forecast: CombatForec
   const ignition = forecast.events.some(event => event.kind === "ignition" && event.text === "Volatile residue ignites!");
   const ready = !fallen && (!action || failed) ? snapshot.player.counterattackReady ? "Counterattack ready (+12)" : snapshot.player.focusReady ? "Focus ready (+10)" : null : null;
   const extra = ignition ? "Residue ignites" : classText ?? ready;
+  const friendlyFire = new Map<string, { source: string; target: string; damage: number }>();
+  for (const event of forecast.events) {
+    if (event.kind !== "hit" || event.damage <= 0 || event.sourceId === event.targetId) continue;
+    const source = snapshot.threats.find(threat => threat.id === event.sourceId);
+    const target = snapshot.threats.find(threat => threat.id === event.targetId);
+    if (!source || !target) continue;
+    const key = source.id + ":" + target.id;
+    const hit = friendlyFire.get(key) ?? { source: source.name, target: target.name, damage: 0 };
+    hit.damage += event.damage; friendlyFire.set(key, hit);
+  }
+  const hits = [...friendlyFire.values()];
+  const collateral = hits.length === 1 ? `${hits[0]!.target} takes ${hits[0]!.damage} friendly fire` : hits.length ? `Enemies take ${hits.reduce((sum, hit) => sum + hit.damage, 0)} friendly fire` : null;
   return {
-    text: `${fallen ? "You fall" : damage > 0 ? `Take ${damage} damage` : "No damage"} · ${actionText}${extra ? ` · ${extra}` : ""}`,
+    text: [fallen ? "You fall" : damage > 0 ? `Take ${damage} damage` : "No damage", actionText, collateral, extra].filter(Boolean).join(" · "),
     tone: fallen || damage > 0 ? "danger" : failed ? "warning" : action ? "safe" : "neutral",
+    ...(hits.length ? { detail: hits.map(hit => `${hit.source} hits ${hit.target} for ${hit.damage} damage.`).join("\n") } : {}),
   };
 }

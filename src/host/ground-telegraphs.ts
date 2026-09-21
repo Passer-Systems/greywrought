@@ -117,20 +117,28 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
   }
 
   return {
-    update(snapshot: Pick<AdventureSnapshot, "combat"> & Partial<Pick<AdventureSnapshot,"player">>, preview: CombatPreview | { readonly kind: "destination"; readonly route?: readonly Position[] } | null) {
+    update(snapshot: Pick<AdventureSnapshot, "combat"> & Partial<Pick<AdventureSnapshot,"player" | "threats">>, preview: CombatPreview | { readonly kind: "destination"; readonly route?: readonly Position[] } | null) {
       reference = snapshot.player?.position;
       const forecast = snapshot.combat.phase === "preparation" && preview ? snapshot.combat.forecast : null;
       const hasMove = preview?.kind === "move" && forecast?.paths.some(path => path.actorId === forecast.playerId && path.queueId === preview.queueId);
       const paths = forecast?.paths.filter(path => preview?.kind === "destination" || (preview?.kind === "enemy"
         ? path.actorId === preview.threatId
         : preview?.kind === "move" && hasMove)) ?? [];
+      const friendlyHits = forecast?.events.filter(event => event.kind === "hit" && event.damage > 0 && event.sourceId !== event.targetId
+        && snapshot.threats?.some(threat => threat.id === event.sourceId) && snapshot.threats.some(threat => threat.id === event.targetId)
+        && (preview?.kind === "destination" || preview?.kind === "enemy" && event.sourceId === preview.threatId || preview?.kind === "move" && hasMove)) ?? [];
       const events = forecast?.events.filter(event => preview?.kind === "destination" ? event.kind === "hit" && event.targetId === forecast.playerId : (event.kind === "collision" || event.kind === "ignition" || event.kind === "interruption")
         && (preview?.kind === "enemy" ? event.sourceId === preview.threatId
           : preview?.kind === "move" && hasMove && event.queueId === preview.queueId && event.sourceId === forecast.playerId)) ?? [];
       const move = preview?.kind === 'move' && hasMove ? snapshot.combat.queued.find(entry => entry.action === 'bait') : null;
-      const stops = preview?.kind === 'destination' ? preview.route ?? [] : move?.destination ? [...move.via, move.destination] : [];
+      const plannedStops = preview?.kind === 'destination' ? preview.route ?? [] : move?.destination ? [...move.via, move.destination] : [];
+      const executedRoute = paths.find(path => path.kind === 'move' && path.actorId === forecast?.playerId && path.action === 'bait')?.points;
+      const stops = plannedStops.filter((stop,index) => {
+        const reached = executedRoute?.[index+1];
+        return reached && Math.hypot(stop.x-reached.x,stop.z-reached.z)<.01;
+      });
       const hits = forecast?.events.filter(event => event.kind === "hit" && event.targetId === forecast.playerId) ?? [];
-      const nextSignature = JSON.stringify({ preview, paths, events, hits, reference, stops });
+      const nextSignature = JSON.stringify({ preview, paths, events, hits, friendlyHits, reference, stops });
       if (nextSignature === signature) return;
       signature = nextSignature;
       clear();
@@ -174,6 +182,12 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
         }
         diagnostics.push({ ...selection, kind: event.kind === "ignition" ? "area" : "target", event: event.kind,
           position: event.position, radius: event.radius, targetId: event.targetId, damage: event.damage, sourceId: event.sourceId });
+      }
+      for (const event of friendlyHits) {
+        const { x,y,z } = event.position;
+        line({x:x-.25,y,z:z-.25},{x:x+.25,y,z:z+.25},.08,enemyStroke);
+        line({x:x-.25,y,z:z+.25},{x:x+.25,y,z:z-.25},.08,enemyStroke);
+        diagnostics.push({ ...selection, kind:'friendly-fire', position:event.position, damage:event.damage, sourceId:event.sourceId, targetId:event.targetId });
       }
       if (stops.length && forecast) stops.forEach((stop, index) => {
         const repeated = stops.flatMap((other, otherIndex) => Math.hypot(other.x - stop.x, other.z - stop.z) < .01 ? [otherIndex] : []);

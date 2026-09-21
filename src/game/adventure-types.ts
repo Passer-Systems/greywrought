@@ -86,6 +86,7 @@ export interface CorpseLootView {
 }
 export type ThreatPhase = "dormant" | "patrol" | "approach" | "preparation" | "action" | "recovery" | "returning" | "cleared";
 export interface ThreatAbilityView {
+  readonly profile: { readonly aim: "ground" | "direction" | "tracking" | "self"; readonly movement: "hold" | "pursue" | "lunge"; readonly friendlyFire: boolean };
   readonly id: string;
   readonly name: string;
   readonly description: string;

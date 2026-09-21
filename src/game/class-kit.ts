@@ -10,11 +10,11 @@ export interface ClassActionSpec {
   readonly block?: number; readonly heal?: number;
 }
 export interface ClassKit {
-  readonly archetype: CharacterArchetype; readonly movementTiles: number; readonly movementSpeed: number;
+  readonly archetype: CharacterArchetype; readonly movementTiles: number; readonly movementSpeed: number; readonly combatMovementSpeed: number;
   readonly abilities: Readonly<Record<CombatAction, ClassActionSpec>>;
 }
 function kit(movementTiles: number, movementSpeed: number, strike: Omit<ClassActionSpec, "name" | "movementProfile">, brace: Omit<ClassActionSpec, "name" | "movementProfile">): ClassKit {
-  return { archetype: "warrior", movementTiles, movementSpeed, abilities: {
+  return { archetype: "warrior", movementTiles, movementSpeed, combatMovementSpeed: movementTiles * COMBAT_CELL_SIZE, abilities: {
     bait: { movementProfile: "mobile", name: "Move", icon: "assets/ui/icons/spells/mobility-boots.png", description: `Choose multiple stops to move up to ${movementTiles} tiles in total. Backtracking counts toward your distance. Costs 1 stamina.`, cost: 1, range: movementTiles * COMBAT_CELL_SIZE, duration: 1 },
     strike: { ...strike, movementProfile: "stationary", name: "Attack" },
     brace: { ...brace, movementProfile: "mobile", name: "Defend" },
@@ -30,5 +30,6 @@ const kits: Readonly<Record<CharacterArchetype, ClassKit>> = {
 export function classKit(archetype: CharacterArchetype): ClassKit { return kits[archetype]; }
 export function classAction(archetype: CharacterArchetype, action: CombatAction): ClassActionSpec {
   const spec = kits[archetype].abilities[action];
+  if (archetype === "hunter" && action === "strike") return { ...spec, movementProfile: "mobile" };
   return archetype === "hunter" && action === "bait" ? { ...spec, description: spec.description + " Moving at least one tile empowers your next Attack this turn by 8 damage." } : spec;
 }

@@ -901,7 +901,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       const choosingDestination = destination && snapshot.combat.phase === "preparation" && !snapshot.combat.ready;
       const selectedMovement = snapshot.combat.queued.find(move => move.action === "bait" && move.status === "pending");
       const planPreview = combatPreview ?? (selectedMovement ? { kind: "move" as const, queueId: selectedMovement.id } : null);
-      telegraphs.update(forecast ? { player: snapshot.player, combat: { ...snapshot.combat, forecast } } : snapshot,
+      telegraphs.update(forecast ? { player: snapshot.player, threats: snapshot.threats, combat: { ...snapshot.combat, forecast } } : snapshot,
         choosingDestination ? forecast ? { kind: "destination", route: [...via, destination] } : null : planPreview);
       showMovementPreview(choosingDestination ? { destination, via, candidate: Boolean(candidate), pending: movementPreview.pending, forecast } : null);
       const previewData = JSON.stringify(choosingDestination ? { destination, via, candidate: Boolean(candidate), pending: movementPreview.pending, forecast } : null);

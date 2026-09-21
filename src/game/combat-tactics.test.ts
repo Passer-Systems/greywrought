@@ -74,8 +74,8 @@ test("an already-fired projectile survives a save and restore", () => {
     const restored = createAdventure({ save: interrupted.save() });
     expect(restored.snapshot.threats[0]!.windowAction).toEqual(interrupted.snapshot.threats[0]!.windowAction);
     restored.advance(.7);
-    expect(restored.snapshot.player.health).toBe(82);
-    expect(restored.snapshot.threats[0]!.fireballs).toHaveLength(health === 6 ? 0 : 2);
+    expect(restored.snapshot.player.health).toBe(health === 6 ? 82 : 46);
+    expect(restored.snapshot.threats[0]!.fireballs).toHaveLength(0);
   }
 });
 
@@ -122,7 +122,8 @@ test("the roadside trio announces a predictable opener, while a struck late arri
   for (const t of data.state.threats) if (t.aggro) Object.assign(t, { phase: "approach", windowCycle: 0, comboOpened: false });
   const game = createAdventure({ save: JSON.stringify(data) }); game.advance(.01);
   expect(game.snapshot.threats.find(t => t.id === "patrol")!.windowAction!.offsetSeconds).toBe(.85);
-  for (const id of ["nest", "scout"]) expect(game.snapshot.threats.find(t => t.id === id)!.windowAction!.offsetSeconds).toBe(1.7);
+  expect(game.snapshot.threats.find(t => t.id === "nest")!.windowAction!.offsetSeconds).toBe(1.7);
+  expect(game.snapshot.threats.find(t => t.id === "scout")!.windowAction!.offsetSeconds).toBe(.6);
   expect(game.snapshot.threats[0]!.currentAbility.id).toBe("fireball");
   const late = fixture(); late.state.position = { x: 0.5, y: 0, z: 30 };
   late.state.threats[1].position = { x: 1.5, y: 0, z: 30 };

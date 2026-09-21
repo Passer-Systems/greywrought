@@ -73,7 +73,7 @@ test('Ranger earns movement damage from an out-and-back route despite zero displ
   expect(game.queueBait(start, [{ ...start, x: start.x - 2.5 }])).toBe(true);
   tap(game, 'strike');
   const forecast = game.snapshot.combat.forecast!;
-  game.readyCombat(); game.advance(1.36);
+  game.readyCombat(); game.advance(.86);
   expect(game.snapshot.player.position.x).toBeCloseTo(start.x, 7);
   expect(JSON.parse(game.save()).state.repositioned).toBe(true);
   game.advance(.2);
@@ -112,7 +112,7 @@ test('a real Maul commits to the intermediate stop and misses the player returni
   expect(game.queueBait(start, [{ ...start, z: 35 }])).toBe(true);
   const forecast = game.snapshot.combat.forecast!;
   const landing = forecast.paths.find(path => path.action === 'maul')!.points.at(-1)!;
-  expect(landing.z).toBeCloseTo(35, 7);
+  expect(landing.z).toBeCloseTo(35 + 5 / 6, 7);
   standing.readyCombat(); finishCycle(standing);
   expect(standing.snapshot.player.health).toBeLessThan(100);
   game.readyCombat(); finishCycle(game);

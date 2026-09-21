@@ -131,6 +131,10 @@ test("out-and-back routes have separate pale lanes, opposing chevrons, and order
     expect(stops[0].labelPosition.x).not.toBe(stops[2].labelPosition.x);
     expect(scene.children[0]!.children.filter(object => object instanceof Sprite)).toHaveLength(3);
     scene.traverse(object => { if (object instanceof Mesh) expect((object.material as MeshBasicMaterial).color.getHex()).toBe(0xd6efff); });
+    const shortened = { ...path, points: [start, { ...start, x: -7.5 }] };
+    telegraphs.update({ combat: { ...combat, forecast: { ...forecast, paths: [shortened] } } }, { kind: "destination", route: [stop] });
+    expect(JSON.parse(canvas.dataset.telegraphs!).filter((entry: { kind: string }) => entry.kind === "stop")).toHaveLength(0);
+    expect(scene.children[0]!.children.filter(object => object instanceof Sprite)).toHaveLength(0);
     telegraphs.update({ combat: { ...combat, phase: "active" } }, { kind: "destination", route: [stop, start, stop] });
     expect(scene.children[0]!.children).toHaveLength(0);
     telegraphs.dispose();
@@ -146,7 +150,7 @@ test("a real Maul turns pale when the planned return escapes its committed landi
   for (const threat of saved.state.threats) if (threat.active && threat.id !== "patrol") Object.assign(threat, { health: 0, phase: "cleared", lootClaimed: true });
   const game = createAdventure({ save: JSON.stringify(saved) });
   game.selectTarget("patrol"); tap(game, "strike"); game.advance(.01); finishGathering(game);
-  const start = game.snapshot.player.position, stop = { ...start, z: 37.5 };
+  const start = game.snapshot.player.position, stop = { ...start, z: 35 };
   const { canvas, telegraphs } = setup();
   const areas = [];
   for (const [destination, via] of [[stop, []], [start, [stop]]] as const) {
@@ -158,7 +162,8 @@ test("a real Maul turns pale when the planned return escapes its committed landi
   expect(areas[0]).toMatchObject({ kind: "area", danger: true, radius: 2 });
   expect(areas[0].damage).toBeGreaterThan(0);
   expect(areas[1]).toMatchObject({ kind: "area", danger: false, damage: 0, radius: 2 });
-  expect(areas[0].position.z).toBeCloseTo(38.75, 7);
-  expect(areas[1].position.z).toBeCloseTo(stop.z, 7);
+  expect(areas[0].position.z).toBeCloseTo(stop.z, 7);
+  expect(Math.abs(areas[1].position.z-stop.z)).toBeLessThan(1);
+  expect(Math.abs(areas[1].position.z-start.z)).toBeGreaterThan(areas[1].radius);
   telegraphs.dispose();
 });

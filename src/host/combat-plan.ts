@@ -1,7 +1,7 @@
 import type { AdventureSnapshot, CombatAction, CombatActionTiming, ThreatAbilityView, ThreatView } from "../game/adventure-types.js";
 import { classAction } from "../game/class-kit.js";
 import type { CombatPreview } from "./ground-telegraphs.js";
-import { enemyResponse } from "./enemy-response.js";
+import { enemyResponse, enemyResponseLabel } from "./enemy-response.js";
 import { combatOutcome } from "./combat-outcome.js";
 import type { MovementPlanPreview } from "./movement-preview.js";
 import { publicUrl } from "./public-url.js";
@@ -52,7 +52,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   ready.title = "Begin this turn now (R)";
   ready.addEventListener("click", callbacks.onReady);
   const autoReadyLabel = node("label", "combat-plan-auto-ready", header);
-  autoReadyLabel.title = "Ready automatically after choosing both movement and an action. Turn off to adjust action timing before starting.";
+  autoReadyLabel.title = "Ready after choosing movement, an action, and its timing. Turn off to use Ready yourself.";
   const autoReady = node("input", "", autoReadyLabel); autoReady.type = "checkbox"; autoReady.id = "combat-plan-auto-ready";
   const autoReadyStorageKey = "greywrought/combat-auto-ready-v1";
   try { autoReady.checked = localStorage.getItem(autoReadyStorageKey) !== "false"; } catch { autoReady.checked = true; }
@@ -87,13 +87,18 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   const undoMove = node("button", "combat-plan-edit", routeEditor); undoMove.type = "button"; undoMove.id = "combat-plan-undo-move"; undoMove.textContent = "Undo"; undoMove.addEventListener("click", callbacks.onUndoMove);
   const finishMove = node("button", "combat-plan-edit", routeEditor); finishMove.type = "button"; finishMove.id = "combat-plan-finish-move"; finishMove.textContent = "Done (Enter)"; finishMove.addEventListener("click", callbacks.onFinishMove);
   const editor = node("div", "combat-plan-editor", root);
-  node("span", "combat-plan-selection", editor).textContent = "Act";
+  const timingLabel = node("span", "combat-plan-selection", editor); timingLabel.textContent = "Attack timing";
   const timingButtons = (["before", "during", "after"] as const).map(timing => {
     const button = node("button", "combat-plan-timing", editor); button.type = "button";
     button.dataset.timing = timing; button.textContent = timing[0]!.toUpperCase() + timing.slice(1);
-    button.addEventListener("click", () => { if (editing()) callbacks.onTiming(timing); }); return button;
+    button.addEventListener("click", () => {
+      const action = snapshot?.combat.queued.find(entry => entry.action !== "bait");
+      if (!editing() || !action) return;
+      confirmedTiming = { cycle: snapshot!.combat.cycle, queueId: action.id, action: action.action, timing };
+      callbacks.onTiming(timing); updateEditor(); scheduleAutoReady();
+    }); return button;
   });
-  node("span", "combat-plan-timing-suffix", editor).textContent = "movement";
+  const timingSuffix = node("span", "combat-plan-timing-suffix", editor); timingSuffix.textContent = "movement";
   const outcome = node("div", "combat-plan-outcome", root); outcome.id = "combat-plan-outcome";
   outcome.setAttribute("role", "status"); outcome.setAttribute("aria-atomic", "true");
   outcome.title = "Predicted result with the current plans. Changes to anyone’s plan can change the result.";
@@ -112,6 +117,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   let pinnedPreview: CombatPreview | null = null, transientPreview: CombatPreview | null = null;
   let movementPreview: MovementPlanPreview | null = null;
   let routeEditing = false;
+  let confirmedTiming: { cycle: number; queueId: number; action: CombatAction; timing: CombatActionTiming } | null = null;
   let previousCycle = -1;
   let autoReadyScheduled = false, autoReadyGeneration = 0, lastAutoReadyPlan = "", disposed = false;
   function scheduleAutoReady(): void {
@@ -124,6 +130,8 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       if (routeEditing || !autoReady.checked || !snapshot || snapshot.phase !== "expedition" || !editing()) return;
       const pending = snapshot.combat.queued.filter(entry => entry.status === "pending");
       if (!pending.some(entry => entry.action === "bait") || !pending.some(entry => entry.action !== "bait")) return;
+      const action = pending.find(entry => entry.action !== "bait")!;
+      if (confirmedTiming?.cycle !== snapshot.combat.cycle || confirmedTiming.queueId !== action.id || confirmedTiming.action !== action.action || confirmedTiming.timing !== action.timing) return;
       const plan = JSON.stringify([snapshot.combat.cycle, pending.map(entry => [entry.id, entry.action, entry.timing, entry.destination, entry.via, entry.targetId])]);
       if (plan === lastAutoReadyPlan) return;
       lastAutoReadyPlan = plan;
@@ -143,7 +151,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         const ability = threat?.windowAction?.ability;
         if (threat && ability) {
           title = threat.name + " · " + ability.name + " → " + enemyTarget(threat, ability);
-          copy = ability.description + " " + enemyResponse(ability.id);
+          copy = ability.description + " " + enemyResponse(ability);
         }
       } else {
         const move = snapshot.combat.queued.find(move => move.id === preview.queueId);
@@ -164,6 +172,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     const result = forecast ? combatOutcome(snapshot, forecast) : null;
     write(outcomeLabel, hovered ? hovered.candidate ? "Add tile" : "Route" : "Plan");
     write(outcomeCopy, hovered?.pending ? "Checking…" : result?.text ?? "Forecast unavailable");
+    outcome.title = "Predicted result with the current plans. Changes to anyone’s plan can change the result." + (result?.detail ? "\n" + result.detail : "");
     outcome.dataset.source = hovered ? "destination" : "plan";
     outcome.dataset.tone = hovered?.pending ? "pending" : result?.tone ?? "pending";
   }
@@ -196,14 +205,18 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     if (!snapshot) return;
     const movement = snapshot.combat.queued.find(entry => entry.action === "bait");
     const action = snapshot.combat.queued.find(entry => entry.action !== "bait");
-    editor.hidden = !movement || !action;
+    editor.hidden = snapshot.combat.phase !== "preparation";
+    write(timingLabel, action?.action === "brace" ? "Defend timing" : "Attack timing");
     for (const button of timingButtons) {
-      const unavailable = button.dataset.timing === "during" && action && classAction(snapshot.player.archetype, action.action).movementProfile === "stationary";
-      button.disabled = !editing() || Boolean(unavailable);
-      button.hidden = Boolean(unavailable);
-      button.title = unavailable ? "This attack needs you to stand still" : button.textContent + " movement";
+      const onContact = button.dataset.timing === "during" && action?.action !== "brace";
+      const mobile = action && classAction(snapshot.player.archetype, action.action).movementProfile === "mobile";
+      write(button, onContact ? "In reach" : button.dataset.timing![0]!.toUpperCase() + button.dataset.timing!.slice(1));
+      button.disabled = !editing() || !action;
+      button.title = onContact ? "Attack once when your target comes into reach along the route. " + (mobile ? "Keep moving after the shot." : "Stop to attack and hold position for the rest of the turn.") : button.textContent + " movement";
       button.setAttribute("aria-pressed", String(action?.timing === button.dataset.timing));
     }
+    write(timingSuffix, action?.action === "strike" && action.timing === "during" ? classAction(snapshot.player.archetype, action.action).movementProfile === "mobile" ? "keep moving" : "then hold" : "movement");
+    if (movement && action && autoReady.checked && (confirmedTiming?.cycle !== snapshot.combat.cycle || confirmedTiming.queueId !== action.id || confirmedTiming.action !== action.action)) write(timingSuffix, "choose timing");
     for (const [index, row] of [...grid.children].entries()) {
       const entry = index === 0 ? movement : action;
       emptyLabels[index]!.hidden = Boolean(entry);
@@ -232,12 +245,14 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
     if (portraitUrl) portrait.src = portraitUrl; else portrait.hidden = true;
     const words = node("span", "combat-plan-enemy-words", identity);
     node("strong", "combat-plan-enemy-name", words).textContent = enemyName;
-    node("span", "combat-plan-enemy-action", words).textContent = ability.name;
+    const action = node("span", "combat-plan-enemy-action", words); action.textContent = ability.name;
+    const behavior = node("span", "combat-plan-enemy-behavior", action); behavior.textContent = enemyResponseLabel(ability); behavior.hidden = !behavior.textContent;
+    behavior.title = enemyResponse(ability);
     node("span", "combat-plan-enemy-target", words).textContent = "→ " + target;
     icon.dataset.targetId = targetId ?? ""; icon.dataset.targetSelf = String(target === "You");
-    const detail = enemyName + " · " + ability.name + " → " + target + " · " + seconds.toFixed(1) + "s · " + status + "\n" + ability.description;
+    const detail = enemyName + " · " + ability.name + " → " + target + " · " + seconds.toFixed(1) + "s · " + status + "\n" + enemyResponse(ability) + "\n" + ability.description;
     icon.title = detail; icon.setAttribute("aria-label", detail);
-    icon.dataset.abilityId = ability.id; icon.dataset.offset = String(seconds);
+    icon.dataset.abilityId = ability.id; icon.dataset.offset = String(seconds); icon.dataset.aim = ability.profile.aim;
     icon.dataset.status = status;
     node("span", "combat-plan-damage", actionArt).textContent = status === "resolved" ? "✓" : ability.damage ? String(ability.damage) : "";
   }
@@ -257,10 +272,11 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
       updateOutcome();
       updatePreview();
     },
-    reset(): void { autoReadyGeneration++; autoReadyScheduled = false; lastAutoReadyPlan = ""; selectedId = lastId = null; snapshot = null; enemyKey = ""; pinnedPreview = transientPreview = null; previousCycle = -1; movementPreview = null; routeEditing = false; routeEditor.hidden = true; outcome.hidden = true; callbacks.onPreview(null); },
+    reset(): void { autoReadyGeneration++; autoReadyScheduled = false; lastAutoReadyPlan = ""; selectedId = lastId = null; snapshot = null; enemyKey = ""; pinnedPreview = transientPreview = null; previousCycle = -1; movementPreview = null; routeEditing = false; confirmedTiming = null; routeEditor.hidden = true; outcome.hidden = true; callbacks.onPreview(null); },
     update(next: AdventureSnapshot): void {
       snapshot = next;
       const combat = next.combat;
+      if (combat.phase !== "preparation" || combat.cycle !== previousCycle || !combat.queued.some(entry => entry.action === confirmedTiming?.action && entry.id === confirmedTiming?.queueId)) confirmedTiming = null;
       if (combat.phase !== "preparation" || combat.cycle !== previousCycle) { pinnedPreview = transientPreview = null; movementPreview = null; }
       previousCycle = combat.cycle;
       const pinned = pinnedPreview;
@@ -312,7 +328,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
 
         button.setAttribute("aria-pressed", String(move.id === selectedId));
         const target = moveTarget(move);
-        const label = moveName + " → " + target + " at " + move.offsetSeconds.toFixed(1) + "s · " + move.cost + " stamina · " + move.status + (move.reason ? ": " + move.reason : "");
+        const label = moveName + " → " + target + (move.action === "strike" && move.timing === "during" ? " when in reach" : " at " + move.offsetSeconds.toFixed(1) + "s") + " · " + move.cost + " stamina · " + move.status + (move.reason ? ": " + move.reason : "");
         write(button.querySelector<HTMLElement>(".combat-plan-move-label")!, moveName);
         write(button.querySelector<HTMLElement>(".combat-plan-move-target")!, "→ " + target);
         button.dataset.targetId = move.targetId ?? "";
@@ -323,7 +339,7 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
         if (threat.windowAction) return [{ id: threat.id, enemy: threat.name, ability: threat.windowAction.ability, seconds: threat.windowAction.offsetSeconds, status: threat.windowAction.status, targetId: threat.targetPlayerId ?? null, target: enemyTarget(threat, threat.windowAction.ability) }];
         return threat.forecast.slice(0, 1).map(move => ({ id: threat.id, enemy: threat.name, ability: move.ability, seconds: 0, status: move.status, targetId: threat.targetPlayerId ?? null, target: enemyTarget(threat, move.ability) }));
       });
-      const key = JSON.stringify([combat.phase, shown.map(move => Boolean(callbacks.portrait(move.id))), attackers.map(threat => [threat.id, threat.joinsNextWindow]), shown.map(move => [move.enemy, move.ability.id, move.seconds, move.ability.damage, move.status, move.targetId, move.target])]);
+      const key = JSON.stringify([combat.phase, shown.map(move => Boolean(callbacks.portrait(move.id))), attackers.map(threat => [threat.id, threat.joinsNextWindow]), shown.map(move => [move.enemy, move.ability.id, move.ability.profile, move.seconds, move.ability.damage, move.status, move.targetId, move.target])]);
       if (key !== enemyKey) {
         enemyKey = key;
         for (const cell of enemyCells) cell.replaceChildren();
