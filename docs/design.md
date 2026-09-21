@@ -302,7 +302,7 @@ plan and one action. Sprint enhances Move without consuming the action slot.
 
 | Key | Action | Energy | Effect |
 | --- | --- | --- | --- |
-| 1 | Attack | 0 | Warrior attacks within 5 metres; other classes attack within 10 metres |
+| 1 | Attack | 0 | Warrior attacks within 5 metres; Ranger within 12.5 metres; other classes within 10 metres |
 | 2 | Defend | 0 | Absorb 24 damage for the remainder of the turn. Alchemist heals 6 and blocks 16; Artificer blocks 28 |
 | 3 | Move | 0 | Select highlighted tiles to plan a route, then execute with Ready (R) |
 | — | Sprint | 30 | Double that turn's movement distance and speed; toggle beside Move |
