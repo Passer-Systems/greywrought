@@ -7,6 +7,11 @@ await rm("dist", { recursive: true, force: true });
 for (const [source, target] of files) {
   await mkdir(dirname(target), { recursive: true });
   if (/\.(gltf|json|webmanifest)$/.test(source)) await Bun.write(target, JSON.stringify(JSON.parse(await Bun.file(source).text())));
+  else if (source.endsWith(".obj")) {
+    const compact = (await Bun.file(source).text()).replace(/^(v|vn|vt)\s+([^\r\n]+)$/gm, (_line, kind: string, values: string) =>
+      kind + " " + values.trim().split(/\s+/).map(value => Object.is(Number(value), -0) ? "-0" : String(Number(value))).join(" "));
+    await Bun.write(target, compact);
+  }
   else if (source.startsWith("node_modules/three/examples/") || source.endsWith(".css")) {
     const result = await Bun.build({ entrypoints: [source], target: "browser", minify: true, external: ["*"] });
     if (!result.success || !result.outputs[0]) throw new Error(`Could not build ${source}: ${result.logs.join("\n")}`);

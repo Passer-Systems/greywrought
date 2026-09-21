@@ -227,7 +227,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   const terrain = new Group();
   scene.add(terrain);
   const thicket = new Group(); terrain.add(thicket);
-  buildVolcanoLandmark(terrain);
+  const volcano = buildVolcanoLandmark(terrain);
   const chestRoot = new Group();
   const chestPosition = initial.loot.find(loot => loot.sourceId === "ironback-chest")?.position ?? { x: 79, y: terrainHeight(79, -52), z: -52 };
   chestRoot.position.set(chestPosition.x, chestPosition.y, chestPosition.z);
@@ -594,6 +594,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       }
       hoverSnapshot = snapshot;
       elapsed += delta;
+      volcano.update(elapsed);
       let visiblePlayers = otherPlayers;
       if (serverTime !== undefined) {
         interpolation.push(snapshot, otherPlayers, serverTime);

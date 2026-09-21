@@ -6,13 +6,14 @@ import {
   MeshStandardMaterial,
   PointLight,
   Points,
-  PointsMaterial,
+  ShaderMaterial,
+  AdditiveBlending,
+  Vector2,
   Float32BufferAttribute,
 } from "three";
 import { terrainHeight } from "../game/cave-layout.js";
 
-/** The eastern ridge landmark: a quiet reminder of the machines that broke the world. */
-export function buildVolcanoLandmark(terrain: Group): Group {
+export function buildVolcanoLandmark(terrain: Group) {
   const root = new Group();
   root.name = "greywrought.landmark.eastern-volcano";
 
@@ -24,12 +25,32 @@ export function buildVolcanoLandmark(terrain: Group): Group {
   root.rotation.y = -0.18;
 
   const basalt = new MeshStandardMaterial({ color: 0x272629, roughness: 0.96, metalness: 0.08 });
-  const lava = new MeshStandardMaterial({
-    color: 0xff5425,
-    emissive: 0xd92b0b,
-    emissiveIntensity: 2.2,
-    roughness: 0.42,
-    metalness: 0.08,
+  const time = { value: 0 };
+  const lava = new ShaderMaterial({
+    uniforms: { time },
+    vertexShader: `varying vec2 ground;
+      void main(){ground=position.xz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+    fragmentShader: `uniform float time; varying vec2 ground;
+      vec2 hash(vec2 p){return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);}
+      void main(){
+        vec2 p=ground*.65+vec2(time*.025,-time*.016);
+        p+=.22*vec2(sin(p.y*1.7+time*.13),cos(p.x*1.4-time*.11));
+        vec2 cell=floor(p),f=fract(p); float first=9.,second=9.;
+        for(int x=-1;x<=1;x++)for(int y=-1;y<=1;y++){
+          vec2 offset=vec2(float(x),float(y));
+          vec2 center=.5+.35*sin(hash(cell+offset)*6.283+time*.09);
+          float d=length(offset+center-f);
+          if(d<first){second=first;first=d;}else second=min(second,d);
+        }
+        float seam=1.-smoothstep(.025,.16,second-first);
+        float swell=.5+.5*sin(p.x*1.8+sin(p.y*2.1)+time*.31);
+        float molten=max(seam,smoothstep(.67,.95,swell)*.85);
+        vec3 crust=mix(vec3(.027,.018,.014),vec3(.15,.045,.015),swell);
+        vec3 glow=mix(vec3(1.5,.11,.008),vec3(3.,.95,.12),seam*.7+swell*.3);
+        gl_FragColor=vec4(mix(crust,glow,molten),1.);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
   });
 
   // One continuous, irregular surface makes the crater read as terrain rather than stacked primitives.
@@ -83,22 +104,52 @@ export function buildVolcanoLandmark(terrain: Group): Group {
   light.position.set(-3.6, 18.4, 1.4);
   root.add(light);
 
-  const ashPositions = new Float32Array(42 * 3);
   let seed = 17;
   const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0xffffffff; };
-  for (let i = 0; i < 42; i++) {
-    const rise = random() * 16;
-    const spread = 1.4 + rise * 0.18;
-    ashPositions[i * 3] = -3.6 + (random() - 0.5) * spread;
-    ashPositions[i * 3 + 1] = 18.5 + rise;
-    ashPositions[i * 3 + 2] = 1.4 + (random() - 0.5) * spread * 0.72;
+  function particles(count: number, embers: boolean): Points {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(new Float32Array(count * 3), 3));
+    geometry.setAttribute('seed', new Float32BufferAttribute(Array.from({ length: count * 3 }, random), 3));
+    const material = new ShaderMaterial({
+      uniforms: { time, pixelScale: { value: 450 } }, transparent: true, depthWrite: false,
+      ...(embers ? { blending: AdditiveBlending } : {}),
+      vertexShader: `uniform float time,pixelScale;attribute vec3 seed;varying float life;varying float variation;
+        void main(){
+          life=fract(time*${embers ? '.13' : '.034'}+seed.x);variation=seed.z;
+          float spread=${embers ? '1.5+life*4.' : '1.1+life*6.'};
+          vec3 p=vec3(-3.6+(seed.y-.5)*spread+life*life*4.+sin(time*.35+seed.z*8.)*life,
+            18.8+life*${embers ? '13.' : '25.'},1.4+(seed.z-.5)*spread+cos(time*.24+seed.y*7.)*life);
+          vec4 view=modelViewMatrix*vec4(p,1.);
+          gl_Position=projectionMatrix*view;
+          gl_PointSize=(${embers ? '.07+seed.z*.09' : '2.2+life*5.'})*pixelScale/max(1.,-view.z);
+        }`,
+      fragmentShader: `varying float life;varying float variation;
+        void main(){
+          vec2 uv=gl_PointCoord*2.-1.;float radius=length(uv);
+          float soft=1.-smoothstep(${embers ? '0.,1.' : '.15,.95'},radius);
+          float fade=smoothstep(0.,.12,life)*(1.-smoothstep(.65,1.,life));
+          ${embers ? 'fade*=step(.62,variation);' : 'soft*=.75+.25*sin(uv.x*8.+variation*9.)*sin(uv.y*7.-variation*6.);'}
+          float alpha=soft*fade*${embers ? '.9' : '.24'};
+          if(alpha<.005)discard;
+          gl_FragColor=vec4(${embers ? 'vec3(2.5,.55,.035)' : 'mix(vec3(.14,.12,.115),vec3(.31,.29,.27),life)'},alpha);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+    });
+    const points = new Points(geometry, material), size = new Vector2();
+    points.name = `greywrought.landmark.eastern-volcano.${embers ? 'embers' : 'ash'}`;
+    // Motion lives in the shader, beyond the static geometry's bounds.
+    points.frustumCulled = false;
+    points.onBeforeRender = renderer => { material.uniforms.pixelScale!.value = renderer.getDrawingBufferSize(size).y * .5; };
+    root.add(points);
+    return points;
   }
-  const ashGeometry = new BufferGeometry();
-  ashGeometry.setAttribute("position", new Float32BufferAttribute(ashPositions, 3));
-  const ash = new Points(ashGeometry, new PointsMaterial({ color: 0x5a5a58, size: 0.8, transparent: true, opacity: 0.42, depthWrite: false }));
-  ash.name = "greywrought.landmark.eastern-volcano.ash";
-  root.add(ash);
+  particles(48, false);
+  particles(16, true);
 
   terrain.add(root);
-  return root;
+  return { root, update(seconds: number) {
+    time.value = seconds;
+    light.intensity = 2.1 + .35 * Math.sin(seconds * 1.7) + .18 * Math.sin(seconds * 4.13 + .8);
+  } };
 }

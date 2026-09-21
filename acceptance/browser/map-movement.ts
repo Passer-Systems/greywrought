@@ -2,7 +2,7 @@ import { check, openBrowser } from './session.js';
 
 const port = 4478;
 Object.assign(Bun.env, { GREYWROUGHT_GAME_URL: `http://127.0.0.1:${port}/`, GREYWROUGHT_DEBUG_PORT: '9678', GREYWROUGHT_VULKAN: '1' });
-const frontend = Bun.spawn([process.execPath, 'scripts/dev-server.ts'], {
+const frontend = Bun.spawn([process.execPath, Bun.env.GREYWROUGHT_TEST_BUILT === '1' ? 'scripts/static-server.ts' : 'scripts/dev-server.ts'], {
   env: { ...Bun.env, GREYWROUGHT_PORT: String(port), GREYWROUGHT_LOCAL_WORLD: '1', GREYWROUGHT_WORLD_SAVE: `build/browser/map-movement-world-${process.pid}.json` },
   stdout: Bun.file('build/browser/map-movement-frontend.log'), stderr: Bun.file('build/browser/map-movement-frontend-errors.log'),
 });
@@ -58,6 +58,11 @@ try {
   await page.click('#party-invite [data-party-command="accept"]');
   await page.waitFor('document.querySelector(".map-party[data-player-id=map-friend]")!==null');
   check(await page.evaluate<boolean>('document.querySelectorAll(".map-party").length===1&&!document.querySelector(".map-party[data-player-id=map-stranger]")'), 'Only party members have minimap arrows');
+  await page.press('Enter');
+  await page.call('Input.insertText', { text: '/p Follow me to the gate.' });
+  await page.press('Enter');
+  await page.waitFor('document.querySelector(".log-party")?.textContent.includes("[Party]")');
+  check(await page.evaluate('getComputedStyle(document.querySelector(".log-party")).color==="rgb(112, 183, 255)"'), 'Party messages appear in blue');
   const beforeTop = await page.evaluate<number>('parseFloat(document.querySelector(".map-party").style.top)');
   friend.command({ type: 'camera', x: 0, z: -1 });
   friend.command({ type: 'action', action: 'forward', pressed: true });
@@ -67,9 +72,24 @@ try {
   friend.command({ type: 'action', action: 'forward', pressed: false });
   check(await page.evaluate<boolean>('(()=>{const m=document.querySelector(".map-party"),r=document.getElementById("map-field").getBoundingClientRect();return parseFloat(m.style.top)===94&&Math.abs(r.width-r.height)<1;})()'), 'Distant member stays at the square map edge');
   await page.shot('party-minimap');
+  await page.click('[data-party-member="map-friend"]');
+  await page.press('Enter');
+  await page.call('Input.insertText', { text: '/follow' });
+  await page.press('Enter');
+  const followZ = await page.evaluate<number>('window.mapState.snapshot.player.position.z');
+  await page.waitFor(`window.mapState.snapshot.player.position.z<${followZ}-1`);
+  await page.key('KeyA', true); await page.key('KeyA', false);
+  await page.waitFor('!window.mapState.snapshot.player.moving');
+  const stoppedZ = await page.evaluate<number>('window.mapState.snapshot.player.position.z');
+  await Bun.sleep(250);
+  check(await page.evaluate(`Math.abs(window.mapState.snapshot.player.position.z-(${stoppedZ}))<0.1`), 'Manual movement cancels follow');
+  await page.evaluate('document.querySelector("[data-party-member=map-friend]").dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,clientX:120,clientY:180}))');
+  await page.click('[data-party-command="follow"]');
+  await page.waitFor(`window.mapState.snapshot.player.position.z<${stoppedZ}-1`);
+  await page.key('KeyA', true); await page.key('KeyA', false);
   friend.socket.close();
   await page.waitFor('document.querySelectorAll(".map-party").length===0');
   check(page.errors.length === 0, 'Map journey has no browser exceptions');
-  console.log('PASS map movement and translucency; Escape/M and waypoints; moving party heading arrows and edge indicators; strangers and offline members excluded; square minimap', page.output);
+  console.log('PASS map movement and translucency; blue party chat; slash and menu follow; moving party arrows and edge indicators; square minimap', page.output);
 } catch (error) { await page?.shot('failure'); throw error; }
 finally { for (const socket of companions) socket.close(); await page?.key('KeyA', false).catch(() => {}); await page?.key('KeyD', false).catch(() => {}); await page?.close(); frontend.kill(); await frontend.exited; }
