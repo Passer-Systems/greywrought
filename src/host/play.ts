@@ -36,7 +36,7 @@ import { createCombatPlan } from "./combat-plan.js";
 import { createQuestLog } from "./quest-log.js";
 import { createQuestRewardNotice } from "./quest-reward-notice.js";
 import { updateQuestTracker } from "./quest-tracker.js";
-import { connectAdventure, type NetworkAdventure } from "./network-adventure.js";
+import { connectAdventure, readCharacterNames, type NetworkAdventure } from "./network-adventure.js";
 import { publicUrl } from "./public-url.js";
 import { playerRange } from "./combat-range.js";
 import { YARD, type QuestId, type QuestOperation } from "../game/yard-content.js";
@@ -1457,6 +1457,17 @@ try {
   }
 } catch (cause: unknown) { text("entry-account-feedback", "Browser storage is unavailable. Enable local storage to keep your journey."); console.error("Profile storage unavailable", cause); }
 renderEntry();
+if (profile && !profileBlocked) void readCharacterNames(profile.characters).then(characters => {
+  if (!alive || !profile) return;
+  const names = new Map(characters.map(character => [character.id, character.name]));
+  if (!profile.characters.some(character => names.has(character.id) && names.get(character.id) !== character.name)) return;
+  profile = { ...profile, characters: profile.characters.map(character => {
+    const name = names.get(character.id);
+    return name ? { ...character, name } : character;
+  }), savedAtMillis: Date.now() };
+  persistProfile();
+  renderEntry();
+}).catch(cause => console.error("Character names could not be refreshed", cause));
 try {
   const resumeId = sessionStorage.getItem(resumeKey);
   const character = profile?.characters.find((candidate) => candidate.id === resumeId);
