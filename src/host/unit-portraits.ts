@@ -5,7 +5,7 @@ import { robotCritter, ROBOT_CRITTER_COLORS } from "./robot-critter.js";
 
 const appearances = [
   ["cave-bat", "Bat"], ["cave-crab", "Crab"],
-  ["scout", "Skull"], ["nest", "Armabee"], ["warder", "MushroomKing"],
+  ["scout", "Skull"], ["nest", "Armabee"], ["warder", "RelicWarden"],
   ["patrol", "Wolf"], ["ritual-guardian", "Leela"],
   ["lake-dreadnought", "mechanical-turtle"], ["pond-turtle", "mechanical-turtle"], ["pond-turtle-west", "mechanical-turtle"], ["pond-turtle-north", "mechanical-turtle"], ["pond-turtle-south", "mechanical-turtle"], ["meadow-rat", "Rat"], ["meadow-rat-2", "Rat"],
   ["meadow-bird", "Birb"], ["meadow-bird-2", "Birb"], ["meadow-bird-3", "Birb"],

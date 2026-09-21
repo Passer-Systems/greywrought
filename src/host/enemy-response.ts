@@ -4,7 +4,7 @@ export function enemyResponse(abilityId: string): string {
     case "ember-beam": return "Defend before the beam fires. It follows its target.";
     case "fireball": return "Bait the fireball through another enemy or a spilled swarm. Block covers its delayed impact.";
     case "nest": return "Interrupt this bee with a collision to spill its swarm. A fireball can ignite the spill.";
-    case "warder": return "Plan a retreat from the thorns or Block the lash.";
+    case "warder": return "Plan a retreat from the blade or Block the cleave.";
     case "maul": return "Bait the charge through another enemy. Their collision staggers both and can interrupt attacks.";
     case "kindle": return "Queue an attack while it powers up. The next volley will be stronger.";
     case "ember-ward":
