@@ -12,7 +12,7 @@ export interface AuthoredActor {
 
 export const authoredActors: Readonly<Record<string, AuthoredActor>> = {
   RelicWarden: {
-    path: "relic-warden/relic-warden-runtime.glb", encounterId: "warder",
+    path: "openai/relic-warden/relic-warden.glb", encounterId: "warder",
     height: 2.65, idle: "Idle", walk: "Run", attack: "SwordSlash", hit: "HitRecieve_1",
   },
   Rattagane: {
