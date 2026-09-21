@@ -32,3 +32,14 @@ test("party messages never appear in speech bubbles", () => {
   feed.update([{ id: 1, speakerId: "first", name: "Alden", text: "Party only", partyId: "party-one" }], 100);
   expect(feed.visible(100)).toEqual([]);
 });
+
+test("collecting loot does not create a bubble or replace actual speech", () => {
+  const feed = createChatBubbleFeed();
+  feed.update([], 0);
+  const speech = { id: 1, speakerId: "first", name: "Alden", text: "Hello" };
+  feed.update([speech], 100);
+  feed.update([speech, { ...speech, id: 2, kind: 'loot', text: 'collected 3 copper, 1 salvage from Scrapwing.' }], 200);
+  expect(feed.visible(200).map(bubble => bubble.message.text)).toEqual(['Hello']);
+  feed.update([{ ...speech, id: 3, kind: 'loot', speakerId: 'second', text: 'collected 3 copper.' }], 300);
+  expect(feed.visible(300)).toHaveLength(1);
+});

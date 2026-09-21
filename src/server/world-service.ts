@@ -122,10 +122,10 @@ function decodeSave(source: string): SavedService {
     if (!record(entry) || !finite(entry.id, 1, value.nextChatId - 1, true) || typeof entry.name !== 'string'
       || normalizedCharacterName(entry.name) !== entry.name || typeof entry.text !== 'string'
       || !command({ type: 'chat', text: entry.text }) || (chat.at(-1)?.id ?? 0) >= entry.id
-      || (entry.kind !== undefined && entry.kind !== 'emote')
+      || (entry.kind !== undefined && entry.kind !== 'emote' && entry.kind !== 'loot')
       || (entry.partyId !== undefined && !identifier(entry.partyId))
       || (entry.speakerId !== undefined && entry.speakerId !== null && (!identifier(entry.speakerId) || !ids.has(entry.speakerId)))) throw new Error('Invalid saved shared chat');
-    chat.push({ id: entry.id, speakerId: typeof entry.speakerId === 'string' ? entry.speakerId : null, name: entry.name, text: entry.text, ...(entry.kind === 'emote' ? { kind: 'emote' as const } : {}), ...(typeof entry.partyId === 'string' ? { partyId: entry.partyId } : {}) });
+    chat.push({ id: entry.id, speakerId: typeof entry.speakerId === 'string' ? entry.speakerId : null, name: entry.name, text: entry.text, ...(entry.kind === 'emote' || entry.kind === 'loot' ? { kind: entry.kind } : {}), ...(typeof entry.partyId === 'string' ? { partyId: entry.partyId } : {}) });
   }
   const parties: Party[] = [], grouped = new Set<string>(), partyIds = new Set<string>();
   if (value.parties !== undefined && !Array.isArray(value.parties)) throw new Error('Invalid saved parties');
@@ -353,7 +353,7 @@ export async function createWorldService(options: WorldServiceOptions) {
           if (gained.some(amount => amount > 0)) {
             const source = before.loot.find(item => item.sourceId === before.lootOpenId)?.sourceName ?? 'shared loot';
             const items = gained.map((amount, index) => amount > 0 ? index === 0 ? formatMoney(amount) : amount + ' ' + ['', amount === 1 ? 'health potion' : 'health potions', 'salvage', 'Last Shift Roll'][index] : '').filter(Boolean).join(', ');
-            chat.push({ id: nextChatId++, speakerId: id, name: accounts.get(id)!.character.name, kind: 'emote', text: 'collected ' + items + ' from ' + source + '.' });
+            chat.push({ id: nextChatId++, speakerId: id, name: accounts.get(id)!.character.name, kind: 'loot', text: 'collected ' + items + ' from ' + source + '.' });
             if (chat.length > 100) chat.shift();
           }
         }

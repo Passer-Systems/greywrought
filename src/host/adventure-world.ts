@@ -579,6 +579,11 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (rect.width <= 0 || rect.height <= 0 || x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
     point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
     raycaster.setFromCamera(point, camera);
+    // During route editing the character is the start tile's click target;
+    // projecting through its body would select ground farther behind it.
+    if (moveAiming && moveRoute.length && player.visible && knight && raycaster.intersectObject(knight.model, true).length) {
+      return { ...hoverSnapshot.player.position };
+    }
     const hit = raycaster.intersectObjects(groundSurfaces, false)[0];
     let hitPoint = hit?.point;
     const denominator = raycaster.ray.direction.y;

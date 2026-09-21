@@ -895,14 +895,14 @@ function renderHud(snapshot: AdventureSnapshot): void {
     gameCombatRemaining: String(snapshot.combat.remainingSeconds),
   });
   setDataset(data, { archetype: player.archetype });
-  text("bait-aim-hint", moveAimError || "Click route stops · Enter finishes · Backspace undoes · Esc cancels");
+  text("bait-aim-hint", moveAimError || "Green tiles: next stop · Enter: done · Backspace: undo · Esc: cancel");
   const settlement = settlementAt(player.position.x, player.position.z);
   text("adventure-zone", (snapshot.phase === "town" ? `${settlement?.name ?? YARD.settlement} · safe haven` : snapshot.phase === "lost" ? "Journey ended" : regionAt(player.position.x,player.position.z).name) + ` · Level ${snapshot.progression.level}`);
   if (running) unitFrames.update(running.character, snapshot, running.game.players, running.selection?.kind === "player" ? running.selection.id === running.character.id ? { id: running.character.id, name: running.character.name, player: snapshot.player } : running.game.players.find(player => player.id === running!.selection!.id) : undefined);
   if (snapshot.combat.phase !== "preparation" || snapshot.combat.ready || baitAiming && (!running?.game.online || currentMoveContext() !== moveContext)) setBaitAiming(false);
   combatPlan.update(snapshot);
   setDataset(data, { gameCombatPlan: String(!element("combat-plan").hidden) });
-  const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, party: !!entry.partyId, text: entry.partyId ? `[Party] ${entry.name}: ${entry.text}` : entry.kind === 'emote' ? `* ${entry.name} ${entry.text}` : entry.name + ": " + entry.text })) ?? [];
+  const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, party: !!entry.partyId, text: entry.partyId ? `[Party] ${entry.name}: ${entry.text}` : entry.kind === 'loot' ? `${entry.name} ${entry.text}` : entry.kind === 'emote' ? `* ${entry.name} ${entry.text}` : entry.name + ": " + entry.text })) ?? [];
   chatLog.update([...snapshot.log, ...sharedChat]);
   setDataset(data, { gameOnline: String(running?.game.online ?? false) });
   setDataset(data, { autorunning: String(running?.game.autorunning ?? false) });

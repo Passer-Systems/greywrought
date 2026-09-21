@@ -12,7 +12,7 @@ export interface RemotePlayerView {
   readonly name: string;
   readonly player: AdventureSnapshot['player'];
 }
-export interface SharedChatMessage { readonly id: number; readonly speakerId: string | null; readonly name: string; readonly text: string; readonly kind?: 'emote'; readonly partyId?: string; }
+export interface SharedChatMessage { readonly id: number; readonly speakerId: string | null; readonly name: string; readonly text: string; readonly kind?: 'emote' | 'loot'; readonly partyId?: string; }
 export interface PartyMemberView {
   readonly id: string;
   readonly name: string;

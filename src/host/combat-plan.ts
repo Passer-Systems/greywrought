@@ -244,7 +244,9 @@ export function createCombatPlan(host: HTMLElement, callbacks: {
   return {
     setRouteEditing(active: boolean, used = 0, total = 0, count = 0, submitting = false): void {
       routeEditing = active; routeEditor.hidden = !active;
-      write(routeBudget, count ? count + (count === 1 ? " stop · " : " stops · ") + Number(used.toFixed(1)) + " / " + total + " tiles" : "Click tiles to build a route");
+      const remaining = Math.max(0, total - used);
+      write(routeBudget, Number(remaining.toFixed(1)) + " / " + total + " tiles left" + (count ? " · " + count + (count === 1 ? " stop" : " stops") : ""));
+      routeBudget.title = "Green tiles show where your next stop can be. Every leg spends movement, including backtracking.";
       undoMove.disabled = submitting || count === 0;
       finishMove.disabled = submitting || count === 0;
       write(finishMove, submitting ? "Saving…" : "Done (Enter)");
