@@ -12,8 +12,13 @@ export function createLorebook(host: HTMLElement, onClose: () => void, portrait:
   const header = node("header", panel, "rpg-window-header");
   node("h2", header, "rpg-window-title", `${YARD.region} Bestiary`).id = "lorebook-title";
   const close = node("button", header, "rpg-window-close", "×"); close.type = "button"; close.id = "lorebook-close"; close.setAttribute("aria-label", "Close bestiary");
+  const search = node("input", panel, "lorebook-search"); search.id = "bestiary-search"; search.type = "search";
+  search.placeholder = "Search creatures…"; search.setAttribute("aria-label", "Search creatures");
+  search.setAttribute("aria-controls", "lorebook-index"); search.autocomplete = "off"; search.spellcheck = false;
+  search.setAttribute("autocorrect", "off"); search.setAttribute("autocapitalize", "none");
+  search.setAttribute("data-bwignore", "true"); search.setAttribute("data-lpignore", "true");
   const layout = node("div", panel, "lorebook-layout");
-  const nav = node("nav", layout, "lorebook-index"); nav.setAttribute("aria-label", "Monsters");
+  const nav = node("nav", layout, "lorebook-index"); nav.id = "lorebook-index"; nav.setAttribute("aria-label", "Monsters");
   const article = node("article", layout, "lorebook-entry"); article.id = "lorebook-entry"; article.tabIndex = 0;
   const entries = getMonsterLore();
   let selected = "";
@@ -61,16 +66,32 @@ export function createLorebook(host: HTMLElement, onClose: () => void, portrait:
   for (const entry of entries) {
     const tab = node("button", nav, "", entry.name); tab.type = "button"; tab.dataset.monsterId = entry.id;
   }
+  function filter(): void {
+    const query = search.value.trim().toLocaleLowerCase();
+    const matches = entries.filter(entry => entry.name.toLocaleLowerCase().includes(query));
+    for (const tab of nav.querySelectorAll<HTMLButtonElement>("button")) tab.hidden = !matches.some(entry => entry.id === tab.dataset.monsterId);
+    nav.scrollTop = 0;
+    const entry = matches.find(entry => entry.id === selected) ?? matches[0];
+    if (entry) show(entry);
+    else {
+      selected = ""; delete panel.dataset.monsterId; article.replaceChildren();
+      node("p", article, "lorebook-empty", "No creatures match your search.").setAttribute("role", "status");
+    }
+  }
+  const searchKey = (event: KeyboardEvent) => {
+    if (event.code === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); }
+  };
   const choose = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return;
     const id = event.target.closest<HTMLButtonElement>("button[data-monster-id]")?.dataset.monsterId;
     const entry = entries.find(entry => entry.id === id); if (entry) show(entry);
   };
   nav.addEventListener("click", choose); close.addEventListener("click", onClose);
+  search.addEventListener("input", filter); search.addEventListener("keydown", searchKey);
   return {
     get isOpen() { return !panel.hidden; },
-    open(id: string) { const entry = entries.find(entry => entry.id === id) ?? entries[0]; if (entry) show(entry); panel.hidden = false; },
+    open(id: string) { search.value = ""; selected = id; filter(); panel.hidden = false; },
     close() { panel.hidden = true; },
-    dispose() { nav.removeEventListener("click", choose); close.removeEventListener("click", onClose); panel.remove(); },
+    dispose() { nav.removeEventListener("click", choose); close.removeEventListener("click", onClose); search.removeEventListener("input", filter); search.removeEventListener("keydown", searchKey); panel.remove(); },
   };
 }

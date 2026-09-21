@@ -319,7 +319,7 @@ export function createUnitFrames(host: HTMLElement) {
       }
       stamina(target);
       target.root.dataset.kind = "enemy"; delete target.root.dataset.archetype;
-      const enemy = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat && threat.active && (threat.health > 0 || threat.corpseVisible));
+      const enemy = snapshot.threats.find(threat => threat.id === snapshot.selectedThreat && (threat.health > 0 ? threat.active : threat.corpseVisible));
       if (!enemy) { selectedId = ""; preview(); return; }
       targetGroup.hidden = false;
       target.root.dataset.preview = "false";

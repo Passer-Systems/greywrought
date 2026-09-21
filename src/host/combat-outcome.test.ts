@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
 import { createAdventure } from "../game/adventure.js";
+import { terrainHeight } from "../game/cave-layout.js";
 import type { AdventureGame } from "../game/adventure-types.js";
 import { finishCycle, tap } from "../game/yard-test-fixtures.js";
-import { combatOutcome } from "./combat-outcome.js";
+import { combatOutcome, movementRetreat } from "./combat-outcome.js";
 
 function fixture() {
   const save = JSON.parse(createAdventure().save());
@@ -102,4 +103,46 @@ test("enemy friendly fire names the victim and combines a volley without countin
   const dangerous = combatOutcome(snapshot, { ...base, events: [hit, { ...hit, targetId: "solo", damage: 8 }] });
   expect(dangerous.text).toContain("Take 8 damage");
   expect(dangerous.tone).toBe("danger");
+});
+
+function retreatFixture(companion = false) {
+  const save = fixture();
+  save.state.position = { x: -2.5, y: 0, z: 42.5 };
+  const scout = save.state.threats.find((enemy: { id: string }) => enemy.id === 'scout');
+  Object.assign(scout, { position: { x: -2.5, y: 0, z: 40 }, specialOffset: .1, remainingSeconds: .1, castDuration: .1 });
+  Object.assign(scout.head, { ability: 'ember-beam' });
+  if (companion) {
+    const patrol = save.state.threats.find((enemy: { id: string }) => enemy.id === 'patrol');
+    Object.assign(patrol, { health: 72, lootClaimed: false, position: { x: -10, y: terrainHeight(-10, 42.5), z: 42.5 }, aggro: true, phase: 'preparation', joinCycle: 1, windowCycle: 1, specialOffset: 2, remainingSeconds: 2, castDuration: 2 });
+  }
+  return createAdventure({ save: JSON.stringify(save) });
+}
+
+test('hover and committed movement warn about leaving combat without hiding incoming damage', async () => {
+  const game = retreatFixture(), destination = { x: -2.5, y: 0, z: 47.5 };
+  expect(movementRetreat(game.snapshot, game.snapshot.combat.forecast!)).toBeNull();
+  const safe = await game.previewBait({ x: -5, y: 0, z: 42.5 });
+  expect(movementRetreat(game.snapshot, safe!)).toBeNull();
+  const preview = await game.previewBait(destination);
+  expect(movementRetreat(game.snapshot, preview!)).toBe('Leaves combat');
+  expect(combatOutcome(game.snapshot, preview!)).toEqual({ text: 'Take 8 damage · No action planned · Leaves combat', tone: 'danger' });
+  expect(game.queueBait(destination)).toBe(true);
+  const committed = game.snapshot.combat.forecast!;
+  expect(movementRetreat(game.snapshot, committed)).toBe('Leaves combat');
+  game.readyCombat(); finishCycle(game);
+  expect(game.snapshot.player.inCombat).toBe(false);
+  expect(game.snapshot.player.health).toBe(committed.outcomes.find(outcome => outcome.id === 'solo')!.health);
+  expect(game.snapshot.threats.find(enemy => enemy.id === 'scout')!.aggro).toBe(false);
+});
+
+test('one retreat names the creature when another opponent keeps fighting', async () => {
+  const game = retreatFixture(true), destination = { x: -2.5, y: 0, z: 47.5 };
+  const preview = await game.previewBait(destination);
+  expect(movementRetreat(game.snapshot, preview!)).toBe('Cinder Watchman retreats');
+  expect(combatOutcome(game.snapshot, preview!).text).toContain('Take 26 damage');
+  expect(game.queueBait(destination)).toBe(true);
+  game.readyCombat(); finishCycle(game);
+  expect(game.snapshot.player.inCombat).toBe(true);
+  expect(game.snapshot.threats.find(enemy => enemy.id === 'scout')!.aggro).toBe(false);
+  expect(game.snapshot.threats.find(enemy => enemy.id === 'patrol')!.aggro).toBe(true);
 });

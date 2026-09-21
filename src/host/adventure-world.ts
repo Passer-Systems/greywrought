@@ -33,6 +33,7 @@ import type { SharedChatMessage, PartyPingView } from "../game/multiplayer-types
 import { YARD } from "../game/yard-content.js";
 import { createMovementPreview, type MovementPlanPreview } from "./movement-preview.js";
 import { createCombatGrid } from "./combat-grid.js";
+import { movementRetreat } from "./combat-outcome.js";
 import { combatCell } from "../game/combat-grid.js";
 import { updateThreatAnimation, type ThreatAnimationState } from "./threat-animation.js";
 import { terrainHeight } from "../game/cave-layout.js";
@@ -604,7 +605,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
     point.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
     raycaster.setFromCamera(point, camera);
-    const targets: Object3D[] = [...rigs.values()].filter(rig => (rig.health > 0 || rig.lootable) && rig.root.visible)
+    const targets: Object3D[] = [...rigs.values()].filter(rig => rig.root.visible)
       .flatMap(rig => [rig.body, rig.lootGlint].filter(object => object.visible));
     for (const [, rig] of remotePlayers.entries()) if (rig.root.visible && rig.model) targets.push(rig.model);
     if (playerSelection && player.visible && knight) targets.push(knight.model);
@@ -836,7 +837,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         rig.lootGlint.position.set(0, 0.8 + 0.08 * Math.sin(elapsed * 2), 0);
         rig.lootGlint.scale.setScalar(0.55 + 0.08 * Math.sin(elapsed * 3));
         rig.lootGlint.material.opacity = 0.75 + 0.2 * Math.sin(elapsed * 2);
-        rig.selection.visible = selectedUnit?.kind === "enemy" && selectedUnit.id === threat.id && threat.health > 0;
+        rig.selection.visible = selectedUnit?.kind === "enemy" && selectedUnit.id === threat.id && rig.body.visible;
         const relationColor = threat.disposition === "hostile" || threat.aggro ? 0xff3232 : 0xf5df38;
         rig.selection.material.color.setHex(relationColor);
         if (threat.health > 0) rig.root.rotation.y = Math.atan2(threat.facing.x, threat.facing.z);
@@ -900,6 +901,9 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       const forecast = movementPreview.forecast;
       const choosingDestination = destination && snapshot.combat.phase === "preparation" && !snapshot.combat.ready;
       const selectedMovement = snapshot.combat.queued.find(move => move.action === "bait" && move.status === "pending");
+      const warningForecast = choosingDestination ? forecast : snapshot.combat.forecast;
+      const warningDestination = choosingDestination ? destination : selectedMovement?.destination ?? null;
+      combatGrid.warnDestination(snapshot.combat.phase === "preparation" && warningForecast && movementRetreat(snapshot, warningForecast) ? warningDestination : null);
       const planPreview = combatPreview ?? (selectedMovement ? { kind: "move" as const, queueId: selectedMovement.id } : null);
       telegraphs.update(forecast ? { player: snapshot.player, threats: snapshot.threats, combat: { ...snapshot.combat, forecast } } : snapshot,
         choosingDestination ? forecast ? { kind: "destination", route: [...via, destination] } : null : planPreview);

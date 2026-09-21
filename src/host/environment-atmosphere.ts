@@ -1,7 +1,8 @@
-import { BufferGeometry, CanvasTexture, Color, DirectionalLight, Float32BufferAttribute, Group, Material, Matrix4, Mesh, MeshStandardMaterial, Points, PointsMaterial, Scene, Vector3 } from 'three';
+import { BufferGeometry, CanvasTexture, Color, DirectionalLight, Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, Material, Matrix4, Mesh, MeshStandardMaterial, Points, PointsMaterial, Scene, Vector3 } from 'three';
 import type { Position } from '../game/adventure-types.js';
-import { terrainHeight } from '../game/cave-layout.js';
-import { LAKE_WATER_LEVEL } from '../game/world-elevation.js';
+import { inCave, terrainHeight } from '../game/cave-layout.js';
+import { lakeWaterAt, LAKE_WATER_LEVEL } from '../game/world-elevation.js';
+import { isSubmerged } from '../game/movement.js';
 import { worldDay } from '../game/world-time.js';
 
 export type AtmosphereQuality = 'off' | 'low' | 'high';
@@ -96,6 +97,7 @@ export function createEnvironmentAtmosphere(scene: Scene) {
   }
   const count=144,positions=new Float32Array(count*3),colors=new Float32Array(count*3),seeds=new Float32Array(count),floor=new Float32Array(count);
   const hash=(i:number)=>{const n=Math.sin(i*127.1+91.7)*43758.5453;return n-Math.floor(n);};
+  const smooth=(value:number)=>{const t=Math.max(0,Math.min(1,value));return t*t*(3-2*t);};
   const emitters=[[-10,44],[-34,-69],[-15,-107]] as const;
   const color=new Color();
   for(let i=0;i<count;i++){
@@ -111,13 +113,55 @@ export function createEnvironmentAtmosphere(scene: Scene) {
   geometry.setAttribute('position',new Float32BufferAttribute(positions,3));geometry.setAttribute('color',new Float32BufferAttribute(colors,3));
   const material=new PointsMaterial({map:texture,vertexColors:true,size:.09,transparent:true,opacity:.42,depthWrite:false});
   const particles=new Points(geometry,material);particles.name='windborne-dust';particles.frustumCulled=false;root.add(particles);
+  // Rain is kept as a small, camera-local line cloud. It gives the weather a
+  // readable streak rather than a noisy full-screen overlay and remains cheap
+  // on low settings (the quality setting controls its density).
+  const rainCount = 320;
+  const rainPositions = new Float32Array(rainCount * 2 * 3);
+  const rainSeeds = new Float32Array(rainCount);
+  const rainFloor = new Float32Array(rainCount);
+  for (let i = 0; i < rainCount; i++) {
+    rainSeeds[i] = hash(i + 701);
+    const index = i * 6;
+    const x = (hash(i + 801) - .5) * 46;
+    const z = (hash(i + 901) - .5) * 46;
+    const y = 8 + hash(i + 1001) * 16;
+    rainPositions[index] = x; rainPositions[index + 1] = y; rainPositions[index + 2] = z;
+    rainPositions[index + 3] = x + .12; rainPositions[index + 4] = y - 1.25; rainPositions[index + 5] = z + .04;
+  }
+  const rainGeometry = new BufferGeometry();
+  rainGeometry.setAttribute('position', new Float32BufferAttribute(rainPositions, 3));
+  const rainMaterial = new LineBasicMaterial({ color: 0xb8d7e0, transparent: true, opacity: .34, depthWrite: false });
+  const rain = new LineSegments(rainGeometry, rainMaterial);
+  rain.name = 'weather-rain'; rain.frustumCulled = false; rain.visible = false; root.add(rain);
   let quality=readAtmosphereQuality(),floorClock=0;document.body.dataset.atmosphereQuality=quality;
+  let rainIntensity = 0;
+  let rainTarget = 0;
+  let rainOriginReady = false;
+  let rainFloorClock = .21;
   return {
     attach,
     update(wallTimeSeconds:number,delta:number,_player:Position){
       const preference=document.body.dataset.atmosphereQuality;if(preference==='off'||preference==='low'||preference==='high')quality=preference;
       uniforms.gwQuality.value=quality==='off'?0:quality==='low'?1:2;root.visible=quality!=='off';
-      if(!attached||quality==='off')return;
+      if(!attached||quality==='off'){ rain.visible=false; return; }
+      // All clients derive the same storm from shared world time. Smooth
+      // shoulders avoid a hard pop as rain starts or clears (and keep the
+      // ambient weather independent of frame rate or reconnect timing).
+      const cycleIndex = Math.floor(wallTimeSeconds / 120);
+      const cycle = ((wallTimeSeconds % 120) + 120) % 120;
+      const stormSeed = hash(cycleIndex + 1801);
+      const stormStart = 12 + hash(cycleIndex + 1901) * 22;
+      const stormDuration = 42 + hash(cycleIndex + 2001) * 34;
+      const storm = stormSeed < .22 ? 0 : smooth(Math.min((cycle - stormStart) / 10, (stormStart + stormDuration - cycle) / 10));
+      const sheltered = inCave(_player) || isSubmerged(_player);
+      rainTarget = sheltered ? 0 : Math.max(0, storm);
+      rainIntensity += (rainTarget - rainIntensity) * (1 - Math.exp(-delta * 3.5));
+      rain.visible = rainIntensity > .005;
+      rainMaterial.opacity = rainIntensity * (quality === 'high' ? .34 : .22);
+      root.userData.weather = rainIntensity > .01 ? 'rain' : 'clear';
+      root.userData.weatherIntensity = rainIntensity;
+      root.userData.weatherSheltered = sheltered;
       const day=worldDay(wallTimeSeconds*1000);uniforms.gwTime.value=wallTimeSeconds%3600;
       uniforms.gwTint.value.setHex(0x90aaa5).multiplyScalar(.3+.7*day.daylight);
       const sun=scene.getObjectByName('sun-moon');if(sun instanceof DirectionalLight)uniforms.gwLightMatrix.value.copy(sun.shadow.matrix);
@@ -134,8 +178,46 @@ export function createEnvironmentAtmosphere(scene: Scene) {
         }
       }
       geometry.getAttribute('position').needsUpdate=true;
+      if (rainIntensity > .005) {
+        const rainActive = quality === 'high' ? rainCount : 150;
+        if (!rainOriginReady) { rain.position.set(_player.x, _player.y, _player.z); rainOriginReady = true; }
+        else {
+          const shiftX = _player.x - rain.position.x, shiftY = _player.y - rain.position.y, shiftZ = _player.z - rain.position.z;
+          if (Math.hypot(shiftX, shiftZ) > 12 || Math.abs(shiftY) > 4) {
+            for (let i = 0; i < rainCount; i++) { const k = i * 6; rainPositions[k]! -= shiftX; rainPositions[k + 1]! -= shiftY; rainPositions[k + 2]! -= shiftZ; rainPositions[k + 3]! -= shiftX; rainPositions[k + 4]! -= shiftY; rainPositions[k + 5]! -= shiftZ; }
+            rain.position.set(_player.x, _player.y, _player.z);
+            rainFloorClock = .21;
+          }
+        }
+        const drops = rainGeometry.getAttribute('position');
+        rainFloorClock += delta;
+        const refreshRainFloor = rainFloorClock > .2; if (refreshRainFloor) rainFloorClock = 0;
+        for (let i = 0; i < rainActive; i++) {
+          const index = i * 6, seed = rainSeeds[i]!;
+          let y = rainPositions[index + 1]! - delta * (11 + seed * 6);
+          const x = rainPositions[index]!, z = rainPositions[index + 2]!;
+          if (refreshRainFloor) { const worldX = rain.position.x + x, worldZ = rain.position.z + z; const water = lakeWaterAt(worldX, worldZ); rainFloor[i] = Math.max(terrainHeight(worldX, worldZ), water ?? -Infinity); }
+          const ground = rainFloor[i]!;
+          const wind = (2.2 + seed * 1.4) * delta;
+          rainPositions[index] = x + wind;
+          rainPositions[index + 2] = z + wind * .22;
+          if (y < ground - rain.position.y + .5 || Math.abs(x) > 26 || Math.abs(z) > 26) {
+            rainPositions[index] = (hash(i + Math.floor(wallTimeSeconds * .7)) - .5) * 46;
+            rainPositions[index + 2] = (hash(i + 100 + Math.floor(wallTimeSeconds * .7)) - .5) * 46;
+            y = 15 + seed * 10;
+          }
+          rainPositions[index + 1] = y;
+          rainPositions[index + 3] = rainPositions[index]! + .12;
+          rainPositions[index + 4] = y - 1.25;
+          rainPositions[index + 5] = rainPositions[index + 2]! + .04;
+          drops.setXYZ(i * 2, rainPositions[index]!, y, rainPositions[index + 2]!);
+          drops.setXYZ(i * 2 + 1, rainPositions[index + 3]!, rainPositions[index + 4]!, rainPositions[index + 5]!);
+        }
+        rainGeometry.setDrawRange(0, rainActive * 2);
+        drops.needsUpdate = true;
+      }
     },
     setQuality(value:AtmosphereQuality){quality=value;setAtmosphereQuality(value);},get quality(){return quality;},
-    dispose(){for(const [material,original]of patched){material.onBeforeCompile=original.compile;material.customProgramCacheKey=original.key;material.needsUpdate=true;}patched.clear();geometry.dispose();material.dispose();texture.dispose();root.removeFromParent();},
+    dispose(){for(const [material,original]of patched){material.onBeforeCompile=original.compile;material.customProgramCacheKey=original.key;material.needsUpdate=true;}patched.clear();geometry.dispose();material.dispose();texture.dispose();rainGeometry.dispose();rainMaterial.dispose();root.removeFromParent();},
   };
 }

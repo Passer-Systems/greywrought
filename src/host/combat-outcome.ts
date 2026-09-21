@@ -6,6 +6,17 @@ export interface CombatOutcome {
   readonly detail?: string;
 }
 
+export function movementRetreat(snapshot: AdventureSnapshot, forecast: CombatForecast): string | null {
+  if (!forecast.actions.some(action => action.actorId === forecast.playerId && action.action === "bait" && action.result === "executed")) return null;
+  const player = forecast.outcomes.find(outcome => outcome.id === forecast.playerId);
+  if (!player || player.health <= 0) return null;
+  const ids = new Set(forecast.events.filter(event => event.kind === "retreat" && event.targetId === forecast.playerId).map(event => event.sourceId));
+  if (!ids.size) return null;
+  if (!player.inCombat) return "Leaves combat";
+  const names = snapshot.threats.filter(threat => ids.has(threat.id)).map(threat => threat.name);
+  return names.length === 1 ? `${names[0]} retreats` : `${ids.size} enemies retreat`;
+}
+
 export function combatOutcome(snapshot: AdventureSnapshot, forecast: CombatForecast): CombatOutcome {
   const damage = forecast.events.reduce((total, event) => total + (event.kind === "hit" && event.targetId === forecast.playerId ? event.damage : 0), 0);
   const fallen = forecast.outcomes.some(outcome => outcome.id === forecast.playerId && outcome.health <= 0);
@@ -52,9 +63,10 @@ export function combatOutcome(snapshot: AdventureSnapshot, forecast: CombatForec
   }
   const hits = [...friendlyFire.values()];
   const collateral = hits.length === 1 ? `${hits[0]!.target} takes ${hits[0]!.damage} friendly fire` : hits.length ? `Enemies take ${hits.reduce((sum, hit) => sum + hit.damage, 0)} friendly fire` : null;
+  const retreat = movementRetreat(snapshot, forecast);
   return {
-    text: [fallen ? "You fall" : damage > 0 ? `Take ${damage} damage` : "No damage", actionText, collateral, extra].filter(Boolean).join(" · "),
-    tone: fallen || damage > 0 ? "danger" : failed ? "warning" : action ? "safe" : "neutral",
+    text: [fallen ? "You fall" : damage > 0 ? `Take ${damage} damage` : "No damage", actionText, retreat, collateral, extra].filter(Boolean).join(" · "),
+    tone: fallen || damage > 0 ? "danger" : failed || retreat ? "warning" : action ? "safe" : "neutral",
     ...(hits.length ? { detail: hits.map(hit => `${hit.source} hits ${hit.target} for ${hit.damage} damage.`).join("\n") } : {}),
   };
 }

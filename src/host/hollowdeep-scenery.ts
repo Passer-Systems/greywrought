@@ -5,6 +5,9 @@ import { prop } from './frostwood-assets.js';
 import { caveFloorGeometry } from './terrain-geometry.js';
 
 export async function buildHollowdeep(terrain: Group): Promise<(position: Position, camera: Vector3, aimHeight?: number) => void> {
+  // Roof elevations allow a third-person orbit above the descending floor.
+  const caveCeiling = 7.2;
+  const entranceLintelHeight = 6.8;
   const walls = new Group(), roof = new Group(); terrain.add(walls, roof);
   const solidBounds: Box3[] = [];
   const sightline = new Ray(), cameraDirection = new Vector3(), intersection = new Vector3();
@@ -38,7 +41,7 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
       jobs.push(prop('nature/Rock_Medium_3',1).then(model => {
         const x=left+(col+.5)*(right-left)/cols, z=bottom+(row+.5)*(top-bottom)/rows;
         for (const child of model.children) child.rotation.y += Math.floor(noise(x,z)*4)*Math.PI/2;
-        const ground=terrainHeight(x,z), height=3.6-ground+noise(x+4,z)*1.5;
+        const ground=terrainHeight(x,z), height=caveCeiling-ground+noise(x+4,z)*1.5;
         const size=new Box3().setFromObject(model).getSize(new Vector3());
         model.scale.set((right-left)/cols/size.x*1.15, height/size.y, (top-bottom)/rows/size.z*1.15);
         model.position.set(x,ground-.15,z); walls.add(model);
@@ -52,13 +55,14 @@ export async function buildHollowdeep(terrain: Group): Promise<(position: Positi
       const size=new Box3().setFromObject(model).getSize(new Vector3());
       const crown = Math.max(0, 1 - Math.abs(x - 59) / 29);
       model.scale.set((12.2+noise(x+3,z)*1.8)/size.x, (3.4+crown*3+noise(x,z+5)*1.8)/size.y, (13+noise(x+7,z)*2)/size.z);
-      model.position.set(x+(noise(x,z+1)-.5)*2,1.55+noise(x+2,z)*.5,z+(noise(x+1,z)-.5)*1.3); roof.add(model);
+      // Centered asset origins need clearance below the roof's anchor height.
+      model.position.set(x+(noise(x,z+1)-.5)*2,7.05+noise(x+2,z)*.5,z+(noise(x+1,z)-.5)*1.3); roof.add(model);
     }));
   }
   // The entrance lintel bridges the descending passage.
   jobs.push(prop('nature/Rock_Medium_3',1).then(model => {
     const size=new Box3().setFromObject(model).getSize(new Vector3());
-    model.scale.set(3.4/size.x,2/size.y,10.4/size.z); model.position.set(29,3,-46); roof.add(model);
+    model.scale.set(3.4/size.x,2/size.y,10.4/size.z); model.position.set(29,entranceLintelHeight,-46); roof.add(model);
   }));
   for(const x of [32,55]) {
     place('works/Column_1',x,-50.2,4.2); place('works/Column_1',x,-41.8,4.2);

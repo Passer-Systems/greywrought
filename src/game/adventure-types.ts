@@ -57,8 +57,8 @@ export interface CombatForecast {
     readonly result: "executed" | "out-of-range" | "behind-cover" | "target-unavailable" | "moving" | "insufficient-stamina" | "destination-unreachable" | "not-executed";
   }[];
   readonly paths: readonly { readonly actorId: string; readonly kind: "move" | "attack"; readonly action: string; readonly beat: number; readonly queueId: number | null; readonly points: readonly Position[]; readonly radius: number }[];
-  readonly events: readonly { readonly time: number; readonly kind: "hit" | "collision" | "interruption" | "ignition" | "defeat" | "class"; readonly sourceId: string; readonly targetId: string | null; readonly position: Position; readonly damage: number; readonly text: string; readonly radius: number; readonly queueId: number | null }[];
-  readonly outcomes: readonly { readonly id: string; readonly health: number; readonly staggered: boolean }[];
+  readonly events: readonly { readonly time: number; readonly kind: "hit" | "collision" | "interruption" | "ignition" | "defeat" | "class" | "retreat"; readonly sourceId: string; readonly targetId: string | null; readonly position: Position; readonly damage: number; readonly text: string; readonly radius: number; readonly queueId: number | null }[];
+  readonly outcomes: readonly { readonly id: string; readonly health: number; readonly staggered: boolean; readonly inCombat: boolean }[];
 }
 export interface CombatHazard { readonly id: string; readonly kind: "swarm" | "residue"; readonly position: Position; readonly radius: number; }
 export interface CombatEffect { readonly id: number; readonly kind: "ignition"; readonly position: Position; readonly radius: number; }

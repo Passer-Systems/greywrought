@@ -15,8 +15,8 @@ export const MOVEMENT_BARRIERS: readonly Barrier[] = [...TOWN_FENCE_BARRIERS, TH
 export interface MovementInput { forward: number; strafe: number; cameraX: number; cameraZ: number; jump: boolean; rise?: boolean; dive?: boolean; }
 export interface MovementFrame { sequence: number; seconds: number; input: MovementInput; }
 export interface MovementManeuver { kind: 'lunge' | 'bait'; start: Position; destination: Position; via?: readonly Position[]; traveledDistance?: number; remainingSeconds: number; duration: number; }
-export interface MovementCheckpoint { sequence: number; elapsed: number; verticalSpeed: number; maneuver?: MovementManeuver | null; }
-export interface MovementState { position: { x: number; y: number; z: number }; verticalSpeed: number; breathSeconds?: number; autoSurfacing?: boolean; }
+export interface MovementCheckpoint { sequence: number; elapsed: number; verticalSpeed: number; fallPeakHeight?: number | null; maneuver?: MovementManeuver | null; }
+export interface MovementState { position: { x: number; y: number; z: number }; verticalSpeed: number; fallPeakHeight?: number | null; breathSeconds?: number; autoSurfacing?: boolean; }
 /** Feet support: terrain on land, and 0.8m below the surface once water is deep enough to swim. */
 export function supportHeight(x: number, z: number): number {
   const terrain = terrainHeight(x, z), water = lakeWaterAt(x, z);
@@ -24,6 +24,14 @@ export function supportHeight(x: number, z: number): number {
 }
 
 export const MAX_BREATH_SECONDS = 60;
+export const FALL_SAFE_HEIGHT = 11;
+export const FALL_LETHAL_HEIGHT = 28;
+export const JUMP_SPEED = 6;
+export const GRAVITY = 13;
+const MAX_STEP_DOWN = .35;
+export function fallDamage(distance: number, maximumHealth: number): number {
+  return Math.ceil(maximumHealth * Math.max(0, Math.min(1, (distance - FALL_SAFE_HEIGHT) / (FALL_LETHAL_HEIGHT - FALL_SAFE_HEIGHT))));
+}
 export function isSubmerged(position: Position): boolean {
   const water = lakeWaterAt(position.x, position.z);
   return water !== null && position.y + 1.15 < water;
@@ -58,22 +66,25 @@ function advanceBreath(state: MovementState, seconds: number): void {
 export function blockedPosition(x: number, z: number): boolean {
   return MOVEMENT_BARRIERS.some(([left, right, bottom, top]) => x > left && x < right && z >= bottom && z <= top);
 }
-export function movePosition(p: MovementState['position'], dx: number, dz: number): void {
+export function movePosition(p: MovementState['position'], dx: number, dz: number, grounded = true): void {
   const previous = { ...p };
-  const offset = p.y - supportHeight(p.x, p.z);
+  const supported = grounded && Math.abs(p.y - supportHeight(p.x, p.z)) < 1e-6;
   const nextX = Math.max(WORLD_BOUNDS.minX, Math.min(WORLD_BOUNDS.maxX, p.x + dx)), nextZ = Math.max(WORLD_BOUNDS.minZ, Math.min(WORLD_BOUNDS.maxZ, p.z + dz));
   if (!blockedPosition(nextX, nextZ)) { p.x = nextX; p.z = nextZ; }
   else {
     if (!blockedPosition(nextX, p.z)) p.x = nextX;
     if (!blockedPosition(p.x, nextZ)) p.z = nextZ;
   }
-  p.y = movementHeight(p.x, p.z, previous) + Math.max(0, offset);
+  const ground = movementHeight(p.x, p.z, previous);
+  // Walking follows small steps and hills; a ledge leaves feet at world height.
+  // Airborne motion never inherits the terrain's change in elevation.
+  if (isSwimming(previous) || supported && previous.y - ground <= MAX_STEP_DOWN) p.y = ground;
 }
 export function startJump(state: MovementState): void {
   // A swimmer can breach from the surface.  Underwater Space is handled by
   // the rise input in moveLocomotion; only a swimmer already at the surface
   // receives a jump impulse so holding Space cannot launch from the lake bed.
-  if (state.position.y === supportHeight(state.position.x, state.position.z) && state.verticalSpeed === 0) state.verticalSpeed = 5.5;
+  if (state.position.y === supportHeight(state.position.x, state.position.z) && state.verticalSpeed === 0) state.verticalSpeed = JUMP_SPEED;
 }
 export function moveManeuverPosition(state: MovementState, maneuver: MovementManeuver, seconds: number): boolean {
   const elapsed = Math.min(seconds, maneuver.remainingSeconds);
@@ -101,34 +112,44 @@ export function moveManeuverPosition(state: MovementState, maneuver: MovementMan
   if (maneuver.remainingSeconds <= 1e-9) { state.position.y = ground; state.verticalSpeed = 0; }
   return travelled > 1e-9;
 }
-export function moveLocomotion(state: MovementState, input: MovementInput, seconds: number, movementSpeed = 5.2): { moving: boolean; backpedaling: boolean } {
+export function moveLocomotion(state: MovementState, input: MovementInput, seconds: number, movementSpeed = 5.2): { moving: boolean; backpedaling: boolean; landedDistance: number } {
   if (input.jump) startJump(state);
   const length = Math.max(1, Math.hypot(input.forward, input.strafe));
   const x = (input.cameraX * input.forward - input.cameraZ * input.strafe) / length;
   const z = (input.cameraZ * input.forward + input.cameraX * input.strafe) / length;
   const old: Position = { ...state.position };
   const speed = movementSpeed * (input.forward < 0 ? 0.64 : 1);
-  let remaining = seconds;
+  let remaining = seconds, landedDistance = 0;
   while (remaining > 1e-9) {
     const dt = Math.min(remaining, 1 / 60);
-    movePosition(state.position, x * speed * dt, z * speed * dt);
+    const previousY = state.position.y;
+    if (state.verticalSpeed !== 0 || state.position.y > supportHeight(state.position.x, state.position.z) + 1e-6) {
+      state.fallPeakHeight = Math.max(state.fallPeakHeight ?? previousY, previousY);
+    }
+    movePosition(state.position, x * speed * dt, z * speed * dt, state.verticalSpeed === 0);
     const water = lakeWaterAt(state.position.x, state.position.z);
     const ground = supportHeight(state.position.x, state.position.z);
     if (water !== null && isSwimmingPosition(state.position.x, state.position.z) && state.position.y <= ground && state.verticalSpeed <= 0) {
       const vertical = state.autoSurfacing ? 1 : Number(input.rise ?? input.jump) - Number(input.dive ?? false);
       state.position.y = Math.max(terrainHeight(state.position.x, state.position.z), Math.min(ground, state.position.y + vertical * 2.2 * dt));
-      state.verticalSpeed = 0;
+      state.verticalSpeed = 0; state.fallPeakHeight = null;
       advanceBreath(state, dt);
       remaining -= dt;
       continue;
     }
-    if (state.position.y > ground || state.verticalSpeed > 0) {
-      state.position.y = Math.max(ground, state.position.y + state.verticalSpeed * dt - 7 * dt * dt);
-      state.verticalSpeed = state.position.y > ground ? state.verticalSpeed - 14 * dt : 0;
+    if (state.position.y > ground || state.verticalSpeed !== 0 || state.fallPeakHeight != null) {
+      state.fallPeakHeight = Math.max(state.fallPeakHeight ?? previousY, previousY);
+      const nextY = state.position.y + state.verticalSpeed * dt - GRAVITY / 2 * dt * dt;
+      state.fallPeakHeight = Math.max(state.fallPeakHeight, nextY);
+      state.position.y = Math.max(ground, nextY);
+      if (nextY <= ground) {
+        if (!isSwimmingPosition(state.position.x, state.position.z)) landedDistance = Math.max(landedDistance, state.fallPeakHeight - ground);
+        state.verticalSpeed = 0; state.fallPeakHeight = null;
+      } else state.verticalSpeed -= GRAVITY * dt;
     }
     advanceBreath(state, dt);
     remaining -= dt;
   }
   const moving = Math.hypot(state.position.x - old.x, isSwimming(state.position) ? state.position.y - old.y : 0, state.position.z - old.z) > 1e-9;
-  return { moving, backpedaling: moving && input.forward < 0 };
+  return { moving, backpedaling: moving && input.forward < 0, landedDistance };
 }

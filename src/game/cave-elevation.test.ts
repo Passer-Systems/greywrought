@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createAdventure, createSharedAdventure } from './adventure.js';
 import { terrainHeight, migrateTerrainLayout } from './cave-layout.js';
-import { moveLocomotion, moveManeuverPosition, type MovementState } from './movement.js';
+import { GRAVITY, JUMP_SPEED, moveLocomotion, moveManeuverPosition, type MovementState } from './movement.js';
 import { LocalMovement } from '../host/local-movement.js';
 import { finishGathering, earnedChapter, finishCycle, tap } from './yard-test-fixtures.js';
 import type { Position } from './adventure-types.js';
@@ -72,14 +72,25 @@ test('walking into both chambers and returning follows the same floor on server 
   }
 });
 
-test('jumping down and up the ramp retains airtime and lands on the local floor', () => {
+test('jumping down and up the ramp follows a world-height arc and lands on the local floor', () => {
   for (const direction of [1, -1]) {
     const state: MovementState = { position: { ...ground(35) }, verticalSpeed: 0 };
+    const startHeight = state.position.y;
     const input = { forward: 1, strafe: 0, cameraX: direction, cameraZ: 0, jump: true };
     moveLocomotion(state, input, .2);
-    expect(height(state.position)).toBeGreaterThan(.5);
+    expect(height(state.position)).toBeCloseTo(startHeight + JUMP_SPEED * .2 - GRAVITY * .2 ** 2 / 2 - terrainHeight(state.position.x, state.position.z), 7);
+    expect(state.verticalSpeed).toBeGreaterThan(0);
     expect(state.position.y).toBeLessThan(0);
-    moveLocomotion(state, { ...input, jump: false }, .8);
+    expect(state.position.y).toBeCloseTo(startHeight + JUMP_SPEED * .2 - GRAVITY * .2 ** 2 / 2, 7);
+    let elapsed = .2;
+    while (state.verticalSpeed !== 0 && elapsed < 2) {
+      moveLocomotion(state, { ...input, jump: false }, 1 / 60);
+      elapsed += 1 / 60;
+      const floor = terrainHeight(state.position.x, state.position.z);
+      expect(state.position.y).toBeCloseTo(Math.max(floor, startHeight + JUMP_SPEED * elapsed - GRAVITY * elapsed ** 2 / 2), 7);
+    }
+    if (direction === 1) expect(elapsed).toBeGreaterThan(2 * JUMP_SPEED / GRAVITY);
+    else expect(elapsed).toBeLessThan(2 * JUMP_SPEED / GRAVITY);
     expect(height(state.position)).toBe(0);
     expect(state.verticalSpeed).toBe(0);
   }

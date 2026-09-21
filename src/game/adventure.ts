@@ -9,7 +9,7 @@ import { settlementAt, WORLD_SETTLEMENTS } from './world-regions.js';
 import { REGIONAL_THREATS } from './regional-threats.js';
 import { inTown, WORLD_BOUNDS, migrateSpatialLayout } from './world-layout.js';
 import { findEmote } from './emotes.js';
-import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, supportHeight, movementHeight, isSwimming, MAX_BREATH_SECONDS, MOVEMENT_BARRIERS, THICKET, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
+import { moveLocomotion, moveManeuverPosition, startJump, blockedPosition, supportHeight, movementHeight, isSwimming, MAX_BREATH_SECONDS, MOVEMENT_BARRIERS, THICKET, fallDamage, JUMP_SPEED, type MovementInput, type Barrier, type MovementFrame, type MovementCheckpoint } from "./movement.js";
 import type { CharacterArchetype } from "../host/character-profile.js";
 import { YARD, QUESTS, GEAR, gearName, type QuestId, type QuestOperation, type QuestView, type ProgressionView, type GearSlot, type GearItemId } from "./yard-content.js";
 import type {
@@ -122,7 +122,7 @@ interface State {
   chapter: ChapterState;
   combat: CombatState;
   world: WorldState;
-  phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number; breathSeconds: number; autoSurfacing: boolean;
+  phase: Phase; archetype: CharacterArchetype; position: Vector; verticalSpeed: number; fallPeakHeight: number | null; breathSeconds: number; autoSurfacing: boolean;
   health: number; supplies: number; coins: number; cargo: number;
   bank: { supplies: number; potions: number };
   potions: number; carriedRelics: number; bankedRelics: number; presence: number; carriedSalvage: number;
@@ -302,7 +302,7 @@ function nextThreatRandom(t: ThreatState): number {
 }
 function initialState(archetype: CharacterArchetype): State {
   return {
-    flight: null, chapter: newChapter(), combat: newCombat(), phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, breathSeconds: MAX_BREATH_SECONDS, autoSurfacing: false, health: 100,
+    flight: null, chapter: newChapter(), combat: newCombat(), phase: "town", archetype, position: point(0, -8), verticalSpeed: 0, fallPeakHeight: null, breathSeconds: MAX_BREATH_SECONDS, autoSurfacing: false, health: 100,
     bank: { supplies: 0, potions: 0 }, supplies: 15, coins: 0, cargo: 0, potions: 0, carriedRelics: 0,
     bankedRelics: 0, carriedSalvage: 0, presence: 0, actionCooldown: 0, currentAction: null, actionDuration: 0, actionRemainingSeconds: 0, gatherPending: false,
     focusReady: false, counterattackReady: false, repositioned: false, guardSeconds: 0, block: 0, stamina: 5, staminaRecoverySeconds: 0, maneuver: null, sitting: false,
@@ -324,7 +324,7 @@ class Adventure implements AdventureGame {
   private movementElapsed = 0;
   get movementCheckpoint(): MovementCheckpoint {
     const maneuver = this.state.maneuver;
-    return { sequence: this.movementSequence, elapsed: this.movementElapsed, verticalSpeed: this.state.verticalSpeed,
+    return { sequence: this.movementSequence, elapsed: this.movementElapsed, verticalSpeed: this.state.verticalSpeed, fallPeakHeight: this.state.fallPeakHeight,
       maneuver: maneuver ? { ...maneuver } : null };
   }
   enableNetworkMovement(enabled = true): void { this.movementFrames = enabled ? [] : null; this.movementSequence = 0; this.movementElapsed = 0; }
@@ -539,7 +539,7 @@ class Adventure implements AdventureGame {
         const destination = destinations.get(id);
         if (destination) game.state.position = destination;
         game.shared = context; game.state.world = context.world; game.state.combat = newCombat(context.clock);
-        game.state.maneuver = null; game.state.verticalSpeed = 0;
+        game.state.maneuver = null; game.state.verticalSpeed = 0; game.state.fallPeakHeight = null;
         game.state.phase = game.state.health <= 0 ? 'lost' : inTown(game.state.position) ? 'town' : 'expedition';
         clearInputs(game); sessions.delete(id); context.characters.set(id, game);
         if (ctx.online.has(id)) context.online.set(id, game);
@@ -755,7 +755,7 @@ class Adventure implements AdventureGame {
     const s = this.state, origin = nearbyBellrunner(s.position);
     if (s.flight || s.health <= 0 || this.instancePaused() || this.inPrivateInstance() || this.inCombat() || !origin || destination === origin.id || !BELLRUNNER_STOPS.some(stop => stop.id === destination)) { this.report("Board at a Bellrunner mooring when you are clear of danger."); return false; }
     this.cancelGather(); this.cancelHearthstone(); this.held.clear(); this.mouseForward = false;
-    s.sitting = false; this.activeEmote = null; s.maneuver = null; s.verticalSpeed = 0;
+    s.sitting = false; this.activeEmote = null; s.maneuver = null; s.verticalSpeed = 0; s.fallPeakHeight = null;
     s.currentAction = null; s.actionCooldown = 0; s.actionRemainingSeconds = 0; s.actionDuration = 0;
     s.combat.queued = []; this.shopOpen = false; this.vendorOpen = null; this.trade = null; this.innOpen = false; this.bankOpen = false; this.lootOpenId = null;
     s.flight = { from: origin.id, to: destination, elapsed: 0 }; s.position = { ...bellrunnerDock(origin.id) };
@@ -932,8 +932,12 @@ class Adventure implements AdventureGame {
   }
   private settleCombatCell(keepCell = false): void {
     const s = this.state;
+    const airborne = s.verticalSpeed !== 0 || s.position.y > supportHeight(s.position.x, s.position.z) + EPSILON;
+    const height = s.position.y;
     s.position = snapCombatPosition(s.position, s.position, 4, keepCell ? this.participants().filter(player => player !== this && player.state.health > 0).map(player => player.state.position) : this.occupiedCells(s.position));
-    s.verticalSpeed = 0; this.held.clear(); this.mouseForward = false; this.moving = false; this.backpedaling = false;
+    if (airborne) s.position.y = Math.max(height, s.position.y);
+    else { s.verticalSpeed = 0; s.fallPeakHeight = null; }
+    this.held.clear(); this.mouseForward = false; this.moving = false; this.backpedaling = false;
   }
   readyCombat(): boolean {
     if (this.instancePaused() || !this.inCombat() || this.state.combat.clock.phase !== "preparation") return false;
@@ -1383,7 +1387,7 @@ class Adventure implements AdventureGame {
   }
   private captureOutcomes(): void {
     if (!this.recording || this.recording.outcomes.length) return;
-    this.recording.outcomes = [...this.state.world.threats.map(t => ({ id: t.id, health: t.health, staggered: t.staggered })), ...this.participants().map(p => ({ id: p.playerId ?? "solo", health: p.state.health, staggered: false }))];
+    this.recording.outcomes = [...this.state.world.threats.map(t => ({ id: t.id, health: t.health, staggered: t.staggered, inCombat: t.aggro && t.health > 0 })), ...this.participants().map(p => ({ id: p.playerId ?? "solo", health: p.state.health, staggered: false, inCombat: p.inCombat() }))];
   }
   async previewBait(destination: Position, via: readonly Position[] = []): Promise<CombatForecast | null> {
     return this.forecast(destination, via);
@@ -1597,10 +1601,16 @@ class Adventure implements AdventureGame {
       if (this.shared) this.stepShared(dt); else this.step(dt);
     }
   }
+  private locomotion(input: MovementInput, seconds: number) {
+    const result = moveLocomotion(this.state, input, seconds, classKit(this.state.archetype).movementSpeed);
+    const damage = fallDamage(result.landedDistance, 100);
+    if (damage > 0) this.hurt(damage, "The fall", true);
+    return result;
+  }
   private move(dt: number): void {
     if (this.mouseForward || this.held.has("forward") || this.held.has("backward") || this.held.has("left") || this.held.has("right") || this.held.has("jump") || this.held.has("dive")) { this.cancelGather(); this.state.sitting = false; this.activeEmote = null; }
-    const result = moveLocomotion(this.state, { forward: this.mouseForward ? 1 : Number(this.held.has("forward")) - Number(this.held.has("backward")),
-      strafe: Number(this.held.has("right")) - Number(this.held.has("left")), cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false, rise: this.held.has("jump"), dive: this.held.has("dive") }, dt, classKit(this.state.archetype).movementSpeed);
+    const result = this.locomotion({ forward: this.mouseForward ? 1 : Number(this.held.has("forward")) - Number(this.held.has("backward")),
+      strafe: Number(this.held.has("right")) - Number(this.held.has("left")), cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false, rise: this.held.has("jump"), dive: this.held.has("dive") }, dt);
     this.moving = result.moving; this.backpedaling = result.backpedaling;
   }
   private consumeMovement(dt: number, blocked: boolean): void {
@@ -1613,7 +1623,7 @@ class Adventure implements AdventureGame {
       if (!blocked) {
         if (Math.abs(frame.input.forward) > EPSILON || Math.abs(frame.input.strafe) > EPSILON || frame.input.jump) { this.cancelGather(); this.state.sitting = false; this.activeEmote = null; }
         this.setCameraForward(frame.input.cameraX, frame.input.cameraZ);
-        const result = moveLocomotion(this.state, { ...frame.input, jump: frame.input.jump && this.movementElapsed === 0 }, elapsed, classKit(this.state.archetype).movementSpeed);
+        const result = this.locomotion({ ...frame.input, jump: frame.input.jump && this.movementElapsed === 0 }, elapsed);
         this.moving = result.moving; this.backpedaling = result.backpedaling;
       }
       this.movementElapsed += elapsed; remaining -= elapsed;
@@ -1624,9 +1634,9 @@ class Adventure implements AdventureGame {
     // advancing locomotion so jumps land and vertical velocity settles while
     // a backgrounded client is not sending fresh packets.
     if (remaining > EPSILON && !blocked) {
-      moveLocomotion(this.state, {
+      this.locomotion({
         forward: 0, strafe: 0, cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false,
-      }, remaining, classKit(this.state.archetype).movementSpeed);
+      }, remaining);
     }
   }
   private moveManeuver(dt: number): void {
@@ -1694,7 +1704,7 @@ class Adventure implements AdventureGame {
     if (s.flight) {
       if (this.movementFrames) this.consumeMovement(dt, true);
       s.flight = { ...s.flight, elapsed: Math.min(flightDuration(s.flight.from,s.flight.to), s.flight.elapsed+dt) };
-      s.position = { ...flightPosition(s.flight) }; s.verticalSpeed = 0; this.moving = false; this.backpedaling = false;
+      s.position = { ...flightPosition(s.flight) }; s.verticalSpeed = 0; s.fallPeakHeight = null; this.moving = false; this.backpedaling = false;
       if (s.flight.elapsed >= flightDuration(s.flight.from,s.flight.to)-EPSILON) {
         const stop = bellrunnerStop(s.flight.to); s.position = { ...bellrunnerDock(stop.id) }; s.flight = null; s.phase = "town";
         this.report("The Bellrunner ties up at " + stop.name + ". Safe travels.");
@@ -1709,11 +1719,12 @@ class Adventure implements AdventureGame {
     if (s.maneuver) { if (this.movementFrames) this.consumeMovement(dt, true); this.moveManeuver(dt); }
     else if (this.inCombat()) {
       if (this.movementFrames) this.consumeMovement(dt, true);
-      moveLocomotion(s, { forward: 0, strafe: 0, cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt, classKit(this.state.archetype).movementSpeed);
+      this.locomotion({ forward: 0, strafe: 0, cameraX: this.cameraForward.x, cameraZ: this.cameraForward.z, jump: false }, dt);
       this.moving = false; this.backpedaling = false;
     }
     else if (this.movementFrames) this.consumeMovement(dt, false);
     else this.move(dt);
+    if (s.health === 0) return;
     if (s.currentAction === "hearthstone" && (this.moving || s.verticalSpeed !== 0 || this.inCombat() || this.inPrivateInstance())) this.cancelHearthstone();
     this.closeMissingLoot();
     if (this.vendorOpen && (this.state.phase !== "town" || !this.near(this.vendorOpen, 2.5))) this.vendorOpen = null;
@@ -1754,7 +1765,7 @@ class Adventure implements AdventureGame {
       const reservedRoll = s.chapter.accepted.includes("last-shift") && !s.chapter.completed.includes("last-shift") ? s.carriedRelics : 0;
       s.phase = "town"; s.supplies += s.cargo - reservedCrystals + s.carriedSalvage; s.bankedRelics += s.carriedRelics - reservedRoll;
       s.cargo = reservedCrystals; s.carriedRelics = reservedRoll; s.carriedSalvage = 0; s.guardSeconds = 0; s.block = 0;
-      s.maneuver = null; s.position.y = supportHeight(s.position.x, s.position.z); s.verticalSpeed = 0; this.lootOpenId = null; this.trade = null;
+      s.maneuver = null; this.lootOpenId = null; this.trade = null;
       if (!this.shared) for (const t of s.world.threats) if (t.health > 0) this.releaseThreat(t);
 
       this.report(`You return to ${settlementAt(s.position.x,s.position.z)?.name ?? YARD.settlement}. ${convertedSalvage ? `Exchanged ${convertedSalvage} forest salvage for ${convertedSalvage} supplies. ` : ""}Salvage and spare crystals are secured.${reservedCrystals ? " Bring your coolant crystals to Mara." : ""}${reservedRoll ? " Bring the Last Shift Roll to Rowan." : ""} Visit the inn before your next trip.`);
@@ -1767,7 +1778,7 @@ class Adventure implements AdventureGame {
     if (s.actionRemainingSeconds <= EPSILON) {
       if (s.currentAction === "gather") this.completeGather();
       if (s.currentAction === "hearthstone" && !this.inCombat() && !this.inPrivateInstance() && s.phase !== "lost") {
-        s.position = point(0, -8); s.verticalSpeed = 0; this.held.clear(); this.mouseForward = false;
+        s.position = point(0, -8); s.verticalSpeed = 0; s.fallPeakHeight = null; this.held.clear(); this.mouseForward = false;
         this.returnToTown();
       }
       s.currentAction = null; s.actionDuration = 0;
@@ -1983,6 +1994,10 @@ class Adventure implements AdventureGame {
 
   }
   private releaseThreat(t: ThreatState): void {
+    if (t.aggro && t.health > 0) {
+      const opponents = new Set([...t.combatants, t.targetPlayerId ?? (this.shared ? null : "solo")]);
+      for (const id of opponents) if (id !== null) this.traceEvent("retreat", t.id, id, t.position, 0, `${definition(t.id).name} retreats.`);
+    }
     if (t.id === "ritual-guardian" && this.shared?.mode === "shared") {
       Object.assign(t, { ...newThreat(definition(t.id)), rng: t.rng });
       this.state.world.ritualCalled = false;
@@ -2405,10 +2420,11 @@ function readSave(serialized: string, now = Date.now()): State {
   const state: State = {
     flight, chapter: readChapter(s.chapter), combat: newCombat(), phase: choice(s.phase, ["town", "expedition", "lost"] as const),
     archetype: choice(s.archetype, ["warrior", "mage", "hunter", "alchemist", "artificer"] as const),
-    position: flight ? { ...flightPosition(flight) } : restoreTownPosition(groundPosition(s.position, 2)),
+    position: flight ? { ...flightPosition(flight) } : restoreTownPosition(groundPosition(s.position, Number.MAX_SAFE_INTEGER)),
     breathSeconds: s.breathSeconds === undefined ? MAX_BREATH_SECONDS : number(s.breathSeconds, 0, MAX_BREATH_SECONDS),
     autoSurfacing: s.autoSurfacing === undefined ? false : boolean(s.autoSurfacing),
-    verticalSpeed: number(s.verticalSpeed, -6, 5.5), health: number(s.health, 0, 100),
+    verticalSpeed: flight ? 0 : number(s.verticalSpeed, -Number.MAX_SAFE_INTEGER, JUMP_SPEED),
+    fallPeakHeight: flight || s.fallPeakHeight == null ? null : number(s.fallPeakHeight, -Number.MAX_SAFE_INTEGER), health: number(s.health, 0, 100),
     bank: s.bank === undefined ? { supplies: 0, potions: 0 } : { supplies: number(record(s.bank).supplies, 0, Number.MAX_SAFE_INTEGER, true), potions: number(record(s.bank).potions, 0, Number.MAX_SAFE_INTEGER, true) },
     coins: s.coins === undefined ? 0 : number(s.coins, 0, Number.MAX_SAFE_INTEGER, true),
     supplies: number(s.supplies, 0, Number.MAX_SAFE_INTEGER, true), cargo: number(s.cargo, 0, Number.MAX_SAFE_INTEGER, true),

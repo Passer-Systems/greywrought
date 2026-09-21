@@ -1969,9 +1969,13 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 
 #lorebook-panel { position:absolute; z-index:48; left:50%; top:7%; transform:translateX(-50%); width:min(760px,calc(100% - 28px)); max-height:83%; box-sizing:border-box; border:3px ridge #929080; border-radius:4px; background:#161e1bf7; color:#e7dfc9; box-shadow:0 12px 40px #000b; pointer-events:auto; font:var(--ui-font-body)/1.55 system-ui,sans-serif; display:flex; flex-direction:column; }
 #lorebook-panel[hidden] { display:none; }
+.lorebook-search {flex-shrink:0;min-width:0;margin:10px 12px;padding:8px 10px;border:1px solid #736647;border-radius:3px;background:#0b1311;color:#e7dfc9;font:inherit;}
+.lorebook-search::placeholder {color:#a39881;}
+.lorebook-search:focus-visible {outline:2px solid #e6d39c;outline-offset:1px;}
 .lorebook-layout { min-height:0; display:grid; grid-template-columns:155px minmax(0,1fr); }
 .lorebook-index { padding:12px 8px; border-right:1px solid #736647; background:#0b131180; overflow:auto; }
 .lorebook-index button { display:block; width:100%; text-align:left; margin:0 0 5px; padding:10px 8px; border:1px solid transparent; background:transparent; color:#cabb98; border-radius:3px; font:600 var(--ui-font-body)/1.3 Georgia,serif; }
+.lorebook-index button[hidden] {display:none;}
 .lorebook-index button[aria-current=true] { background:linear-gradient(100deg,#615334,#2f3025); border-color:#a08a55; color:#ffe4a7; }
 .lorebook-index button:hover { background:#414135; color:#fff1d5; }
 .lorebook-entry { overflow:auto; padding:18px 22px; scrollbar-color:#91815b #17201c; }
@@ -2111,7 +2115,8 @@ body[data-game-paused="true"] #corpse-loot-prompt { display: none; }
 .npc-quests button { padding:6px 12px; border:2px ridge #998454; border-radius:3px; color:#f0dc9d; background:linear-gradient(#51472b,#29281b); cursor:pointer; font:var(--ui-font-body) Georgia,serif; }
 .npc-quests button:disabled { opacity:.5; cursor:default; }
 
-.adventure-actions button[data-auto-active=true] .action-art {border-color:#f6d35b;box-shadow:inset 0 0 5px #f6d35b,0 0 7px #e3bc3b;}
+.adventure-actions button[data-autocast=true] .action-art {outline:1px solid #9fd7b4;outline-offset:-2px;}
+.adventure-actions button[data-autocast=true] .action-art::after {content:"AUTO";position:absolute;left:1px;bottom:1px;padding:1px 2px;background:#142b23e8;color:#c0eed2;font:700 8px/11px system-ui,sans-serif;pointer-events:none;}
 
 
 .combat-plan { box-sizing:border-box; width:min(500px,100%); margin:0 auto 8px; padding:7px 8px; border:1px solid #80745a; border-radius:3px; background:linear-gradient(#192422f5,#0d1516f5); box-shadow:0 2px 8px #0009,inset 0 0 0 1px #292f27; color:#ded5bb; font:12px/1.3 system-ui,sans-serif; pointer-events:auto; }

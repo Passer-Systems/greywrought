@@ -16,6 +16,9 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
   const edges = new LineSegments(edgesGeometry, edgesMaterial); edges.frustumCulled = false; edges.renderOrder = 3; scene.add(edges);
   const hoverGeometry = new BufferGeometry(), hoverMaterial = new MeshBasicMaterial({ color: 0xc0ffe0, transparent: true, opacity: .6, depthWrite: false });
   const hover = new Mesh(hoverGeometry, hoverMaterial); hover.frustumCulled = false; hover.renderOrder = 3; scene.add(hover);
+  const warningGeometry = new BufferGeometry(), warningMaterial = new MeshBasicMaterial({ color: 0xffb74d, transparent: true, opacity: .7, depthWrite: false });
+  const warning = new Mesh(warningGeometry, warningMaterial); warning.name = 'move-retreat-warning'; warning.visible = false; warning.frustumCulled = false; warning.renderOrder = 4; scene.add(warning);
+  let warningSignature = '';
   let reference: Position | undefined;
   const sampleHeight = (x: number, z: number) => combatSurfaceHeight(x,z,reference);
   let previousX = NaN, previousZ = NaN, previousY = NaN, cellSignature = '', hoverSignature = '';
@@ -45,6 +48,12 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
     edgesGeometry.setDrawRange(0, vertices.length / 3);
   };
   return {
+    warnDestination(destination: Position | null) {
+      warning.visible = destination !== null;
+      const signature = destination ? `${destination.x},${destination.y},${destination.z}` : '';
+      if (signature !== warningSignature) { warningSignature = signature; surface(warningGeometry, destination ? [destination] : [], .09); }
+      canvas.dataset.moveWarning = JSON.stringify(destination);
+    },
     accepts(destination: Position) { return destinations.some(cell => cell.x === destination.x && cell.z === destination.z); },
     update(snapshot: AdventureSnapshot, aiming: boolean, pointer: Position | null, others: readonly Position[] = [], route: readonly Position[] = []) {
       reference = snapshot.player.position;
@@ -87,6 +96,6 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
       const selectedSignature = selected ? `${selected.x},${selected.y},${selected.z}` : '';
       if (selectedSignature !== hoverSignature) { hoverSignature = selectedSignature; surface(hoverGeometry, selected ? [selected] : [], .075); }
     },
-    dispose() { lines.removeFromParent(); cells.removeFromParent(); edges.removeFromParent(); hover.removeFromParent(); geometry.dispose(); material.dispose(); cellsGeometry.dispose(); cellsMaterial.dispose(); edgesGeometry.dispose(); edgesMaterial.dispose(); hoverGeometry.dispose(); hoverMaterial.dispose(); delete canvas.dataset.combatGrid; delete canvas.dataset.moveTiles; delete canvas.dataset.moveOrigin; delete canvas.dataset.moveRemaining; },
+    dispose() { lines.removeFromParent(); cells.removeFromParent(); edges.removeFromParent(); hover.removeFromParent(); warning.removeFromParent(); geometry.dispose(); material.dispose(); cellsGeometry.dispose(); cellsMaterial.dispose(); edgesGeometry.dispose(); edgesMaterial.dispose(); hoverGeometry.dispose(); hoverMaterial.dispose(); warningGeometry.dispose(); warningMaterial.dispose(); delete canvas.dataset.combatGrid; delete canvas.dataset.moveTiles; delete canvas.dataset.moveOrigin; delete canvas.dataset.moveRemaining; delete canvas.dataset.moveWarning; },
   };
 }

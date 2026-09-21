@@ -37,11 +37,16 @@ export function mechanicalTurtle(armored = false): ForestActor {
     }
   }
   root.traverse(o=>{if(o instanceof Mesh){o.castShadow=true;o.receiveShadow=true;}});
+  const body = new Group(); body.name = "TurtleBody";
+  body.add(...root.children); root.add(body);
   const mixer = new AnimationMixer(root);
   const times = [0, .5, 1];
   const idleTracks: KeyframeTrack[] = [new NumberKeyframeTrack(".rotation[y]", times, [0, .08, 0])];
   const walkTracks: KeyframeTrack[] = flippers.map((flipper, i) => new NumberKeyframeTrack(`${flipper.name}.rotation[z]`, times, [0, (i % 2 ? -.55 : .55), 0]));
-  const clips = [new AnimationClip("Idle", 1, idleTracks), new AnimationClip("Walk", 1, walkTracks), new AnimationClip("Bite_InPlace", .5, [new NumberKeyframeTrack("Head.rotation[x]", [0, .25, .5], [0, -.3, 0])]), new AnimationClip("HitRecieve", .35, [new NumberKeyframeTrack("Shell.rotation[z]", [0, .17, .35], [0, .18, 0])]), new AnimationClip("Death", .7, [new NumberKeyframeTrack("Shell.rotation[z]", [0, .7], [0, Math.PI / 2])])];
+  const clips = [new AnimationClip("Idle", 1, idleTracks), new AnimationClip("Walk", 1, walkTracks), new AnimationClip("Bite_InPlace", .5, [new NumberKeyframeTrack("Head.rotation[x]", [0, .25, .5], [0, -.3, 0])]), new AnimationClip("HitRecieve", .35, [new NumberKeyframeTrack("Shell.rotation[z]", [0, .17, .35], [0, .18, 0])]), new AnimationClip("Death", .7, [
+    new NumberKeyframeTrack("TurtleBody.rotation[z]", [0, .7], [0, Math.PI / 2]),
+    new NumberKeyframeTrack("TurtleBody.position[y]", [0, .7], [0, armored ? 1.05 : .9]),
+  ])];
   if (armored) clips.push(new AnimationClip("Shell_Slam", 1, [
     new NumberKeyframeTrack("Shell.position[y]", [0, .3, .85, 1], [.46, .8, .8, .36]),
     new NumberKeyframeTrack("Head.rotation[x]", [0, .3, .85, 1], [0, -.45, -.45, .2]),

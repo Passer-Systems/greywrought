@@ -33,7 +33,7 @@ export interface NetworkAdventure extends AdventureGame {
   subscribe(listener: () => void): () => void;
   close(): void;
 }
-export async function connectAdventure(character: LocalCharacter): Promise<NetworkAdventure> {
+export async function connectAdventure(character: LocalCharacter, onCharacter?: (character: LocalCharacter) => void): Promise<NetworkAdventure> {
   const tokenKey = 'greywrought/world-token';
   let token = localStorage.getItem(tokenKey);
   if (!token) { token = crypto.randomUUID() + crypto.randomUUID(); localStorage.setItem(tokenKey, token); }
@@ -124,6 +124,10 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     current.onmessage = event => {
       if (closed || generation !== socketGeneration) return;
       const message = JSON.parse(String(event.data)) as ServerWorldMessage;
+      if (message.type === 'joined') {
+        character = message.character;
+        onCharacter?.(character);
+      }
       if (message.type === 'result' && submissions.has(message.sequence)) {
         submissions.get(message.sequence)!(message.accepted); submissions.delete(message.sequence);
       }

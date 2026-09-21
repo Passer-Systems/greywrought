@@ -80,7 +80,7 @@ function localHit(sourceId: string, targetId = "self", damage = 12): CombatForec
 test("area warnings use local hit damage, update with identical geometry, and ignore ally hits and final health", () => {
   const { scene, canvas, telegraphs } = setup();
   const update = (events: CombatForecast["events"]) => {
-    telegraphs.update({ combat: { ...combat, forecast: { ...forecast, events, outcomes: [{ id: "self", health: 100, staggered: false }] } } }, { kind: "enemy", threatId: "patrol" });
+    telegraphs.update({ combat: { ...combat, forecast: { ...forecast, events, outcomes: [{ id: "self", health: 100, staggered: false, inCombat: true }] } } }, { kind: "enemy", threatId: "patrol" });
     const meshes = scene.children[0]!.children.filter((object): object is Mesh => object instanceof Mesh);
     const ring = meshes.find(mesh => mesh.geometry instanceof RingGeometry)!;
     return { area: JSON.parse(canvas.dataset.telegraphs!)[0], color: (ring.material as MeshBasicMaterial).color.getHex(), disks: meshes.filter(mesh => mesh.geometry instanceof CircleGeometry) };

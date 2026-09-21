@@ -12,7 +12,7 @@ function movementState(snapshot: AdventureSnapshot, checkpoint: MovementCheckpoi
   // Server and browser terrain arithmetic can differ by a few ulps. A
   // grounded checkpoint belongs exactly on the receiving simulation's floor.
   if (snapshot.player.grounded) position.y = supportHeight(position.x, position.z);
-  return { position, verticalSpeed: checkpoint.verticalSpeed, breathSeconds: snapshot.player.breathSeconds, autoSurfacing: snapshot.player.autoSurfacing };
+  return { position, verticalSpeed: checkpoint.verticalSpeed, fallPeakHeight: checkpoint.fallPeakHeight ?? null, breathSeconds: snapshot.player.breathSeconds, autoSurfacing: snapshot.player.autoSurfacing };
 }
 
 export class LocalMovement {

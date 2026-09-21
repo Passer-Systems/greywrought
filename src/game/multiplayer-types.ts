@@ -82,6 +82,7 @@ export type ClientWorldMessage =
   | { type: 'join'; token: string; character: LocalCharacter }
   | { type: 'command'; sequence: number; command: WorldCommand };
 export type ServerWorldMessage =
+  | { type: 'joined'; character: LocalCharacter }
   | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; movement: MovementCheckpoint; session: EncounterSession; party: PartyView | null; partyInvites: readonly PartyInviteView[] }
   | { type: 'result'; sequence: number; accepted: boolean }
   | { type: 'movePreview'; sequence: number; forecast: CombatForecast | null }

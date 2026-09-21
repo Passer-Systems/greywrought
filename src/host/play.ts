@@ -1,3 +1,4 @@
+import { AttackAutocast } from "./attack-autocast.js";
 import { usableItems, usableItem, usableItemDragType } from "./usable-items.js";
 import { createWorldMap } from "./world-map.js";
 import { regionAt, settlementAt } from "../game/world-regions.js";
@@ -98,8 +99,8 @@ const partyPanel = createPartyPanel(element("adventure-hud"), {
 const combatPlan = createCombatPlan(element("combat-plan-mount"), {
   portrait: id => unitFrames.portrait(id),
   playerName: id => running?.character.id === id ? "You" : running?.game.players.find(player => player.id === id)?.name,
-  onRemove: id => { if (running?.ready && !paused && !moveSubmitting) { setBaitAiming(false); running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
-  onClear: () => { if (running?.ready && !paused && !moveSubmitting) { setBaitAiming(false); running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
+  onRemove: id => { if (running?.ready && !paused && !moveSubmitting) { if (running.game.snapshot.combat.queued.find(entry => entry.id === id)?.action !== "bait") running.autocast.suppress(running.game.snapshot, running.game.session.id); setBaitAiming(false); running.game.removeQueuedAction(id); combatPlan.update(running.game.snapshot); } },
+  onClear: () => { if (running?.ready && !paused && !moveSubmitting) { running.autocast.suppress(running.game.snapshot, running.game.session.id); setBaitAiming(false); running.game.clearQueuedActions(); combatPlan.update(running.game.snapshot); } },
   onTiming: timing => { if (running?.ready && !paused) { running.game.setActionTiming(timing); combatPlan.update(running.game.snapshot); } },
   onAction: action => pulse(action),
   onReady: readyCombat,
@@ -261,6 +262,13 @@ function bindActionBar(): void {
     const control = event.target.closest<HTMLButtonElement>("button");
     if (control?.dataset.action && !control.disabled) pulse(control.dataset.action as AdventureAction);
   });
+  listen(bar, "contextmenu", event => {
+    if (!(event.target instanceof Element)) return;
+    const control = event.target.closest<HTMLButtonElement>("button[data-action=strike]");
+    if (!control || !bar.contains(control) || !running?.ready || menuOpen()) return;
+    event.preventDefault();
+    running.autocast.toggle(); renderHud(running.game.snapshot);
+  });
   listen(bar, "dragstart", event => {
     if (!(event instanceof DragEvent) || !(event.target instanceof Element)) return;
     const source = event.target.closest<HTMLButtonElement>("button");
@@ -341,6 +349,7 @@ interface RunningAdventure {
   readonly character: LocalCharacter;
   readonly game: NetworkAdventure;
   readonly world: AdventureWorld;
+  readonly autocast: AttackAutocast;
   readonly unbind: Array<() => void>;
   saveClock: number;
   ready: boolean;
@@ -446,6 +455,7 @@ function pressAction(action: AdventureAction): void {
     if (snapshot?.combat.phase === "preparation" && !snapshot.combat.ready && snapshot.combat.availableStamina + (snapshot.combat.queued.find(entry => entry.action === "bait")?.cost ?? 0) >= 1) setBaitAiming(!baitAiming);
     return;
   }
+  if ((action === "strike" || action === "brace") && running) running.autocast.suppress(running.game.snapshot, running.game.session.id);
   if ((action === "strike" || action === "brace") && baitAiming) {
     void finishMove(() => { running?.game.setAction(action, true); running?.game.setAction(action, false); });
     return;
@@ -818,7 +828,7 @@ function selectedSnapshot(snapshot: AdventureSnapshot): AdventureSnapshot {
   const app = running; if (!app) return snapshot;
   if (app.lastEnemyTarget !== snapshot.selectedThreat && app.selection?.kind === "enemy") app.selection = { kind: "enemy", id: snapshot.selectedThreat };
   app.lastEnemyTarget = snapshot.selectedThreat;
-  if (app.selection?.kind === "enemy" && !snapshot.threats.some(threat => threat.id === app.selection!.id && threat.active && threat.health > 0)) app.selection = null;
+  if (app.selection?.kind === "enemy" && !snapshot.threats.some(threat => threat.id === app.selection!.id && (threat.health > 0 ? threat.active : threat.corpseVisible))) app.selection = null;
   if (app.selection?.kind === "player" && app.selection.id !== app.character.id && !app.game.players.some(player => player.id === app.selection!.id)) app.selection = null;
   const attacker = newAttackerTarget(snapshot.threats, app.selection, app.character.id, app.attackers);
   app.attackers = new Set(snapshot.threats.filter(threat => threat.active && threat.health > 0 && threat.aggro && threat.targetPlayerId === app.character.id).map(threat => threat.id));
@@ -862,6 +872,15 @@ function clearUnitTarget(): void {
 }
 function renderHud(snapshot: AdventureSnapshot): void {
   snapshot = selectedSnapshot(snapshot);
+  if (running?.ready && !paused && !menuOpen() && running.game.inputEnabled && !baitAiming && !moveSubmitting) {
+    const partyIds = running.game.party?.members.filter(member => member.online && member.sameEncounter).map(member => member.id) ?? [];
+    const target = running.autocast.takeTarget(snapshot, running.game.session.id, partyIds);
+    if (target) {
+      running.selection = { kind: "enemy", id: target };
+      if (running.game.snapshot.selectedThreat !== target) running.game.selectTarget(target);
+      running.game.setAction("strike", true); running.game.setAction("strike", false);
+    }
+  }
   updateParty();
   const { player } = snapshot;
   loadActionBarOrder(player.archetype);
@@ -926,13 +945,15 @@ function renderHud(snapshot: AdventureSnapshot): void {
     const availableStamina = snapshot.combat.availableStamina + reserved;
     const disabled = running?.game.session.mode === "viewing" || !available || !(planning || targeted && snapshot.combat.phase === "idle") || snapshot.combat.ready || availableStamina < cost || targeted && range.state !== "in" && !(planning && selected?.aggro);
     if (control.disabled !== disabled) control.disabled = disabled;
-    setAttribute(control, "aria-label", spec.name);
+    const autocast = targeted && Boolean(running?.autocast.enabled);
+    setAttribute(control, "aria-label", spec.name + (autocast ? " · Autocast on" : ""));
+    if (targeted) setDataset(control.dataset, { autocast: String(autocast) });
     setAttribute(control, "aria-pressed", String(action === "bait" && baitAiming));
     const openingStrike = targeted && snapshot.combat.openingStrikeAvailable;
     setDataset(control.dataset, { range: range.state, openingStrike: String(openingStrike) });
     control.classList.toggle("action-in-range", targeted && range.state === "in" && !control.disabled);
     setText(control.querySelector<HTMLElement>(".action-tooltip strong")!, spec.name);
-    setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, spec.description + (openingStrike ? " Attack before you are detected to land an opening hit before the first turn." : ""));
+    setText(control.querySelector<HTMLElement>(".action-tooltip span:last-child")!, spec.description + (targeted ? autocast ? " Autocast on: queue Attack once each turn. Right-click to turn off. Your chosen action and timing stay yours." : " Right-click to autocast: queue Attack once each turn in combat." : "") + (openingStrike ? " Attack before you are detected to land an opening hit before the first turn." : ""));
     const art = control.querySelector<HTMLImageElement>(".action-art img")!;
     const source = publicUrl(spec.icon); if (art.getAttribute("src") !== source) art.src = source;
     const detail = !available ? targeted ? "Select a living enemy" : "Available in combat" : snapshot.combat.ready ? "Ready · waiting for the turn" : availableStamina < cost ? "Need " + cost + " stamina" : openingStrike ? "Opening strike · hit first" : action === "bait" ? "Click a highlighted tile to plan your movement" : "Plan · " + cost + " stamina";
@@ -1083,8 +1104,8 @@ function bindWorld(app: RunningAdventure): void {
         else if (event.button === 2) openPlayerMenu(picked.id, event.clientX, event.clientY);
       }
       else if (picked?.kind === "threat") {
+        if (event.button === 0) selectEnemyTarget(picked.id);
         if (app.game.snapshot.loot.some(item => item.sourceId === picked.id && item.available)) app.game.openLoot(picked.id);
-        else if (event.button === 0) selectEnemyTarget(picked.id);
       }
     }
     if (buttons === 0 && canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
@@ -1114,15 +1135,22 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     audio.reset();
     // Prepare the scene before joining: loading must not expose an adventurer
     // to combat or hold up their connection's heartbeat.
-    const world = preparingWorld = createAdventureWorld(element("world-wrap"), createAdventure({ archetype: character.archetype }).snapshot, id => { if (!paused) running?.game.interactNpc(id); }, (destination, via) => running?.game.previewBait(destination, via) ?? Promise.resolve(null), { selfId: character.id, selfName: character.name, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu }, preview => combatPlan.setMovementPreview(preview));
+    const world = preparingWorld = createAdventureWorld(element("world-wrap"), createAdventure({ archetype: character.archetype }).snapshot, id => { if (!paused) running?.game.interactNpc(id); }, (destination, via) => running?.game.previewBait(destination, via) ?? Promise.resolve(null), { selfId: character.id, get selfName() { return character.name; }, showSelfName: () => appControls.showOwnName, onSelect: selectPlayerTarget, onContextMenu: openPlayerMenu }, preview => combatPlan.setMovementPreview(preview));
     await world.ready;
     if (!alive) { world.dispose(); return; }
-    const game = await connectAdventure(character);
+    const game = await connectAdventure(character, current => {
+      character = current;
+      if (profile && profile.characters.some(saved => saved.id === current.id && saved.name !== current.name)) {
+        profile = { ...profile, characters: profile.characters.map(saved => saved.id === current.id ? { ...saved, name: current.name } : saved), savedAtMillis: Date.now() };
+        persistProfile();
+      }
+      document.body.dataset.characterName = current.name;
+    });
     if (game.snapshot.phase === "lost") { world.dispose(); game.close(); showFallenCharacter(character); return; }
     world.setAggroRangesVisible(aggroRangesVisible);
     world.setHelpRangesVisible(helpRangesVisible);
     world.updateChat(game.chat, character.id);
-    const app: RunningAdventure = { character, game, world, unbind: [], saveClock: 0, ready: false, selection: null, lastEnemyTarget: game.snapshot.selectedThreat, attackers: new Set() };
+    const app: RunningAdventure = { get character() { return character; }, game, world, autocast: new AttackAutocast(character.id, localStorage), unbind: [], saveClock: 0, ready: false, selection: null, lastEnemyTarget: game.snapshot.selectedThreat, attackers: new Set() };
     running = app;
     preparingWorld = null;
     bindWorld(app);

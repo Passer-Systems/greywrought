@@ -308,7 +308,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     const selected = value.character;
     const hash = new Bun.CryptoHasher('sha256').update(value.token).digest('hex');
     const existing = accounts.get(selected.id);
-    if (existing && (existing.tokenHash !== hash || existing.character.name !== selected.name || existing.character.archetype !== selected.archetype)) {
+    if (existing && (existing.tokenHash !== hash || existing.character.archetype !== selected.archetype)) {
       error(socket, 'This character belongs to another journey.'); return;
     }
     if (online.has(selected.id)) { error(socket, 'This character is already playing in another window.'); socket.close(4001, 'Character already playing'); return; }
@@ -322,6 +322,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     socket.data.id = selected.id;
     socket.data.lastPongAt = performance.now();
     online.set(selected.id, socket);
+    send(socket, { type: 'joined', character: account.character });
     void persist().catch(onPersistenceError);
     broadcast();
   }

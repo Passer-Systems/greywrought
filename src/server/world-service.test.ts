@@ -187,6 +187,32 @@ test('two socket clients share movement and chat; saved identity survives restar
   }
 }, 15_000);
 
+test('authenticated characters recover a renamed identity without trusting the client name', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-rename-'));
+  const savePath = join(directory, 'world.json');
+  const character: LocalCharacter = { id: 'renamed-ranger', name: 'Pasta Archer', archetype: 'hunter', createdAtMillis: 1 };
+  const token = crypto.randomUUID();
+  const { createSharedAdventure } = await import('../game/adventure.js');
+  const world = createSharedAdventure(); world.join(character.id, character.name, character.archetype);
+  await writeFile(savePath, JSON.stringify({ version: 1, accounts: [{ character, tokenHash: new Bun.CryptoHasher('sha256').update(token).digest('hex') }], world: world.save(), chat: [], nextChatId: 1 }));
+  const service = await createWorldService({ savePath });
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
+  let returning: Client | undefined;
+  const imposter = new Client(`ws://127.0.0.1:${server.port}/world`);
+  try {
+    await imposter.connect({ ...character, name: 'asdfasdf' }, crypto.randomUUID());
+    expect((await imposter.wait(message => message.type === 'error')).type).toBe('error');
+    returning = new Client(`ws://127.0.0.1:${server.port}/world`);
+    await returning.connect({ ...character, name: 'asdfasdf' }, token);
+    const joined = await returning.wait(message => message.type === 'joined');
+    expect(joined).toEqual({ type: 'joined', character });
+    expect((await returning.state()).snapshot.player.archetype).toBe('hunter');
+    expect(await returning.command({ type: 'chat', text: 'New name, same journey.' })).toBe(true);
+    const state = await returning.state(state => state.chat.some(message => message.text === 'New name, same journey.'));
+    expect(state.chat.at(-1)?.name).toBe('Pasta Archer');
+  } finally { returning?.socket.close(); imposter.socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true }); }
+});
+
 test('releasing movement survives a burst of camera input', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'greywrought-release-'));
   const service = await createWorldService({savePath:join(directory,'world.json')});
