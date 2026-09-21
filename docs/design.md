@@ -286,32 +286,47 @@ actual amounts after armor, block and health caps, then fade after 1.4 seconds.
 Each player sees their own results; repeated updates and reconnects do not replay
 old numbers. Text stays behind the HUD and never intercepts mouse input.
 
-## Player stamina and class abilities
+## Player energy and class abilities
 
 Enemies recover their full health and lose accumulated power when they break
 contact. Returning enemies cannot be attacked until they reach home. Retreat
 saves the character but forfeits damage dealt, preventing repeated ranged chip
 attacks from defeating an enemy without committing to its encounter.
 
-All five classes have exactly three combat actions. The plan shows available and
-reserved stamina. Stamina is spent when a queued action executes. Combat stops
-ordinary movement during planning and playback; Move selects a destination cell.
-Planning freezes resource recovery and defense durations.
+All five classes share one Energy pool: start a new encounter at 100, recover 20
+per completed turn, and cap at 100. Planning does not regenerate Energy.
+Reconnecting or forking preserves the current pool. The plan shows available and
+reserved Energy; queued actions spend their cost when they execute. Clearing or
+replacing a plan releases its reservation. Each turn still allows one movement
+plan and one action. Sprint enhances Move without consuming the action slot.
 
-| Key | Action | Stamina | Effect |
+| Key | Action | Energy | Effect |
 | --- | --- | --- | --- |
 | 1 | Attack | 0 | Warrior attacks within 5 metres; other classes attack within 10 metres |
-| 2 | Defend | 2, or 3 for Artificer | Absorb 24 damage for the remainder of the turn. Alchemist heals 6 and blocks 16; Artificer blocks 28 |
-| 3 | Move | 1 | Select a highlighted tile, then execute the plan with Ready (R) |
+| 2 | Defend | 0 | Absorb 24 damage for the remainder of the turn. Alchemist heals 6 and blocks 16; Artificer blocks 28 |
+| 3 | Move | 0 | Select highlighted tiles to plan a route, then execute with Ready (R) |
+| — | Sprint | 30 | Double that turn's movement distance and speed; toggle beside Move |
+| 4 | Class skill | 40 | One tactical skill per class, described below |
+
+Warrior's Whirlwind deals 30 damage to engaged enemies within 5 metres and can
+be used while moving. Ranger's Piercing Arrow deals 32 damage in a narrow
+15-metre line through engaged enemies, stopping at solid cover. Mage's Frost
+Nova deals 20 damage within 5 metres and halves pursuit speed for the rest of
+the turn. Alchemist's Volatile Flask deals 24 damage in a 3-metre splash within
+10 metres, applying residue or igniting an existing coating. Artificer's
+Disruptor Shot deals 26 damage within 10 metres and interrupts the committed
+enemy attack. Frost Nova is mobile; the three ranged skills require a brief
+stop. Skill timing stays selectable before Auto-ready executes the plan.
 
 Combat cells are 2.5 metres across. Warrior, Mage and Artificer move up to two
-tiles per turn; Alchemist moves three and Ranger four. Changing the destination
-keeps the allowance measured from the current position. Blocked, occupied and distant tiles are
+tiles per turn; Alchemist moves three and Ranger four. Each route leg spends
+the remaining movement allowance, including backtracking. Sprint doubles those
+allowances. Blocked, occupied and distant tiles are
 unavailable. Escape cancels tile selection. Players can also select Move in the
 planner header. Attacks check reach when their action executes, allowing a move or
 an enemy charge to bring the target into range first.
 
-The action bar shows icons for these three combat actions. XP sits directly below
+The action bar shows icons for the three basics and the class skill. XP sits directly below
 it. Player and target frames stay clear of the vertical planner. The planner
 shows the target of each action without a permanent instruction footer.
 
@@ -357,7 +372,7 @@ The first head is a teaching fight, not the final difficulty bar. The next
 milestone is one legible failed expedition: a player can identify the decisions
 that killed them and want to try those decisions differently. Keep direct action-bar controls.
 
-Health and limited potions remain expedition attrition. Active stamina governs
+Health and limited potions remain expedition attrition. Energy governs
 short combat choices; it is not a persistent expedition wound resource. Damage and potion use carry between
 encounters. Returning to the inn ends an attempt and secures modest salvage,
 but the main reward requires reaching the deeper grove. A reset must not let
@@ -402,7 +417,7 @@ The combat plan identifies multiple enemies as opportunities for sabotage.
 ### Next balance question
 
 The implemented head and Rage mechanics test whether damage overlap and enemy
-power-ups make stamina spending interesting. Endless defense must eventually
+power-ups make Energy spending interesting. Endless defense must eventually
 lose to growing volleys; spending everything on offense should expose the
 player to predictable damage. A passing rules test establishes those mechanics,
 not the fairness or enjoyment of the final balance. The next playtest decides
@@ -434,7 +449,7 @@ The warder starts at 18 damage and the bee at 16. Each
 resolved attack increases the next by 15% of base, capped at double, plus forest
 attention. Maul starts at 18 and gains 2 per attack to 36. Choosing a cast commits
 the displayed damage; impact never secretly changes it. Block absorbs 24
-within two seconds for two stamina.
+for the remainder of the turn at no Energy cost.
 
 ## Shared world and starting controls — 0.8.0
 
