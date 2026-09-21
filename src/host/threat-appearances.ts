@@ -1,4 +1,4 @@
-import { ROBOT_CRITTER_COLORS } from "./robot-critter-colors.js";
+import { ROBOT_CRITTER_COLORS } from "./robot-critter.js";
 
 export interface ThreatAppearance {
   readonly model: string; readonly height: number;
