@@ -166,7 +166,13 @@ export function createGroundTelegraphs(scene: Object3D, canvas: Pick<HTMLCanvasE
             arrow(last, { x: (last.x - before.x) / length, y: 0, z: (last.z - before.z) / length }, material);
           }
         }
-        if (area || path.kind !== "attack") marker(last, area ? path.radius : .26, area, area && !danger ? stroke : material, area && danger ? dangerFill : null);
+        if (path.action === "fire-rush" || path.action.startsWith("burning-ground:")) {
+          for (let index=1;index<path.points.length;index++) {
+            const from=path.points[index-1]!,to=path.points[index]!,steps=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.z-from.z)/path.radius));
+            for(let step=0;step<=steps;step++) marker({x:from.x+(to.x-from.x)*step/steps,y:from.y+(to.y-from.y)*step/steps,z:from.z+(to.z-from.z)*step/steps},path.radius,true,material,danger?dangerFill:null);
+          }
+          if(path.points.length===1)marker(last,path.radius,true,material,danger?dangerFill:null);
+        } else if (area || path.kind !== "attack") marker(last, area ? path.radius : .26, area, area && !danger ? stroke : material, area && danger ? dangerFill : null);
         diagnostics.push({ ...selection, actorId: path.actorId, ability: path.action, beat: path.beat,
           kind: area ? "area" : path.kind === "attack" ? "target" : "movement",
           path: path.points, position: last, x: last.x, z: last.z, radius: area ? path.radius : 0, color: material.color.getHex(),

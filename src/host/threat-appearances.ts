@@ -30,6 +30,8 @@ export const threatAppearances: Readonly<Record<string, ThreatAppearance>> = {
     "meadow-bird": {model:"Birb",height:0.7,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve"},
     "meadow-bird-2": {model:"Birb",height:0.7,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve"},
     "meadow-bird-3": {model:"Birb",height:0.7,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve"},
+    "meadow-rat-3": {model:"Rat",height:0.58,idle:"Idle",walk:"Walk",attack:"Attack",hit:"Run"},
+    "meadow-bird-4": {model:"Birb",height:0.6,idle:"Dance",walk:"Dance",attack:"Bite_Front",hit:"HitRecieve",tint:0xc49568},
     scout: {model:"Skull",height:1.6,idle:"Idle",walk:"Walk",attack:"Bite_Front",hit:"HitRecieve"},
     nest: {model:"Armabee",height:1.6,idle:"Flying_Idle",walk:"Fast_Flying",attack:"Headbutt",hit:"HitReact"},
     patrol: {model:"Wolf",height:1.6,idle:"Idle",walk:"Gallop",attack:"Attack",hit:"Idle_HitReact1"},

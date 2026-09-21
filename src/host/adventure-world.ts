@@ -1,4 +1,5 @@
 import { createYardGuards } from "./yard-guards.js";
+import { createCinderFlames, createFlameTexture } from './cinder-flames.js';
 import { threatAppearances as appearances } from "./threat-appearances.js";
 import { createBellrunnerFleet } from "./bellrunner.js";
 import { BELLRUNNER_STOPS, flightMasterId, flightMasterPosition } from "../game/bellrunner.js";
@@ -59,6 +60,7 @@ interface ThreatRig extends ThreatAnimationState {
   readonly beam: Mesh<CylinderGeometry, MeshBasicMaterial>;
   readonly ward: Mesh<SphereGeometry, MeshBasicMaterial>;
   readonly fireballs: Map<number, Mesh<SphereGeometry, MeshBasicMaterial>>;
+  readonly flames: ReturnType<typeof createCinderFlames> | null;
   readonly height: number;
   lootable: boolean;
 }
@@ -147,6 +149,8 @@ function lootGlint(): Sprite {
 function createCombatEffects(scene: Scene) {
   const swarms = new Map<string, Points<BufferGeometry, PointsMaterial>>();
   const swarmMaterial = new PointsMaterial({ color: 0xe2c66b, size: 0.1, transparent: true, opacity: 0.85, depthWrite: false });
+  const fireTexture = createFlameTexture();
+  const fireMaterial = new PointsMaterial({ map: fireTexture, color: 0xffb365, size: .38, transparent: true, opacity: .85, depthWrite: false });
   const residueMaterial = new PointsMaterial({ color: 0xb8cf65, size: 0.13, transparent: true, opacity: 0.75, depthWrite: false });
   const burstGeometry = new SphereGeometry(1, 16, 10);
   const bursts: { mesh: Mesh<SphereGeometry, MeshBasicMaterial>; remaining: number; radius: number; length?: number }[] = [];
@@ -168,7 +172,7 @@ function createCombatEffects(scene: Scene) {
         if (!swarm) {
           const geometry = new BufferGeometry();
           geometry.setAttribute("position", new Float32BufferAttribute(new Float32Array(28 * 3), 3));
-          swarm = new Points(geometry, hazard.kind === "residue" ? residueMaterial : swarmMaterial);
+          swarm = new Points(geometry, hazard.kind === "fire" ? fireMaterial : hazard.kind === "residue" ? residueMaterial : swarmMaterial);
           swarm.name = hazard.kind + ":" + hazard.id;
           swarm.frustumCulled = false;
           scene.add(swarm); swarms.set(hazard.id, swarm);
@@ -179,7 +183,7 @@ function createCombatEffects(scene: Scene) {
           const residue = hazard.kind === "residue";
           const angle = index * 2.4 + elapsed * (residue ? 0.18 : index % 2 ? 1.5 : -1.2);
           const radius = hazard.radius * Math.sqrt((index + 0.5) / positions.count);
-          positions.setXYZ(index, Math.cos(angle) * radius, residue ? 0.12 + 0.18 * (1 + Math.sin(elapsed * 2 + index)) : 0.35 + 0.25 * Math.sin(elapsed * 9 + index * 3), Math.sin(angle) * radius);
+          positions.setXYZ(index, Math.cos(angle) * radius, hazard.kind === "fire" ? .08 + ((elapsed * .75 + index * .137) % 1) * .5 : residue ? 0.12 + 0.18 * (1 + Math.sin(elapsed * 2 + index)) : 0.35 + 0.25 * Math.sin(elapsed * 9 + index * 3), Math.sin(angle) * radius);
         }
         positions.needsUpdate = true;
       }
@@ -221,7 +225,7 @@ function createCombatEffects(scene: Scene) {
     dispose() {
       clearBursts(); burstGeometry.dispose();
       for (const swarm of swarms.values()) { swarm.removeFromParent(); swarm.geometry.dispose(); }
-      swarms.clear(); swarmMaterial.dispose(); residueMaterial.dispose();
+      swarms.clear(); swarmMaterial.dispose(); residueMaterial.dispose(); fireMaterial.dispose(); fireTexture.dispose();
     },
   };
 }
@@ -522,7 +526,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     const beam = new Mesh(new CylinderGeometry(0.045,0.045,1,8),new MeshBasicMaterial({color:0xffbc71,transparent:true,opacity:0.85,depthWrite:false})); beam.visible=false;scene.add(beam);
     const ward = new Mesh(new SphereGeometry(1.05,20,12),new MeshBasicMaterial({color:0x80c6ff,transparent:true,opacity:0.2,depthWrite:false}));ward.position.y=look.height*0.55;ward.visible=false;root.add(ward);
     if (threat.id === "ritual-guardian") ward.scale.setScalar(1.45);
-    rigs.set(threat.id,{root,body,actor:creature,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,lootGlint:glint,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
+    rigs.set(threat.id,{root,body,actor:creature,flames:threat.id === "scout" ? createCinderFlames(creature,scene) : null,idle:look.idle,walk:look.walk,selection,attack:look.attack,hit:look.hit,lootGlint:glint,beam,beamTime:0,ward,fireballs:new Map(),height:look.height,
       health:threat.health,sequence:threat.actionSequence,attackTime:0,phase:threat.phase,hitTime:0,lootable:false});
   })).then(()=>{document.body.dataset.boarRigState="ready";document.body.dataset.creatureRigState="ready";});
   const signsReady = buildWorldSigns(terrain, (root, id, name) => {
@@ -878,6 +882,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
           ball.scale.setScalar(1+Math.sin(elapsed*28+projectile.id)*0.12);
         }
         rig.actor.mixer.update(delta);
+        rig.flames?.update(elapsed, delta, threat.health > 0 && threat.active, threat.moving);
         if (threat.id === "ritual-guardian") {
           canvas.dataset.foremanCorpseVisible = String(threat.corpseVisible);
           canvas.dataset.foremanAnimation = rig.actor.action?.getClip().name ?? "";
@@ -1024,7 +1029,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       regionalHosts.forEach(entry => entry.actor?.dispose());
       flightMasters.forEach(entry => entry.actor?.dispose());
       knight?.dispose(); merchant?.dispose(); innkeeper?.dispose(); banker?.dispose();
-      for (const rig of rigs.values()) rig.actor.dispose();
+      for (const rig of rigs.values()) { rig.flames?.dispose(); rig.actor.dispose(); }
       restoreGhosts();
       for (const mesh of returnSpotMeshes) mesh.material.dispose();
       returnSpotMeshes.length = 0;

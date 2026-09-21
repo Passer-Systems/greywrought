@@ -17,6 +17,9 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
   const hover = new Mesh(hoverGeometry, hoverMaterial); hover.frustumCulled = false; hover.renderOrder = 3; scene.add(hover);
   const warningGeometry = new BufferGeometry(), warningMaterial = new MeshBasicMaterial({ color: 0xffb74d, transparent: true, opacity: .7, depthWrite: false });
   const warning = new Mesh(warningGeometry, warningMaterial); warning.name = 'move-retreat-warning'; warning.visible = false; warning.frustumCulled = false; warning.renderOrder = 4; scene.add(warning);
+  const fireGeometry = new BufferGeometry(), fireMaterial = new MeshBasicMaterial({color:0xff6527,transparent:true,opacity:.22,depthWrite:false});
+  const fireCells = new Mesh(fireGeometry,fireMaterial);fireCells.name='burning-ground-tiles';fireCells.frustumCulled=false;fireCells.renderOrder=3;scene.add(fireCells);
+  let fireSignature='';
   let warningSignature = '';
   let reference: Position | undefined;
   const sampleHeight = (x: number, z: number) => combatSurfaceHeight(x,z,reference);
@@ -56,6 +59,18 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
     accepts(destination: Position) { return destinations.some(cell => cell.x === destination.x && cell.z === destination.z); },
     update(snapshot: AdventureSnapshot, aiming: boolean, pointer: Position | null, others: readonly Position[] = [], route: readonly Position[] = []) {
       reference = snapshot.player.position;
+      const fires=snapshot.combat.hazards.filter(hazard=>hazard.kind==='fire');
+      const tiles=new Map<string,Position>();
+      for(const fire of fires) {
+        const reach=Math.ceil(fire.radius/COMBAT_CELL_SIZE)+1;
+        for(let x=-reach;x<=reach;x++)for(let z=-reach;z<=reach;z++){
+          const cell={x:combatCell(fire.position.x)+x*COMBAT_CELL_SIZE,y:fire.position.y,z:combatCell(fire.position.z)+z*COMBAT_CELL_SIZE};
+          if(Math.hypot(cell.x-fire.position.x,cell.z-fire.position.z)<=fire.radius)tiles.set(cell.x+','+cell.z,cell);
+        }
+      }
+      const nextFireSignature=JSON.stringify([...tiles.values()]);
+      if(fireSignature!==nextFireSignature){fireSignature=nextFireSignature;surface(fireGeometry,[...tiles.values()],.08);}
+      fireCells.visible=tiles.size>0;canvas.dataset.burningGroundTiles=nextFireSignature;
       lines.visible = snapshot.player.inCombat;
       canvas.dataset.combatGrid = lines.visible ? String(COMBAT_CELL_SIZE) : '0';
       cells.visible = edges.visible = hover.visible = lines.visible && aiming && snapshot.combat.phase === 'preparation' && !snapshot.combat.ready;
@@ -95,6 +110,7 @@ export function createCombatGrid(scene: Object3D, canvas: HTMLCanvasElement) {
       const selectedSignature = selected ? `${selected.x},${selected.y},${selected.z}` : '';
       if (selectedSignature !== hoverSignature) { hoverSignature = selectedSignature; surface(hoverGeometry, selected ? [selected] : [], .075); }
     },
-    dispose() { lines.removeFromParent(); cells.removeFromParent(); edges.removeFromParent(); hover.removeFromParent(); warning.removeFromParent(); geometry.dispose(); material.dispose(); cellsGeometry.dispose(); cellsMaterial.dispose(); edgesGeometry.dispose(); edgesMaterial.dispose(); hoverGeometry.dispose(); hoverMaterial.dispose(); warningGeometry.dispose(); warningMaterial.dispose(); delete canvas.dataset.combatGrid; delete canvas.dataset.moveTiles; delete canvas.dataset.moveOrigin; delete canvas.dataset.moveRemaining; delete canvas.dataset.moveWarning; },
+    dispose() {
+      fireCells.removeFromParent();fireGeometry.dispose();fireMaterial.dispose(); lines.removeFromParent(); cells.removeFromParent(); edges.removeFromParent(); hover.removeFromParent(); warning.removeFromParent(); geometry.dispose(); material.dispose(); cellsGeometry.dispose(); cellsMaterial.dispose(); edgesGeometry.dispose(); edgesMaterial.dispose(); hoverGeometry.dispose(); hoverMaterial.dispose(); warningGeometry.dispose(); warningMaterial.dispose(); delete canvas.dataset.combatGrid; delete canvas.dataset.moveTiles; delete canvas.dataset.moveOrigin; delete canvas.dataset.moveRemaining; delete canvas.dataset.moveWarning; },
   };
 }

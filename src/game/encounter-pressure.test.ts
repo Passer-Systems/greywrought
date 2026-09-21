@@ -37,7 +37,7 @@ test('social aggro reaches a nearby ally outside player detection; neutral bee s
 test('threat views expose the gameplay detection and call-for-help radii',()=>{
  const threats=createAdventure().snapshot.threats;
  expect(threats.map(t=>[t.id,t.aggroRange,t.callForHelpRange])).toEqual([
-    ['scout',6,9],['nest',0,9],['warder',8,9],['patrol',6,9],['ritual-guardian',8,9],['cave-bat',7,9],['cave-crab',8,9],['pond-turtle',0,0],['meadow-rat',0,9],['meadow-rat-2',0,9],['meadow-bird',0,9],['meadow-bird-2',0,9],['meadow-bird-3',0,9],['scrap-skitter',0,0],['rust-skitter',0,0],['moss-skitter',0,0],['pond-turtle-west',0,0],['pond-turtle-north',0,0],['pond-turtle-south',0,0],['lake-dreadnought',7,0],
+    ['scout',6,9],['nest',0,9],['warder',8,9],['patrol',6,9],['ritual-guardian',8,9],['cave-bat',7,9],['cave-crab',8,9],['pond-turtle',0,0],['meadow-rat',0,9],['meadow-rat-2',0,9],['meadow-bird',0,9],['meadow-bird-2',0,9],['meadow-bird-3',0,9],['meadow-rat-3',0,0],['meadow-bird-4',0,0],['scrap-skitter',0,0],['rust-skitter',0,0],['moss-skitter',0,0],['pond-turtle-west',0,0],['pond-turtle-north',0,0],['pond-turtle-south',0,0],['lake-dreadnought',7,0],
     ['glassmire-lantern',6,9],['glassmire-stalker',6,9],['glassmire-grazer',0,0],['choir-cantor',7,9],['choir-hound',7,9],['choir-sacristan',7,9],['ossuary-king',6,9],['ossuary-wing',6,9],['brinewood-bee',0,0],['suture-scavenger',0,0],
  ]);
 });

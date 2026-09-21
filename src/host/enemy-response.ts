@@ -3,6 +3,7 @@ import type { ThreatAbilityView } from "../game/adventure-types.js";
 /** Advice describes the attack's rules; the forecast decides whether a route escapes. */
 export function enemyResponse(ability: ThreatAbilityView): string {
   switch (ability.id) {
+    case "fire-rush": return "The rush path locks before you plan. Step sideways before it launches; stay clear of the burning trail. Defend absorbs rush and fire damage.";
     case "kindle": return "Queue an attack while it powers up. The next volley will be stronger.";
     case "ember-ward":
     case "foreman-shield": return "Let the shield expire. Use Defend or Move while it holds.";
@@ -21,6 +22,7 @@ export function enemyResponse(ability: ThreatAbilityView): string {
 
 export function enemyResponseLabel(ability: ThreatAbilityView): string {
   if (ability.damage <= 0) return "";
+  if (ability.id === "fire-rush") return "Committed rush";
   switch (ability.profile.aim) {
     case "ground": return "Locks ground";
     case "direction": return "Straight shot";
