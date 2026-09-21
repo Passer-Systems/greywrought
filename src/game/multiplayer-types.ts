@@ -4,12 +4,15 @@ import type { AdventureAction, AdventureSnapshot, CombatForecast, EncounterSessi
 import type { CharacterArchetype, LocalCharacter } from '../host/character-profile.js';
 import type { MovementFrame, MovementCheckpoint } from './movement.js';
 
+export const DISCONNECT_GRACE_MS = 5_000;
+export const DEPARTURE_CLOSE_CODE = 4005;
+
 export interface RemotePlayerView {
   readonly id: string;
   readonly name: string;
   readonly player: AdventureSnapshot['player'];
 }
-export interface SharedChatMessage { readonly id: number; readonly speakerId: string | null; readonly name: string; readonly text: string; readonly kind?: 'emote'; }
+export interface SharedChatMessage { readonly id: number; readonly speakerId: string | null; readonly name: string; readonly text: string; readonly kind?: 'emote'; readonly partyId?: string; }
 export interface PartyMemberView {
   readonly id: string;
   readonly name: string;

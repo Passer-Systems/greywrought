@@ -21,6 +21,7 @@ export class LocalMovement {
   private state: MovementState;
   private held = new Set<AdventureAction>();
   private mouseForward = false;
+  private followDestination: { x: number; z: number } | null = null;
   private jump = false;
   private cameraX: number;
   private cameraZ: number;
@@ -50,7 +51,10 @@ export class LocalMovement {
       return { ...player, flight, position: flightPosition(flight), facing: flightFacing(flight), cameraForward: { x:this.cameraX,y:0,z:this.cameraZ }, grounded:false, moving:false };
     }
     if (this.snapshot.phase === 'lost') return player;
-    const facing = player.maneuver !== 'none' ? player.facing : { x: this.cameraX, y: 0, z: this.cameraZ };
+    const dx = this.followDestination ? this.followDestination.x - this.state.position.x : this.cameraX;
+    const dz = this.followDestination ? this.followDestination.z - this.state.position.z : this.cameraZ;
+    const length = Math.hypot(dx, dz);
+    const facing = player.maneuver !== 'none' ? player.facing : { x: length > 1e-9 ? dx / length : this.cameraX, y: 0, z: length > 1e-9 ? dz / length : this.cameraZ };
     const x = this.state.position.x + this.correction.x, z = this.state.position.z + this.correction.z;
     const height = this.state.position.y - supportHeight(this.state.position.x, this.state.position.z);
     const position = { x, y: isSwimming(this.state.position) ? Math.max(terrainHeight(x, z), Math.min(supportHeight(x,z), this.state.position.y + this.correction.y)) : supportHeight(x, z) + Math.max(0, height + this.correction.y), z };
@@ -65,6 +69,7 @@ export class LocalMovement {
       this.held.add(action);
     } else this.held.delete(action);
   }
+  setFollowDestination(destination: { x: number; z: number } | null): void { this.followDestination = destination; }
   setMouseForward(active: boolean): void { this.mouseForward = this.combatLocked() ? false : active; }
   setCameraForward(x: number, z: number): void {
     const length = Math.hypot(x, z);
@@ -80,6 +85,13 @@ export class LocalMovement {
       const locked = this.combatLocked();
       const input: MovementInput = { forward: locked ? 0 : this.mouseForward ? 1 : Number(this.held.has('forward')) - Number(this.held.has('backward')),
         strafe: locked ? 0 : Number(this.held.has('right')) - Number(this.held.has('left')), cameraX: this.cameraX, cameraZ: this.cameraZ, jump: locked ? false : this.jump, rise: !locked && this.held.has('jump'), dive: !locked && this.held.has('dive') };
+      if (!locked && this.followDestination) {
+        const dx = this.followDestination.x - this.state.position.x, dz = this.followDestination.z - this.state.position.z;
+        const distance = Math.hypot(dx, dz);
+        input.forward = distance > 2 ? 1 : 0; input.strafe = 0;
+        if (distance > 1e-9) { input.cameraX = dx / distance; input.cameraZ = dz / distance; }
+        input.jump = false; input.rise = false; input.dive = false;
+      }
       const frame: MovementFrame = { sequence: ++this.sequence, seconds: Math.min(remaining, 1 / 60), input };
       this.jump = false;
       this.history.push(frame); this.outgoing.push(frame);

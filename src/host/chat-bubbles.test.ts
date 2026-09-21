@@ -25,3 +25,10 @@ test("an empty initial history still allows the first new message", () => {
   feed.update([{ id: 1, speakerId: "first", name: "Alden", text: "First words" }], 100);
   expect(feed.visible(100)).toHaveLength(1);
 });
+
+test("party messages never appear in speech bubbles", () => {
+  const feed = createChatBubbleFeed();
+  feed.update([], 0);
+  feed.update([{ id: 1, speakerId: "first", name: "Alden", text: "Party only", partyId: "party-one" }], 100);
+  expect(feed.visible(100)).toEqual([]);
+});

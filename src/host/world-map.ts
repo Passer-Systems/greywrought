@@ -16,8 +16,8 @@ const points = [
   ...WORLD_SETTLEMENTS.map(town => ({ ...town, kind: 'town' })), ...REGION_LANDMARKS,
 ];
 const css = `
-#world-map-panel{pointer-events:auto;padding:0;width:min(960px,96vw);max-width:96vw;max-height:96dvh;border:2px solid #614a30;border-radius:5px;background:#dbc397;color:#382b1e;box-shadow:0 15px 70px #000b;font-family:Georgia,serif;overflow:auto}
-#world-map-panel::backdrop{background:#0e141bb0}
+#world-map-panel{pointer-events:auto;padding:0;width:min(960px,96vw);max-width:96vw;max-height:96dvh;border:2px solid #614a30;border-radius:5px;background:#dbc397;color:#382b1e;box-shadow:0 15px 70px #000b;font-family:Georgia,serif;overflow:auto;opacity:.92}
+#world-map-panel::backdrop{background:#0e141b14}
 #world-map-panel header{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-bottom:1px solid #715b3c66;background:#b89a6844}
 #world-map-panel h2{font-size:22px;margin:0;font-weight:normal;letter-spacing:2px}
 #world-map-panel header small{font:10px sans-serif;letter-spacing:3px;text-transform:uppercase}
@@ -38,6 +38,8 @@ const css = `
 #world-map-detail strong{display:block;font-size:15px}
 #world-map-panel .atlas-hint{font:11px sans-serif;opacity:.8;margin:0 16px 9px}
 #map-waypoint{position:absolute;z-index:6;color:#f0b452;font-size:21px;transform:translate(-50%,-50%);pointer-events:none;text-shadow:0 1px 3px #000}
+.map-party{position:absolute;z-index:4;width:16px;height:20px;pointer-events:none;filter:drop-shadow(0 1px 2px #000)}
+.map-party svg{display:block;width:100%;height:100%}
 #world-waypoint-guide{position:absolute;top:18px;left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:3px;background:#171a17c9;color:#f0d399;font:13px Georgia,serif;pointer-events:none}
 #world-map-open svg{width:28px;height:28px;fill:none;stroke:currentColor;stroke-width:1.5;color:#d3bf91}
 @media(max-width:600px){#world-map-panel h2{font-size:17px}#world-map-panel header{padding:8px 12px}#world-map-panel footer{padding:8px}#world-map-detail{font-size:12px}#world-map-sheet .atlas-point{font-size:19px}}

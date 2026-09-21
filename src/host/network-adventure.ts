@@ -2,12 +2,15 @@ import type { AdventureGame, AdventureSnapshot, CombatForecast, EncounterSession
 import type { LocalCharacter } from './character-profile.js';
 import type { PartyCommand, PartyView, PartyInviteView, ClientWorldMessage, RemotePlayerView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
 import { LocalMovement, isLocomotionAction } from './local-movement.js';
+import { PlayerFollow } from './player-follow.js';
+import { DISCONNECT_GRACE_MS, DEPARTURE_CLOSE_CODE } from '../game/multiplayer-types.js';
 
 export interface NetworkAdventure extends AdventureGame {
   readonly renderPlayer: AdventureSnapshot['player'];
   readonly serverTime: number;
   readonly serverWallTimeMillis: number;
   readonly online: boolean;
+  readonly reconnecting: boolean;
   readonly connectionRevision: number;
   readonly session: EncounterSession;
   readonly inputEnabled: boolean;
@@ -18,6 +21,7 @@ export interface NetworkAdventure extends AdventureGame {
   readonly partyInvites: readonly PartyInviteView[];
   partyCommand(command: PartyCommand): void;
   sendChat(text: string): void;
+  followPlayer(id: string | null): void;
   pause(): void;
   resume(): void;
   rejoin(): void;
@@ -41,10 +45,14 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   let party: PartyView | null = null;
   let partyInvites: readonly PartyInviteView[] = [];
   const notices: SharedChatMessage[] = [];
+  const follow = new PlayerFollow();
+  function stopFollowing() { follow.stop(); prediction?.setFollowDestination(null); }
   let noticeId = -1_000_000_000;
   const previews = new Map<number, (forecast: CombatForecast | null) => void>();
   function clearPreviews() { for (const resolve of previews.values()) resolve(null); previews.clear(); }
   let sequence = 0, closed = false, online = false, connectionRevision = 0;
+  let reconnecting = false;
+  let disconnectGrace: ReturnType<typeof setTimeout> | undefined;
   let reconnect: ReturnType<typeof setTimeout> | undefined;
   let socketGeneration = 0;
   let cameraX = NaN, cameraZ = NaN;
@@ -63,7 +71,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
   function close(): void {
     if (online) send({type:'pause'});
     clearPreviews();
-    closed = true; online = false; socketGeneration++; clearTimeout(timeout); clearTimeout(handshakeTimeout); clearTimeout(livenessTimeout); clearTimeout(reconnect); socket?.close();
+    closed = true; online = false; socketGeneration++; clearTimeout(timeout); clearTimeout(handshakeTimeout); clearTimeout(livenessTimeout); clearTimeout(reconnect); clearTimeout(disconnectGrace); reconnecting = false; socket?.close(DEPARTURE_CLOSE_CODE, 'Leaving world');
   }
   function send(command: WorldCommand): number | null {
     if (!online || socket.readyState !== WebSocket.OPEN) return null;
@@ -84,10 +92,15 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     socket = current;
     function disconnected(): void {
       if (closed || generation !== socketGeneration) return;
+      stopFollowing();
       socketGeneration++;
       clearTimeout(handshakeTimeout); handshakeTimeout = undefined;
       clearTimeout(livenessTimeout); livenessTimeout = undefined;
       clearPreviews();
+      if (online) {
+        reconnecting = true;
+        disconnectGrace = setTimeout(() => { reconnecting = false; disconnectGrace = undefined; notify(); }, DISCONNECT_GRACE_MS);
+      }
       online = false; pauseRequest = null; transitionRequest = null; pendingTransition = null; pendingCamera = false;
       current.close();
       reconnect = setTimeout(open, 1000);
@@ -123,9 +136,9 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
           if (document.hidden) { livenessTimeout = setTimeout(checkLiveness, 1000); return; }
           disconnected();
         }, 3000);
-        if (changed) { prediction = new LocalMovement(snapshot, message.movement); connectionRevision++; transitionRequest = null; pendingTransition = null; }
+        if (changed) { stopFollowing(); prediction = new LocalMovement(snapshot, message.movement); connectionRevision++; transitionRequest = null; pendingTransition = null; }
         prediction.reconcile(snapshot, message.movement, serverTime);
-        online = true; clearTimeout(timeout); readyResolve();
+        online = true; reconnecting = false; clearTimeout(disconnectGrace); disconnectGrace = undefined; clearTimeout(timeout); readyResolve();
         notify();
       } else if (message.type === 'result' && message.sequence === pauseRequest && !message.accepted) {
         pauseRequest = null; notify();
@@ -150,6 +163,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     get serverTime() { return serverTime; },
     get serverWallTimeMillis() { return serverWallTimeMillis; },
     get online() { return online; },
+    get reconnecting() { return reconnecting; },
     get connectionRevision() { return connectionRevision; },
     get session() { return session; },
     get inputEnabled() { return inputEnabled(); },
@@ -159,8 +173,20 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     get partyInvites() { return partyInvites; },
     partyCommand(command) { send(command); },
     get chat() { return [...chat, ...notices]; },
+    followPlayer(id) {
+      if (follow.targetId !== null && (id === null || id === follow.targetId)) {
+        stopFollowing(); notices.push({ id: noticeId--, speakerId: null, name: 'Notice', text: 'Stopped following.' }); notify(); return;
+      }
+      follow.targetId = id;
+      const target = players.find(player => player.id === id);
+      const destination = inputEnabled() && snapshot.phase !== 'lost' ? follow.destination(snapshot.player, players, party) : null;
+      if (!destination) stopFollowing();
+      notices.push({ id: noticeId--, speakerId: null, name: 'Notice', text: destination ? 'Following ' + target!.name + '. Move to stop.' : 'Select a nearby player who is exploring to follow.' });
+      notify();
+    },
     advance(seconds) {
-      if (!inputEnabled()) return;
+      if (!inputEnabled()) { stopFollowing(); return; }
+      prediction.setFollowDestination(follow.targetId === null ? null : follow.destination(snapshot.player, players, party));
       prediction.advance(seconds);
       const now = performance.now();
       if (now - lastMovementAt >= 50) {
@@ -171,11 +197,12 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
       if (now - lastCameraAt >= 50) flushCamera();
     },
     setAction(action, pressed) {
+      if (pressed && isLocomotionAction(action)) stopFollowing();
       if (pressed && !inputEnabled()) return;
       if (isLocomotionAction(action)) { prediction.setAction(action, pressed); return; }
       if (pressed) flushCamera(); send({type:'action',action,pressed});
     },
-    setMouseForward(active) { prediction.setMouseForward(active && inputEnabled()); },
+    setMouseForward(active) { if (active) stopFollowing(); prediction.setMouseForward(active && inputEnabled()); },
     emote(name) { if (inputEnabled()) send({ type: 'chat', text: `/${name}` }); },
     sit() { if (inputEnabled()) send({ type: 'sit' }); },
     setCameraForward(x,z) { prediction.setCameraForward(x,z); if (x!==cameraX || z!==cameraZ) { cameraX=x;cameraZ=z;pendingCamera=true; } },
@@ -203,6 +230,7 @@ export async function connectAdventure(character: LocalCharacter): Promise<Netwo
     save() { throw new Error('Shared journeys are saved by the world.'); },
     sendChat(text) { if (text.trim().toLowerCase() === '/sit') { if (inputEnabled()) send({ type: 'sit' }); } else send({type:'chat',text}); },
     pause() {
+      stopFollowing();
       if (!inputEnabled()) return;
       pauseRequest = send({type:'pause'}); notify();
     },

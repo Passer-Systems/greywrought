@@ -86,6 +86,43 @@ test('dead socket messages cannot reactivate play before or after reconnect', as
   expect(timers.size).toBe(0);
 });
 
+test('a brief closed transport reconnects in the same encounter without a pause or stale movement', async () => {
+  const { game, socket } = await connected();
+  game.setAction('forward', true);
+  socket.close();
+  expect(game.online).toBe(false);
+  expect(game.reconnecting).toBe(true);
+  expect(game.inputEnabled).toBe(false);
+  expect(game.session.mode).toBe('shared');
+  advance(1000);
+  const replacement = TestSocket.instances[1]!;
+  replacement.open(); replacement.receive(state('shared'));
+  expect(game.reconnecting).toBe(false);
+  expect(game.inputEnabled).toBe(true);
+  game.advance(0.1);
+  expect(game.renderPlayer.position).toEqual(game.snapshot.player.position);
+  expect(replacement.sent.some(message => message.type === 'command' && message.command.type === 'pause')).toBe(false);
+  game.close();
+  expect(timers.size).toBe(0);
+});
+
+test('disconnect grace expires at five seconds even when reconnect has not completed', async () => {
+  const { game, socket } = await connected();
+  let notifications = 0;
+  game.subscribe(() => notifications++);
+  socket.close();
+  advance(4999);
+  expect(game.reconnecting).toBe(true);
+  expect(game.online).toBe(false);
+  expect(game.inputEnabled).toBe(false);
+  const before = notifications;
+  advance(1);
+  expect(game.reconnecting).toBe(false);
+  expect(notifications).toBe(before + 1);
+  game.close();
+  expect(timers.size).toBe(0);
+});
+
 test('reconnect without an initial state expires and retries without auto-resuming', async () => {
   const { game, socket } = await connected();
   socket.close(); advance(1000);
@@ -180,5 +217,26 @@ test('party state and invitations stay available while paused and social command
   expect(game.partyInvites[0]!.id).toBe('invite');
   game.partyCommand({ type: 'partyDecline', inviteId: 'invite' });
   expect(socket.sent.at(-1)).toMatchObject({ type: 'command', command: { type: 'partyDecline', inviteId: 'invite' } });
+  game.close();
+});
+
+test('follow cancels on manual movement and mouse movement, and toggles off', async () => {
+  const { game, socket } = await connected();
+  const initial = state('shared');
+  const start = initial.snapshot.player.position;
+  const friend = { id: 'friend', name: 'Friend', player: { ...initial.snapshot.player, position: { ...start, x: start.x + 10 } } };
+  socket.receive({ ...initial, players: [friend] });
+  game.followPlayer('friend'); game.advance(.1);
+  expect(game.renderPlayer.position.x).toBeGreaterThan(start.x);
+  game.setAction('jump', true); game.setAction('jump', false);
+  const after = game.renderPlayer.position.x;
+  game.advance(.1);
+  expect(game.renderPlayer.position.x).toBeCloseTo(after, 6);
+  game.followPlayer('friend'); game.setMouseForward(true); game.setMouseForward(false);
+  game.advance(.1);
+  expect(game.renderPlayer.position.x).toBeCloseTo(after, 6);
+  game.followPlayer('friend'); game.followPlayer('friend'); game.advance(.1);
+  expect(game.renderPlayer.position.x).toBeCloseTo(after, 6);
+  expect(game.chat.at(-1)?.text).toBe('Stopped following.');
   game.close();
 });

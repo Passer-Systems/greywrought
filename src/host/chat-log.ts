@@ -1,5 +1,7 @@
 import type { AdventureLogEntry } from "../game/adventure-types.js";
 
+type ChatLogEntry = AdventureLogEntry & { readonly party?: boolean };
+
 type Channel = AdventureLogEntry["channel"];
 interface ScrollPosition { following: boolean; entryId: string | null; offset: number; }
 interface Geometry { x: number; y: number; width: number; height: number; }
@@ -17,6 +19,7 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
     #chat-log-messages { position:relative; flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; overflow-anchor:none; scrollbar-width:thin; scrollbar-color:#77745580 transparent; padding:7px 9px; border:1px solid #78806355; border-radius:3px; background:linear-gradient(90deg,#080f0acf,#0d140dab); box-shadow:inset 0 1px 6px #0005; }
     #chat-log [data-log-entry] { margin:0 0 3px; overflow-wrap:anywhere; }
     #chat-log .log-chat { color:#dfd5ab; }
+    #chat-log .log-party { color:#70b7ff; }
     #chat-log .log-combat { color:#e1b794; }
     #chat-log-input { box-sizing:border-box; flex:0 0 30px; width:100%; border:1px solid #78806388; border-radius:3px; background:#0d1815e8; padding:5px 9px; color:#f3e6c7; font:var(--ui-font-body) system-ui,sans-serif; }
     #chat-log-resize { position:absolute; right:0; bottom:0; width:16px; height:16px; padding:0; border:0; background:transparent; cursor:nwse-resize; touch-action:none; }
@@ -41,7 +44,7 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
   view.setAttribute("aria-live", "polite");
   view.setAttribute("aria-relevant", "additions");
   let selected: Channel = "chat";
-  let entries: readonly AdventureLogEntry[] = [];
+  let entries: readonly ChatLogEntry[] = [];
   const positions: Record<Channel, ScrollPosition> = {
     chat: { following: true, entryId: null, offset: 0 },
     combat: { following: true, entryId: null, offset: 0 },
@@ -49,8 +52,11 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
   const tabs = new Map<Channel, HTMLButtonElement>();
   const input = document.createElement("input");
   input.id = "chat-log-input"; input.type = "text"; input.maxLength = 280;
-  input.placeholder = "Enter to chat"; input.setAttribute("aria-label", "Message everyone");
+  input.placeholder = "Enter to chat · /p for party"; input.setAttribute("aria-label", "Chat message; /p for party");
   input.autocomplete = "off";
+  input.setAttribute("data-bwignore", "true");
+  input.setAttribute("data-1p-ignore", "true");
+  input.setAttribute("data-lpignore", "true");
   input.hidden = !onSend;
   const onInputKey = (event: KeyboardEvent): void => {
     event.stopPropagation();
@@ -81,7 +87,7 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
     const rows = entries.filter(entry => entry.channel === selected).map(entry => {
       const row = document.createElement("p");
       row.dataset.logEntry = String(entry.id);
-      row.className = `log-${entry.channel}`;
+      row.className = entry.party ? "log-chat log-party" : `log-${entry.channel}`;
       row.textContent = entry.text;
       return row;
     });
@@ -193,11 +199,11 @@ export function createChatLog(host: HTMLElement, onSend?: (text: string) => void
   render();
   return {
     focusInput(): void { if (onSend) { select("chat"); input.focus(); } },
-    update(next: readonly AdventureLogEntry[]): void {
+    update(next: readonly ChatLogEntry[]): void {
       const bounded = next.slice(-200);
       if (bounded.length === entries.length && bounded.every((entry, index) => {
         const previous = entries[index];
-        return previous?.id === entry.id && previous.channel === entry.channel && previous.text === entry.text;
+        return previous?.id === entry.id && previous.channel === entry.channel && previous.text === entry.text && previous.party === entry.party;
       })) return;
       remember(); entries = bounded; render();
     },

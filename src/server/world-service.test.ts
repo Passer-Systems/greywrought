@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Server } from 'bun';
 import type { ServerWorldMessage, WorldCommand } from '../game/multiplayer-types.js';
+import { DEPARTURE_CLOSE_CODE } from '../game/multiplayer-types.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 import { createWorldService } from './world-service.js';
 import type { WorldSocketData } from './world-service.js';
@@ -151,7 +152,7 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect((await duplicate.wait(message => message.type === 'error')).type).toBe('error');
     // Disconnect while holding movement; reconnect must not keep walking.
     expect(await first.command({ type: 'action', action: 'forward', pressed: true })).toBe(true);
-    first.socket.close();
+    first.socket.close(DEPARTURE_CLOSE_CODE, 'Leaving world');
     await second.state(state => state.players.length === 0);
     await service.close(); server.stop(true);
     const savedSource = await readFile(savePath, 'utf8');
@@ -244,7 +245,7 @@ test('pause forks the connection and explicit rejoin returns it to the shared wo
   }
 });
 
-test('native transport liveness keeps a background socket shared, while close forks it', async () => {
+test('native transport liveness keeps a background socket shared, while deliberate departure forks it immediately', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'greywrought-native-ping-'));
   const savePath = join(directory, 'world.json');
   const service = await createWorldService({ savePath });
@@ -259,7 +260,7 @@ test('native transport liveness keeps a background socket shared, while close fo
     visitor.messages.length = 0;
     const shared = await visitor.state(state => state.session.mode === 'shared');
     expect(shared.session.mode).toBe('shared');
-    visitor.socket.close();
+    visitor.socket.close(DEPARTURE_CLOSE_CODE, 'Leaving world');
     await new Promise(resolve => setTimeout(resolve, 100));
     const saved = JSON.parse(await readFile(savePath, 'utf8')) as { world: string };
     const world = JSON.parse(saved.world) as { instances?: readonly { members: readonly { id: string }[]; mode: string }[] };
@@ -269,7 +270,7 @@ test('native transport liveness keeps a background socket shared, while close fo
   }
 }, 10_000);
 
-test('two seconds without native pong forks a joined socket despite continuous broadcasts', async () => {
+test('missing native pong waits five seconds before forking despite continuous broadcasts', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'greywrought-missing-pong-'));
   const savePath = join(directory, 'world.json');
   const service = await createWorldService({ savePath });
@@ -279,7 +280,10 @@ test('two seconds without native pong forks a joined socket despite continuous b
     socket = await silentJoinedSocket(server.port!, { id: 'silent', name: 'Silent', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
     // The raw socket never answers ping frames. Application state broadcasts
     // still occur, so this proves they do not reset the native lease.
-    await new Promise(resolve => setTimeout(resolve, 2_500));
+    await new Promise(resolve => setTimeout(resolve, 4_500));
+    const before = JSON.parse(await readFile(savePath, 'utf8')) as { world: string };
+    expect(JSON.parse(before.world).instances ?? []).toHaveLength(0);
+    await new Promise(resolve => setTimeout(resolve, 1_000));
     const saved = JSON.parse(await readFile(savePath, 'utf8')) as { world: string };
     const world = JSON.parse(saved.world) as { instances?: readonly { members: readonly { id: string }[]; mode: string }[] };
     expect(world.instances?.some(instance => instance.members.some(member => member.id === 'silent') && instance.mode === 'paused')).toBe(true);
@@ -477,6 +481,17 @@ test('parties require consent, enforce leadership and capacity, and share encoun
     invitation = await invite(alice, bob, 1);
     expect(await bob.command({ type: 'partyAccept', inviteId: invitation })).toBe(true);
     expect((await alice.state(state => state.party?.members.length === 2)).party!.leaderId).toBe(characters[0]!.id);
+    alice.messages.length = 0;
+    expect(await bob.command({ type: 'action', action: 'forward', pressed: true })).toBe(true);
+    bob.socket.close();
+    const brieflyAway = await alice.state(state => state.party?.members.some(member => !member.online) === true);
+    expect(brieflyAway.session.mode).toBe('shared');
+    expect(brieflyAway.party!.members.every(member => member.sameEncounter)).toBe(true);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    bob = await connect(1);
+    expect((await bob.state()).session.mode).toBe('shared');
+    expect((await bob.state()).snapshot.player.moving).toBe(false);
+    expect(alice.messages.filter((message): message is State => message.type === 'state').every(message => message.session.mode === 'shared')).toBe(true);
     expect(await bob.command({ type: 'partyInvite', playerId: characters[2]!.id })).toBe(false);
     expect(await bob.command({ type: 'partyKick', playerId: characters[0]!.id })).toBe(false);
     alice.messages.length = 0; bob.messages.length = 0;
@@ -495,7 +510,11 @@ test('parties require consent, enforce leadership and capacity, and share encoun
     expect((await observer.state()).session.mode).toBe('shared');
     alice.messages.length = 0;
     bob.socket.close();
-    const disconnected = await alice.state(state => state.session.mode === 'paused' && state.party?.members.some(member => !member.online) === true);
+    const droppedAt = performance.now();
+    const grace = await alice.state(state => state.session.mode === 'private' && state.party?.members.some(member => !member.online) === true);
+    expect(grace.session.id).toBe(aPaused.session.id);
+    const disconnected = await alice.state(state => state.session.mode === 'paused' && state.party?.members.some(member => !member.online) === true, 7000);
+    expect(performance.now() - droppedAt).toBeGreaterThanOrEqual(5000);
     expect(disconnected.players).toEqual([]);
     expect(await alice.command({ type: 'resume' })).toBe(true);
     alice.messages.length = 0;
@@ -542,7 +561,7 @@ test('parties require consent, enforce leadership and capacity, and share encoun
     await service.close(); server?.stop(true);
     await rm(directory, { recursive: true, force: true });
   }
-});
+}, 15_000);
 
 test('diving movement packets carry rise and dive through the authoritative socket', async()=>{
   const {createSharedAdventure}=await import('../game/adventure.js');
@@ -570,3 +589,59 @@ test('diving movement packets carry rise and dive through the authoritative sock
     expect(surface.snapshot.player.position.y).toBeCloseTo(supportHeight(-27,-95),4);
   }finally{client.socket.close();await service.close();server.stop(true);await rm(directory,{recursive:true});}
 },10000);
+
+test('party chat aliases stay private through pause, membership changes and restart', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-party-chat-'));
+  const savePath = join(directory, 'world.json');
+  let service = await createWorldService({ savePath });
+  let server!: Server<WorldSocketData>;
+  const clients: Client[] = [];
+  const characters: LocalCharacter[] = ['Alden', 'Briar', 'Cedar'].map((name, index) => ({ id: `chat-party-${index}`, name, archetype: 'mage', createdAtMillis: index + 1 }));
+  const tokens = characters.map(() => crypto.randomUUID());
+  function listen() {
+    const current = service;
+    server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: current.websocket, fetch: (request, host) => current.fetch(request, host) });
+  }
+  async function connect(index: number) {
+    const client = new Client(`ws://127.0.0.1:${server.port}/world`); clients.push(client);
+    await client.connect(characters[index]!, tokens[index]!); await client.state(); return client;
+  }
+  try {
+    listen();
+    let first = await connect(0), second = await connect(1), outsider = await connect(2);
+    expect(await outsider.command({ type: 'chat', text: '/party Nobody hears this' })).toBe(false);
+    await outsider.wait(message => message.type === 'error' && message.text === 'You are not in a party.');
+    expect(await first.command({ type: 'partyInvite', playerId: characters[1]!.id })).toBe(true);
+    const invite = (await second.state(state => state.partyInvites.length > 0)).partyInvites[0]!;
+    expect(await second.command({ type: 'partyAccept', inviteId: invite.id })).toBe(true);
+    const partyId = (await first.state(state => state.party !== null)).party!.id;
+    expect(await first.command({ type: 'chat', text: '/p Secret route' })).toBe(true);
+    expect((await first.state(state => state.chat.some(entry => entry.text === 'Secret route'))).chat.at(-1)).toMatchObject({ partyId, text: 'Secret route' });
+    await second.state(state => state.chat.some(entry => entry.text === 'Secret route'));
+    expect(await first.command({ type: 'pause' })).toBe(true);
+    expect(await second.command({ type: 'chat', text: '/party Wait here' })).toBe(true);
+    await first.state(state => state.session.mode === 'paused' && state.chat.some(entry => entry.text === 'Wait here'));
+    await second.state(state => state.chat.some(entry => entry.text === 'Wait here'));
+    outsider.messages.length = 0;
+    await outsider.state();
+    expect(outsider.messages.some(message => message.type === 'state' && message.chat.some(entry => entry.partyId || entry.text.includes('Nobody hears')))).toBe(false);
+    await service.close(); server.stop(true);
+    service = await createWorldService({ savePath }); listen();
+    first = await connect(0); second = await connect(1); outsider = await connect(2);
+    expect((await first.state()).chat.filter(entry => entry.partyId).map(entry => entry.text)).toEqual(['Secret route', 'Wait here']);
+    expect((await second.state()).chat.filter(entry => entry.partyId)).toHaveLength(2);
+    expect((await outsider.state()).chat.some(entry => entry.partyId)).toBe(false);
+    expect(await first.command({ type: 'rejoin' })).toBe(true);
+    expect(await second.command({ type: 'partyLeave' })).toBe(true);
+    second.messages.length = 0;
+    expect((await second.state(state => state.party === null)).chat.some(entry => entry.partyId)).toBe(false);
+    expect(await second.command({ type: 'chat', text: '/p No longer grouped' })).toBe(false);
+    await second.wait(message => message.type === 'error' && message.text === 'You are not in a party.');
+    expect(await outsider.command({ type: 'rejoin' })).toBe(true);
+    expect(await first.command({ type: 'chat', text: 'Public greeting' })).toBe(true);
+    await outsider.state(state => state.chat.some(entry => entry.text === 'Public greeting' && !entry.partyId));
+  } finally {
+    for (const client of clients) client.socket.close();
+    await service.close(); server.stop(true); await rm(directory, { recursive: true });
+  }
+});

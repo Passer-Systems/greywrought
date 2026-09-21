@@ -78,10 +78,18 @@ const questRewards = createQuestRewardNotice(element("adventure-hud"), {
   onEquip: (slot, item) => { if (running?.ready && !paused) running.game.equip(slot, item); },
 });
 const lorebook = createLorebook(element("adventure-hud"), closeLorebook, id => unitFrames.portrait(id));
-const chatLog = createChatLog(element("adventure-hud"), text => running?.game.sendChat(text));
+const chatLog = createChatLog(element("adventure-hud"), text => {
+  const match = /^\/follow(?:\s+(.*))?$/i.exec(text.trim());
+  if (!match) { running?.game.sendChat(text); return; }
+  const name = match[1]?.trim().toLowerCase();
+  const target = name ? running?.game.players.find(player => player.name.toLowerCase() === name)?.id ?? null
+    : running?.selection?.kind === 'player' ? running.selection.id : null;
+  running?.game.followPlayer(target);
+});
 const unitFrames = createUnitFrames(element("adventure-hud"));
 const partyPanel = createPartyPanel(element("adventure-hud"), {
   onSelect: id => { selectPlayerTarget(id); running?.world.canvas.focus(); },
+  onFollow: id => { running?.game.followPlayer(id); running?.world.canvas.focus(); },
   onCommand: command => { if (running?.ready) running.game.partyCommand(command); },
 });
 const combatPlan = createCombatPlan(element("combat-plan-mount"), {
@@ -419,6 +427,7 @@ function toggleAggroRanges(kind: "direct" | "help" = "direct"): void {
 function save(_force = false): void {
   if (!running?.ready) return;
   element("connection-status").hidden = running.game.online;
+  text('connection-status', running.game.reconnecting ? 'Reconnecting…' : 'Connection lost · reconnecting…');
   document.body.dataset.gamePersistence = running.game.online ? "server" : "disconnected";
 }
 
@@ -580,7 +589,7 @@ function syncEncounter(): void {
   updateParty();
   world.setPartyMembers(game.party?.members.map(member => member.id) ?? []);
   if (game.snapshot.phase === 'lost') { showFallenCharacter(character); return; }
-  const state = `${game.online}:${game.session.id}:${game.session.mode}:${game.inputEnabled}:${game.pendingTransition}:${backgrounded}`;
+  const state = `${game.online}:${game.reconnecting}:${game.session.id}:${game.session.mode}:${game.inputEnabled}:${game.pendingTransition}:${backgrounded}`;
   const changed = state !== lastEncounterState;
   lastEncounterState = state;
   const wasPaused = paused;
@@ -593,8 +602,8 @@ function syncEncounter(): void {
   document.body.dataset.canRejoin = String(game.session.canRejoin);
   if (changed) {
     stopFrames();
-    if (!game.online || (!game.inputEnabled && game.pendingTransition !== 'rejoin')) element('pause-panel').hidden = false;
-    else if (wasPaused) element('pause-panel').hidden = true;
+    if (!game.reconnecting && (!game.online || (!game.inputEnabled && game.pendingTransition !== 'rejoin'))) element('pause-panel').hidden = false;
+    else if (wasPaused || game.reconnecting) element('pause-panel').hidden = true;
     button('pause-open').setAttribute('aria-expanded', String(!element('pause-panel').hidden));
     world.updatePlayers(game.players.filter(player => player.id !== character.id));
     world.updateChat(game.chat, character.id);
@@ -608,7 +617,7 @@ function syncEncounter(): void {
   const waiting = game.online && !game.inputEnabled && game.session.mode !== 'paused';
   text('pause-title', !game.online ? 'Connection lost' : game.pendingTransition === 'resume' ? 'Resuming encounter…' : waiting ? 'Pausing encounter…' : game.session.mode === 'paused' ? 'Paused encounter' : game.session.mode === 'shared' ? 'Shared world' : 'Private encounter');
   text('pause-copy', !game.online
-    ? 'Reconnecting… your encounter will stay paused.'
+    ? 'Reconnecting… your encounter pauses after five seconds away.'
     : waiting ? grouped ? 'Pausing for your party…' : 'Saving your encounter…'
     : game.session.mode === 'shared' ? grouped ? 'Your party is in the shared world.' : 'You are in the shared world.'
     : game.session.mode === 'paused' ? grouped ? 'Your party’s encounter is paused.' : 'Your private encounter is paused.'
@@ -701,10 +710,11 @@ function toggleLorebook(): void {
   lorebook.open(running.game.snapshot.selectedThreat);
   button("lorebook-open").setAttribute("aria-expanded", "true");
 }
-const worldMap = createWorldMap(element("adventure-hud"), button("world-map-open"), release, () => running?.world.canvas.focus());
+const worldMap = createWorldMap(element("adventure-hud"), button("world-map-open"), () => setBaitAiming(false), () => running?.world.canvas.focus());
 click("world-map-open", () => { if (running?.ready && route === "world" && !menuOpen()) worldMap.toggle(); });
 removers.push(() => worldMap.dispose());
 const minimap = createMinimap(element("map-terrain") as HTMLCanvasElement);
+const mapParty = new Map<string, HTMLElement>();
 let mapCenter = { x: 0, z: -8 };
 function mapPosition(target: HTMLElement, x: number, z: number): void {
   target.style.left = `${50 + (x - mapCenter.x) * 100 / minimap.span}%`;
@@ -816,7 +826,7 @@ function renderHud(snapshot: AdventureSnapshot): void {
   combatPlan.update(snapshot);
   if (snapshot.combat.phase !== "preparation" || snapshot.combat.ready) setBaitAiming(false);
   setDataset(data, { gameCombatPlan: String(!element("combat-plan").hidden) });
-  const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, text: entry.kind === 'emote' ? `* ${entry.name} ${entry.text}` : entry.name + ": " + entry.text })) ?? [];
+  const sharedChat = running?.game.chat.map(entry => ({ id: -entry.id, channel: "chat" as const, party: !!entry.partyId, text: entry.partyId ? `[Party] ${entry.name}: ${entry.text}` : entry.kind === 'emote' ? `* ${entry.name} ${entry.text}` : entry.name + ": " + entry.text })) ?? [];
   chatLog.update([...snapshot.log, ...sharedChat]);
   setDataset(data, { gameOnline: String(running?.game.online ?? false) });
   setDataset(data, { gameRemotePlayers: JSON.stringify(running?.game.players ?? []) });
@@ -886,7 +896,24 @@ function renderHud(snapshot: AdventureSnapshot): void {
   questRewards.update(snapshot);
   mapCenter = player.position;
   minimap.update(mapCenter.x, mapCenter.z);
-  worldMap.update(player, running?.game.players.filter(remote => running?.game.party?.members.some(member => member.id === remote.id)) ?? []);
+  const mapMembers = running?.game.players.filter(remote => running?.game.party?.members.some(member => member.id === remote.id && member.online && member.sameEncounter)) ?? [];
+  worldMap.update(player, mapMembers);
+  for (const [id, marker] of mapParty) if (!mapMembers.some(member => member.id === id)) { marker.remove(); mapParty.delete(id); }
+  for (const member of mapMembers) {
+    let marker = mapParty.get(member.id);
+    if (!marker) {
+      marker = document.createElement('div'); marker.className = 'map-party'; marker.dataset.playerId = member.id;
+      marker.innerHTML = '<svg viewBox="0 0 24 28" aria-hidden="true"><path d="M12 2 22 25 12 20 2 25Z" fill="#5dc6f1" stroke="#102f45" stroke-width="2"/><path d="M12 5 12 19 5 22Z" fill="#d0f1ff"/></svg>';
+      marker.setAttribute('role', 'img'); element('map-field').append(marker); mapParty.set(member.id, marker);
+    }
+    const dx = member.player.position.x - mapCenter.x, dz = member.player.position.z - mapCenter.z;
+    const scale = Math.max(1, Math.abs(dx) / (minimap.span * .44), Math.abs(dz) / (minimap.span * .44));
+    mapPosition(marker, mapCenter.x + dx / scale, mapCenter.z + dz / scale);
+    const direction = scale > 1 ? { x: dx, z: dz } : member.player.cameraForward;
+    marker.style.transform = `translate(-50%, -50%) rotate(${Math.atan2(direction.x, direction.z)}rad)`;
+    setDataset(marker.dataset, { edge: String(scale > 1) });
+    setAttribute(marker, 'aria-label', member.name + (scale > 1 ? ' · beyond map' : ''));
+  }
   for (const place of snapshot.places) {
     const marker = document.querySelector<HTMLElement>(`[data-map-place="${place.id}"]`);
     if (marker) mapPosition(marker, place.position.x, place.position.z);
@@ -1018,7 +1045,7 @@ async function enterWorld(character: LocalCharacter): Promise<void> {
     const forward = world.forward(); game.setCameraForward(forward.x, forward.z);
     makeEnemyInterface(game.snapshot);
     route = "world";
-    backgrounded = document.hidden || !document.hasFocus();
+    backgrounded = document.hidden;
     paused = false;
     lastEncounterState = '';
     app.unbind.push(game.subscribe(syncEncounter));
@@ -1144,8 +1171,8 @@ listen(window, "keydown", (event) => {
   }
   if (route !== "world") return;
   if (worldMap.isOpen) {
-    if (event.code === "Escape" || event.code === "KeyM") { event.preventDefault(); if (!event.repeat) worldMap.close(); }
-    return;
+    if (event.code === "Escape" || event.code === "KeyM") { event.preventDefault(); if (!event.repeat) worldMap.close(); return; }
+    if (!["forward", "backward", "left", "right", "jump", "dive"].includes(keyActions[event.code] ?? "")) return;
   }
   if (event.code === "Escape" && partyPanel.closeMenu()) { event.preventDefault(); return; }
   if (event.target instanceof HTMLTextAreaElement || (event.target instanceof HTMLInputElement && !["range", "checkbox", "radio", "button"].includes(event.target.type))) return;
@@ -1220,9 +1247,9 @@ listen(window, "keyup", (event) => {
   if (action && ![...keys].some((key) => keyActions[key] === action)) running?.game.setAction(action, false);
 }, removers, true);
 listen(element("chat-log-input"), "focus", () => release());
-listen(window, "blur", () => setBackgrounded(true));
+listen(window, "blur", () => release());
 listen(window, "focus", () => { if (!document.hidden) setBackgrounded(false); });
-listen(document, "visibilitychange", () => setBackgrounded(document.hidden || !document.hasFocus()));
+listen(document, "visibilitychange", () => setBackgrounded(document.hidden));
 listen(window, "pagehide", () => { release(); running?.game.pause(); save(true); });
 listen(window, "beforeunload", () => { release(); running?.game.pause(); save(true); });
 listen(window, "pointerdown", (event) => { if (event.isTrusted) void audio.unlock(); });

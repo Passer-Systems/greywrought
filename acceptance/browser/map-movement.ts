@@ -1,0 +1,75 @@
+import { check, openBrowser } from './session.js';
+
+const port = 4478;
+Object.assign(Bun.env, { GREYWROUGHT_GAME_URL: `http://127.0.0.1:${port}/`, GREYWROUGHT_DEBUG_PORT: '9678', GREYWROUGHT_VULKAN: '1' });
+const frontend = Bun.spawn([process.execPath, 'scripts/dev-server.ts'], {
+  env: { ...Bun.env, GREYWROUGHT_PORT: String(port), GREYWROUGHT_LOCAL_WORLD: '1', GREYWROUGHT_WORLD_SAVE: `build/browser/map-movement-world-${process.pid}.json` },
+  stdout: Bun.file('build/browser/map-movement-frontend.log'), stderr: Bun.file('build/browser/map-movement-frontend-errors.log'),
+});
+let page: Awaited<ReturnType<typeof openBrowser>> | undefined;
+const companions: WebSocket[] = [];
+async function companion(id: string) {
+  const socket = new WebSocket(`ws://127.0.0.1:${port}/world`); companions.push(socket);
+  await new Promise<void>((resolve, reject) => {
+    socket.onopen = () => socket.send(JSON.stringify({ type: 'join', token: crypto.randomUUID(), character: { id, name: id === 'map-friend' ? 'Map Friend' : 'Stranger', archetype: 'warrior', createdAtMillis: 1 } }));
+    socket.onmessage = event => { if (JSON.parse(String(event.data)).type === 'state') resolve(); };
+    socket.onerror = () => reject(new Error('Companion could not join'));
+  });
+  let sequence = 0;
+  return { socket, command(command: import('../../src/game/multiplayer-types.js').WorldCommand) { socket.send(JSON.stringify({ type: 'command', sequence: ++sequence, command })); } };
+}
+try {
+  for (let i = 0; i < 100; i++) { try { if ((await fetch(Bun.env.GREYWROUGHT_GAME_URL!)).ok) break; } catch {} await Bun.sleep(100); }
+  page = await openBrowser('map-movement', { localOnly: true, beforeNavigate: async call => {
+    await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{};const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);this.addEventListener('message',event=>{const message=JSON.parse(event.data);if(message.type==='state')window.mapState=message;});}};` });
+  } });
+  await page.enter();
+  await page.key('KeyA', true);
+  await page.waitFor('window.mapState.snapshot.player.position.x>0.4');
+  await page.press('KeyM');
+  await page.waitFor('document.getElementById("world-map-panel").open');
+  const openedX = await page.evaluate<number>('window.mapState.snapshot.player.position.x');
+  await page.waitFor(`window.mapState.snapshot.player.position.x>${openedX}+1`);
+  await page.key('KeyA', false);
+  await page.waitFor('!window.mapState.snapshot.player.moving');
+  const releasedX = await page.evaluate<number>('window.mapState.snapshot.player.position.x');
+  await page.key('KeyD', true);
+  await page.waitFor(`window.mapState.snapshot.player.position.x<${releasedX}-1`);
+  await page.key('KeyD', false);
+  await page.waitFor('!window.mapState.snapshot.player.moving');
+  await page.click('.atlas-point[data-place="yard"]');
+  check(await page.evaluate<boolean>('document.getElementById("world-map-panel").dataset.waypointX==="0"'), 'Map clicks still mark destinations');
+  check(await page.evaluate<boolean>('Number(getComputedStyle(document.getElementById("world-map-panel")).opacity)===0.92'), 'Map defaults to subtle translucency');
+  check(await page.evaluate<boolean>('window.mapState.session.mode==="shared"&&document.getElementById("pause-panel").hidden'), 'Moving with the map does not pause the encounter');
+  await page.shot('moving-map');
+  await page.press('Escape');
+  check(await page.evaluate<boolean>('!document.getElementById("world-map-panel").open&&document.getElementById("pause-panel").hidden'), 'Escape closes only the map');
+  await page.press('KeyM'); await page.press('KeyM');
+  check(await page.evaluate<boolean>('!document.getElementById("world-map-panel").open'), 'M toggles the map closed');
+  await page.press('Escape');
+  await page.waitFor('!document.getElementById("pause-panel").hidden');
+  await page.key('KeyA', true); await Bun.sleep(250); await page.key('KeyA', false);
+  check(await page.evaluate<boolean>('!window.mapState.snapshot.player.moving'), 'Escape menu continues to block movement');
+  await page.press('Escape');
+  const friend = await companion('map-friend'); await companion('map-stranger');
+  const selfId = await page.evaluate<string>('JSON.parse(localStorage.getItem("greywrought/local-profile-v1")).selectedCharacterId');
+  friend.command({ type: 'partyInvite', playerId: selfId });
+  await page.waitFor('!document.getElementById("party-invite").hidden');
+  await page.click('#party-invite [data-party-command="accept"]');
+  await page.waitFor('document.querySelector(".map-party[data-player-id=map-friend]")!==null');
+  check(await page.evaluate<boolean>('document.querySelectorAll(".map-party").length===1&&!document.querySelector(".map-party[data-player-id=map-stranger]")'), 'Only party members have minimap arrows');
+  const beforeTop = await page.evaluate<number>('parseFloat(document.querySelector(".map-party").style.top)');
+  friend.command({ type: 'camera', x: 0, z: -1 });
+  friend.command({ type: 'action', action: 'forward', pressed: true });
+  await page.waitFor(`parseFloat(document.querySelector('.map-party').style.top)>${beforeTop}+3`);
+  check(await page.evaluate<boolean>('Math.abs(Math.atan2(new DOMMatrix(getComputedStyle(document.querySelector(".map-party")).transform).b,new DOMMatrix(getComputedStyle(document.querySelector(".map-party")).transform).a)-Math.PI)<0.00001'), 'Nearby party arrows show heading');
+  await page.waitFor('document.querySelector(".map-party").dataset.edge==="true"', 12000);
+  friend.command({ type: 'action', action: 'forward', pressed: false });
+  check(await page.evaluate<boolean>('(()=>{const m=document.querySelector(".map-party"),r=document.getElementById("map-field").getBoundingClientRect();return parseFloat(m.style.top)===94&&Math.abs(r.width-r.height)<1;})()'), 'Distant member stays at the square map edge');
+  await page.shot('party-minimap');
+  friend.socket.close();
+  await page.waitFor('document.querySelectorAll(".map-party").length===0');
+  check(page.errors.length === 0, 'Map journey has no browser exceptions');
+  console.log('PASS map movement and translucency; Escape/M and waypoints; moving party heading arrows and edge indicators; strangers and offline members excluded; square minimap', page.output);
+} catch (error) { await page?.shot('failure'); throw error; }
+finally { for (const socket of companions) socket.close(); await page?.key('KeyA', false).catch(() => {}); await page?.key('KeyD', false).catch(() => {}); await page?.close(); frontend.kill(); await frontend.exited; }

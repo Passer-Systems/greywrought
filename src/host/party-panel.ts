@@ -38,6 +38,7 @@ const styles = `
 
 export function createPartyPanel(host: HTMLElement, callbacks: {
   onSelect(id: string): void;
+  onFollow(id: string): void;
   onCommand(command: PartyCommand): void;
 }) {
   const style = element("style", "", host); style.textContent = styles;
@@ -68,6 +69,10 @@ export function createPartyPanel(host: HTMLElement, callbacks: {
     if (!menuPlayer) return;
     const id = menuPlayer.id; closeMenu(); callbacks.onSelect(id);
   });
+  const follow = button(menu, "Follow", "follow", () => {
+    if (!menuPlayer) return;
+    const id = menuPlayer.id; closeMenu(); callbacks.onFollow(id);
+  });
   const inviteButton = button(menu, "Invite to party", "invite", () => { if (menuPlayer) send({ type: "partyInvite", playerId: menuPlayer.id }); });
   const kick = button(menu, "Remove from party", "kick", () => { if (menuPlayer) send({ type: "partyKick", playerId: menuPlayer.id }); });
   const leave = button(menu, "Leave party", "leave", () => send({ type: "partyLeave" }));
@@ -87,6 +92,7 @@ export function createPartyPanel(host: HTMLElement, callbacks: {
     menuSignature = signature;
     text(menuName, member?.name ?? menuPlayer.name);
     select.disabled = !!unavailable;
+    follow.hidden = own; follow.disabled = !!unavailable;
     text(select, !member?.online && member ? "Player offline" : unavailable ? "Player elsewhere" : "Select player");
     inviteButton.hidden = own || !!member; inviteButton.disabled = !!reason;
     kick.hidden = !member || own || !leader;

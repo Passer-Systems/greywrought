@@ -10,6 +10,7 @@ import { createSharedAdventure } from '../game/adventure.js';
 import { WORLD_BOUNDS } from '../game/world-layout.js';
 import type { AdventureAction, AdventureGame } from '../game/adventure-types.js';
 import type { PartyCommand, PartyView, PartyInviteView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
+import { DISCONNECT_GRACE_MS, DEPARTURE_CLOSE_CODE } from '../game/multiplayer-types.js';
 import { normalizedCharacterName } from '../host/character-profile.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 
@@ -116,8 +117,9 @@ function decodeSave(source: string): SavedService {
       || normalizedCharacterName(entry.name) !== entry.name || typeof entry.text !== 'string'
       || !command({ type: 'chat', text: entry.text }) || (chat.at(-1)?.id ?? 0) >= entry.id
       || (entry.kind !== undefined && entry.kind !== 'emote')
+      || (entry.partyId !== undefined && !identifier(entry.partyId))
       || (entry.speakerId !== undefined && entry.speakerId !== null && (!identifier(entry.speakerId) || !ids.has(entry.speakerId)))) throw new Error('Invalid saved shared chat');
-    chat.push({ id: entry.id, speakerId: typeof entry.speakerId === 'string' ? entry.speakerId : null, name: entry.name, text: entry.text, ...(entry.kind === 'emote' ? { kind: 'emote' as const } : {}) });
+    chat.push({ id: entry.id, speakerId: typeof entry.speakerId === 'string' ? entry.speakerId : null, name: entry.name, text: entry.text, ...(entry.kind === 'emote' ? { kind: 'emote' as const } : {}), ...(typeof entry.partyId === 'string' ? { partyId: entry.partyId } : {}) });
   }
   const parties: Party[] = [], grouped = new Set<string>(), partyIds = new Set<string>();
   if (value.parties !== undefined && !Array.isArray(value.parties)) throw new Error('Invalid saved parties');
@@ -148,6 +150,7 @@ export async function createWorldService(options: WorldServiceOptions) {
   let serverTime = 0;
   const clients = new Set<ServerWebSocket<WorldSocketData>>();
   const online = new Map<string, ServerWebSocket<WorldSocketData>>();
+  const disconnectedUntil = new Map<string, number>();
   const privateChat = new Map<string, SharedChatMessage[]>();
   let closed = false;
   let saveQueue = Promise.resolve();
@@ -244,21 +247,29 @@ export async function createWorldService(options: WorldServiceOptions) {
       const session = world.session(id);
       let players = instancePlayers.get(session.id);
       if (!players) { players = world.players(session.id); instancePlayers.set(session.id, players); }
-      send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat: session.mode === 'shared' ? chat : (privateChat.get(session.id) ?? []), serverTime, serverWallTimeMillis, movement: player.movementCheckpoint!, session, party: partyView(id), partyInvites: [...invites.values()].filter(invite => invite.recipientId === id).map(({ recipientId, ...invite }) => invite) });
+      send(socket, { type: 'state', snapshot: player.snapshot, players: players.filter(other => other.id !== id), chat: [...chat.filter(message => message.partyId ? message.partyId === partyFor(id)?.id : session.mode === 'shared'), ...(session.mode === 'shared' ? [] : privateChat.get(session.id) ?? [])].sort((a, b) => a.id - b.id), serverTime, serverWallTimeMillis, movement: player.movementCheckpoint!, session, party: partyView(id), partyInvites: [...invites.values()].filter(invite => invite.recipientId === id).map(({ recipientId, ...invite }) => invite) });
     }
   }
-  function disconnect(socket: ServerWebSocket<WorldSocketData>): void {
+  function stopInput(id: string): void {
+    const player = world.getPlayer(id);
+    if (!player) return;
+    for (const action of ACTIONS) player.setAction(action, false);
+    player.setMouseForward(false);
+    player.enableNetworkMovement?.(false);
+  }
+  function settleDisconnect(id: string): void {
+    disconnectedUntil.delete(id);
+    world.leave(id, cohort(id));
+  }
+  function disconnect(socket: ServerWebSocket<WorldSocketData>, immediate = false): void {
     clients.delete(socket);
     const id = socket.data.id;
     if (id === null || online.get(id) !== socket) return;
-    const player = world.getPlayer(id);
-    if (player) {
-      for (const action of ACTIONS) player.setAction(action, false);
-      player.setMouseForward(false);
-    }
-    world.leave(id, cohort(id));
+    stopInput(id);
     online.delete(id);
     socket.data.id = null;
+    if (closed || immediate) settleDisconnect(id);
+    else disconnectedUntil.set(id, performance.now() + DISCONNECT_GRACE_MS);
     if (!closed) { void persist().catch(onPersistenceError); broadcast(); }
   }
   function join(socket: ServerWebSocket<WorldSocketData>, value: RecordValue): void {
@@ -274,6 +285,9 @@ export async function createWorldService(options: WorldServiceOptions) {
     }
     if (online.has(selected.id)) { error(socket, 'This character is already playing in another window.'); socket.close(4001, 'Character already playing'); return; }
     if (online.size >= MAX_PLAYERS) { error(socket, 'The world is full. Please try again shortly.'); socket.close(4002, 'World full'); return; }
+    const deadline = disconnectedUntil.get(selected.id);
+    if (deadline !== undefined && performance.now() >= deadline) settleDisconnect(selected.id);
+    disconnectedUntil.delete(selected.id);
     const account = existing ?? { character: selected, tokenHash: hash };
     world.join(selected.id, account.character.name, account.character.archetype).enableNetworkMovement?.(false);
     accounts.set(selected.id, account);
@@ -326,12 +340,18 @@ export async function createWorldService(options: WorldServiceOptions) {
         if (!account) return false;
         let text = value.text.trim();
         let kind: 'emote' | undefined;
+        let partyId: string | undefined;
         if (text.startsWith('/')) {
           const match = /^\/(\S+)(?:\s+(.*))?$/.exec(text);
           if (!match) { error(socket, 'Type /emotes to see the available actions.'); return false; }
           const name = match[1]!.toLowerCase(), argument = match[2]?.trim();
           if (name === 'emotes') { error(socket, EMOTE_HELP); return true; }
-          if (name === 'roll') {
+          if (name === 'p' || name === 'party') {
+            partyId = partyFor(id)?.id;
+            if (!partyId) { error(socket, 'You are not in a party.'); return false; }
+            if (!argument) { error(socket, 'Use /p followed by a message to your party.'); return false; }
+            text = argument;
+          } else if (name === 'roll') {
             if (argument) { error(socket, 'Use /roll to roll from 1 to 100.'); return false; }
             text = `rolls ${randomInt(1, 101)} (1–100).`; kind = 'emote';
           } else {
@@ -355,11 +375,11 @@ export async function createWorldService(options: WorldServiceOptions) {
             }
           }
         }
-        const message: SharedChatMessage = { id: nextChatId++, speakerId: account.character.id, name: account.character.name, text, ...(kind ? { kind } : {}) };
-        const target = session.mode === 'shared' ? chat : (privateChat.get(session.id) ?? []);
+        const message: SharedChatMessage = { id: nextChatId++, speakerId: account.character.id, name: account.character.name, text, ...(kind ? { kind } : {}), ...(partyId ? { partyId } : {}) };
+        const target = partyId || session.mode === 'shared' ? chat : (privateChat.get(session.id) ?? []);
         target.push(message);
         if (target.length > 100) target.shift();
-        if (session.mode !== 'shared') privateChat.set(session.id, target);
+        if (!partyId && session.mode !== 'shared') privateChat.set(session.id, target);
         broadcast();
         break;
       }
@@ -410,7 +430,7 @@ export async function createWorldService(options: WorldServiceOptions) {
       }
       send(socket, { type: 'result', sequence, accepted });
     },
-    close(socket) { disconnect(socket); },
+    close(socket, code) { disconnect(socket, code === DEPARTURE_CLOSE_CODE); },
   };
   // Save newly assigned legacy regrowth deadlines even when nobody has joined yet.
   if (saved) await persist();
@@ -427,11 +447,15 @@ export async function createWorldService(options: WorldServiceOptions) {
         socket.data.lastPingAt = now;
         socket.ping();
       }
-      if (now - socket.data.lastPongAt > 2_000) {
-        disconnect(socket);
+      if (now - socket.data.lastPongAt >= 2_000) stopInput(socket.data.id);
+      if (now - socket.data.lastPongAt >= DISCONNECT_GRACE_MS) {
+        disconnect(socket, true);
         socket.close(4004, 'Connection heartbeat expired');
       }
     }
+    let settled = false;
+    for (const [id, deadline] of disconnectedUntil) if (now >= deadline) { settleDisconnect(id); settled = true; }
+    if (settled) { void persist().catch(onPersistenceError); broadcast(); }
     for (const socket of clients) if (socket.data.id === null && now - socket.data.openedAt > 10_000) socket.close(4003, 'Choose a character');
   }, 50);
   const saves = setInterval(() => { if (online.size > 0) void persist().catch(onPersistenceError); }, 5000);
@@ -453,7 +477,8 @@ export async function createWorldService(options: WorldServiceOptions) {
       if (closed) return saveQueue;
       closed = true;
       clearInterval(tick); clearInterval(saves);
-      for (const socket of clients) { disconnect(socket); socket.close(1001, 'World restarting'); }
+      for (const socket of [...clients]) { disconnect(socket); socket.close(1001, 'World restarting'); }
+      for (const id of disconnectedUntil.keys()) settleDisconnect(id);
       await persist();
     },
   };
