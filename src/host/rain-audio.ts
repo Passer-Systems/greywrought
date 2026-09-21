@@ -32,7 +32,7 @@ export function createRainAudio(context: BaseAudioContext, output: AudioNode) {
   return {
     update(intensity: number, shelter: 'outdoors' | 'cave' | 'underwater', audible: boolean) {
       const attenuation = shelter === 'underwater' ? .035 : shelter === 'cave' ? .12 : 1;
-      const level = audible ? intensity * .4 * attenuation : 0;
+      const level = audible ? intensity * .34 * attenuation : 0;
       const cutoff = shelter === 'underwater' ? 320 : shelter === 'cave' ? 950 : 3600;
       if (level !== previousLevel) { gain.gain.setTargetAtTime(level, context.currentTime, audible ? .35 : .025); previousLevel = level; }
       if (cutoff !== previousCutoff) { filter.frequency.setTargetAtTime(cutoff, context.currentTime, .3); previousCutoff = cutoff; }

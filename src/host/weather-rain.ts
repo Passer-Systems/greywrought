@@ -69,7 +69,7 @@ export function createWeatherRain(parent: Group) {
       if (!drops.visible) { initialized = false; ages.fill(1); return; }
       const count = high ? COUNT : 650, impactCount = high ? IMPACTS : 36;
       geometry.setDrawRange(0, count * 2); impacts.count = impactCount;
-      uniforms.opacity.value = intensity * (.24 + .13 * daylight);
+      uniforms.opacity.value = intensity * (.21 + .11 * daylight);
       if (!initialized || Math.hypot(player.x - anchorX, player.z - anchorZ) > SPAN) {
         for (let i = 0; i < COUNT; i++) respawn(i, player, true);
         ages.fill(1); initialized = true;
