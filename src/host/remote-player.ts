@@ -1,4 +1,4 @@
-import { Group, Mesh, MeshBasicMaterial, SkinnedMesh, Vector3 } from "three";
+import { Group, SkinnedMesh, Vector3 } from "three";
 import type { RemotePlayerView } from "../game/multiplayer-types.js";
 export type { RemotePlayerView } from "../game/multiplayer-types.js";
 import { actor, type ForestActor } from "./frostwood-assets.js";
@@ -26,11 +26,6 @@ export function createRemotePlayers(scene: Group | import("three").Scene) {
     function disposeActor(value: ForestActor) {
       value.dispose();
       value.model.traverse(object => { if (object instanceof SkinnedMesh) object.skeleton.dispose(); });
-      // The skeleton clone shares its model resources; only its shadow is instance-owned.
-      for (const child of value.root.children) if (child !== value.model && child instanceof Mesh) {
-        child.geometry.dispose();
-        if (child.material instanceof MeshBasicMaterial) { child.material.map?.dispose(); child.material.dispose(); }
-      }
     }
     void actor("Knight", 2.2, view.player.archetype).then(value => {
       if (disposed) { disposeActor(value); return; }

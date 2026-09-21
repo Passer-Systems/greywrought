@@ -1,4 +1,4 @@
-import { AnimationMixer, Box3, CanvasTexture, CircleGeometry, Color, Float32BufferAttribute, Group, LoopOnce, LoopRepeat, Mesh, MeshBasicMaterial, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
+import { AnimationMixer, Box3, Color, Float32BufferAttribute, Group, LoopOnce, LoopRepeat, Mesh, MeshStandardMaterial, SkinnedMesh, Vector3, type AnimationAction, type Object3D, type Material } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
@@ -76,10 +76,6 @@ export async function actor(name: string, height: number, playerModel?: "warrior
     if (object instanceof Mesh) { object.castShadow = true; object.receiveShadow = true; }
   });
   const wrapper = fit(model, height);
-  const shadowCanvas = document.createElement("canvas"); shadowCanvas.width=shadowCanvas.height=64;
-  const context=shadowCanvas.getContext("2d")!;
-  const gradient=context.createRadialGradient(32,32,4,32,32,32); gradient.addColorStop(0,"#17251565"); gradient.addColorStop(1,"#17251500"); context.fillStyle=gradient; context.fillRect(0,0,64,64);
-  const shadow=new Mesh(new CircleGeometry(height*0.5,24),new MeshBasicMaterial({map:new CanvasTexture(shadowCanvas),transparent:true,depthWrite:false})); shadow.rotation.x=-Math.PI/2; shadow.position.y=0.035; wrapper.add(shadow);
   const mixer = new AnimationMixer(model);
   const result: ForestActor = {
     root: wrapper, model, mixer, action: null,
