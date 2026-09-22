@@ -4,6 +4,7 @@ import { createWorldService } from '../src/server/world-service.js';
 const service = await createWorldService({
   savePath: resolve(Bun.env.GREYWROUGHT_WORLD_SAVE ?? `${import.meta.dir}/../build/shared-world.json`),
   allowedOrigins: (Bun.env.GREYWROUGHT_WORLD_ORIGINS ?? 'https://play.greywrought.com').split(',').filter(Boolean),
+  trustProxy: Bun.env.GREYWROUGHT_TRUST_PROXY === '1',
 });
 const server = Bun.serve({
   hostname: '127.0.0.1', port: Number(Bun.env.GREYWROUGHT_WORLD_PORT ?? 4181),

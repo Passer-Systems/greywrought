@@ -3,21 +3,26 @@ Description=Greywrought shared world
 After=network.target
 
 [Service]
-User=tom
-Group=tom
+User=greywrought
+Group=greywrought
 StateDirectory=greywrought
 StateDirectoryMode=0700
 WorkingDirectory=/var/lib/greywrought
 ExecStart=/srv/greywrought/server-current/greywrought-world
 Environment=GREYWROUGHT_WORLD_SAVE=/var/lib/greywrought/world.json
 Environment=GREYWROUGHT_WORLD_PORT=4181
-Environment=GREYWROUGHT_WORLD_ORIGINS=https://play.greywrought.com,http://localhost:4173,http://127.0.0.1:4173
+Environment=GREYWROUGHT_WORLD_ORIGINS=https://play.greywrought.com
+Environment=GREYWROUGHT_TRUST_PROXY=1
 Restart=on-failure
 RestartSec=2
 TimeoutStopSec=15
 MemoryMax=512M
 CPUQuota=100%
 UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target

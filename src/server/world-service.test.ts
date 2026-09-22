@@ -10,6 +10,13 @@ import { DEPARTURE_CLOSE_CODE } from '../game/multiplayer-types.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 import { createWorldService } from './world-service.js';
 import type { WorldSocketData } from './world-service.js';
+import { clientAddress, createAddressLimits } from './world-limits.js';
+
+// These server tests use Bun's header-capable constructor, while the shared
+// browser tsconfig selects the narrower DOM declaration for the global.
+declare const WebSocket: typeof globalThis.WebSocket & {
+  new(url: string, options: Bun.WebSocketOptions): globalThis.WebSocket;
+};
 
 type State = Extract<ServerWorldMessage, { type: 'state' }>;
 class Client {
@@ -17,8 +24,8 @@ class Client {
   readonly messages: ServerWorldMessage[] = [];
   private watchers = new Set<() => void>();
   private sequence = 0;
-  constructor(url: string) {
-    this.socket = new WebSocket(url);
+  constructor(url: string, headers?: Record<string, string>) {
+    this.socket = new WebSocket(url, headers ? { headers } : {});
     this.socket.onmessage = event => {
       this.messages.push(JSON.parse(String(event.data)) as ServerWorldMessage);
       for (const watcher of this.watchers) watcher();
@@ -114,7 +121,7 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(firstState.serverWallTimeMillis).toBeGreaterThanOrEqual(joinedAt);
     expect(firstState.serverWallTimeMillis).toBeLessThanOrEqual(Date.now());
     const initial = firstState.snapshot.player.position;
-    expect(firstState.snapshot.progression.unlockedActions).toEqual(['strike', 'brace', 'bait']);
+    expect(firstState.snapshot.progression.unlockedActions).toEqual(['strike', 'brace', 'bait', 'special']);
     expect(await first.command({ type: 'quest', id: 'cold-hands', operation: 'accept' })).toBe(true);
     expect(await first.invalid({ type: 'flight', destination: 'missing' })).toBe(false);
     expect(await first.command({ type: 'flight', destination: 'suture' })).toBe(false);
@@ -880,3 +887,124 @@ test('/rain controls one region across shared and private encounters, follows ch
     await service.close(); server.stop(true); await rm(directory, { recursive: true });
   }
 }, 20_000);
+
+async function securityFixture(options: Partial<import('./world-service.js').WorldServiceOptions> = {}) {
+  const directory = await mkdtemp(join(tmpdir(), 'greywrought-security-'));
+  const service = await createWorldService({ ...options, savePath: join(directory, 'world.json') });
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
+  const url = `http://127.0.0.1:${server.port}/world`;
+  const sockets: WebSocket[] = [];
+  return { service, url, sockets,
+    client(headers?: Record<string, string>) { const client = new Client(url.replace('http:', 'ws:'), headers); sockets.push(client.socket); return client; },
+    async socket(headers?: Record<string, string>) {
+      const socket = new WebSocket(url.replace('http:', 'ws:'), headers ? { headers } : {}); sockets.push(socket);
+      await new Promise<void>((resolve, reject) => { socket.onopen = () => resolve(); socket.onerror = () => reject(new Error('Socket failed to connect')); });
+      return socket;
+    },
+    async close() { for (const socket of sockets) socket.close(); await service.close(); server.stop(true); await rm(directory, { recursive: true, force: true }); },
+  };
+}
+function socketClosed(socket: WebSocket): Promise<CloseEvent> {
+  return new Promise(resolve => socket.addEventListener('close', resolve, { once: true }));
+}
+
+test('configured origins require an exact allowlisted Origin, while valid sockets reconnect within grace', async () => {
+  const origin = 'https://play.greywrought.com', fixture = await securityFixture({ allowedOrigins: [origin] });
+  const character: LocalCharacter = { id: 'origin-player', name: 'Origin Player', archetype: 'warrior', createdAtMillis: 1 }, token = crypto.randomUUID();
+  try {
+    for (const candidate of [undefined, 'null', new URL(fixture.url).origin, origin + '.evil.test', origin + '/']) {
+      const response = await fetch(fixture.url, { headers: candidate === undefined ? {} : { Origin: candidate } });
+      expect(response.status).toBe(403);
+    }
+    const denied = new WebSocket(fixture.url.replace('http:', 'ws:'), { headers: { Origin: 'https://evil.test' } });
+    denied.onerror = () => {};
+    expect((await socketClosed(denied)).code).not.toBe(1000);
+    const first = fixture.client({ Origin: origin }); await first.connect(character, token); await first.state();
+    const closed = socketClosed(first.socket); first.socket.close(); await closed;
+    const returning = fixture.client({ Origin: origin }); await returning.connect(character, token);
+    expect((await returning.state()).session.mode).toBe('shared');
+  } finally { await fixture.close(); }
+});
+
+test('connection and attempt limits use the peer address and ignore spoofed proxy headers by default', async () => {
+  const fixture = await securityFixture();
+  try {
+    for (let i = 0; i < 32; i++) await fixture.socket({ 'X-Greywrought-Client-IP': `192.0.2.${i + 1}`, 'X-Forwarded-For': `192.0.2.${i + 1}` });
+    expect((await fetch(fixture.url, { headers: { 'X-Greywrought-Client-IP': '198.51.100.1' } })).status).toBe(429);
+    const closed = socketClosed(fixture.sockets[0]!); fixture.sockets[0]!.close(); await closed;
+    const replacement = await fixture.socket();
+    expect(replacement.readyState).toBe(WebSocket.OPEN);
+  } finally { await fixture.close(); }
+  const attempts = await securityFixture();
+  try {
+    for (let i = 0; i < 60; i++) expect((await fetch(attempts.url, { headers: { 'X-Greywrought-Client-IP': `192.0.2.${i + 1}`, 'Forwarded': `for=192.0.2.${i + 1}` } })).status).toBe(426);
+    expect((await fetch(attempts.url)).status).toBe(429);
+  } finally { await attempts.close(); }
+});
+
+test('only an enabled loopback proxy can supply one valid client IP', async () => {
+  expect(clientAddress('198.51.100.1', '192.0.2.1', true)).toBe('198.51.100.1');
+  expect(clientAddress('::ffff:127.0.0.1', '2001:0db8:0:0::1', true)).toBe('2001:db8::1');
+  expect(clientAddress('127.0.0.1', '192.0.2.1', false)).toBe('127.0.0.1');
+  const fixture = await securityFixture({ trustProxy: true });
+  try {
+    for (const candidate of [undefined, 'unknown', '192.0.2.1, 192.0.2.2', 'fe80::1%lo', '192.0.2.1:123']) {
+      expect((await fetch(fixture.url, { headers: candidate === undefined ? {} : { 'X-Greywrought-Client-IP': candidate } })).status).toBe(403);
+    }
+    for (let i = 0; i < 60; i++) expect((await fetch(fixture.url, { headers: { 'X-Greywrought-Client-IP': '192.0.2.1' } })).status).toBe(426);
+    expect((await fetch(fixture.url, { headers: { 'X-Greywrought-Client-IP': '192.0.2.1' } })).status).toBe(429);
+    const socket = await fixture.socket({ 'X-Greywrought-Client-IP': '192.0.2.2' });
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+  } finally { await fixture.close(); }
+});
+
+test('registration throttles new characters across tokens while preserving existing character reconnect', async () => {
+  const fixture = await securityFixture(), token = crypto.randomUUID();
+  const character: LocalCharacter = { id: 'registration-0', name: 'Newcomer', archetype: 'warrior', createdAtMillis: 1 };
+  try {
+    for (let i = 0; i < 40; i++) {
+      const client = fixture.client(); await client.connect({ ...character, id: `registration-${i}` }, i === 0 ? token : crypto.randomUUID()); await client.state();
+      const closed = socketClosed(client.socket); client.socket.close(DEPARTURE_CLOSE_CODE, 'Leaving world'); await closed;
+    }
+    const denied = fixture.client(); await denied.connect({ ...character, id: 'registration-41' }, crypto.randomUUID());
+    expect(await denied.wait(message => message.type === 'error')).toMatchObject({ text: 'Too many new adventurers. Please try again later.' });
+    const returning = fixture.client(); await returning.connect(character, token);
+    expect((await returning.state()).snapshot.player.archetype).toBe('warrior');
+  } finally { await fixture.close(); }
+}, 15_000);
+
+test('early total-message cap closes malformed, unauthenticated and priority floods without stale movement', async () => {
+  const fixture = await securityFixture();
+  try {
+    for (const payload of ['{', JSON.stringify({ type: 'characters', token: crypto.randomUUID(), ids: [] })]) {
+      const socket = await fixture.socket(), closed = socketClosed(socket);
+      for (let i = 0; i < 350; i++) socket.send(payload);
+      expect((await closed).code).toBe(4008);
+    }
+    const character: LocalCharacter = { id: 'flood-player', name: 'Flood Player', archetype: 'warrior', createdAtMillis: 1 }, token = crypto.randomUUID();
+    const client = fixture.client(); await client.connect(character, token); await client.state();
+    expect(await client.command({ type: 'action', action: 'forward', pressed: true })).toBe(true);
+    const closed = socketClosed(client.socket);
+    for (let sequence = 2; sequence < 352; sequence++) client.socket.send(JSON.stringify({ type: 'command', sequence, command: { type: 'action', action: 'forward', pressed: false } }));
+    expect((await closed).code).toBe(4008);
+    const returning = fixture.client(); await returning.connect(character, token);
+    const restored = await returning.state();
+    expect(restored.session.mode).toBe('shared');
+    expect(restored.snapshot.player.moving).toBe(false);
+  } finally { await fixture.close(); }
+});
+
+test('address limiter expires idle entries, bounds storage, and renews time windows', () => {
+  const limits = createAddressLimits();
+  for (let i = 0; i < 4096; i++) expect(limits.attempt(`address-${i}`, 0)).toBe('allowed');
+  expect(limits.attempt('overflow', 0)).toBe('full');
+  expect(limits.connect('address-0')).toBe(true);
+  limits.prune(600_000);
+  expect(limits.attempt('overflow', 600_000)).toBe('allowed');
+  for (let i = 0; i < 60; i++) expect(limits.attempt('address-0', 600_000)).toBe('allowed');
+  expect(limits.attempt('address-0', 600_000)).toBe('limited');
+  expect(limits.attempt('address-0', 660_000)).toBe('allowed');
+  for (let i = 0; i < 40; i++) expect(limits.register('address-0', 660_000)).toBe(true);
+  expect(limits.register('address-0', 660_000)).toBe(false);
+  expect(limits.register('address-0', 1_260_000)).toBe(true);
+});

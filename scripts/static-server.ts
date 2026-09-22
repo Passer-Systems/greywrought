@@ -6,7 +6,7 @@ if (!await Bun.file(resolve(root, "index.html")).exists()) {
   console.error(`Greywrought cannot start: ${resolve(root, "index.html")} is missing. Run bun run build in the Greywrought checkout first, then retry.`);
   process.exit(1);
 }
-const worldService = Bun.env.GREYWROUGHT_LOCAL_WORLD === "1"
+const worldService = Bun.env.GREYWROUGHT_LOCAL_WORLD !== "0"
   ? await createWorldService({savePath: resolve(import.meta.dir, "..", Bun.env.GREYWROUGHT_WORLD_SAVE ?? "build/demo-shared-world.json")})
   : undefined;
 const serverOptions = {
@@ -21,8 +21,7 @@ const serverOptions = {
     const file = Bun.file(path);
     if (!await file.exists()) return new Response("Not found", { status: 404 });
     if (path === resolve(root, "index.html")) {
-      const world = worldService ? "" : '<meta name="greywrought-world" content="wss://play.greywrought.com/world">';
-      return new Response((await file.text()).replace("</head>", world + "</head>"), {
+      return new Response(file, {
         headers: { "Cache-Control": "no-store", "Content-Type": "text/html" },
       });
     }

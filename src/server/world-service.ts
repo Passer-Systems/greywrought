@@ -17,6 +17,7 @@ import type { PartyCommand, PartyPingView, PartyView, PartyInviteView, ServerWor
 import { DISCONNECT_GRACE_MS, DEPARTURE_CLOSE_CODE } from '../game/multiplayer-types.js';
 import { normalizedCharacterName } from '../host/character-profile.js';
 import type { LocalCharacter } from '../host/character-profile.js';
+import { clientAddress, createAddressLimits } from './world-limits.js';
 
 const ACTIONS = [
   'forward', 'backward', 'left', 'right', 'jump', 'dive', 'strike', 'special', 'brace', 'bait', 'gather', 'cancelGather', 'ritual', 'interact', 'buyPotion', 'drinkPotion',
@@ -95,6 +96,10 @@ interface Party { id: string; leaderId: string; members: string[]; }
 interface PartyInvite extends PartyInviteView { recipientId: string; }
 interface SavedService { version: 1; parties: Party[]; accounts: Account[]; world: string; chat: SharedChatMessage[]; nextChatId: number; }
 export interface WorldSocketData {
+  address: string;
+  messagesStartedAt: number;
+  messageCount: number;
+  throttled: boolean;
   id: string | null;
   openedAt: number;
   lastSequence: number;
@@ -106,6 +111,7 @@ export interface WorldSocketData {
 export interface WorldServiceOptions {
   savePath: string;
   allowedOrigins?: readonly string[];
+  trustProxy?: boolean;
   onPersistenceError?: (error: unknown) => void;
 }
 
@@ -160,6 +166,7 @@ export async function createWorldService(options: WorldServiceOptions) {
   let nextChatId = saved?.nextChatId ?? 1;
   let serverTime = 0;
   const clients = new Set<ServerWebSocket<WorldSocketData>>();
+  const addressLimits = createAddressLimits();
   const online = new Map<string, ServerWebSocket<WorldSocketData>>();
   const disconnectedUntil = new Map<string, number>();
   const privateChat = new Map<string, SharedChatMessage[]>();
@@ -306,7 +313,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     world.leave(id, cohort(id));
   }
   function disconnect(socket: ServerWebSocket<WorldSocketData>, immediate = false): void {
-    clients.delete(socket);
+    if (clients.delete(socket)) addressLimits.disconnect(socket.data.address);
     const id = socket.data.id;
     if (id === null || online.get(id) !== socket) return;
     stopInput(id);
@@ -329,6 +336,9 @@ export async function createWorldService(options: WorldServiceOptions) {
     }
     if (online.has(selected.id)) { error(socket, 'This character is already playing in another window.'); socket.close(4001, 'Character already playing'); return; }
     if (online.size >= MAX_PLAYERS) { error(socket, 'The world is full. Please try again shortly.'); socket.close(4002, 'World full'); return; }
+    if (!existing && !addressLimits.register(socket.data.address, performance.now())) {
+      error(socket, 'Too many new adventurers. Please try again later.'); socket.close(4008, 'Registration limit'); return;
+    }
     const deadline = disconnectedUntil.get(selected.id);
     if (deadline !== undefined && performance.now() >= deadline) settleDisconnect(selected.id);
     disconnectedUntil.delete(selected.id);
@@ -471,7 +481,15 @@ export async function createWorldService(options: WorldServiceOptions) {
     open(socket) { clients.add(socket); },
     pong(socket) { socket.data.lastPongAt = performance.now(); },
     message(socket, payload) {
-      if (closed) return;
+      if (closed || socket.data.throttled) return;
+      const receivedAt = performance.now();
+      if (receivedAt - socket.data.messagesStartedAt >= 1000) { socket.data.messagesStartedAt = receivedAt; socket.data.messageCount = 0; }
+      if (++socket.data.messageCount > 300) {
+        socket.data.throttled = true;
+        disconnect(socket);
+        socket.close(4008, 'Message limit');
+        return;
+      }
       if (typeof payload !== 'string' || new TextEncoder().encode(payload).byteLength > MAX_PAYLOAD) { error(socket, 'That message is too large.'); socket.close(1009, 'Message too large'); return; }
       let value: unknown;
       try { value = JSON.parse(payload); } catch { error(socket, 'That message could not be read.'); return; }
@@ -524,6 +542,7 @@ export async function createWorldService(options: WorldServiceOptions) {
   let previousTick = performance.now();
   const tick = setInterval(() => {
     const now = performance.now();
+    addressLimits.prune(now);
     const elapsed = Math.min((now - previousTick) / 1000, 0.25);
     previousTick = now;
     world.advance(elapsed);
@@ -553,11 +572,18 @@ export async function createWorldService(options: WorldServiceOptions) {
       if (url.pathname === '/health') return Response.json({ ready: !closed, players: online.size });
       if (url.pathname !== '/world') return undefined;
       if (closed) return new Response('The world is resting. Please return shortly.', { status: 503 });
-      const origin = request.headers.get('origin');
-      if (origin !== null && origin !== url.origin && !options.allowedOrigins?.includes(origin)) return new Response('Please enter from the game.', { status: 403 });
-      if (clients.size >= MAX_PLAYERS * 2) return new Response('The world is busy. Please try again shortly.', { status: 503 });
+      const peer = server.requestIP(request)?.address;
+      const address = peer ? clientAddress(peer, request.headers.get('x-greywrought-client-ip'), options.trustProxy === true) : null;
+      if (!address) return new Response('Please enter from the game.', { status: 403 });
       const openedAt = performance.now();
-      if (server.upgrade(request, { data: { id: null, openedAt, lastSequence: -1, commandsAt: [], chatsAt: [], lastPingAt: openedAt, lastPongAt: openedAt } })) return undefined;
+      const attempt = addressLimits.attempt(address, openedAt);
+      if (attempt !== 'allowed') return new Response('Please try again shortly.', { status: attempt === 'full' ? 503 : 429, headers: { 'Retry-After': '60' } });
+      const origin = request.headers.get('origin');
+      if (options.allowedOrigins !== undefined ? origin === null || !options.allowedOrigins.includes(origin) : origin !== null && origin !== url.origin) return new Response('Please enter from the game.', { status: 403 });
+      if (clients.size >= MAX_PLAYERS * 2) return new Response('The world is busy. Please try again shortly.', { status: 503 });
+      if (!addressLimits.connect(address)) return new Response('Too many connections. Please try again shortly.', { status: 429, headers: { 'Retry-After': '10' } });
+      if (server.upgrade(request, { data: { address, messagesStartedAt: openedAt, messageCount: 0, throttled: false, id: null, openedAt, lastSequence: -1, commandsAt: [], chatsAt: [], lastPingAt: openedAt, lastPongAt: openedAt } })) return undefined;
+      addressLimits.disconnect(address);
       return new Response('Enter the world through the game.', { status: 426 });
     },
     async close(): Promise<void> {

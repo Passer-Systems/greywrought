@@ -1,12 +1,22 @@
 play.greywrought.com {
 	root * /srv/greywrought/current
 	encode zstd gzip
+	tls {
+		issuer acme {
+			disable_tlsalpn_challenge
+		}
+	}
 	@world path /world /health
-	reverse_proxy @world 127.0.0.1:4181
+	reverse_proxy @world 127.0.0.1:4181 {
+		header_up X-Greywrought-Client-IP {http.request.header.CF-Connecting-IP}
+	}
 	file_server
 	header {
 		Cache-Control "no-cache"
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options DENY
+		Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
 	}
 }

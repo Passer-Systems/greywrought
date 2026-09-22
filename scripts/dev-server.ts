@@ -70,7 +70,7 @@ async function buildClient(): Promise<void> {
   }
 }
 
-const worldService = Bun.env.GREYWROUGHT_LOCAL_WORLD === "1"
+const worldService = Bun.env.GREYWROUGHT_LOCAL_WORLD !== "0"
   ? await createWorldService({savePath: resolve(root, Bun.env.GREYWROUGHT_WORLD_SAVE ?? "build/local-shared-world.json")})
   : undefined;
 const serverOptions = {
@@ -109,8 +109,7 @@ const serverOptions = {
     if (!await file.exists()) return new Response("Not found", { status: 404 });
     if (relative === "index.html") {
       const script = `<script>new EventSource('/__dev/events').onmessage=()=>location.reload()</script>`;
-      const worldMeta = worldService ? "" : '<meta name="greywrought-world" content="wss://play.greywrought.com/world">';
-      return new Response((await file.text()).replace("</head>", `${worldMeta}</head>`).replace("</body>", `${script}</body>`), { headers: { ...headers, "Content-Type": "text/html" } });
+      return new Response((await file.text()).replace("</body>", `${script}</body>`), { headers: { ...headers, "Content-Type": "text/html" } });
     }
     return new Response(file, { headers });
   },

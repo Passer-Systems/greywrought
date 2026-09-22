@@ -485,10 +485,10 @@ survives reconnects and server restarts. Voice chat is not implemented. Server p
 20 Hz; scene positions interpolate each rendered frame. Rendering never resolves
 combat outcomes.
 
-Local development normally connects to the same public world so Tom and invited
-players can meet regardless of which client build they open. For isolated tests,
-launch the dev server with GREYWROUGHT_LOCAL_WORLD=1 and a separate
-GREYWROUGHT_WORLD_SAVE path. Never test combat against the live shared save.
+Local development and preview use their own local shared world. For isolated
+tests, select a separate GREYWROUGHT_WORLD_SAVE path. Browser fixtures that
+provide their own world server can disable the embedded one with
+GREYWROUGHT_LOCAL_WORLD=0. Never test combat against the live shared save.
 
 ## Private encounters and pause — 0.12.0
 

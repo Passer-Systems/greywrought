@@ -58,12 +58,15 @@ bun run dev
 
 Open http://127.0.0.1:4173/. Edit TypeScript or styles and the development server
 updates the browser. No separate language compiler or native toolchain is needed.
-The local client connects to the public shared world. Changes to shared game
-data must be tested against an isolated local world and deployed together with
-the server before exposing the new client. `bun run preview` serves a built
-client on port 4180 against the same public world; `GREYWROUGHT_PREVIEW_DIR`
-can select a completed build while development continues separately.
-To develop against a local shared world, use `GREYWROUGHT_LOCAL_WORLD=1 bun run dev`.
+Development and preview use a local shared world; they do not connect to the
+public game. Changes to shared game data must be tested locally and deployed
+together with the server before exposing the new client. `bun run preview`
+serves a built client on port 4180; `GREYWROUGHT_PREVIEW_DIR` can select a
+completed build while development continues separately. Local saves default to
+`greywrought:build/local-shared-world.json` for development and
+`greywrought:build/demo-shared-world.json` for preview. Set
+`GREYWROUGHT_WORLD_SAVE` to use a separate test save. Browser fixtures with their
+own server can set `GREYWROUGHT_LOCAL_WORLD=0` to disable the embedded world.
 
 Gameplay lives in `greywrought:src/game/`. The existing Three.js presentation,
 input, audio, and browser persistence live in `greywrought:src/host/`.
@@ -186,3 +189,6 @@ The static client connects to the shared game server. The public site is served
 by Caddy on DigitalOcean. Source edits and local tests do not alter the public
 deployment; a verified release is copied to a versioned directory before the
 server's current-release pointer changes.
+
+The public ingress and connection policy is documented in
+[greywrought:docs/security.md](docs/security.md).
