@@ -7,13 +7,14 @@ import { LAVA_LAKE, lavaLakeRatio } from './lava-layout.js';
 // the normal camera.  Its eastern edge stops short of the x=16 footpath while
 // the irregular boundary leaves coves and a rocky north-west inlet.
 export const LAKE_CENTER = { x: -27, z: -95 } as const;
-export const LAKE_RADIUS = { x: 42, z: 39 } as const;
+export const LAKE_RADIUS = { x: 46, z: 43 } as const;
 export const LAKE_WATER_LEVEL = 0.08;
 export function lakeBoundary(angle: number): number {
   const base = 1 + 0.11 * Math.sin(angle * 3 + 0.7) - 0.06 * Math.cos(angle * 2 - 0.4);
   // Preserve the east footpath and northern waterfall bluff while opening
   // the western and southern coves into the larger basin.
-  return base - .08 * Math.max(0, Math.cos(angle)) - .12 * Math.max(0, Math.sin(angle)) ** 4
+  return base - .08 * Math.max(0, Math.cos(angle)) - .18 * Math.max(0, Math.sin(angle))
+    - .12 * Math.max(0, Math.sin(angle)) ** 4
     - .3 * Math.exp(-(((angle - .5) / .55) ** 2));
 }
 function deepPocket(x: number, z: number, cx: number, cz: number, rx: number, rz: number, depth: number): number {
@@ -30,7 +31,7 @@ export function lakeDepthAt(x: number, z: number): number {
   if (radial >= boundary) return 0;
   // The basin is deep enough to cut below the surrounding meadow, so the
   // player actually swims at the center instead of standing on a buried hill.
-  const base = 4.6 * (1 - smooth(radial / boundary));
+  const base = 6.8 * (1 - smooth(radial / boundary));
   // Irregular inner sandbars taper the shallow rim without cutting the central
   // swimming lane. This is shared by water rendering, stream overlap, and movement.
   const angle = Math.atan2(z - LAKE_CENTER.z, x - LAKE_CENTER.x);
@@ -199,7 +200,7 @@ function basinHeight(x: number, z: number): number {
 }
 
 // The approach follows the western bluff; only the final cascade crosses its lip.
-const streamAnchors=[[-70,-87],[-69,-83],[-66,-79],[-62,-76.5],[-59,-75.5],[-56,-75],[-54,-76.4]] as const;
+const streamAnchors=[[-70,-87],[-68.5,-85],[-65,-84.5],[-61.5,-82.7],[-58.5,-81],[-56,-79],[-54,-76.4]] as const;
 export const STREAM_POINTS: readonly {x:number;z:number;y:number;width:number}[] = (()=>{
  const points:{x:number;z:number;y:number;width:number}[]=[];let previous=Infinity;
  for(let i=0;i<streamAnchors.length-1;i++)for(let step=0;step<=(i===streamAnchors.length-2?8:7);step++){

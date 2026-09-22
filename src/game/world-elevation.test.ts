@@ -136,7 +136,7 @@ test('the stream stays on its bluff until an unobstructed drop into the lake', a
   for (const p of STREAM_POINTS.slice(0,-6)) {
     expect(lakeDepthAt(p.x,p.z)).toBe(0);
     expect(p.y-overworldHeight(p.x,p.z)).toBeLessThan(.7);
-    expect(currentDryFloor(p.x,p.z)-overworldHeight(p.x,p.z)).toBeLessThan(2);
+    expect(currentDryFloor(p.x,p.z)-overworldHeight(p.x,p.z)).toBeLessThan(1.1);
   }
   const lip=WATERFALL_POINTS[0]!,bottom=WATERFALL_POINTS.at(-1)!;
   expect(lip.y-bottom.y).toBeGreaterThan(7);

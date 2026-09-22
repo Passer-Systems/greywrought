@@ -40,6 +40,19 @@ function foliageMaterial(source: Material, palette: Palette): Material {
 }
 
 const random = (seed: number): number => { const n = Math.sin(seed * 127.1 + 19.7) * 43758.5453; return n - Math.floor(n); };
+function coverNoise(x: number, z: number): number {
+  const ix = Math.floor(x), iz = Math.floor(z);
+  const sx = x - ix, sz = z - iz, u = sx*sx*(3-2*sx), v = sz*sz*(3-2*sz);
+  const a = random(ix*71+iz*293), b = random((ix+1)*71+iz*293);
+  const c = random(ix*71+(iz+1)*293), d = random((ix+1)*71+(iz+1)*293);
+  return (a+(b-a)*u)*(1-v)+(c+(d-c)*u)*v;
+}
+function dampBank(x: number, z: number): boolean {
+  const height = terrainHeight(x,z), stream = streamAt(x,z);
+  if (stream && height < stream.surface + 1) return true;
+  return height < LAKE_WATER_LEVEL + 1.5 &&
+    [[-4,0],[4,0],[0,-4],[0,4]].some(([dx,dz]) => lakeWaterAt(x+dx!,z+dz!) !== null);
+}
 const oldTrails: readonly (readonly (readonly [number, number])[])[] = [
   [[0,-40],[0,-55],[1,-77],[12,-89],[16,-104],[14,-124]],
   [[0,-46],[9,-45],[21,-46],[28,-46]],
@@ -72,18 +85,19 @@ function accepts(x: number, z: number, tree: boolean): boolean {
 
 type Plant = readonly [name: string, palette: Palette, height: number, width: number];
 const communities = {
-  copper: [['Bush_Common','wine',.95,1.15], ['Fern_1','moss',.7,1.55], ['Flower_4_Group','reed',.55,.7]],
-  marsh: [['Grass_Common_Short','reed',1.85,.6], ['Fern_1','blue',.95,1.4], ['Bush_Common','ash',1.15,1.25]],
-  rust: [['Fern_1','rust',.58,1.25], ['Grass_Common_Short','reed',.68,.85], ['Flower_3_Group','wine',.52,.75]],
-  spores: [['Mushroom_Common','ivory',.7,1.3], ['Mushroom_Common','violet',.32,1.55], ['Fern_1','ash',.48,1.25]],
-  shade: [['Fern_1','moss',.72,1.6], ['Mushroom_Common','ivory',.38,1.1], ['Bush_Common','wine',.72,1.3]],
-  dry: [['Grass_Common_Short','moss',.5,1.7], ['Fern_1','rust',.52,1.2], ['Flower_4_Group','ash',.48,.85]],
+  copper: [['Bush_Common','wine',.65,.95], ['Fern_1','moss',.32,1], ['Flower_4_Group','reed',.3,.7]],
+  marsh: [['Grass_Common_Short','reed',.8,.65], ['Fern_1','blue',.38,1], ['Bush_Common','ash',.75,1]],
+  rust: [['Fern_1','rust',.28,.95], ['Grass_Common_Short','reed',.3,1.1], ['Flower_3_Group','wine',.3,.75]],
+  spores: [['Mushroom_Common','ivory',.38,1.2], ['Mushroom_Common','violet',.2,1.3], ['Fern_1','ash',.28,1]],
+  shade: [['Fern_1','moss',.34,1], ['Mushroom_Common','ivory',.24,1], ['Bush_Common','wine',.55,1]],
+  dry: [['Grass_Common_Short','moss',.24,1.5], ['Fern_1','rust',.26,1], ['Flower_4_Group','ash',.26,.85]],
 } as const satisfies Record<string, readonly Plant[]>;
 type Community = keyof typeof communities;
 function communityAt(x: number, z: number, seed: number): Community {
+  if (dampBank(x,z)) return 'marsh';
   switch (regionAt(x,z).id) {
     case 'brinewood': return random(seed) < .8 ? 'copper' : 'shade';
-    case 'glassmire': return 'marsh';
+    case 'glassmire': return random(seed) < .6 ? 'shade' : 'dry';
     case 'suture-reach': return 'rust';
     case 'ossuary': return 'spores';
     case 'choirworks': return random(seed) < .65 ? 'dry' : 'shade';
@@ -170,41 +184,47 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
     });
     return true;
   }
-  // Each cell owns a small budget, so distant regions cannot be starved by an
-  // earlier patch consuming a global cap. Bent, offset clumps leave open soil
-  // between communities; their species stay coherent within each spatial batch.
-  const spacing = 18;
+  // Random colony centers and a continuous density field leave connected open
+  // ground. Grass carries the open-country cover; ferns belong to sheltered beds.
+  const bounds = EXPANDED_WORLD_BOUNDS;
+  const candidates = Math.ceil((bounds.maxX-bounds.minX)*(bounds.maxZ-bounds.minZ)/430);
   let fieldPlants = 0;
-  for (let cz=EXPANDED_WORLD_BOUNDS.minZ+spacing/2;cz<EXPANDED_WORLD_BOUNDS.maxZ;cz+=spacing) {
-    for (let cx=EXPANDED_WORLD_BOUNDS.minX+spacing/2;cx<EXPANDED_WORLD_BOUNDS.maxX;cx+=spacing) {
-      const seed = cx*41+cz*137+92017, turn = random(seed)*Math.PI*2;
-      const x = cx+(random(seed+1)-.5)*spacing*.65, z = cz+(random(seed+2)-.5)*spacing*.65;
-      const communityName = communityAt(x,z,seed+3), community = communities[communityName];
-      const count = 52+Math.floor(random(seed+4)*25), reach = 11+random(seed+5)*5;
-      // Ferns and grass carry broad ground coverage; costlier bushes, flowers
-      // and fungi are accents rather than repeated across an entire clump.
-      const primary = communityName === 'copper' ? 1 : communityName === 'shade' ? 0 : communityName === 'spores' ? 2 : random(seed+6) < .6 ? 0 : 1;
-      for (let i=0;i<count;i++) {
-        const angle = random(seed+i*17+10)*Math.PI*2, radius = Math.sqrt(random(seed+i*31+11));
-        const along = Math.cos(angle)*radius*reach;
-        const across = Math.sin(angle)*radius*reach*.65+Math.sin(along*.35)*1.8;
-        const px = x+along*Math.cos(turn)-across*Math.sin(turn), pz = z+along*Math.sin(turn)+across*Math.cos(turn);
-        // Broad beds share one species; authored patches carry the accents.
-        const plant = community[primary];
-        const size = .7+random(seed+i*47+12)*.7;
-        if (place(plant[0],plant[1],px,pz,plant[2]*size,plant[3],angle)) fieldPlants++;
-      }
+  for (let patch=0;patch<candidates;patch++) {
+    const seed = 92017+patch*173, turn = random(seed)*Math.PI*2;
+    const x = bounds.minX+random(seed+1)*(bounds.maxX-bounds.minX);
+    const z = bounds.minZ+random(seed+2)*(bounds.maxZ-bounds.minZ);
+    const density = coverNoise(x/37,z/37)*.7+coverNoise(x/13+21,z/13-9)*.3;
+    if (density < .42 || random(seed+3) > .7) continue;
+    const wet = dampBank(x,z), community = communityAt(x,z,seed+4);
+    const count = 12+Math.floor(random(seed+5)*19), reach = 3+random(seed+6)*6;
+    const palette = wet ? 'reed' : community === 'rust' ? 'reed' : community === 'spores' ? 'ash' : 'moss';
+    for (let i=0;i<count;i++) {
+      const angle = random(seed+i*17+10)*Math.PI*2, radius = Math.sqrt(random(seed+i*31+11));
+      const along = Math.cos(angle)*radius*reach;
+      const across = Math.sin(angle)*radius*reach*.45+Math.sin(along*.6)*.7;
+      const px = x+along*Math.cos(turn)-across*Math.sin(turn), pz = z+along*Math.sin(turn)+across*Math.cos(turn);
+      if (coverNoise(px/3.8,pz/3.8) < .32) continue;
+      const height = wet ? .35+random(seed+i*47+12)*.35 : .13+random(seed+i*47+12)*.18;
+      if (place('Grass_Common_Short',palette,px,pz,height,wet?.7:1.5,angle)) fieldPlants++;
     }
   }
   for (const [index,[cx,cz,reach,community,count]] of patches.entries()) {
-    const seed = 6207+index*211, turn = random(seed)*Math.PI*2, plants = communities[community];
-    for (let i=0;i<count;i++) {
-      const lobe = i%3, angle = random(seed+i*17+1)*Math.PI*2, radius = Math.sqrt(random(seed+i*31+2));
-      const along = (lobe-1)*reach*.53+Math.cos(angle)*radius*reach*.46;
-      const across = Math.sin(angle)*radius*reach*(.22+lobe*.04)+(random(seed+lobe+7)-.5)*2;
+    const seed = 6207+index*211, turn = random(seed)*Math.PI*2;
+    const plants = communities[community === 'marsh' && !dampBank(cx,cz) ? 'shade' : community];
+    const colonyCount = Math.ceil(count*(.3+random(seed+8)*.2));
+    const lobes = Array.from({length:1+Math.floor(random(seed+9)*3)},(_,lobe) => ({
+      along:(random(seed+lobe*13+20)-.5)*reach,
+      across:(random(seed+lobe*23+21)-.5)*reach*.7,
+      radius:reach*(.2+random(seed+lobe*37+22)*.3),
+    }));
+    for (let i=0;i<colonyCount;i++) {
+      const lobe = lobes[Math.floor(random(seed+i*11+30)*lobes.length)]!;
+      const angle = random(seed+i*17+1)*Math.PI*2, radius = Math.sqrt(random(seed+i*31+2));
+      const along = lobe.along+Math.cos(angle)*radius*lobe.radius;
+      const across = lobe.across+Math.sin(angle)*radius*lobe.radius*.65;
       const x = cx+along*Math.cos(turn)-across*Math.sin(turn), z = cz+along*Math.sin(turn)+across*Math.cos(turn);
-      const plant = plants[i%9 < 5 ? 0 : i%9 < 8 ? 1 : 2];
-      const size = .58+random(seed+i*47+5)*.94;
+      const species = random(seed+i*43+4), plant = plants[species<.65?0:species<.92?1:2];
+      const size = .65+random(seed+i*47+5)*.65;
       place(plant[0],plant[1],x,z,plant[2]*size,plant[3],angle);
     }
   }
@@ -212,8 +232,8 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
   // small lake coordinates. Broken shoreline beds leave swimming approaches.
   for (let bank=0;bank<34;bank++) {
     const seed = 19031+bank*127;
-    if (random(seed)<.22) continue;
-    const angle = (bank+random(seed+1)*.7)/34*Math.PI*2;
+    if (random(seed)<.43) continue;
+    const angle = random(seed+1)*Math.PI*2;
     const dx=Math.cos(angle)*LAKE_RADIUS.x,dz=Math.sin(angle)*LAKE_RADIUS.z;
     let inner=0,outer=lakeBoundary(angle)*1.4;
     for (let step=0;step<14;step++) {
@@ -222,16 +242,17 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
       else outer=middle;
     }
     const cx=LAKE_CENTER.x+dx*outer,cz=LAKE_CENTER.z+dz*outer;
-    for (let plant=0;plant<42;plant++) {
+    const count = 12+Math.floor(random(seed+4)*15);
+    for (let plant=0;plant<count;plant++) {
       const along=(random(seed+plant*19+2)-.5)*11;
       const outward=random(seed+plant*31+3)*5;
       const x=cx-Math.sin(angle)*along+Math.cos(angle)*outward;
       const z=cz+Math.cos(angle)*along+Math.sin(angle)*outward;
-      const reed=outward<1.7, shrub=!reed && plant%13===0;
+      const reed=outward<1.7, shrub=!reed && random(seed+plant*7)<.08;
       if (place(shrub?'Bush_Common':reed?'Grass_Common_Short':'Fern_1',
         shrub?'ash':reed?'reed':'moss',x,z,
-        shrub?.75+random(seed+plant)*.45:reed?.65+random(seed+plant)*.7:.36+random(seed+plant)*.4,
-        reed?.6:1.6,random(seed+plant*43)*6.28)) shorePlants++;
+        shrub?.55+random(seed+plant)*.3:reed?.45+random(seed+plant)*.45:.22+random(seed+plant)*.16,
+        reed?.65:1,random(seed+plant*43)*6.28)) shorePlants++;
     }
   }
   // Interlocking lobes form broken forest edges, with open road-facing gaps.
@@ -258,11 +279,16 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
       const name=dead ? 'DeadTree_2' : palette==='pine' ? 'Pine_5' : placed%3===0 ? 'TwistedTree_2' : 'CommonTree_2';
       if(place(name,palette,x,z,height,.75+random(seed+attempt*11)*.5,angle,true)) {
         placed++;
-        // Broad understory clumps join the trunks to the existing plant beds.
-        const community=palette==='ash'||palette==='blue' ? communities.marsh : palette==='pine' ? communities.shade : communities.copper;
-        for(let p=0;p<9;p++) {
-          const plant=community[palette==='pine'?(p===0?1:0):p===0?0:1]!,az=angle+p*2.3,offset=.9+random(seed+attempt+p)*3.2;
-          place(plant[0],plant[1],x+Math.cos(az)*offset,z+Math.sin(az)*offset,plant[2]*(.9+random(seed+p+attempt)*.6),plant[3],az);
+        // Sheltered colonies occupy one side of some trunks, with bare roots
+        // and leaf litter elsewhere instead of an identical wreath per tree.
+        const rootSeed=seed+attempt*67;
+        if (random(rootSeed) < .3) continue;
+        const community=communities[communityAt(x,z,rootSeed+1)];
+        const cover=3+Math.floor(random(rootSeed+2)*5), side=random(rootSeed+3)*Math.PI*2;
+        for(let p=0;p<cover;p++) {
+          const plant=community[random(rootSeed+p*19+4)<.78?1:0]!;
+          const az=side+(random(rootSeed+p*23+5)-.5)*2.2,offset=.7+random(rootSeed+p*29+6)*2.6;
+          place(plant[0],plant[1],x+Math.cos(az)*offset,z+Math.sin(az)*offset,plant[2]*(.7+random(rootSeed+p*31+7)*.55),plant[3],az);
         }
       }
     }
@@ -274,6 +300,7 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
     for (const [index,matrix] of batch.matrices.entries()) instances.setMatrixAt(index,matrix);
     instances.instanceMatrix.needsUpdate = true;
     instances.castShadow = batch.tree;
+    instances.userData.cameraCollisionBlocker = batch.tree;
     instances.userData.staticFoliage = !batch.tree;
     instances.receiveShadow = true;
     instances.computeBoundingSphere();

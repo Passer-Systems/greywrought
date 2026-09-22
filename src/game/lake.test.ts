@@ -55,6 +55,32 @@ describe('meadow lake', () => {
     const loot = createAdventure({ save: JSON.stringify(defeated) }).snapshot.loot.find(t => t.sourceId === 'lake-dreadnought')!;
     expect(loot).toMatchObject({ available: true, quantity: 4, kind: 'salvage' });
   });
+  test('Dredgeback cruises the lakebed and surfaces on a slow deterministic cycle', () => {
+    const saved = JSON.parse(createAdventure().save());
+    Object.assign(saved.state, { phase: 'expedition', position: { x: 60, y: terrainHeight(60, 60), z: 60 } });
+    const game = createAdventure({ save: JSON.stringify(saved) });
+    game.advance(.1);
+    const dredgeback = () => game.snapshot.threats.find(t => t.id === 'lake-dreadnought')!;
+    let previous = dredgeback().position.y, deepSamples = 0, surfaced = false;
+    for (let step=0;step<200;step++) {
+      game.advance(.25);
+      const position = dredgeback().position, bed = terrainHeight(position.x,position.z);
+      expect(position.y).toBeGreaterThanOrEqual(bed);
+      expect(Math.abs(position.y-previous)).toBeLessThan(.5);
+      if (position.y<lakeWaterAt(position.x,position.z)!-3) deepSamples++;
+      if (position.y>lakeWaterAt(position.x,position.z)!-2) surfaced=true;
+      previous = position.y;
+      if (step === 40) {
+        const restored = createAdventure({save:game.save()});
+        expect(restored.snapshot.threats.find(t=>t.id==='lake-dreadnought')!.position.y).toBeCloseTo(position.y,6);
+        restored.advance(.25); game.advance(.25);
+        expect(restored.snapshot.threats.find(t=>t.id==='lake-dreadnought')!.position.y).toBeCloseTo(dredgeback().position.y,6);
+        previous = dredgeback().position.y;
+      }
+    }
+    expect(deepSamples).toBeGreaterThan(140);
+    expect(surfaced).toBe(true);
+  });
   test('has a shallow shoreline and deeper swimming basin', () => {
     expect(lakeDepthAt(LAKE_CENTER.x + 13, LAKE_CENTER.z)).toBeGreaterThan(0);
     expect(lakeDepthAt(LAKE_CENTER.x, LAKE_CENTER.z)).toBeGreaterThan(1);

@@ -52,3 +52,32 @@ test('walkable ground, actors and transparent decorations do not block the boom'
   const camera = new Vector3(0, 0, 10); collision.update(new Vector3(), camera, 1 / 60);
   expect(camera.z).toBe(10); collision.dispose();
 });
+
+test('soft vegetation does not block the boom, including instanced foliage', () => {
+  const root = new Group(), material = new MeshStandardMaterial();
+  const grass = new Mesh(new BoxGeometry(3, 3, 3), material);
+  grass.userData.cameraCollisionBlocker = false;
+  const ferns = new InstancedMesh(new BoxGeometry(3, 3, 3), material, 1);
+  ferns.userData.cameraCollisionBlocker = false;
+  ferns.setMatrixAt(0, new Matrix4().makeTranslation(0, 0, 6));
+  root.add(grass, ferns);
+  const collision = createCameraCollision(); collision.install(root);
+  const camera = new Vector3(0, 0, 10);
+  collision.update(new Vector3(), camera, 1 / 60);
+  expect(camera.z).toBe(10);
+  collision.dispose();
+});
+
+test('solid scenery remains a camera blocker beside soft vegetation', () => {
+  const root = new Group(), material = new MeshStandardMaterial();
+  const grass = new Mesh(new BoxGeometry(3, 3, 3), material);
+  grass.userData.cameraCollisionBlocker = false;
+  const rock = new Mesh(new BoxGeometry(3, 3, 3), material);
+  rock.position.z = 6;
+  root.add(grass, rock);
+  const collision = createCameraCollision(); collision.install(root);
+  const camera = new Vector3(0, 0, 10);
+  collision.update(new Vector3(), camera, 1 / 60);
+  expect(camera.z).toBeLessThan(6);
+  collision.dispose();
+});

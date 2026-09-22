@@ -86,14 +86,16 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     const water=lakeWaterAt(x,z);
     if (water!==null && terrainHeight(x,z)<water+.25) return;
     place(name, x, z, height, rotation, terrain, 'height', 0, undefined, 0, lean, palette);
-    // Root mats connect each canopy to its ground bed without a uniform ring.
-    for (let plant=0;plant<9;plant++) {
-      const angle=rotation+plant*2.399, spread=.6+Math.sqrt(plant)*.72;
+    // Broken colonies favor one side of the trunk; leaf litter fills the gaps.
+    const rootSeed=x*31+z*73, cover=noise(rootSeed)<.25?0:3+Math.floor(noise(rootSeed+1)*5);
+    const side=noise(rootSeed+2)*Math.PI*2;
+    for (let plant=0;plant<cover;plant++) {
+      const angle=side+(noise(rootSeed+plant*17+3)-.5)*2.3, spread=.6+noise(rootSeed+plant*29+4)*2.5;
       const px=x+Math.cos(angle)*spread,pz=z+Math.sin(angle)*spread*.7;
       const water=lakeWaterAt(px,pz);
       if (water!==null && terrainHeight(px,pz)<water+.15 || !clearOfPatrols(px,pz,6)) continue;
       place(plant%4===0?'nature/Fern_1':'nature/Grass_Common_Short',px,pz,
-        plant%4===0?.48+noise(x+z+plant)*.34:.24+noise(x-z+plant)*.25,angle,terrain,'height',-.045);
+        plant%4===0?.24+noise(x+z+plant)*.17:.14+noise(x-z+plant)*.16,angle,terrain,'height',-.045);
     }
   }
   // Damaged trees use the authored Quaternius dead-tree silhouette. A horizontal
@@ -573,10 +575,10 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     [26,-103,6], [20,-125,5], [43,-82,7], [45,-113,6], [-8,-54,4],
   ].entries()) {
     const seed = 3101 + patch * 137, turn = noise(seed) * Math.PI * 2;
-    const count = 74 + Math.floor(noise(seed + 1) * 40);
+    const count = 24 + Math.floor(noise(seed + 1) * 30);
     for (let item = 0; item < count; item++) {
       // Three unequal lobes, with thin tails and gaps between dense root mats.
-      const lobe = item % 3, radius = Math.sqrt(noise(seed + item * 17 + 3));
+      const lobe = Math.floor(noise(seed + item * 11 + 2) * 3), radius = Math.sqrt(noise(seed + item * 17 + 3));
       const angle = noise(seed + item * 23 + 4) * Math.PI * 2;
       const along = (lobe - 1) * reach! * .6 + Math.cos(angle) * radius * reach! * .46;
       const across = Math.sin(angle) * radius * reach! * (.43 + lobe * .07) + Math.sin(lobe * 3 + seed) * 1.1;
@@ -587,7 +589,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
       const clearingEdge = Math.max(0, Math.min(1, (Math.min(...encounterPatrols.map(([px,pz])=>Math.hypot(x-px,z-pz)))-3)/5));
       const fern = clearingEdge>.8 && item % 17 === 0, stone = clearingEdge>.8 && item % 23 === 0 && !fern;
       place(fern ? 'nature/Fern_1' : stone ? 'nature/Rock_Medium_1' : 'nature/Grass_Common_Short',
-        x, z, fern ? .42 + variation * .27 : stone ? .2 + variation * .36 : .13 + clearingEdge * (.24 + variation * .3),
+        x, z, fern ? .24 + variation * .16 : stone ? .2 + variation * .36 : .1 + clearingEdge * (.12 + variation * .16),
         angle + turn, terrain, stone ? 'width' : 'height', -.035);
     }
   }
@@ -602,6 +604,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     const source = meshes[0]!;
     const instances = new InstancedMesh(source.geometry, source.material, meshes.length);
     instances.castShadow = source.castShadow;
+    if (source.userData.cameraCollisionBlocker === false) instances.userData.cameraCollisionBlocker = false;
     instances.userData.staticFoliage = !source.castShadow;
     instances.receiveShadow = source.receiveShadow;
     inverse.copy(parent.matrixWorld).invert();

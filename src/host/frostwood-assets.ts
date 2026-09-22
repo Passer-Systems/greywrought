@@ -152,6 +152,8 @@ export async function prop(name: string, size: number, axis: "height" | "width" 
   const model = (await promise).clone(true);
   model.traverse(object => {
     if (!(object instanceof Mesh)) return;
+    // Scenery batching must preserve soft vegetation's camera exclusion.
+    if (/\/(?:Grass|Fern|Flower|Mushroom|Bush)[^/]*$/i.test(name)) object.userData.cameraCollisionBlocker = false;
     object.material = Array.isArray(object.material) ? object.material.map(canopyMaterial) : canopyMaterial(object.material);
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];

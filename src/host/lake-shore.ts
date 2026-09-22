@@ -72,11 +72,23 @@ export async function buildLakeShore(parent: Group): Promise<void> {
   // Existing authored boulders frame the cascade without blocking the bank.
   // The final stones are keyed from the actual stream endpoint, so they stay
   // attached to the plunge pool if the channel is tuned later.
+  // A broken spring seam at the head gives the creek a believable source. The
+  // stones sit off the centre line, leaving the shallow runnel visible between
+  // them instead of forming a decorative, symmetric gate.
+  groundPatch(parent, -69.6, -86.8, 4.6, 2.5, true);
+  for (const [x, z, size, rotation, tilt] of [
+    [-70.5, -87.6, 1.25, .35, .12], [-70.2, -85.7, .48, 2.2, -.08],
+    [-68.5, -87.9, .58, -.7, .1], [-67.8, -86.1, .34, 1.4, -.04],
+  ] as const) place('nature/Rock_Medium_1', x, z, size, rotation, tilt);
   for (const [x, z, size, rotation, tilt] of [
     [-69.2, -80.5, .72, .4, .14], [-62.0, -78.2, .46, 2.1, -.08],
     [-59.0, -73.8, .35, -.6, .11], [-55.0, -73.7, .62, 1.7, -.1],
     [-54.7, -77.7, .38, -.3, .06], [-52.8, -75.5, .58, 2.4, .08],
   ] as const) place('nature/Rock_Medium_3', x, z, size, rotation, tilt);
+  // Unequal capstones break up the straight bluff edge at the actual drop.
+  // Keep the larger one downhill so the lip remains readable from the lake.
+  place('nature/Rock_Medium_3', -54.9, -76.9, .86, .7, .1);
+  place('nature/Rock_Medium_1', -53.1, -76.2, .42, 2.5, -.06);
   const plunge = WATERFALL_POINTS.at(-1)!;
   for (const [dx, dz, size, rotation] of [
     [-1.45, -.35, .72, .2], [.95, .25, .58, 1.8], [.15, 1.05, .42, 2.7],

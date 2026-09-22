@@ -94,6 +94,8 @@ interface ThreatState {
   remainingSeconds: number; actionSequence: number; lastActionHit: boolean; damage: number;
   position: Vector; turnTarget: Vector; targetPosition: Vector; targetPlayerId: string | null; aggro: boolean; lootClaimed: boolean;
   patrolIndex: number; moving: boolean; abilityIndex: number; travelFacing: Vector;
+  /** Deterministic ambient swim cycle for deep-water creatures. */
+  waterPhase: number;
   wolf: WolfState | null; head: HeadState | null;
 }
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -302,7 +304,7 @@ const newThreat = (t: ThreatDefinition): ThreatState => ({
   castDuration: 0, shieldSeconds: 0,
   remainingSeconds: 0, actionSequence: 0, lastActionHit: false, damage: t.behavior === "wolf" ? 18 : t.damage,
   position: { ...t.position }, turnTarget: { ...t.position }, targetPosition: { ...t.position }, targetPlayerId: null, aggro: false,
-  lootClaimed: false, patrolIndex: 1, moving: false, abilityIndex: 0, travelFacing: { x: 0, y: 0, z: 1 },
+  lootClaimed: false, patrolIndex: 1, moving: false, abilityIndex: 0, travelFacing: { x: 0, y: 0, z: 1 }, waterPhase: t.id === "lake-dreadnought" ? 18 : 0,
   wolf: t.behavior === "wolf" ? { ...newWolf(), attackOrigin: { ...t.position } } : null, head: t.behavior === "head" ? newHead() : null,
 });
 const newThreats = (): ThreatState[] => DEFINITIONS.map(newThreat);
@@ -987,7 +989,11 @@ class Adventure implements AdventureGame {
   }
   private beginExecution(): void {
     const clock = this.state.combat.clock;
-    if (clock.phase !== "preparation" || clock.gatheringRemainingSeconds > EPSILON) return;
+    // Ready is the explicit start gate.  The opening gathering timer is only
+    // a grace period for nearby social aggro; it must not hold the players'
+    // first turn after everyone has committed their plan.
+    if (clock.phase !== "preparation") return;
+    clock.gatheringRemainingSeconds = 0;
     clock.phase = "active"; clock.elapsedSeconds = 0; clock.pendingSeconds = 0;
     const destinations: Position[] = [];
     for (const player of this.combatants()) {
@@ -1908,7 +1914,7 @@ class Adventure implements AdventureGame {
     const previousPositions = new Map(players.map(player => [player.playerId ?? "solo", { ...player.state.position }]));
     for (const player of players) player.stepPlayer(dt);
     for (const t of this.state.world.threats) {
-      t.moving = false; const target = this.chooseTarget(t);
+      t.moving = false; this.advanceWaterDepth(t, dt); const target = this.chooseTarget(t);
       if (t.aggro && target && t.targetPlayerId !== target.playerId) {
         // A departing player does not rewind the creature's current cast or
         // ramp. The replacement target inherits the live encounter beat.
@@ -1935,7 +1941,7 @@ class Adventure implements AdventureGame {
     const previousPositions = new Map([[this.playerId ?? "solo", { ...this.state.position }]]);
     this.stepPlayer(dt);
     if (this.state.health <= 0) { this.finishCombatStep(0); return; }
-    for (const threat of this.state.world.threats) { threat.moving = false; this.acquireOrRelease(threat, dt); }
+    for (const threat of this.state.world.threats) { threat.moving = false; this.advanceWaterDepth(threat, dt); this.acquireOrRelease(threat, dt); }
     if (this.state.combat.clock.phase === "active") {
       this.executeQueued();
       for (const threat of this.state.world.threats) {
@@ -2211,6 +2217,30 @@ class Adventure implements AdventureGame {
     const d = definition(t.id);
     return (d.pursuitSpeed ?? d.speed) * (t.slowedCycle > 0 && t.slowedCycle === this.state.combat.clock.cycle ? .5 : 1);
   }
+  /** Keep Dredgeback's actual simulation position below the surface while it
+   * cruises the lakebed, surfacing briefly on a deterministic cycle. */
+  private updateWaterDepth(t: ThreatState): void {
+    if (t.id !== "lake-dreadnought") {
+      t.position.y = terrainHeight(t.position.x, t.position.z);
+      return;
+    }
+    const water = lakeWaterAt(t.position.x, t.position.z);
+    if (water === null) { t.position.y = terrainHeight(t.position.x, t.position.z); return; }
+    const phase = t.waterPhase;
+    // A 50-second cycle is mostly a quiet lakebed cruise. The cosine ramps
+    // make each ascent/descent take six seconds rather than teleporting.
+    const surface = phase < 4 ? 1 : phase < 10 ? (1 + Math.cos((phase - 4) / 6 * Math.PI)) / 2
+      : phase < 42 ? 0 : phase < 48 ? (1 - Math.cos((phase - 42) / 6 * Math.PI)) / 2 : 1;
+    const bed = terrainHeight(t.position.x, t.position.z) + .35;
+    // Its armored body is 2.6m tall; only the shell crest breaks the surface.
+    const surfaceHeight = Math.max(bed, water - 1.9);
+    t.position.y = bed * (1 - surface) + surfaceHeight * surface;
+  }
+  private advanceWaterDepth(t: ThreatState, dt: number): void {
+    if (t.id !== "lake-dreadnought" || !t.active || t.health <= 0 || t.aggro) return;
+    t.waterPhase = (t.waterPhase + dt) % 50;
+    this.updateWaterDepth(t);
+  }
   private moveThreat(t: ThreatState, destination: Position, dt: number, speed = t.aggro ? this.pursuitSpeed(t) : definition(t.id).speed): void {
     if (speed === 0) return;
     let next = destination;
@@ -2236,7 +2266,7 @@ class Adventure implements AdventureGame {
     const x = t.position.x + (next.x - t.position.x) * amount, z = t.position.z + (next.z - t.position.z) * amount;
     t.travelFacing = this.direction(t.position, next);
     t.position.x = x; t.position.z = z;
-    t.position.y = terrainHeight(t.position.x, t.position.z);
+    this.updateWaterDepth(t);
     t.moving = true;
     if (t.wolf) t.wolf.facing = { ...t.travelFacing };
   }
@@ -2603,6 +2633,7 @@ function readSave(serialized: string, now = Date.now()): State {
       lootClaimed: version >= 3 ? boolean(t.lootClaimed) : id === "ritual-guardian" && health === 0,
       patrolIndex: t.patrolIndex === undefined ? 1 : number(t.patrolIndex, 0, d.patrol?.length ?? 1, true), moving: t.moving === undefined ? false : boolean(t.moving),
       travelFacing: t.travelFacing === undefined ? { x: 0, y: 0, z: 1 } : { x: number(record(t.travelFacing).x, -1, 1), y: number(record(t.travelFacing).y, 0, 0), z: number(record(t.travelFacing).z, -1, 1) },
+      waterPhase: t.waterPhase === undefined ? (id === "lake-dreadnought" ? 18 : 0) : number(t.waterPhase, 0, 50),
       abilityIndex: t.abilityIndex === undefined ? 0 : number(t.abilityIndex, 0, 2, true),
       wolf: d.behavior === "wolf" ? realtime ? readWolf(t.wolf, true) : newWolf() : null,
       head: d.behavior === "head" ? t.head ? readHead(t.head, realtime) : newHead() : null,

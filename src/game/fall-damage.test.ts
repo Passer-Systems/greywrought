@@ -48,7 +48,7 @@ test('deep water cushions a lethal landing; the shallow lake rim does not', () =
   const deep = drop(35, -27, -95); deep.advance(3);
   expect(deep.snapshot.player.health).toBe(100);
   expect(deep.snapshot.player.position.y).toBe(supportHeight(-27, -95));
-  const shallowX = -2, shallowZ = -95;
+  const shallowX = 2, shallowZ = -95;
   expect(lakeWaterAt(shallowX, shallowZ)).not.toBeNull();
   expect(lakeWaterAt(shallowX, shallowZ)!).toBeGreaterThan(terrainHeight(shallowX, shallowZ));
   expect(isSwimmingPosition(shallowX, shallowZ)).toBe(false);

@@ -18,8 +18,9 @@ export function createCameraCollision() {
       root.updateWorldMatrix(true, true);
       root.traverse(object => {
         if (!(object instanceof Mesh) || object.type === 'SkinnedMesh') return;
+        // staticFoliage also includes rocks, so camera eligibility is explicit.
         for (let parent: Object3D | null = object; parent; parent = parent.parent) {
-          if (excluded.has(parent) || parent.userData.walkableGround) return;
+          if (excluded.has(parent) || parent.userData.walkableGround || parent.userData.cameraCollisionBlocker === false) return;
         }
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         if (materials.every(material => material.transparent || !material.visible)) return;

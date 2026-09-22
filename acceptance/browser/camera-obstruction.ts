@@ -2,13 +2,15 @@ import { createSharedAdventure } from '../../src/game/adventure.js';
 import { terrainHeight } from '../../src/game/cave-layout.js';
 import { createWorldService, type WorldSocketData } from '../../src/server/world-service.js';
 import { openBrowser, check } from './session.js';
-const forest = Bun.env.CAMERA_SCENERY === 'forest';
+const undergrowth = Bun.env.CAMERA_SCENERY === 'undergrowth';
+const forest = Bun.env.CAMERA_SCENERY === 'forest' || undergrowth;
 const url = 'http://127.0.0.1:4437/';
 Object.assign(Bun.env, { GREYWROUGHT_GAME_URL: url, GREYWROUGHT_DEBUG_PORT: '9637', GREYWROUGHT_VULKAN: '1' });
 const character = { id: 'camera-grid', name: 'Cave Planner', archetype: 'warrior' as const, createdAtMillis: 1 };
 const token = 'camera-grid-token-0000000000000000000';
 const seed = createSharedAdventure(); seed.join(character.id, character.name, character.archetype);
-const saved = JSON.parse(seed.save()), position = forest ? {x:37,y:terrainHeight(37,-79),z:-79} : { x: 47, y: terrainHeight(47, -46), z: -46 };
+const saved = JSON.parse(seed.save()), position = undergrowth ? {x:49,y:terrainHeight(49,153),z:153}
+  : forest ? {x:37,y:terrainHeight(37,-79),z:-79} : { x: 47, y: terrainHeight(47, -46), z: -46 };
 Object.assign(saved.characters[0].state, { phase: 'expedition', position });
 saved.characters[0].state.combat.phase = 'preparation';
 Object.assign(saved.clock, { phase: 'preparation', elapsedSeconds: 0, cycle: 1 });
@@ -26,7 +28,7 @@ const frontend = Bun.spawn([process.execPath, Bun.env.CAMERA_STATIC === '1' ? 's
 let page: Awaited<ReturnType<typeof openBrowser>> | undefined;
 try {
   for (let i = 0; i < 100; i++) { try { if ((await fetch(url)).ok) break; } catch {} await Bun.sleep(100); }
-  page = await openBrowser(forest ? 'camera-forest' : 'camera-obstruction', { beforeNavigate: async call => {
+  page = await openBrowser(undergrowth ? 'camera-undergrowth' : forest ? 'camera-forest' : 'camera-obstruction', { beforeNavigate: async call => {
     await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{};
       localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Camera Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
@@ -44,6 +46,27 @@ try {
   await page.shot(forest ? 'forest-solid-default' : 'cave-solid-default');
   const point = await page.evaluate<{x:number;y:number} | undefined>(`[{x:900,y:450},{x:700,y:150},{x:250,y:250}].find(p=>document.elementFromPoint(p.x,p.y)?.id==='world-canvas')`);
   check(point, 'Camera input receives a point on the world canvas');
+  if (undergrowth) {
+    const vegetation = await page.evaluate<number>(`(()=>{let count=0;scene.traverse(o=>{if(o.isMesh&&o.userData.cameraCollisionBlocker===false)count+=o.isInstancedMesh?o.instanceMatrix.count:1;});return count;})()`);
+    check(vegetation > 100, 'Loaded authored vegetation retains its camera exclusion through batching');
+    // Look along the low plants while walking through the Glassmire colony.
+    await page.call('Input.dispatchMouseEvent', { type:'mousePressed', ...point, button:'right', buttons:2, clickCount:1 });
+    await page.call('Input.dispatchMouseEvent', { type:'mouseMoved', x:point.x, y:point.y-160, button:'right', buttons:2 });
+    await page.call('Input.dispatchMouseEvent', { type:'mouseReleased', x:point.x, y:point.y-160, button:'right', buttons:0, clickCount:1 });
+    await Bun.sleep(500);
+    const before = await page.evaluate<{x:number;z:number}>('({...cameraState.player.position})');
+    await page.key('KeyW',true);
+    try {
+      for (let step=0;step<10;step++) {
+        await Bun.sleep(150);
+        const frame = await page.evaluate<typeof start>('frame()');
+        check(frame.distance > 8 && frame.offset < .01, `Low cover must not retract the camera while walking: ${JSON.stringify(frame)}`);
+      }
+    } finally { await page.key('KeyW',false); }
+    const after = await page.evaluate<{x:number;z:number}>('({...cameraState.player.position})');
+    check(Math.hypot(after.x-before.x,after.z-before.z)>5, 'The camera journey crosses actual ground cover');
+    await page.shot('through-undergrowth');
+  }
   if (!forest) {
     await page.call('Input.dispatchMouseEvent', { type: 'mouseWheel', ...point, deltaX: 0, deltaY: 10000 });
     await Bun.sleep(400);

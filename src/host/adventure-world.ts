@@ -840,7 +840,10 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
         if (!rig) continue;
         rig.body.visible = threat.health > 0 ? threat.active : threat.corpseVisible;
         const water = (threat.id.startsWith("pond-turtle") || threat.id === "lake-dreadnought") ? lakeWaterAt(threat.position.x, threat.position.z) : null;
-        rig.root.position.set(threat.position.x, water === null ? threat.position.y : Math.max(threat.position.y, water - .25), threat.position.z);
+        // Dredgeback's simulation y is intentionally below the surface while
+        // it cruises the lakebed; ordinary turtles remain surface swimmers.
+        const renderY = threat.id === "lake-dreadnought" ? threat.position.y : water === null ? threat.position.y : Math.max(threat.position.y, water - .25);
+        rig.root.position.set(threat.position.x, renderY, threat.position.z);
 
         rig.lootable = snapshot.loot.some(item => item.sourceId === threat.id && item.available);
         rig.root.visible = rig.body.visible || rig.lootable;
