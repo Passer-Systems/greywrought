@@ -3,6 +3,7 @@ import { createAdventure } from '../game/adventure.js';
 import type { EncounterSession } from '../game/adventure-types.js';
 import type { ClientWorldMessage, ServerWorldMessage } from '../game/multiplayer-types.js';
 import { connectAdventure } from './network-adventure.js';
+import { createWorldStateEncoder } from '../server/world-state-encoder.js';
 
 class TestSocket {
   static readonly OPEN = 1;
@@ -62,6 +63,24 @@ async function connected(mode: EncounterSession['mode'] = 'shared') {
   socket.open(); socket.receive(state(mode));
   return { game: await ready, socket };
 }
+
+test('production client applies raw threat patches and starts a fresh baseline after reconnect', async () => {
+  const ready = connectAdventure(character), socket = TestSocket.instances[0]!, encode = createWorldStateEncoder();
+  const initial = state('shared');
+  socket.open();
+  expect(socket.sent[0]).toMatchObject({ type: 'join', stateUpdates: 'threat-delta' });
+  socket.receive(encode.encode(initial));
+  const game = await ready;
+  const next = { ...initial, snapshot: { ...initial.snapshot, threats: [{ ...initial.snapshot.threats[0]!, health: 17 }, ...initial.snapshot.threats.slice(1)] } };
+  const patch = encode.encode(next); expect(patch.type).toBe('stateDelta');
+  socket.receive(patch);
+  expect(game.snapshot.threats[0]!.health).toBe(17);
+  socket.close(); advance(1000);
+  const replacement = TestSocket.instances[1]!;
+  replacement.open(); replacement.receive(initial);
+  expect(game.snapshot.threats[0]!.health).toBe(initial.snapshot.threats[0]!.health);
+  game.close();
+});
 
 test('dead socket messages cannot reactivate play before or after reconnect', async () => {
   const { game, socket } = await connected();

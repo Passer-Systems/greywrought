@@ -4,6 +4,7 @@ import { createSharedAdventure } from '../../src/game/adventure.js';
 import { terrainHeight } from '../../src/game/cave-layout.js';
 import type { LocalCharacter } from '../../src/host/character-profile.js';
 import type { ServerWorldMessage, WorldCommand } from '../../src/game/multiplayer-types.js';
+import { createWorldMessageDecoder } from '../../src/game/world-state-transport.js';
 
 type State = Extract<ServerWorldMessage, { type: 'state' }>;
 const output = `${process.cwd()}/build/server-performance/${Bun.env.GREYWROUGHT_PERFORMANCE_LABEL ?? 'profile'}-${process.pid}`;
@@ -23,14 +24,15 @@ class Client {
   pending = new Map<number, { start: number; resolve: (accepted: boolean) => void }>();
   errors: string[] = [];
   constructor(readonly character: LocalCharacter, readonly token: string) {
+    const decodeMessage = createWorldMessageDecoder();
     this.socket = new WebSocket('ws://127.0.0.1:4303/world');
-    this.socket.onopen = () => this.socket.send(JSON.stringify({ type: 'join', character, token }));
+    this.socket.onopen = () => this.socket.send(JSON.stringify({ type: 'join', character, token, stateUpdates: 'threat-delta' }));
     this.socket.onmessage = event => {
-      const data = String(event.data), message = JSON.parse(data) as ServerWorldMessage;
+      const data = String(event.data), message = decodeMessage(JSON.parse(data) as ServerWorldMessage);
       if (message.type === 'error') this.errors.push(message.text);
       if (message.type === 'state') {
         this.state = message;
-        this.samples.push({ time: performance.now(), bytes: Buffer.byteLength(data), serverTime: message.serverTime, phase: message.snapshot.combat.phase, payload: data });
+        this.samples.push({ time: performance.now(), bytes: Buffer.byteLength(data), serverTime: message.serverTime, phase: message.snapshot.combat.phase, payload: JSON.stringify(message) });
       }
       if (message.type === 'result') {
         const waiting = this.pending.get(message.sequence);

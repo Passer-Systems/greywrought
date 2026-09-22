@@ -37,7 +37,7 @@ try {
     const character = characters[index]!;
     const page = await openBrowser(`party-${index}`, { beforeNavigate: async call => {
       await call('Network.enable'); await call('Network.setBlockedURLs', { urls: [url + '__dev/events'] });
-      await call('Page.addScriptToEvaluateOnNewDocument', { source: `localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Party Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});localStorage.setItem('greywrought/world-token',${JSON.stringify(tokens[index])});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4382/world':url,...args);this.addEventListener('message',event=>{const message=JSON.parse(event.data);if(message.type==='state')window.partyState=message;});}};` });
+      await call('Page.addScriptToEvaluateOnNewDocument', { source: `localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Party Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});localStorage.setItem('greywrought/world-token',${JSON.stringify(tokens[index])});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4382/world':url,...args);this.addEventListener('message',event=>{const message=window.decodeWorldMessage(event);if(message.type==='state')window.partyState=message;});}};` });
     } });
     pages.push(page);
     await page.waitFor('document.body.dataset.entryRoute === "roster"');

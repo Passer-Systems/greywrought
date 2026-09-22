@@ -33,7 +33,7 @@ try {
     await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{};
       localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Planner', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
-      const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4398/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state')window.retreatState=d.snapshot;});}};` });
+      const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4398/world':url,...args);this.addEventListener('message',event=>{const d=window.decodeWorldMessage(event);if(d.type==='state')window.retreatState=d.snapshot;});}};` });
   } });
   await page.waitFor('document.body.dataset.entryRoute==="roster"');
   await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');window.planVector=Vector3;Scene.prototype.onAfterRender=function(renderer,scene,camera){if(camera.isPerspectiveCamera&&renderer.getRenderTarget()===null){window.planCamera=camera;window.planScene=scene;}};})()`);

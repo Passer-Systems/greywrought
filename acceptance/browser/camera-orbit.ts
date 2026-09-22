@@ -33,7 +33,7 @@ try {
     await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{};
       localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Camera Test', characters, selectedCharacterId: characters[0]!.id, savedAtMillis: Date.now() }))});
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
-      const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4436/world':url,...args);this.addEventListener('message',e=>{const m=JSON.parse(e.data);if(m.type==='state')window.cameraState=m.snapshot;});}};` });
+      const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4436/world':url,...args);this.addEventListener('message',e=>{const m=window.decodeWorldMessage(e);if(m.type==='state')window.cameraState=m.snapshot;});}};` });
   } });
   async function enter() {
     await page!.waitFor('document.body.dataset.entryRoute==="roster"');

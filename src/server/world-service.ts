@@ -15,6 +15,7 @@ import { worldRain } from '../game/world-time.js';
 import type { AdventureAction, AdventureGame } from '../game/adventure-types.js';
 import type { PartyCommand, PartyPingView, PartyView, PartyInviteView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
 import { DISCONNECT_GRACE_MS, DEPARTURE_CLOSE_CODE } from '../game/multiplayer-types.js';
+import { createWorldStateEncoder } from './world-state-encoder.js';
 import { normalizedCharacterName } from '../host/character-profile.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 import { clientAddress, createAddressLimits } from './world-limits.js';
@@ -198,8 +199,11 @@ export async function createWorldService(options: WorldServiceOptions) {
     });
     return saveQueue;
   }
+  const stateEncoders = new WeakMap<ServerWebSocket<WorldSocketData>, ReturnType<typeof createWorldStateEncoder>>();
   function send(socket: ServerWebSocket<WorldSocketData>, message: ServerWorldMessage): void {
-    socket.send(JSON.stringify(message), message.type === 'state');
+    const encoder = stateEncoders.get(socket);
+    const wire = message.type === 'state' && encoder ? encoder.encode(message) : message;
+    if (socket.send(JSON.stringify(wire), message.type === 'state') === 0) encoder?.reset();
   }
   function error(socket: ServerWebSocket<WorldSocketData>, text: string): void { send(socket, { type: 'error', text }); }
   function partyFor(id: string): Party | undefined { return [...parties.values()].find(party => party.members.includes(id)); }
@@ -335,7 +339,8 @@ export async function createWorldService(options: WorldServiceOptions) {
     if (!closed) { void persist().catch(onPersistenceError); broadcast(); }
   }
   function join(socket: ServerWebSocket<WorldSocketData>, value: RecordValue): void {
-    if (socket.data.id !== null || !keys(value, ['type', 'token', 'character']) || !character(value.character)
+    if (socket.data.id !== null || !keys(value, ['type', 'token', 'character', ...('stateUpdates' in value ? ['stateUpdates'] : [])]) || !character(value.character)
+      || ('stateUpdates' in value && value.stateUpdates !== 'threat-delta')
       || typeof value.token !== 'string' || !/^[a-zA-Z0-9_-]{32,128}$/.test(value.token)) {
       error(socket, 'Choose a valid character to enter the world.'); return;
     }
@@ -357,6 +362,8 @@ export async function createWorldService(options: WorldServiceOptions) {
     world.join(selected.id, account.character.name, account.character.archetype).enableNetworkMovement?.(false);
     accounts.set(selected.id, account);
     socket.data.id = selected.id;
+    // Already-open deployed clients do not yet understand threat patches.
+    if (value.stateUpdates === 'threat-delta') stateEncoders.set(socket, createWorldStateEncoder());
     socket.data.lastPongAt = performance.now();
     online.set(selected.id, socket);
     send(socket, { type: 'joined', character: account.character });

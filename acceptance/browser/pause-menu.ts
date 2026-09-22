@@ -9,7 +9,7 @@ const frontend = Bun.spawn(['bun','scripts/dev-server.ts'],{env:{...Bun.env,GREY
 let page: Awaited<ReturnType<typeof openBrowser>> | undefined;
 try {
   for(let i=0;i<100;i++){try{if((await fetch(Bun.env.GREYWROUGHT_GAME_URL)).ok)break;}catch{}await Bun.sleep(100);}
-  page=await openBrowser('pause-menu',{beforeNavigate:async call=>{await call('Page.addScriptToEvaluateOnNewDocument',{source:`const Native=WebSocket; window.sentCommands=[]; window.WebSocket=class extends Native { constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4199/world':url,...args);this.addEventListener('message',event=>{const message=JSON.parse(event.data);if(message.type==='state')window.menuState=message;});} send(value){window.sentCommands.push(JSON.parse(value));super.send(value);} };`});}});
+  page=await openBrowser('pause-menu',{beforeNavigate:async call=>{await call('Page.addScriptToEvaluateOnNewDocument',{source:`const Native=WebSocket; window.sentCommands=[]; window.WebSocket=class extends Native { constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4199/world':url,...args);this.addEventListener('message',event=>{const message=window.decodeWorldMessage(event);if(message.type==='state')window.menuState=message;});} send(value){window.sentCommands.push(JSON.parse(value));super.send(value);} };`});}});
   await page.enter();
   await page.key('KeyA',true);
   await page.waitFor('Number(document.body.dataset.gamePlayerX)>0.4');

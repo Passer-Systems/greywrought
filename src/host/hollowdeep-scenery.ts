@@ -2,6 +2,7 @@ import { Box3, CanvasTexture, Group, Mesh, MeshStandardMaterial, PointLight, Rep
 import { CAVE_BARRIERS, terrainHeight } from '../game/cave-layout.js';
 import { prop } from './frostwood-assets.js';
 import { caveFloorGeometry } from './terrain-geometry.js';
+import { mergeStaticScenery } from './static-scenery.js';
 
 export async function buildHollowdeep(terrain: Group): Promise<void> {
   // Roof elevations allow a third-person orbit above the descending floor.
@@ -75,4 +76,6 @@ export async function buildHollowdeep(terrain: Group): Promise<void> {
   }
   place('Cart',79,-56,1.7); place('Crate',77,-56,1); place('Barrel',80,-54,1.2);
   await Promise.all(jobs);
+  mergeStaticScenery(walls);
+  mergeStaticScenery(roof);
 }

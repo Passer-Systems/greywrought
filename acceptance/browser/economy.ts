@@ -22,7 +22,7 @@ try {
   page=await openBrowser("economy",{localOnly:true,beforeNavigate:async call=>{await call('Page.addScriptToEvaluateOnNewDocument',{source:`
     localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Economy Test',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});
     localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
-    const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);window.economySocket=this;this.addEventListener('message',event=>{const data=JSON.parse(event.data);if(data.type==='state')window.economyState=data;});}};
+    const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);window.economySocket=this;this.addEventListener('message',event=>{const data=window.decodeWorldMessage(event);if(data.type==='state')window.economyState=data;});}};
   `});}});
   await page.enter();await page.waitFor('document.body.dataset.vendorsState==="ready"');
   check(await page.evaluate('window.economySocket.url')==='ws://127.0.0.1:4217/world','Browser must use isolated local world');

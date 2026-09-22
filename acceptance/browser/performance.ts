@@ -49,7 +49,7 @@ try {
       localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Performance', characters, selectedCharacterId: characters[0]!.id, savedAtMillis: 1 }))});
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
       const clockStart=performance.now();const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4301/world':url,...args);}
-        set onmessage(callback){super.onmessage=event=>{const m=JSON.parse(event.data);if(m.type==='state'){m.serverWallTimeMillis=${seattleNoon}+performance.now()-clockStart;m.rainIntensity=window.performanceRain??0;window.performanceState=m.snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};` });
+        set onmessage(callback){super.onmessage=event=>{const m=JSON.parse(event.data);const observed=window.decodeWorldMessage(event);if(observed?.type==='state')window.performanceState=observed.snapshot;if(m.type==='state'||m.type==='stateDelta'){m.serverWallTimeMillis=${seattleNoon}+performance.now()-clockStart;m.rainIntensity=window.performanceRain??0;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};` });
   } });
   await page.waitFor('document.body.dataset.entryRoute === "roster"');
   await page.evaluate(performanceProbe);
@@ -127,11 +127,17 @@ try {
       if (['town', 'hills', 'lake'].includes(location.id)) {
         await page.key('KeyW', true); await measure(`${location.id}-running`, 4000); await page.key('KeyW', false);
       }
-      if (location.id === 'woods') await measure('camera-orbit', 4000, async () => {
-        await page!.call('Input.dispatchMouseEvent', { type: 'mousePressed', x: 800, y: 400, button: 'right', buttons: 2, clickCount: 1 });
-        for (let step = 1; step <= 40; step++) { await page!.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 800 + Math.sin(step / 8) * 200, y: 400 - Math.sin(step / 16) * 90, button: 'right', buttons: 2 }); await Bun.sleep(100); }
-        await page!.call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 600, y: 350, button: 'right', buttons: 0, clickCount: 1 });
-      });
+      if (location.id === 'woods') {
+        await measure('camera-orbit', 4000, async () => {
+          await page!.call('Input.dispatchMouseEvent', { type: 'mousePressed', x: 800, y: 400, button: 'right', buttons: 2, clickCount: 1 });
+          for (let step = 1; step <= 40; step++) { await page!.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 800 + Math.sin(step / 8) * 200, y: 400 - Math.sin(step / 16) * 90, button: 'right', buttons: 2 }); await Bun.sleep(100); }
+          await page!.call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 600, y: 350, button: 'right', buttons: 0, clickCount: 1 });
+        });
+        // Hold the final broad view so comparisons do not depend on how many
+        // frames each machine renders at intermediate orbit angles.
+        await Bun.sleep(500);
+        await measure('wide-woods');
+      }
     }
     await page.shot(location.id); await leave();
   }

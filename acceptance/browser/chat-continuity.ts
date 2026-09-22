@@ -22,7 +22,7 @@ try {
       window.requestAnimationFrame=callback=>raf.call(window,now=>{if(callback.name==='tick')window.tickCount++;callback(now);});
       const Native=WebSocket;
       window.WebSocket=class extends Native {
-        constructor(url,...args){super(window.blockReconnect?'ws://127.0.0.1:9/world':url,...args);window.chatSocket=this;this.addEventListener('message',event=>{const message=JSON.parse(event.data);if(message.type==='state')window.chatState=message;});}
+        constructor(url,...args){super(window.blockReconnect?'ws://127.0.0.1:9/world':url,...args);window.chatSocket=this;this.addEventListener('message',event=>{const message=window.decodeWorldMessage(event);if(message.type==='state')window.chatState=message;});}
         send(value){window.sentCommands.push(JSON.parse(value));super.send(value);}
       };
     ` });

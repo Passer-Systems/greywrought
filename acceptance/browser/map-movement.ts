@@ -22,7 +22,7 @@ async function companion(id: string) {
 try {
   for (let i = 0; i < 100; i++) { try { if ((await fetch(Bun.env.GREYWROUGHT_GAME_URL!)).ok) break; } catch {} await Bun.sleep(100); }
   page = await openBrowser('map-movement', { localOnly: true, beforeNavigate: async call => {
-    await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{};const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);this.addEventListener('message',event=>{const message=JSON.parse(event.data);if(message.type==='state')window.mapState=message;});}};` });
+    await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{};const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);this.addEventListener('message',event=>{const message=window.decodeWorldMessage(event);if(message.type==='state')window.mapState=message;});}};` });
   } });
   await page.enter();
   await page.key('KeyA', true);

@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import { createWorldMessageDecoder } from '../../src/game/world-state-transport.js';
 
 export function check(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -144,6 +145,16 @@ export async function openBrowser(label: string, options: BrowserOptions = {}) {
     }
     await call("Runtime.enable");
     await call("Page.enable");
+    await call('Page.addScriptToEvaluateOnNewDocument', { source: `{
+      const decoders = new WeakMap();
+      const createDecoder = ${createWorldMessageDecoder.toString()};
+      window.decodeWorldMessage = (event, message = JSON.parse(event.data)) => {
+        const socket = event.currentTarget ?? event.target;
+        let decode = decoders.get(socket);
+        if (!decode) { decode = createDecoder(); decoders.set(socket, decode); }
+        return decode(message);
+      };
+    }` });
     if (options.localOnly) await call("Network.enable");
     await call("Emulation.setFocusEmulationEnabled", { enabled: true });
     await options.beforeNavigate?.(call);

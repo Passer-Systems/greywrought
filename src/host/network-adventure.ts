@@ -1,3 +1,4 @@
+import { createWorldMessageDecoder } from '../game/world-state-transport.js';
 import type { AdventureGame, AdventureSnapshot, CombatForecast, EncounterSession, Position } from '../game/adventure-types.js';
 import type { LocalCharacter } from './character-profile.js';
 import type { PartyCommand, PartyView, PartyInviteView, ClientWorldMessage, RemotePlayerView, ServerWorldMessage, SharedChatMessage, WorldCommand } from '../game/multiplayer-types.js';
@@ -127,6 +128,7 @@ export async function connectAdventure(character: LocalCharacter, onCharacter?: 
     clearTimeout(reconnect); reconnect = undefined;
     const generation = ++socketGeneration;
     const current = new WebSocket(url);
+    const decodeMessage = createWorldMessageDecoder();
     socket = current;
     function disconnected(): void {
       if (closed || generation !== socketGeneration) return;
@@ -148,12 +150,14 @@ export async function connectAdventure(character: LocalCharacter, onCharacter?: 
     handshakeTimeout = setTimeout(disconnected, 15000);
     current.onopen = () => {
       if (closed || generation !== socketGeneration) { current.close(); return; }
-      const message: ClientWorldMessage = {type:'join',token:token!,character};
+      const message: ClientWorldMessage = {type:'join',token:token!,character,stateUpdates:'threat-delta'};
       current.send(JSON.stringify(message));
     };
     current.onmessage = event => {
       if (closed || generation !== socketGeneration) return;
-      const message = JSON.parse(String(event.data)) as ServerWorldMessage;
+      let message: ReturnType<typeof decodeMessage>;
+      try { message = decodeMessage(JSON.parse(String(event.data)) as ServerWorldMessage); }
+      catch { disconnected(); return; }
       if (message.type === 'joined') {
         character = message.character;
         onCharacter?.(character);

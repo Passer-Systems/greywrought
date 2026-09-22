@@ -39,7 +39,7 @@ try {
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
       window.readyCommands=0;
       const Native=WebSocket;window.WebSocket=class extends Native{
-        constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4392/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state')window.autoReadySnapshot=d.snapshot;});}
+        constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4392/world':url,...args);this.addEventListener('message',event=>{const d=window.decodeWorldMessage(event);if(d.type==='state')window.autoReadySnapshot=d.snapshot;});}
         send(message){const d=JSON.parse(message);if(d.command?.type==='ready')window.readyCommands++;super.send(message);}
       };` });
   } });

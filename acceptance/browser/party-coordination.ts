@@ -37,7 +37,7 @@ try {
       await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{};
         localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Coordination Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});
         localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
-        const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4384/world':url,...args);this.addEventListener('message',event=>{const message=JSON.parse(event.data);if(message.type==='state')window.partyState=message;});}};` });
+        const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4384/world':url,...args);this.addEventListener('message',event=>{const message=window.decodeWorldMessage(event);if(message.type==='state')window.partyState=message;});}};` });
     } });
     pages.push(page);
     await page.waitFor('document.body.dataset.entryRoute === "roster"');

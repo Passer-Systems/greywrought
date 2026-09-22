@@ -56,7 +56,7 @@ try {
       localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Timing Explorer', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
       localStorage.setItem('greywrought/combat-auto-ready-v1','true');
-      const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4362/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state'){window.timedSnapshot=d.snapshot;window.timedSession=d.session;(window.timedHistory??=[]).push(d.snapshot);}});}};
+      const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4362/world':url,...args);this.addEventListener('message',event=>{const d=window.decodeWorldMessage(event);if(d.type==='state'){window.timedSnapshot=d.snapshot;window.timedSession=d.session;(window.timedHistory??=[]).push(d.snapshot);}});}};
     ` });
   } });
   await page.waitFor('document.body.dataset.entryRoute==="roster"');

@@ -23,7 +23,7 @@ try {
   page=await openBrowser("currency",{localOnly:true,beforeNavigate:async call=>{await call('Page.addScriptToEvaluateOnNewDocument',{source:`
     localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Economy Test',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});
     localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
-    const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);window.currencySocket=this;this.addEventListener('message',event=>{const data=JSON.parse(event.data);if(data.type==='state')window.currencyState=data;});}};
+    const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);window.currencySocket=this;this.addEventListener('message',event=>{const data=window.decodeWorldMessage(event);if(data.type==='state')window.currencyState=data;});}};
   `});}});
   console.log("Currency: entering world");
   await page.waitFor('["account", "creator", "roster"].includes(document.body.dataset.entryRoute)');

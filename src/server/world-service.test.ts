@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import type { Server } from 'bun';
 import type { ServerWorldMessage, WorldCommand } from '../game/multiplayer-types.js';
 import { DEPARTURE_CLOSE_CODE } from '../game/multiplayer-types.js';
+import { createWorldMessageDecoder } from '../game/world-state-transport.js';
 import type { LocalCharacter } from '../host/character-profile.js';
 import { createWorldService } from './world-service.js';
 import type { WorldSocketData } from './world-service.js';
@@ -23,12 +24,16 @@ type State = Extract<ServerWorldMessage, { type: 'state' }>;
 class Client {
   readonly socket: WebSocket;
   readonly messages: ServerWorldMessage[] = [];
+  readonly wireTypes: ServerWorldMessage['type'][] = [];
   private watchers = new Set<() => void>();
   private sequence = 0;
-  constructor(url: string, headers?: Record<string, string>) {
+  constructor(url: string, headers?: Record<string, string>, readonly delta = true) {
+    const decodeMessage = createWorldMessageDecoder();
     this.socket = new WebSocket(url, headers ? { headers } : {});
     this.socket.onmessage = event => {
-      this.messages.push(JSON.parse(String(event.data)) as ServerWorldMessage);
+      const message = JSON.parse(String(event.data)) as ServerWorldMessage;
+      this.wireTypes.push(message.type);
+      this.messages.push(decodeMessage(message));
       for (const watcher of this.watchers) watcher();
     };
   }
@@ -37,7 +42,7 @@ class Client {
       this.socket.onopen = () => resolve();
       this.socket.onerror = () => reject(new Error('Socket failed to connect'));
     });
-    this.socket.send(JSON.stringify({ type: 'join', token, character }));
+    this.socket.send(JSON.stringify({ type: 'join', token, character, ...(this.delta ? { stateUpdates: 'threat-delta' } : {}) }));
   }
   wait(predicate: (message: ServerWorldMessage) => boolean, timeoutMillis = 3000): Promise<ServerWorldMessage> {
     return new Promise((resolve, reject) => {
@@ -110,7 +115,7 @@ test('two socket clients share movement and chat; saved identity survives restar
     const current = service;
     server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: current.websocket, fetch: (request, host) => current.fetch(request, host) });
   }
-  function client() { const result = new Client(`ws://127.0.0.1:${server.port}/world`); clients.push(result); return result; }
+  function client(delta = true) { const result = new Client(`ws://127.0.0.1:${server.port}/world`, undefined, delta); clients.push(result); return result; }
   const firstCharacter: LocalCharacter = { id: 'first', name: 'Alden', archetype: 'warrior', createdAtMillis: 1 };
   const secondCharacter: LocalCharacter = { id: 'second', name: 'Briar', archetype: 'mage', createdAtMillis: 2 };
   const firstToken = crypto.randomUUID();
@@ -128,7 +133,7 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(await first.command({ type: 'flight', destination: 'suture' })).toBe(false);
     expect(await first.invalid({ type: 'quest', id: 'cold-hands', operation: 'complete' })).toBe(false);
     expect(await first.invalid({ type: 'equip', slot: 'head', item: 'yard-weapon' })).toBe(false);
-    const second = client(); await second.connect(secondCharacter, crypto.randomUUID());
+    const second = client(false); await second.connect(secondCharacter, crypto.randomUUID());
     const together = await first.state(state => state.players.some(player => player.id === 'second'));
     expect(together.serverWallTimeMillis).toBeGreaterThanOrEqual(firstState.serverWallTimeMillis);
     expect(together.players[0]?.name).toBe('Briar');
@@ -137,6 +142,9 @@ test('two socket clients share movement and chat; saved identity survives restar
     expect(await first.command({ type: 'action', action: 'forward', pressed: true })).toBe(true);
     const seenMove = await second.state(state => state.players.some(player => player.id === 'first' && player.player.position.x > initial.x + 1.2));
     expect(seenMove.snapshot.player.position.x).toBe(initial.x);
+    expect(first.wireTypes).toContain('stateDelta');
+    expect(second.wireTypes).toContain('state');
+    expect(second.wireTypes).not.toContain('stateDelta');
     expect(await first.command({ type: 'action', action: 'forward', pressed: false })).toBe(true);
     expect(await first.command({ type: 'quest', id: 'cold-hands', operation: 'accept' })).toBe(true);
     expect((await first.state(state => state.snapshot.quests[0]?.status === 'active')).snapshot.quests[0]?.status).toBe('active');

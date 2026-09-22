@@ -746,7 +746,9 @@ class Adventure implements AdventureGame {
       threats: s.world.threats.map((t): ThreatView => {
         const d = definition(t.id);
         return {
-          ...t, name: d.name, level: d.level, position: { ...t.position }, homePosition: { ...d.position },
+          id: t.id, health: t.health, active: t.active, phase: t.phase, aggro: t.aggro, targetPlayerId: t.targetPlayerId,
+          remainingSeconds: t.remainingSeconds, actionSequence: t.actionSequence, lastActionHit: t.lastActionHit,
+          name: d.name, level: d.level, position: { ...t.position }, homePosition: { ...d.position },
           corpseVisible: t.health === 0 && t.respawnAt !== null && this.now() < t.respawnAt - WORLD_RESPAWN_MILLISECONDS + CORPSE_LIFETIME_MILLISECONDS,
           slowed: t.slowedCycle > 0 && t.slowedCycle === s.combat.clock.cycle, staggered: t.staggered, volatileResidue: t.volatileResidue, exposed: t.exposed, disposition: d.disposition, critter: d.critter === true, joinsNextWindow: t.aggro && t.joinCycle > s.combat.clock.cycle, moving: s.phase !== "lost" && t.moving, maximumHealth: d.health,
           aggroRange: d.aggroRange, callForHelpRange: d.callsForHelp === false ? 0 : CALL_FOR_HELP_RANGE,
@@ -754,7 +756,7 @@ class Adventure implements AdventureGame {
           facing: { ...(t.wolf?.facing ?? (t.head?.ability === "fire-rush" && t.aggro ? this.direction(t.head.rush?.start ?? t.position, t.head.rush?.destination ?? t.targetPosition) : null) ?? (t.aggro ? this.direction(t.position, this.targetPlayer(t)?.state.position ?? s.position) : t.travelFacing)) },
           nextAttackSeconds: t.wolf?.nextAttackSeconds ?? t.remainingSeconds,
           attackOrigin: t.wolf && t.phase === "action" && t.abilityIndex === 1 ? { ...t.wolf.attackOrigin } : point(t.position.x, t.position.z),
-          block: t.head?.block ?? t.shield, blockSeconds: t.head?.blockSeconds ?? t.shieldSeconds, volley: t.head?.volley ?? 0, fireballs: t.head?.fireballs.map(p => ({ ...p, origin: { ...p.origin }, position: { ...p.position } })) ?? [],
+          block: t.head?.block ?? t.shield, blockSeconds: t.head?.blockSeconds ?? t.shieldSeconds, volley: t.head?.volley ?? 0, fireballs: t.head?.fireballs.map(p => ({ id: p.id, remainingSeconds: p.remainingSeconds, duration: p.duration, damage: p.damage, origin: { ...p.origin }, position: { ...p.position } })) ?? [],
           canStrike: this.canUseAttack(t, "strike"), cast: this.castView(t),
           inRangeActions: (["strike", "special"] as const).filter(action => (action === "strike" || classAction(s.archetype, action).target === "unit") && this.attackInRange(t, action)),
           selected: t.id === s.selectedThreat, phaseDuration: this.phaseDuration(t), windowAction: (t.aggro || t.cancelledWindow && s.combat.clock.phase === "active") && t.windowCycle === s.combat.clock.cycle && t.joinCycle <= s.combat.clock.cycle ? { ability: this.ability(t), offsetSeconds: t.specialOffset, status: t.cancelledWindow ? "cancelled" : t.phase === "recovery" || t.phase === "approach" ? "resolved" : t.phase === "action" ? "active" : "pending" } : null, forecast: t.aggro && t.windowCycle === s.combat.clock.cycle ? [{ ability: this.ability(t), remainingSeconds: Math.max(0, t.specialOffset - s.combat.clock.elapsedSeconds), status: t.phase === "recovery" || t.phase === "approach" ? "active" : "pending" }] : [],
@@ -1502,18 +1504,23 @@ class Adventure implements AdventureGame {
     if (!players.includes(this)) players.push(this);
     // Every participant predicts the same execution; only the viewing player id differs.
     // Keep the full state key so plans, movement and clocks invalidate immediately.
-    const key = JSON.stringify([destination, via, waitTicks, players.map(p => ({ id: p.playerId, state: p.state, camera: p.cameraForward }))]);
+    // Participants share one world, so serialize and clone it once per forecast.
+    const key = JSON.stringify([destination, via, waitTicks, this.state.world, players.map(p => {
+      const { world: _world, ...state } = p.state;
+      return { id: p.playerId, state, camera: p.cameraForward };
+    })]);
     const cached = destination ? this.movementForecastCache : this.shared ? this.shared.forecastCache : this.forecastCache;
     if (cached?.key === key) return { ...cached.value, playerId: this.playerId ?? "solo" };
     const world = structuredClone(this.state.world), clock = structuredClone(this.state.combat.clock), recording = { actions: [] as CombatForecast["actions"][number][], paths: [] as CombatForecast["paths"][number][], events: [] as CombatForecast["events"][number][], outcomes: [] as CombatForecast["outcomes"][number][] };
     const context: SharedContext | undefined = this.shared ? { ...this.shared, world, clock, mode: this.shared.mode === "paused" ? "private" : this.shared.mode, online: new Map(), characters: new Map() } : undefined;
     const copies = players.map(player => {
       // Copy live execution state without constructing fresh enemies or consuming randomness.
+      const { world: _world, ...playerState } = player.state;
       const copy: Adventure = Object.assign(Object.create(Adventure.prototype), player, {
-        state: structuredClone(player.state), shared: context, held: new Set<AdventureAction>(), mouseForward: false,
+        state: { ...structuredClone(playerState), world }, shared: context, held: new Set<AdventureAction>(), mouseForward: false,
         movementFrames: null, cameraForward: { ...player.cameraForward }, events: [], combatFeedback: [], effects: [], recording, forecastCache: null,
       });
-      copy.state.world = world; copy.state.combat.clock = clock;
+      copy.state.combat.clock = clock;
       if (context) { context.online.set(copy.playerId!, copy); context.characters.set(copy.playerId!, copy); }
       return copy;
     });

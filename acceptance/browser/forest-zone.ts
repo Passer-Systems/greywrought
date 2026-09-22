@@ -14,7 +14,7 @@ try {
     await Bun.sleep(100);
   }
   page = await openBrowser('forest-zone', {localOnly: true, beforeNavigate: async call => {
-    await call('Page.addScriptToEvaluateOnNewDocument', {source: `const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);this.addEventListener('message',event=>{const data=JSON.parse(event.data);if(data.type==='state')window.forestState=data.snapshot;});}};`});
+    await call('Page.addScriptToEvaluateOnNewDocument', {source: `const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);this.addEventListener('message',event=>{const data=window.decodeWorldMessage(event);if(data.type==='state')window.forestState=data.snapshot;});}};`});
   }});
   await page.enter();
   await page.waitFor('document.body.dataset.environmentState==="ready"&&document.body.dataset.creatureRigState==="ready"&&document.body.dataset.gameOnline==="true"');

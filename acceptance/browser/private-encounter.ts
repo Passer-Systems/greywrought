@@ -56,7 +56,7 @@ try {
     localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
     const Native=WebSocket;
     window.WebSocket=class extends Native{
-      constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4196/world':url,...args);window.encounterSocket=this;this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state')window.encounterState=d;});}
+      constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4196/world':url,...args);window.encounterSocket=this;this.addEventListener('message',event=>{const d=window.decodeWorldMessage(event);if(d.type==='state')window.encounterState=d;});}
       set onmessage(handler){super.onmessage=event=>{if(!this.dropIncoming)handler.call(this,event);};}
     };` });
   await page.reload();

@@ -9,7 +9,7 @@ try{
   for(let i=0;i<100;i++){try{if((await fetch(Bun.env.GREYWROUGHT_GAME_URL)).ok)break}catch{}await Bun.sleep(100)}
   page=await openBrowser('ring-hud-gameplay',{beforeNavigate:async call=>{
     await call('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
-    await call('Page.addScriptToEvaluateOnNewDocument',{source:`const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);this.addEventListener('message',e=>{const d=JSON.parse(e.data);if(d.type==='state')window.latestSnapshot=d.snapshot;})}};`});
+    await call('Page.addScriptToEvaluateOnNewDocument',{source:`const Native=WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);this.addEventListener('message',e=>{const d=window.decodeWorldMessage(e);if(d.type==='state')window.latestSnapshot=d.snapshot;})}};`});
   }});
   await page.enter();await page.waitFor('document.body.dataset.creatureRigState==="ready"');
   await Bun.sleep(3000);

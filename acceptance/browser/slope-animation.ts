@@ -22,7 +22,7 @@ try{
   await call('Network.enable');await call('Network.setBlockedURLs',{urls:[url+'__dev/events']});
   await call('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Slope Test',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});window.slopeDelay=false;const Native=WebSocket;window.WebSocket=class extends Native{
     incoming=0;outgoing=0;countIn=0;countOut=0;
-    constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4422/world':url,...args);this.addEventListener('message',event=>{const m=JSON.parse(event.data);if(m.type==='state')window.slopeState=m;});}
+    constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4422/world':url,...args);this.addEventListener('message',event=>{const m=window.decodeWorldMessage(event);if(m.type==='state')window.slopeState=m;});}
     set onmessage(callback){super.onmessage=event=>{const now=performance.now(),due=window.slopeDelay?Math.max(this.incoming+1,now+120+[0,60,20,90][this.countIn++%4]):now;this.incoming=due;setTimeout(()=>callback?.call(this,event),due-now);};}
     send(message){const now=performance.now(),due=window.slopeDelay?Math.max(this.outgoing+1,now+100+[0,30,10,50][this.countOut++%4]):now;this.outgoing=due;setTimeout(()=>{if(this.readyState===Native.OPEN)super.send(message);},due-now);}
   };`});

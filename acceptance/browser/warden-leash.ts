@@ -35,7 +35,7 @@ try {
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
       localStorage.setItem('greywrought/combat-auto-ready-v1','false');
       window.profileHistory=[]; const Native=WebSocket;
-      window.WebSocket=class extends Native { constructor(url,...args) { super(String(url).includes('/world')?'ws://127.0.0.1:4516/world':url,...args); this.addEventListener('message',event=>{const data=JSON.parse(event.data); if(data.type==='state'){window.profileState=data.snapshot;window.profileHistory.push(data.snapshot);}}); } };` });
+      window.WebSocket=class extends Native { constructor(url,...args) { super(String(url).includes('/world')?'ws://127.0.0.1:4516/world':url,...args); this.addEventListener('message',event=>{const data=window.decodeWorldMessage(event); if(data.type==='state'){window.profileState=data.snapshot;window.profileHistory.push(data.snapshot);}}); } };` });
   } });
   await page.waitFor('document.body.dataset.entryRoute==="roster"'); await page.click('#entry-enter-world');
   await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"&&document.body.dataset.environmentState==="ready"&&window.profileState?.combat.phase==="preparation"');

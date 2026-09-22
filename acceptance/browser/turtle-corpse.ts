@@ -38,7 +38,7 @@ try {
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
       const Native=WebSocket;window.WebSocket=class extends Native{
         constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4398/world':url,...args);}
-        set onmessage(callback){super.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){m.serverWallTimeMillis=${seattleNoon};window.corpseState=m.snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}
+        set onmessage(callback){super.onmessage=e=>{const m=JSON.parse(e.data);if((m.type==='state'||m.type==='stateDelta')){m.serverWallTimeMillis=${seattleNoon};window.corpseState=window.decodeWorldMessage(e,m).snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}
       };` });
   } });
   await page.waitFor('document.body.dataset.entryRoute==="roster"');

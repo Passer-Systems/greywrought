@@ -29,7 +29,7 @@ try{
     await call('Page.addScriptToEvaluateOnNewDocument',{source:`window.EventSource=class{};
       localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Guard Test',characters,selectedCharacterId:characters[0]!.id,savedAtMillis:baseTime}))});
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
-      const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4192/world':url,...args);this.addEventListener('message',event=>{const message=JSON.parse(event.data);if(message.type==='state')window.guardState=message.snapshot;});}};`});
+      const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4192/world':url,...args);this.addEventListener('message',event=>{const message=window.decodeWorldMessage(event);if(message.type==='state')window.guardState=message.snapshot;});}};`});
   }});
   await page.waitFor('document.body.dataset.entryRoute==="roster"');
   await page.evaluate(`(async()=>{const{Scene}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){if(renderer.domElement.id!=='world-canvas')return;window.guardScene=scene;if(window.collectGuardFrames&&window.guardActors)window.guardFrames.push({time:performance.now(),actors:window.guardActors});window.guardActors=['guard-iona','guard-bram'].map(id=>{const root=scene.getObjectByName(id);return root?{id,position:root.position.toArray(),rotation:root.rotation.y,animation:root.userData.animation,time:root.userData.animationTime,sword:!!root.getObjectByName('Warrior_Sword')}:null;});};})()`);

@@ -57,7 +57,7 @@ try {
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
       const Native=WebSocket;
       window.WebSocket=class extends Native{
-        constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4199/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state')window.recoveryState=d;});}
+        constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4199/world':url,...args);this.addEventListener('message',event=>{const d=window.decodeWorldMessage(event);if(d.type==='state')window.recoveryState=d;});}
       };` });
   } });
   await page.waitFor('document.body.dataset.entryRoute==="roster"');

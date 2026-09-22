@@ -22,7 +22,7 @@ try {
   for(let i=0;i<100;i++){try{if((await fetch(url)).ok)break;}catch{}await Bun.sleep(100);}
   page=await openBrowser('hills',{beforeNavigate:async call=>{
     await call('Network.enable'); await call('Network.setBlockedURLs',{urls:[url+'__dev/events']});
-    await call('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Hill Walker',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4326/world':url,...args);this.addEventListener('message',e=>{const d=JSON.parse(e.data);if(d.type==='state')window.hillState=d.snapshot;});}};`});
+    await call('Page.addScriptToEvaluateOnNewDocument',{source:`localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Hill Walker',characters:[character],selectedCharacterId:character.id,savedAtMillis:Date.now()}))});localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4326/world':url,...args);this.addEventListener('message',e=>{const d=window.decodeWorldMessage(e);if(d.type==='state')window.hillState=d.snapshot;});}};`});
   }});
   await page.waitFor('document.body.dataset.entryRoute==="roster"'); await page.click('#entry-enter-world');
   await page.waitFor('document.body.dataset.rigState==="ready"&&document.body.dataset.environmentState==="ready"');

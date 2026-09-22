@@ -38,7 +38,7 @@ try {
       const raf=requestAnimationFrame;window.requestAnimationFrame=callback=>raf(now=>{const start=performance.now();callback(now);if(window.measureLight&&callback.name==='tick'){window.lightSamples.push({duration:performance.now()-start,interval:window.lastLightFrame?now-window.lastLightFrame:0});window.lastLightFrame=now;}});
       const Native=WebSocket;window.WebSocket=class extends Native{
         constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4432/world':url,...args);}
-        set onmessage(callback){super.onmessage=event=>{const message=JSON.parse(event.data);if(message.type==='state'){message.serverWallTimeMillis=${seattleMidnight}+window.lightingHour*3_600_000;window.lightingState=message;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(message)}));};}
+        set onmessage(callback){super.onmessage=event=>{const message=JSON.parse(event.data);if((message.type==='state'||message.type==='stateDelta')){message.serverWallTimeMillis=${seattleMidnight}+window.lightingHour*3_600_000;window.lightingState=window.decodeWorldMessage(event,message);}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(message)}));};}
       };` });
   } });
   async function enter() {

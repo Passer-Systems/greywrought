@@ -33,7 +33,7 @@ try {
     await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.EventSource=class{};
       localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Bloom Test', characters, selectedCharacterId: characters[0]!.id, savedAtMillis: 1 }))});
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});window.lightingHour=12;
-      const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4442/world':url,...args);}set onmessage(callback){super.onmessage=event=>{const m=JSON.parse(event.data);if(m.type==='state'){m.serverWallTimeMillis=${midnight}+window.lightingHour*3600000;m.rainIntensity=0;window.performanceState=m.snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};` });
+      const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4442/world':url,...args);}set onmessage(callback){super.onmessage=event=>{const m=JSON.parse(event.data);if((m.type==='state'||m.type==='stateDelta')){m.serverWallTimeMillis=${midnight}+window.lightingHour*3600000;m.rainIntensity=0;window.performanceState=window.decodeWorldMessage(event,m).snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};` });
   } });
   await page.waitFor('document.body.dataset.entryRoute==="roster"');
   await page.evaluate(performanceProbe);

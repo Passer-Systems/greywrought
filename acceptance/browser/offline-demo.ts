@@ -52,7 +52,7 @@ try {
               super(...args);
               window.demoSocket = this;
               this.addEventListener('message', event => {
-                const message = JSON.parse(event.data);
+                const message = window.decodeWorldMessage(event);
                 if (message.type === 'state') window.demoState = message;
               });
             }

@@ -23,7 +23,7 @@ try {
       constructor(...args) {
         super(...args);
         this.addEventListener('message', event => {
-          const data = JSON.parse(event.data);
+          const data = window.decodeWorldMessage(event);
           if (data.type === 'state') window.lastState = data;
         });
       }

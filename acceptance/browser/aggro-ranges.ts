@@ -48,7 +48,7 @@ try {
           constructor(...args) {
             super(...args);
             this.addEventListener('message', event => {
-              const state = JSON.parse(event.data);
+              const state = window.decodeWorldMessage(event);
               if (state.type === 'state') window.rangeState = state;
             });
           }

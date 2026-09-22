@@ -8,6 +8,8 @@ export function createFoliageBatchCulling(mesh: InstancedMesh) {
   const count = mesh.count, spheres: Sphere[] = [], selected = new Int32Array(count);
   const transform = new Matrix4(), clip = new Matrix4(), frustum = new Frustum();
   mesh.geometry.computeBoundingSphere();
+  mesh.computeBoundingSphere();
+  const bounds = mesh.boundingSphere!.clone();
   for (let index = 0; index < count; index++) {
     transform.fromArray(matrices, index * 16);
     spheres.push(mesh.geometry.boundingSphere!.clone().applyMatrix4(transform));
@@ -16,6 +18,7 @@ export function createFoliageBatchCulling(mesh: InstancedMesh) {
   return (camera: Camera) => {
     clip.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).multiply(mesh.matrixWorld);
     frustum.setFromProjectionMatrix(clip);
+    if (!frustum.intersectsSphere(bounds)) { mesh.count = 0; return; }
     let visible = 0, changed = false;
     for (let index = 0; index < count; index++) {
       if (!frustum.intersectsSphere(spheres[index]!)) continue;

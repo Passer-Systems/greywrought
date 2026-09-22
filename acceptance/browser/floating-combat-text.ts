@@ -26,7 +26,7 @@ try {
     localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Combat Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});
     localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
     window.feedbackAdded=[];const Native=WebSocket;
-    window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4195/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state')window.combatSnapshot=d.snapshot;});}};
+    window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4195/world':url,...args);this.addEventListener('message',event=>{const d=window.decodeWorldMessage(event);if(d.type==='state')window.combatSnapshot=d.snapshot;});}};
     document.addEventListener('DOMContentLoaded',()=>new MutationObserver(records=>{for(const r of records)for(const n of r.addedNodes)if(n instanceof Element&&n.matches('.floating-combat-hit'))window.feedbackAdded.push({id:n.dataset.eventId,kind:n.dataset.kind,target:n.dataset.target,text:n.textContent});}).observe(document.body,{childList:true,subtree:true}));` });
   await page.reload();
   await page.waitFor('document.body.dataset.entryRoute==="roster"');

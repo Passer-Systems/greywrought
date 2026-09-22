@@ -39,7 +39,7 @@ try {
       localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({ version: 1, displayName: 'Range Test', characters: [character], selectedCharacterId: character.id, savedAtMillis: Date.now() }))});
       localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
       const Native=WebSocket; window.WebSocket=class extends Native {
-        constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4196/world':url,...args);this.addEventListener('message',event=>{const d=JSON.parse(event.data);if(d.type==='state')window.rangeState=d;});}
+        constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4196/world':url,...args);this.addEventListener('message',event=>{const d=window.decodeWorldMessage(event);if(d.type==='state')window.rangeState=d;});}
       };` });
   } });
   await page.waitFor('document.body.dataset.entryRoute==="roster"'); await page.click('#entry-enter-world');

@@ -30,7 +30,7 @@ try{
    window.frameSamples=[];window.measuring=false;window.lastFrame=0;const nativeFrame=requestAnimationFrame;window.requestAnimationFrame=callback=>nativeFrame.call(window,now=>{const start=performance.now();callback(now);if(window.measuring&&callback.name==='tick'){window.frameSamples.push({duration:performance.now()-start,interval:window.lastFrame?now-window.lastFrame:0});window.lastFrame=now;}});
    if(!localStorage.getItem('greywrought/local-profile-v1'))localStorage.setItem('greywrought/local-profile-v1',${JSON.stringify(JSON.stringify({version:1,displayName:'Nature Test',characters,selectedCharacterId:characters[0]!.id,savedAtMillis:Date.now()}))});
    localStorage.setItem('greywrought/world-token',${JSON.stringify(token)});
-   const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4452/world':url,...args);}set onmessage(callback){super.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){m.serverWallTimeMillis=${seattleNoon};window.natureState=m.snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};`});
+   const Native=WebSocket;window.WebSocket=class extends Native{constructor(url,...args){super(String(url).includes('/world')?'ws://127.0.0.1:4452/world':url,...args);}set onmessage(callback){super.onmessage=e=>{const m=JSON.parse(e.data);if((m.type==='state'||m.type==='stateDelta')){m.serverWallTimeMillis=${seattleNoon};window.natureState=window.decodeWorldMessage(e,m).snapshot;}callback?.call(this,new MessageEvent('message',{data:JSON.stringify(m)}));};}};`});
  }});
  async function enter(){
   await page!.waitFor('document.body.dataset.entryRoute==="roster"');

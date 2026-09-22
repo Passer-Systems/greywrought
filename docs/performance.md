@@ -1,5 +1,106 @@
 # Performance examination — 21 September 2026
 
+## Snapshot transport and scenery submission (0.21.55)
+
+Measured the current client across town, woods, lake, cave, hills, rain, movement,
+camera rotation, combat planning/execution and seven entry/teardown cycles.
+Server measurements used one and five actual WebSocket clients. Browser and
+server samples ran separately on the same machine with bounded workloads.
+
+The changes preserve scenery density, authored geometry, shadows, simulation
+timing and combat forecasts:
+
+- Immutable Hollowdeep rock surfaces are merged into 16-metre spatial cells.
+  Baking their exact transforms also preserves the normals of stretched/sheared
+  models; ordinary instancing would not. Camera collision keeps the same surfaces.
+- Whole foliage cells outside the render camera's frustum are rejected before
+  checking individual plants. Main and reflected views still select their own
+  visible instances.
+- Public enemy snapshots now explicitly select their declared fields, rather
+  than copying private simulation state. Subsequent messages send only changed
+  enemy fields. Each connection starts with a full snapshot; reconnects, encounter
+  changes, changed enemy lists and dropped sends renew that baseline. Reconstruction
+  preserves previous snapshots and replaces arrays exactly, including empty arrays.
+- The server compares immutable public views using Bun's native equality helper
+  instead of allocating a serialized string for every field. Combat forecasts
+  serialize and clone their shared world once, retaining all state in the cache key.
+
+The new client requests compact updates when joining. Already-open 0.21.54 tabs
+continue receiving full states until refreshed. Authentication, command validation,
+rate limits, backpressure controls and save format are unchanged. Browser observers
+decode messages independently while forwarding raw updates to the production client,
+so the browser journey exercises the real client decoder.
+
+### Browser results
+
+1440 × 900, DPR 1, AMD Radeon 890M, Chromium ANGLE/Vulkan. Times below are game-frame
+CPU callbacks, not presented frame times. Lake/wide-view rows compare frames that
+actually rendered a reflection, avoiding a misleading gain from differing reflection
+schedules. The fixed wide-view phase is new; it holds the final orbit angle to make
+the before/after comparison reproducible.
+
+| Scenario | CPU median before → after | CPU p95 before → after |
+|---|---:|---:|
+| Town | 19.7 → 18.4 ms | 23.0 → 22.0 ms |
+| Running in town | 20.4 → 17.3 ms | 23.6 → 20.1 ms |
+| Woods | 15.1 → 12.4 ms | 17.9 → 15.7 ms |
+| Cave | 19.1 → 16.5 ms | 21.1 → 17.8 ms |
+| Hills | 13.2 → 11.4 ms | 16.3 → 14.1 ms |
+| Combat execution | 21.1 → 19.3 ms | 27.2 → 22.8 ms |
+| Rain | 20.6 → 19.9 ms | 26.4 → 23.2 ms |
+| Lake, with reflection | 27.8 → 26.0 ms | 30.8 → 29.0 ms |
+| Fixed wide woods, with reflection | 29.1 → 27.5 ms | 31.3 → 30.5 ms |
+
+Woods draw calls fell from 259 to 146; cave calls from 309 to 186. Fixed wide
+reflection frames fell from 993 to 795 calls with nearly identical submitted
+geometry (2.653M → 2.649M triangles). Matched cave/woods screenshots retain the
+scenery, lighting and minimap. Rendered running speed remained 5.2 m/s.
+
+GPU improvement is not universal: fixed wide-view median/p95 improved from
+13.65/15.57 to 11.86/14.35 ms, while the full-run lake median/p95 changed from
+16.25/19.05 to 17.94/19.39 ms. Rotation still reaches roughly 60 ms CPU p95; these
+changes do not solve every wide-view hitch or establish desktop 60 FPS. The
+headless presentation limitation below still applies.
+
+The isolated first-entry woods fixture has less visible undergrowth than the
+same location after a preceding world entry, both before and after this patch.
+Comparisons therefore match entry order. That existing entry-order variation
+needs a separate investigation; no cause is asserted here. Long-duration memory
+retention also remains unverified.
+
+### Server results
+
+| Five-client phase | CPU, % of one core before → after | Total wire KiB/s before → after |
+|---|---:|---:|
+| Running | 31.1 → 28.2 | 957 → 348 |
+| Planning | 90.2 → 83.2 | 962 → 352 |
+| Execution | 35.2 → 30.8 | 1,014 → 397 |
+
+Both server runs used the same two-CPU/2-GiB resource limits. Earlier after-runs
+used different limits and are excluded from CPU claims. Compressed traffic fell
+61–64%; per-client JSON payload volume fell approximately 73–80%. Server tick p95
+remained 51–53 ms on its 50 ms schedule. Local command p95 reached 39 ms in the
+final run; no latency improvement is claimed. Single-client CPU increased from
+15.4/56.2/14.8% to 16.4/65.4/15.9% for running/planning/execution. CPU results are
+therefore mixed, despite lower five-client samples. Short real-time scenarios
+include changing enemy positions and do not establish a general CPU guarantee.
+Planning remains the largest server cost, principally forecast simulation.
+
+Validation: all 336 game tests, character persistence/preferences, focused
+transport/client/server checks, rendering/camera checks, typecheck and client/server
+builds passed. The complete browser journey passed, followed by a final fixed-view
+and three-round combat journey after the forecast-copy change. Client download
+size is 45.77 MiB within the existing 46 MiB gate.
+
+Evidence:
+
+- `greywrought:build/browser/perf055-browser-before-1459502/`
+- `greywrought:build/browser/perf055-browser-after-1478929/`
+- `greywrought:build/browser/perf055-wide-before-1465701/`
+- `greywrought:build/browser/perf055-wide-after-1493938/`
+- `greywrought:build/server-performance/perf055-server-before-1454574/`
+- `greywrought:build/server-performance/perf055-server-native-1508308/`
+
 ## Lake foliage submission (0.21.51)
 
 Draw attribution identified dense fern/grass instances as the largest lake

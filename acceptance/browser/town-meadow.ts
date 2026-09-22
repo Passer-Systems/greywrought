@@ -21,7 +21,7 @@ try {
       const Native = WebSocket;
       window.WebSocket = class extends Native {
         constructor(...args) { super(...args); this.addEventListener('message', event => {
-          const state = JSON.parse(event.data); if (state.type === 'state') window.routeState = state;
+          const state = window.decodeWorldMessage(event); if (state.type === 'state') window.routeState = state;
         }); }
       };` });
   } });

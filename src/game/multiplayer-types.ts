@@ -81,12 +81,17 @@ export type WorldCommand =
   | { type: 'chat'; text: string };
 export type ClientWorldMessage =
   | { type: 'characters'; token: string; ids: readonly string[] }
-  | { type: 'join'; token: string; character: LocalCharacter }
+  | { type: 'join'; token: string; character: LocalCharacter; stateUpdates?: 'threat-delta' }
   | { type: 'command'; sequence: number; command: WorldCommand };
+export type WorldStateMessage = { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; rainIntensity: number; movement: MovementCheckpoint; session: EncounterSession; party: PartyView | null; partyInvites: readonly PartyInviteView[] };
+export type WorldStateDelta = Omit<WorldStateMessage, 'type' | 'snapshot'> & {
+  type: 'stateDelta'; snapshot: Omit<AdventureSnapshot, 'threats'>;
+  threatPatches: readonly { index: number; changes: Partial<AdventureSnapshot['threats'][number]> }[];
+};
 export type ServerWorldMessage =
   | { type: 'characters'; characters: readonly LocalCharacter[] }
   | { type: 'joined'; character: LocalCharacter }
-  | { type: 'state'; snapshot: AdventureSnapshot; players: readonly RemotePlayerView[]; chat: readonly SharedChatMessage[]; serverTime: number; serverWallTimeMillis: number; rainIntensity: number; movement: MovementCheckpoint; session: EncounterSession; party: PartyView | null; partyInvites: readonly PartyInviteView[] }
+  | WorldStateMessage | WorldStateDelta
   | { type: 'result'; sequence: number; accepted: boolean }
   | { type: 'movePreview'; sequence: number; forecast: CombatForecast | null }
   | { type: 'error'; text: string };
