@@ -163,3 +163,25 @@ test('version six ground and swimming saves follow the new banks exactly once', 
     }
   }
 });
+
+test('version seven saves settle on the deeper lake and rerouted stream without losing progress', async () => {
+  const { overworldHeight: oldFloor } = await import('./terrain-layout-v7.js');
+  for (const [x, z] of [[-27, -95], [-65, -84.5], [-57, -78], [72, -46]] as const) {
+    const oldGround = x === 72 ? -9 : oldFloor(x, z);
+    const position = { x, y: oldGround, z };
+    const root = { terrainLayout: 7, state: { position: { ...position, y: oldGround + .3 }, coins: 1492 },
+      world: { threats: [{ position: { ...position }, targetPosition: { ...position } }] },
+      instances: [{ members: [{ origin: { ...position } }] }] };
+    migrateTerrainLayout(root);
+    expect(root.terrainLayout).toBe(8);
+    expect(root.state.position.y).toBeCloseTo(terrainHeight(x, z) + .3, 10);
+    expect(root.world.threats[0]!.position.y).toBe(terrainHeight(x, z));
+    expect(root.world.threats[0]!.targetPosition.y).toBe(terrainHeight(x, z));
+    expect(root.instances[0]!.members[0]!.origin.y).toBe(terrainHeight(x, z));
+    expect(root.state.coins).toBe(1492);
+    const once = JSON.stringify(root); migrateTerrainLayout(root); expect(JSON.stringify(root)).toBe(once);
+  }
+  const swimmer = { terrainLayout: 7, state: { position: { x: -27, y: -.72, z: -95 } } };
+  migrateTerrainLayout(swimmer);
+  expect(swimmer.state.position.y).toBeCloseTo(-.72, 10);
+});
