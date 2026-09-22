@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createSharedAdventure } from "./adventure.js";
+import { COMBAT_RULES, createSharedAdventure } from "./adventure.js";
 import { finishGathering, readyParty, travel, finishCycle } from "./yard-test-fixtures.js";
 import type { AdventureAction, AdventureGame, SharedAdventure } from "./adventure-types.js";
 
@@ -62,9 +62,11 @@ describe("one shared Frostwood", () => {
     expect(enemy(a).actionSequence).toBe(2);
     expect(a.snapshot.player.health).toBe(healthAfterAttack); expect(b.snapshot.player.health).toBe(100);
     const damage = enemy(a).currentAbility.damage;
+    expect(enemy(a).currentAbility.id).toBe("fire-rush");
     world.advance(1);
     expect(a.snapshot.player.health).toBe(healthAfterAttack);
-    expect(a.snapshot.player.block).toBe(24 - damage);
+    expect(a.snapshot.combatFeedback.filter(event => event.kind === "block").map(event => event.amount)).toEqual([damage, COMBAT_RULES.fireRush.burnDamage]);
+    expect(a.snapshot.player.block).toBe(24 - damage - COMBAT_RULES.fireRush.burnDamage);
     expect(b.snapshot.player.block).toBe(0);
     expect(b.snapshot.player.stamina).toBe(100);
   });

@@ -41,7 +41,7 @@ try {
   await page.waitFor('document.body.dataset.entryRoute==="world"&&document.body.dataset.rigState==="ready"&&document.body.dataset.environmentState==="ready"&&window.profileState?.combat.phase==="preparation"');
   await page.click('#pause-resume');
   await page.waitFor('document.getElementById("pause-panel").hidden');
-  await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){if(renderer.domElement.id==='world-canvas'&&camera.isPerspectiveCamera&&renderer.getRenderTarget()===null){window.profileCamera=camera;window.profileScene=scene;window.profileRenderer=renderer;}};window.projectProfile=p=>{const v=new Vector3(p.x,p.y,p.z).project(window.profileCamera),r=document.getElementById('world-canvas').getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};};})()`);
+  await page.evaluate(`(async()=>{const {Scene,Vector3}=await import('three');Scene.prototype.onAfterRender=function(renderer,scene,camera){if(renderer.domElement.id==='world-canvas'&&camera.isPerspectiveCamera&&scene.children.some(child=>child.userData.localPlayer)){window.profileCamera=camera;window.profileScene=scene;window.profileRenderer=renderer;}};window.projectProfile=p=>{const v=new Vector3(p.x,p.y,p.z).project(window.profileCamera),r=document.getElementById('world-canvas').getBoundingClientRect();return{x:r.left+(v.x+1)*r.width/2,y:r.top+(1-v.y)*r.height/2};};})()`);
   await page.click('#combat-plan-aim-move');
   await page.waitFor('Boolean(window.profileCamera)&&JSON.parse(document.getElementById("world-canvas").dataset.moveTiles||"[]").length>0');
   await page.call("Input.dispatchMouseEvent",{type:"mouseMoved",x:1050,y:180,buttons:0});

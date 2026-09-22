@@ -140,11 +140,13 @@ describe("personal combat feedback", () => {
       { id: 1, targetId: null, kind: "block", amount: 8 },
     ]);
     expect(b.snapshot.combatFeedback).toEqual([{ id: 1, targetId: "scout", kind: "damage", amount: 18 }]);
+    expect(a.snapshot.player.focusReady).toBe(true);
     tap(a, "strike"); tap(b, "brace"); a.readyCombat(); b.readyCombat(); world.advance(.01);
     expect(a.snapshot.combatFeedback).toEqual([
       { id: 1, targetId: null, kind: "block", amount: 8 },
-      { id: 2, targetId: "scout", kind: "damage", amount: 18 },
+      { id: 2, targetId: "scout", kind: "damage", amount: 28 },
     ]);
+    expect(a.snapshot.player.focusReady).toBe(false);
     expect(b.snapshot.combatFeedback).toEqual([{ id: 1, targetId: "scout", kind: "damage", amount: 18 }]);
     const restored = createSharedAdventure({ save: world.save() });
     expect(restored.join("a", "Ada", "mage").snapshot.combatFeedback).toEqual([]);

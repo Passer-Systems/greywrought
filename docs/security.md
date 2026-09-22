@@ -87,9 +87,10 @@ does not provide password recovery or token revocation.
 
 Verification for this pass covered the socket security suite, the focused target
 regression, local browser entry/chat/reconnect, timed combat hover and execution,
-backup retention, and an isolated restore. A broader run of
-`greywrought:src/game/adventure.test.ts` also reported long-combat timing failures;
-those gameplay tests remain a separate follow-up, not a passing claim here.
+backup retention, and an isolated restore. The follow-up combat checks fixed
+Warden damage against passive solo targets and removed redundant test forecasts.
+Adventure, progression, combat, and shared/private encounter checks pass, along
+with the browser Warden pursuit and forecast-versus-execution journey.
 
 Origins describe a site's scheme, host, and port, not a player's IP address.
 The previous localhost access was an explicit development allowlist, not a CORS

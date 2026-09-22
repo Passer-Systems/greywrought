@@ -52,6 +52,17 @@ function legacyV2(game:AdventureGame):string {
 }
 
 describe("Frostwood world and persistent rewards",()=>{
+  test("the warder damages its passive target before and after saving the encounter", () => {
+    const fresh = approachWarder();
+    for (const game of [fresh, createAdventure({ save: fresh.save() })]) {
+      const forecast = game.snapshot.combat.forecast!;
+      const expectedHealth = forecast.outcomes.find(outcome => outcome.id === "solo")!.health;
+      expect(expectedHealth).toBeLessThan(100);
+      game.readyCombat(); finishCycle(game);
+      expect(game.snapshot.player.health).toBe(expectedHealth);
+    }
+  });
+
   test("clearing the warder removes harvest damage; inn rest restores health", () => {
     const game = approachWarder();
     game.advance(3.5);

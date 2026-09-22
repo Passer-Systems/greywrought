@@ -59,7 +59,7 @@ test('short routes end sooner at the same speed and After follows the actual end
 test('In reach triggers once: stationary attacks stop the route while Ranger keeps moving', () => {
   for(const archetype of ['warrior','hunter'] as const) {
     const saved=fixture('scout',archetype), source=saved.state.threats.find((t: {id:string})=>t.id==='scout');
-    source.staggered=true;source.phase='recovery';source.position=point(archetype==='warrior'?-7.5:-12.5,30);
+    source.staggered=true;source.phase='recovery';source.position=point(archetype==='warrior'?-7.5:-15,30);
     const game=createAdventure({save:JSON.stringify(saved)});
     tap(game,'strike');expect(game.queueBait(point(-5,30))).toBe(true);expect(game.setActionTiming('during')).toBe(true);
     const forecast=game.snapshot.combat.forecast!;

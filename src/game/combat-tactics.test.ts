@@ -3,18 +3,18 @@ import { createAdventure, createSharedAdventure } from "./adventure.js";
 import type { AdventureGame } from "./adventure-types.js";
 import { tap } from "./yard-test-fixtures.js";
 
-/** Lured positions inside all three home leashes, with the trio's announced opening beats. */
+/** The hound crosses the bee's approach while the player has a clear eastward escape. */
 function fixture() {
   const data = JSON.parse(createAdventure().save());
   Object.assign(data.state, { phase: "expedition", position: { x: 0, y: 0, z: 30 } });
   data.state.combat = { phase: "preparation", cycle: 1, elapsedSeconds: 0, queued: [], nextId: 1, ready: false };
   for (const t of data.state.threats) {
-    if (t.id === "warder") { Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true }); continue; }
     if (!t.active) continue;
+    if (!["scout", "nest", "patrol"].includes(t.id)) { Object.assign(t, { health: 0, phase: "cleared", lootClaimed: true }); continue; }
     const offset = t.id === "patrol" ? .85 : 1.7;
     Object.assign(t, { aggro: true, phase: "preparation", joinCycle: 1, windowCycle: 1, specialOffset: offset, remainingSeconds: offset, castDuration: offset, comboOpened: true });
-    if (t.id === "nest") t.position = { x: 2.5, y: 0, z: 30 };
-    if (t.id === "patrol") t.position = { x: -5, y: 0, z: 30 };
+    if (t.id === "nest") t.position = { x: 2.5, y: 0, z: 27.5 };
+    if (t.id === "patrol") t.position = { x: 0, y: 0, z: 25 };
     if (t.id === "scout") { t.position = { x: -1.5, y: 0, z: 27 }; t.head.ability = "fireball"; t.head.opened = true; }
   }
   const patrol = data.state.threats.find((t: { id: string }) => t.id === "patrol");
@@ -82,8 +82,9 @@ test("an already-fired projectile survives a save and restore", () => {
 test("enemy-caused Watchman kills grant quest credit and normal loot to engaged players", () => {
   const data = fixture(); data.state.chapter.accepted = ["cold-hands", "roll-call"];
   data.state.position = { x: 0, y: 0, z: 30 };
-  const scout = data.state.threats[0]; scout.health = 10; scout.position = { x: 1.5, y: 0, z: 30 };
-  data.state.threats[1].position = { x: 3.5, y: 0, z: 32 };
+  const scout = data.state.threats[0]; scout.health = 10;
+  data.state.threats.find((t: { id: string }) => t.id === "patrol").position = { x: -2.5, y: 0, z: 25 };
+  data.state.threats[1].position = { x: 2.5, y: 0, z: 32.5 };
   const game = createAdventure({ save: JSON.stringify(data) });
   expect(game.queueBait({ x: 5, y: 0, z: 30 })).toBe(true);
   const forecast = game.snapshot.combat.forecast!;

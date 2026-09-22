@@ -194,7 +194,7 @@ describe("private paused encounters", () => {
     expect(world.players()).toHaveLength(1);
   });
 
-  test("disconnecting the sole fighter releases the shared threat back home", () => {
+  test("disconnecting the sole fighter releases the shared threat home to resume its patrol", () => {
     const world = createSharedAdventure({ now: () => 1000 });
     const alice = world.join("alice", "Alice", "warrior");
     alice.setCameraForward(-3, 36);
@@ -215,9 +215,12 @@ describe("private paused encounters", () => {
     expect(released.health).toBe(96);
     expect(released.phase).toBe("patrol");
     expect(released.position).toEqual({ x: -3, y: 0, z: 30 });
+    const frozen = alice.snapshot;
     world.advance(10);
     const afterAdvance = JSON.parse(world.save()).world.threats.find((t: { id: string }) => t.id === "scout");
-    expect(afterAdvance.position).toEqual({ x: -3, y: 0, z: 30 });
+    expect(afterAdvance).toMatchObject({ phase: "patrol", health: 96, aggro: false, targetPlayerId: null, combatants: [] });
+    expect(afterAdvance.position).not.toEqual(released.position);
+    expect(alice.snapshot).toEqual(frozen);
     expect(world.session("alice").mode).toBe("paused");
   });
 

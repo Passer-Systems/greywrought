@@ -2478,7 +2478,7 @@ class Adventure implements AdventureGame {
     const ability = this.ability(t), center = t.targetPosition;
     const inArea = (position: Position) => distance(position, center) <= ability.range + EPSILON && (t.id === "ritual-guardian" && t.abilityIndex === 0 || this.clearPath(center, position));
     t.lastActionHit = false; t.actionSequence++;
-    for (const player of this.participants()) if (player.state.health > 0 && player.state.phase === "expedition" && (t.id !== "warder" || t.combatants.includes(player.playerId ?? "solo")) && (ability.profile.aim !== "tracking" || player === this) && inArea(player.state.position)) {
+    for (const player of this.participants()) if (player.state.health > 0 && player.state.phase === "expedition" && (t.id !== "warder" || player === this || t.combatants.includes(player.playerId ?? "solo")) && (ability.profile.aim !== "tracking" || player === this) && inArea(player.state.position)) {
       t.lastActionHit = true; player.hurt(t.damage, `${definition(t.id).name} — ${this.intention(t)}`, false, t.id);
     }
     if (ability.profile.friendlyFire) for (const enemy of this.state.world.threats) if (enemy !== t && enemy.active && enemy.health > 0 && (!this.inPrivateInstance() || enemy.aggro) && inArea(enemy.position)) this.enemyHit(enemy, t.damage, t.id);

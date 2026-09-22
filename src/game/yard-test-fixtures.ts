@@ -69,13 +69,12 @@ export function fightTarget(game: AdventureGame, id: string, defend = true): voi
       const cells = reachableCombatCells(p, classKit(view.player.archetype).movementTiles, view.threats.filter(t => t.active && t.health > 0).map(t => t.position));
       let best: { destination: Position | null; action: "strike" | "brace"; timing: "before" | "after" } = { destination: null, action: "strike", timing: "before" }, bestScore = -Infinity;
       for (const action of (target.currentAbility.id === "foreman-pulse" ? ["brace"] : ["strike", "brace"]) as readonly ("strike" | "brace")[]) for (const destination of [null, ...cells]) for (const timing of destination && action === "strike" ? ["before", "after"] as const : ["before"] as const) {
-        game.clearQueuedActions(); tap(game, action);
-        if (!game.snapshot.combat.queued.some(entry => entry.action === action)) continue;
         if (destination && Math.hypot(destination.x-target.homePosition.x,destination.z-target.homePosition.z) > 8) continue;
+        game.clearQueuedActions(); tap(game, action);
         if (destination && !game.queueBait(destination)) continue;
         game.setActionTiming(timing);
         const forecast = game.snapshot.combat.forecast;
-        if (!forecast) continue;
+        if (!forecast?.actions.some(entry => entry.actorId === "solo" && entry.action === action)) continue;
         const health = forecast.outcomes.find(o => o.id === "solo")!.health;
         const damage = target.health - forecast.outcomes.find(o => o.id === id)!.health;
         const end = forecast.paths.find(path => path.actorId === "solo" && path.kind === "move")?.points.at(-1) ?? p;
