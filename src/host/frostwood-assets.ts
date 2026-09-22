@@ -6,7 +6,7 @@ import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { clone, retargetClip } from "three/addons/utils/SkeletonUtils.js";
 import { publicUrl } from "./public-url.js";
 import { canopyMaterial } from "./canopy-material.js";
-import { animateTorchFlame } from './torch-flame.js';
+import { replaceTorchFire } from './torch-flame.js';
 
 const root = "assets/quaternius/frostwood/";
 const loader = new GLTFLoader();
@@ -137,14 +137,10 @@ export async function prop(name: string, size: number, axis: "height" | "width" 
           }
           o.geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
         }
-        const surface = (m: Material, materialIndex = 0) => {
+        const surface = (m: Material) => {
           const color = "color" in m ? (m as MeshStandardMaterial).color.clone().convertLinearToSRGB() : new Color(0xffffff);
-          const flame = name === "WoodenTorch_Fire" && (m.name === "Fire" || m.name === "Yellow");
           if (weathered) color.lerp(new Color(name.startsWith('works/') ? '#777968' : '#858074'), .24);
-          const material = new MeshStandardMaterial({ name: m.name, color, vertexColors: weathered, roughness: 0.98, metalness: name.startsWith('works/') ? .16 : 0, transparent: m.transparent, opacity: m.opacity,
-            emissive: flame ? m.name === "Fire" ? 0xff712b : 0xffc461 : 0x000000, emissiveIntensity: flame ? 1.5 : 0 });
-          if (flame && m.name === 'Fire') animateTorchFlame(material, o.geometry, materialIndex);
-          return material;
+          return new MeshStandardMaterial({ name: m.name, color, vertexColors: weathered, roughness: 0.98, metalness: name.startsWith('works/') ? .16 : 0, transparent: m.transparent, opacity: m.opacity });
         };
         // A material array requires geometry groups; preserve single-surface meshes.
         o.material = Array.isArray(o.material) ? o.material.map(surface) : surface(o.material);
@@ -161,5 +157,7 @@ export async function prop(name: string, size: number, axis: "height" | "width" 
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     object.castShadow = !materials.some(material => material.transparent);
   });
-  return fit(model, size, axis);
+  const fitted = fit(model, size, axis);
+  if (name === 'WoodenTorch_Fire') replaceTorchFire(fitted);
+  return fitted;
 }

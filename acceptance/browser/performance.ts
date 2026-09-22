@@ -91,6 +91,7 @@ try {
     const after = await browser.call('Performance.getMetrics');
     await Bun.write(`${browser.output}/${phase}.cpuprofile`, JSON.stringify((profile.result as unknown as { profile: unknown }).profile));
     await Bun.write(`${browser.output}/${phase}-samples.json`, JSON.stringify(data));
+    await Bun.write(`${browser.output}/${phase}-draws.json`, JSON.stringify(await browser.evaluate('window.performanceProbe.captureDraws()'), null, 2));
     check(data.samples.length > 20, `${phase} must produce actual rendered frames`);
     const first = data.samples[0]!, last = data.samples.at(-1)!, seconds = (last.timestamp - first.timestamp) / 1000;
     const speed = (key: 'position' | 'serverPosition') => Math.hypot(last[key].x - first[key].x, last[key].z - first[key].z) / seconds;
@@ -122,6 +123,7 @@ try {
       await page.evaluate('window.performanceProbe.combatOnly=false');
     } else {
       await measure(location.id);
+      await page.shot(`${location.id}-stationary`);
       if (['town', 'hills', 'lake'].includes(location.id)) {
         await page.key('KeyW', true); await measure(`${location.id}-running`, 4000); await page.key('KeyW', false);
       }

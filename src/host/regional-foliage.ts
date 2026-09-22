@@ -274,6 +274,7 @@ export async function buildRegionalFoliage(parent: Group): Promise<void> {
     for (const [index,matrix] of batch.matrices.entries()) instances.setMatrixAt(index,matrix);
     instances.instanceMatrix.needsUpdate = true;
     instances.castShadow = batch.tree;
+    instances.userData.staticFoliage = !batch.tree;
     instances.receiveShadow = true;
     instances.computeBoundingSphere();
     instances.updateMatrix(); instances.matrixAutoUpdate = false;

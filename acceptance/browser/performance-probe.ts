@@ -33,6 +33,28 @@ export const performanceProbe = `
     Object.assign(probe.details, { nodes, meshes, emptyGroups });
     renderer.info.autoReset = false;
     const originalRender = renderer.render, originalDispose = renderer.dispose;
+    // Capture draw ownership separately from timing samples so attribution does
+    // not inflate the measured frame cost.
+    probe.captureDraws = async () => {
+      const draw = renderer.renderBufferDirect, entries = new Map();
+      const firstFrame = probe.rendered;
+      renderer.renderBufferDirect = function(camera, scene, geometry, material, object, group) {
+        const beforeCalls = renderer.info.render.calls, beforeTriangles = renderer.info.render.triangles;
+        const result = draw.call(this, camera, scene, geometry, material, object, group);
+        const names = []; for (let node = object; node; node = node.parent) if (node.name) names.push(node.name);
+        const pass = material.isMeshDepthMaterial || material.isMeshDistanceMaterial ? 'shadow' : camera === probe.camera ? 'main' : scene === probe.scene ? 'reflection' : 'postprocess';
+        const name = names.join('/') || geometry.type;
+        const key = [pass, name, material.name, material.type].join('|');
+        let entry = entries.get(key);
+        if (!entry) { entry = { pass, name, material: material.name, materialType: material.type, calls: 0, triangles: 0 }; entries.set(key, entry); }
+        entry.calls += renderer.info.render.calls - beforeCalls;
+        entry.triangles += renderer.info.render.triangles - beforeTriangles;
+        return result;
+      };
+      try { await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); }
+      finally { renderer.renderBufferDirect = draw; }
+      return { frames: probe.rendered - firstFrame, entries: [...entries.values()] };
+    };
     let depth = 0, frameActive = false, passes = 0, reflectionPasses = 0, renderMs = 0;
     const pending = [];
     // One frame includes the scene, water reflections, bloom and final output.
@@ -69,7 +91,7 @@ export const performanceProbe = `
       pending.length = 0;
       originalDispose.call(this);
       probe.lifecycle.push({ time: performance.now(), memory: { ...renderer.info.memory }, programs: renderer.info.programs.length });
-      if (probe.renderer === renderer) { probe.renderer = probe.scene = probe.camera = null; probe.beginFrame = null; }
+      if (probe.renderer === renderer) { probe.renderer = probe.scene = probe.camera = null; probe.beginFrame = probe.captureDraws = null; }
     };
   };
 })();`;

@@ -602,6 +602,7 @@ export async function buildFrostwood(terrain: Group, thicket: Group, innPosition
     const source = meshes[0]!;
     const instances = new InstancedMesh(source.geometry, source.material, meshes.length);
     instances.castShadow = source.castShadow;
+    instances.userData.staticFoliage = !source.castShadow;
     instances.receiveShadow = source.receiveShadow;
     inverse.copy(parent.matrixWorld).invert();
     for (const [index, mesh] of meshes.entries()) {

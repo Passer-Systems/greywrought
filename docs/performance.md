@@ -1,5 +1,42 @@
 # Performance examination — 21 September 2026
 
+## Lake foliage submission (0.21.51)
+
+Draw attribution identified dense fern/grass instances as the largest lake
+geometry cost. Previously a 36-metre batch submitted every plant when any part
+of its bounds entered the camera view. Each render now selects individual
+intersecting plants before uploading instance transforms, using the main or
+reflection camera's actual clip planes. Plant density and geometry are unchanged;
+trees and other shadow casters are excluded. Original bounds remain intact for
+camera collision and picking. The existing minimap capture precedes installation.
+
+In the focused 1440 × 900 AMD 890M/Vulkan comparison, stationary lake frames
+that include a reflection showed the following change:
+
+| Measurement | Before | After |
+|---|---:|---:|
+| CPU median | 36.8 ms | 27.4 ms |
+| CPU p95 | 42.7 ms | 30.9 ms |
+| Submitted triangles | 5,625,799 | 3,906,192 |
+| Draw calls | 808 | 785 |
+
+That is approximately 26% less CPU time and 31% fewer submitted triangles for
+equivalent reflection work. Overall lake GPU median/p95 changed from
+21.97/24.56 ms to 17.78/19.43 ms. Overall CPU median changed from 36.6 to 23.0 ms,
+but the faster frame cadence also reduced the fraction containing a scheduled
+15 Hz reflection, so the conditioned CPU comparison above is the useful claim.
+
+The browser comparison, focused clip-bound/camera-turn restoration and
+shadow-caster checks, typecheck, and build passed. Attribution runs separately
+from timing to avoid inflating measurements. Wide orbit tails remain above the
+60 Hz budget; differing camera/sample distributions prevent claiming every
+orientation improved. The running phases had different actual movement and
+are excluded from the comparison. These headless measurements establish the
+local rendering improvement, not a desktop frame-rate guarantee.
+
+Evidence: `greywrought:build/browser/lake-cost-before-794528/` and
+`greywrought:build/browser/lake-cost-after-809120/`.
+
 ## Terrain, foliage, camera and timed-combat update (0.21.50)
 
 The assembled world was measured at 1440 × 900, DPR 1, on an AMD Radeon

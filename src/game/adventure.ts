@@ -77,6 +77,8 @@ export interface ThreatDefinition {
   callsForHelp?: boolean;
   preparation: string; intention: string; damage: number; reach: number; benefit: string;
   disposition: ThreatView["disposition"]; aggroRange: number; leash: number; speed: number; pursuitSpeed?: number; patrol?: readonly Position[];
+  /** Begin a moving turn before patrol corners instead of resting at each point. */
+  patrolCornerRadius?: number;
 }
 interface ThreatState {
   slowedCycle: number;
@@ -150,6 +152,7 @@ function savedState(state: State): SavedState {
 const point = (x: number, z: number): Vector => ({ x, y: terrainHeight(x, z), z });
 const DEFINITIONS: readonly ThreatDefinition[] = [
   { id: "scout", level: 1, behavior: "head", disposition: "hostile", aggroRange: 6, leash: 14, speed: 1.6, name: "Cinder Watchman", position: point(-3, 30), health: 96,
+    patrolCornerRadius: .6,
     patrol: [point(-3, 30), point(-5, 32), point(-3, 34), point(-1, 32)],
     preparation: "Gathering fire", intention: "Fireball", damage: 3, reach: 10,
     benefit: "Clear the Cinder Watchman to make the first clearing safer." },
@@ -158,6 +161,7 @@ const DEFINITIONS: readonly ThreatDefinition[] = [
     preparation: "Enraged wings gathering", intention: "Enraged Swarm", damage: 16, reach: 3,
     benefit: "Defeat the bee to make the briar passage safer." },
   { id: "warder", level: 3, disposition: "hostile", aggroRange: 8, leash: 30, speed: 2, name: "Relic Warden", position: point(-3, 50), health: 144,
+    patrolCornerRadius: .6,
     patrol: [point(-3, 50), point(-4, 49), point(-2, 49), point(-2, 51)],
     preparation: "Drawing back its relic blade", intention: "Relic cleave", damage: 18, reach: 5,
     benefit: "Clear the warder to gather coolant crystals without live cabling." },
@@ -2158,10 +2162,24 @@ class Adventure implements AdventureGame {
     }
   }
   private patrol(t: ThreatState, dt: number): void {
-    const route = definition(t.id).patrol;
+    const d = definition(t.id), route = d.patrol;
     if (!route) return;
     t.phase = "patrol";
     if (t.remainingSeconds > 0) { t.remainingSeconds = Math.max(0, t.remainingSeconds - dt); return; }
+    if (d.patrolCornerRadius) {
+      if (distance(t.position, route[t.patrolIndex % route.length]!) <= d.patrolCornerRadius)
+        t.patrolIndex = (t.patrolIndex + 1) % route.length;
+      const destination = route[t.patrolIndex % route.length]!;
+      const current = Math.atan2(t.travelFacing.x, t.travelFacing.z);
+      const desired = Math.atan2(destination.x - t.position.x, destination.z - t.position.z);
+      const turn = Math.atan2(Math.sin(desired - current), Math.cos(desired - current));
+      // Leave room inside the corner approach for the body to follow its path.
+      const maxTurn = d.speed * dt / (d.patrolCornerRadius * .5);
+      const heading = current + Math.max(-maxTurn, Math.min(maxTurn, turn));
+      this.moveThreat(t, point(t.position.x + Math.sin(heading) * d.speed * dt, t.position.z + Math.cos(heading) * d.speed * dt), dt);
+      t.targetPosition = { ...t.position };
+      return;
+    }
     const destination = route[t.patrolIndex % route.length]!;
     this.moveThreat(t, destination, dt);
     if (distance(t.position, destination) <= EPSILON) {

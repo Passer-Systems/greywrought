@@ -17,6 +17,7 @@ import { actor, prop, type ForestActor } from "./frostwood-assets.js";
 import { buildWorldSigns } from "./world-signs.js";
 import { captureMinimap } from "./minimap.js";
 import { buildFrostwood } from "./frostwood-scenery.js";
+import { installFoliageCulling } from './foliage-culling.js';
 import { combatSurfaceHeight, conformToTerrain } from "./terrain-geometry.js";
 import { terrainCameraLift } from "./terrain-camera.js";
 import { createCameraCollision } from './camera-collision.js';
@@ -452,6 +453,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
   let playerAttackRemaining = 0;
   const playSocialAnimation = createSocialAnimation();
   let disposed = false;
+  let removeFoliageCulling: (() => void) | undefined;
   let otherPlayers: readonly RemotePlayerView[] = [];
   let updateScenery: ((coolingRestored: boolean, shiftEnded: boolean, wallTimeMillis: number, rainIntensity?: number) => void) | undefined;
   let elapsed = 0;
@@ -565,6 +567,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
     await captureMinimap(renderer, terrain, minimap);
     if(disposed)return;
     cameraCollision.install(terrain, [mara, rowan, elian, chestRoot, coreRoot, ...vendorActors.map(entry => entry.root), ...regionalHosts.map(entry => entry.root), ...flightMasters.map(entry => entry.root)]);
+    removeFoliageCulling = installFoliageCulling(scene);
     atmosphere.attach();
     await postprocessing.compile();
   });
@@ -1042,6 +1045,7 @@ export function createAdventureWorld(host: HTMLElement, initial: AdventureSnapsh
       disposeObjects(scene);
       scene.clear();
       postprocessing.dispose();
+      removeFoliageCulling?.();
       renderer.dispose();
       canvas.remove();
     },
