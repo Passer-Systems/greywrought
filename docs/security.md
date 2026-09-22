@@ -91,6 +91,9 @@ backup retention, and an isolated restore. The follow-up combat checks fixed
 Warden damage against passive solo targets and removed redundant test forecasts.
 Adventure, progression, combat, and shared/private encounter checks pass, along
 with the browser Warden pursuit and forecast-versus-execution journey.
+The full `bun run test` check now passes all 333 game tests plus character
+persistence and input-preference checks. Its remaining stale fixtures were
+updated for current return confirmations, world content, and combat behavior.
 
 Origins describe a site's scheme, host, and port, not a player's IP address.
 The previous localhost access was an explicit development allowlist, not a CORS

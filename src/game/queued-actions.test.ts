@@ -33,10 +33,14 @@ describe("committed attack resources", () => {
       expect(game.snapshot.player.attackSequence).toBe(sequence);
       expect(game.snapshot.player.position).toEqual(position);
       expect(game.snapshot.player.maneuver).toBe("none");
+      expect(scout(game).currentAbility.id).toBe("fire-rush");
       game.readyCombat(); finishCycle(game);
       expect(game.snapshot.player.attackSequence).toBe(sequence);
-      expect(scout(game).health).toBe(96 - damage - (archetype === "alchemist" ? 12 : 0));
-      if (archetype === "alchemist") expect(game.snapshot.combat.effects.some(effect => effect.kind === "ignition")).toBe(true);
+      expect(scout(game).health).toBe(96 - damage);
+      if (archetype === "alchemist") {
+        expect(scout(game).volatileResidue).toBe(true);
+        expect(game.snapshot.combat.effects.some(effect => effect.kind === "ignition")).toBe(false);
+      }
     }
   });
 

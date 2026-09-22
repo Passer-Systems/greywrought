@@ -47,6 +47,11 @@ test("bank stays character-owned through private fork, saved pause, and rejoin",
   expect(alice.bankTransfer("deposit", "supplies", 1)).toBe(false);
   expect(alice.bankTransfer("withdraw", "supplies", 1)).toBe(false);
   expect(world.rejoin("alice")).toBe(true); alice.interactNpc("bank");
+  expect(world.session("alice").mode).toBe("viewing");
+  expect(alice.bankTransfer("withdraw", "supplies", 10)).toBe(false);
+  expect(world.rejoin("alice")).toBe(true);
+  expect(world.session("alice").mode).toBe("shared");
+  alice.interactNpc("bank");
   expect(alice.bankTransfer("withdraw", "supplies", 10)).toBe(true);
   expect(alice.bankTransfer("withdraw", "supplies", 10)).toBe(false);
   expect(alice.snapshot).toMatchObject({ supplies: 15, bank: { supplies: 0, potions: 0 } });

@@ -267,8 +267,9 @@ test("patrolling creatures face travel through turns and hold their heading at s
   const game = createAdventure();
   const headings = new Map<string, Set<string>>();
   let previous = game.snapshot;
-  for (let step = 0; step < 480; step++) {
-    game.advance(1 / 30);
+  // Facing describes the last simulation step, not a chord across a curved turn.
+  for (let step = 0; step < 960; step++) {
+    game.advance(1 / 60);
     const current = game.snapshot;
     for (const threat of current.threats.filter(t => t.phase === "patrol")) {
       const before = previous.threats.find(t => t.id === threat.id)!;

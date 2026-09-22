@@ -61,6 +61,9 @@ test('returning characters resume clear of newly built town walls, including pri
   expect(blockedPosition(resident.snapshot.player.position.x, resident.snapshot.player.position.z)).toBe(false);
   expect(resident.snapshot.supplies).toBe(37); expect(resident.snapshot.player.health).toBe(71);
   expect(restored.resume('resident')).toBe(true); expect(restored.rejoin('resident')).toBe(true);
+  expect(restored.session('resident').mode).toBe('viewing');
+  expect(restored.rejoin('resident')).toBe(true);
+  expect(restored.session('resident').mode).toBe('shared');
   expect(blockedPosition(resident.snapshot.player.position.x, resident.snapshot.player.position.z)).toBe(false);
   expect(blockedPosition(-14, -10)).toBe(true);
   const before = resident.snapshot.player.position.x;
