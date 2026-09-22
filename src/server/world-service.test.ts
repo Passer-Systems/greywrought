@@ -1,6 +1,7 @@
 import { terrainHeight } from '../game/cave-layout.js';
 import { expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { watch } from 'node:fs';
 import { createConnection, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -894,7 +895,7 @@ async function securityFixture(options: Partial<import('./world-service.js').Wor
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, websocket: service.websocket, fetch: (request, host) => service.fetch(request, host) });
   const url = `http://127.0.0.1:${server.port}/world`;
   const sockets: WebSocket[] = [];
-  return { service, url, sockets,
+  return { service, url, sockets, directory, savePath: join(directory, 'world.json'),
     client(headers?: Record<string, string>) { const client = new Client(url.replace('http:', 'ws:'), headers); sockets.push(client.socket); return client; },
     async socket(headers?: Record<string, string>) {
       const socket = new WebSocket(url.replace('http:', 'ws:'), headers ? { headers } : {}); sockets.push(socket);
@@ -1007,4 +1008,165 @@ test('address limiter expires idle entries, bounds storage, and renews time wind
   for (let i = 0; i < 40; i++) expect(limits.register('address-0', 660_000)).toBe(true);
   expect(limits.register('address-0', 660_000)).toBe(false);
   expect(limits.register('address-0', 1_260_000)).toBe(true);
+});
+
+test('account authority rejects cross-account lookup, forged identity and post-join rebinding', async () => {
+  const fixture = await securityFixture();
+  const victim: LocalCharacter = { id: 'authority-victim', name: 'Victim', archetype: 'mage', createdAtMillis: 1 };
+  const attacker: LocalCharacter = { id: 'authority-attacker', name: 'Attacker', archetype: 'warrior', createdAtMillis: 2 };
+  const victimToken = crypto.randomUUID() + crypto.randomUUID(), attackerToken = crypto.randomUUID() + crypto.randomUUID();
+  const origin = new URL(fixture.url).origin;
+  try {
+    const owner = fixture.client({ Origin: origin }); await owner.connect(victim, victimToken);
+    const before = await owner.state();
+    const intruder = fixture.client({ Origin: origin }); await intruder.connect(victim, attackerToken);
+    expect(await intruder.wait(message => message.type === 'error')).toMatchObject({ text: 'This character belongs to another journey.' });
+    expect(intruder.messages.some(message => message.type === 'joined' || message.type === 'state')).toBe(false);
+    expect(await intruder.command({ type: 'bank', operation: 'withdraw', kind: 'potions', quantity: 1 })).toBe(false);
+    intruder.messages.length = 0;
+    intruder.socket.send(JSON.stringify({ type: 'characters', token: attackerToken, ids: [victim.id] }));
+    expect(await intruder.wait(message => message.type === 'characters')).toEqual({ type: 'characters', characters: [] });
+    intruder.socket.send(JSON.stringify({ type: 'join', token: attackerToken, character: attacker }));
+    expect(await intruder.wait(message => message.type === 'joined')).toEqual({ type: 'joined', character: attacker });
+    const ownState = await intruder.state();
+    intruder.messages.length = 0;
+    intruder.socket.send(JSON.stringify({ type: 'join', token: victimToken, character: victim }));
+    expect(await intruder.wait(message => message.type === 'error')).toMatchObject({ text: 'Choose a valid character to enter the world.' });
+    intruder.messages.length = 0;
+    intruder.socket.send(JSON.stringify({ type: 'characters', token: victimToken, ids: [victim.id] }));
+    expect(await intruder.wait(message => message.type === 'error')).toMatchObject({ text: 'Your characters could not be loaded.' });
+    for (const field of ['id', 'playerId', 'characterId', 'actorId']) {
+      expect(await intruder.invalid({ type: 'bank', operation: 'withdraw', kind: 'potions', quantity: 1, [field]: victim.id })).toBe(false);
+    }
+    intruder.messages.length = 0;
+    intruder.socket.send(JSON.stringify({ type: 'command', sequence: 50, playerId: victim.id, command: { type: 'action', action: 'drinkPotion', pressed: true } }));
+    expect(await intruder.wait(message => message.type === 'result' && message.sequence === 50)).toMatchObject({ accepted: false });
+    expect(await intruder.invalid({ type: 'chat', text: 'Forged', speakerId: victim.id, name: victim.name })).toBe(false);
+    expect(await intruder.command({ type: 'chat', text: 'Bound to my own character.' })).toBe(true);
+    const heard = await owner.state(state => state.chat.some(entry => entry.text === 'Bound to my own character.'));
+    expect(heard.chat.at(-1)).toMatchObject({ speakerId: attacker.id, name: attacker.name });
+    expect(heard.snapshot.potions).toBe(before.snapshot.potions);
+    expect(heard.snapshot.bank).toEqual(before.snapshot.bank);
+    expect(heard.snapshot.player.health).toBe(before.snapshot.player.health);
+    expect((await intruder.state(state => state.chat.some(entry => entry.text === 'Bound to my own character.'))).snapshot.potions).toBe(ownState.snapshot.potions);
+    const closed = socketClosed(owner.socket); owner.socket.close(); await closed;
+    const offlineAttempt = fixture.client({ Origin: origin }); await offlineAttempt.connect({ ...victim, name: 'Imposter' }, attackerToken);
+    expect(await offlineAttempt.wait(message => message.type === 'error')).toMatchObject({ text: 'This character belongs to another journey.' });
+    const returning = fixture.client({ Origin: origin }); await returning.connect(victim, victimToken);
+    expect((await returning.state()).session.mode).toBe('shared');
+  } finally { await fixture.close(); }
+});
+
+test('roster lookup grants no command authority and accepted command sequences cannot replay', async () => {
+  const fixture = await securityFixture();
+  const character: LocalCharacter = { id: 'authority-replay', name: 'Replay Tester', archetype: 'warrior', createdAtMillis: 1 }, token = crypto.randomUUID();
+  try {
+    const owner = fixture.client(); await owner.connect(character, token); await owner.state();
+    const lookup = fixture.client();
+    await new Promise<void>(resolve => { lookup.socket.onopen = () => resolve(); });
+    lookup.socket.send(JSON.stringify({ type: 'characters', token, ids: [character.id] }));
+    expect(await lookup.wait(message => message.type === 'characters')).toEqual({ type: 'characters', characters: [character] });
+    expect(await lookup.command({ type: 'chat', text: 'Lookup is not a login.' })).toBe(false);
+    const packet = { type: 'command', sequence: 100, command: { type: 'chat', text: 'Exactly one message.' } };
+    owner.socket.send(JSON.stringify(packet));
+    expect(await owner.wait(message => message.type === 'result' && message.sequence === 100)).toMatchObject({ accepted: true });
+    owner.messages.length = 0;
+    owner.socket.send(JSON.stringify(packet));
+    expect(await owner.wait(message => message.type === 'result' && message.sequence === 100)).toMatchObject({ accepted: false });
+    owner.socket.send(JSON.stringify({ ...packet, sequence: 99, command: { type: 'chat', text: 'Stale sequence.' } }));
+    expect(await owner.wait(message => message.type === 'result' && message.sequence === 99)).toMatchObject({ accepted: false });
+    for (const [offset, command] of [
+      { type: 'setHealth', health: 9999 }, { type: 'bank', operation: 'withdraw', kind: 'potions', quantity: -1 },
+      { type: 'movement', frames: [{ sequence: 1, seconds: 5, input: { forward: 1, strafe: 0, cameraX: 0, cameraZ: 1, jump: false } }] },
+      { type: 'movement', frames: [{ sequence: 1, seconds: .05, input: { forward: 99, strafe: 0, cameraX: 0, cameraZ: 1, jump: false } }] },
+      { type: 'camera', x: null, z: 1 },
+    ].entries()) {
+      const sequence = 101 + offset;
+      owner.socket.send(JSON.stringify({ type: 'command', sequence, command }));
+      expect(await owner.wait(message => message.type === 'result' && message.sequence === sequence)).toMatchObject({ accepted: false });
+    }
+    const state = await owner.state();
+    expect(state.chat.filter(entry => entry.text === packet.command.text)).toHaveLength(1);
+    expect(state.chat.some(entry => entry.text === 'Stale sequence.' || entry.text === 'Lookup is not a login.')).toBe(false);
+  } finally { await fixture.close(); }
+});
+
+test('chat markup remains literal data with server-owned attribution and markup names are rejected', async () => {
+  const fixture = await securityFixture();
+  try {
+    const badName = fixture.client();
+    await badName.connect({ id: 'markup-name', name: '<svg onload=1>', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
+    expect(await badName.wait(message => message.type === 'error')).toMatchObject({ text: 'Choose a valid character to enter the world.' });
+    const sender = fixture.client(), watcher = fixture.client();
+    await sender.connect({ id: 'markup-sender', name: 'Sender', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
+    await watcher.connect({ id: 'markup-watcher', name: 'Watcher', archetype: 'mage', createdAtMillis: 1 }, crypto.randomUUID());
+    await sender.state(); await watcher.state();
+    const text = '<img src=x onerror="globalThis.chatInjection=true"><svg onload="globalThis.chatInjection=true"></svg>';
+    expect(await sender.command({ type: 'chat', text })).toBe(true);
+    const received = await watcher.state(state => state.chat.some(entry => entry.text === text));
+    expect(received.chat.at(-1)).toEqual({ id: 1, speakerId: 'markup-sender', name: 'Sender', text });
+    expect(await sender.invalid({ type: 'chat', text: 'Forged private message', partyId: 'forged-party' })).toBe(false);
+    expect(await sender.invalid({ type: 'chat', text: 'Injected\u0000control' })).toBe(false);
+  } finally { await fixture.close(); }
+});
+
+test('unknown network target IDs leave the world responsive to both clients', async () => {
+  const fixture = await securityFixture();
+  try {
+    const malformed = fixture.client(), other = fixture.client();
+    await malformed.connect({ id: 'unknown-target-sender', name: 'Sender', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID());
+    await other.connect({ id: 'unknown-target-observer', name: 'Observer', archetype: 'mage', createdAtMillis: 1 }, crypto.randomUUID());
+    const before = await malformed.state(); await other.state();
+    await malformed.command({ type: 'target', id: 'valid-format-nonexistent-threat' });
+    expect(await other.command({ type: 'chat', text: 'Still here after the unknown target.' })).toBe(true);
+    const after = await malformed.state(state => state.chat.some(entry => entry.text === 'Still here after the unknown target.'));
+    expect(after.snapshot.selectedThreat).toBe(before.snapshot.selectedThreat);
+    expect(after.snapshot.player.health).toBe(before.snapshot.player.health);
+    expect(await malformed.command({ type: 'chat', text: 'This connection still works too.' })).toBe(true);
+    expect((await other.state(state => state.chat.some(entry => entry.text === 'This connection still works too.'))).session.mode).toBe('shared');
+    expect((await (await fetch(new URL('/health', fixture.url))).json()).ready).toBe(true);
+  } finally { await fixture.close(); }
+});
+
+test('preview floods coalesce to the latest hover without blanking that destination', async () => {
+  const fixture = await coordinationFixture('combat'), client = fixture.clients[0]!;
+  try {
+    client.messages.length = 0;
+    for (let index = 0; index < 120; index++) client.socket.send(JSON.stringify({ type: 'command', sequence: 1000 + index,
+      command: { type: 'previewBait', destination: { x: -6, y: index / 100, z: 28 } } }));
+    const latest = await client.wait(message => message.type === 'movePreview' && message.sequence === 1119);
+    expect(latest.type === 'movePreview' && latest.forecast !== null).toBe(true);
+    expect(client.messages.filter(message => message.type === 'movePreview' && message.forecast !== null).length).toBeLessThanOrEqual(2);
+    client.socket.send(JSON.stringify({ type: 'command', sequence: 1120, command: { type: 'previewBait', destination: { x: -6, y: 0, z: 28 } } }));
+    expect(await client.wait(message => message.type === 'result' && message.sequence === 1120)).toMatchObject({ accepted: true });
+    const next = await client.wait(message => message.type === 'movePreview' && message.sequence === 1120);
+    expect(next.type === 'movePreview' && next.forecast !== null).toBe(true);
+  } finally { await fixture.close(); }
+});
+
+test('repeated session controls are bounded while explicit pause still stops play immediately', async () => {
+  const fixture = await securityFixture();
+  let writes = 0;
+  const watcher = watch(fixture.directory, (event, filename) => { if (event === 'rename' && filename === 'world.json') writes++; });
+  try {
+    const client = fixture.client();
+    await client.connect({ id: 'controls-budget', name: 'Controls', archetype: 'warrior', createdAtMillis: 1 }, crypto.randomUUID()); await client.state();
+    expect(await client.command({ type: 'pause' })).toBe(true);
+    const duplicates = await Promise.all(Array.from({ length: 80 }, () => client.command({ type: 'pause' })));
+    expect(duplicates.filter(Boolean)).toHaveLength(0);
+    let resumes = 0, pauses = 0;
+    for (let index = 0; index < 12; index++) {
+      if (await client.command({ type: 'resume' })) resumes++;
+      if (await client.command({ type: 'pause' })) pauses++;
+    }
+    expect(resumes).toBe(4); expect(pauses).toBe(4);
+    client.messages.length = 0;
+    expect((await client.state()).session.mode).toBe('paused');
+    expect(await client.command({ type: 'action', action: 'forward', pressed: false })).toBe(true);
+    await fixture.service.close();
+    const saved = JSON.parse(await readFile(fixture.savePath, 'utf8'));
+    expect(JSON.parse(saved.world).instances.some((instance: { mode: string }) => instance.mode === 'paused')).toBe(true);
+    expect(writes).toBeGreaterThan(0);
+    expect(writes).toBeLessThanOrEqual(11);
+  } finally { watcher.close(); await fixture.close(); }
 });

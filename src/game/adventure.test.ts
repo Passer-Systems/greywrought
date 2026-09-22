@@ -16,6 +16,15 @@ function threat(game: AdventureGame, id: string): ThreatView {
   if (!target) throw new Error(`Missing test threat ${id}`);
   return target;
 }
+
+test("unknown network target IDs are ignored without changing the selected threat", () => {
+  const game = createAdventure();
+  game.selectTarget("scout");
+  const selected = game.snapshot.selectedThreat;
+  expect(() => game.selectTarget("not-a-real-threat")).not.toThrow();
+  expect(game.snapshot.selectedThreat).toBe(selected);
+});
+
 function enter(game: AdventureGame): void {
   walk(game, 0, 25);
   expect(game.snapshot.phase).toBe("expedition");

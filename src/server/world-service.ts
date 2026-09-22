@@ -100,6 +100,8 @@ export interface WorldSocketData {
   messagesStartedAt: number;
   messageCount: number;
   throttled: boolean;
+  nextPreviewAt: number;
+  sessionControlsAt: number[];
   id: string | null;
   openedAt: number;
   lastSequence: number;
@@ -167,26 +169,34 @@ export async function createWorldService(options: WorldServiceOptions) {
   let serverTime = 0;
   const clients = new Set<ServerWebSocket<WorldSocketData>>();
   const addressLimits = createAddressLimits();
+  const pendingPreviews = new Map<ServerWebSocket<WorldSocketData>, { sequence: number; command: Extract<WorldCommand, { type: 'previewBait' }> }>();
   const online = new Map<string, ServerWebSocket<WorldSocketData>>();
   const disconnectedUntil = new Map<string, number>();
   const privateChat = new Map<string, SharedChatMessage[]>();
   const rainOverrides = new Map<string, { target: number | null; from: number; startedAt: number }>();
   const partyPings = new Map<string, PartyPingView & { partyId: string; sessionId: string }>();
   let closed = false;
-  let saveQueue = Promise.resolve();
+  let saveQueue: Promise<void> | null = null;
+  let saveRequested = false;
   const onPersistenceError = options.onPersistenceError ?? (() => console.error('Shared world could not be saved.'));
 
   function persist(): Promise<void> {
-    const data: SavedService = { version: 1, accounts: [...accounts.values()], world: world.save(), chat: [...chat], nextChatId, parties: [...parties.values()] };
-    const source = JSON.stringify(data);
-    const next = saveQueue.catch(() => {}).then(async () => {
-      await mkdir(dirname(options.savePath), { recursive: true, mode: 0o700 });
-      const temporary = `${options.savePath}.tmp`;
-      await writeFile(temporary, source, { mode: 0o600 });
-      await rename(temporary, options.savePath);
+    saveRequested = true;
+    if (saveQueue) return saveQueue;
+    saveQueue = Promise.resolve().then(async () => {
+      try {
+        while (saveRequested) {
+          saveRequested = false;
+          const data: SavedService = { version: 1, accounts: [...accounts.values()], world: world.save(), chat: [...chat], nextChatId, parties: [...parties.values()] };
+          const source = JSON.stringify(data);
+          await mkdir(dirname(options.savePath), { recursive: true, mode: 0o700 });
+          const temporary = `${options.savePath}.tmp`;
+          await writeFile(temporary, source, { mode: 0o600 });
+          await rename(temporary, options.savePath);
+        }
+      } finally { saveQueue = null; }
     });
-    saveQueue = next;
-    return next;
+    return saveQueue;
   }
   function send(socket: ServerWebSocket<WorldSocketData>, message: ServerWorldMessage): void {
     socket.send(JSON.stringify(message), message.type === 'state');
@@ -313,6 +323,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     world.leave(id, cohort(id));
   }
   function disconnect(socket: ServerWebSocket<WorldSocketData>, immediate = false): void {
+    pendingPreviews.delete(socket);
     if (clients.delete(socket)) addressLimits.disconnect(socket.data.address);
     const id = socket.data.id;
     if (id === null || online.get(id) !== socket) return;
@@ -359,7 +370,7 @@ export async function createWorldService(options: WorldServiceOptions) {
     if (session.mode === 'viewing' && value.type !== 'rejoin' && value.type !== 'returnSpot' && value.type !== 'camera' && value.type !== 'chat') return false;
     switch (value.type) {
       case 'partyPing': case 'partyInvite': case 'partyAccept': case 'partyDecline': case 'partyLeave': case 'partyKick': return applyParty(id, value, socket);
-      case 'pause': return world.pause(id, cohort(id));
+      case 'pause': return session.mode !== 'paused' && world.pause(id, cohort(id));
       case 'resume': return world.resume(id);
       case 'rejoin': {
         const previous = session.id;
@@ -516,15 +527,21 @@ export async function createWorldService(options: WorldServiceOptions) {
       if (player && keys(value, ['type', 'sequence', 'command']) && sequence > socket.data.lastSequence && command(value.command)) {
         const stopping = (value.command.type === 'action' && !value.command.pressed) || (value.command.type === 'mouseForward' && !value.command.active);
         const session = world.session(socket.data.id!);
-        const priority = value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin' || stopping;
+        const control = value.command.type === 'resume' || value.command.type === 'rejoin';
+        const preview = value.command.type === 'previewBait';
+        const priority = value.command.type === 'pause' || control || stopping || preview;
+        socket.data.sessionControlsAt = socket.data.sessionControlsAt.filter(at => now - at < 1000);
         const allowedWhilePaused = priority || value.command.type === 'chat' || value.command.type === 'camera' || value.command.type === 'target' || value.command.type.startsWith('party');
-        if ((session.mode !== 'paused' || allowedWhilePaused) && (priority || socket.data.commandsAt.length < 120)) {
+        if ((!control || socket.data.sessionControlsAt.length < 4) && (session.mode !== 'paused' || allowedWhilePaused) && (priority || socket.data.commandsAt.length < 120)) {
           socket.data.lastSequence = sequence;
-          if (!stopping) socket.data.commandsAt.push(now);
+          if (!stopping && !preview) socket.data.commandsAt.push(now);
           if (value.command.type === 'previewBait') {
             accepted = true;
-            void player.previewBait(value.command.destination, value.command.via, value.command.waitTicks).then(forecast => send(socket, { type: 'movePreview', sequence, forecast }));
+            const replaced = pendingPreviews.get(socket);
+            if (replaced) send(socket, { type: 'movePreview', sequence: replaced.sequence, forecast: null });
+            pendingPreviews.set(socket, { sequence, command: value.command });
           } else accepted = apply(player, value.command, socket);
+          if (accepted && control) socket.data.sessionControlsAt.push(now);
           // Route submission receipts release the editor; its snapshot must already show the accepted plan.
           if (accepted && value.command.type === 'bait') broadcast();
           if (accepted && (value.command.type === 'pause' || value.command.type === 'resume' || value.command.type === 'rejoin' || value.command.type.startsWith('party'))) {
@@ -546,6 +563,22 @@ export async function createWorldService(options: WorldServiceOptions) {
     const elapsed = Math.min((now - previousTick) / 1000, 0.25);
     previousTick = now;
     world.advance(elapsed);
+    // One latest request per player, at most five per second each and twenty
+    // across the world. Removing completed entries gives queued peers a turn.
+    for (const [socket, preview] of pendingPreviews) {
+      if (now < socket.data.nextPreviewAt) continue;
+      pendingPreviews.delete(socket);
+      socket.data.nextPreviewAt = now + 200;
+      const id = socket.data.id;
+      const player = id === null ? undefined : world.getPlayer(id);
+      const mode = id === null ? null : world.session(id).mode;
+      if (player && (mode === 'shared' || mode === 'private')) {
+        void player.previewBait(preview.command.destination, preview.command.via, preview.command.waitTicks)
+          .then(forecast => { if (clients.has(socket)) send(socket, { type: 'movePreview', sequence: preview.sequence, forecast }); })
+          .catch(() => { if (clients.has(socket)) send(socket, { type: 'movePreview', sequence: preview.sequence, forecast: null }); });
+      } else send(socket, { type: 'movePreview', sequence: preview.sequence, forecast: null });
+      break;
+    }
     if (online.size > 0) { serverTime += elapsed; broadcast(); }
     for (const socket of [...clients]) {
       if (socket.data.id === null) continue;
@@ -582,12 +615,12 @@ export async function createWorldService(options: WorldServiceOptions) {
       if (options.allowedOrigins !== undefined ? origin === null || !options.allowedOrigins.includes(origin) : origin !== null && origin !== url.origin) return new Response('Please enter from the game.', { status: 403 });
       if (clients.size >= MAX_PLAYERS * 2) return new Response('The world is busy. Please try again shortly.', { status: 503 });
       if (!addressLimits.connect(address)) return new Response('Too many connections. Please try again shortly.', { status: 429, headers: { 'Retry-After': '10' } });
-      if (server.upgrade(request, { data: { address, messagesStartedAt: openedAt, messageCount: 0, throttled: false, id: null, openedAt, lastSequence: -1, commandsAt: [], chatsAt: [], lastPingAt: openedAt, lastPongAt: openedAt } })) return undefined;
+      if (server.upgrade(request, { data: { address, messagesStartedAt: openedAt, messageCount: 0, throttled: false, nextPreviewAt: 0, sessionControlsAt: [], id: null, openedAt, lastSequence: -1, commandsAt: [], chatsAt: [], lastPingAt: openedAt, lastPongAt: openedAt } })) return undefined;
       addressLimits.disconnect(address);
       return new Response('Enter the world through the game.', { status: 426 });
     },
     async close(): Promise<void> {
-      if (closed) return saveQueue;
+      if (closed) return saveQueue ?? Promise.resolve();
       closed = true;
       clearInterval(tick); clearInterval(saves);
       for (const socket of [...clients]) { disconnect(socket); socket.close(1001, 'World restarting'); }

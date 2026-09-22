@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly copy of Greywrought backup to this machine
+
+[Timer]
+OnCalendar=*-*-* *:10:00
+RandomizedDelaySec=2m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

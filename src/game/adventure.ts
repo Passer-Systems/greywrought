@@ -951,7 +951,9 @@ class Adventure implements AdventureGame {
     this.emoteSeconds = definition.name === "dance" ? Infinity : 3;
   }
   selectTarget(id: string): void {
-    definition(id);
+    // Target IDs arrive from the network. Ignore unknown identifiers rather
+    // than letting a malformed client command throw through the world tick.
+    if (!definitionsById.has(id)) return;
     this.state.selectedThreat = id;
   }
   private executionLocked(): boolean { return this.inCombat() && this.state.combat.clock.phase === "active"; }

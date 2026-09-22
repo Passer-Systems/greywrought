@@ -1,0 +1,18 @@
+[Unit]
+Description=Back up Greywrought world and character access
+After=greywrought-world.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/greywrought-backup
+User=root
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/var/lib/greywrought
+ReadWritePaths=/var/backups/greywrought
+PrivateNetwork=true
+MemoryMax=128M
+CPUQuota=25%

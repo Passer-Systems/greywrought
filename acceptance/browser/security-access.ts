@@ -27,6 +27,12 @@ for (const [index, launcher] of ['dev-server.ts', 'static-server.ts'].entries())
     await page.key('KeyD', true);
     await page.waitFor(`Number(document.body.dataset.gamePlayerX) < ${start - 0.5}`);
     await page.key('KeyD', false);
+    const markup = '<img src=x onerror="globalThis.chatInjection=true"><svg onload="globalThis.chatInjection=true"></svg>';
+    await page.press('Enter');
+    await page.call('Input.insertText', { text: markup });
+    await page.press('Enter');
+    await page.waitFor(`document.getElementById('chat-log-messages').textContent.includes(${JSON.stringify(markup)})`);
+    check(await page.evaluate("!globalThis.chatInjection && !document.querySelector('#chat-log-messages img, #chat-log-messages svg')"), 'Chat markup must display as text without executing');
     await page.reload();
     await page.waitFor('["roster", "world"].includes(document.body.dataset.entryRoute)');
     await page.evaluate('if (document.body.dataset.entryRoute === "roster") document.getElementById("entry-enter-world").click()');
@@ -34,7 +40,7 @@ for (const [index, launcher] of ['dev-server.ts', 'static-server.ts'].entries())
     check(page.requests.includes(url.replace('http:', 'ws:') + 'world'), 'Browser must use the local world socket');
     check(!page.requests.some(request => /^(https?|wss?):/.test(request) && new URL(request).hostname !== '127.0.0.1'), 'Local play must not request external resources');
     check(page.errors.length === 0, 'Local play must remain free of browser errors');
-    console.log(`PASS ${launcher}: default local world, character entry, movement, reload/reconnect, no external requests`);
+    console.log(`PASS ${launcher}: default local world, character entry, movement, literal chat markup, reload/reconnect, no external requests`);
   } finally {
     await page?.close();
     server.kill('SIGTERM');

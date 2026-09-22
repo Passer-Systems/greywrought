@@ -1,0 +1,11 @@
+[Unit]
+Description=Copy Greywrought backup off the game server
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/libexec/greywrought-pull-backup
+UMask=0077
+NoNewPrivileges=true
+TimeoutStartSec=3m
+MemoryMax=128M
+CPUQuota=25%
